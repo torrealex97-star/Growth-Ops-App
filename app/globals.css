@@ -3,27 +3,167 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
-  --background: 230 32% 7%; --foreground: 210 40% 98%;
-  --card: 229 28% 11%; --card-foreground: 210 40% 98%;
-  --popover: 229 28% 11%; --popover-foreground: 210 40% 98%;
-  --primary: 205 100% 56%; --primary-foreground: 230 32% 7%;
-  --secondary: 228 22% 16%; --secondary-foreground: 210 40% 98%;
-  --muted: 228 22% 16%; --muted-foreground: 215 18% 65%;
-  --accent: 335 55% 53%; --accent-foreground: 210 40% 98%;
-  --destructive: 0 72% 51%; --destructive-foreground: 210 40% 98%;
-  --border: 228 20% 20%; --input: 228 20% 20%; --ring: 205 100% 56%; --radius: .9rem;
+  --pink-primary: #C9477A;
+  --pink-light: #E8729A;
+  --dark-bg: #0f0f1a;
+  --dark-card: #1a1a2e;
+  --dark-border: #2a2a3e;
 }
-* { box-sizing: border-box; border-color: hsl(var(--border)); }
-html { background: #0b0d17; }
-body { margin: 0; min-height: 100vh; color: hsl(var(--foreground)); background: radial-gradient(circle at 12% 0%, rgba(30,158,255,.16), transparent 34rem), radial-gradient(circle at 90% 20%, rgba(201,71,122,.10), transparent 30rem), #0b0d17; font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; }
-a { color: inherit; text-decoration: none; }
-button, input { font: inherit; }
-.shell { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
-.glass { background: rgba(20,23,39,.72); border: 1px solid rgba(255,255,255,.08); backdrop-filter: blur(18px); }
-.eyebrow { color: #61b8ff; font-size: .78rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
-.button { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 0 20px; border-radius: 999px; border: 1px solid transparent; background: #1e9eff; color: #07111b; font-weight: 800; cursor: pointer; transition: .2s ease; }
-.button:hover { transform: translateY(-1px); box-shadow: 0 12px 35px rgba(30,158,255,.25); }
-.button.secondary { background: rgba(255,255,255,.04); color: #eef5ff; border-color: rgba(255,255,255,.12); }
-.input { width: 100%; min-height: 48px; padding: 0 15px; border-radius: 12px; color: white; background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.12); outline: none; }
-.input:focus { border-color: #1e9eff; box-shadow: 0 0 0 3px rgba(30,158,255,.14); }
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans), Inter, system-ui, -apple-system, sans-serif;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.6);
+}
+
+/* Recharts custom */
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: hsl(var(--popover)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 10px !important;
+  color: hsl(var(--popover-foreground)) !important;
+}
+
+/* ── Utilidades de marca IA WINNERS ── */
+/* Texto "cromado" para titulares clave */
+.text-chrome {
+  background: linear-gradient(180deg, #ffffff 0%, #cfe6ff 45%, #7fbaf0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+/* Glow eléctrico sutil (usar con moderación en CTAs/tarjetas destacadas) */
+.brand-glow {
+  box-shadow: 0 0 0 1px hsl(var(--primary) / 0.25), 0 0 28px -6px hsl(var(--primary) / 0.5);
+}
+.font-display {
+  font-family: var(--font-display), 'Space Grotesk', Inter, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/* ── Microinteracciones (profesionalismo: hover/press/focus) ── */
+/* Tarjeta interactiva: se eleva y realza el borde al pasar el ratón. */
+.card-interactive {
+  cursor: pointer;
+  transition: transform .2s cubic-bezier(.2,.8,.2,1), box-shadow .22s ease, border-color .2s ease, background-color .2s ease;
+  will-change: transform;
+}
+.card-interactive:hover {
+  transform: translateY(-3px);
+  border-color: hsl(var(--primary) / 0.45);
+  box-shadow: 0 12px 34px -16px rgba(0,0,0,.65), 0 0 0 1px hsl(var(--primary) / 0.12), 0 0 22px -10px hsl(var(--primary) / 0.35);
+}
+.card-interactive:active { transform: translateY(-1px); }
+
+/* Elevación ligera sin cambiar borde (para stat-cards, etc.) */
+.lift { transition: transform .2s cubic-bezier(.2,.8,.2,1), box-shadow .22s ease; will-change: transform; }
+.lift:hover { transform: translateY(-3px); box-shadow: 0 12px 30px -16px rgba(0,0,0,.6); }
+
+/* Micro "press" para botones/tarjetas pulsables */
+.press { transition: transform .12s ease; }
+.press:active { transform: scale(.97); }
+
+/* Foco visible accesible (teclado) con color de marca */
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--primary) / 0.55);
+  border-radius: 8px;
+}
+
+/* Cursor de puntero en elementos accionables */
+button:not(:disabled), a[href], [role="button"], summary, label[for] { cursor: pointer; }
+
+/* Respeta a quien prefiere menos movimiento */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
+  .card-interactive:hover, .lift:hover { transform: none; }
+}
+
+/* shadcn/ui CSS variables — IA WINNERS (azul eléctrico + cromo).
+   :root = tema CLARO · .dark = tema OSCURO. Primario = azul de marca. */
+:root {
+  --background: 210 40% 99%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 205 100% 48%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 205 100% 96%;
+  --accent-foreground: 205 100% 30%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 205 100% 48%;
+  --radius: 0.75rem;
+}
+
+.dark {
+  --background: 222 47% 5%;
+  --foreground: 210 20% 96%;
+  --card: 222 40% 8%;
+  --card-foreground: 210 20% 96%;
+  --popover: 222 44% 7%;
+  --popover-foreground: 210 20% 96%;
+  --primary: 205 100% 56%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 217 33% 15%;
+  --secondary-foreground: 210 20% 96%;
+  --muted: 217 33% 14%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 217 40% 16%;
+  --accent-foreground: 205 100% 80%;
+  --destructive: 0 62.8% 40%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 217 33% 16%;
+  --input: 217 33% 16%;
+  --ring: 205 100% 56%;
+  --radius: 0.75rem;
+}
+
+/* Loading skeleton */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #1a1a2e 25%,
+    #222238 50%,
+    #1a1a2e 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}

@@ -1,0 +1,544 @@
+"use client"
+
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Plus, RotateCcw, Search, Loader2, Download, X } from 'lucide-react'
+import { formatDate, formatCurrency } from '@/lib/utils'
+import { calculateNegativeCommissionsForRefund } from '@/lib/commissions/calculator'
+import { toast } from 'sonner'
+import type { Refund, SaleWithRelations, Commission } from '@/lib/types/database'
+
+type RefundWithSale = Refund & { sales?: SaleWithRelations }
+
+type PeriodPreset = 'all' | 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom'
+
+const PERIOD_LABELS: Record<PeriodPreset, string> = {
+  all: 'Todo',
+  today: 'Hoy',
+  week: 'Esta semana',
+  month: 'Este mes',
+  quarter: 'Este trimestre',
+  year: 'Este año',
+  custom: 'Personalizado',
+}
+
+function getPeriodRange(preset: PeriodPreset, customFrom: string, customTo: string): { from: Date | null; to: Date | null } {
+  const now = new Date()
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0)
+  const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
+
+  switch (preset) {
+    case 'today': {
+      return { from: startOfDay(now), to: endOfDay(now) }
+    }
+    case 'week': {
+      const day = now.getDay() === 0 ? 7 : now.getDay() // lunes = inicio de semana
+      const monday = new Date(now)
+      monday.setDate(now.getDate() - day + 1)
+      const sunday = new Date(monday)
+      sunday.setDate(monday.getDate() + 6)
+      return { from: startOfDay(monday), to: endOfDay(sunday) }
+    }
+    case 'month': {
+      const from = new Date(now.getFullYear(), now.getMonth(), 1)
+      const to = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+      return { from: startOfDay(from), to: endOfDay(to) }
+    }
+    case 'quarter': {
+      const q = Math.floor(now.getMonth() / 3)
+      const from = new Date(now.getFullYear(), q * 3, 1)
+      const to = new Date(now.getFullYear(), q * 3 + 3, 0)
+      return { from: startOfDay(from), to: endOfDay(to) }
+    }
+    case 'year': {
+      const from = new Date(now.getFullYear(), 0, 1)
+      const to = new Date(now.getFullYear(), 11, 31)
+      return { from: startOfDay(from), to: endOfDay(to) }
+    }
+    case 'custom': {
+      const from = customFrom ? startOfDay(new Date(customFrom)) : null
+      const to = customTo ? endOfDay(new Date(customTo)) : null
+      return { from, to }
+    }
+    default:
+      return { from: null, to: null }
+  }
+}
+
+function csvEscape(value: string): string {
+  if (value == null) return ''
+  const str = String(value)
+  if (/[",\n]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`
+  }
+  return str
+}
+
+function downloadCSV(filename: string, headers: string[], rows: (string | number)[][]) {
+  const lines = [headers, ...rows].map((r) => r.map((c) => csvEscape(String(c))).join(','))
+  const csv = '﻿' + lines.join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+export default function RefundsPage() {
+  const [refunds, setRefunds] = useState<RefundWithSale[]>([])
+  const [loading, setLoading] = useState(true)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  // Form state
+  const [saleSearch, setSaleSearch] = useState('')
+  const [saleResults, setSaleResults] = useState<SaleWithRelations[]>([])
+  const [selectedSale, setSelectedSale] = useState<SaleWithRelations | null>(null)
+  const [refundAmount, setRefundAmount] = useState('')
+  const [reason, setReason] = useState('')
+  const [refundDate, setRefundDate] = useState(new Date().toISOString().split('T')[0])
+  const [searchLoading, setSearchLoading] = useState(false)
+
+  // Periodo
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all')
+  const [customFrom, setCustomFrom] = useState<string>('')
+  const [customTo, setCustomTo] = useState<string>('')
+
+  const fetchRefunds = async () => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('refunds')
+      .select(`*, sales(*, contacts(*), payment_plans(*))`)
+      .order('refund_date', { ascending: false })
+
+    if (error) {
+      toast.error('Error al cargar devoluciones')
+    } else {
+      setRefunds(data as RefundWithSale[])
+    }
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    fetchRefunds()
+  }, [])
+
+  const searchSales = useCallback(async (query: string) => {
+    if (!query || query.length < 2) {
+      setSaleResults([])
+      return
+    }
+    setSearchLoading(true)
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('sales')
+      .select(`*, contacts(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name), products(*)`)
+      .neq('status', 'refunded')
+      .limit(6)
+
+    setSaleResults((data ?? []) as SaleWithRelations[])
+    setSearchLoading(false)
+  }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(() => searchSales(saleSearch), 300)
+    return () => clearTimeout(timer)
+  }, [saleSearch, searchSales])
+
+  const periodRange = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
+
+  const filteredRefunds = useMemo(() => {
+    return refunds.filter((r) => {
+      if (periodPreset !== 'all') {
+        const relevant = r.refund_date ? new Date(r.refund_date) : null
+        if (!relevant) return false
+        if (periodRange.from && relevant < periodRange.from) return false
+        if (periodRange.to && relevant > periodRange.to) return false
+      }
+      return true
+    })
+  }, [refunds, periodPreset, periodRange])
+
+  const periodFileTag = useMemo(() => {
+    if (periodPreset === 'all') return 'todas'
+    if (periodPreset === 'custom') {
+      return `${customFrom || 'inicio'}_a_${customTo || 'fin'}`
+    }
+    return periodPreset
+  }, [periodPreset, customFrom, customTo])
+
+  const clearFilters = () => {
+    setPeriodPreset('all')
+    setCustomFrom('')
+    setCustomTo('')
+  }
+
+  const handleExportCSV = () => {
+    const headers = ['Fecha', 'Cliente', 'Plan', 'Importe devuelto', 'Importe comisionable', 'Motivo', 'Estado']
+    const rows = filteredRefunds.map((r) => [
+      r.refund_date ? new Date(r.refund_date).toLocaleDateString('es-ES') : '',
+      r.sales?.contacts?.full_name ?? '',
+      r.sales?.payment_plans?.name ?? '',
+      r.gross_refund_amount,
+      r.commissionable_refund_amount,
+      r.reason ?? '',
+      r.status,
+    ])
+    downloadCSV(`devoluciones_${periodFileTag}.csv`, headers, rows)
+  }
+
+  const commissionableRefund = selectedSale && refundAmount
+    ? parseFloat(refundAmount) * (selectedSale.payment_plans?.cash_collection_ratio ?? 1)
+    : 0
+
+  const handleSubmit = async () => {
+    if (!selectedSale || !refundAmount || !reason) {
+      toast.error('Completa todos los campos obligatorios')
+      return
+    }
+
+    setSubmitting(true)
+    const supabase = createClient()
+    const { data: authUser } = await supabase.auth.getUser()
+
+    const refundPayload = {
+      sale_id: selectedSale.id,
+      collection_id: null,
+      refund_date: refundDate,
+      gross_refund_amount: parseFloat(refundAmount),
+      commissionable_refund_amount: commissionableRefund,
+      reason,
+      status: 'processed' as const,
+      created_by: authUser.user?.id ?? '',
+      notes: null,
+    }
+
+    const { data: newRefund, error } = await supabase
+      .from('refunds')
+      .insert(refundPayload)
+      .select()
+      .single()
+
+    if (error || !newRefund) {
+      toast.error('Error al registrar la devolucion', { description: error?.message })
+      setSubmitting(false)
+      return
+    }
+
+    // Update sale status — vía API con service-role: `sales` en RLS solo tiene políticas de
+    // SELECT e INSERT, ningún rol (ni admin) puede hacer UPDATE directo desde el cliente (0 filas,
+    // sin error). Sin esto, la venta se quedaba como "active" para siempre pese a devolverse.
+    const saleUpdateRes = await fetch(`/api/evergreen/sales/${selectedSale.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'refunded' }),
+    })
+    if (!saleUpdateRes.ok) {
+      const d = await saleUpdateRes.json().catch(() => ({}))
+      toast.error('Devolución registrada, pero no se pudo marcar la venta como devuelta', { description: d?.error })
+    }
+
+    // Get existing commissions for negative mirror
+    const { data: existingCommissions } = await supabase
+      .from('commissions')
+      .select('*')
+      .eq('sale_id', selectedSale.id)
+      .eq('direction', 'positive')
+
+    if (existingCommissions && existingCommissions.length > 0) {
+      const negativeCommissions = calculateNegativeCommissionsForRefund(
+        newRefund,
+        existingCommissions as Commission[]
+      )
+      if (negativeCommissions.length > 0) {
+        await supabase.from('commissions').insert(negativeCommissions)
+      }
+    }
+
+    // Audit log
+    if (authUser.user) {
+      await supabase.from('audit_logs').insert({
+        actor_user_id: authUser.user.id,
+        entity_type: 'refund',
+        entity_id: newRefund.id,
+        action: 'create',
+        old_values: null,
+        new_values: refundPayload,
+      })
+    }
+
+    toast.success('Devolucion registrada correctamente')
+    setDialogOpen(false)
+    fetchRefunds()
+    setSubmitting(false)
+    setSelectedSale(null)
+    setSaleSearch('')
+    setRefundAmount('')
+    setReason('')
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Devoluciones</h1>
+          <p className="text-muted-foreground text-sm mt-1">Gestion de reembolsos y cancelaciones</p>
+        </div>
+        <Button onClick={() => setDialogOpen(true)}>
+          <Plus className="w-4 h-4 mr-2" />
+          Registrar Devolucion
+        </Button>
+      </div>
+
+      {/* Filtros */}
+      <div className="rounded-lg border border-border bg-card/50 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-foreground">Filtros</span>
+          <div className="flex items-center gap-2">
+            {periodPreset !== 'all' && (
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={clearFilters}>
+                <X className="w-3.5 h-3.5 mr-1" />
+                Limpiar filtros
+              </Button>
+            )}
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleExportCSV}>
+              <Download className="w-3.5 h-3.5 mr-1" />
+              Exportar CSV
+            </Button>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Periodo</Label>
+            <Select value={periodPreset} onValueChange={(v) => setPeriodPreset(v as PeriodPreset)}>
+              <SelectTrigger className="bg-muted border-border h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border">
+                {(Object.keys(PERIOD_LABELS) as PeriodPreset[]).map((p) => (
+                  <SelectItem key={p} value={p}>{PERIOD_LABELS[p]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {periodPreset === 'custom' && (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Periodo desde</Label>
+                <Input
+                  type="date"
+                  value={customFrom}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  className="bg-muted border-border h-9"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Periodo hasta</Label>
+                <Input
+                  type="date"
+                  value={customTo}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  className="bg-muted border-border h-9"
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="space-y-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-12 bg-card rounded-lg animate-pulse" />
+          ))}
+        </div>
+      ) : filteredRefunds.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <RotateCcw className="w-12 h-12 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-medium text-foreground mb-2">No hay devoluciones</h3>
+          <p className="text-muted-foreground text-sm">Las devoluciones registradas apareceran aqui</p>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-border hover:bg-transparent">
+                <TableHead className="text-muted-foreground">Fecha</TableHead>
+                <TableHead className="text-muted-foreground">Venta</TableHead>
+                <TableHead className="text-muted-foreground">Importe devuelto</TableHead>
+                <TableHead className="text-muted-foreground">Motivo</TableHead>
+                <TableHead className="text-muted-foreground">Estado</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredRefunds.map((r) => (
+                <TableRow key={r.id} className="border-border">
+                  <TableCell className="text-foreground text-sm">{formatDate(r.refund_date)}</TableCell>
+                  <TableCell>
+                    <p className="text-foreground text-sm">{r.sales?.contacts?.full_name || '—'}</p>
+                    <p className="text-muted-foreground text-xs">{r.sales?.payment_plans?.name || ''}</p>
+                  </TableCell>
+                  <TableCell className="text-red-400 font-medium">{formatCurrency(r.gross_refund_amount)}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm max-w-xs truncate">{r.reason || '—'}</TableCell>
+                  <TableCell>
+                    <Badge variant={
+                      r.status === 'processed' ? 'destructive' :
+                      r.status === 'pending' ? 'warning' : 'secondary'
+                    }>
+                      {r.status}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {/* Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="bg-card border-border text-foreground max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Registrar Devolucion</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 mt-2">
+            {/* Buscar venta */}
+            <div className="space-y-2">
+              <Label>Venta *</Label>
+              {selectedSale ? (
+                <div className="bg-muted border border-border rounded-lg p-3 flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-foreground text-sm">{selectedSale.contacts?.full_name}</p>
+                    <p className="text-xs text-muted-foreground">{selectedSale.payment_plans?.name} — {formatCurrency(selectedSale.gross_amount)}</p>
+                  </div>
+                  <Button variant="ghost" size="sm" className="text-muted-foreground text-xs" onClick={() => setSelectedSale(null)}>
+                    Cambiar
+                  </Button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar venta..."
+                    value={saleSearch}
+                    onChange={(e) => setSaleSearch(e.target.value)}
+                    className="pl-9 bg-muted border-border"
+                  />
+                  {(saleResults.length > 0 || searchLoading) && (
+                    <div className="absolute top-full left-0 right-0 z-10 mt-1 border border-border rounded-lg overflow-hidden bg-card">
+                      {searchLoading ? (
+                        <div className="p-3 text-center text-muted-foreground text-sm">Buscando...</div>
+                      ) : saleResults.map((s) => (
+                        <button
+                          key={s.id}
+                          className="w-full text-left px-4 py-3 hover:bg-muted border-b border-border last:border-0 text-sm"
+                          onClick={() => {
+                            setSelectedSale(s)
+                            setSaleSearch('')
+                            setSaleResults([])
+                            setRefundAmount(String(s.gross_amount))
+                          }}
+                        >
+                          <p className="text-foreground font-medium">{s.contacts?.full_name}</p>
+                          <p className="text-muted-foreground text-xs">{s.payment_plans?.name}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Fecha */}
+            <div className="space-y-2">
+              <Label>Fecha *</Label>
+              <Input
+                type="date"
+                value={refundDate}
+                onChange={(e) => setRefundDate(e.target.value)}
+                className="bg-muted border-border"
+              />
+            </div>
+
+            {/* Importe */}
+            <div className="space-y-2">
+              <Label>Importe a devolver *</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={refundAmount}
+                onChange={(e) => setRefundAmount(e.target.value)}
+                className="bg-muted border-border"
+                placeholder="0.00"
+              />
+            </div>
+
+            {/* Motivo */}
+            <div className="space-y-2">
+              <Label>Motivo *</Label>
+              <Textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="bg-muted border-border min-h-[80px]"
+                placeholder="Razon de la devolucion..."
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleSubmit}
+                disabled={submitting || !selectedSale || !refundAmount || !reason}
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Procesando...
+                  </>
+                ) : (
+                  'Registrar Devolucion'
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}

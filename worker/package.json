@@ -1,0 +1,19 @@
+{
+  "name": "iawinners-transcription-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Worker de transcripción de llamadas (Drive → ffmpeg → Groq → Claude → Supabase)",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.36.3",
+    "@supabase/supabase-js": "^2.45.0",
+    "ffmpeg-static": "^5.2.0",
+    "googleapis": "^144.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
