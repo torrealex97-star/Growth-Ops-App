@@ -1,0 +1,84 @@
+import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
+import { cookies } from 'next/headers'
+import { NextRequest, NextResponse } from 'next/server'
+
+export const runtime = 'nodejs'
+
+// Actualiza un contacto con service-role. La tabla contacts tiene RLS con solo política de
+// SELECT (ver app/api/evergreen/contacts/create/route.ts), así que el UPDATE desde el cliente
+// lo bloquea RLS para roles no-admin: Supabase no devuelve error, simplemente actualiza 0 filas,
+// y la app mostraba "Contacto actualizado" aunque nada se hubiera guardado de verdad.
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params
+    const body = await req.json()
+
+    const cookieStore = await cookies()
+    const authed = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
+    )
+    const { data: { user } } = await authed.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    const { data: urow } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
+    const role = (urow?.roles as { key?: string } | null)?.key
+    if (!role) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+
+    const clean = (v: unknown) => {
+      const s = typeof v === 'string' ? v.trim() : v
+      return s === '' || s === undefined ? null : s
+    }
+
+    // Actualización PARCIAL: solo se tocan los campos que vienen en el body. Así un cambio
+    // puntual (p.ej. lead_status desde el tablero de Leads) no pisa a null el resto de campos
+    // del contacto (nombre, email...) que no se enviaron en esta llamada.
+    const EDITABLE_FIELDS = [
+      'first_name', 'last_name', 'email', 'phone', 'country',
+      'company_name', 'instagram', 'notes', 'lead_status', 'lead_channel',
+    ] as const
+    const patch: Record<string, unknown> = {}
+    for (const field of EDITABLE_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(body, field)) patch[field] = clean(body[field])
+    }
+    if ('first_name' in patch || 'last_name' in patch) {
+      const sb2 = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      })
+      const { data: current } = await sb2.from('contacts').select('first_name, last_name').eq('id', id).single()
+      const firstName = ('first_name' in patch ? patch.first_name : current?.first_name) as string | null
+      const lastName = ('last_name' in patch ? patch.last_name : current?.last_name) as string | null
+      patch.full_name = [firstName, lastName].filter(Boolean).join(' ') || null
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 })
+    }
+
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+
+    const { data: updated, error } = await sb
+      .from('contacts')
+      .update(patch)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    await sb.from('audit_logs').insert({
+      actor_user_id: user.id,
+      entity_type: 'contact',
+      entity_id: id,
+      action: 'update',
+      new_values: patch,
+    })
+
+    return NextResponse.json({ ok: true, contact: updated })
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
+  }
+}

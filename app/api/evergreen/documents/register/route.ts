@@ -1,0 +1,107 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
+import { createClient as createServerClient } from '@/lib/supabase/server'
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+async function getUserRole(userId: string): Promise<string | null> {
+  const { data } = await supabase.from('users').select('role_id').eq('id', userId).single()
+  if (!data?.role_id) return null
+  const { data: role } = await supabase.from('roles').select('key').eq('id', data.role_id).single()
+  return role?.key || null
+}
+
+const DNI_LETTERS = 'TRWAGMYFPDXBNJZSQVHLCKE'
+
+function isValidDni(raw: string): boolean {
+  const v = raw.trim().toUpperCase()
+  const m = v.match(/^(\d{8})([A-Z])$/)
+  if (!m) return false
+  const [, digits, letter] = m
+  return DNI_LETTERS[Number(digits) % 23] === letter
+}
+
+function isValidNie(raw: string): boolean {
+  const v = raw.trim().toUpperCase()
+  const m = v.match(/^([XYZ])(\d{7})([A-Z])$/)
+  if (!m) return false
+  const prefixMap: Record<string, string> = { X: '0', Y: '1', Z: '2' }
+  const [, prefix, digits, letter] = m
+  const num = Number(prefixMap[prefix] + digits)
+  return DNI_LETTERS[num % 23] === letter
+}
+
+// Registra el documento de identidad del alumno (tipo + número, sin foto) y decide si pasa la
+// verificación: DNI/NIE se validan por checksum; "otro" es el cortafuegos, siempre pasa; pasaporte
+// solo exige que haya un número escrito (no hay checksum estándar universal).
+export async function POST(req: NextRequest) {
+  try {
+    const authed = await createServerClient()
+    const { data: { user: me } } = await authed.auth.getUser()
+    if (!me) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+
+    const { saleId, documentType, documentNumber } = await req.json()
+    if (!saleId || !documentType) {
+      return NextResponse.json({ error: 'Falta la venta o el tipo de documento' }, { status: 400 })
+    }
+    if (!['dni', 'pasaporte', 'nie', 'otro'].includes(documentType)) {
+      return NextResponse.json({ error: 'Tipo de documento no válido' }, { status: 400 })
+    }
+
+    const userRole = await getUserRole(me.id)
+    const allowedRoles = ['admin', 'director', 'closer']
+    if (!userRole || !allowedRoles.includes(userRole)) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+    }
+
+    const { data: sale } = await supabase.from('sales').select('id').eq('id', saleId).single()
+    if (!sale) return NextResponse.json({ error: 'Venta no encontrada' }, { status: 404 })
+
+    const number = String(documentNumber ?? '').trim()
+
+    if (documentType === 'dni' && !isValidDni(number)) {
+      return NextResponse.json({ error: 'El DNI no es válido (formato: 12345678A)' }, { status: 400 })
+    }
+    if (documentType === 'nie' && !isValidNie(number)) {
+      return NextResponse.json({ error: 'El NIE no es válido (formato: X1234567A)' }, { status: 400 })
+    }
+    if (documentType === 'pasaporte' && number.length < 5) {
+      return NextResponse.json({ error: 'Escribe el número de pasaporte' }, { status: 400 })
+    }
+    // 'otro' no se valida: es el cortafuegos para no bloquear el envío del contrato.
+
+    const { error: updateError } = await supabase
+      .from('sales')
+      .update({
+        student_document_type: documentType,
+        student_document_number: number || null,
+        documents_verified: true,
+        documents_verified_at: new Date().toISOString(),
+        documents_verified_by: me.id,
+      })
+      .eq('id', saleId)
+
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 })
+    }
+
+    try {
+      await supabase.from('audit_logs').insert({
+        action: 'document_verification_register',
+        target_table: 'sales',
+        target_id: saleId,
+        user_id: me.id,
+        details: { documentType, timestamp: new Date().toISOString() },
+      })
+    } catch {
+      // No fallar si no existe la tabla
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 })
+  }
+}
