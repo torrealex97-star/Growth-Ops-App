@@ -93,7 +93,7 @@ export function ScriptQueueProvider({ children }: { children: React.ReactNode })
       patchJob(job.cmId, { status: 'done', draft: json.draft, ideaId: json.ideaId ?? null })
       if (job.save && json.ideaId) {
         toast.success(`Guión de ${job.label} añadido a Ideas`, {
-          action: { label: 'Ver', onClick: () => router.push(`/${tenant}/content`) },
+          action: { label: 'Ver', onClick: () => router.push(`/${tenant}/instagram/contenido`) },
         })
         notifySystem('Guión listo', `${job.label} añadido a Contenido como idea`)
       } else {
@@ -176,7 +176,7 @@ export function ScriptQueueProvider({ children }: { children: React.ReactNode })
     }).select('id').single()
     if (error) { toast.error('No se pudo añadir a Ideas', { description: error.message }); return }
     patchJob(job.cmId, { save: true, ideaId: data?.id ?? null })
-    toast.success('Añadido a Ideas', { action: { label: 'Ver', onClick: () => router.push(`/${tenant}/content`) } })
+    toast.success('Añadido a Ideas', { action: { label: 'Ver', onClick: () => router.push(`/${tenant}/instagram/contenido`) } })
     setReviewId(null)
   }
 
@@ -223,7 +223,7 @@ export function ScriptQueueProvider({ children }: { children: React.ReactNode })
                   </div>
                   {j.status === 'done' && (
                     j.save && j.ideaId
-                      ? <button onClick={() => router.push(`/${tenant}/content`)} className="shrink-0 text-pink-300 hover:text-pink-200">Ver</button>
+                      ? <button onClick={() => router.push(`/${tenant}/instagram/contenido`)} className="shrink-0 text-pink-300 hover:text-pink-200">Ver</button>
                       : <button onClick={() => setReviewId(j.cmId)} className="shrink-0 text-pink-300 hover:text-pink-200">Abrir</button>
                   )}
                   {j.status === 'error' && (

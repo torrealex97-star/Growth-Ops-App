@@ -51,7 +51,7 @@ export function CreateProjectDialog({ open, onOpenChange }: Props) {
       })
       if (!res.ok) throw new Error("Error al crear")
       const project = await res.json()
-      router.push(`/${tenant}/carruseles/${project.id}`)
+      router.push(`/${tenant}/instagram/carruseles/${project.id}`)
     } catch (e) {
       toast.error((e as Error).message)
       setCreating(false)

@@ -59,7 +59,7 @@ function Metric({ label, value, detail, tone = 'neutral' }: { label: string; val
   )
 }
 
-export default function DataHealthPage() {
+export function DataHealthPanel() {
   const tenant = useTenant()
   const tenantId = useTenantId()
   const [summary, setSummary] = useState<DataHealthSummary>(EMPTY)

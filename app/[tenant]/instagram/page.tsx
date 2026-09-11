@@ -206,12 +206,12 @@ export default function InstagramPage() {
 
   const demoBy = (dim: string) => audience.filter((a) => a.dimension === dim).sort((x, y) => y.value - x.value).slice(0, 6)
 
-  if (loading) return <div className="p-6 text-muted-foreground">Cargando…</div>
+  if (loading) return <div className="text-muted-foreground">Cargando…</div>
 
   const empty = media.length === 0 && daily.length === 0
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">

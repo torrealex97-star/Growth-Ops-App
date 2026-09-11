@@ -44,6 +44,16 @@ const nextConfig = {
       // Setting AI se movió a Marketing (a petición del usuario) — vuelve a vivir en /setting-ai,
       // así que solo redirigimos la ruta breve de Recursos de venta, no la original.
       { source: '/:tenant/recursos/setting-ai', destination: '/:tenant/setting-ai', permanent: true },
+
+      // Reorganización de "Marketing" (Adquisición / Instagram / Data Health→Settings).
+      { source: '/:tenant/campaigns', destination: '/:tenant/marketing/adquisicion/campanas', permanent: true },
+      { source: '/:tenant/attribution', destination: '/:tenant/marketing/adquisicion/atribucion', permanent: true },
+      { source: '/:tenant/vsl', destination: '/:tenant/marketing/adquisicion/vsl', permanent: true },
+      { source: '/:tenant/content/reels', destination: '/:tenant/instagram/reels', permanent: true },
+      { source: '/:tenant/carruseles', destination: '/:tenant/instagram/carruseles', permanent: true },
+      { source: '/:tenant/carruseles/:id', destination: '/:tenant/instagram/carruseles/:id', permanent: true },
+      { source: '/:tenant/content', destination: '/:tenant/instagram/contenido', permanent: true },
+      { source: '/:tenant/data-health', destination: '/:tenant/settings?tab=data-health', permanent: true },
     ]
   },
 }

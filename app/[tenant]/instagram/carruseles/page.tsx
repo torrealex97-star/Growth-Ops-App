@@ -79,7 +79,7 @@ export default function CarruselesDashboard() {
     const res = await fetch(`/api/${tenant}/evergreen/carruseles/templates/${id}/use`, { method: "POST" })
     if (res.ok) {
       const project = await res.json()
-      router.push(`/${tenant}/carruseles/${project.id}`)
+      router.push(`/${tenant}/instagram/carruseles/${project.id}`)
     }
   }
 
@@ -97,7 +97,7 @@ export default function CarruselesDashboard() {
   const projectCard = (p: CarruselProject) => (
     <Link
       key={p.id}
-      href={`/${tenant}/carruseles/${p.id}`}
+      href={`/${tenant}/instagram/carruseles/${p.id}`}
       className="group rounded-xl border border-border bg-card overflow-hidden hover:border-brand-400/50 transition-colors"
     >
       <div className="aspect-[4/5] bg-background/40 relative overflow-hidden">

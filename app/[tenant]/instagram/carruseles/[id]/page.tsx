@@ -94,7 +94,7 @@ export default function CarruselEditorPage({ params }: { params: { id: string } 
     return (
       <div className="h-[60vh] flex flex-col items-center justify-center gap-3">
         <p className="text-lg font-semibold">Proyecto no encontrado</p>
-        <Link href={`/${tenant}/carruseles`} className="text-sm text-brand-400 underline">
+        <Link href={`/${tenant}/instagram/carruseles`} className="text-sm text-brand-400 underline">
           Volver
         </Link>
       </div>
@@ -113,7 +113,7 @@ export default function CarruselEditorPage({ params }: { params: { id: string } 
     <div className="flex flex-col h-[calc(100vh-7.5rem)] min-h-[560px] -m-4 lg:-m-6">
       {/* Barra superior */}
       <div className="h-12 border-b border-border bg-card flex items-center px-3 gap-2 shrink-0">
-        <Link href={`/${tenant}/carruseles`} className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted">
+        <Link href={`/${tenant}/instagram/carruseles`} className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted">
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <input

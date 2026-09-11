@@ -242,7 +242,7 @@ export default function ContentPage() {
   const detailItem = detailId ? items.find((c) => c.id === detailId) || null : null
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2"><Clapperboard className="w-6 h-6 text-brand-400" /> Contenido</h1>
