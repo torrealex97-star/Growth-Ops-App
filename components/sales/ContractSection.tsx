@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { FileText, Copy, Check, ExternalLink, Send, Loader2, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
+import { useTenant } from '@/lib/tenant-context'
 
 type StudentContract = {
   id: string
@@ -62,6 +63,7 @@ function StepDot({ done, label, at }: { done: boolean; label: string; at?: strin
 type Recipient = 'alumno' | 'tomador' | 'ambos'
 
 export function ContractSection({ saleId }: { saleId: string }) {
+  const tenant = useTenant()
   const [contract, setContract] = useState<StudentContract | null>(null)
   const [payerContract, setPayerContract] = useState<StudentContract | null>(null)
   const [loading, setLoading] = useState(true)
@@ -73,7 +75,7 @@ export function ContractSection({ saleId }: { saleId: string }) {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/evergreen/contracts/student?saleId=${saleId}`)
+      const res = await fetch(`/api/${tenant}/evergreen/contracts/student?saleId=${saleId}`)
       const d = await res.json().catch(() => ({}))
       setContract(d.contract ?? null)
       setPayerContract(d.payerContract ?? null)
@@ -89,7 +91,7 @@ export function ContractSection({ saleId }: { saleId: string }) {
 
   const generate = async (send: boolean) => {
     setBusy(true)
-    const res = await fetch('/api/evergreen/contracts/student', {
+    const res = await fetch(`/api/${tenant}/evergreen/contracts/student`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ saleId, send, recipient }),

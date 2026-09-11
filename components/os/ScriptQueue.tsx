@@ -1,4 +1,5 @@
 'use client'
+import { useTenant } from '@/lib/tenant-context'
 
 // Cola global de guiones (transcribir + generar) que vive en el layout de /evergreen,
 // no en la página de Competencia. Así sigue procesando aunque cambies de sección.
@@ -44,6 +45,7 @@ const CONCURRENCY = 2
 const LS_KEY = 'iaw_script_jobs'
 
 export function ScriptQueueProvider({ children }: { children: React.ReactNode }) {
+  const tenant = useTenant()
   const router = useRouter()
   const [jobs, setJobs] = useState<ScriptJob[]>([])
   const [trayOpen, setTrayOpen] = useState(true)
@@ -72,7 +74,7 @@ export function ScriptQueueProvider({ children }: { children: React.ReactNode })
     try {
       let transcript = job.transcript
       if (!transcript) {
-        const t = await fetch('/api/evergreen/instagram/transcribe', {
+        const t = await fetch(`/api/${tenant}/evergreen/instagram/transcribe`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ competitorMediaId: job.cmId }),
         })
@@ -82,7 +84,7 @@ export function ScriptQueueProvider({ children }: { children: React.ReactNode })
         patchJob(job.cmId, { transcript })
       }
       patchJob(job.cmId, { status: 'scripting' })
-      const res = await fetch('/api/evergreen/instagram/script', {
+      const res = await fetch(`/api/${tenant}/evergreen/instagram/script`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ competitorMediaId: job.cmId, transcript, saveAsIdea: job.save, testimonio: job.testimonio || undefined }),
       })
@@ -91,7 +93,7 @@ export function ScriptQueueProvider({ children }: { children: React.ReactNode })
       patchJob(job.cmId, { status: 'done', draft: json.draft, ideaId: json.ideaId ?? null })
       if (job.save && json.ideaId) {
         toast.success(`Guión de ${job.label} añadido a Ideas`, {
-          action: { label: 'Ver', onClick: () => router.push('/evergreen/content') },
+          action: { label: 'Ver', onClick: () => router.push(`/${tenant}/content`) },
         })
         notifySystem('Guión listo', `${job.label} añadido a Contenido como idea`)
       } else {
@@ -174,7 +176,7 @@ export function ScriptQueueProvider({ children }: { children: React.ReactNode })
     }).select('id').single()
     if (error) { toast.error('No se pudo añadir a Ideas', { description: error.message }); return }
     patchJob(job.cmId, { save: true, ideaId: data?.id ?? null })
-    toast.success('Añadido a Ideas', { action: { label: 'Ver', onClick: () => router.push('/evergreen/content') } })
+    toast.success('Añadido a Ideas', { action: { label: 'Ver', onClick: () => router.push(`/${tenant}/content`) } })
     setReviewId(null)
   }
 
@@ -221,7 +223,7 @@ export function ScriptQueueProvider({ children }: { children: React.ReactNode })
                   </div>
                   {j.status === 'done' && (
                     j.save && j.ideaId
-                      ? <button onClick={() => router.push('/evergreen/content')} className="shrink-0 text-pink-300 hover:text-pink-200">Ver</button>
+                      ? <button onClick={() => router.push(`/${tenant}/content`)} className="shrink-0 text-pink-300 hover:text-pink-200">Ver</button>
                       : <button onClick={() => setReviewId(j.cmId)} className="shrink-0 text-pink-300 hover:text-pink-200">Abrir</button>
                   )}
                   {j.status === 'error' && (

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { AlertCircle, CheckCircle2, Shield, Upload, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
+import { useTenant } from '@/lib/tenant-context'
 
 type VerificationStatus = 'pending' | 'verified' | 'rejected'
 
@@ -49,6 +50,7 @@ export function DocumentVerificationSection({
   contactEmail?: string | null
   userRole?: string | null
 }) {
+  const tenant = useTenant()
   const [docs, setDocs] = useState<SaleDocumentState | null>(null)
   const [loading, setLoading] = useState(true)
   const [applying, setApplying] = useState(false)
@@ -61,7 +63,7 @@ export function DocumentVerificationSection({
 
   const loadDocumentState = async () => {
     try {
-      const res = await fetch(`/api/evergreen/documents/state?saleId=${saleId}`)
+      const res = await fetch(`/api/${tenant}/evergreen/documents/state?saleId=${saleId}`)
       const data = await res.json()
       if (res.ok) setDocs(data)
     } finally {
@@ -81,7 +83,7 @@ export function DocumentVerificationSection({
 
     setApplying(true)
     try {
-      const res = await fetch('/api/evergreen/documents/register', {
+      const res = await fetch(`/api/${tenant}/evergreen/documents/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ saleId, documentType, documentNumber }),

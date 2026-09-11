@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { ImagePlus, Loader2, X } from "lucide-react"
 import { toast } from "sonner"
 import { youtubeId, type Testimonio } from "@/lib/testimonios-shared"
+import { useTenant } from '@/lib/tenant-context'
 
 /** Campos del formulario: lo que se envía a la API al crear o editar. */
 export interface TestimonioFormValues {
@@ -58,6 +59,7 @@ interface Props {
 }
 
 export function TestimonioForm({ values, onChange, disabled }: Props) {
+  const tenant = useTenant()
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const set = <K extends keyof TestimonioFormValues>(k: K, v: TestimonioFormValues[K]) =>
@@ -68,7 +70,7 @@ export function TestimonioForm({ values, onChange, disabled }: Props) {
     try {
       const fd = new FormData()
       fd.append("file", file)
-      const res = await fetch("/api/evergreen/testimonios/upload", { method: "POST", body: fd })
+      const res = await fetch(`/api/${tenant}/evergreen/testimonios/upload`, { method: "POST", body: fd })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || "Error al subir")
       set("photoUrl", data.url)

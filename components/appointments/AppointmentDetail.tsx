@@ -20,6 +20,7 @@ import type { AppointmentWithRelations, AppointmentStatus } from '@/lib/types/da
 import { STATUS_COLORS, STATUS_LABELS } from '@/lib/appointments/status'
 import { getQualificationEntries, type Qualification } from '@/lib/appointments/qualification'
 import { guessContactTimezone, TIMEZONE_OPTIONS } from '@/lib/timezone'
+import { useTenant } from '@/lib/tenant-context'
 
 // Campos IA (aún no están en el tipo Appointment global — se acceden vía cast local)
 type AiAnalysis = {
@@ -106,6 +107,7 @@ export function AppointmentDetail({
   onCloserChanged,
   onSetterChanged,
 }: AppointmentDetailProps) {
+  const tenant = useTenant()
   const appointment = appointmentProp as AppointmentWithAi
   const [updating, setUpdating] = useState(false)
   const [updatingFollowUp, setUpdatingFollowUp] = useState(false)
@@ -184,7 +186,7 @@ export function AppointmentDetail({
     setLoadingActivities(true)
     ;(async () => {
       try {
-        const res = await fetch(`/api/evergreen/contacts/${appointment.contact_id}/activities`)
+        const res = await fetch(`/api/${tenant}/evergreen/contacts/${appointment.contact_id}/activities`)
         const json = await res.json()
         if (!cancelled && res.ok) setActivities(json.activities || [])
       } catch {
@@ -200,7 +202,7 @@ export function AppointmentDetail({
     if (!appointment.contact_id) return
     setPostingActivity(true)
     try {
-      const res = await fetch(`/api/evergreen/contacts/${appointment.contact_id}/activities`, {
+      const res = await fetch(`/api/${tenant}/evergreen/contacts/${appointment.contact_id}/activities`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'llamada', result: newActivityResult, notes: newActivityNotes.trim() || undefined }),
@@ -232,7 +234,7 @@ export function AppointmentDetail({
     setRsMsg('')
     ;(async () => {
       try {
-        const res = await fetch(`/api/evergreen/calendly/availability?closerId=${appointment.closer_id}&date=${rsDate}`)
+        const res = await fetch(`/api/${tenant}/evergreen/calendly/availability?closerId=${appointment.closer_id}&date=${rsDate}`)
         const json = await res.json()
         if (cancelled) return
         if (!res.ok) {
@@ -284,7 +286,7 @@ export function AppointmentDetail({
     }
     setRescheduling(true)
     try {
-      const res = await fetch('/api/evergreen/appointments/reschedule', {
+      const res = await fetch(`/api/${tenant}/evergreen/appointments/reschedule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appointmentId: appointment.id, startTime: startTimeToSend, durationMinutes: appointment.duration_minutes || undefined, timezone: rsContactTimezone, manualOnly: usesManualDatetime }),
@@ -312,7 +314,7 @@ export function AppointmentDetail({
   const saveNote = async () => {
     setSavingNote(true)
     try {
-      const res = await fetch('/api/evergreen/appointments/update', {
+      const res = await fetch(`/api/${tenant}/evergreen/appointments/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appointmentId: appointment.id, patch: { notes: notes.trim(), recording_url: recordingUrl.trim() } }),
@@ -333,7 +335,7 @@ export function AppointmentDetail({
     // Vía endpoint server-side: la RLS de appointments solo deja UPDATE a admin/director; el endpoint
     // (service role) permite además que el setter/closer gestione SUS propias agendas.
     try {
-      const res = await fetch('/api/evergreen/appointments/status', {
+      const res = await fetch(`/api/${tenant}/evergreen/appointments/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appointmentId: appointment.id, status: newStatus }),
@@ -363,7 +365,7 @@ export function AppointmentDetail({
     }
     setCloserSaving(true)
     try {
-      const res = await fetch('/api/evergreen/appointments/reassign-closer', {
+      const res = await fetch(`/api/${tenant}/evergreen/appointments/reassign-closer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appointmentId: appointment.id, closerId: newCloserId }),
@@ -389,7 +391,7 @@ export function AppointmentDetail({
     }
     setSetterSaving(true)
     try {
-      const res = await fetch('/api/evergreen/appointments/reassign-setter', {
+      const res = await fetch(`/api/${tenant}/evergreen/appointments/reassign-setter`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appointmentId: appointment.id, setterId: newSetterId }),
@@ -411,7 +413,7 @@ export function AppointmentDetail({
     const next = !appointment.needs_followup
     setUpdatingFollowUp(true)
     try {
-      const res = await fetch('/api/evergreen/appointments/follow-up', {
+      const res = await fetch(`/api/${tenant}/evergreen/appointments/follow-up`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appointmentId: appointment.id, needsFollowup: next }),
@@ -437,7 +439,7 @@ export function AppointmentDetail({
       // Con enlace de Drive (y sin transcripción pegada) → se procesa en segundo plano
       // (el worker soporta cualquier duración). La app solo lo encola.
       if (driveUrl.trim() && !transcriptText.trim()) {
-        const res = await fetch('/api/evergreen/ai/queue-call', {
+        const res = await fetch(`/api/${tenant}/evergreen/ai/queue-call`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ appointmentId: appointment.id, driveUrl: driveUrl.trim() }),
@@ -451,7 +453,7 @@ export function AppointmentDetail({
         return
       }
       // Transcripción pegada → análisis inmediato
-      const res = await fetch('/api/evergreen/ai/call', {
+      const res = await fetch(`/api/${tenant}/evergreen/ai/call`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -485,7 +487,7 @@ export function AppointmentDetail({
 
   const saveTranscriptFields = async () => {
     try {
-      const res = await fetch('/api/evergreen/appointments/update', {
+      const res = await fetch(`/api/${tenant}/evergreen/appointments/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appointmentId: appointment.id, patch: { transcript_drive_url: driveUrl.trim(), transcript: transcriptText.trim() } }),
@@ -503,7 +505,7 @@ export function AppointmentDetail({
     const reason = window.prompt('Motivo de la cancelación (opcional):') ?? ''
     setCancelling(true)
     try {
-      const res = await fetch('/api/evergreen/appointments/cancel', {
+      const res = await fetch(`/api/${tenant}/evergreen/appointments/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appointmentId: appointment.id, reason: reason.trim() || undefined }),
@@ -532,7 +534,7 @@ export function AppointmentDetail({
     const reason = window.prompt('Motivo (opcional, queda en el registro):') ?? ''
     setDeleting(true)
     try {
-      const res = await fetch('/api/evergreen/appointments/delete', {
+      const res = await fetch(`/api/${tenant}/evergreen/appointments/delete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appointmentId: appointment.id, reason: reason.trim() || undefined }),
@@ -885,7 +887,7 @@ export function AppointmentDetail({
             <dt className="text-sm text-muted-foreground shrink-0 w-36">Ficha de contacto</dt>
             <dd className="text-sm text-right">
               <a
-                href={`/evergreen/contacts/${appointment.contact_id}`}
+                href={`/${tenant}/contacts/${appointment.contact_id}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-brand-400 hover:underline"

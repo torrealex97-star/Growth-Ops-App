@@ -6,7 +6,7 @@
 //
 // El modelo solo se encarga de extraer el CONTENIDO (hook, punto A, punto B, cifra,
 // vehículo) del texto libre que pega el usuario. Ver:
-//   app/api/evergreen/carruseles/caso-exito/route.ts
+//   app/api/${tenant}/evergreen/carruseles/caso-exito/route.ts
 //
 // NOTA: scripts/gen-carruseles-testimonios.mjs mantiene una copia equivalente de estas
 // plantillas porque es un script standalone de Node y no puede importar TypeScript.

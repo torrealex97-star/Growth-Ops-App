@@ -20,6 +20,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import type { CollectionWithRelations } from '@/lib/types/database'
+import { useTenant } from '@/lib/tenant-context'
 
 const columnHelper = createColumnHelper<CollectionWithRelations>()
 const coreRowModel = getCoreRowModel()
@@ -30,6 +31,7 @@ interface CollectionsTableProps {
 }
 
 export function CollectionsTable({ collections }: CollectionsTableProps) {
+  const tenant = useTenant()
   const router = useRouter()
 
   const columns = useMemo(() => [
@@ -47,7 +49,7 @@ export function CollectionsTable({ collections }: CollectionsTableProps) {
           className="text-brand-400 hover:text-brand-300 text-sm text-left"
           onClick={(e) => {
             e.stopPropagation()
-            router.push(`/evergreen/sales/${row.original.sale_id}`)
+            router.push(`/${tenant}/sales/${row.original.sale_id}`)
           }}
         >
           <p className="font-medium">{row.original.sales?.contacts?.full_name || '—'}</p>

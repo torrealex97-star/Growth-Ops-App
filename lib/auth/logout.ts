@@ -11,7 +11,7 @@ import { createClient } from '@/lib/supabase/client'
 // Solución: cerrar sesión en local (instantáneo, sin esperar al servidor),
 // con un timeout de seguridad, y redirigir con un hard reload para que la app
 // se re-monte sin sesión ni usuario cacheado.
-export async function performLogout(redirectTo = '/evergreen/login') {
+export async function performLogout(redirectTo = '/') {
   try {
     const supabase = createClient()
     await Promise.race([

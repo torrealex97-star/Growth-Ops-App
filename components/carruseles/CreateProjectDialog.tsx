@@ -16,6 +16,7 @@ import { Loader2, LayoutGrid, FileImage } from "lucide-react"
 import { toast } from "sonner"
 import type { AspectRatio, ProjectKind } from "@/lib/carruseles/types"
 import { ASPECT_LABELS } from "@/lib/carruseles/types"
+import { useTenant } from '@/lib/tenant-context'
 
 interface Props {
   open: boolean
@@ -28,6 +29,7 @@ const RATIOS_BY_KIND: Record<ProjectKind, AspectRatio[]> = {
 }
 
 export function CreateProjectDialog({ open, onOpenChange }: Props) {
+  const tenant = useTenant()
   const router = useRouter()
   const [title, setTitle] = useState("")
   const [kind, setKind] = useState<ProjectKind>("carousel")
@@ -42,14 +44,14 @@ export function CreateProjectDialog({ open, onOpenChange }: Props) {
   const create = async () => {
     setCreating(true)
     try {
-      const res = await fetch("/api/evergreen/carruseles", {
+      const res = await fetch(`/api/${tenant}/evergreen/carruseles`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: title.trim() || (kind === "flyer" ? "Nuevo flyer" : "Nuevo carrusel"), kind, aspectRatio: ratio }),
       })
       if (!res.ok) throw new Error("Error al crear")
       const project = await res.json()
-      router.push(`/evergreen/carruseles/${project.id}`)
+      router.push(`/${tenant}/carruseles/${project.id}`)
     } catch (e) {
       toast.error((e as Error).message)
       setCreating(false)

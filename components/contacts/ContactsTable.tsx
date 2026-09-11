@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input'
 import { ArrowUpDown, Search, ExternalLink } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import type { Contact } from '@/lib/types/database'
+import { useTenant } from '@/lib/tenant-context'
 
 const columnHelper = createColumnHelper<Contact>()
 const coreRowModel = getCoreRowModel()
@@ -35,6 +36,7 @@ interface ContactsTableProps {
 }
 
 export function ContactsTable({ contacts }: ContactsTableProps) {
+  const tenant = useTenant()
   const router = useRouter()
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
@@ -95,7 +97,7 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
           className="h-8 text-brand-400 hover:text-brand-300"
           onClick={(e) => {
             e.stopPropagation()
-            router.push(`/evergreen/contacts/${getValue()}`)
+            router.push(`/${tenant}/contacts/${getValue()}`)
           }}
         >
           <ExternalLink className="w-3 h-3 mr-1" />
@@ -164,7 +166,7 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
                 <TableRow
                   key={row.id}
                   className="border-border hover:bg-card/50 cursor-pointer"
-                  onClick={() => router.push(`/evergreen/contacts/${row.original.id}`)}
+                  onClick={() => router.push(`/${tenant}/contacts/${row.original.id}`)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>

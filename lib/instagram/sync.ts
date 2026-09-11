@@ -33,7 +33,7 @@ export type InstagramSyncResult = {
 }
 
 // Núcleo de la sincronización orgánica de Instagram. Lo usan el botón manual
-// (/api/evergreen/instagram/sync) y el cron diario (/api/evergreen/cron/instagram).
+// (/api/${tenant}/evergreen/instagram/sync) y el cron diario (/api/${tenant}/evergreen/cron/instagram).
 // Requiere Supabase con service-role (salta RLS). No toca transcript/ai_analysis:
 // esos los rellena la transcripción bajo demanda, así que re-sincronizar NO los borra.
 export async function runInstagramSync(sb: SupabaseClient, opts?: { mediaLimit?: number; light?: boolean }): Promise<InstagramSyncResult> {
@@ -173,7 +173,7 @@ export async function runInstagramSync(sb: SupabaseClient, opts?: { mediaLimit?:
   let youtubeUploaded = 0
   try {
     // Solo reels nuevos aquí (backfillLimit 0): el backfill de reels antiguos va por su propio
-    // cron 3 veces al día (mañana/mediodía/noche), ver /api/evergreen/cron/youtube-backfill.
+    // cron 3 veces al día (mañana/mediodía/noche), ver /api/${tenant}/evergreen/cron/youtube-backfill.
     youtubeUploaded = await runYoutubeSync(sb, cfg, { backfillLimit: 0 })
   } catch { /* YouTube opcional: un fallo aquí no debe romper el sync de Instagram */ }
 

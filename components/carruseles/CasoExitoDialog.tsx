@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Loader2, ImagePlus, Trophy, X } from "lucide-react"
 import { toast } from "sonner"
+import { useTenant } from '@/lib/tenant-context'
 
 interface Props {
   open: boolean
@@ -28,6 +29,7 @@ const PLACEHOLDER = `Pega aquí lo que sea: notas, la transcripción de la llama
 Ejemplo: Miguel era empleado en una fintech, un trabajo metódico que le aburría y sin saber nada de tecnología. Antes de entrar iba divagando entre vídeos de YouTube sin resultados. Entró con el Master Intensivo en octubre de 2024 y escaló al programa completo. Hoy vive de su agencia de IA ennichada en inmobiliaria, con 11 clientes recurrentes. Su servicio estrella son 2.000€ de implementación más 497€/mes, y factura unos 5.000€/mes recurrentes. Lo que más le costó fue perder el miedo a vender.`
 
 export function CasoExitoDialog({ open, onOpenChange }: Props) {
+  const tenant = useTenant()
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState("")
@@ -48,7 +50,7 @@ export function CasoExitoDialog({ open, onOpenChange }: Props) {
       const fd = new FormData()
       fd.append("file", file)
       fd.append("purpose", "caso-exito")
-      const res = await fetch("/api/evergreen/carruseles/upload", { method: "POST", body: fd })
+      const res = await fetch(`/api/${tenant}/evergreen/carruseles/upload`, { method: "POST", body: fd })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || "Error al subir")
       setPhotoUrl(data.url)
@@ -62,7 +64,7 @@ export function CasoExitoDialog({ open, onOpenChange }: Props) {
   const generate = async () => {
     setGenerating(true)
     try {
-      const res = await fetch("/api/evergreen/carruseles/caso-exito", {
+      const res = await fetch(`/api/${tenant}/evergreen/carruseles/caso-exito`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim(), photoUrl, story: story.trim() }),
@@ -72,7 +74,7 @@ export function CasoExitoDialog({ open, onOpenChange }: Props) {
       toast.success(`Carrusel creado con ${data.slides} slides`)
       reset()
       onOpenChange(false)
-      router.push(`/evergreen/carruseles/${data.id}`)
+      router.push(`/${tenant}/carruseles/${data.id}`)
     } catch (e) {
       toast.error((e as Error).message)
     } finally {

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // Resolución del TRAMO/nivel de gamificación (sales_tramos) de un rep, en el SERVIDOR.
-// Replica la lógica que el dashboard usa en cliente (app/evergreen/dashboard/page.tsx) para que
+// Replica la lógica que el dashboard usa en cliente (app/${tenant}/dashboard/page.tsx) para que
 // "el nivel que el closer ve" y "el nivel que decide su comisión" sean EXACTAMENTE el mismo.
 // Se usa para enlazar los tramos con las reglas de comisión: una regla con `tramo_id` aplica su %
 // cuando el rep está en ese tramo.

@@ -82,7 +82,7 @@ function groupBy<T>(rows: T[], key: (r: T) => string): Map<string, T[]> {
 }
 
 // Orquestador de la sincronización con Meta. Lo usan tanto el botón manual
-// (/api/evergreen/meta/sync) como el cron de 30 min (/api/evergreen/cron/meta).
+// (/api/${tenant}/evergreen/meta/sync) como el cron de 30 min (/api/${tenant}/evergreen/cron/meta).
 // Recorre TODAS las cuentas publicitarias declaradas (una o varias, mismo token)
 // y agrega los totales. Requiere un cliente Supabase con service-role (salta RLS).
 export async function runMetaSync(sb: SupabaseClient): Promise<MetaSyncResult> {

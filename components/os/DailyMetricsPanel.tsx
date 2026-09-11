@@ -9,6 +9,7 @@ import { formatCurrency } from '@/lib/utils'
 import { downloadCSV } from '@/lib/filters/period'
 import type { DailyFunnelRow } from '@/lib/ads/funnel'
 import { sumDailyRows } from '@/lib/ads/funnel'
+import { useTenant } from '@/lib/tenant-context'
 
 const fmtNum = (n: number) => n.toLocaleString('es-ES')
 const fmtEur = (n: number | null) => (n === null ? '—' : formatCurrency(n))
@@ -65,6 +66,7 @@ const COLS: { key: keyof DailyFunnelRow; label: string; fmt: (r: DailyFunnelRow)
 // from/to en formato YYYY-MM-DD (del filtro de periodo de la página). Si no hay periodo activo,
 // el panel usa por defecto los últimos 30 días.
 export function DailyMetricsPanel({ from, to }: { from?: string | null; to?: string | null }) {
+  const tenant = useTenant()
   const [rows, setRows] = useState<DailyFunnelRow[]>([])
   const [loading, setLoading] = useState(true)
   const [campaign, setCampaign] = useState('')
@@ -88,7 +90,7 @@ export function DailyMetricsPanel({ from, to }: { from?: string | null; to?: str
     if (campaign) params.set('campaign', campaign)
     ;(async () => {
       try {
-        const res = await fetch(`/api/evergreen/meta/daily-funnel?${params.toString()}`)
+        const res = await fetch(`/api/${tenant}/evergreen/meta/daily-funnel?${params.toString()}`)
         const json = await res.json()
         if (active) setRows(res.ok ? (json.rows ?? []) : [])
       } catch {

@@ -36,7 +36,7 @@ export async function getCarruselUser(): Promise<AuthedUser | null> {
   const pageOverrides: string[] = Array.isArray(urow?.page_overrides) ? urow!.page_overrides : []
   const hasOverride =
     deptOverrides.includes("marketing") ||
-    pageOverrides.some((p) => p.startsWith("/evergreen/carruseles"))
+    pageOverrides.some((p) => p.startsWith('/carruseles'))
 
   if (!ALLOWED.includes(role) && !hasOverride) return null
   return { id: user.id, role }

@@ -24,6 +24,7 @@ import { ExternalLink, Trash2 } from 'lucide-react'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { SaleWithRelations, SaleStatus } from '@/lib/types/database'
+import { useTenant } from '@/lib/tenant-context'
 
 const STATUS_COLORS: Record<SaleStatus, string> = {
   // Verde = dinero cobrado, coherente con la categoría "Comprado" del calendario de citas.
@@ -55,6 +56,7 @@ interface SalesTableProps {
 }
 
 export function SalesTable({ sales, sorting = [], onSortingChange, isAdmin = false, onDeleted }: SalesTableProps) {
+  const tenant = useTenant()
   const router = useRouter()
 
   const handleDelete = useCallback(async (e: React.MouseEvent, saleId: string) => {
@@ -63,7 +65,7 @@ export function SalesTable({ sales, sorting = [], onSortingChange, isAdmin = fal
     // Server-side: borra comisiones/devoluciones/cobros y desenlaza contratos/eventos CSM/bajas
     // en el orden correcto (el delete directo desde el cliente fallaba por violación de FK en
     // cuanto la venta tenía algo colgando — cobro, comisión, contrato...).
-    const res = await fetch('/api/evergreen/sales/delete', {
+    const res = await fetch(`/api/${tenant}/evergreen/sales/delete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ saleId }),
@@ -95,7 +97,7 @@ export function SalesTable({ sales, sorting = [], onSortingChange, isAdmin = fal
                 className="text-brand-400 hover:text-brand-300 text-sm font-medium truncate"
                 onClick={(e) => {
                   e.stopPropagation()
-                  router.push(`/evergreen/contacts/${row.original.contact_id}`)
+                  router.push(`/${tenant}/contacts/${row.original.contact_id}`)
                 }}
               >
                 {c?.full_name || '—'}
@@ -166,7 +168,7 @@ export function SalesTable({ sales, sorting = [], onSortingChange, isAdmin = fal
             className="h-8 text-brand-400 hover:text-brand-300"
             onClick={(e) => {
               e.stopPropagation()
-              router.push(`/evergreen/sales/${row.original.id}`)
+              router.push(`/${tenant}/sales/${row.original.id}`)
             }}
           >
             <ExternalLink className="w-3 h-3 mr-1" />
@@ -223,7 +225,7 @@ export function SalesTable({ sales, sorting = [], onSortingChange, isAdmin = fal
               <TableRow
                 key={row.id}
                 className="border-border hover:bg-card/50 cursor-pointer"
-                onClick={() => router.push(`/evergreen/sales/${row.original.id}`)}
+                onClick={() => router.push(`/${tenant}/sales/${row.original.id}`)}
               >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { exportProject } from "@/lib/carruseles/export-client"
 import type { AspectRatio, Slide } from "@/lib/carruseles/types"
+import { useTenant } from "@/lib/tenant-context"
 
 interface ExportButtonProps {
   title: string
@@ -14,6 +15,7 @@ interface ExportButtonProps {
 }
 
 export function ExportButton({ title, slides, aspectRatio }: ExportButtonProps) {
+  const tenant = useTenant()
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<{ c: number; t: number } | null>(null)
 
@@ -22,7 +24,7 @@ export function ExportButton({ title, slides, aspectRatio }: ExportButtonProps) 
     setBusy(true)
     setProgress({ c: 0, t: slides.length })
     try {
-      await exportProject(title, slides, aspectRatio, (c, t) => setProgress({ c, t }))
+      await exportProject(title, slides, aspectRatio, tenant, (c, t) => setProgress({ c, t }))
       toast.success(slides.length === 1 ? "PNG descargado" : "ZIP descargado")
     } catch (e) {
       toast.error("Error al exportar: " + (e as Error).message)

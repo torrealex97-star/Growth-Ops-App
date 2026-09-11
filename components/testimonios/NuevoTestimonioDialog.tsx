@@ -1,4 +1,5 @@
 "use client"
+import { useTenant } from '@/lib/tenant-context'
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -29,6 +30,7 @@ interface Props {
 }
 
 export function NuevoTestimonioDialog({ open, onOpenChange, onCreated }: Props) {
+  const tenant = useTenant()
   const router = useRouter()
   const [values, setValues] = useState<TestimonioFormValues>(emptyValues())
   const [saving, setSaving] = useState(false)
@@ -38,7 +40,7 @@ export function NuevoTestimonioDialog({ open, onOpenChange, onCreated }: Props) 
     if (problem) return toast.error(problem)
     setSaving(true)
     try {
-      const res = await fetch("/api/evergreen/testimonios", {
+      const res = await fetch(`/api/${tenant}/evergreen/testimonios`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
@@ -49,7 +51,7 @@ export function NuevoTestimonioDialog({ open, onOpenChange, onCreated }: Props) 
       setValues(emptyValues())
       onOpenChange(false)
       onCreated?.()
-      router.push(`/evergreen/testimonios/${data.testimonio.id}`)
+      router.push(`/${tenant}/testimonios/${data.testimonio.id}`)
     } catch (e) {
       toast.error((e as Error).message)
     } finally {

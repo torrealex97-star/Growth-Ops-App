@@ -10,6 +10,7 @@ import { makeNavFilter, visibleNavItems, type NavItem } from '@/lib/nav'
 import { formatDateTime } from '@/lib/utils'
 import type { AppRole } from '@/lib/auth/permissions'
 import type { User } from '@/lib/types/database'
+import { useTenant } from '@/lib/tenant-context'
 
 // Búsqueda global (la "lupa" de la cabecera): abre con clic o con Cmd/Ctrl+K y busca en un mismo
 // sitio las PANTALLAS que el usuario tiene permitidas (ventas, objetivos, calendario…), los
@@ -27,6 +28,7 @@ type Result =
 const MIN_REMOTE_QUERY = 2
 
 export function GlobalSearch({ user }: { user: User & { roles: { key: string; name: string } } }) {
+  const tenant = useTenant()
   const router = useRouter()
   const role = user.roles.key as AppRole
   const u = user as unknown as { dept_overrides?: string[] | null; page_overrides?: string[] | null }
@@ -94,14 +96,14 @@ export function GlobalSearch({ user }: { user: User & { roles: { key: string; na
     const pageHits: Result[] = pages
       .filter((p) => !q || normalizeText(p.label).includes(q) || normalizeText(p.href).includes(q))
       .slice(0, q ? 8 : 6)
-      .map((p) => ({ kind: 'page', key: `page:${p.href}`, label: p.label, sub: p.href.replace('/evergreen/', ''), href: p.href, icon: p.icon }))
+      .map((p) => ({ kind: 'page', key: `page:${p.href}`, label: p.label, sub: p.href.replace(`/${tenant}/`, ''), href: p.href, icon: p.icon }))
 
     const contactHits: Result[] = contacts.map((c) => ({
       kind: 'contact',
       key: `contact:${c.id}`,
       label: c.full_name || 'Contacto sin nombre',
       sub: [c.email, c.phone].filter(Boolean).join(' · ') || 'Contacto',
-      href: `/evergreen/contacts/${c.id}`,
+      href: `/${tenant}/contacts/${c.id}`,
       icon: UserIcon,
     }))
 
@@ -110,7 +112,7 @@ export function GlobalSearch({ user }: { user: User & { roles: { key: string; na
       key: `appt:${a.id}`,
       label: a.contacts?.full_name || 'Agenda',
       sub: formatDateTime(a.appointment_datetime),
-      href: '/evergreen/appointments',
+      href: `/${tenant}/appointments`,
       icon: Calendar,
     }))
 

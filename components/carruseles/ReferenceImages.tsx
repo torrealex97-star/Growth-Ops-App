@@ -4,6 +4,7 @@ import { useRef, useState } from "react"
 import { ImagePlus, X, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import type { ReferenceImage } from "@/lib/carruseles/types"
+import { useTenant } from '@/lib/tenant-context'
 
 interface Props {
   projectId: string
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export function ReferenceImages({ projectId, images, onChange }: Props) {
+  const tenant = useTenant()
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
 
@@ -22,7 +24,7 @@ export function ReferenceImages({ projectId, images, onChange }: Props) {
       fd.append("file", file)
       fd.append("projectId", projectId)
       fd.append("purpose", "reference")
-      const res = await fetch("/api/evergreen/carruseles/upload", { method: "POST", body: fd })
+      const res = await fetch(`/api/${tenant}/evergreen/carruseles/upload`, { method: "POST", body: fd })
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Error")
       onChange()
     } catch (e) {
@@ -33,7 +35,7 @@ export function ReferenceImages({ projectId, images, onChange }: Props) {
   }
 
   const remove = async (imageId: string) => {
-    await fetch(`/api/evergreen/carruseles/${projectId}/references?imageId=${imageId}`, { method: "DELETE" })
+    await fetch(`/api/${tenant}/evergreen/carruseles/${projectId}/references?imageId=${imageId}`, { method: "DELETE" })
     onChange()
   }
 

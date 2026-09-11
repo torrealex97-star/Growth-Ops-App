@@ -42,7 +42,7 @@ export async function getTestimonioUser(): Promise<TestimonioUser | null> {
   const hasOverride =
     deptOverrides.includes("marketing") ||
     deptOverrides.includes("ventas") ||
-    pageOverrides.some((p) => p.startsWith("/evergreen/testimonios"))
+    pageOverrides.some((p) => p.startsWith('/testimonios'))
 
   if (!CAN_READ.includes(role) && !hasOverride) return null
   return { id: user.id, role, canWrite: CAN_WRITE.includes(role) || deptOverrides.includes("marketing") }
