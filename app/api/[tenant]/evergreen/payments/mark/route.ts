@@ -1,39 +1,35 @@
-import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 import { generateCommissionsForCollection, saleNeedsCommissionReview } from '@/lib/commissions/generate'
 import type { Collection, Sale } from '@/lib/types/database'
 
 export const runtime = 'nodejs'
 
 // Marca una cuota como pagada / morosa / normal. Solo admin/director/cobros.
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+
     const { installmentId, action } = await req.json()
     if (!installmentId || !['paid', 'delinquent', 'unflag'].includes(action)) {
       return NextResponse.json({ error: 'Parámetros inválidos' }, { status: 400 })
     }
 
-    const cookieStore = await cookies()
-    const authed = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-    )
-    const { data: { user } } = await authed.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-    const { data: row } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const { data: row } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
     const role = (row?.roles as { key?: string } | null)?.key
     if (!['admin', 'director', 'cobros'].includes(role || '')) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const { data: inst, error: instErr } = await sb
       .from('sale_expected_installments')
       .select('*')
       .eq('id', installmentId)
+      .eq('tenant_id', t.tenantId)
       .single()
     if (instErr || !inst) return NextResponse.json({ error: 'Cuota no encontrada' }, { status: 404 })
 
@@ -84,6 +80,7 @@ export async function POST(req: NextRequest) {
 
       // Registrar el cobro
       const { data: newCollection } = await sb.from('collections').insert({
+        tenant_id: t.tenantId,
         sale_id: inst.sale_id,
         expected_installment_id: inst.id,
         collected_at: now,

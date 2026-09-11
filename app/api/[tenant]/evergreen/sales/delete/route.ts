@@ -1,7 +1,6 @@
-import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 
@@ -22,30 +21,25 @@ const LEADERSHIP = ['admin', 'director']
 //   2) Desenlaza otras ventas que referencien esta como origin_sale_id/converted_from_reservation_id.
 //   3) Borra comisiones → devoluciones → cobros (si se borrara la venta antes, violaría sus FK).
 //   4) Borra la venta.
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+
     const { saleId, reason } = await req.json()
     if (!saleId) return NextResponse.json({ error: 'Falta saleId' }, { status: 400 })
 
-    const cookieStore = await cookies()
-    const authed = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-    )
-    const { data: { user } } = await authed.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-    const { data: urow } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
     const role = (urow?.roles as { key?: string } | null)?.key || ''
     if (!LEADERSHIP.includes(role)) {
       return NextResponse.json({ error: 'Solo admin/director pueden eliminar ventas' }, { status: 403 })
     }
 
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    })
-
-    const { data: sale } = await sb.from('sales').select('*').eq('id', saleId).single()
+    const { data: sale } = await sb.from('sales').select('*').eq('id', saleId).eq('tenant_id', t.tenantId).single()
     if (!sale) return NextResponse.json({ error: 'Venta no encontrada' }, { status: 404 })
 
     const [{ data: collections }, { data: commissions }, { data: refunds }, { data: contracts }, { data: csmEvents }, { data: drops }] = await Promise.all([
@@ -59,7 +53,8 @@ export async function POST(req: NextRequest) {
 
     // Snapshot ANTES de borrar/desenlazar nada, para poder reconstruir la venta si el borrado fue un error.
     const { error: logErr } = await sb.from('audit_logs').insert({
-      actor_user_id: user.id,
+      tenant_id: t.tenantId,
+      actor_user_id: t.userId,
       entity_type: 'sale',
       entity_id: saleId,
       action: 'delete',
@@ -88,7 +83,7 @@ export async function POST(req: NextRequest) {
     const { error: collErr } = await sb.from('collections').delete().eq('sale_id', saleId)
     if (collErr) return NextResponse.json({ error: `No se pudieron borrar los cobros: ${collErr.message}` }, { status: 500 })
 
-    const { error: saleErr } = await sb.from('sales').delete().eq('id', saleId)
+    const { error: saleErr } = await sb.from('sales').delete().eq('id', saleId).eq('tenant_id', t.tenantId)
     if (saleErr) return NextResponse.json({ error: saleErr.message }, { status: 500 })
 
     return NextResponse.json({ ok: true })

@@ -1,7 +1,6 @@
-import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 import { reconcileSaleCommissions } from '@/lib/commissions/generate'
 import type { Sale } from '@/lib/types/database'
 
@@ -11,35 +10,30 @@ export const runtime = 'nodejs'
 // cobros reales. Clave: al asignar/cambiar el setter/closer/afiliado de una venta ya creada, se
 // generan al instante las comisiones de lo ya cobrado (y se limpian las del rep anterior), de forma
 // que la contabilidad queda cuadrada sin fallos. Solo admin/director.
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+
     const body = await req.json()
     const { saleId } = body
     if (!saleId) return NextResponse.json({ error: 'Falta saleId' }, { status: 400 })
 
-    const cookieStore = await cookies()
-    const authed = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-    )
-    const { data: { user } } = await authed.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-    const { data: urow } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
     const role = (urow?.roles as { key?: string } | null)?.key
     if (!['admin', 'director'].includes(role || '')) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
-    const { data: prevData, error: prevErr } = await sb.from('sales').select('*').eq('id', saleId).single()
+    const { data: prevData, error: prevErr } = await sb.from('sales').select('*').eq('id', saleId).eq('tenant_id', t.tenantId).single()
     if (prevErr || !prevData) return NextResponse.json({ error: 'Venta no encontrada' }, { status: 404 })
     const prev = prevData as Sale
 
     // Construye el payload solo con los campos enviados (edición parcial)
     const norm = (v: unknown) => (v === 'none' || v === '' || v === undefined ? null : v)
-    const payload: Record<string, unknown> = { updated_by: user.id }
+    const payload: Record<string, unknown> = { updated_by: t.userId }
     if ('setter_id' in body) payload.setter_id = norm(body.setter_id)
     if ('closer_id' in body) payload.closer_id = norm(body.closer_id)
     if ('affiliate_id' in body) payload.affiliate_id = norm(body.affiliate_id)
@@ -60,7 +54,7 @@ export async function POST(req: NextRequest) {
       payload.attribution_conflict = false
     }
 
-    const { error: updErr } = await sb.from('sales').update(payload).eq('id', saleId)
+    const { error: updErr } = await sb.from('sales').update(payload).eq('id', saleId).eq('tenant_id', t.tenantId)
     if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 })
 
     // Si se cambió el importe de una reserva (plan "reserva": el bruto de la venta ES el depósito
@@ -85,7 +79,8 @@ export async function POST(req: NextRequest) {
     const result = await reconcileSaleCommissions(sb, saleId, oldReps)
 
     await sb.from('audit_logs').insert({
-      actor_user_id: user.id,
+      tenant_id: t.tenantId,
+      actor_user_id: t.userId,
       entity_type: 'sale',
       entity_id: saleId,
       action: 'update',
