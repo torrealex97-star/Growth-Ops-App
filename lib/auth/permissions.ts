@@ -77,9 +77,11 @@ export const ROLE_DEPARTMENTS: Record<AppRole, Department[]> = {
 export const DEPARTMENT_PREFIXES: Record<Department, string[]> = {
   direccion: ['/dashboard', '/unit-economics', '/cohorts', '/pnl'],
   ventas: ['/crm', '/ventas', '/analitica', '/comisiones', '/recursos', '/tasks'],
-  marketing: ['/marketing/adquisicion', '/instagram'],
+  // '/marketing/afiliados' se añade aquí porque Afiliados se movió a Marketing (antes vivía
+  // bajo el departamento 'finanzas', ver DEPARTMENT_PREFIXES.finanzas más abajo).
+  marketing: ['/marketing/adquisicion', '/marketing/afiliados', '/instagram'],
   producto: ['/students', '/csm-events', '/drops', '/contratos'],
-  finanzas: ['/finanzas', '/proyeccion', '/expenses', '/facturas', '/morosidad', '/morosos-sequra', '/collections', '/refunds', '/afiliados', '/pnl', '/gestoria'],
+  finanzas: ['/finanzas', '/pnl'],
   sistema: ['/actividad', '/audit', '/settings', '/setting-ai', '/contratos/equipo', '/contratos/plantillas'],
 }
 
@@ -118,16 +120,17 @@ export const NAV_PAGES: { href: string; label: string; dept: Department }[] = [
   { href: '/csm-events', label: 'Eventos CSM', dept: 'producto' },
   { href: '/drops', label: 'Cancelaciones', dept: 'producto' },
   { href: '/contratos', label: 'Contratos', dept: 'producto' },
-  { href: '/finanzas', label: 'Resumen financiero', dept: 'finanzas' },
-  { href: '/proyeccion', label: 'Proyección de caja', dept: 'finanzas' },
-  { href: '/expenses', label: 'Gastos', dept: 'finanzas' },
-  { href: '/facturas', label: 'Facturas', dept: 'finanzas' },
-  { href: '/gestoria', label: 'Gestoría', dept: 'finanzas' },
-  { href: '/afiliados', label: 'Afiliados', dept: 'finanzas' },
-  { href: '/morosidad', label: 'Morosidad', dept: 'finanzas' },
-  { href: '/morosos-sequra', label: 'Morosos sequra', dept: 'finanzas' },
-  { href: '/collections', label: 'Cobros', dept: 'finanzas' },
-  { href: '/refunds', label: 'Devoluciones', dept: 'finanzas' },
+  { href: '/finanzas/analitica/resumen', label: 'Analítica financiera · Resumen', dept: 'finanzas' },
+  { href: '/finanzas/analitica/proyeccion', label: 'Analítica financiera · Proyección de caja', dept: 'finanzas' },
+  { href: '/finanzas/gastos-facturas/gastos', label: 'Gastos & Facturas · Gastos', dept: 'finanzas' },
+  { href: '/finanzas/gastos-facturas/facturas', label: 'Gastos & Facturas · Facturas', dept: 'finanzas' },
+  { href: '/finanzas/gastos-facturas/gestoria', label: 'Gastos & Facturas · Export gestoría', dept: 'finanzas' },
+  { href: '/finanzas/cobros/cobros', label: 'Cobros & Conciliación · Cobros', dept: 'finanzas' },
+  { href: '/finanzas/cobros/devoluciones', label: 'Cobros & Conciliación · Devoluciones', dept: 'finanzas' },
+  { href: '/finanzas/cobros/conciliacion', label: 'Cobros & Conciliación · Conciliación', dept: 'finanzas' },
+  { href: '/finanzas/morosidad', label: 'Morosidad', dept: 'finanzas' },
+  { href: '/marketing/afiliados/afiliados', label: 'Afiliados · Gestión', dept: 'marketing' },
+  { href: '/marketing/afiliados/campanas', label: 'Afiliados · Campañas', dept: 'marketing' },
   { href: '/contratos/equipo', label: 'Contratos de equipo (confidencial)', dept: 'sistema' },
   { href: '/contratos/plantillas', label: 'Plantillas de contratos', dept: 'sistema' },
   { href: '/actividad', label: 'Actividad', dept: 'sistema' },
@@ -176,15 +179,21 @@ export const ROLE_ALLOWED_PREFIXES: Partial<Record<AppRole, string[]>> = {
   closer:      ['/dashboard', '/crm', '/ventas', '/analitica', '/comisiones', '/tasks', '/recursos'],
   triager:     ['/crm', '/analitica', '/tasks', '/recursos/testimonios'],
   cold_caller: ['/crm', '/analitica', '/tasks', '/recursos/enlaces', '/recursos/biblioteca', '/recursos/testimonios'],
-  affiliate:   ['/afiliados', '/comisiones', '/recursos/enlaces'],
-  gestoria:    ['/gestoria', '/facturas', '/pnl', '/finanzas'],
+  affiliate:   ['/marketing/afiliados', '/comisiones', '/recursos/enlaces'],
+  // gestoria antes veía el prefijo completo '/finanzas' (dashboard) + '/facturas' + '/gestoria' +
+  // '/pnl' sueltos — ninguno de esos daba acceso a Gastos/Cobros/Devoluciones/Morosidad, así que al
+  // anidar todo bajo /finanzas se usan sub-prefijos precisos para no ampliar su acceso.
+  gestoria:    ['/finanzas/analitica/resumen', '/finanzas/gastos-facturas/facturas', '/finanzas/gastos-facturas/gestoria', '/pnl'],
   // Data Health usa un permiso exacto con query para no abrir el resto de /settings.
   // Adscripción y Editor conservan solo las pestañas a las que ya tenían acceso antes del cambio.
   marketing:   ['/marketing/adquisicion', '/instagram', '/settings?tab=data-health', '/setting-ai', '/recursos/testimonios'],
   adscripcion: ['/marketing/adquisicion/campanas', '/marketing/adquisicion/atribucion', '/settings?tab=data-health'],
   editor:      ['/instagram', '/marketing/adquisicion/vsl', '/recursos/testimonios'],
   csm:         ['/students', '/csm-events', '/drops', '/recursos/testimonios'],
-  cobros:      ['/morosidad', '/morosos-sequra', '/collections', '/ventas/pagos'],
+  // cobros ganó acceso a la pestaña Conciliación (antes inexistente): cotejar SUS PROPIOS cobros
+  // contra Stripe/seQura/transferencias es una extensión directa de gestionar Cobros, no un área
+  // administrativa nueva — no gana Devoluciones, que siempre fue solo-liderazgo.
+  cobros:      ['/finanzas/morosidad', '/finanzas/cobros/cobros', '/finanzas/cobros/conciliacion', '/ventas/pagos'],
 }
 
 export const PERMISSIONS = {

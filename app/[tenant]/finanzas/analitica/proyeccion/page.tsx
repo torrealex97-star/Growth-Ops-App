@@ -98,7 +98,7 @@ export default function ProyeccionPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-4xl">
+    <div className="space-y-6 max-w-4xl">
       <div className="flex items-end justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-brand-500/10 flex items-center justify-center">

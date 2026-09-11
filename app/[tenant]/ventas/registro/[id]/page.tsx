@@ -797,7 +797,7 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
               Total cobrado: <span className="text-foreground font-medium">{formatCurrency(totalCollected)}</span>
               {' '}<span className="text-muted-foreground">/ facturado {formatCurrency(sale.gross_amount)}</span>
             </p>
-            <Button size="sm" onClick={() => router.push(`/${tenant}/collections/new?saleId=${sale.id}`)}>
+            <Button size="sm" onClick={() => router.push(`/${tenant}/finanzas/cobros/cobros/new?saleId=${sale.id}`)}>
               <Plus className="w-4 h-4 mr-2" />
               Registrar cobro
             </Button>

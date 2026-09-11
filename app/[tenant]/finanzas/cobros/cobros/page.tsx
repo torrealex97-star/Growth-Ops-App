@@ -206,7 +206,7 @@ export default function CollectionsPage() {
           <h1 className="text-2xl font-bold text-foreground">Cobros</h1>
           <p className="text-muted-foreground text-sm mt-1">Registro de todos los pagos recibidos</p>
         </div>
-        <Button onClick={() => router.push(`/${tenant}/collections/new`)}>
+        <Button onClick={() => router.push(`/${tenant}/finanzas/cobros/cobros/new`)}>
           <Plus className="w-4 h-4 mr-2" />
           Registrar Cobro
         </Button>
@@ -334,7 +334,7 @@ export default function CollectionsPage() {
           <DollarSign className="w-12 h-12 text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium text-foreground mb-2">No hay cobros</h3>
           <p className="text-muted-foreground text-sm mb-4">Registra el primer cobro</p>
-          <Button onClick={() => router.push(`/${tenant}/collections/new`)}>
+          <Button onClick={() => router.push(`/${tenant}/finanzas/cobros/cobros/new`)}>
             <Plus className="w-4 h-4 mr-2" />
             Registrar Cobro
           </Button>

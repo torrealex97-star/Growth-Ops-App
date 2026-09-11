@@ -7,7 +7,7 @@ import {
   ListChecks, Clapperboard, Radio, GraduationCap, CalendarCheck, UserMinus, Wallet,
   PieChart, CalendarRange, Receipt, Gauge, AlertTriangle, BarChart3, PhoneCall, CreditCard, Link2,
   Video, Camera, Radar, Lightbulb, Plug, Layers, LineChart, Activity, Images, Award, Bot,
-  UserRound, Wrench,
+  UserRound, Wrench, Scale,
 } from 'lucide-react'
 import { allowedPrefixesFor, type AppRole, type Department } from '@/lib/auth/permissions'
 
@@ -110,6 +110,14 @@ export const NAV_SECTIONS: NavSection[] = [
           { label: 'Contenido', href: '/instagram/contenido', icon: Clapperboard, roles: [...LEAD, 'marketing', 'editor'] },
         ],
       },
+      {
+        label: 'Afiliados', href: '/marketing/afiliados/afiliados', icon: TrendingUp,
+        roles: [...LEAD, 'affiliate'],
+        children: [
+          { label: 'Afiliados', href: '/marketing/afiliados/afiliados', icon: TrendingUp, roles: [...LEAD, 'affiliate'] },
+          { label: 'Campañas', href: '/marketing/afiliados/campanas', icon: Megaphone, roles: LEAD },
+        ],
+      },
     ],
   },
   {
@@ -125,17 +133,33 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     dept: 'finanzas',
     items: [
-      { label: 'Resumen financiero', href: '/finanzas', icon: PieChart, roles: LEAD },
-      { label: 'Proyección de caja', href: '/proyeccion', icon: LineChart, roles: LEAD },
-      { label: 'Gastos', href: '/expenses', icon: Wallet, roles: LEAD },
-      { label: 'Facturas', href: '/facturas', icon: FileText, roles: [...LEAD, 'gestoria'] },
-      { label: 'Gestoría', href: '/gestoria', icon: Receipt, roles: [...LEAD, 'gestoria'] },
-      { label: 'Afiliados', href: '/afiliados', icon: TrendingUp, roles: [...LEAD, 'affiliate'] },
-      { label: 'Campañas afiliados', href: '/afiliados/campanas', icon: Megaphone, roles: LEAD },
-      { label: 'Morosidad', href: '/morosidad', icon: AlertTriangle, roles: [...LEAD, 'cobros'] },
-      { label: 'Morosos sequra', href: '/morosos-sequra', icon: AlertTriangle, roles: [...LEAD, 'cobros'] },
-      { label: 'Cobros', href: '/collections', icon: DollarSign, roles: [...LEAD, 'cobros'] },
-      { label: 'Devoluciones', href: '/refunds', icon: RotateCcw, roles: LEAD },
+      {
+        label: 'Analítica financiera', href: '/finanzas/analitica/resumen', icon: PieChart,
+        roles: [...LEAD, 'gestoria'],
+        children: [
+          { label: 'Resumen', href: '/finanzas/analitica/resumen', icon: PieChart, roles: [...LEAD, 'gestoria'] },
+          { label: 'Proyección de caja', href: '/finanzas/analitica/proyeccion', icon: LineChart, roles: LEAD },
+        ],
+      },
+      {
+        label: 'Gastos & Facturas', href: '/finanzas/gastos-facturas/gastos', icon: Wallet,
+        roles: [...LEAD, 'gestoria'],
+        children: [
+          { label: 'Gastos', href: '/finanzas/gastos-facturas/gastos', icon: Wallet, roles: LEAD },
+          { label: 'Facturas', href: '/finanzas/gastos-facturas/facturas', icon: FileText, roles: [...LEAD, 'gestoria'] },
+          { label: 'Export gestoría', href: '/finanzas/gastos-facturas/gestoria', icon: Receipt, roles: [...LEAD, 'gestoria'] },
+        ],
+      },
+      {
+        label: 'Cobros & Conciliación', href: '/finanzas/cobros/cobros', icon: DollarSign,
+        roles: [...LEAD, 'cobros'],
+        children: [
+          { label: 'Cobros', href: '/finanzas/cobros/cobros', icon: DollarSign, roles: [...LEAD, 'cobros'] },
+          { label: 'Devoluciones', href: '/finanzas/cobros/devoluciones', icon: RotateCcw, roles: LEAD },
+          { label: 'Conciliación', href: '/finanzas/cobros/conciliacion', icon: Scale, roles: [...LEAD, 'cobros'] },
+        ],
+      },
+      { label: 'Morosidad', href: '/finanzas/morosidad', icon: AlertTriangle, roles: [...LEAD, 'cobros'] },
     ],
   },
   {

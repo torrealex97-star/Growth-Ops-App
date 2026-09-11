@@ -42,7 +42,7 @@ const STATUS_BADGE: Record<StatusKey, string> = {
   incobrable: 'bg-muted/50 text-muted-foreground border-border/30',
 }
 
-export default function MorososSequraPage() {
+export function SequraMorosidadView() {
   const tenant = useTenant()
   const [rows, setRows] = useState<DelinquentRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -137,14 +137,14 @@ export default function MorososSequraPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <AlertTriangle className="w-6 h-6 text-brand-400" /> Morosos sequra
-          </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Clientes de Scalix Systems con cuotas de sequra realmente vencidas — para seguimiento de cobro
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-brand-400" /> seQura
+          </h2>
+          <p className="text-muted-foreground text-xs mt-1">
+            Clientes con cuotas de sequra realmente vencidas — para seguimiento de cobro
           </p>
         </div>
         <div className="text-right shrink-0">

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { lastNMonths, prevMonth, monthLabel, pctDelta } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
+import { computeMonthlyPnl } from '@/lib/finance/pnl'
 
 type SaleRow = { id: string; gross_amount: number | string; discount: number | string | null; sale_date: string | null; status: string }
 type CollectionRow = {
@@ -141,16 +142,11 @@ export default function FinanzasPage() {
 
       const totalRefunds = monthRefunds.reduce((a, r) => a + num(r.gross_refund_amount), 0)
 
-      // NOTA CONTABLE — Devoluciones (ver también I&G en /${tenant}/pnl):
-      // - cashCollected es SIEMPRE bruto (Σ collections del mes con status = 'collected'),
-      //   sin restar devoluciones ni comisiones.
-      // - totalRefunds (Σ refunds.gross_refund_amount del mes) se resta UNA sola vez aquí,
-      //   como línea propia, para llegar al Resultado neto.
-      // - Las comisiones de plataforma (platformFees) y los gastos/comisiones internas
-      //   (totalExpenses) se restan aparte, como costes adicionales.
-      // Resultado neto = Cash Collected − Devoluciones − Gastos − Comisiones plataforma.
-      const netResult = cashCollected - totalExpenses - totalRefunds - platformFees
-      const margin = cashCollected ? (netResult / cashCollected) * 100 : null
+      // Resultado neto/margen: único servicio compartido con el I&G de Dirección › Métricas
+      // (lib/finance/pnl.ts) y con Gastos & Facturas › Export gestoría — no se recalcula aquí.
+      const monthPnl = computeMonthlyPnl(targetYm, { sales, collections, refunds, expenses, commissions })
+      const netResult = monthPnl.preTaxProfit
+      const margin = monthPnl.preTaxMargin === null ? null : monthPnl.preTaxMargin * 100
 
       const byCategory = new Map<string, number>()
       for (const e of monthExpenses) {
@@ -327,7 +323,7 @@ export default function FinanzasPage() {
   const intOrDash = (n: number | null) => (n === null || !isFinite(n) ? '—' : String(n))
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -422,7 +418,7 @@ export default function FinanzasPage() {
                   <span className="text-xs text-muted-foreground">margen {pct(cur.margin)}</span>
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-1">
-                  Cash Collected ({fmt(cur.cashCollected)}) − Devoluciones ({fmt(cur.totalRefunds)}) − Gastos ({fmt(cur.totalExpenses)}) − Comisiones plataforma ({fmt(cur.platformFees)})
+                  Mismo cálculo que I&amp;G (Dirección › Métricas): Net Revenue − COGS − OpEx
                 </p>
               </div>
             </div>
