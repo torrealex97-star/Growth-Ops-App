@@ -18,7 +18,7 @@ export const maxDuration = 300
 
 const MODEL = "claude-sonnet-5"
 
-const SYSTEM = `Eres el copywriter de [tenant], una academia que enseña a montar agencias de inteligencia artificial. Escribes carruseles de Instagram de CASOS DE ÉXITO de alumnos, en español de España, con tono directo, cercano y sin humo.
+const SYSTEM = `Eres el copywriter de esta marca. Escribes carruseles de Instagram de CASOS DE ÉXITO de alumnos/clientes, en español de España, con tono directo, cercano y sin humo.
 
 Recibes el relato en bruto de un caso de éxito (notas, transcripción o resumen) y lo conviertes en la estructura del carrusel llamando SIEMPRE a la herramienta build_caso_exito.
 
@@ -192,7 +192,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
   await updateProject(project.id, {
     caption: buildCaption(spec.caption),
-    hashtags: spec.hashtags?.length ? spec.hashtags : ["[tenant]", "AgenciaDeIA", "CasoDeExito"],
+    hashtags: spec.hashtags?.length ? spec.hashtags : ["CasoDeExito"],
   })
 
   return NextResponse.json({ id: project.id, title: spec.title, slides: html.length })

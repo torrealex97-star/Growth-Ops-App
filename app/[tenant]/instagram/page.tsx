@@ -217,7 +217,7 @@ export default function InstagramPage() {
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Camera className="w-6 h-6 text-pink-400" /> Instagram orgánico
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">Rendimiento de reels, crecimiento y captación · @adrian.martinez.s</p>
+          <p className="text-muted-foreground text-sm mt-1">Rendimiento de reels, crecimiento y captación</p>
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && (

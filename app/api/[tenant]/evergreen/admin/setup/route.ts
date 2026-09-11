@@ -55,7 +55,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       CREATE UNIQUE INDEX IF NOT EXISTS contracts_signing_token_idx ON public.contracts(signing_token) WHERE signing_token IS NOT NULL;
       -- v17
       CREATE TABLE IF NOT EXISTS public.company_profile (
-        id INT PRIMARY KEY DEFAULT 1, name TEXT NOT NULL DEFAULT 'Academia Demo', legal_name TEXT, cif TEXT,
+        id INT PRIMARY KEY DEFAULT 1, name TEXT NOT NULL DEFAULT 'Tu Empresa', legal_name TEXT, cif TEXT,
         address TEXT, postal_code TEXT, city TEXT, country TEXT DEFAULT 'España', representative TEXT,
         email TEXT, phone TEXT, logo_url TEXT, email_signature TEXT,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -72,8 +72,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // ON CONFLICT no la duplica ni la reasigna — limitación de diseño de esta tabla, no de esta ruta.
     try {
       await sql`
-        INSERT INTO public.company_profile (id, tenant_id, name, legal_name, cif)
-        VALUES (1, ${tenantId}, '[tenant]', '[tenant]', 'B-00000000')
+        INSERT INTO public.company_profile (id, tenant_id, name)
+        VALUES (1, ${tenantId}, 'Tu Empresa')
         ON CONFLICT (id) DO NOTHING
       `
       report.company_profile = 'ok'

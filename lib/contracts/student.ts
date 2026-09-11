@@ -71,7 +71,7 @@ export function validateStudentSigner(sd: StudentSignerData): string[] {
 }
 
 export const DEFAULT_STUDENT_WELCOME =
-  '¡Bienvenido Winner! 🎉 Estás a un clic de entrar en la Academia Demo. Revisa y acepta las condiciones para recibir tus accesos al instante.'
+  '¡Bienvenido/a! 🎉 Estás a un clic de entrar. Revisa y acepta las condiciones para recibir tus accesos al instante.'
 
 const fmtEur = (n: number) =>
   new Intl.NumberFormat('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n)

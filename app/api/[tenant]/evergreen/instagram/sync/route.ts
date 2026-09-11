@@ -9,7 +9,7 @@ export const maxDuration = 300
 
 const ALLOWED_ROLES = ['admin', 'director', 'manager', 'marketing']
 
-// Sincroniza el Instagram orgánico (@adrian.martinez.s) hacia ig_media / ig_account_daily / ig_audience.
+// Sincroniza el Instagram orgánico (cuenta de la subcuenta) hacia ig_media / ig_account_daily / ig_audience.
 // Auth: sesión (admin/director/manager/marketing) O Bearer CRON_SECRET.
 //
 // BUGFIX (regresión de la migración multi-tenant, no hardening rutinario): runInstagramSync ahora

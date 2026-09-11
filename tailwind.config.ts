@@ -10,7 +10,7 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // [tenant] — azul eléctrico (marca). Sustituye al violeta por defecto.
+        // Azul eléctrico (marca). Sustituye al violeta por defecto.
         brand: {
           50: '#ecf6ff',
           100: '#d6ecff',

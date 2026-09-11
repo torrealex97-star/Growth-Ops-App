@@ -328,7 +328,7 @@ export default function CampanasAfiliadosPage() {
             </div>
             <div className="space-y-2">
               <Label>URL base *</Label>
-              <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} className="bg-muted border-border" placeholder="https://tu-dominio.com/evento" />
+              <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} className="bg-muted border-border" placeholder="https://tudominio.com/evento" />
               <p className="text-xs text-muted-foreground">Se añade automáticamente utm_content con el código de cada afiliado.</p>
             </div>
             <div className="flex items-center gap-2 rounded-lg border border-border px-3 py-2">

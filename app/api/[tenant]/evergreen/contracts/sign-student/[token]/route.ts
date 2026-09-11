@@ -58,7 +58,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
     .maybeSingle()
   if (!data) return NextResponse.json({ error: 'Contrato no encontrado' }, { status: 404 })
 
-  const company = await getCompanyProfile(sb)
+  const company = await getCompanyProfile(sb, tenantId)
 
   // Prefill con lo que sepamos del contacto.
   let studentName: string | null = null
@@ -189,7 +189,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       createdByName = u?.full_name ?? null
     }
 
-    const company = await getCompanyProfile(sb)
+    const company = await getCompanyProfile(sb, tenantId)
     const finalBody = stripRemainingVars(applyVars(c.body_snapshot ?? '', studentSignerVars(sd)))
     const hash = createHash('sha256')
       .update(JSON.stringify({ id: c.id, body: finalBody, terms, sd, signerName, signedAt }))
@@ -233,7 +233,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           city: sd.city ?? null,
           country: toCountryISO(contactCountry),
           instagram: contactInstagram,
-          product: terms.product_name || 'Programa [tenant]',
+          product: terms.product_name || 'Programa',
           duration_months: terms.duration_months ?? null,
           amount: terms.gross_amount ?? null,
           currency: terms.currency ?? null,

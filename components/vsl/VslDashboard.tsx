@@ -44,7 +44,7 @@ function fmt(sec: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-const BLUE = '#2563EB' // azul eléctrico [tenant]
+const BLUE = '#2563EB' // azul eléctrico (marca)
 
 export function VslDashboard() {
   const tenant = useTenant()
@@ -78,7 +78,7 @@ export function VslDashboard() {
 
   const snippet = useMemo(() => {
     if (!selected) return ''
-    return `<!-- VSL [tenant] -->
+    return `<!-- VSL -->
 <iframe src="${origin}/embed/vsl/${selected}"
   style="width:100%;aspect-ratio:16/9;border:0;border-radius:12px"
   allow="autoplay; fullscreen" allowfullscreen></iframe>

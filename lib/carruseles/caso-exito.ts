@@ -1,4 +1,4 @@
-// Plantillas de marca [tenant] para carruseles de CASOS DE ÉXITO.
+// Plantillas de marca para carruseles de CASOS DE ÉXITO.
 //
 // El HTML se genera de forma determinista (no lo escribe el modelo), así que todos los
 // casos de éxito salen con el mismo estilo: navy + azul eléctrico, rejilla sutil,
@@ -12,11 +12,12 @@
 // plantillas porque es un script standalone de Node y no puede importar TypeScript.
 // Si cambias el estilo aquí, cámbialo también allí.
 
-/** CTA fijo de la marca: todos los carruseles cierran llevando a la clase gratuita. */
-export const CTA_TITLE = "Clase gratuita para crear tu Agencia de IA"
+/** CTA fijo de la marca: todos los carruseles cierran llevando al recurso principal.
+ * Editable — ajusta estos textos a tu propia oferta. */
+export const CTA_TITLE = "Descubre más en el enlace"
 export const CTA_PILL = "🔗 Enlace en la bio"
 export const CTA_CAPTION_LINE =
-  "Tienes la clase gratuita para crear tu Agencia de IA en el enlace de la bio 🔗"
+  "Tienes más info en el enlace de la bio 🔗"
 
 const C = {
   navy: "#071f3d",
@@ -41,14 +42,12 @@ const root = (inner: string) =>
 
 const brandRow = () =>
   `<div style="position:absolute;top:60px;left:64px;display:flex;align-items:center;gap:12px;z-index:5;">
-    <span style="display:inline-flex;width:44px;height:44px;border-radius:12px;background:${C.accent};box-shadow:0 0 30px rgba(30,158,255,.8);align-items:center;justify-content:center;color:#fff;font-size:22px;font-weight:800;font-family:${DISPLAY};">IA</span>
-    <span style="font-family:${DISPLAY};font-weight:700;font-size:27px;color:#fff;letter-spacing:.02em;">[tenant]</span>
+    <span style="display:inline-flex;width:44px;height:44px;border-radius:12px;background:${C.accent};box-shadow:0 0 30px rgba(30,158,255,.8);align-items:center;justify-content:center;color:#fff;font-size:22px;font-weight:800;font-family:${DISPLAY};">S</span>
   </div>`
 
 const handle = () =>
   `<div style="position:absolute;bottom:56px;left:64px;display:flex;align-items:center;gap:12px;font-family:${DISPLAY};font-weight:700;font-size:26px;letter-spacing:.02em;color:rgba(255,255,255,.85);z-index:5;">
-    <span style="display:inline-flex;width:40px;height:40px;border-radius:11px;background:${C.accent};box-shadow:0 0 26px rgba(30,158,255,.75);align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:800;">IA</span>
-    [tenant]
+    <span style="display:inline-flex;width:40px;height:40px;border-radius:11px;background:${C.accent};box-shadow:0 0 26px rgba(30,158,255,.75);align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:800;">S</span>
   </div>`
 
 const swipe = () =>

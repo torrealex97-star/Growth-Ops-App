@@ -31,7 +31,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
       .maybeSingle()
     if (!tpl) return NextResponse.json({ error: 'Plantilla no encontrada' }, { status: 404 })
 
-    const company = await getCompanyProfile(sb)
+    const company = await getCompanyProfile(sb, t.tenantId)
     const pdf = await buildTemplatePreviewPdf({
       title: tpl.name || 'Contrato',
       bodyText: tpl.body || '',

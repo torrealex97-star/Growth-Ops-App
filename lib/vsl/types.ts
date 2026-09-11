@@ -6,7 +6,7 @@ export type SocialProofMode = 'off' | 'fake' | 'real'
 
 export interface VslConfig {
   showBar: boolean       // mostrar barra de progreso
-  barColor: string       // color de la barra (azul eléctrico [tenant] por defecto)
+  barColor: string       // color de la barra (azul eléctrico por defecto)
   primaryColor: string   // color del botón/acentos
   autoplay: boolean      // autoplay silenciado al cargar
   muted: boolean         // arrancar en mute (necesario para autoplay)
@@ -27,7 +27,7 @@ export interface VslConfig {
   exitHookText: string   // mensaje del overlay
 }
 
-// Azul eléctrico [tenant]
+// Azul eléctrico (marca)
 export const BRAND_BLUE = '#2563EB'      // botón / acentos
 export const BRAND_BLUE_BAR = '#3B82F6'  // barra de progreso (un punto más brillante)
 

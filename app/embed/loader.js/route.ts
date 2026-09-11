@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 //  2) AUTO-captura el lead del funnel: lee email/nombre desde los parámetros de la URL
 //     (?email=...&name=...) o desde window.tccVSLLead, y llama a identify solo.
 export async function GET() {
-  const site = process.env.NEXT_PUBLIC_SITE_URL || 'https://tu-dominio.com'
+  const site = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
   const origin = site.replace(/\/$/, '')
 
   const js = `(function(){

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-// Datos de LA EMPRESA ([tenant]) que se mapean en los contratos.
+// Datos de la empresa (por subcuenta) que se mapean en los contratos.
 // Se editan desde Configuración → Datos de empresa (tabla company_profile).
 // La firma de la empresa se estampa SIEMPRE de forma automática: nadie del
 // equipo tiene que firmar manualmente.
@@ -20,16 +20,17 @@ export type CompanyProfile = {
   email_signature: string | null
 }
 
-// Valores por defecto si aún no se ha configurado la fila company_profile.
+// Valores por defecto si aún no se ha configurado la fila company_profile
+// de esta subcuenta (rellenar en Configuración → Datos de empresa).
 export const DEFAULT_COMPANY: CompanyProfile = {
-  name: '[tenant]',
-  legal_name: '[tenant]',
-  cif: 'B-00000000',
+  name: 'Tu Empresa',
+  legal_name: null,
+  cif: null,
   address: null,
   postal_code: null,
   city: null,
   country: 'España',
-  representative: 'Dirección [tenant]',
+  representative: null,
   email: null,
   phone: null,
   logo_url: null,
@@ -41,9 +42,9 @@ export function companySignatureLabel(c: CompanyProfile): string {
   return `Firmado digitalmente por ${c.name}`
 }
 
-// Lee la fila única de company_profile (id=1) y la fusiona con los defaults.
-export async function getCompanyProfile(sb: SupabaseClient): Promise<CompanyProfile> {
-  const { data } = await sb.from('company_profile').select('*').eq('id', 1).maybeSingle()
+// Lee la fila de company_profile de esta subcuenta y la fusiona con los defaults.
+export async function getCompanyProfile(sb: SupabaseClient, tenantId: string): Promise<CompanyProfile> {
+  const { data } = await sb.from('company_profile').select('*').eq('id', 1).eq('tenant_id', tenantId).maybeSingle()
   if (!data) return DEFAULT_COMPANY
   return {
     name: data.name || DEFAULT_COMPANY.name,

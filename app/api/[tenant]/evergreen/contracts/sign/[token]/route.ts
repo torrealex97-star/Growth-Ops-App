@@ -53,7 +53,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
     .maybeSingle()
   if (!data) return NextResponse.json({ error: 'Contrato no encontrado' }, { status: 404 })
 
-  const company = await getCompanyProfile(sb)
+  const company = await getCompanyProfile(sb, tenantId)
 
   // Prefill de datos del firmante con lo que ya sepamos del miembro.
   let memberName: string | null = null
@@ -140,7 +140,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     // Cuerpo final: 2ª pasada sustituyendo las variables del firmante y limpiando
     // cualquier variable restante para que el PDF no muestre {{...}}.
-    const company = await getCompanyProfile(sb)
+    const company = await getCompanyProfile(sb, tenantId)
     const finalBody = stripRemainingVars(applyVars(c.body_snapshot ?? '', signerVars(sd)))
 
     // Hash de integridad del contenido firmado.

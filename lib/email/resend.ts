@@ -2,7 +2,7 @@ import { Resend } from 'resend'
 import type { CompanyProfile } from '@/lib/contracts/company'
 
 // Envío de emails con Resend. Requiere RESEND_API_KEY.
-// RESEND_FROM: remitente verificado, p.ej. "[tenant] <contratos@tudominio.com>".
+// RESEND_FROM: remitente verificado, p.ej. "Tu Empresa <contratos@tudominio.com>".
 // Si no hay dominio verificado, Resend permite pruebas con "onboarding@resend.dev".
 export function resendConfigured(): boolean {
   return !!process.env.RESEND_API_KEY
@@ -292,7 +292,7 @@ export async function sendStudentContractEmail(opts: {
 
 // Landing de onboarding donde el alumno encuentra sus accesos y el paso a paso.
 export const ONBOARDING_LANDING_URL =
-  process.env.ONBOARDING_LANDING_URL || 'https://tu-dominio.com/onboarding-academia'
+  process.env.ONBOARDING_LANDING_URL || ''
 
 function studentOnboardingEmailHtml(opts: { studentName: string; companyName: string; landingUrl: string; signature: string | null }): string {
   const { studentName, companyName, landingUrl, signature } = opts

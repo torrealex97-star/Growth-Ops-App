@@ -59,7 +59,7 @@ async function generateCarouselIdea(adaptedScript: string, hook: string): Promis
   const msg = await anthropic().messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 400,
-    system: `Eres el diseñador de contenido de @adrian.martinez.s ([tenant]). A partir de un guión de reel, propones una idea CORTA de carrusel/flyer (2-3 slides) que transmita la misma idea en formato estático para Instagram.
+    system: `Eres el diseñador de contenido de la marca. A partir de un guión de reel, propones una idea CORTA de carrusel/flyer (2-3 slides) que transmita la misma idea en formato estático para Instagram.
 Responde en español, en texto plano (sin JSON), con este formato exacto:
 Slide 1 (portada): ...
 Slide 2 (desarrollo): ...

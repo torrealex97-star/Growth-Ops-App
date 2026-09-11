@@ -57,7 +57,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (assignees.length) {
       const [{ data: users }, company] = await Promise.all([
         sb.from('users').select('id, full_name, email').in('id', assignees),
-        getCompanyProfile(sb),
+        getCompanyProfile(sb, t.tenantId),
       ])
       const byId = new Map((users ?? []).map((u) => [u.id, u]))
       const base = process.env.NEXT_PUBLIC_SITE_URL || new URL(req.url).origin

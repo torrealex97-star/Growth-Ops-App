@@ -44,7 +44,7 @@ export async function extractInvoice(
     ? { type: 'base64' as const, media_type: 'application/pdf' as const, data: base64 }
     : { type: 'base64' as const, media_type: mediaType as 'image/png' | 'image/jpeg' | 'image/webp', data: base64 }
 
-  const system = `Eres un contable que extrae datos de facturas para una academia ([tenant]).
+  const system = `Eres un contable que extrae datos de facturas.
 Devuelve SOLO un objeto JSON con estas claves exactas:
 {"concept": string, "amount": number, "currency": string, "vat": number|null, "category": one of ["publicidad","sueldos","comisiones","herramientas","eventos","cogs","otros"], "counterparty": string (quien emite/cobra), "expense_date": "YYYY-MM-DD", "suggested_person": string|null, "confidence": number 0-1}
 - amount = importe TOTAL de la factura tal cual aparece impreso (con IVA incluido si lo hay), SIN convertir de moneda.
@@ -78,7 +78,7 @@ const CONTRACT_VARS = [
   'dni', 'direccion', 'codigo_postal', 'ciudad',
 ]
 export async function contractVariablesFromText(text: string): Promise<string> {
-  const system = `Eres un asistente que prepara PLANTILLAS de contrato para una empresa ([tenant]).
+  const system = `Eres un asistente que prepara PLANTILLAS de contrato para una empresa.
 Recibes el texto de un contrato y debes SUSTITUIR los datos concretos por variables entre dobles llaves, para reutilizar la plantilla con distintas personas.
 Usa EXACTAMENTE estas variables (no inventes otras):
 - {{empresa}} razón social · {{cif}} · {{empresa_direccion}} · {{representante}}
@@ -118,7 +118,7 @@ export type CallAnalysis = {
 
 // Analiza la transcripción de una llamada y devuelve valoración + etapa + tareas.
 export async function analyzeCall(transcript: string, context?: { leadName?: string; product?: string }): Promise<CallAnalysis> {
-  const system = `Eres un sales coach experto en alto ticket (academia de closing "[tenant]").
+  const system = `Eres un sales coach experto en alto ticket.
 Analizas la transcripción de una llamada de ventas y devuelves SOLO un objeto JSON:
 {"call_score": number 1-10, "lead_score": number 1-10, "suggested_stage": one of ["Nuevo","Contactado","Cita agendada","Presentado/Demo","Oferta hecha","Depósito","Cerrado ganado","Seguimiento","Perdido/No cualifica"], "summary": string (3-4 frases en español), "objections": string[], "next_steps": string[], "tasks": [{"title": string, "description": string}]}
 - call_score valora la ejecución del comercial (descubrimiento, manejo de objeciones, cierre).
@@ -154,7 +154,7 @@ export async function analyzeReel(
   transcript: string,
   context?: { caption?: string; views?: number; saves?: number; engagement?: number }
 ): Promise<ReelAnalysis> {
-  const system = `Eres un estratega de contenido viral en Instagram para un creador de nicho de IA/negocio (@adrian.martinez.s).
+  const system = `Eres un estratega de contenido viral en Instagram para un creador de nicho de IA/negocio.
 Analizas la transcripción de un reel y devuelves SOLO un objeto JSON:
 {"hook": string (el gancho literal o parafraseado de los primeros 3s), "estructura": string (cómo está montado el guión: hook→desarrollo→CTA, listicle, storytelling, etc.), "tema": string (de qué va en 1 frase), "por_que_funciona": string (hipótesis concreta de por qué retiene/genera guardados/comparte, en 2-3 frases), "tags": string[] (3-6 etiquetas de temática y formato para agrupar contenido parecido)}
 Responde en español. Sé concreto y accionable; nada de generalidades.`
@@ -198,7 +198,7 @@ export async function generateScript(
     testimonioBlock?: string
   }
 ): Promise<ScriptDraft> {
-  const system = `Eres el guionista de reels de @adrian.martinez.s ([tenant]), tono directo y con autoridad, español de España.
+  const system = `Eres el guionista de reels de la marca, tono directo y con autoridad, español de España.
 
 Tu tarea: a partir de la TRANSCRIPCIÓN de un reel de referencia que ya funcionó, escribir un guión NUEVO siguiendo esta estructura OBLIGATORIA:
 1) MANTÉN el hook y la primera parte del original (el gancho que enganchó), adaptándolo mínimamente — que suene igual de potente. NO lo cambies de tema todavía.
