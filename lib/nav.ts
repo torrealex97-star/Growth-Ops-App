@@ -71,7 +71,7 @@ export const NAV_SECTIONS: NavSection[] = [
           { label: 'Embudo', href: '/analitica/embudo', icon: BarChart3, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
           { label: 'Ranking', href: '/analitica/ranking', icon: Gauge, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
           { label: 'Actividad', href: '/analitica/actividad', icon: PhoneCall, roles: [...LEAD, 'setter', 'triager', 'cold_caller'] },
-          { label: 'KPI Diario', href: '/analitica/actividad', icon: ClipboardList, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
+          { label: 'KPI Diario', href: '/analitica/actividad?kpi=1', icon: ClipboardList, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
         ],
       },
       { label: 'Comisiones', href: '/comisiones', icon: TrendingUp, roles: [...LEAD, 'setter', 'closer', 'affiliate'] },

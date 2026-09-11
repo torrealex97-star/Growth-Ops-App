@@ -18,6 +18,7 @@ export type StripeIntent = {
     refunded?: boolean
     disputed?: boolean
     billing_details?: { email?: string | null; name?: string | null }
+    balance_transaction?: string | { fee?: number } | null
   } | null
 }
 
@@ -34,6 +35,8 @@ export type StripeReconciliationRow = {
   saleId: string | null
   collectionId: string | null
   internalAmount: number | null
+  platformFee: number | null
+  internalProcessingFee: number | null
   reconciliation: 'matched' | 'probable' | 'mismatch' | 'missing'
 }
 
@@ -50,6 +53,7 @@ export async function reconcileStripePayments(
 ): Promise<StripeReconciliationResult> {
   const query = new URLSearchParams({ limit: '100' })
   query.append('expand[]', 'data.latest_charge')
+  query.append('expand[]', 'data.latest_charge.balance_transaction')
   const stripeRes = await fetch(`https://api.stripe.com/v1/payment_intents?${query}`, {
     headers: {
       Authorization: `Bearer ${stripeSecretKey}`,
@@ -65,7 +69,7 @@ export async function reconcileStripePayments(
   const intents = stripeJson.data ?? []
   const { data: collections, error } = await sb
     .from('collections')
-    .select('id,sale_id,gross_amount,status,payment_reference,payment_provider,payment_method,collected_at,sales(contacts(full_name,email))')
+    .select('id,sale_id,gross_amount,processing_fee,status,payment_reference,payment_provider,payment_method,collected_at,sales(contacts(full_name,email))')
     .eq('tenant_id', tenantId)
     .order('collected_at', { ascending: false })
     .limit(1000)
@@ -94,6 +98,7 @@ export async function reconcileStripePayments(
           ? 'mismatch'
           : byReference ? 'matched' : 'probable'
       const relation = collection?.sales as unknown as { contacts?: { full_name?: string; email?: string } | null } | null
+      const balanceTx = charge && typeof charge.balance_transaction === 'object' ? charge.balance_transaction : null
       return {
         paymentId: intent.id,
         chargeId: charge?.id || (typeof intent.latest_charge === 'string' ? intent.latest_charge : null),
@@ -107,6 +112,8 @@ export async function reconcileStripePayments(
         saleId,
         collectionId: collection?.id || null,
         internalAmount: collection ? Number(collection.gross_amount) : null,
+        platformFee: balanceTx?.fee != null ? balanceTx.fee / 100 : null,
+        internalProcessingFee: collection ? Number(collection.processing_fee ?? 0) : null,
         reconciliation,
       }
     })
