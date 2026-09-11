@@ -139,7 +139,7 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
                 {missing.map((a) => (
                   <Link
                     key={a.id}
-                    href={`/${tenant}/appointments`}
+                    href={`/${tenant}/crm/agendas`}
                     className="block px-4 py-2.5 hover:bg-muted/60 transition-colors"
                   >
                     <p className="text-sm text-foreground truncate">{a.contacts?.full_name || 'Contacto'}</p>

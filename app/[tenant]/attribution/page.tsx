@@ -685,7 +685,7 @@ export default function AttributionPage() {
                 {filteredQual.map((r) => (
                   <tr key={r.contact_id} className="border-b border-border/50 last:border-0 align-top">
                     <td className="py-2.5 pr-3 text-foreground max-w-[160px] truncate">
-                      <a href={`/${tenant}/contacts/${r.contact_id}`} className="hover:text-brand-400 hover:underline">{r.contact_name}</a>
+                      <a href={`/${tenant}/crm/contactos/${r.contact_id}`} className="hover:text-brand-400 hover:underline">{r.contact_name}</a>
                     </td>
                     <td className="py-2.5 pr-3 text-muted-foreground">{r.source || '—'}</td>
                     {QUALIFICATION_KEYS.map((k) => (

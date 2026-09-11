@@ -331,7 +331,7 @@ export default function ReelsDelDiaPage() {
                         </div>
                         <div className="flex flex-wrap items-center gap-2 mt-2.5">
                           <Link
-                            href={`/${tenant}/testimonios/${testimonio.id}`}
+                            href={`/${tenant}/recursos/testimonios/${testimonio.id}`}
                             className="text-[11px] text-pink-300 hover:underline flex items-center gap-1"
                           >
                             <Award className="w-3 h-3" /> Ver ficha

@@ -763,7 +763,7 @@ function DetailCard({ item, users, testimonios, patch, persist, onClose }: {
                   {testimonio.puntoB && <p><span className="text-foreground/70 font-medium">Ahora:</span> {testimonio.puntoB}</p>}
                 </div>
                 <div className="flex flex-wrap items-center gap-3 mt-2.5">
-                  <Link href={`/${tenant}/testimonios/${testimonio.id}`} className="text-[11px] text-brand-300 hover:underline">Ver ficha completa</Link>
+                  <Link href={`/${tenant}/recursos/testimonios/${testimonio.id}`} className="text-[11px] text-brand-300 hover:underline">Ver ficha completa</Link>
                   {testimonio.youtubeUrl && (
                     <a href={testimonio.youtubeUrl} target="_blank" rel="noreferrer" className="text-[11px] text-sky-400 hover:underline flex items-center gap-1">
                       <ExternalLink className="w-3 h-3" /> Vídeo original

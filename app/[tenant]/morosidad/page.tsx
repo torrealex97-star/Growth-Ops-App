@@ -308,7 +308,7 @@ export default function MorosidadPage() {
                           <p className="text-foreground">{contact?.full_name || '—'}</p>
                           {row.sale_id && (
                             <Link
-                              href={`/${tenant}/sales/${row.sale_id}`}
+                              href={`/${tenant}/ventas/registro/${row.sale_id}`}
                               className="text-xs text-brand-400 hover:text-brand-300 inline-flex items-center gap-1 mt-0.5"
                             >
                               Ver venta <ExternalLink className="w-3 h-3" />

@@ -220,7 +220,7 @@ export default function ContratosPage() {
                   </td>
                   <td className="px-4 py-3">
                     {c.sale_id ? (
-                      <Link href={`/${tenant}/sales/${c.sale_id}`} className="text-brand-400 hover:text-brand-300 text-xs">
+                      <Link href={`/${tenant}/ventas/registro/${c.sale_id}`} className="text-brand-400 hover:text-brand-300 text-xs">
                         Ver venta
                       </Link>
                     ) : (

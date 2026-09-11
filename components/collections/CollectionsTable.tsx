@@ -49,7 +49,7 @@ export function CollectionsTable({ collections }: CollectionsTableProps) {
           className="text-brand-400 hover:text-brand-300 text-sm text-left"
           onClick={(e) => {
             e.stopPropagation()
-            router.push(`/${tenant}/sales/${row.original.sale_id}`)
+            router.push(`/${tenant}/ventas/registro/${row.original.sale_id}`)
           }}
         >
           <p className="font-medium">{row.original.sales?.contacts?.full_name || '—'}</p>
