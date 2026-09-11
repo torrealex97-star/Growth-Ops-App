@@ -1,0 +1,28 @@
+/** Rutas históricas que deben seguir funcionando después de agrupar Marketing en hubs. */
+export const LEGACY_MARKETING_ROUTES: Record<string, string> = {
+  '/campaigns': '/marketing/adquisicion/campanas',
+  '/attribution': '/marketing/adquisicion/atribucion',
+  '/vsl': '/marketing/adquisicion/vsl',
+  '/content/reels': '/instagram/reels',
+  '/content': '/instagram/contenido',
+  '/carruseles': '/instagram/carruseles',
+  '/data-health': '/settings?tab=data-health',
+}
+
+export function marketingDestinationFor(rest: string): string | null {
+  if (LEGACY_MARKETING_ROUTES[rest]) return LEGACY_MARKETING_ROUTES[rest]
+  if (rest.startsWith('/carruseles/')) {
+    return `/instagram/carruseles/${rest.slice('/carruseles/'.length)}`
+  }
+  return null
+}
+
+export function permissionLocationFor(relPathname: string, dataHealthTab: boolean): string {
+  return relPathname === '/settings' && dataHealthTab
+    ? '/settings?tab=data-health'
+    : relPathname
+}
+
+export function isAllowedLocation(zones: string[], relLocation: string): boolean {
+  return zones.some((zone) => relLocation.startsWith(zone))
+}

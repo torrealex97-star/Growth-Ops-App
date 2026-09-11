@@ -90,9 +90,8 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     dept: 'marketing',
     items: [
-      { label: 'Setting AI', href: '/setting-ai', icon: Bot, roles: [...LEAD, 'setter', 'marketing'] },
       {
-        label: 'Adquisición', href: '/marketing/adquisicion/campanas', icon: Radio,
+        label: 'Adquisición', href: '/marketing/adquisicion', icon: Radio,
         roles: [...LEAD, 'marketing', 'adscripcion', 'editor'],
         children: [
           { label: 'Campañas', href: '/marketing/adquisicion/campanas', icon: Radio, roles: [...LEAD, 'marketing', 'adscripcion'] },
@@ -142,16 +141,18 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     dept: 'sistema',
     items: [
+      { label: 'Setting AI', href: '/setting-ai', icon: Bot, roles: [...LEAD, 'setter', 'marketing'] },
       { label: 'Sugerencias', href: '/settings/sugerencias', icon: Lightbulb, roles: ['admin', 'director'] },
       { label: 'Actividad', href: '/actividad', icon: Activity, roles: ['admin', 'director'] },
       { label: 'Auditoría', href: '/audit', icon: Shield, roles: ['admin', 'director'] },
-      { label: 'Data Health', href: '/settings?tab=data-health', icon: Activity, roles: ['admin', 'director', 'marketing', 'adscripcion'] },
       {
         label: 'Configuración',
-        href: '/settings',
+        href: '/settings?tab=data-health',
         icon: Settings,
-        roles: ['admin'],
+        roles: [...LEAD, 'marketing', 'adscripcion'],
         children: [
+          { label: 'General', href: '/settings', icon: Settings, roles: ['admin'] },
+          { label: 'Data Health', href: '/settings?tab=data-health', icon: Activity, roles: [...LEAD, 'marketing', 'adscripcion'] },
           { label: 'Productos', href: '/settings/products', icon: Package, roles: ['admin'] },
           { label: 'Reglas Comisión', href: '/settings/commission-rules', icon: Percent, roles: ['admin'] },
           { label: 'Socios', href: '/settings/partners', icon: Percent, roles: ['admin'] },

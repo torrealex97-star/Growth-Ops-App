@@ -30,6 +30,7 @@ export function RouteTabs({ tabs, relPathname }: { tabs: RouteTab[]; relPathname
           <Link
             key={t.href}
             href={t.href}
+            aria-current={active ? 'page' : undefined}
             className={cn(
               'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all',
               active ? 'bg-card text-foreground shadow' : 'hover:text-foreground'

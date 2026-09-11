@@ -1,3 +1,5 @@
+import { LEGACY_MARKETING_ROUTES } from '@/lib/marketing-navigation'
+
 export type AppRole =
   | 'admin' | 'director' | 'manager'
   | 'setter' | 'closer' | 'triager' | 'cold_caller' | 'affiliate'
@@ -75,10 +77,10 @@ export const ROLE_DEPARTMENTS: Record<AppRole, Department[]> = {
 export const DEPARTMENT_PREFIXES: Record<Department, string[]> = {
   direccion: ['/dashboard', '/unit-economics', '/cohorts', '/pnl'],
   ventas: ['/crm', '/ventas', '/analitica', '/comisiones', '/recursos', '/tasks'],
-  marketing: ['/marketing', '/instagram', '/setting-ai', '/settings'],
+  marketing: ['/marketing/adquisicion', '/instagram'],
   producto: ['/students', '/csm-events', '/drops', '/contratos'],
   finanzas: ['/finanzas', '/proyeccion', '/expenses', '/facturas', '/morosidad', '/morosos-sequra', '/collections', '/refunds', '/afiliados', '/pnl', '/gestoria'],
-  sistema: ['/actividad', '/audit', '/settings', '/contratos/equipo', '/contratos/plantillas'],
+  sistema: ['/actividad', '/audit', '/settings', '/setting-ai', '/contratos/equipo', '/contratos/plantillas'],
 }
 
 // Catálogo de páginas navegables agrupadas por departamento. Es la fuente para el selector de
@@ -111,7 +113,7 @@ export const NAV_PAGES: { href: string; label: string; dept: Department }[] = [
   { href: '/instagram/carruseles', label: 'Instagram · Carruseles y Flyers', dept: 'marketing' },
   { href: '/instagram/competencia', label: 'Instagram · Competencia', dept: 'marketing' },
   { href: '/instagram/contenido', label: 'Instagram · Contenido', dept: 'marketing' },
-  { href: '/setting-ai', label: 'Setting AI', dept: 'marketing' },
+  { href: '/setting-ai', label: 'Setting AI', dept: 'sistema' },
   { href: '/students', label: 'Alumnos', dept: 'producto' },
   { href: '/csm-events', label: 'Eventos CSM', dept: 'producto' },
   { href: '/drops', label: 'Cancelaciones', dept: 'producto' },
@@ -131,7 +133,11 @@ export const NAV_PAGES: { href: string; label: string; dept: Department }[] = [
   { href: '/actividad', label: 'Actividad', dept: 'sistema' },
   { href: '/audit', label: 'Auditoría', dept: 'sistema' },
   { href: '/settings', label: 'Configuración', dept: 'sistema' },
+  { href: '/settings?tab=data-health', label: 'Data Health', dept: 'sistema' },
 ]
+
+const normalizeAllowedPrefixes = (prefixes: string[]) =>
+  prefixes.map((prefix) => LEGACY_MARKETING_ROUTES[prefix] ?? prefix)
 
 // Prefijos permitidos para un usuario. Prioridad:
 //   1) page_overrides → lista EXPLÍCITA de páginas (on/off una a una)
@@ -142,13 +148,14 @@ export function allowedPrefixesFor(
   deptOverrides?: string[] | null,
   pageOverrides?: string[] | null
 ): string[] | undefined {
-  if (pageOverrides && pageOverrides.length > 0) return pageOverrides
+  if (pageOverrides && pageOverrides.length > 0) return normalizeAllowedPrefixes(pageOverrides)
   if (deptOverrides && deptOverrides.length > 0) {
     const set = new Set<string>()
     for (const d of deptOverrides) (DEPARTMENT_PREFIXES[d as Department] || []).forEach((p) => set.add(p))
-    return Array.from(set)
+    return normalizeAllowedPrefixes(Array.from(set))
   }
-  return ROLE_ALLOWED_PREFIXES[role]
+  const rolePrefixes = ROLE_ALLOWED_PREFIXES[role]
+  return rolePrefixes ? normalizeAllowedPrefixes(rolePrefixes) : undefined
 }
 
 export const hasDepartment = (role: AppRole, dept: Department) =>
@@ -171,13 +178,11 @@ export const ROLE_ALLOWED_PREFIXES: Partial<Record<AppRole, string[]>> = {
   cold_caller: ['/crm', '/analitica', '/tasks', '/recursos/enlaces', '/recursos/biblioteca', '/recursos/testimonios'],
   affiliate:   ['/afiliados', '/comisiones', '/recursos/enlaces'],
   gestoria:    ['/gestoria', '/facturas', '/pnl', '/finanzas'],
-  // marketing/adscripcion pierden acceso a las tarjetas de Configuración (siempre fueron solo-admin);
-  // '/settings' se les concede únicamente porque Data Health vive ahora ahí — la propia página
-  // (app/[tenant]/settings/page.tsx) les muestra EXCLUSIVAMENTE el panel de Data Health, nunca las
-  // tarjetas de administración.
-  marketing:   ['/marketing', '/instagram', '/settings', '/recursos/testimonios'],
-  adscripcion: ['/marketing', '/settings'],
-  editor:      ['/instagram', '/marketing', '/recursos/testimonios'],
+  // Data Health usa un permiso exacto con query para no abrir el resto de /settings.
+  // Adscripción y Editor conservan solo las pestañas a las que ya tenían acceso antes del cambio.
+  marketing:   ['/marketing/adquisicion', '/instagram', '/settings?tab=data-health', '/setting-ai', '/recursos/testimonios'],
+  adscripcion: ['/marketing/adquisicion/campanas', '/marketing/adquisicion/atribucion', '/settings?tab=data-health'],
+  editor:      ['/instagram', '/marketing/adquisicion/vsl', '/recursos/testimonios'],
   csm:         ['/students', '/csm-events', '/drops', '/recursos/testimonios'],
   cobros:      ['/morosidad', '/morosos-sequra', '/collections', '/ventas/pagos'],
 }
