@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server'
 import { sql, mergeConfig, slugify, DEFAULT_CONFIG } from '@/lib/vsl/db'
+import { requireUser } from '@/lib/auth/requireUser'
 
 export const dynamic = 'force-dynamic'
 
 // Lista todos los vídeos VSL.
 export async function GET() {
+  const auth = await requireUser()
+  if ('error' in auth) return auth.error
+
   try {
     const rows = await sql`
       SELECT id, slug, name, source_url, poster_url, duration_seconds, config, created_at, updated_at
@@ -22,6 +26,9 @@ export async function GET() {
 
 // Crea o actualiza un vídeo.
 export async function POST(req: Request) {
+  const auth = await requireUser()
+  if ('error' in auth) return auth.error
+
   try {
     const body = await req.json()
     const name: string = (body.name || '').trim()
@@ -71,6 +78,9 @@ export async function POST(req: Request) {
 
 // Borra un vídeo (y en cascada sus sesiones).
 export async function DELETE(req: Request) {
+  const auth = await requireUser()
+  if ('error' in auth) return auth.error
+
   try {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')

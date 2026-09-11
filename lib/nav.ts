@@ -4,7 +4,7 @@
 import {
   LayoutDashboard, Users, Calendar, ShoppingCart, DollarSign, RotateCcw, TrendingUp, Target,
   ClipboardList, Shield, Settings, Package, Percent, UserCog, FileText, Megaphone, Inbox,
-  ListChecks, Clapperboard, Radio, GraduationCap, CalendarCheck, HeartPulse, UserMinus, Wallet,
+  ListChecks, Clapperboard, Radio, GraduationCap, CalendarCheck, UserMinus, Wallet,
   PieChart, CalendarRange, Receipt, Gauge, AlertTriangle, BarChart3, PhoneCall, CreditCard, Link2,
   Video, Camera, Radar, Lightbulb, Plug, Layers, LineChart, Activity, Images, Award, Bot,
   ClipboardList as ClipboardListIcon,
@@ -84,7 +84,6 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Alumnos', href: '/evergreen/students', icon: GraduationCap, roles: [...LEAD, 'csm'] },
       { label: 'Eventos CSM', href: '/evergreen/csm-events', icon: CalendarCheck, roles: [...LEAD, 'csm'] },
-      { label: 'Retención', href: '/evergreen/retention', icon: HeartPulse, roles: [...LEAD, 'csm'] },
       { label: 'Cancelaciones', href: '/evergreen/drops', icon: UserMinus, roles: [...LEAD, 'csm'] },
       { label: 'Contratos de alumnos', href: '/evergreen/contratos', icon: FileText, roles: [...LEAD, 'csm', 'gestoria'] },
       { label: 'Contratos de equipo', href: '/evergreen/contratos/equipo', icon: Shield, roles: LEAD },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireUser } from '@/lib/auth/requireUser'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -7,6 +8,9 @@ const supabase = createClient(
 )
 
 export async function POST(req: NextRequest) {
+  const auth = await requireUser()
+  if ('error' in auth) return auth.error
+
   try {
     const data = await req.json()
     const { saleId, contactId, countryCode, documentType, fileBase64, fileName } = data
