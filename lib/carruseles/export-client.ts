@@ -18,10 +18,10 @@ function slugify(s: string): string {
   )
 }
 
-async function fetchFontEmbedCSS(families: string[]): Promise<string> {
+async function fetchFontEmbedCSS(families: string[], tenant: string): Promise<string> {
   if (families.length === 0) return ""
   try {
-    const res = await fetch(`/api/evergreen/carruseles/fonts?families=${encodeURIComponent(families.join(","))}`)
+    const res = await fetch(`/api/${tenant}/evergreen/carruseles/fonts?families=${encodeURIComponent(families.join(","))}`)
     if (!res.ok) return ""
     return await res.text()
   } catch {
@@ -115,12 +115,13 @@ export async function exportProject(
   title: string,
   slides: Slide[],
   aspectRatio: AspectRatio,
+  tenant: string,
   onProgress?: (current: number, total: number) => void
 ): Promise<void> {
   if (slides.length === 0) return
   const allHtml = slides.map((s) => s.html).join("\n")
   const families = extractFontFamilies(allHtml)
-  const fontEmbedCSS = await fetchFontEmbedCSS(families)
+  const fontEmbedCSS = await fetchFontEmbedCSS(families, tenant)
 
   const base = slugify(title)
   const pngs: { name: string; data: Uint8Array; dataUrl: string }[] = []

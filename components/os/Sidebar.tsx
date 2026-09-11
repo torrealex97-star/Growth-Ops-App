@@ -9,7 +9,6 @@ import {
   ChevronRight,
   ChevronDown,
   X,
-  ArrowLeft,
 } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -21,6 +20,7 @@ import { useState, useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { User } from '@/lib/types/database'
 import { NAV_SECTIONS, makeNavFilter } from '@/lib/nav'
+import { useTenant } from '@/lib/tenant-context'
 
 interface SidebarProps {
   user: User & { roles: { key: string; name: string } }
@@ -30,6 +30,8 @@ interface SidebarProps {
 
 export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
   const pathname = usePathname()
+  const tenant = useTenant()
+  const relPathname = pathname.replace(new RegExp(`^/${tenant}`), '') || '/'
   const role = user.roles.key as AppRole
   const u = user as unknown as { dept_overrides?: string[] | null; page_overrides?: string[] | null }
   const isVisible = makeNavFilter(role, u?.dept_overrides, u?.page_overrides)
@@ -54,12 +56,12 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
   const handleLogout = async () => {
     if (loggingOut) return
     setLoggingOut(true)
-    await performLogout()
+    await performLogout(`/${tenant}/login`)
   }
 
   const isActive = (href: string) => {
-    if (href === '/evergreen/dashboard') return pathname === '/evergreen/dashboard'
-    return pathname.startsWith(href)
+    if (href === '/dashboard') return relPathname === '/dashboard'
+    return relPathname.startsWith(href)
   }
 
   return (
@@ -97,17 +99,6 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
           </Button>
         </div>
 
-        {/* Back to Hub link */}
-        <div className="px-3 pt-3">
-          <Link
-            href="/"
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            <ArrowLeft className="w-3 h-3" />
-            Volver al Hub
-          </Link>
-        </div>
-
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
           {NAV_SECTIONS.map((section) => {
@@ -133,7 +124,7 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
                 {!isCollapsed && visibleItems.map((item) => (
                   <div key={item.href}>
                     <Link
-                      href={item.href}
+                      href={`/${tenant}${item.href}`}
                       onClick={() => onClose()}
                       className={cn(
                         'relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group',
@@ -162,11 +153,11 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
                         {item.children.filter(isVisible).map((child) => (
                           <Link
                             key={child.href}
-                            href={child.href}
+                            href={`/${tenant}${child.href}`}
                             onClick={() => onClose()}
                             className={cn(
                               'flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition-colors',
-                              pathname === child.href
+                              relPathname === child.href
                                 ? 'text-brand-400'
                                 : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                             )}

@@ -1,4 +1,5 @@
 'use client'
+import { useTenant } from '@/lib/tenant-context'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { upload } from '@vercel/blob/client'
@@ -46,6 +47,7 @@ function fmt(sec: number): string {
 const BLUE = '#2563EB' // azul eléctrico IA Winners
 
 export function VslDashboard() {
+  const tenant = useTenant()
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState<Partial<Video> | null>(null)
@@ -57,7 +59,7 @@ export function VslDashboard() {
 
   const loadVideos = useCallback(async () => {
     setLoading(true)
-    const r = await fetch('/api/evergreen/vsl/videos')
+    const r = await fetch(`/api/${tenant}/evergreen/vsl/videos`)
     const d = await r.json()
     setVideos(d.videos || [])
     setLoading(false)
@@ -68,7 +70,7 @@ export function VslDashboard() {
 
   const loadMetrics = useCallback(async (slug: string) => {
     setMetrics(null)
-    const r = await fetch(`/api/evergreen/vsl/metrics/${slug}`)
+    const r = await fetch(`/api/${tenant}/evergreen/vsl/metrics/${slug}`)
     if (r.ok) setMetrics(await r.json())
   }, [])
 
@@ -92,7 +94,7 @@ export function VslDashboard() {
 
   const del = async (id: string) => {
     if (!confirm('¿Borrar este vídeo y todas sus métricas?')) return
-    await fetch(`/api/evergreen/vsl/videos?id=${id}`, { method: 'DELETE' })
+    await fetch(`/api/${tenant}/evergreen/vsl/videos?id=${id}`, { method: 'DELETE' })
     setSelected(null)
     loadVideos()
   }
@@ -313,6 +315,7 @@ function VideoForm({
   onClose: () => void
   onSaved: (v: Video) => void
 }) {
+  const tenant = useTenant()
   const [name, setName] = useState(initial.name || '')
   const [sourceUrl, setSourceUrl] = useState(initial.source_url || '')
   const [posterUrl, setPosterUrl] = useState(initial.poster_url || '')
@@ -343,7 +346,7 @@ function VideoForm({
       }
       const blob = await upload(file.name, file, {
         access: 'public',
-        handleUploadUrl: '/api/evergreen/vsl/upload',
+        handleUploadUrl: `/api/${tenant}/evergreen/vsl/upload`,
         contentType: file.type,
       })
       if (kind === 'video') setSourceUrl(blob.url)
@@ -358,7 +361,7 @@ function VideoForm({
   const save = async () => {
     setErr(null); setSaving(true)
     try {
-      const r = await fetch('/api/evergreen/vsl/videos', {
+      const r = await fetch(`/api/${tenant}/evergreen/vsl/videos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

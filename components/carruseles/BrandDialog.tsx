@@ -14,6 +14,7 @@ import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import type { BrandConfig } from "@/lib/carruseles/types"
 import { DEFAULT_BRAND } from "@/lib/carruseles/types"
+import { useTenant } from '@/lib/tenant-context'
 
 interface Props {
   open: boolean
@@ -29,6 +30,7 @@ const COLOR_FIELDS: { key: keyof BrandConfig["colors"]; label: string }[] = [
 ]
 
 export function BrandDialog({ open, onOpenChange }: Props) {
+  const tenant = useTenant()
   const [brand, setBrand] = useState<BrandConfig>(DEFAULT_BRAND)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -36,7 +38,7 @@ export function BrandDialog({ open, onOpenChange }: Props) {
   useEffect(() => {
     if (!open) return
     setLoading(true)
-    fetch("/api/evergreen/carruseles/brand")
+    fetch(`/api/${tenant}/evergreen/carruseles/brand`)
       .then((r) => r.json())
       .then((b) => setBrand({ ...DEFAULT_BRAND, ...b, colors: { ...DEFAULT_BRAND.colors, ...b.colors }, fonts: { ...DEFAULT_BRAND.fonts, ...b.fonts } }))
       .catch(() => {})
@@ -46,7 +48,7 @@ export function BrandDialog({ open, onOpenChange }: Props) {
   const save = async () => {
     setSaving(true)
     try {
-      const res = await fetch("/api/evergreen/carruseles/brand", {
+      const res = await fetch(`/api/${tenant}/evergreen/carruseles/brand`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(brand),

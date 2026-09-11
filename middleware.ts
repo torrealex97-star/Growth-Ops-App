@@ -2,26 +2,30 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 
-// Paths that are always public, outside the /evergreen namespace
+// Paths that are always public, entirely outside the /[tenant] namespace
 const PUBLIC_PATHS = [
   '/firmar',               // página pública de firma de contratos (auth por token)
   '/embed',                // reproductor VSL embebido en landings/GHL (iframe público)
   '/api/vsl',              // tracking del player VSL desde el iframe público (track/identify/session)
 ]
 
-// Evergreen public routes (login/recover don't require Supabase session)
-const EVERGREEN_PUBLIC_PATHS = [
-  '/evergreen/login', '/evergreen/recover', '/api/evergreen/auth',
-  '/evergreen/afiliados/registro', // formulario público de alta de afiliados
-  '/api/evergreen/afiliados/registro', '/api/evergreen/afiliados/form-config', // alta + config del formulario público
-  '/api/evergreen/webhooks', // GHL / player VSL — se autentican con su propio secreto, no con sesión
-  '/api/evergreen/tracking/events', // ingestión canónica — se autentica con TRACKING_INGEST_KEY
-  '/api/evergreen/contracts/sign', // firma pública de contratos — se autentica por token
-  '/api/evergreen/admin/setup', // mantenimiento — se autentica con CRON_SECRET
-  '/api/evergreen/admin/migrate-meta', // migración v19 Meta — CRON_SECRET o sesión admin
-  '/api/evergreen/admin/setup-meta-cron', // programa pg_cron 30 min — CRON_SECRET o sesión admin
-  '/api/evergreen/cron', // Vercel Cron — se autentica con CRON_SECRET, no con sesión
-  '/api/evergreen/sales/reconcile-all', // reparación masiva — se autentica con CRON_SECRET o sesión admin
+// Sub-rutas públicas DENTRO de un tenant (no requieren sesión Supabase),
+// expresadas relativas al tenant — es decir, sin el segmento [tenant].
+const TENANT_PUBLIC_SUFFIXES = [
+  '/login', '/recover',
+  '/afiliados/registro',
+]
+const TENANT_API_PUBLIC_SUFFIXES = [
+  '/evergreen/auth', // login/recover/callback
+  '/evergreen/afiliados/registro', '/evergreen/afiliados/form-config',
+  '/evergreen/webhooks', // GHL / player VSL — se autentican con su propio secreto, no con sesión
+  '/evergreen/tracking/events', // ingestión canónica — se autentica con TRACKING_INGEST_KEY
+  '/evergreen/contracts/sign', // firma pública de contratos — se autentica por token
+  '/evergreen/admin/setup', // mantenimiento — se autentica con CRON_SECRET
+  '/evergreen/admin/migrate-meta', // migración v19 Meta — CRON_SECRET o sesión admin
+  '/evergreen/admin/setup-meta-cron', // programa pg_cron 30 min — CRON_SECRET o sesión admin
+  '/evergreen/cron', // Vercel Cron — se autentica con CRON_SECRET, no con sesión
+  '/evergreen/sales/reconcile-all', // reparación masiva — se autentica con CRON_SECRET o sesión admin
 ]
 
 export async function middleware(request: NextRequest) {
@@ -31,24 +35,35 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Root redirects to /evergreen/dashboard (see app/page.tsx) — always public
+  // Root ('/') is the un-tenanted landing page — always public.
   if (pathname === '/') return NextResponse.next()
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next()
   }
 
-  // Handle evergreen routes — delegate to Supabase session management
-  if (pathname.startsWith('/evergreen') || pathname.startsWith('/api/evergreen')) {
-    // Public evergreen paths pass through without session check
-    if (EVERGREEN_PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+  // API routes: /api/<tenant>/evergreen/...
+  const apiMatch = pathname.match(/^\/api\/([^/]+)(\/.*)?$/)
+  if (apiMatch) {
+    const tenant = apiMatch[1]
+    const rest = apiMatch[2] || ''
+    if (TENANT_API_PUBLIC_SUFFIXES.some((p) => rest.startsWith(p))) {
       return NextResponse.next()
     }
-    // All other /evergreen/* routes: validate via Supabase updateSession
-    return updateSession(request)
+    return updateSession(request, tenant)
   }
 
-  // Anything else falls through to Next.js's own 404 handling
+  // Pages: /<tenant>/...
+  const pageMatch = pathname.match(/^\/([^/]+)(\/.*)?$/)
+  if (pageMatch) {
+    const tenant = pageMatch[1]
+    const rest = pageMatch[2] || '/'
+    if (TENANT_PUBLIC_SUFFIXES.some((p) => rest.startsWith(p))) {
+      return NextResponse.next()
+    }
+    return updateSession(request, tenant)
+  }
+
   return NextResponse.next()
 }
 

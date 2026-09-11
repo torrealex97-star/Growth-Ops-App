@@ -7,6 +7,7 @@ import { ReferenceImages } from "./ReferenceImages"
 import { AlertCircle } from "lucide-react"
 import { toast } from "sonner"
 import type { ReferenceImage } from "@/lib/carruseles/types"
+import { useTenant } from '@/lib/tenant-context'
 
 interface Message {
   id: string
@@ -31,6 +32,7 @@ export function ChatPanel({
   onStreamEnd,
   chatInputRef,
 }: Props) {
+  const tenant = useTenant()
   const [messages, setMessages] = useState<Message[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -82,7 +84,7 @@ export function ChatPanel({
       let accumulated = ""
 
       try {
-        const res = await fetch("/api/evergreen/carruseles/chat", {
+        const res = await fetch(`/api/${tenant}/evergreen/carruseles/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message, projectId, history }),

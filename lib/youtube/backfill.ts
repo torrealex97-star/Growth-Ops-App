@@ -77,7 +77,7 @@ export async function refreshYoutubeStats(sb: SupabaseClient): Promise<void> {
 // - Reels ANTIGUOS (backfill, ya publicados antes de activar la función): se procesan del más
 //   reciente al más antiguo, como máximo `backfillLimit` por llamada. Para repartirlos a lo largo
 //   del día (mañana/mediodía/noche) en vez de subirlos todos de golpe, se llama con backfillLimit=1
-//   desde un cron dedicado programado 3 veces al día (ver /api/evergreen/cron/youtube-backfill).
+//   desde un cron dedicado programado 3 veces al día (ver /api/${tenant}/evergreen/cron/youtube-backfill).
 // Best-effort: un fallo en un reel no tumba el resto; queda marcado 'failed' con su error para
 // poder revisarlo sin reintentar los que ya se subieron bien.
 export async function runYoutubeSync(sb: SupabaseClient, cfg: IgConfig, opts: { backfillLimit: number }): Promise<number> {

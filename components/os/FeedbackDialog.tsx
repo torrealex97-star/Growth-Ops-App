@@ -18,6 +18,7 @@ import { cn, formatDateTime } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { SuggestionType, SuggestionStatus, SuggestionWithUser, SuggestionTeamStat } from '@/lib/types/database'
 import { createClient } from '@/lib/supabase/client'
+import { useTenant } from '@/lib/tenant-context'
 
 const TYPES: { value: SuggestionType; label: string; icon: React.ElementType; hint: string }[] = [
   { value: 'mejora', label: 'Mejora', icon: Lightbulb, hint: 'Una idea para mejorar la plataforma' },
@@ -37,6 +38,7 @@ const STATUS_META: Record<SuggestionStatus, { label: string; color: string }> = 
 }
 
 export function FeedbackDialog() {
+  const tenant = useTenant()
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<'enviar' | 'mias' | 'equipo'>('enviar')
@@ -62,7 +64,7 @@ export function FeedbackDialog() {
   const loadMine = async () => {
     setLoadingMine(true)
     try {
-      const res = await fetch('/api/evergreen/suggestions?mine=1')
+      const res = await fetch(`/api/${tenant}/evergreen/suggestions?mine=1`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setMine((data.suggestions ?? []) as SuggestionWithUser[])
@@ -79,7 +81,7 @@ export function FeedbackDialog() {
   const loadTeam = async () => {
     setLoadingTeam(true)
     try {
-      const res = await fetch('/api/evergreen/suggestions/team-stats')
+      const res = await fetch(`/api/${tenant}/evergreen/suggestions/team-stats`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setTeamStats((data.stats ?? []) as SuggestionTeamStat[])
@@ -104,7 +106,7 @@ export function FeedbackDialog() {
     }
     setSubmitting(true)
     try {
-      const res = await fetch('/api/evergreen/suggestions', {
+      const res = await fetch(`/api/${tenant}/evergreen/suggestions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, title, message, page_url: pathname }),

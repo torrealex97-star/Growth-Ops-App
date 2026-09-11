@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { Heart, Users } from 'lucide-react'
+import { useTenant } from '@/lib/tenant-context'
 
 type Note = { id: string; period_type: 'daily' | 'weekly'; content: string; is_shared: boolean } | null
 type WallEntry = { id: string; period_type: 'daily' | 'weekly'; content: string; created_at: string; users?: { full_name?: string } | null }
@@ -21,6 +22,7 @@ function timeAgo(iso: string): string {
 // Nota "qué me llevo positivo" — privada por defecto, con opción de compartirla en el muro del
 // equipo. Es journaling ligero para cerrar el día/semana con foco en lo bueno, no un reporte más.
 export function PositiveNoteWidget() {
+  const tenant = useTenant()
   const [tab, setTab] = useState<'daily' | 'weekly'>('daily')
   const [daily, setDaily] = useState<Note>(null)
   const [weekly, setWeekly] = useState<Note>(null)
@@ -34,7 +36,7 @@ export function PositiveNoteWidget() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch('/api/evergreen/positive-notes')
+      const res = await fetch(`/api/${tenant}/evergreen/positive-notes`)
       if (!res.ok) { setLoading(false); return }
       const data = await res.json()
       setDaily(data.daily ?? null)
@@ -58,7 +60,7 @@ export function PositiveNoteWidget() {
     setSaving(true)
     setSavedMsg('')
     try {
-      const res = await fetch('/api/evergreen/positive-notes', {
+      const res = await fetch(`/api/${tenant}/evergreen/positive-notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ period_type: tab, content, is_shared: isShared }),

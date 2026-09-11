@@ -4,15 +4,17 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Sparkles } from 'lucide-react'
 import type { SuggestionWithUser } from '@/lib/types/database'
+import { useTenant } from '@/lib/tenant-context'
 
 // Reconocimiento estilo Kaizen: cuantas más ideas/mejoras aporte cada uno, más visible se hace
 // aquí. Un admin/director ve el ranking completo del equipo (la API les devuelve todas las
 // sugerencias); un rep normal solo ve las suyas, así que aquí solo cuenta las propias.
 export function KaizenWidget({ userId }: { userId: string }) {
+  const tenant = useTenant()
   const [items, setItems] = useState<SuggestionWithUser[] | null>(null)
 
   useEffect(() => {
-    fetch('/api/evergreen/suggestions')
+    fetch(`/api/${tenant}/evergreen/suggestions`)
       .then((r) => r.json())
       .then((d) => setItems(d.suggestions ?? []))
       .catch(() => setItems([]))
@@ -30,7 +32,7 @@ export function KaizenWidget({ userId }: { userId: string }) {
 
   return (
     <Link
-      href="/evergreen/settings/sugerencias"
+      href={`/${tenant}/settings/sugerencias`}
       className="block rounded-xl border border-brand-500/30 bg-brand-500/5 p-4 mb-6 hover:border-brand-500/50 transition-colors"
     >
       <div className="flex items-center gap-2 text-sm font-semibold text-brand-400">

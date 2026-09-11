@@ -7,6 +7,7 @@ import { CalendarClock, Check, X } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { AppointmentStatus } from '@/lib/types/database'
+import { useTenant } from '@/lib/tenant-context'
 
 // Reuniones que ya pasaron pero se quedaron sin resolver (nadie marcó si el lead se presentó o
 // no). Sin esto, se pierde el dato de asistencia y las métricas de show-rate quedan huecas.
@@ -19,6 +20,7 @@ type PendingAppt = {
 }
 
 export function PendingAttendanceAlert({ userId, isLeadership }: { userId: string; isLeadership: boolean }) {
+  const tenant = useTenant()
   const [pending, setPending] = useState<PendingAppt[]>([])
   const [updating, setUpdating] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -45,7 +47,7 @@ export function PendingAttendanceAlert({ userId, isLeadership }: { userId: strin
   const markStatus = async (id: string, status: AppointmentStatus) => {
     setUpdating(id)
     try {
-      const res = await fetch('/api/evergreen/appointments/status', {
+      const res = await fetch(`/api/${tenant}/evergreen/appointments/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appointmentId: id, status }),
