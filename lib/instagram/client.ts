@@ -460,3 +460,62 @@ export async function fetchConversationStats(cfg: IgConfig, pageId: string, pat?
     unique_people: 0,
   }
 }
+
+export type IgConversationMessage = { from: 'agente' | 'lead'; text?: string; created_time?: string }
+export type IgConversation = {
+  id: string
+  participant?: string
+  updated_time?: string
+  unread_count: number
+  message_count: number
+  messages: IgConversationMessage[]
+}
+
+// Conversaciones (DMs) CON su transcripción — fase 4 (extracción para análisis con IA del
+// proceso de setting). A diferencia de fetchConversationStats (solo contadores agregados
+// porque pedir "participants" en el listado da error #1 de Meta), aquí pedimos el detalle
+// (participants + mensajes) conversación a conversación, que sí lo admite.
+export async function fetchIgConversationsWithMessages(
+  cfg: IgConfig,
+  pageId: string,
+  pat: string,
+  igUserId: string,
+  limit = 20
+): Promise<IgConversation[]> {
+  const pq = `access_token=${encodeURIComponent(pat)}`
+  const url = `${GRAPH}/${cfg.version}/${pageId}/conversations?platform=instagram&fields=updated_time,unread_count,message_count&limit=${Math.min(limit, 50)}&${pq}`
+  const rows = await graphGetAll(url, Math.ceil(limit / 50) + 1)
+  const out: IgConversation[] = []
+  for (const c of rows.slice(0, limit)) {
+    let participant: string | undefined
+    let messages: IgConversationMessage[] = []
+    try {
+      const j = await graphGet(
+        `${GRAPH}/${cfg.version}/${c.id}?fields=participants,messages.limit(50){message,from,created_time}&${pq}`
+      )
+      const participants = j?.participants?.data || []
+      const other = participants.find((p: any) => String(p?.id) !== String(igUserId))
+      participant = other?.username || other?.name || other?.id
+      const msgRows = j?.messages?.data || []
+      messages = msgRows
+        .slice()
+        .reverse()
+        .map((m: any) => ({
+          from: (m?.from?.id && String(m.from.id) === String(igUserId) ? 'agente' : 'lead') as 'agente' | 'lead',
+          text: m?.message,
+          created_time: m?.created_time,
+        }))
+    } catch {
+      // si falla el detalle de una conversación, la dejamos sin transcripción en vez de tumbar todo el listado
+    }
+    out.push({
+      id: String(c.id),
+      participant,
+      updated_time: c?.updated_time,
+      unread_count: Number(c?.unread_count) || 0,
+      message_count: Number(c?.message_count) || 0,
+      messages,
+    })
+  }
+  return out
+}

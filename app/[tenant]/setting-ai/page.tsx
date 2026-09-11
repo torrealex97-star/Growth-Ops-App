@@ -5,8 +5,9 @@ import { useTenant } from '@/lib/tenant-context'
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { DEFAULT_BASE_PROMPT, BRAND, BRAND_PERSON } from "@/lib/setting-ai/default-prompt"
 import {
-  Bot, Plus, X, Sparkles, RotateCcw, Trash2, Play, Send, Search, Pencil, Copy, Download, Check,
+  Bot, Plus, X, Sparkles, RotateCcw, Trash2, Play, Send, Search, Pencil, Copy, Download, Check, MessageCircle, GraduationCap,
 } from "lucide-react"
+import ConversacionesTab from "./ConversacionesTab"
 
 type Who = "lead" | "agent"
 interface Msg { who: Who; text: string; id: string }
@@ -31,6 +32,27 @@ const sevColor: Record<string, string> = {
 }
 
 export default function SettingAIPage() {
+  const [topTab, setTopTab] = useState<"entrenamiento" | "conversaciones">("entrenamiento")
+  return (
+    <div className="flex flex-col h-full text-foreground">
+      <div className="flex items-center gap-2 px-1 pt-1 pb-2">
+        <div className="flex rounded-lg border border-border overflow-hidden text-xs">
+          <button onClick={() => setTopTab("entrenamiento")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 font-semibold ${topTab === "entrenamiento" ? "bg-brand-600 text-white" : "text-muted-foreground hover:text-foreground"}`}>
+            <GraduationCap className="w-3.5 h-3.5" /> Entrenamiento
+          </button>
+          <button onClick={() => setTopTab("conversaciones")}
+            className={`flex items-center gap-1.5 px-3 py-1.5 font-semibold ${topTab === "conversaciones" ? "bg-brand-600 text-white" : "text-muted-foreground hover:text-foreground"}`}>
+            <MessageCircle className="w-3.5 h-3.5" /> Conversaciones
+          </button>
+        </div>
+      </div>
+      {topTab === "entrenamiento" ? <EntrenamientoTab /> : <ConversacionesTab />}
+    </div>
+  )
+}
+
+function EntrenamientoTab() {
   const tenant = useTenant()
   const [threads, setThreads] = useState<Thread[]>([{ id: nid(), name: "Conversación 1", conversation: [] }])
   const [activeId, setActiveId] = useState<string>("")
