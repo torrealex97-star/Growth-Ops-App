@@ -20,12 +20,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Megaphone, Plus, Pencil, Trash2, Loader2, Users, Search, Link2 } from 'lucide-react'
+import { Megaphone, Plus, Pencil, Trash2, Loader2, Users, Link2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PERMISSIONS, type AppRole } from '@/lib/auth/permissions'
 import { generateTrackingCode } from '@/lib/tracking'
 import type { AffiliateCampaign, AffiliateCampaignType } from '@/lib/types/database'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { SearchBox, normalizeText } from '@/components/ui/search-box'
 
 type Affiliate = { id: string; full_name: string; affiliate_code: string | null }
 
@@ -167,10 +168,10 @@ export default function CampanasAfiliadosPage() {
   }
 
   const filteredAffiliates = useMemo(() => {
-    const q = search.trim().toLowerCase()
+    const q = normalizeText(search.trim())
     if (!q) return affiliates
     return affiliates.filter(
-      (a) => a.full_name.toLowerCase().includes(q) || (a.affiliate_code ?? '').toLowerCase().includes(q)
+      (a) => normalizeText(a.full_name).includes(q) || normalizeText(a.affiliate_code ?? '').includes(q)
     )
   }, [affiliates, search])
 
@@ -352,15 +353,7 @@ export default function CampanasAfiliadosPage() {
             <DialogTitle>Afiliados — {assignCampaign?.name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 mt-2 flex-1 min-h-0 flex flex-col">
-            <div className="relative">
-              <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar afiliado o código..."
-                className="bg-muted border-border pl-9"
-              />
-            </div>
+            <SearchBox value={search} onChange={setSearch} placeholder="Buscar afiliado o código..." className="w-full" />
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <button type="button" onClick={toggleAll} className="hover:text-foreground flex items-center gap-2">
                 <Checkbox checked={allFilteredSelected} />

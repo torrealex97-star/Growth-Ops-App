@@ -20,11 +20,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ChevronDown, ChevronRight, Shield } from 'lucide-react'
+import { ChevronDown, ChevronRight, Shield, X } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { AuditLog } from '@/lib/types/database'
 import { useTenantId } from '@/lib/tenant-context'
+import { getCustomDateRange, inPeriod } from '@/lib/filters/period'
 
 const ENTITY_TYPES = ['sale', 'collection', 'refund', 'appointment', 'contact', 'commission', 'user']
 const ACTIONS = ['create', 'update', 'delete', 'approve']
@@ -68,15 +69,18 @@ export default function AuditPage() {
     fetchLogs()
   }, [tenantId])
 
+  const dateRange = useMemo(() => getCustomDateRange(dateFrom, dateTo), [dateFrom, dateTo])
+
   const filtered = useMemo(() => {
     return logs.filter((l) => {
       if (entityFilter !== 'all' && l.entity_type !== entityFilter) return false
       if (actionFilter !== 'all' && l.action !== actionFilter) return false
-      if (dateFrom && new Date(l.created_at) < new Date(dateFrom)) return false
-      if (dateTo && new Date(l.created_at) > new Date(dateTo + 'T23:59:59')) return false
+      if ((dateFrom || dateTo) && !inPeriod(l.created_at, dateRange)) return false
       return true
     })
-  }, [logs, entityFilter, actionFilter, dateFrom, dateTo])
+  }, [logs, entityFilter, actionFilter, dateFrom, dateTo, dateRange])
+
+  const hasFilters = entityFilter !== 'all' || actionFilter !== 'all' || !!dateFrom || !!dateTo
 
   const renderDiff = (log: AuditLog) => {
     if (!log.old_values && !log.new_values) return null
@@ -159,15 +163,22 @@ export default function AuditPage() {
         <Input
           type="date"
           value={dateFrom}
+          max={dateTo || undefined}
           onChange={(e) => setDateFrom(e.target.value)}
           className="w-40 bg-card border-border"
         />
         <Input
           type="date"
           value={dateTo}
+          min={dateFrom || undefined}
           onChange={(e) => setDateTo(e.target.value)}
           className="w-40 bg-card border-border"
         />
+        {hasFilters && (
+          <Button variant="ghost" onClick={() => { setEntityFilter('all'); setActionFilter('all'); setDateFrom(''); setDateTo('') }} className="text-muted-foreground hover:text-foreground">
+            <X className="h-4 w-4 mr-1" /> Limpiar filtros
+          </Button>
+        )}
       </div>
 
       {loading ? (

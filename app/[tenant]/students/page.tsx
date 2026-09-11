@@ -385,8 +385,8 @@ export default function StudentsPage() {
         customTo={customTo}
         onCustomFromChange={setCustomFrom}
         onCustomToChange={setCustomTo}
-        onClear={() => { setPeriodPreset('all'); setCustomFrom(''); setCustomTo('') }}
-        hasActiveFilters={periodPreset !== 'all'}
+        onClear={() => { setPeriodPreset('all'); setCustomFrom(''); setCustomTo(''); setFilter('all'); setOnbView('all'); setQ('') }}
+        hasActiveFilters={periodPreset !== 'all' || filter !== 'all' || onbView !== 'all' || q.trim() !== ''}
       />
 
       <div className="grid grid-cols-2 md:grid-cols-6 gap-4">

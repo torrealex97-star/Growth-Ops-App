@@ -19,6 +19,7 @@ import { toast } from 'sonner'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 import type { CollectionWithRelations } from '@/lib/types/database'
 import { useTenant } from '@/lib/tenant-context'
+import { getCustomDateRange, inPeriod } from '@/lib/filters/period'
 
 type PeriodPreset = 'all' | 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom'
 
@@ -66,9 +67,7 @@ function getPeriodRange(preset: PeriodPreset, customFrom: string, customTo: stri
       return { from: startOfDay(from), to: endOfDay(to) }
     }
     case 'custom': {
-      const from = customFrom ? startOfDay(new Date(customFrom)) : null
-      const to = customTo ? endOfDay(new Date(customTo)) : null
-      return { from, to }
+      return getCustomDateRange(customFrom, customTo)
     }
     default:
       return { from: null, to: null }
@@ -135,6 +134,7 @@ export default function CollectionsPage() {
   }, [])
 
   const periodRange = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
+  const directDateRange = useMemo(() => getCustomDateRange(dateFrom, dateTo), [dateFrom, dateTo])
 
   const filtered = useMemo(() => {
     const nq = normalizeText(q.trim())
@@ -150,8 +150,7 @@ export default function CollectionsPage() {
       if (eligibleFilter === 'yes' && !c.is_eligible_for_commission) return false
       if (eligibleFilter === 'no' && c.is_eligible_for_commission) return false
       if (statusFilter !== 'all' && c.status !== statusFilter) return false
-      if (dateFrom && new Date(c.collected_at) < new Date(dateFrom)) return false
-      if (dateTo && new Date(c.collected_at) > new Date(dateTo + 'T23:59:59')) return false
+      if ((dateFrom || dateTo) && !inPeriod(c.collected_at, directDateRange)) return false
 
       if (periodPreset !== 'all') {
         const relevant = c.collected_at ? new Date(c.collected_at) : null
@@ -162,7 +161,7 @@ export default function CollectionsPage() {
 
       return true
     })
-  }, [collections, q, eligibleFilter, statusFilter, dateFrom, dateTo, periodPreset, periodRange])
+  }, [collections, q, eligibleFilter, statusFilter, dateFrom, dateTo, directDateRange, periodPreset, periodRange])
 
   const hasActiveFilters = !!q || eligibleFilter !== 'all' || statusFilter !== 'all' || dateFrom || dateTo || periodPreset !== 'all'
 
@@ -304,6 +303,7 @@ export default function CollectionsPage() {
             <Input
               type="date"
               value={dateFrom}
+              max={dateTo || undefined}
               onChange={(e) => setDateFrom(e.target.value)}
               className="bg-muted border-border h-9"
             />
@@ -313,6 +313,7 @@ export default function CollectionsPage() {
             <Input
               type="date"
               value={dateTo}
+              min={dateFrom || undefined}
               onChange={(e) => setDateTo(e.target.value)}
               className="bg-muted border-border h-9"
             />

@@ -5,11 +5,12 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { Award, Copy, Loader2, Search, PlayCircle, Check, X, Pencil, AlertTriangle, Plus } from "lucide-react"
+import { Award, Copy, Loader2, PlayCircle, Check, X, Pencil, AlertTriangle, Plus } from "lucide-react"
 import { toast } from "sonner"
 import { testimonioPitch, youtubeThumb, type Testimonio } from "@/lib/testimonios-shared"
 import { NuevoTestimonioDialog } from "@/components/testimonios/NuevoTestimonioDialog"
 import { useTenant } from '@/lib/tenant-context'
+import { SearchBox, normalizeText } from '@/components/ui/search-box'
 
 type Filter = "todos" | "con-cifras" | "proceso" | "sin-video"
 
@@ -51,7 +52,7 @@ export default function TestimoniosPage() {
   }, [load])
 
   const shown = useMemo(() => {
-    const needle = q.trim().toLowerCase()
+    const needle = normalizeText(q.trim())
     return items.filter((t) => {
       if (filter === "con-cifras" && !t.hasRevenue) return false
       if (filter === "proceso" && t.hasRevenue) return false
@@ -59,7 +60,7 @@ export default function TestimoniosPage() {
       if (!needle) return true
       return [t.name, t.avatar, t.sector, t.hook, t.puntoA, t.puntoB, t.vehiculo, t.cifra]
         .filter(Boolean)
-        .some((v) => (v as string).toLowerCase().includes(needle))
+        .some((v) => normalizeText(v as string).includes(needle))
     })
   }, [items, q, filter])
 
@@ -104,15 +105,7 @@ export default function TestimoniosPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search className="h-4 w-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Buscar por nombre, sector, cifra…"
-              className="pl-8 w-64"
-            />
-          </div>
+          <SearchBox value={q} onChange={setQ} placeholder="Buscar por nombre, sector o cifra…" className="w-64" />
           {canWrite && (
             <Button onClick={() => setNuevoOpen(true)} className="bg-brand-600 hover:bg-brand-500 text-white gap-1.5">
               <Plus className="h-4 w-4" /> Nuevo testimonio

@@ -20,11 +20,11 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { ArrowUpDown, Search, ExternalLink } from 'lucide-react'
+import { ArrowUpDown, ExternalLink } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import type { Contact } from '@/lib/types/database'
 import { useTenant } from '@/lib/tenant-context'
+import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 
 const columnHelper = createColumnHelper<Contact>()
 const coreRowModel = getCoreRowModel()
@@ -110,12 +110,12 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
 
   const filteredContacts = useMemo(() => {
     if (!globalFilter) return contacts
-    const lower = globalFilter.toLowerCase()
+    const query = normalizeText(globalFilter.trim())
     return contacts.filter(
       (c) =>
-        c.full_name?.toLowerCase().includes(lower) ||
-        c.email?.toLowerCase().includes(lower) ||
-        c.phone?.toLowerCase().includes(lower)
+        normalizeText(c.full_name || '').includes(query) ||
+        normalizeText(c.email || '').includes(query) ||
+        phoneMatches(c.phone, globalFilter)
     )
   }, [contacts, globalFilter])
 
@@ -131,15 +131,7 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
 
   return (
     <div className="space-y-4">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por nombre, email o teléfono..."
-          value={globalFilter}
-          onChange={(e) => setGlobalFilter(e.target.value)}
-          className="pl-9 bg-card border-border text-foreground placeholder:text-muted-foreground"
-        />
-      </div>
+      <SearchBox value={globalFilter} onChange={setGlobalFilter} placeholder="Buscar por nombre, email o teléfono..." className="w-full" />
 
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>

@@ -47,6 +47,7 @@ import { guessContactTimezone, DEFAULT_TIMEZONE, TIMEZONE_OPTIONS } from '@/lib/
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { getPeriodRange, getPreviousPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
+import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 import {
   STATUS_LABELS,
   getAppointmentCategory,
@@ -519,6 +520,11 @@ export default function AppointmentsPage() {
     return dupes
   }, [appointments])
 
+  const tableDateRange = useMemo(
+    () => getPeriodRange('custom', dateFrom, dateTo),
+    [dateFrom, dateTo]
+  )
+
   const filteredAppointments = useMemo(() => {
     return appointments.filter((a) => {
       if (onlyDuplicates && !duplicateIds.has(a.id)) return false
@@ -529,20 +535,34 @@ export default function AppointmentsPage() {
       if (channelFilter === 'other' && ['instagram-setting', 'facebook-setting'].includes(a.utm_source || '')) return false
       if (setterFilter !== 'all' && a.setter_id !== setterFilter) return false
       if (closerFilter !== 'all' && a.closer_id !== closerFilter) return false
-      if (dateFrom && new Date(a.appointment_datetime) < new Date(dateFrom)) return false
-      if (dateTo && new Date(a.appointment_datetime) > new Date(dateTo + 'T23:59:59')) return false
-      if (search) {
-        const lower = search.toLowerCase()
+      if ((dateFrom || dateTo) && !inPeriod(a.appointment_datetime, tableDateRange)) return false
+      const normalizedSearch = normalizeText(search.trim())
+      if (normalizedSearch) {
         const contact = a.contacts
         if (
-          !contact?.full_name?.toLowerCase().includes(lower) &&
-          !contact?.email?.toLowerCase().includes(lower)
+          !normalizeText(contact?.full_name || '').includes(normalizedSearch) &&
+          !normalizeText(contact?.email || '').includes(normalizedSearch) &&
+          !phoneMatches(contact?.phone, search)
         )
           return false
       }
       return true
     })
-  }, [appointments, statusFilter, channelFilter, setterFilter, closerFilter, dateFrom, dateTo, search, onlyDuplicates, duplicateIds, onlyFollowUp])
+  }, [appointments, statusFilter, channelFilter, setterFilter, closerFilter, dateFrom, dateTo, tableDateRange, search, onlyDuplicates, duplicateIds, onlyFollowUp])
+
+  const hasTableFilters = search.trim() !== '' || statusFilter !== 'all' || channelFilter !== 'all' || setterFilter !== 'all' || closerFilter !== 'all' || !!dateFrom || !!dateTo || onlyDuplicates || onlyFollowUp
+
+  const clearTableFilters = () => {
+    setSearch('')
+    setStatusFilter('all')
+    setChannelFilter('all')
+    setSetterFilter('all')
+    setCloserFilter('all')
+    setDateFrom('')
+    setDateTo('')
+    setOnlyDuplicates(false)
+    setOnlyFollowUp(false)
+  }
 
   // Días de la semana actual (Lun..Dom)
   const weekDays = useMemo(
@@ -1128,15 +1148,7 @@ export default function AppointmentsPage() {
         <>
           {/* Filters */}
           <div className="flex flex-wrap gap-3">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar contacto..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 bg-card border-border"
-              />
-            </div>
+            <SearchBox value={search} onChange={setSearch} placeholder="Buscar por nombre, email o teléfono..." className="flex-1 min-w-[200px]" />
 
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-40 bg-card border-border">
@@ -1189,6 +1201,7 @@ export default function AppointmentsPage() {
             <Input
               type="date"
               value={dateFrom}
+              max={dateTo || undefined}
               onChange={(e) => setDateFrom(e.target.value)}
               className="w-40 bg-card border-border"
               placeholder="Desde"
@@ -1196,6 +1209,7 @@ export default function AppointmentsPage() {
             <Input
               type="date"
               value={dateTo}
+              min={dateFrom || undefined}
               onChange={(e) => setDateTo(e.target.value)}
               className="w-40 bg-card border-border"
               placeholder="Hasta"
@@ -1222,6 +1236,11 @@ export default function AppointmentsPage() {
                 title="Agendas marcadas en seguimiento"
               >
                 En seguimiento ({appointments.filter((a) => a.needs_followup).length})
+              </Button>
+            )}
+            {hasTableFilters && (
+              <Button variant="ghost" onClick={clearTableFilters} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4 mr-1.5" /> Limpiar filtros
               </Button>
             )}
           </div>

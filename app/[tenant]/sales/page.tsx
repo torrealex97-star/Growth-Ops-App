@@ -13,11 +13,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Download, ShoppingCart, Search } from 'lucide-react'
+import { Plus, Download, ShoppingCart } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import type { SaleWithRelations, User, Product, SaleStatus } from '@/lib/types/database'
 import { useTenant } from '@/lib/tenant-context'
+import { getCustomDateRange, inPeriod } from '@/lib/filters/period'
+import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 
 const STATUS_LABELS: Record<SaleStatus, string> = {
   active: 'Activa',
@@ -73,9 +75,7 @@ function getPeriodRange(preset: PeriodPreset, customFrom: string, customTo: stri
       return { from: startOfDay(from), to: endOfDay(to) }
     }
     case 'custom': {
-      const from = customFrom ? startOfDay(new Date(customFrom)) : null
-      const to = customTo ? endOfDay(new Date(customTo)) : null
-      return { from, to }
+      return getCustomDateRange(customFrom, customTo)
     }
     default:
       return { from: null, to: null }
@@ -218,28 +218,24 @@ export default function SalesPage() {
   }, [])
 
   const periodRange = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
+  const directDateRange = useMemo(() => getCustomDateRange(dateFrom, dateTo), [dateFrom, dateTo])
 
   const filteredSales = useMemo(() => {
-    const q = debouncedSearch.trim().toLowerCase()
-    // Normaliza teléfonos para poder buscar con/ sin espacios, guiones o prefijo +.
-    const digits = (v: string) => v.replace(/[^\d]/g, '')
-    const qDigits = digits(q)
+    const q = normalizeText(debouncedSearch.trim())
     return sales.filter((s) => {
       if (q) {
         const c = s.contacts as { full_name?: string | null; email?: string | null; phone?: string | null } | null
-        const name = (c?.full_name ?? '').toLowerCase()
-        const email = (c?.email ?? '').toLowerCase()
-        const phone = c?.phone ?? ''
+        const name = normalizeText(c?.full_name ?? '')
+        const email = normalizeText(c?.email ?? '')
         const matchesText = name.includes(q) || email.includes(q)
-        const matchesPhone = qDigits.length >= 3 && digits(phone).includes(qDigits)
+        const matchesPhone = phoneMatches(c?.phone, debouncedSearch)
         if (!matchesText && !matchesPhone) return false
       }
       if (statusFilter !== 'all' && s.status !== statusFilter) return false
       if (setterFilter !== 'all' && s.setter_id !== setterFilter) return false
       if (closerFilter !== 'all' && s.closer_id !== closerFilter) return false
       if (productFilter !== 'all' && s.product_id !== productFilter) return false
-      if (dateFrom && new Date(s.sale_date) < new Date(dateFrom)) return false
-      if (dateTo && new Date(s.sale_date) > new Date(dateTo)) return false
+      if ((dateFrom || dateTo) && !inPeriod(s.sale_date, directDateRange)) return false
 
       if (periodPreset !== 'all') {
         const saleDate = s.sale_date ? new Date(s.sale_date) : null
@@ -250,7 +246,7 @@ export default function SalesPage() {
 
       return true
     })
-  }, [sales, debouncedSearch, statusFilter, setterFilter, closerFilter, productFilter, dateFrom, dateTo, periodPreset, periodRange])
+  }, [sales, debouncedSearch, statusFilter, setterFilter, closerFilter, productFilter, dateFrom, dateTo, directDateRange, periodPreset, periodRange])
 
   // Canal de una venta: first-touch UTM del contacto → si no, lead_channel del contacto → Directo
   const channelOfSale = useCallback((s: SaleWithRelations): string => {
@@ -325,15 +321,7 @@ export default function SalesPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
-        <div className="relative w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nombre, email o teléfono..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 bg-card border-border"
-          />
-        </div>
+        <SearchBox value={search} onChange={setSearch} placeholder="Buscar por nombre, email o teléfono..." />
 
         <Select value={periodPreset} onValueChange={(v) => setPeriodPreset(v as PeriodPreset)}>
           <SelectTrigger className="w-44 bg-card border-border">
@@ -422,12 +410,14 @@ export default function SalesPage() {
         <Input
           type="date"
           value={dateFrom}
+          max={dateTo || undefined}
           onChange={(e) => setDateFrom(e.target.value)}
           className="w-40 bg-card border-border"
         />
         <Input
           type="date"
           value={dateTo}
+          min={dateFrom || undefined}
           onChange={(e) => setDateTo(e.target.value)}
           className="w-40 bg-card border-border"
         />

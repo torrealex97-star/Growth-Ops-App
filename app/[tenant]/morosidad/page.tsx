@@ -223,8 +223,8 @@ export default function MorosidadPage() {
         customTo={customTo}
         onCustomFromChange={setCustomFrom}
         onCustomToChange={setCustomTo}
-        onClear={() => { setPeriodPreset('all'); setCustomFrom(''); setCustomTo('') }}
-        hasActiveFilters={periodPreset !== 'all'}
+        onClear={() => { setPeriodPreset('all'); setCustomFrom(''); setCustomTo(''); setQ('') }}
+        hasActiveFilters={periodPreset !== 'all' || q.trim() !== ''}
       />
 
       {loading ? (

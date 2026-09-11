@@ -6,7 +6,7 @@ import { Wallet, Plus, X, Sparkles, ShieldCheck, RefreshCw, Info, Edit2, Trash2,
 import { toast } from 'sonner'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
-import { getPreviousPeriodRange, inPeriod, type PeriodRange } from '@/lib/filters/period'
+import { getCustomDateRange, getPreviousPeriodRange, inPeriod, type PeriodRange } from '@/lib/filters/period'
 import { useTenant } from '@/lib/tenant-context'
 
 type PeriodPreset = 'month' | 'today' | 'week' | 'quarter' | 'year' | 'custom'
@@ -49,9 +49,7 @@ function getPeriodRange(preset: PeriodPreset, month: string, customFrom: string,
       return { from: startOfDay(from), to: endOfDay(to) }
     }
     case 'custom': {
-      const from = customFrom ? startOfDay(new Date(customFrom)) : null
-      const to = customTo ? endOfDay(new Date(customTo)) : null
-      return { from, to }
+      return getCustomDateRange(customFrom, customTo)
     }
     case 'month':
     default: {
