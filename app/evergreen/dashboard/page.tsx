@@ -365,9 +365,9 @@ export default function DashboardPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
-            Bienvenido{userName ? `, ${userName.split(' ')[0]}` : ''} 👋
+            Hola de nuevo{userName ? `, ${userName.split(' ')[0]}` : ''} 👋
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">Centro de mando — [tenant]</p>
+          <p className="text-muted-foreground text-sm mt-1">Todo tu negocio, de un vistazo.</p>
         </div>
       </div>
 
@@ -490,11 +490,11 @@ export default function DashboardPage() {
 
       {/* Evolución + Objetivos */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-card border border-border rounded-lg p-5">
+        <div className="lg:col-span-2 rounded-2xl border border-[#26262A] bg-[#141416] p-5">
           <h3 className="text-sm font-semibold text-foreground mb-4">Facturación últimos 6 meses</h3>
           <SalesChart data={series} />
         </div>
-        <div className="bg-card border border-border rounded-lg p-5">
+        <div className="rounded-2xl border border-[#26262A] bg-[#141416] p-5">
           <div className="flex items-center gap-2 mb-4">
             <TargetIcon className="w-4 h-4 text-brand-400" />
             <h3 className="text-sm font-semibold text-foreground">Objetivos de empresa</h3>

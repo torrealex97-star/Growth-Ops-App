@@ -11,7 +11,6 @@ import { ROLE_LABELS, ROLE_COLORS, isLeadership, type AppRole } from '@/lib/auth
 import { createClient } from '@/lib/supabase/client'
 import { getInitials, cn, formatDateTime } from '@/lib/utils'
 import { FeedbackDialog } from '@/components/os/FeedbackDialog'
-import { ThemeToggle } from '@/components/os/ThemeToggle'
 import { GlobalSearch } from '@/components/os/GlobalSearch'
 import type { User } from '@/lib/types/database'
 
@@ -50,7 +49,7 @@ export function Header({ user, onMenuClick, title }: HeaderProps) {
   const count = missing.length
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center border-b border-border bg-background/70 backdrop-blur-xl px-4 lg:px-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center border-b border-[#26262A] bg-[#0A0A0B]/95 backdrop-blur-xl px-4 lg:px-7">
       <Button
         variant="ghost"
         size="icon"
@@ -68,7 +67,6 @@ export function Header({ user, onMenuClick, title }: HeaderProps) {
 
       <div className="flex items-center gap-3">
         <GlobalSearch user={user} />
-        <ThemeToggle />
         <FeedbackDialog />
         <Popover>
           <PopoverTrigger asChild>

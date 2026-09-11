@@ -46,7 +46,7 @@ body {
   color: hsl(var(--popover-foreground)) !important;
 }
 
-/* ── Utilidades de marca [tenant] ── */
+/* ── Utilidades de marca K100 Software ── */
 /* Texto "cromado" para titulares clave */
 .text-chrome {
   background: linear-gradient(180deg, #ffffff 0%, #cfe6ff 45%, #7fbaf0 100%);
@@ -102,8 +102,7 @@ button:not(:disabled), a[href], [role="button"], summary, label[for] { cursor: p
   .card-interactive:hover, .lift:hover { transform: none; }
 }
 
-/* shadcn/ui CSS variables — [tenant] (azul eléctrico + cromo).
-   :root = tema CLARO · .dark = tema OSCURO. Primario = azul de marca. */
+/* K100 Software design tokens. */
 :root {
   --background: 210 40% 99%;
   --foreground: 222 47% 11%;
@@ -128,26 +127,33 @@ button:not(:disabled), a[href], [role="button"], summary, label[for] { cursor: p
 }
 
 .dark {
-  --background: 222 47% 5%;
-  --foreground: 210 20% 96%;
-  --card: 222 40% 8%;
-  --card-foreground: 210 20% 96%;
-  --popover: 222 44% 7%;
-  --popover-foreground: 210 20% 96%;
-  --primary: 205 100% 56%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 217 33% 15%;
-  --secondary-foreground: 210 20% 96%;
-  --muted: 217 33% 14%;
-  --muted-foreground: 215 20% 65%;
-  --accent: 217 40% 16%;
-  --accent-foreground: 205 100% 80%;
+  --background: 240 5% 4%;
+  --foreground: 0 0% 100%;
+  --card: 240 4% 8%;
+  --card-foreground: 0 0% 100%;
+  --popover: 240 4% 8%;
+  --popover-foreground: 0 0% 100%;
+  --primary: 0 0% 100%;
+  --primary-foreground: 240 5% 4%;
+  --secondary: 240 4% 12%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 240 4% 12%;
+  --muted-foreground: 240 5% 63%;
+  --accent: 240 4% 15%;
+  --accent-foreground: 0 0% 100%;
   --destructive: 0 62.8% 40%;
   --destructive-foreground: 0 0% 98%;
-  --border: 217 33% 16%;
-  --input: 217 33% 16%;
-  --ring: 205 100% 56%;
-  --radius: 0.75rem;
+  --border: 240 5% 16%;
+  --input: 240 5% 16%;
+  --ring: 0 0% 100%;
+  --radius: 1rem;
+}
+
+.k100-card {
+  border: 1px solid #26262a;
+  border-radius: 16px;
+  background: #141416;
+  box-shadow: 0 1px 0 rgba(255,255,255,.03) inset, 0 8px 24px rgba(0,0,0,.3);
 }
 
 /* Loading skeleton */

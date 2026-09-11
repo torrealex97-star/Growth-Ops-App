@@ -36,7 +36,7 @@ const CustomTooltip = ({ active, payload, label }: {
 
 export function SalesChart({ data, title = 'Cash Cobrado por Día' }: SalesChartProps) {
   return (
-    <div className="rounded-lg border border-border bg-card p-6">
+    <div className="rounded-2xl border border-[#26262A] bg-[#141416] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_8px_24px_rgba(0,0,0,0.3)]">
       <h3 className="text-sm font-medium text-muted-foreground mb-4">{title}</h3>
       <div className="h-48">
         <ResponsiveContainer width="100%" height="100%">
@@ -54,8 +54,8 @@ export function SalesChart({ data, title = 'Cash Cobrado por Día' }: SalesChart
               tickLine={false}
               tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
             />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(124, 58, 237, 0.1)' }} />
-            <Bar dataKey="amount" fill="#7c3aed" radius={[3, 3, 0, 0]} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+            <Bar dataKey="amount" fill="#FFFFFF" radius={[3, 3, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

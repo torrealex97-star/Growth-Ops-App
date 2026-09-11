@@ -31,12 +31,13 @@ export const NAV_SECTIONS: NavSection[] = [
     dept: null,
     items: [
       { label: 'Dashboard', href: '/evergreen/dashboard', icon: LayoutDashboard, roles: [...LEAD, 'setter', 'closer', 'affiliate'] },
+      { label: 'Métricas', href: '/evergreen/unit-economics', icon: BarChart3, roles: LEAD },
+      { label: 'Tareas', href: '/evergreen/tasks', icon: ListChecks, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
     ],
   },
   {
     dept: 'direccion',
     items: [
-      { label: 'Unit Economics', href: '/evergreen/unit-economics', icon: PieChart, roles: LEAD },
       { label: 'Cohortes', href: '/evergreen/cohorts', icon: CalendarRange, roles: LEAD },
       { label: 'I&G (P&L)', href: '/evergreen/pnl', icon: Receipt, roles: [...LEAD, 'gestoria'] },
     ],
@@ -56,7 +57,6 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: 'Prospección', href: '/evergreen/prospecting', icon: PhoneCall, roles: [...LEAD, 'setter', 'triager', 'cold_caller'] },
       { label: 'Comisiones', href: '/evergreen/commissions', icon: TrendingUp, roles: [...LEAD, 'setter', 'closer', 'affiliate'] },
       { label: 'Objetivos', href: '/evergreen/targets', icon: Target, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller', 'affiliate'] },
-      { label: 'Tareas', href: '/evergreen/tasks', icon: ListChecks, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
       { label: 'KPI Diario', href: '/evergreen/kpi/report', icon: ClipboardList, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
       { label: 'Enlaces', href: '/evergreen/enlaces', icon: Link2, roles: [...LEAD, 'setter', 'closer', 'cold_caller', 'affiliate'] },
       { label: 'Biblioteca de llamadas', href: '/evergreen/biblioteca', icon: Video, roles: [...LEAD, 'setter', 'closer', 'cold_caller'] },

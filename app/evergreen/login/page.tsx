@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2, Mail, Lock } from 'lucide-react'
@@ -36,8 +35,7 @@ export default function LoginPage() {
 
   return (
     <div className="dark relative min-h-screen bg-background flex items-center justify-center p-4 overflow-hidden" data-theme="os">
-      {/* Fondo: glow eléctrico + rejilla sutil (estilo Stripe/Mercury) */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_-10%,rgba(30,158,255,0.20),transparent_70%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_-10%,rgba(255,255,255,0.06),transparent_70%)]" />
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.04]"
         style={{
@@ -50,15 +48,9 @@ export default function LoginPage() {
 
       <div className="relative w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
-          <div className="relative mb-3 rounded-2xl overflow-hidden ring-1 ring-brand-500/20 shadow-[0_0_40px_-8px_rgba(30,158,255,0.5)]">
-            <Image
-              src="/brand/[tenant]-logo.png"
-              alt="[tenant]"
-              width={220}
-              height={220}
-              priority
-              className="w-44 h-auto"
-            />
+          <div className="mb-3 flex items-center gap-3">
+            <span className="text-5xl font-semibold leading-none tracking-[-0.16em] text-white">K</span>
+            <span className="text-2xl font-semibold tracking-tight text-white">K100 Software</span>
           </div>
           <p className="text-muted-foreground text-sm mt-1 font-display">Panel Comercial</p>
         </div>
@@ -80,7 +72,7 @@ export default function LoginPage() {
                   placeholder="tu@email.com"
                   required
                   autoComplete="email"
-                  className="w-full pl-9 pr-3 py-2.5 bg-background/60 border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all"
+                  className="w-full pl-9 pr-3 py-2.5 bg-background/60 border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-white focus:ring-2 focus:ring-white/15 transition-all"
                 />
               </div>
             </div>
@@ -97,7 +89,7 @@ export default function LoginPage() {
                   placeholder="••••••••"
                   required
                   autoComplete="current-password"
-                  className="w-full pl-9 pr-3 py-2.5 bg-background/60 border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all"
+                  className="w-full pl-9 pr-3 py-2.5 bg-background/60 border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-white focus:ring-2 focus:ring-white/15 transition-all"
                 />
               </div>
             </div>
@@ -111,7 +103,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 px-4 bg-gradient-to-r from-brand-600 to-cyan-600 hover:from-brand-500 hover:to-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-foreground font-semibold rounded-xl transition-all shadow-lg shadow-brand-900/30 flex items-center justify-center gap-2"
+              className="w-full py-2.5 px-4 bg-white hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed text-black font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
@@ -127,14 +119,14 @@ export default function LoginPage() {
           <div className="mt-5 text-center">
             <Link
               href="/evergreen/recover"
-              className="text-sm text-muted-foreground hover:text-brand-400 transition-colors"
+              className="text-sm text-muted-foreground hover:text-white transition-colors"
             >
               ¿Olvidaste tu contraseña?
             </Link>
           </div>
         </div>
 
-        <p className="text-center text-xs text-muted-foreground mt-6">[tenant] · Acceso privado del equipo</p>
+        <p className="text-center text-xs text-muted-foreground mt-6">K100 Software · Acceso privado del equipo</p>
       </div>
     </div>
   )

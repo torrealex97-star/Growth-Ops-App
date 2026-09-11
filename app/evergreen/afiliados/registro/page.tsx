@@ -73,7 +73,7 @@ export default function RegistroAfiliadoPage() {
           <div className="w-10 h-10 rounded-lg bg-brand-600 flex items-center justify-center">
             <TrendingUp className="w-5 h-5 text-foreground" />
           </div>
-          <span className="text-foreground font-semibold text-lg">[tenant]</span>
+          <span className="text-foreground font-semibold text-lg">K100 Software</span>
         </div>
 
         {loading ? (

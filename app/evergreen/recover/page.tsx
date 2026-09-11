@@ -57,7 +57,7 @@ export default function RecoverPage() {
           <div className="w-12 h-12 rounded-xl bg-brand-600 flex items-center justify-center mb-4">
             <TrendingUp className="w-6 h-6 text-foreground" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">[tenant]</h1>
+          <h1 className="text-2xl font-semibold text-foreground">K100 Software</h1>
           <p className="text-muted-foreground text-sm mt-1">Panel Comercial Interno</p>
         </div>
 
