@@ -7,7 +7,7 @@ import { CalendarClock, Check, X } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { AppointmentStatus } from '@/lib/types/database'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 // Reuniones que ya pasaron pero se quedaron sin resolver (nadie marcó si el lead se presentó o
 // no). Sin esto, se pierde el dato de asistencia y las métricas de show-rate quedan huecas.
@@ -21,6 +21,7 @@ type PendingAppt = {
 
 export function PendingAttendanceAlert({ userId, isLeadership }: { userId: string; isLeadership: boolean }) {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [pending, setPending] = useState<PendingAppt[]>([])
   const [updating, setUpdating] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -30,6 +31,7 @@ export function PendingAttendanceAlert({ userId, isLeadership }: { userId: strin
     let query = supabase
       .from('appointments')
       .select('id, appointment_datetime, contacts(full_name)')
+      .eq('tenant_id', tenantId)
       .in('status', UNRESOLVED_STATUSES)
       .lt('appointment_datetime', new Date().toISOString())
       .order('appointment_datetime', { ascending: false })

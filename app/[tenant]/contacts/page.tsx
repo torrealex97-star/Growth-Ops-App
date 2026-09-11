@@ -14,10 +14,11 @@ import {
 import { UserPlus, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Contact } from '@/lib/types/database'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 export default function ContactsPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -27,6 +28,7 @@ export default function ContactsPage() {
     const { data, error } = await supabase
       .from('contacts')
       .select('*')
+      .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
 
     if (error) {

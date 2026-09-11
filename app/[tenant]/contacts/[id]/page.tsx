@@ -37,7 +37,7 @@ import { toast } from 'sonner'
 import type { Contact, ContactAttribution, Appointment, Sale, User } from '@/lib/types/database'
 import type { Qualification, QualificationAnswer } from '@/lib/qualification'
 import { LEAD_STATUS_COLORS, LEAD_STATUS_LABELS } from '@/lib/lead-status'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 type ContactNote = {
   id: string
@@ -94,6 +94,7 @@ type AppointmentWithNames = Appointment & {
 
 export default function ContactDetailPage({ params }: { params: { id: string } }) {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const { id } = params
   const router = useRouter()
   const [contact, setContact] = useState<Contact | null>(null)
@@ -120,18 +121,20 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
       notesRes,
     ] = await Promise.all([
       supabase.auth.getUser(),
-      supabase.from('contacts').select('*').eq('id', id).single(),
-      supabase.from('contact_attributions').select('*').eq('contact_id', id).order('first_touch_at'),
+      supabase.from('contacts').select('*').eq('id', id).eq('tenant_id', tenantId).single(),
+      supabase.from('contact_attributions').select('*').eq('contact_id', id).eq('tenant_id', tenantId).order('first_touch_at'),
       supabase
         .from('appointments')
         .select('*, setter:setter_id(full_name), closer:closer_id(full_name)')
         .eq('contact_id', id)
+        .eq('tenant_id', tenantId)
         .order('appointment_datetime', { ascending: false }),
-      supabase.from('sales').select('*').eq('contact_id', id).order('sale_date', { ascending: false }),
+      supabase.from('sales').select('*').eq('contact_id', id).eq('tenant_id', tenantId).order('sale_date', { ascending: false }),
       supabase
         .from('contact_notes')
         .select('*, author:author_id(full_name)')
         .eq('contact_id', id)
+        .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false }),
     ])
 
@@ -201,6 +204,7 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
       contact_id: id,
       author_id: user?.id ?? currentUser?.id ?? null,
       note: newNote.trim(),
+      tenant_id: tenantId,
     })
 
     setSavingNote(false)
@@ -217,6 +221,7 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
       .from('contact_notes')
       .select('*, author:author_id(full_name)')
       .eq('contact_id', id)
+      .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
     setNotes((notesData as ContactNote[]) ?? [])
   }
