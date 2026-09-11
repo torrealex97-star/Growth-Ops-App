@@ -104,6 +104,16 @@ export async function buildConciliacion(
             detail = 'Devolución en Stripe no reflejada en Devoluciones'
           }
         }
+        // Comisión de pasarela (fee de Stripe) no registrada en el cobro interno — solo se
+        // comprueba sobre cobros ya cotejados, con tolerancia de 0.05€ para no marcar falsos
+        // descuadres por redondeo entre céntimos de Stripe y el processing_fee introducido a mano.
+        if (status === 'conciliado' && r.platformFee != null && r.platformFee > 0.01) {
+          const registered = r.internalProcessingFee ?? 0
+          if (registered < r.platformFee - 0.05) {
+            status = 'descuadre'
+            detail = `Comisión de pasarela no registrada (Stripe: ${r.platformFee.toFixed(2)} € · interno: ${registered.toFixed(2)} €)`
+          }
+        }
         rows.push({
           id: `stripe_${r.paymentId}`,
           platform: 'stripe',

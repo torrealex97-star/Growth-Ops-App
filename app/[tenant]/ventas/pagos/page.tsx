@@ -193,7 +193,10 @@ export default function PaymentsPipelinePage() {
           .select(`*, contacts(*), products(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name)`)
           .eq('tenant_id', tenantId)
           .order('sale_date', { ascending: false }),
-        supabase.from('collections').select('sale_id, gross_amount').eq('tenant_id', tenantId),
+        // Solo 'collected': igual que Finanzas › Resumen y el resto de pantallas de Cash Collected —
+        // antes incluía también cobros 'reversed'/'disputed', lo que sobrestimaba el total aquí
+        // respecto a las demás pantallas.
+        supabase.from('collections').select('sale_id, gross_amount').eq('tenant_id', tenantId).eq('status', 'collected'),
         supabase.from('sale_expected_installments').select('sale_id, status, due_date, expected_gross_amount, is_monitoring').eq('is_monitoring', false).eq('tenant_id', tenantId),
       ])
 

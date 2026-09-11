@@ -16,7 +16,9 @@ export default function AfiliadosLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="p-6 space-y-6">
-      <RouteTabs tabs={TABS} relPathname={relPathname} />
+      <div className="max-w-full overflow-x-auto pb-1">
+        <RouteTabs tabs={TABS} relPathname={relPathname} />
+      </div>
       {children}
     </div>
   )

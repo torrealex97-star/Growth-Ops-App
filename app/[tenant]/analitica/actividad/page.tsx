@@ -128,6 +128,13 @@ export default function ProspectingPage() {
   const [personId, setPersonId] = useState<string>('all')
   const [kpiModalOpen, setKpiModalOpen] = useState(false)
 
+  // El acceso "KPI Diario" del menú/⌘K apunta aquí con ?kpi=1 para abrir el modal directamente,
+  // en vez de solo aterrizar en la pestaña Actividad. Se lee de window.location para no exigir
+  // un boundary de Suspense (useSearchParams) en una página que ya es 100% client-rendered.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('kpi') === '1') setKpiModalOpen(true)
+  }, [])
+
   const monthOptions = useMemo(() => lastNMonths(12, nowYm()).reverse(), [])
 
   useEffect(() => {
