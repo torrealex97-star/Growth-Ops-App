@@ -2,19 +2,12 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 
-const ADMIN_COOKIE = 'tcc-auth'
-const CC_COOKIE = 'tcc-cc-session'
-
+// Paths that are always public, outside the /evergreen namespace
 const PUBLIC_PATHS = [
-  '/login', '/api/auth',
-  '/coldcalling/login', '/api/coldcalling/auth',
-  '/lanzamiento',          // hub + all /lanzamiento/* pages
-  '/api/lanzamiento',      // all lanzamiento API routes (self-auth)
   '/firmar',               // página pública de firma de contratos (auth por token)
   '/embed',                // reproductor VSL embebido en landings/GHL (iframe público)
   '/api/vsl',              // tracking del player VSL desde el iframe público (track/identify/session)
 ]
-const CC_PATHS = ['/coldcalling', '/api/coldcalling/leads', '/api/coldcalling/update']
 
 // Evergreen public routes (login/recover don't require Supabase session)
 const EVERGREEN_PUBLIC_PATHS = [
@@ -31,26 +24,6 @@ const EVERGREEN_PUBLIC_PATHS = [
   '/api/evergreen/sales/reconcile-all', // reparación masiva — se autentica con CRON_SECRET o sesión admin
 ]
 
-async function verifyCCSession(token: string): Promise<boolean> {
-  try {
-    const dot = token.lastIndexOf('.')
-    if (dot === -1) return false
-    const payload = token.slice(0, dot)
-    const sig = token.slice(dot + 1)
-    if (isNaN(parseInt(payload))) return false
-
-    const secret = process.env.CC_SESSION_SECRET || 'cc-secret-fallback-2026'
-    const enc = new TextEncoder()
-    const key = await crypto.subtle.importKey(
-      'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
-    )
-    const sigBytes = Uint8Array.from(sig.match(/.{1,2}/g)!.map((b) => parseInt(b, 16)))
-    return await crypto.subtle.verify('HMAC', key, sigBytes, enc.encode(payload))
-  } catch {
-    return false
-  }
-}
-
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -58,8 +31,12 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Hub and landing selection pages are always public
+  // Root redirects to /evergreen/dashboard (see app/page.tsx) — always public
   if (pathname === '/') return NextResponse.next()
+
+  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+    return NextResponse.next()
+  }
 
   // Handle evergreen routes — delegate to Supabase session management
   if (pathname.startsWith('/evergreen') || pathname.startsWith('/api/evergreen')) {
@@ -71,26 +48,8 @@ export async function middleware(request: NextRequest) {
     return updateSession(request)
   }
 
-  // --- Existing non-evergreen logic below ---
-
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
-    return NextResponse.next()
-  }
-
-  const isAdmin = request.cookies.get(ADMIN_COOKIE)?.value === 'true'
-  const ccToken = request.cookies.get(CC_COOKIE)?.value
-
-  if (CC_PATHS.some((p) => pathname.startsWith(p))) {
-    if (isAdmin) return NextResponse.next()
-    if (ccToken && await verifyCCSession(ccToken)) return NextResponse.next()
-    return NextResponse.redirect(new URL('/coldcalling/login', request.url))
-  }
-
-  if (isAdmin) return NextResponse.next()
-
-  const loginUrl = new URL('/login', request.url)
-  loginUrl.searchParams.set('from', pathname)
-  return NextResponse.redirect(loginUrl)
+  // Anything else falls through to Next.js's own 404 handling
+  return NextResponse.next()
 }
 
 export const config = {
