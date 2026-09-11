@@ -1,8 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const publicPaths = ['/', '/login', '/auth/callback']
-
+// Called by root middleware.ts only for /evergreen* and /api/evergreen* paths
+// that are NOT already in EVERGREEN_PUBLIC_PATHS there.
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request })
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -21,18 +21,11 @@ export async function updateSession(request: NextRequest) {
   })
 
   const { data: { user } } = await supabase.auth.getUser()
-  const isPublic = publicPaths.includes(request.nextUrl.pathname)
-  if (!user && !isPublic) {
+  if (!user) {
     const login = request.nextUrl.clone()
-    login.pathname = '/login'
-    login.searchParams.set('next', request.nextUrl.pathname)
+    login.pathname = '/evergreen/login'
+    login.search = ''
     return NextResponse.redirect(login)
-  }
-  if (user && request.nextUrl.pathname === '/login') {
-    const dashboard = request.nextUrl.clone()
-    dashboard.pathname = '/dashboard'
-    dashboard.search = ''
-    return NextResponse.redirect(dashboard)
   }
   return response
 }
