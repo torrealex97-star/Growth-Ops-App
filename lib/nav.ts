@@ -70,6 +70,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Campañas', href: '/evergreen/campaigns', icon: Radio, roles: [...LEAD, 'marketing', 'adscripcion'] },
       { label: 'Atribución', href: '/evergreen/attribution', icon: Megaphone, roles: [...LEAD, 'marketing', 'adscripcion'] },
+      { label: 'Data Health', href: '/evergreen/data-health', icon: Activity, roles: [...LEAD, 'marketing', 'adscripcion'] },
       { label: 'Contenido', href: '/evergreen/content', icon: Clapperboard, roles: [...LEAD, 'marketing', 'editor'] },
       { label: 'Reels del día', href: '/evergreen/content/reels', icon: Clapperboard, roles: [...LEAD, 'marketing', 'editor'] },
       { label: 'Carruseles y Flyers', href: '/evergreen/carruseles', icon: Images, roles: [...LEAD, 'marketing', 'editor'] },
