@@ -14,6 +14,10 @@ GitHub `main` es la fuente de verdad del código. Supabase es la fuente de verda
 
 No sobrescribas cambios del usuario ni uses operaciones destructivas de Git. Trabaja en una rama o commit acotado cuando corresponda.
 
+No pidas permiso para inspeccionar archivos, buscar referencias, ejecutar lint/typecheck/tests/build o corregir bugs relacionados directamente con la tarea. Detente y pide al usuario cuando: falten credenciales, haya riesgo real de pérdida de datos, una acción destructiva afecte producción, exista una decisión de producto/negocio que no puedas inferir, o el cambio sea financiero/legal. No bloquees el resto del trabajo si puedes seguir con otras partes.
+
+Evita patrones de "vibe coding": no añadas código hasta que desaparezca un error sin entenderlo, no dupliques un archivo para no tocar el original, no le pongas `V2`/`new`/`final`/`fixed` a algo que debería reemplazar al original, no crees una tabla nueva porque no entiendes la existente. Antes de terminar, elimina `console.log` de depuración, código comentado y TODOs temporales que hayas introducido.
+
 ## Arquitectura y código
 
 - Mantén una sola fuente de verdad para cada dato y una implementación canónica para cada operación empresarial.
@@ -45,6 +49,12 @@ No sobrescribas cambios del usuario ni uses operaciones destructivas de Git. Tra
 ## Definition of Done
 
 Una tarea termina cuando funciona el comportamiento solicitado, se mantienen seguridad e integridad, pasan las comprobaciones relevantes y se actualiza la documentación necesaria. No declares éxito si queda un fallo relacionado con el cambio.
+
+Si varias mejoras entran en conflicto, prioriza en este orden: protección contra pérdida de datos → seguridad → integridad de datos → funcionalidad → fiabilidad → compatibilidad → rendimiento → simplicidad → mantenibilidad → coste → elegancia. Nunca sacrifiques seguridad o integridad por código más limpio.
+
+Distingue siempre `inspeccionado` (leíste el código) de `probado` (lo ejecutaste) de `verificado` (lo confirmaste en producción/staging real) — no afirmes lo segundo o tercero si solo hiciste lo primero. Si falta infraestructura para probar algo (tests, CI, staging), dilo explícitamente como hueco pendiente en vez de asumir que está cubierto.
+
+Al cerrar una tarea significativa, resume: qué cambió, la causa raíz si era un bug, qué comprobaciones se ejecutaron realmente (con su resultado — usa `no disponible` si una herramienta no existe, nunca inventes un resultado), y los riesgos reales que quedan pendientes. Sin relleno.
 
 ## Referencia ampliada
 
