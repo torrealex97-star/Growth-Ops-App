@@ -49,8 +49,8 @@ export default function LoginPage() {
       <div className="relative w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
           <div className="mb-3 flex items-center gap-3">
-            <span className="text-5xl font-semibold leading-none tracking-[-0.16em] text-white">K</span>
-            <span className="text-2xl font-semibold tracking-tight text-white">K100 Software</span>
+            <span className="text-5xl font-semibold leading-none tracking-[-0.16em] text-white">S</span>
+            <span className="text-2xl font-semibold tracking-tight text-white">Scalix Systems</span>
           </div>
           <p className="text-muted-foreground text-sm mt-1 font-display">Panel Comercial</p>
         </div>
@@ -126,7 +126,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="text-center text-xs text-muted-foreground mt-6">K100 Software · Acceso privado del equipo</p>
+        <p className="text-center text-xs text-muted-foreground mt-6">Scalix Systems · Acceso privado del equipo</p>
       </div>
     </div>
   )

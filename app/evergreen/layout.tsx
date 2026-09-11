@@ -167,7 +167,7 @@ export default function EvergreenLayout({ children }: { children: React.ReactNod
       <div className="dark flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <div className="w-8 h-8 rounded-lg bg-brand-600 animate-pulse" />
-          <p className="text-muted-foreground text-sm">Cargando K100 Software...</p>
+          <p className="text-muted-foreground text-sm">Cargando Scalix Systems...</p>
         </div>
       </div>
     )

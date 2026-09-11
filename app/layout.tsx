@@ -6,8 +6,8 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swa
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-display', display: 'swap' })
 
 export const metadata: Metadata = {
-  title: 'K100 Software',
-  description: 'Operating system de negocio K100 Software',
+  title: 'Scalix Systems',
+  description: 'Operating system de negocio Scalix Systems',
   robots: 'noindex, nofollow',
 }
 
