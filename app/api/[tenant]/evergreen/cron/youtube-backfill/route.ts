@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getInstagramConfig } from '@/lib/instagram/client'
 import { runYoutubeSync } from '@/lib/youtube/backfill'
+import { ensureConfig } from '@/lib/config'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
@@ -11,25 +12,30 @@ export const maxDuration = 120
 // sync de Instagram. Cada llamada sube como máximo 1 reel antiguo (el más reciente pendiente).
 // Se dispara con Authorization: Bearer CRON_SECRET.
 //
-// FASE 6 LOTE 4c — NOTA IMPORTANTE (sin resolver en este lote, fuera de su alcance de archivos):
-// runYoutubeSync(sb, cfg, opts) vive en lib/youtube/backfill.ts y NO acepta un tenantId — lee/escribe
-// `youtube_uploads` (y las tablas de origen del backfill) sin filtrar/estampar tenant_id, que ahora
-// es NOT NULL en esa tabla (ver supabase/migrations/20260911150000_multi_tenant_domain_tables.sql).
-// Arreglarlo requiere extender runYoutubeSync(sb, cfg, opts, tenantId) y que este handler recorra
-// `tenants` (status='active') llamándolo una vez por subcuenta — igual que cron/monthly,
-// cron/reminders y cron/reels. lib/youtube/backfill.ts no está en el alcance de este lote.
+// BUGFIX (regresión de la migración multi-tenant, no hardening rutinario): runYoutubeSync ahora
+// exige tenantId — filtra/estampa tenant_id en youtube_uploads e ig_media, que son NOT NULL en
+// esa tabla. Vercel Cron pega a una única URL estática, así que este handler recorre TODAS las
+// subcuentas activas y corre el backfill una vez por cada una (mismo patrón que cron/monthly),
+// cargando primero las credenciales de Instagram de ESA subcuenta vía ensureConfig(tenantId).
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('authorization')
   if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
-  const cfg = getInstagramConfig()
-  if (!cfg) return NextResponse.json({ error: 'Faltan credenciales de Instagram' }, { status: 500 })
 
   try {
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const uploaded = await runYoutubeSync(sb, cfg, { backfillLimit: 1 })
-    return NextResponse.json({ ok: true, uploaded, at: new Date().toISOString() })
+    const { data: tenants, error: tenantsErr } = await sb.from('tenants').select('id, slug').eq('status', 'active')
+    if (tenantsErr) throw new Error(tenantsErr.message)
+
+    const perTenant: Record<string, number | null> = {}
+    for (const tn of tenants || []) {
+      await ensureConfig(tn.id)
+      const cfg = getInstagramConfig()
+      if (!cfg) { perTenant[tn.slug] = null; continue }
+      perTenant[tn.slug] = await runYoutubeSync(sb, cfg, tn.id, { backfillLimit: 1 })
+    }
+    return NextResponse.json({ ok: true, uploaded: perTenant, at: new Date().toISOString() })
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error en backfill de YouTube' }, { status: 500 })
   }

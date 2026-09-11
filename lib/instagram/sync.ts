@@ -36,7 +36,7 @@ export type InstagramSyncResult = {
 // (/api/${tenant}/evergreen/instagram/sync) y el cron diario (/api/${tenant}/evergreen/cron/instagram).
 // Requiere Supabase con service-role (salta RLS). No toca transcript/ai_analysis:
 // esos los rellena la transcripción bajo demanda, así que re-sincronizar NO los borra.
-export async function runInstagramSync(sb: SupabaseClient, opts?: { mediaLimit?: number; light?: boolean }): Promise<InstagramSyncResult> {
+export async function runInstagramSync(sb: SupabaseClient, tenantId: string, opts?: { mediaLimit?: number; light?: boolean }): Promise<InstagramSyncResult> {
   const cfg = getInstagramConfig()
   if (!cfg) {
     throw new Error('Faltan credenciales de Instagram. Configura INSTAGRAM_ACCESS_TOKEN (o META_ACCESS_TOKEN) en Vercel.')
@@ -54,6 +54,7 @@ export async function runInstagramSync(sb: SupabaseClient, opts?: { mediaLimit?:
 
   await sb.from('ig_account_daily').upsert(
     {
+      tenant_id: tenantId,
       snapshot_date: today(),
       followers_count: profile.followers_count,
       media_count: profile.media_count,
@@ -65,7 +66,11 @@ export async function runInstagramSync(sb: SupabaseClient, opts?: { mediaLimit?:
       reach_non_followers: acc.reach_non_followers,
       synced_at: at,
     },
-    { onConflict: 'snapshot_date', ignoreDuplicates: false }
+    // NOTA: el índice único original es solo (snapshot_date), global. Con varias
+    // subcuentas sincronizando Instagram el mismo día colisionarían entre sí.
+    // Ver migración supabase/migrations/20260911160000_fix_cron_unique_constraints.sql
+    // (pendiente de aplicar) que lo sustituye por (tenant_id, snapshot_date).
+    { onConflict: 'tenant_id,snapshot_date', ignoreDuplicates: false }
   )
 
   // 2) Demografía de la audiencia (país/ciudad/edad/género) → snapshot vigente
@@ -73,8 +78,10 @@ export async function runInstagramSync(sb: SupabaseClient, opts?: { mediaLimit?:
   try {
     const demo = await fetchFollowerDemographics(cfg, igUserId)
     if (demo.length) {
-      const rows = demo.map((d) => ({ dimension: d.dimension, bucket: d.bucket, value: d.value, captured_at: at }))
-      await sb.from('ig_audience').upsert(rows, { onConflict: 'dimension,bucket', ignoreDuplicates: false })
+      const rows = demo.map((d) => ({ tenant_id: tenantId, dimension: d.dimension, bucket: d.bucket, value: d.value, captured_at: at }))
+      // NOTA: mismo caso que ig_account_daily — el índice único original era (dimension, bucket)
+      // global; ver la migración pendiente que lo cambia a (tenant_id, dimension, bucket).
+      await sb.from('ig_audience').upsert(rows, { onConflict: 'tenant_id,dimension,bucket', ignoreDuplicates: false })
       demographicsRows = rows.length
     }
   } catch { /* demografía requiere >=100 seguidores; si falla, seguimos */ }
@@ -92,6 +99,7 @@ export async function runInstagramSync(sb: SupabaseClient, opts?: { mediaLimit?:
     }
     const engagement = ins.reach > 0 ? round2((ins.total_interactions / ins.reach) * 100) : 0
     const row = {
+      tenant_id: tenantId,
       external_id: m.id,
       media_type: m.media_type ?? null,
       media_product_type: m.media_product_type ?? null,
@@ -134,6 +142,7 @@ export async function runInstagramSync(sb: SupabaseClient, opts?: { mediaLimit?:
           const reels = await fetchFacebookReels(cfg, pageId, pat, opts?.mediaLimit ?? 40, !opts?.light)
           for (const r of reels) {
             const row: Record<string, unknown> = {
+              tenant_id: tenantId,
               external_id: r.external_id,
               description: r.description ?? null,
               permalink: r.permalink ?? null,
@@ -154,6 +163,7 @@ export async function runInstagramSync(sb: SupabaseClient, opts?: { mediaLimit?:
           const stats = await fetchConversationStats(cfg, pageId, pat)
           await sb.from('ig_conversations_daily').upsert(
             {
+              tenant_id: tenantId,
               snapshot_date: today(),
               total_conversations: stats.total_conversations,
               unread_conversations: stats.unread_conversations,
@@ -161,7 +171,9 @@ export async function runInstagramSync(sb: SupabaseClient, opts?: { mediaLimit?:
               unique_people: stats.unique_people,
               synced_at: at,
             },
-            { onConflict: 'snapshot_date', ignoreDuplicates: false }
+            // NOTA: mismo caso que ig_account_daily — ver migración pendiente que cambia el
+            // índice único de (snapshot_date) a (tenant_id, snapshot_date).
+            { onConflict: 'tenant_id,snapshot_date', ignoreDuplicates: false }
           )
           conversations = stats.total_conversations
         } catch { /* conversaciones no disponibles */ }
@@ -174,7 +186,7 @@ export async function runInstagramSync(sb: SupabaseClient, opts?: { mediaLimit?:
   try {
     // Solo reels nuevos aquí (backfillLimit 0): el backfill de reels antiguos va por su propio
     // cron 3 veces al día (mañana/mediodía/noche), ver /api/${tenant}/evergreen/cron/youtube-backfill.
-    youtubeUploaded = await runYoutubeSync(sb, cfg, { backfillLimit: 0 })
+    youtubeUploaded = await runYoutubeSync(sb, cfg, tenantId, { backfillLimit: 0 })
   } catch { /* YouTube opcional: un fallo aquí no debe romper el sync de Instagram */ }
 
   return {

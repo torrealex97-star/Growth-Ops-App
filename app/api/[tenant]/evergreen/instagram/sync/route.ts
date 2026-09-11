@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { runInstagramSync } from '@/lib/instagram/sync'
+import { ensureConfig } from '@/lib/config'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -11,13 +12,11 @@ const ALLOWED_ROLES = ['admin', 'director', 'manager', 'marketing']
 // Sincroniza el Instagram orgánico (@adrian.martinez.s) hacia ig_media / ig_account_daily / ig_audience.
 // Auth: sesión (admin/director/manager/marketing) O Bearer CRON_SECRET.
 //
-// NOTA multi-tenant: las credenciales de Instagram (getInstagramConfig) y las tablas que
-// escribe runInstagramSync (ig_media, ig_account_daily, ig_audience, fb_media,
-// ig_conversations_daily) siguen siendo globales — un único token de sistema y claves de
-// upsert (snapshot_date/external_id) sin tenant_id, heredado de la era single-tenant. Aquí
-// solo podemos verificar que el slug resuelve a un tenant activo antes de lanzar el sync;
-// el aislamiento real por tenant de esos datos requiere tocar lib/instagram/sync.ts y
-// lib/instagram/client.ts, fuera del alcance de este lote.
+// BUGFIX (regresión de la migración multi-tenant, no hardening rutinario): runInstagramSync ahora
+// exige tenantId — filtra/estampa tenant_id en ig_media/ig_account_daily/ig_audience/fb_media/
+// ig_conversations_daily, que son NOT NULL en esas tablas. ensureConfig también exige tenantId
+// (antes era una caché global de 30s compartida entre subcuentas) — se resuelve el tenant PRIMERO
+// y se llama a ensureConfig(tenantId) antes de leer credenciales de Instagram de process.env.
 async function handle(req: NextRequest, tenantSlug: string) {
   const auth = req.headers.get('authorization')
   const bearerOk = !!process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`
@@ -27,10 +26,12 @@ async function handle(req: NextRequest, tenantSlug: string) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  let tenantId: string
   if (bearerOk) {
     // Cron (pg_net) sin sesión de usuario: resuelve el tenant directamente por slug.
     const { data: tenantRow } = await sb.from('tenants').select('id, status').eq('slug', tenantSlug).eq('status', 'active').maybeSingle()
     if (!tenantRow) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
+    tenantId = tenantRow.id as string
   } else {
     const t = await requireTenant(tenantSlug)
     if ('error' in t) return t.error
@@ -39,10 +40,12 @@ async function handle(req: NextRequest, tenantSlug: string) {
     if (!role || !ALLOWED_ROLES.includes(role)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
+    tenantId = t.tenantId
   }
 
+  await ensureConfig(tenantId)
   try {
-    const result = await runInstagramSync(sb)
+    const result = await runInstagramSync(sb, tenantId)
     return NextResponse.json(result)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Error al sincronizar con Instagram'

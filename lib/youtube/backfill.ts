@@ -6,32 +6,34 @@ type PendingMedia = { caption: string | null; permalink: string | null; media_ur
 type PendingRow = { ig_media_external_id: string; ig_media: PendingMedia | null }
 
 // Encola (status='pending') cualquier reel propio que aún no tenga fila en youtube_uploads.
-async function enqueuePendingReels(sb: SupabaseClient): Promise<void> {
+async function enqueuePendingReels(sb: SupabaseClient, tenantId: string): Promise<void> {
   const { data: allReels } = await sb
     .from('ig_media')
     .select('external_id')
+    .eq('tenant_id', tenantId)
     .eq('media_product_type', 'REELS')
     .not('media_url', 'is', null)
-  const { data: known } = await sb.from('youtube_uploads').select('ig_media_external_id')
+  const { data: known } = await sb.from('youtube_uploads').select('ig_media_external_id').eq('tenant_id', tenantId)
   const knownSet = new Set((known ?? []).map((r) => r.ig_media_external_id))
   const toEnqueue = (allReels ?? [])
     .filter((r) => !knownSet.has(r.external_id))
-    .map((r) => ({ ig_media_external_id: r.external_id, status: 'pending' }))
+    .map((r) => ({ tenant_id: tenantId, ig_media_external_id: r.external_id, status: 'pending' }))
   if (toEnqueue.length) await sb.from('youtube_uploads').insert(toEnqueue)
 }
 
-async function loadPendingRows(sb: SupabaseClient): Promise<PendingRow[]> {
-  const { data: pendingUploads } = await sb.from('youtube_uploads').select('ig_media_external_id').eq('status', 'pending')
+async function loadPendingRows(sb: SupabaseClient, tenantId: string): Promise<PendingRow[]> {
+  const { data: pendingUploads } = await sb.from('youtube_uploads').select('ig_media_external_id').eq('tenant_id', tenantId).eq('status', 'pending')
   if (!pendingUploads?.length) return []
   const { data: pendingMedia } = await sb
     .from('ig_media')
     .select('external_id, caption, permalink, media_url, published_at')
+    .eq('tenant_id', tenantId)
     .in('external_id', pendingUploads.map((r) => r.ig_media_external_id))
   const mediaByExternalId = new Map((pendingMedia ?? []).map((m) => [m.external_id, m]))
   return pendingUploads.map((r) => ({ ig_media_external_id: r.ig_media_external_id, ig_media: mediaByExternalId.get(r.ig_media_external_id) ?? null }))
 }
 
-async function uploadOne(sb: SupabaseClient, cfg: IgConfig, row: PendingRow): Promise<boolean> {
+async function uploadOne(sb: SupabaseClient, cfg: IgConfig, tenantId: string, row: PendingRow): Promise<boolean> {
   const media = row.ig_media
   if (!media) return false
   try {
@@ -44,20 +46,22 @@ async function uploadOne(sb: SupabaseClient, cfg: IgConfig, row: PendingRow): Pr
     await sb.from('youtube_uploads')
       .update({ youtube_video_id: result.videoId, status: 'uploaded', error: null, updated_at: new Date().toISOString() })
       .eq('ig_media_external_id', row.ig_media_external_id)
+      .eq('tenant_id', tenantId)
     return true
   } catch (err) {
     await sb.from('youtube_uploads')
       .update({ status: 'failed', error: err instanceof Error ? err.message : String(err), updated_at: new Date().toISOString() })
       .eq('ig_media_external_id', row.ig_media_external_id)
+      .eq('tenant_id', tenantId)
     return false
   }
 }
 
 // Refresca views/likes/comments de los vídeos ya publicados, para poder mostrarlas en la app.
-export async function refreshYoutubeStats(sb: SupabaseClient): Promise<void> {
+export async function refreshYoutubeStats(sb: SupabaseClient, tenantId: string): Promise<void> {
   if (!isYoutubeConfigured()) return
   try {
-    const { data: uploadedRows } = await sb.from('youtube_uploads').select('youtube_video_id').eq('status', 'uploaded').not('youtube_video_id', 'is', null)
+    const { data: uploadedRows } = await sb.from('youtube_uploads').select('youtube_video_id').eq('tenant_id', tenantId).eq('status', 'uploaded').not('youtube_video_id', 'is', null)
     const ids = (uploadedRows ?? []).map((r) => r.youtube_video_id as string)
     if (!ids.length) return
     const stats = await fetchVideoStats(ids)
@@ -66,6 +70,7 @@ export async function refreshYoutubeStats(sb: SupabaseClient): Promise<void> {
       await sb.from('youtube_uploads')
         .update({ views: s.views, likes: s.likes, comments: s.comments, stats_synced_at: syncedAt })
         .eq('youtube_video_id', s.videoId)
+        .eq('tenant_id', tenantId)
     }
   } catch { /* refresco de métricas opcional */ }
 }
@@ -80,14 +85,14 @@ export async function refreshYoutubeStats(sb: SupabaseClient): Promise<void> {
 //   desde un cron dedicado programado 3 veces al día (ver /api/${tenant}/evergreen/cron/youtube-backfill).
 // Best-effort: un fallo en un reel no tumba el resto; queda marcado 'failed' con su error para
 // poder revisarlo sin reintentar los que ya se subieron bien.
-export async function runYoutubeSync(sb: SupabaseClient, cfg: IgConfig, opts: { backfillLimit: number }): Promise<number> {
+export async function runYoutubeSync(sb: SupabaseClient, cfg: IgConfig, tenantId: string, opts: { backfillLimit: number }): Promise<number> {
   if (!isYoutubeConfigured()) return 0
 
-  const { data: marker } = await sb.from('app_settings').select('value').eq('key', 'youtube_sync_started_at').single()
+  const { data: marker } = await sb.from('app_settings').select('value').eq('tenant_id', tenantId).eq('key', 'youtube_sync_started_at').maybeSingle()
   const startedAt = (marker?.value as string) || new Date().toISOString()
 
-  await enqueuePendingReels(sb)
-  const rows = await loadPendingRows(sb)
+  await enqueuePendingReels(sb, tenantId)
+  const rows = await loadPendingRows(sb, tenantId)
   if (!rows.length) return 0
 
   const isNew = (r: PendingRow) => (r.ig_media?.published_at ?? '') >= startedAt
@@ -99,9 +104,9 @@ export async function runYoutubeSync(sb: SupabaseClient, cfg: IgConfig, opts: { 
 
   let uploaded = 0
   for (const row of [...newOnes, ...backfillOnes]) {
-    if (await uploadOne(sb, cfg, row)) uploaded++
+    if (await uploadOne(sb, cfg, tenantId, row)) uploaded++
   }
 
-  await refreshYoutubeStats(sb)
+  await refreshYoutubeStats(sb, tenantId)
   return uploaded
 }

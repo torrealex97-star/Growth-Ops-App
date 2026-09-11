@@ -16,7 +16,7 @@ export type SyncResult = {
   recovered: number
 }
 
-export async function syncSequraDelinquents(): Promise<SyncResult> {
+export async function syncSequraDelinquents(tenantId: string): Promise<SyncResult> {
   const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
   const orders = (await searchAllOrders(MERCHANT_REFERENCE)).filter((o) => o.status !== 'cancelled')
@@ -36,6 +36,7 @@ export async function syncSequraDelinquents(): Promise<SyncResult> {
 
     const { error } = await sb.from('sequra_delinquent_customers').upsert(
       {
+        tenant_id: tenantId,
         order_reference: detail.primaryReference,
         merchant_reference: MERCHANT_REFERENCE,
         customer_name: detail.customerName,
@@ -58,6 +59,7 @@ export async function syncSequraDelinquents(): Promise<SyncResult> {
   const { data: stillPending } = await sb
     .from('sequra_delinquent_customers')
     .select('id, order_reference')
+    .eq('tenant_id', tenantId)
     .not('status', 'in', '(recuperado,incobrable)')
   for (const row of stillPending ?? []) {
     if (delinquentRefs.includes(row.order_reference)) continue
@@ -65,6 +67,7 @@ export async function syncSequraDelinquents(): Promise<SyncResult> {
       .from('sequra_delinquent_customers')
       .update({ status: 'recuperado', last_synced_at: new Date().toISOString() })
       .eq('id', row.id)
+      .eq('tenant_id', tenantId)
     if (!error) recovered++
   }
 
