@@ -4,14 +4,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
   PieChart, Wallet, ShoppingCart, Receipt, TrendingDown, Scale, Users, CreditCard,
 } from 'lucide-react'
 import { lastNMonths, prevMonth, monthLabel, pctDelta } from '@/lib/analytics'
@@ -34,7 +26,6 @@ type ExpenseRow = { amount: number | string; category: string; expense_date: str
 type RefundRow = { gross_refund_amount: number | string; refund_date: string | null }
 type CommissionRow = { commission_amount: number | string; direction: string; collection_id: string | null; liquidation_month: string | null }
 type UserRow = { base_salary: number | string | null }
-type PartnerRow = { id: string; name: string; profit_percent: number | string; is_active: boolean }
 
 const num = (x: number | string | null | undefined) => Number(x ?? 0)
 const ymOf = (d: string | null | undefined) => (d ? String(d).slice(0, 7) : '')
@@ -80,7 +71,6 @@ export default function FinanzasPage() {
   const [refunds, setRefunds] = useState<RefundRow[]>([])
   const [commissions, setCommissions] = useState<CommissionRow[]>([])
   const [activeUsers, setActiveUsers] = useState<UserRow[]>([])
-  const [partners, setPartners] = useState<PartnerRow[]>([])
 
   const monthOptions = useMemo(() => lastNMonths(12, nowYm()).reverse(), [])
 
@@ -89,14 +79,13 @@ export default function FinanzasPage() {
     async function load() {
       setLoading(true)
       const supabase = createClient()
-      const [salesRes, collRes, expensesRes, refundsRes, commissionsRes, usersRes, partnersRes] = await Promise.all([
+      const [salesRes, collRes, expensesRes, refundsRes, commissionsRes, usersRes] = await Promise.all([
         supabase.from('sales').select('id, gross_amount, discount, sale_date, status'),
         supabase.from('collections').select('id, sale_id, gross_amount, commissionable_amount, processing_fee, vat, collected_at, status, expected_installment_id'),
         supabase.from('expenses').select('amount, category, expense_date'),
         supabase.from('refunds').select('gross_refund_amount, refund_date'),
         supabase.from('commissions').select('commission_amount, direction, collection_id, liquidation_month'),
         supabase.from('users').select('base_salary').eq('is_active', true),
-        supabase.from('partners').select('id, name, profit_percent, is_active').eq('is_active', true),
       ])
       if (!mounted) return
       setSales(salesRes.data || [])
@@ -105,7 +94,6 @@ export default function FinanzasPage() {
       setRefunds(refundsRes.data || [])
       setCommissions(commissionsRes.data || [])
       setActiveUsers(usersRes.data || [])
-      setPartners(partnersRes.data || [])
       setLoading(false)
     }
     load()
@@ -187,19 +175,6 @@ export default function FinanzasPage() {
     const pctBooked = committed > 0 ? (booked / committed) * 100 : null
     return { committed, booked, diff, pctBooked }
   }, [activeUsers, cur.categories])
-
-  // --- Reparto de socios sobre el resultado neto del mes ---
-  const partnersDistribution = useMemo(() => {
-    return partners.map((p) => {
-      const percent = num(p.profit_percent)
-      return {
-        id: p.id,
-        name: p.name,
-        percent,
-        amount: cur.netResult * (percent / 100),
-      }
-    })
-  }, [partners, cur.netResult])
 
   // --- Métricas de pagos ("Company") para el mes seleccionado ---
   const paymentsSummary = useMemo(() => {
@@ -516,41 +491,6 @@ export default function FinanzasPage() {
                 }
               />
             </div>
-          </div>
-
-          {/* Reparto de socios */}
-          <div>
-            <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
-              Reparto de socios — {monthLabel(ym)}
-            </h2>
-            {partnersDistribution.length === 0 ? (
-              <div className="bg-card border border-border rounded-lg p-5">
-                <p className="text-sm text-muted-foreground text-center">No hay socios activos configurados.</p>
-              </div>
-            ) : (
-              <div className="rounded-lg border border-border overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-border hover:bg-transparent">
-                      <TableHead className="text-muted-foreground">Socio</TableHead>
-                      <TableHead className="text-muted-foreground">%</TableHead>
-                      <TableHead className="text-muted-foreground">Importe</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {partnersDistribution.map((p) => (
-                      <TableRow key={p.id} className="border-border">
-                        <TableCell className="text-foreground font-medium">{p.name}</TableCell>
-                        <TableCell className="text-muted-foreground">{p.percent.toFixed(2)}%</TableCell>
-                        <TableCell className={`font-medium tabular-nums ${p.amount >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {fmt(p.amount)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
           </div>
 
           {/* Métricas de pagos */}
