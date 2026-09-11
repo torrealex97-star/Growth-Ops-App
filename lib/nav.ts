@@ -91,15 +91,26 @@ export const NAV_SECTIONS: NavSection[] = [
     dept: 'marketing',
     items: [
       { label: 'Setting AI', href: '/setting-ai', icon: Bot, roles: [...LEAD, 'setter', 'marketing'] },
-      { label: 'Campañas', href: '/campaigns', icon: Radio, roles: [...LEAD, 'marketing', 'adscripcion'] },
-      { label: 'Atribución', href: '/attribution', icon: Megaphone, roles: [...LEAD, 'marketing', 'adscripcion'] },
-      { label: 'Data Health', href: '/data-health', icon: Activity, roles: [...LEAD, 'marketing', 'adscripcion'] },
-      { label: 'Contenido', href: '/content', icon: Clapperboard, roles: [...LEAD, 'marketing', 'editor'] },
-      { label: 'Reels del día', href: '/content/reels', icon: Clapperboard, roles: [...LEAD, 'marketing', 'editor'] },
-      { label: 'Carruseles y Flyers', href: '/carruseles', icon: Images, roles: [...LEAD, 'marketing', 'editor'] },
-      { label: 'Instagram', href: '/instagram', icon: Camera, roles: [...LEAD, 'marketing', 'editor'] },
-      { label: 'Competencia', href: '/instagram/competencia', icon: Radar, roles: [...LEAD, 'marketing'] },
-      { label: 'VSL / Vídeos', href: '/vsl', icon: Video, roles: [...LEAD, 'marketing', 'editor'] },
+      {
+        label: 'Adquisición', href: '/marketing/adquisicion/campanas', icon: Radio,
+        roles: [...LEAD, 'marketing', 'adscripcion', 'editor'],
+        children: [
+          { label: 'Campañas', href: '/marketing/adquisicion/campanas', icon: Radio, roles: [...LEAD, 'marketing', 'adscripcion'] },
+          { label: 'Atribución', href: '/marketing/adquisicion/atribucion', icon: Megaphone, roles: [...LEAD, 'marketing', 'adscripcion'] },
+          { label: 'VSL', href: '/marketing/adquisicion/vsl', icon: Video, roles: [...LEAD, 'marketing', 'editor'] },
+        ],
+      },
+      {
+        label: 'Instagram', href: '/instagram', icon: Camera,
+        roles: [...LEAD, 'marketing', 'editor'],
+        children: [
+          { label: 'Rendimiento', href: '/instagram', icon: Camera, roles: [...LEAD, 'marketing', 'editor'] },
+          { label: 'Reels del día', href: '/instagram/reels', icon: Clapperboard, roles: [...LEAD, 'marketing', 'editor'] },
+          { label: 'Carruseles y Flyers', href: '/instagram/carruseles', icon: Images, roles: [...LEAD, 'marketing', 'editor'] },
+          { label: 'Competencia', href: '/instagram/competencia', icon: Radar, roles: [...LEAD, 'marketing'] },
+          { label: 'Contenido', href: '/instagram/contenido', icon: Clapperboard, roles: [...LEAD, 'marketing', 'editor'] },
+        ],
+      },
     ],
   },
   {
@@ -134,6 +145,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: 'Sugerencias', href: '/settings/sugerencias', icon: Lightbulb, roles: ['admin', 'director'] },
       { label: 'Actividad', href: '/actividad', icon: Activity, roles: ['admin', 'director'] },
       { label: 'Auditoría', href: '/audit', icon: Shield, roles: ['admin', 'director'] },
+      { label: 'Data Health', href: '/settings?tab=data-health', icon: Activity, roles: ['admin', 'director', 'marketing', 'adscripcion'] },
       {
         label: 'Configuración',
         href: '/settings',

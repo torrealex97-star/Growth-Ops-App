@@ -443,7 +443,7 @@ export default function CampaignsPage() {
   const activeCount = displayItems.filter((c) => c.status === 'activa').length
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2"><Radio className="w-6 h-6 text-brand-400" /> Campañas</h1>

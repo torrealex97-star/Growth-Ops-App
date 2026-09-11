@@ -9,6 +9,12 @@ export interface RouteTab {
   href: string
   /** Ruta relativa (sin tenant) para saber cuándo esta pestaña está activa, p.ej. '/ventas/registro'. */
   match: string
+  /**
+   * Si es true, solo se marca activa con coincidencia EXACTA (no por prefijo). Necesario cuando
+   * la ruta de esta pestaña es también el prefijo del grupo entero (p.ej. '/instagram' es a la vez
+   * la pestaña "Rendimiento" y el prefijo de '/instagram/reels', '/instagram/carruseles'...).
+   */
+  exact?: boolean
 }
 
 // Fila de pestañas navegable por URL real (deep-linkable), con el mismo estilo visual que
@@ -19,7 +25,7 @@ export function RouteTabs({ tabs, relPathname }: { tabs: RouteTab[]; relPathname
   return (
     <div className="inline-flex items-center gap-1 rounded-lg bg-muted p-1 text-muted-foreground">
       {tabs.map((t) => {
-        const active = relPathname === t.match || relPathname.startsWith(`${t.match}/`)
+        const active = t.exact ? relPathname === t.match : relPathname === t.match || relPathname.startsWith(`${t.match}/`)
         return (
           <Link
             key={t.href}

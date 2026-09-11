@@ -74,8 +74,8 @@ export const ROLE_DEPARTMENTS: Record<AppRole, Department[]> = {
 // Prefijos de ruta por departamento (para acceso configurable por usuario)
 export const DEPARTMENT_PREFIXES: Record<Department, string[]> = {
   direccion: ['/dashboard', '/unit-economics', '/cohorts', '/pnl'],
-  ventas: ['/leads', '/contacts', '/appointments', '/seguimiento', '/sales', '/reservas', '/pagos', '/pipeline', '/ventas-metricas', '/prospecting', '/commissions', '/targets', '/kpi', '/tasks', '/enlaces', '/biblioteca', '/setting-ai', '/contratos/producto'],
-  marketing: ['/campaigns', '/attribution', '/data-health', '/content', '/content/reels', '/instagram', '/vsl', '/carruseles'],
+  ventas: ['/crm', '/ventas', '/analitica', '/comisiones', '/recursos', '/tasks'],
+  marketing: ['/marketing', '/instagram', '/setting-ai', '/settings'],
   producto: ['/students', '/csm-events', '/drops', '/contratos'],
   finanzas: ['/finanzas', '/proyeccion', '/expenses', '/facturas', '/morosidad', '/morosos-sequra', '/collections', '/refunds', '/afiliados', '/pnl', '/gestoria'],
   sistema: ['/actividad', '/audit', '/settings', '/contratos/equipo', '/contratos/plantillas'],
@@ -88,33 +88,30 @@ export const NAV_PAGES: { href: string; label: string; dept: Department }[] = [
   { href: '/unit-economics', label: 'Unit Economics', dept: 'direccion' },
   { href: '/cohorts', label: 'Cohortes', dept: 'direccion' },
   { href: '/pnl', label: 'I&G (P&L)', dept: 'direccion' },
-  { href: '/leads', label: 'Leads', dept: 'ventas' },
-  { href: '/contacts', label: 'Contactos', dept: 'ventas' },
-  { href: '/appointments', label: 'Agendas', dept: 'ventas' },
-  { href: '/seguimiento', label: 'Pipeline de seguimiento', dept: 'ventas' },
-  { href: '/sales', label: 'Ventas', dept: 'ventas' },
-  { href: '/reservas', label: 'Reservas', dept: 'ventas' },
-  { href: '/pagos', label: 'Pipeline de pagos', dept: 'ventas' },
-  { href: '/pipeline', label: 'Ranking', dept: 'ventas' },
-  { href: '/ventas-metricas', label: 'Métricas ventas', dept: 'ventas' },
-  { href: '/prospecting', label: 'Prospección', dept: 'ventas' },
-  { href: '/commissions', label: 'Comisiones', dept: 'ventas' },
-  { href: '/targets', label: 'Objetivos', dept: 'ventas' },
+  { href: '/crm/contactos', label: 'CRM · Contactos', dept: 'ventas' },
+  { href: '/crm/agendas', label: 'CRM · Agendas', dept: 'ventas' },
+  { href: '/crm/seguimiento', label: 'CRM · Seguimiento', dept: 'ventas' },
+  { href: '/ventas/registro', label: 'Ventas & Cobros · Registro', dept: 'ventas' },
+  { href: '/ventas/pagos', label: 'Ventas & Cobros · Pagos', dept: 'ventas' },
+  { href: '/ventas/reservas', label: 'Ventas & Cobros · Reservas', dept: 'ventas' },
+  { href: '/analitica/embudo', label: 'Analítica · Embudo', dept: 'ventas' },
+  { href: '/analitica/ranking', label: 'Analítica · Ranking', dept: 'ventas' },
+  { href: '/analitica/actividad', label: 'Analítica · Actividad (+ KPI diario)', dept: 'ventas' },
+  { href: '/comisiones', label: 'Comisiones', dept: 'ventas' },
   { href: '/tasks', label: 'Tareas', dept: 'ventas' },
-  { href: '/kpi', label: 'KPI', dept: 'ventas' },
-  { href: '/enlaces', label: 'Enlaces', dept: 'ventas' },
-  { href: '/biblioteca', label: 'Biblioteca de llamadas', dept: 'ventas' },
-  { href: '/setting-ai', label: 'Setting AI', dept: 'ventas' },
-  { href: '/contratos/producto', label: 'Contratos de producto', dept: 'ventas' },
-  { href: '/campaigns', label: 'Campañas', dept: 'marketing' },
-  { href: '/attribution', label: 'Atribución', dept: 'marketing' },
-  { href: '/data-health', label: 'Data Health', dept: 'marketing' },
-  { href: '/content', label: 'Contenido', dept: 'marketing' },
-  { href: '/content/reels', label: 'Reels del día', dept: 'marketing' },
-  { href: '/carruseles', label: 'Carruseles y Flyers', dept: 'marketing' },
-  { href: '/instagram', label: 'Instagram', dept: 'marketing' },
-  { href: '/instagram/competencia', label: 'Competencia', dept: 'marketing' },
-  { href: '/vsl', label: 'VSL / Vídeos', dept: 'marketing' },
+  { href: '/recursos/enlaces', label: 'Recursos de venta · Enlaces', dept: 'ventas' },
+  { href: '/recursos/biblioteca', label: 'Recursos de venta · Biblioteca', dept: 'ventas' },
+  { href: '/recursos/testimonios', label: 'Recursos de venta · Testimonios', dept: 'ventas' },
+  { href: '/recursos/contratos-producto', label: 'Recursos de venta · Contratos de producto', dept: 'ventas' },
+  { href: '/marketing/adquisicion/campanas', label: 'Adquisición · Campañas', dept: 'marketing' },
+  { href: '/marketing/adquisicion/atribucion', label: 'Adquisición · Atribución', dept: 'marketing' },
+  { href: '/marketing/adquisicion/vsl', label: 'Adquisición · VSL', dept: 'marketing' },
+  { href: '/instagram', label: 'Instagram · Rendimiento', dept: 'marketing' },
+  { href: '/instagram/reels', label: 'Instagram · Reels del día', dept: 'marketing' },
+  { href: '/instagram/carruseles', label: 'Instagram · Carruseles y Flyers', dept: 'marketing' },
+  { href: '/instagram/competencia', label: 'Instagram · Competencia', dept: 'marketing' },
+  { href: '/instagram/contenido', label: 'Instagram · Contenido', dept: 'marketing' },
+  { href: '/setting-ai', label: 'Setting AI', dept: 'marketing' },
   { href: '/students', label: 'Alumnos', dept: 'producto' },
   { href: '/csm-events', label: 'Eventos CSM', dept: 'producto' },
   { href: '/drops', label: 'Cancelaciones', dept: 'producto' },
@@ -159,18 +156,30 @@ export const hasDepartment = (role: AppRole, dept: Department) =>
 
 // ---- Rutas permitidas por rol (para acotar el acceso en el layout) ----
 // Los roles de liderazgo (admin/director/manager) no tienen restricción (undefined).
+// NOTA sobre la reorganización de Ventas/Marketing (sept 2026): varias páginas antes sueltas se
+// fusionaron en pantallas con pestañas bajo un prefijo común (/crm, /ventas, /analitica, /recursos,
+// /marketing, /instagram). Cuando un rol tenía acceso a TODAS las páginas de un grupo, se le da el
+// prefijo completo del grupo. Cuando solo tenía acceso a ALGUNAS (p.ej. cobros solo veía Pipeline de
+// pagos, no Registro/Reservas), se usa el sub-prefijo exacto de esa pestaña para no ampliar el acceso
+// más allá de lo que ya tenía. `/analitica/actividad` alberga ahora también el modal de KPI Diario,
+// así que cualquier rol que antes pudiera enviar su KPI (setter/closer/triager/cold_caller) necesita
+// ese sub-prefijo aunque antes no viera la propia página de Prospección.
 export const ROLE_ALLOWED_PREFIXES: Partial<Record<AppRole, string[]>> = {
-  setter:      ['/dashboard', '/leads', '/contacts', '/appointments', '/seguimiento', '/sales', '/reservas', '/pagos', '/pipeline', '/ventas-metricas', '/prospecting', '/commissions', '/targets', '/kpi', '/tasks', '/enlaces', '/biblioteca', '/setting-ai'],
-  closer:      ['/dashboard', '/leads', '/contacts', '/appointments', '/seguimiento', '/sales', '/reservas', '/pagos', '/pipeline', '/ventas-metricas', '/commissions', '/targets', '/kpi', '/tasks', '/enlaces', '/biblioteca', '/contratos/producto'],
-  triager:     ['/leads', '/contacts', '/appointments', '/pipeline', '/ventas-metricas', '/prospecting', '/kpi', '/tasks'],
-  cold_caller: ['/leads', '/contacts', '/appointments', '/seguimiento', '/pipeline', '/ventas-metricas', '/prospecting', '/kpi', '/tasks', '/enlaces', '/biblioteca'],
-  affiliate:   ['/afiliados', '/commissions', '/enlaces'],
+  setter:      ['/dashboard', '/crm', '/ventas', '/analitica', '/comisiones', '/tasks', '/recursos/enlaces', '/recursos/biblioteca', '/recursos/testimonios', '/setting-ai'],
+  closer:      ['/dashboard', '/crm', '/ventas', '/analitica', '/comisiones', '/tasks', '/recursos'],
+  triager:     ['/crm', '/analitica', '/tasks', '/recursos/testimonios'],
+  cold_caller: ['/crm', '/analitica', '/tasks', '/recursos/enlaces', '/recursos/biblioteca', '/recursos/testimonios'],
+  affiliate:   ['/afiliados', '/comisiones', '/recursos/enlaces'],
   gestoria:    ['/gestoria', '/facturas', '/pnl', '/finanzas'],
-  marketing:   ['/campaigns', '/attribution', '/data-health', '/content', '/content/reels', '/instagram', '/vsl', '/carruseles'],
-  adscripcion: ['/attribution', '/campaigns', '/data-health'],
-  editor:      ['/content', '/content/reels', '/instagram', '/vsl', '/carruseles'],
-  csm:         ['/students', '/csm-events', '/drops'],
-  cobros:      ['/morosidad', '/morosos-sequra', '/collections', '/pagos'],
+  // marketing/adscripcion pierden acceso a las tarjetas de Configuración (siempre fueron solo-admin);
+  // '/settings' se les concede únicamente porque Data Health vive ahora ahí — la propia página
+  // (app/[tenant]/settings/page.tsx) les muestra EXCLUSIVAMENTE el panel de Data Health, nunca las
+  // tarjetas de administración.
+  marketing:   ['/marketing', '/instagram', '/settings', '/recursos/testimonios'],
+  adscripcion: ['/marketing', '/settings'],
+  editor:      ['/instagram', '/marketing', '/recursos/testimonios'],
+  csm:         ['/students', '/csm-events', '/drops', '/recursos/testimonios'],
+  cobros:      ['/morosidad', '/morosos-sequra', '/collections', '/ventas/pagos'],
 }
 
 export const PERMISSIONS = {

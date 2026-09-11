@@ -74,7 +74,7 @@ export function CasoExitoDialog({ open, onOpenChange }: Props) {
       toast.success(`Carrusel creado con ${data.slides} slides`)
       reset()
       onOpenChange(false)
-      router.push(`/${tenant}/carruseles/${data.id}`)
+      router.push(`/${tenant}/instagram/carruseles/${data.id}`)
     } catch (e) {
       toast.error((e as Error).message)
     } finally {

@@ -133,7 +133,7 @@ export default function ReelsDelDiaPage() {
 
   const goToCarousel = (d: Draft) => {
     const idea = d.carousel_idea || ''
-    router.push(`/${tenant}/carruseles${idea ? `?idea=${encodeURIComponent(idea)}` : ''}`)
+    router.push(`/${tenant}/instagram/carruseles${idea ? `?idea=${encodeURIComponent(idea)}` : ''}`)
   }
 
   const sorted = useMemo(
@@ -142,7 +142,7 @@ export default function ReelsDelDiaPage() {
   )
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">

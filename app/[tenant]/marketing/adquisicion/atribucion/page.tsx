@@ -406,7 +406,7 @@ export default function AttributionPage() {
   const hasApptFilters = periodPreset !== 'all' || !!campaignFilter.trim() || sourceFilter !== 'all'
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <Megaphone className="w-6 h-6 text-cyan-400" /> Atribución
