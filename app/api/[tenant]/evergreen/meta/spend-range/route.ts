@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 
@@ -10,17 +9,14 @@ const ALLOWED_ROLES = ['admin', 'director', 'manager', 'marketing', 'adscripcion
 // Agrega el gasto DIARIO (campaign_daily) por campaña dentro de un rango [from, to].
 // Devuelve un mapa campaignId → { spend, impressions, clicks, leads } para que la página de
 // Campañas muestre el gasto REAL del periodo (este mes / trimestre / año), no el total histórico.
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
-    const cookieStore = await cookies()
-    const authed = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-    )
-    const { data: { user } } = await authed.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-    const { data: row } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const { data: row } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
     const role = (row?.roles as { key?: string } | null)?.key
     if (!role || !ALLOWED_ROLES.includes(role)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
@@ -28,8 +24,6 @@ export async function GET(req: NextRequest) {
 
     const from = req.nextUrl.searchParams.get('from')
     const to = req.nextUrl.searchParams.get('to')
-
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
     // Paginación defensiva por si hay muchas filas (campañas × días). Se reconstruye la query
     // en cada página (los builders de supabase-js no se reutilizan tras await).
@@ -42,7 +36,7 @@ export async function GET(req: NextRequest) {
     let offset = 0
     for (let guard = 0; guard < 200; guard++) {
       // select('*') para tolerar bases sin las columnas nuevas hasta que se aplique la migración.
-      let q = sb.from('campaign_daily').select('*')
+      let q = sb.from('campaign_daily').select('*').eq('tenant_id', t.tenantId)
       if (from) q = q.gte('date', from)
       if (to) q = q.lte('date', to)
       const { data, error } = await q.range(offset, offset + PAGE - 1)

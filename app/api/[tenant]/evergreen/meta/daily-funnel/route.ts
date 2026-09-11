@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { requireTenant } from '@/lib/auth/requireTenant'
 import { deriveDailyRow, isPaidSource, type DailyFunnelInput, type DailyFunnelRow } from '@/lib/ads/funnel'
 
 export const runtime = 'nodejs'
@@ -15,17 +14,14 @@ const ALLOWED_ROLES = ['admin', 'director', 'manager', 'marketing', 'adscripcion
 //     por fecha de la cita.
 // Filtros: rango [from,to], `campaign` (contiene, para aislar campañas de VSL) y `paidOnly`
 // (solo agendas de tráfico pago, por defecto activo). Devuelve filas ya con métricas derivadas.
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
-    const cookieStore = await cookies()
-    const authed = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-    )
-    const { data: { user } } = await authed.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-    const { data: urow } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
     const role = (urow?.roles as { key?: string } | null)?.key
     if (!role || !ALLOWED_ROLES.includes(role)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
@@ -36,10 +32,8 @@ export async function GET(req: NextRequest) {
     const campaignQ = (req.nextUrl.searchParams.get('campaign') || '').trim().toLowerCase()
     const paidOnly = req.nextUrl.searchParams.get('paidOnly') !== '0' // por defecto: solo tráfico pago
 
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
     // Nombre de cada campaña (para el filtro "contiene" sobre la serie diaria).
-    const { data: campRows } = await sb.from('campaigns').select('id, name')
+    const { data: campRows } = await sb.from('campaigns').select('id, name').eq('tenant_id', t.tenantId)
     const nameById = new Map<string, string>(
       (campRows || []).map((c: { id: string; name: string | null }) => [c.id, (c.name || '').toLowerCase()])
     )
@@ -52,7 +46,7 @@ export async function GET(req: NextRequest) {
     const PAGE = 1000
     let offset = 0
     for (let guard = 0; guard < 200; guard++) {
-      let q = sb.from('campaign_daily').select('*')
+      let q = sb.from('campaign_daily').select('*').eq('tenant_id', t.tenantId)
       if (from) q = q.gte('date', from)
       if (to) q = q.lte('date', to)
       const { data, error } = await q.range(offset, offset + PAGE - 1)
@@ -80,7 +74,7 @@ export async function GET(req: NextRequest) {
     const apptByDate = new Map<string, number>()
     offset = 0
     for (let guard = 0; guard < 200; guard++) {
-      let q = sb.from('appointments').select('appointment_datetime, source, utm_source, utm_campaign')
+      let q = sb.from('appointments').select('appointment_datetime, source, utm_source, utm_campaign').eq('tenant_id', t.tenantId)
       if (from) q = q.gte('appointment_datetime', `${from}T00:00:00`)
       if (to) q = q.lte('appointment_datetime', `${to}T23:59:59`)
       const { data, error } = await q.range(offset, offset + PAGE - 1)

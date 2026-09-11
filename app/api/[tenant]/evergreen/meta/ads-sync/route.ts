@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ensureConfig } from '@/lib/config'
 import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { requireTenant } from '@/lib/auth/requireTenant'
 import { runMetaAdsSync } from '@/lib/meta/sync'
 
 export const runtime = 'nodejs'
@@ -14,20 +13,30 @@ const ALLOWED_ROLES = ['admin', 'director', 'manager', 'marketing']
 // Va separado de la sync de campañas porque los ad-insights son lentos; procesa las
 // cuentas en paralelo para caber en 60s. Auth: sesión (rol permitido) O Bearer CRON_SECRET.
 // GET = cron (pg_net) · POST = botón manual.
-async function handle(req: NextRequest) {
+//
+// NOTA multi-tenant: las credenciales de Meta (resolveMetaConfigs) y el upsert de
+// runMetaAdsSync hacia `campaign_ads` siguen siendo globales (token único, onConflict por
+// external_id sin tenant_id), heredado de la era single-tenant. Aquí solo podemos verificar
+// que el slug resuelve a un tenant activo antes de lanzar el sync; el aislamiento real por
+// tenant de esos datos requiere tocar lib/meta/sync.ts y lib/meta/client.ts, fuera del
+// alcance de este lote.
+async function handle(req: NextRequest, tenantSlug: string) {
   const auth = req.headers.get('authorization')
   const bearerOk = !!process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`
 
-  if (!bearerOk) {
-    const cookieStore = await cookies()
-    const authed = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-    )
-    const { data: { user } } = await authed.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-    const { data: row } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
+  const sb = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  if (bearerOk) {
+    // Cron (pg_net) sin sesión de usuario: resuelve el tenant directamente por slug.
+    const { data: tenantRow } = await sb.from('tenants').select('id, status').eq('slug', tenantSlug).eq('status', 'active').maybeSingle()
+    if (!tenantRow) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
+  } else {
+    const t = await requireTenant(tenantSlug)
+    if ('error' in t) return t.error
+    const { data: row } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
     const role = (row?.roles as { key?: string } | null)?.key
     if (!role || !ALLOWED_ROLES.includes(role)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
@@ -35,10 +44,6 @@ async function handle(req: NextRequest) {
   }
 
   try {
-    const sb = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
     const result = await runMetaAdsSync(sb)
     return NextResponse.json(result)
   } catch (e) {
@@ -47,12 +52,14 @@ async function handle(req: NextRequest) {
   }
 }
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   await ensureConfig()
-  return handle(req)
+  const { tenant } = await params
+  return handle(req, tenant)
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   await ensureConfig()
-  return handle(req)
+  const { tenant } = await params
+  return handle(req, tenant)
 }

@@ -1,19 +1,27 @@
 import { NextResponse } from 'next/server'
 import { sql, mergeConfig } from '@/lib/vsl/db'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const dynamic = 'force-dynamic'
 
 // Métricas agregadas de un VSL: play rate, % medio, completado, curva de retención,
 // puntos de caída, reparto por dispositivo y lista de leads con su % visto.
+// NOTA: este módulo usa el cliente `postgres` directo (POSTGRES_URL), que bypassa RLS igual
+// que el service-role de Supabase, así que el filtro `tenant_id` explícito en cada consulta
+// es la única protección contra fugas cruzadas de tenant.
 export async function GET(
   _req: Request,
-  { params }: { params: { slug: string } }
+  { params }: { params: Promise<{ tenant: string; slug: string }> }
 ) {
   try {
-    const { slug } = params
+    const { tenant, slug } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+    const tenantId = t.tenantId
+
     const [video] = await sql`
       SELECT id, slug, name, source_url, poster_url, duration_seconds, config
-      FROM vsl_videos WHERE slug = ${slug} LIMIT 1
+      FROM vsl_videos WHERE slug = ${slug} AND tenant_id = ${tenantId} LIMIT 1
     `
     if (!video) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
@@ -31,7 +39,7 @@ export async function GET(
         COALESCE(avg(LEAST(max_position / NULLIF(duration,0), 1))
                  FILTER (WHERE max_position > 0), 0)             AS avg_ratio,
         COALESCE(max(duration), 0)                               AS max_duration
-      FROM vsl_sessions WHERE video_id = ${videoId}
+      FROM vsl_sessions WHERE video_id = ${videoId} AND tenant_id = ${tenantId}
     `
 
     const duration = Math.max(Number(video.duration_seconds) || 0, Number(tot.max_duration) || 0)
@@ -41,7 +49,7 @@ export async function GET(
     const rows = await sql`
       SELECT e AS sec, count(*)::int AS viewers
       FROM vsl_sessions v, unnest(v.watched_seconds) AS e
-      WHERE v.video_id = ${videoId}
+      WHERE v.video_id = ${videoId} AND v.tenant_id = ${tenantId}
       GROUP BY e ORDER BY e
     `
     const viewersBySec = new Map<number, number>()
@@ -65,7 +73,7 @@ export async function GET(
     // Reparto por dispositivo
     const devices = await sql`
       SELECT COALESCE(device,'desconocido') AS device, count(*)::int AS n
-      FROM vsl_sessions WHERE video_id = ${videoId}
+      FROM vsl_sessions WHERE video_id = ${videoId} AND tenant_id = ${tenantId}
       GROUP BY 1 ORDER BY n DESC
     `
 
@@ -73,7 +81,7 @@ export async function GET(
     const leadsRaw = await sql`
       SELECT lead_email, lead_name, max_position, duration, reached_end, updated_at
       FROM vsl_sessions
-      WHERE video_id = ${videoId} AND lead_email IS NOT NULL
+      WHERE video_id = ${videoId} AND tenant_id = ${tenantId} AND lead_email IS NOT NULL
       ORDER BY updated_at DESC LIMIT 500
     `
     const leads = leadsRaw.map((l) => {

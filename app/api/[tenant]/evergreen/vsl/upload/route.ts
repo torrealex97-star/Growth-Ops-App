@@ -1,13 +1,17 @@
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client'
 import { NextResponse } from 'next/server'
-import { requireUser } from '@/lib/auth/requireUser'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const dynamic = 'force-dynamic'
 
 // Token de subida directa a Vercel Blob (el cliente sube el fichero DIRECTO al blob,
 // esquivando el límite de 4.5MB de las serverless functions). Necesita BLOB_READ_WRITE_TOKEN.
-export async function POST(req: Request): Promise<NextResponse> {
-  const auth = await requireUser()
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ tenant: string }> }
+): Promise<NextResponse> {
+  const { tenant } = await params
+  const auth = await requireTenant(tenant)
   if ('error' in auth) return auth.error
 
   const body = (await req.json()) as HandleUploadBody
