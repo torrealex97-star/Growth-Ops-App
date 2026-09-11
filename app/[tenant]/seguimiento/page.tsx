@@ -32,7 +32,7 @@ import { toast } from 'sonner'
 import type { AppointmentWithRelations, AppointmentStatus } from '@/lib/types/database'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import { getQualificationEntries, type Qualification } from '@/lib/appointments/qualification'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 // Etapas del pipeline interno de seguimiento (independiente de `status` y del `pipeline_stage`
 // de las integraciones externas — ver migration-v58-followup-pipeline.sql).
@@ -100,6 +100,7 @@ function timeAgo(dateStr: string | null | undefined): string {
 
 export default function SeguimientoPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [view, setView] = useState<'tabla' | 'kanban'>('tabla')
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([])
   const [users, setUsers] = useState<{ id: string; full_name: string; roles?: { key?: string } }[]>([])
@@ -146,6 +147,7 @@ export default function SeguimientoPage() {
     let query = supabase
       .from('appointments')
       .select('*, contacts(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name)')
+      .eq('tenant_id', tenantId)
       .or(`needs_followup.eq.true,status.in.(${RELEVANT_STATUSES.join(',')})`)
       .order('appointment_datetime', { ascending: false })
 

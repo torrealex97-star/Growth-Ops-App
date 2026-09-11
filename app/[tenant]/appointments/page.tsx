@@ -1,5 +1,5 @@
 "use client"
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
@@ -106,6 +106,7 @@ function isSameDay(a: Date, b: Date): boolean {
 
 export default function AppointmentsPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const router = useRouter()
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([])
   const [users, setUsers] = useState<User[]>([])
@@ -209,6 +210,7 @@ export default function AppointmentsPage() {
     let appointmentsQuery = supabase
       .from('appointments')
       .select(`*, contacts(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name)`)
+      .eq('tenant_id', tenantId)
       .order('appointment_datetime', { ascending: false })
 
     // Filtro por rol: liderazgo y quien tiene visibilidad de equipo (data_scope='team') ven todo;
@@ -225,7 +227,7 @@ export default function AppointmentsPage() {
     const [appRes, usersRes, salesRes] = await Promise.all([
       appointmentsQuery,
       supabase.from('users').select('*, roles(key)').eq('is_active', true),
-      supabase.from('sales').select('id, contact_id, appointment_id, closer_id, setter_id, status, gross_amount'),
+      supabase.from('sales').select('id, contact_id, appointment_id, closer_id, setter_id, status, gross_amount').eq('tenant_id', tenantId),
     ])
 
     if (appRes.error) {
@@ -279,6 +281,7 @@ export default function AppointmentsPage() {
       const { data } = await supabase
         .from('contacts')
         .select('*')
+        .eq('tenant_id', tenantId)
         .or(`full_name.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%`)
         .limit(10)
       setNaContactResults(data ?? [])

@@ -9,7 +9,7 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import type { Contact, PaymentPlan, Product } from '@/lib/types/database'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 type ReservationRow = {
   id: string
@@ -29,6 +29,7 @@ type ReservationRow = {
 
 export default function ReservasPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
@@ -60,12 +61,14 @@ export default function ReservasPage() {
       let openQuery = supabase
         .from('sales')
         .select(cols.replace('payment_plans(', 'payment_plans!inner('))
+        .eq('tenant_id', tenantId)
         .eq('payment_plans.method', 'reserva')
         .is('reservation_completed_at', null)
         .order('sale_date', { ascending: false })
       let completedQuery = supabase
         .from('sales')
         .select(cols)
+        .eq('tenant_id', tenantId)
         .not('reservation_completed_at', 'is', null)
         .order('reservation_completed_at', { ascending: false })
 
@@ -89,6 +92,7 @@ export default function ReservasPage() {
         const { data: plansData } = await supabase
           .from('payment_plans')
           .select('*')
+          .eq('tenant_id', tenantId)
           .in('product_id', productIds)
 
         const plans = (plansData ?? []) as PaymentPlan[]
