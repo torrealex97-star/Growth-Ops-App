@@ -273,7 +273,7 @@ export default function SettingAIPage() {
 
   // ================= UI =================
   return (
-    <div className="flex flex-col h-[calc(100vh-10.5rem)] text-foreground">
+    <div className="flex flex-col h-[calc(100vh-6.5rem)] text-foreground">
       {/* Header */}
       <div className="flex items-center gap-3 flex-wrap pb-3 border-b border-border">
         <div className="flex items-center gap-2">

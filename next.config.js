@@ -26,7 +26,10 @@ const nextConfig = {
       { source: '/:tenant/ventas-metricas', destination: '/:tenant/analitica/embudo', permanent: true },
       { source: '/:tenant/pipeline', destination: '/:tenant/analitica/ranking', permanent: true },
       { source: '/:tenant/prospecting', destination: '/:tenant/analitica/actividad', permanent: true },
-      { source: '/:tenant/targets', destination: '/:tenant/analitica/objetivos', permanent: true },
+      // Objetivos se eliminó de Analítica de ventas (a petición del usuario) — la ruta antigua
+      // y la de la reorg (breve, nunca publicada) caen al Embudo.
+      { source: '/:tenant/targets', destination: '/:tenant/analitica/embudo', permanent: true },
+      { source: '/:tenant/analitica/objetivos', destination: '/:tenant/analitica/embudo', permanent: true },
       { source: '/:tenant/kpi/report', destination: '/:tenant/analitica/actividad', permanent: true },
 
       // Comisiones
@@ -38,7 +41,9 @@ const nextConfig = {
       { source: '/:tenant/testimonios', destination: '/:tenant/recursos/testimonios', permanent: true },
       { source: '/:tenant/testimonios/:id', destination: '/:tenant/recursos/testimonios/:id', permanent: true },
       { source: '/:tenant/contratos/producto', destination: '/:tenant/recursos/contratos-producto', permanent: true },
-      { source: '/:tenant/setting-ai', destination: '/:tenant/recursos/setting-ai', permanent: true },
+      // Setting AI se movió a Marketing (a petición del usuario) — vuelve a vivir en /setting-ai,
+      // así que solo redirigimos la ruta breve de Recursos de venta, no la original.
+      { source: '/:tenant/recursos/setting-ai', destination: '/:tenant/setting-ai', permanent: true },
     ]
   },
 }
