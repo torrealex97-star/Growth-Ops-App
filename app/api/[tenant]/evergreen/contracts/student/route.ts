@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient, type SupabaseClient } from '@supabase/supabase-js'
 import { randomBytes } from 'crypto'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 import { applyVars } from '@/lib/contracts/terms'
 import { studentGenerationVars, DEFAULT_STUDENT_WELCOME, type StudentContractTerms } from '@/lib/contracts/student'
 import { getCompanyProfile } from '@/lib/contracts/company'
@@ -17,12 +17,13 @@ function service() {
 
 // Elige la plantilla de alumno/tomador para un método de pago concreto.
 // Prioridad: (kind + payment_method exacto) → (kind + payment_method NULL, por defecto) → (kind, la más reciente).
-async function pickTemplate(sb: SupabaseClient, kind: 'alumno' | 'tomador', paymentMethod: string | null) {
+async function pickTemplate(sb: SupabaseClient, kind: 'alumno' | 'tomador', paymentMethod: string | null, tenantId: string) {
   const { data: rows } = await sb
     .from('contract_templates')
     .select('id, body, welcome_message, payment_method')
     .eq('kind', kind)
     .eq('is_active', true)
+    .eq('tenant_id', tenantId)
     .order('created_at', { ascending: false })
   const list = (rows ?? []) as { id: string; body: string; welcome_message: string | null; payment_method: string | null }[]
   if (!list.length) return null
@@ -46,11 +47,11 @@ function defaultRecipient(paymentMethod: string | null, hasDistinctPayer: boolea
 }
 
 // GET ?saleId= — estado de los contratos (alumno + tomador) de una venta.
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
-    const authed = await createServerClient()
-    const { data: { user: me } } = await authed.auth.getUser()
-    if (!me) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
 
     const saleId = new URL(req.url).searchParams.get('saleId')
     if (!saleId) return NextResponse.json({ error: 'Falta saleId' }, { status: 400 })
@@ -62,6 +63,7 @@ export async function GET(req: NextRequest) {
       .select(cols)
       .eq('sale_id', saleId)
       .eq('kind', 'venta')
+      .eq('tenant_id', t.tenantId)
       .not('signing_token', 'is', null)
       .order('created_at', { ascending: false })
 
@@ -71,6 +73,7 @@ export async function GET(req: NextRequest) {
       .from('sales')
       .select('onboarding_scheduled_at, onboarding_session_at, onboarding_date, buyer_is_scheduler, payer_data, payment_method, payment_plans(method)')
       .eq('id', saleId)
+      .eq('tenant_id', t.tenantId)
       .maybeSingle()
 
     const payer = (saleRow?.payer_data ?? null) as { name?: string } | null
@@ -103,11 +106,12 @@ export async function GET(req: NextRequest) {
 // Crea (o reutiliza) los contratos ligados a una venta con token de firma y —si se
 // pide— los envía por email. Genera SIEMPRE el contrato del alumno; y, cuando el
 // comprador es un TOMADOR distinto (buyer_is_scheduler=false), también el suyo.
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
-    const authed = await createServerClient()
-    const { data: { user: me } } = await authed.auth.getUser()
-    if (!me) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+    const me = { id: t.userId }
 
     const { saleId, send = true, recipient: rawRecipient } = (await req.json()) as {
       saleId?: string; send?: boolean; recipient?: 'alumno' | 'tomador' | 'ambos'
@@ -123,6 +127,7 @@ export async function POST(req: NextRequest) {
       .from('sales')
       .select('id, contact_id, gross_amount, payment_method, custom_plan, installments_count, buyer_is_scheduler, payer_data, documents_verified, documents_verified_override, products(name, duration_months), payment_plans(name, method), contacts(full_name, email, phone, ghl_contact_id)')
       .eq('id', saleId)
+      .eq('tenant_id', t.tenantId)
       .maybeSingle()
     if (!sale) return NextResponse.json({ error: 'Venta no encontrada' }, { status: 404 })
 
@@ -185,6 +190,7 @@ export async function POST(req: NextRequest) {
         .eq('sale_id', saleId)
         .eq('kind', 'venta')
         .eq('contract_party', opts.party)
+        .eq('tenant_id', t.tenantId)
         .not('signing_token', 'is', null)
         .order('created_at', { ascending: false })
         .maybeSingle()
@@ -199,7 +205,7 @@ export async function POST(req: NextRequest) {
             title, template_id: opts.tpl?.id ?? null, terms, body_snapshot: bodySnapshot,
             is_reservation: isReservation, contract_party: opts.party,
             status: send ? 'enviado' : 'pendiente', sent_at: send ? nowIso : null,
-          }).eq('id', contractId)
+          }).eq('id', contractId).eq('tenant_id', t.tenantId)
         }
       } else {
         token = randomBytes(24).toString('hex')
@@ -209,6 +215,7 @@ export async function POST(req: NextRequest) {
           status: send ? 'enviado' : 'pendiente', terms, body_snapshot: bodySnapshot,
           is_reservation: isReservation, contract_party: opts.party,
           signing_token: token, sent_at: send ? nowIso : null, created_by: me.id,
+          tenant_id: t.tenantId,
         }).select('id').single()
         if (error) throw new Error(error.message)
         contractId = created.id
@@ -217,7 +224,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Contrato del ALUMNO ──
-    const studentTpl = await pickTemplate(sb, 'alumno', paymentMethod)
+    const studentTpl = await pickTemplate(sb, 'alumno', paymentMethod, t.tenantId)
     const welcome = studentTpl?.welcome_message || DEFAULT_STUDENT_WELCOME
     const studentContract = await upsertContract({ party: 'alumno', signerName: studentName, signerEmail: studentEmail, tpl: studentTpl })
 
@@ -227,7 +234,7 @@ export async function POST(req: NextRequest) {
       const r = await sendStudentContractEmail({ to: studentEmail, studentName, company, signUrl: studentContract.signUrl, welcome })
       emailed = r.ok
       emailError = r.ok ? null : r.error ?? null
-      if (r.ok) await sb.from('contracts').update({ email_sent_at: nowIso }).eq('id', studentContract.contractId)
+      if (r.ok) await sb.from('contracts').update({ email_sent_at: nowIso }).eq('id', studentContract.contractId).eq('tenant_id', t.tenantId)
     }
 
     // ── Contrato del TOMADOR (si el comprador es distinto del agendador) ──
@@ -239,7 +246,7 @@ export async function POST(req: NextRequest) {
     let payerContract: { contractId: string; token: string; signUrl: string } | null = null
     let payerEmailed = false
     if (includePayer) {
-      const payerTpl = await pickTemplate(sb, 'tomador', paymentMethod)
+      const payerTpl = await pickTemplate(sb, 'tomador', paymentMethod, t.tenantId)
       const payerEmail = payer!.email?.trim() || null
       payerContract = await upsertContract({ party: 'tomador', signerName: payer!.name!, signerEmail: payerEmail, tpl: payerTpl })
       if (send && payerEmail) {
@@ -248,11 +255,12 @@ export async function POST(req: NextRequest) {
           welcome: payerTpl?.welcome_message || 'Estás a punto de aceptar las condiciones como tomador/pagador de la formación.',
         })
         payerEmailed = rp.ok
-        if (rp.ok) await sb.from('contracts').update({ email_sent_at: nowIso }).eq('id', payerContract.contractId)
+        if (rp.ok) await sb.from('contracts').update({ email_sent_at: nowIso }).eq('id', payerContract.contractId).eq('tenant_id', t.tenantId)
       }
     }
 
     await sb.from('audit_logs').insert({
+      tenant_id: t.tenantId,
       entity_type: 'contract', entity_id: studentContract.contractId, action: 'create',
       new_values: { kind: 'venta', sale_id: saleId, emailed, recipient, payer: !!payerContract, payerEmailed, is_reservation: isReservation, created_by: me.id },
     })

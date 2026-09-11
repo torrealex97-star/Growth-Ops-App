@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 
@@ -8,11 +8,11 @@ export const runtime = 'nodejs'
 // acceso al panel a closer/setter/afiliado que aún no han firmado.
 // Necesita el service role porque la RLS de `contracts` no deja a esos roles
 // leer la tabla (solo la lee liderazgo/csm/gestoría).
-export async function GET() {
+export async function GET(_req: Request, { params }: { params: Promise<{ tenant: string }> }) {
   try {
-    const authed = await createServerClient()
-    const { data: { user: me } } = await authed.auth.getUser()
-    if (!me) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
 
     const sb = createServiceClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,8 +23,9 @@ export async function GET() {
     const { data } = await sb
       .from('contracts')
       .select('status, signing_token, created_at')
-      .eq('user_id', me.id)
+      .eq('user_id', t.userId)
       .eq('kind', 'equipo')
+      .eq('tenant_id', t.tenantId)
       .order('created_at', { ascending: false })
 
     const list = (data ?? []) as { status: string; signing_token: string | null }[]

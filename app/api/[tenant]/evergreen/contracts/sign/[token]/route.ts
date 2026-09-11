@@ -16,6 +16,15 @@ function service() {
   })
 }
 
+// Ruta PÚBLICA (la firma el colaborador sin sesión, solo con el token de firma):
+// no usamos requireTenant (exige login) — resolvemos el tenant por slug y acotamos
+// la búsqueda del contrato por tenant_id como defensa en profundidad, ya que el
+// token de firma en sí (aleatorio, único) es el mecanismo de seguridad principal.
+async function resolveTenantId(sb: SupabaseClient, tenantSlug: string): Promise<string | null> {
+  const { data } = await sb.from('tenants').select('id, status').eq('slug', tenantSlug).eq('status', 'active').maybeSingle()
+  return data?.id ?? null
+}
+
 // Sube el PDF firmado a Supabase Storage (bucket público, se crea si no existe)
 // y devuelve su URL pública estable.
 async function uploadSignedPdf(sb: SupabaseClient, contractId: string, bytes: Uint8Array): Promise<string> {
@@ -31,13 +40,16 @@ async function uploadSignedPdf(sb: SupabaseClient, contractId: string, bytes: Ui
 }
 
 // GET — datos del contrato para la página pública de firma (por token).
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ tenant: string; token: string }> }) {
+  const { tenant, token } = await params
   const sb = service()
+  const tenantId = await resolveTenantId(sb, tenant)
+  if (!tenantId) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
   const { data } = await sb
     .from('contracts')
     .select('id, title, body_snapshot, terms, status, signer_name, signer_data, signed_at, signed_pdf_url, user_id')
     .eq('signing_token', token)
+    .eq('tenant_id', tenantId)
     .maybeSingle()
   if (!data) return NextResponse.json({ error: 'Contrato no encontrado' }, { status: 404 })
 
@@ -79,9 +91,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
 
 // POST — el colaborador firma: valida consentimiento, genera el PDF (con la
 // firma fija de la empresa), lo guarda en Blob y marca el contrato como firmado.
-export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string; token: string }> }) {
   try {
-    const { token } = await params
+    const { tenant, token } = await params
     const { signerName, consent, signerData } = (await req.json()) as {
       signerName?: string
       consent?: boolean
@@ -98,10 +110,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     }
 
     const sb = service()
+    const tenantId = await resolveTenantId(sb, tenant)
+    if (!tenantId) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
     const { data: c } = await sb
       .from('contracts')
       .select('id, title, body_snapshot, terms, status, created_by, user_id')
       .eq('signing_token', token)
+      .eq('tenant_id', tenantId)
       .maybeSingle()
     if (!c) return NextResponse.json({ error: 'Contrato no encontrado' }, { status: 404 })
     if (c.status === 'firmado') {
@@ -199,6 +214,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     }
 
     await sb.from('audit_logs').insert({
+      tenant_id: tenantId,
       entity_type: 'contract',
       entity_id: c.id,
       action: 'update',
