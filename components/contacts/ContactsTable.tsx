@@ -97,7 +97,7 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
           className="h-8 text-brand-400 hover:text-brand-300"
           onClick={(e) => {
             e.stopPropagation()
-            router.push(`/${tenant}/contacts/${getValue()}`)
+            router.push(`/${tenant}/crm/contactos/${getValue()}`)
           }}
         >
           <ExternalLink className="w-3 h-3 mr-1" />
@@ -158,7 +158,7 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
                 <TableRow
                   key={row.id}
                   className="border-border hover:bg-card/50 cursor-pointer"
-                  onClick={() => router.push(`/${tenant}/contacts/${row.original.id}`)}
+                  onClick={() => router.push(`/${tenant}/crm/contactos/${row.original.id}`)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>

@@ -97,7 +97,7 @@ export function SalesTable({ sales, sorting = [], onSortingChange, isAdmin = fal
                 className="text-brand-400 hover:text-brand-300 text-sm font-medium truncate"
                 onClick={(e) => {
                   e.stopPropagation()
-                  router.push(`/${tenant}/contacts/${row.original.contact_id}`)
+                  router.push(`/${tenant}/crm/contactos/${row.original.contact_id}`)
                 }}
               >
                 {c?.full_name || '—'}
@@ -168,7 +168,7 @@ export function SalesTable({ sales, sorting = [], onSortingChange, isAdmin = fal
             className="h-8 text-brand-400 hover:text-brand-300"
             onClick={(e) => {
               e.stopPropagation()
-              router.push(`/${tenant}/sales/${row.original.id}`)
+              router.push(`/${tenant}/ventas/registro/${row.original.id}`)
             }}
           >
             <ExternalLink className="w-3 h-3 mr-1" />
@@ -225,7 +225,7 @@ export function SalesTable({ sales, sorting = [], onSortingChange, isAdmin = fal
               <TableRow
                 key={row.id}
                 className="border-border hover:bg-card/50 cursor-pointer"
-                onClick={() => router.push(`/${tenant}/sales/${row.original.id}`)}
+                onClick={() => router.push(`/${tenant}/ventas/registro/${row.original.id}`)}
               >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>

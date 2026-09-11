@@ -105,7 +105,7 @@ export function GlobalSearch({ user }: { user: User & { roles: { key: string; na
       key: `contact:${c.id}`,
       label: c.full_name || 'Contacto sin nombre',
       sub: [c.email, c.phone].filter(Boolean).join(' · ') || 'Contacto',
-      href: `/${tenant}/contacts/${c.id}`,
+      href: `/${tenant}/crm/contactos/${c.id}`,
       icon: UserIcon,
     }))
 
@@ -114,7 +114,7 @@ export function GlobalSearch({ user }: { user: User & { roles: { key: string; na
       key: `appt:${a.id}`,
       label: a.contacts?.full_name || 'Agenda',
       sub: formatDateTime(a.appointment_datetime),
-      href: `/${tenant}/appointments`,
+      href: `/${tenant}/crm/agendas`,
       icon: Calendar,
     }))
 

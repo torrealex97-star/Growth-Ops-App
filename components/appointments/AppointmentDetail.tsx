@@ -887,7 +887,7 @@ export function AppointmentDetail({
             <dt className="text-sm text-muted-foreground shrink-0 w-36">Ficha de contacto</dt>
             <dd className="text-sm text-right">
               <a
-                href={`/${tenant}/contacts/${appointment.contact_id}`}
+                href={`/${tenant}/crm/contactos/${appointment.contact_id}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-brand-400 hover:underline"

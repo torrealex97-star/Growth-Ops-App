@@ -7,7 +7,7 @@ import {
   ListChecks, Clapperboard, Radio, GraduationCap, CalendarCheck, UserMinus, Wallet,
   PieChart, CalendarRange, Receipt, Gauge, AlertTriangle, BarChart3, PhoneCall, CreditCard, Link2,
   Video, Camera, Radar, Lightbulb, Plug, Layers, LineChart, Activity, Images, Award, Bot,
-  ClipboardList as ClipboardListIcon,
+  UserRound, Wrench,
 } from 'lucide-react'
 import { allowedPrefixesFor, type AppRole, type Department } from '@/lib/auth/permissions'
 
@@ -45,24 +45,48 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     dept: 'ventas',
     items: [
-      { label: 'Leads', href: '/leads', icon: Inbox, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
-      { label: 'Contactos', href: '/contacts', icon: Users, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
-      { label: 'Agendas', href: '/appointments', icon: Calendar, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
-      { label: 'Pipeline de seguimiento', href: '/seguimiento', icon: ClipboardListIcon, roles: [...LEAD, 'setter', 'closer', 'cold_caller'] },
-      { label: 'Ventas', href: '/sales', icon: ShoppingCart, roles: [...LEAD, 'setter', 'closer'] },
-      { label: 'Reservas', href: '/reservas', icon: CreditCard, roles: [...LEAD, 'setter', 'closer'] },
-      { label: 'Pipeline de pagos', href: '/pagos', icon: Wallet, roles: [...LEAD, 'setter', 'closer', 'cobros'] },
-      { label: 'Ranking', href: '/pipeline', icon: Gauge, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
-      { label: 'Métricas ventas', href: '/ventas-metricas', icon: BarChart3, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
-      { label: 'Prospección', href: '/prospecting', icon: PhoneCall, roles: [...LEAD, 'setter', 'triager', 'cold_caller'] },
-      { label: 'Comisiones', href: '/commissions', icon: TrendingUp, roles: [...LEAD, 'setter', 'closer', 'affiliate'] },
-      { label: 'Objetivos', href: '/targets', icon: Target, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller', 'affiliate'] },
-      { label: 'KPI Diario', href: '/kpi/report', icon: ClipboardList, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
-      { label: 'Enlaces', href: '/enlaces', icon: Link2, roles: [...LEAD, 'setter', 'closer', 'cold_caller', 'affiliate'] },
-      { label: 'Biblioteca de llamadas', href: '/biblioteca', icon: Video, roles: [...LEAD, 'setter', 'closer', 'cold_caller'] },
-      { label: 'Testimonios', href: '/testimonios', icon: Award, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller', 'csm', 'marketing', 'editor'] },
-      { label: 'Setting AI', href: '/setting-ai', icon: Bot, roles: [...LEAD, 'setter'] },
-      { label: 'Contratos de producto', href: '/contratos/producto', icon: FileText, roles: [...LEAD, 'closer'] },
+      {
+        label: 'CRM', href: '/crm/contactos', icon: Users,
+        roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'],
+        children: [
+          { label: 'Contactos', href: '/crm/contactos', icon: UserRound, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
+          { label: 'Leads (VSL)', href: '/crm/contactos?view=leads', icon: Inbox, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
+          { label: 'Agendas', href: '/crm/agendas', icon: Calendar, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
+          { label: 'Seguimiento', href: '/crm/seguimiento', icon: ClipboardList, roles: [...LEAD, 'setter', 'closer', 'cold_caller'] },
+        ],
+      },
+      {
+        label: 'Ventas & Cobros', href: '/ventas/registro', icon: ShoppingCart,
+        roles: [...LEAD, 'setter', 'closer', 'cobros'],
+        children: [
+          { label: 'Registro', href: '/ventas/registro', icon: ShoppingCart, roles: [...LEAD, 'setter', 'closer'] },
+          { label: 'Pagos', href: '/ventas/pagos', icon: Wallet, roles: [...LEAD, 'setter', 'closer', 'cobros'] },
+          { label: 'Reservas', href: '/ventas/reservas', icon: CreditCard, roles: [...LEAD, 'setter', 'closer'] },
+        ],
+      },
+      {
+        label: 'Analítica de ventas', href: '/analitica/embudo', icon: BarChart3,
+        roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller', 'affiliate'],
+        children: [
+          { label: 'Embudo', href: '/analitica/embudo', icon: BarChart3, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
+          { label: 'Ranking', href: '/analitica/ranking', icon: Gauge, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
+          { label: 'Actividad', href: '/analitica/actividad', icon: PhoneCall, roles: [...LEAD, 'setter', 'triager', 'cold_caller'] },
+          { label: 'Objetivos', href: '/analitica/objetivos', icon: Target, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller', 'affiliate'] },
+          { label: 'KPI Diario', href: '/analitica/actividad', icon: ClipboardList, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
+        ],
+      },
+      { label: 'Comisiones', href: '/comisiones', icon: TrendingUp, roles: [...LEAD, 'setter', 'closer', 'affiliate'] },
+      {
+        label: 'Recursos de venta', href: '/recursos/enlaces', icon: Wrench,
+        roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller', 'affiliate', 'csm', 'marketing', 'editor'],
+        children: [
+          { label: 'Enlaces', href: '/recursos/enlaces', icon: Link2, roles: [...LEAD, 'setter', 'closer', 'cold_caller', 'affiliate'] },
+          { label: 'Biblioteca', href: '/recursos/biblioteca', icon: Video, roles: [...LEAD, 'setter', 'closer', 'cold_caller'] },
+          { label: 'Testimonios', href: '/recursos/testimonios', icon: Award, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller', 'csm', 'marketing', 'editor'] },
+          { label: 'Contratos', href: '/recursos/contratos-producto', icon: FileText, roles: [...LEAD, 'closer'] },
+          { label: 'Setting AI', href: '/recursos/setting-ai', icon: Bot, roles: [...LEAD, 'setter'] },
+        ],
+      },
     ],
   },
   {

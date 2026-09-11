@@ -186,7 +186,7 @@ export default function ActividadPage() {
                   </div>
                   <p className="text-sm text-foreground mt-0.5">
                     {it.contactId ? (
-                      <Link href={`/${tenant}/contacts/${it.contactId}`} className="hover:text-brand-300">{it.title}</Link>
+                      <Link href={`/${tenant}/crm/contactos/${it.contactId}`} className="hover:text-brand-300">{it.title}</Link>
                     ) : it.title}
                   </p>
                   {it.detail && <p className="text-xs text-muted-foreground mt-0.5 truncate">{it.detail}</p>}

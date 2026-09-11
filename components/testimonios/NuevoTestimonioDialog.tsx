@@ -51,7 +51,7 @@ export function NuevoTestimonioDialog({ open, onOpenChange, onCreated }: Props) 
       setValues(emptyValues())
       onOpenChange(false)
       onCreated?.()
-      router.push(`/${tenant}/testimonios/${data.testimonio.id}`)
+      router.push(`/${tenant}/recursos/testimonios/${data.testimonio.id}`)
     } catch (e) {
       toast.error((e as Error).message)
     } finally {

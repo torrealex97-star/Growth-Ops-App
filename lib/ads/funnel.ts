@@ -189,7 +189,7 @@ export function isPaidSource(...values: Array<string | null | undefined>): boole
 }
 
 // Etiqueta de origen para agrupar ventas/agendas por canal (mismo criterio que la columna
-// "Origen" de app/${tenant}/appointments/page.tsx): leads del bot de Setting IA por DM, tráfico
+// "Origen" de app/${tenant}/crm/agendas/page.tsx): leads del bot de Setting IA por DM, tráfico
 // de pago (Meta), o el utm_source/campaña tal cual venga (orgánico/referido/directo).
 export function originLabel(utmSource: string | null | undefined, utmTerm: string | null | undefined): string {
   const src = (utmSource || '').trim()
