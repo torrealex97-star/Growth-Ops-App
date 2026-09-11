@@ -42,6 +42,7 @@ export default function TenantLayout({
   const [noProfile, setNoProfile] = useState(false)
   const [noTenantAccess, setNoTenantAccess] = useState(false)
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+  const [tenantId, setTenantId] = useState<string | null>(null)
   const [contractGate, setContractGate] = useState<ContractGate | null>(null)
   const router = useRouter()
   const pathname = usePathname()
@@ -122,6 +123,8 @@ export default function TenantLayout({
         return
       }
 
+      if (mounted) setTenantId(tenantRow.id)
+
       const { data: superAdminCheck } = await supabase.rpc('is_super_admin')
       if (mounted) setIsSuperAdmin(!!superAdminCheck)
 
@@ -196,7 +199,7 @@ export default function TenantLayout({
 
   // Auth pages render without sidebar
   if (isAuthRoute) {
-    return <TenantProvider tenant={tenant}><div className="dark">{children}</div></TenantProvider>
+    return <TenantProvider tenant={tenant} tenantId={tenantId}><div className="dark">{children}</div></TenantProvider>
   }
 
   if (loading) {
@@ -301,7 +304,7 @@ export default function TenantLayout({
   }
 
   return (
-    <TenantProvider tenant={tenant}>
+    <TenantProvider tenant={tenant} tenantId={tenantId}>
       <ScriptQueueProvider>
         <div className="flex h-screen bg-background text-foreground overflow-hidden" data-theme="os">
           <Sidebar user={user} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
