@@ -22,6 +22,7 @@ const EVERGREEN_PUBLIC_PATHS = [
   '/evergreen/afiliados/registro', // formulario público de alta de afiliados
   '/api/evergreen/afiliados/registro', '/api/evergreen/afiliados/form-config', // alta + config del formulario público
   '/api/evergreen/webhooks', // GHL / player VSL — se autentican con su propio secreto, no con sesión
+  '/api/evergreen/tracking/events', // ingestión canónica — se autentica con TRACKING_INGEST_KEY
   '/api/evergreen/contracts/sign', // firma pública de contratos — se autentica por token
   '/api/evergreen/admin/setup', // mantenimiento — se autentica con CRON_SECRET
   '/api/evergreen/admin/migrate-meta', // migración v19 Meta — CRON_SECRET o sesión admin
