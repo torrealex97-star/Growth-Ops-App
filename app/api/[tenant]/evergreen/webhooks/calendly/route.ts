@@ -465,7 +465,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           raw_payload: body,
           ...apptFields,
         },
-        { onConflict: 'external_id' }
+        // El UNIQUE de appointments pasó de (external_id) global a (tenant_id, external_id)
+        // por tenant (ver 20260911200000_financial_integrity_constraints.sql) — el onConflict
+        // tiene que apuntar exactamente a las columnas del índice compuesto.
+        { onConflict: 'tenant_id,external_id' }
       )
       .select('id')
       .single()

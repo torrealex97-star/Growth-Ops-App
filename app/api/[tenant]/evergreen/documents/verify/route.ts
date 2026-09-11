@@ -49,10 +49,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: 'Failed to upload document' }, { status: 500 })
     }
 
-    // Generar signed URL válida por 10 años
+    // Signed URL de 30 días (antes 10 años, prácticamente permanente sobre un documento de
+    // identidad). Nada en la UI actual vuelve a leer document_url para mostrarlo — es un registro
+    // de auditoría de la subida, no un enlace que se reutilice — así que una ventana corta no
+    // rompe ninguna funcionalidad existente y reduce la exposición si la URL se filtrase.
     const { data: signedUrlData } = await supabase.storage
       .from('documentos-verificacion')
-      .createSignedUrl(storagePath, 315360000) // 10 years in seconds
+      .createSignedUrl(storagePath, 60 * 60 * 24 * 30)
 
     if (!signedUrlData?.signedUrl) {
       return NextResponse.json({ error: 'Failed to generate signed URL' }, { status: 500 })

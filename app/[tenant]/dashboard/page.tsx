@@ -45,6 +45,7 @@ import {
   type AppointmentRow,
 } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
+import { FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 import type { SavedDashboardView } from '@/lib/types/database'
 import { useTenant } from '@/lib/tenant-context'
 
@@ -185,17 +186,23 @@ export default function DashboardPage() {
         await Promise.all([
           supabase
             .from('sales')
-            .select('id, gross_amount, status, sale_date, closer_id, setter_id, affiliate_id, contact_id'),
-          supabase.from('collections').select('sale_id, gross_amount, collected_at, status'),
+            .select('id, gross_amount, status, sale_date, closer_id, setter_id, affiliate_id, contact_id')
+            .range(0, FINANCE_QUERY_ROW_CAP),
+          supabase
+            .from('collections')
+            .select('sale_id, gross_amount, collected_at, status')
+            .range(0, FINANCE_QUERY_ROW_CAP),
           supabase.from('users').select('id, full_name'),
           supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
-          supabase.from('contacts').select('id'),
+          supabase.from('contacts').select('id').range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('contact_attributions')
-            .select('contact_id, source, utm_source, utm_campaign, utm_content, is_primary'),
+            .select('contact_id, source, utm_source, utm_campaign, utm_content, is_primary')
+            .range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('appointments')
-            .select('appointment_datetime, status, setter_id, closer_id, cold_caller_id, affiliate_id'),
+            .select('appointment_datetime, status, setter_id, closer_id, cold_caller_id, affiliate_id')
+            .range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('targets')
             .select(
@@ -204,7 +211,10 @@ export default function DashboardPage() {
             .eq('is_active', true)
             .eq('scope_type', 'company'),
           supabase.from('saved_dashboard_views').select('*').or(`user_id.eq.${user.id},scope.eq.shared`),
-          supabase.from('commissions').select('user_id, sale_id, commission_amount, direction, status'),
+          supabase
+            .from('commissions')
+            .select('user_id, sale_id, commission_amount, direction, status')
+            .range(0, FINANCE_QUERY_ROW_CAP),
         ])
 
       if (!mounted) return

@@ -546,8 +546,8 @@ export default function NewSalePage() {
         }
       : null
 
-    // Sube el justificante de pago (si lo hay) y obtiene su URL. No bloquea la venta.
-    let paymentProofUrl: string | null = null
+    // Sube el justificante de pago (si lo hay) y obtiene su path. No bloquea la venta.
+    let paymentProofPath: string | null = null
     if (proofFile) {
       try {
         const buf = await proofFile.arrayBuffer()
@@ -565,7 +565,7 @@ export default function NewSalePage() {
           body: JSON.stringify({ filename: proofFile.name, contentType: proofFile.type, dataBase64: b64 }),
         })
         const d = await res.json().catch(() => ({}))
-        if (res.ok) paymentProofUrl = d.url ?? null
+        if (res.ok) paymentProofPath = d.path ?? null
         else toast.error('No se pudo subir el justificante', { description: d?.error })
       } catch {
         toast.error('No se pudo subir el justificante (archivo demasiado grande?)')
@@ -671,7 +671,7 @@ export default function NewSalePage() {
         reservation_completed_at: nowIso,
         payment_method: method,
         custom_plan: customPlanPayload,
-        ...(paymentProofUrl ? { payment_proof_url: paymentProofUrl } : {}),
+        ...(paymentProofPath ? { payment_proof_path: paymentProofPath } : {}),
         ...teamFields,
         ...buyerFields,
         status: 'active' as const,
@@ -714,7 +714,7 @@ export default function NewSalePage() {
         installments_start_date: financeAsInstallments ? installmentsStartDate : null,
         payment_method: method,
         custom_plan: customPlanPayload,
-        ...(paymentProofUrl ? { payment_proof_url: paymentProofUrl } : {}),
+        ...(paymentProofPath ? { payment_proof_path: paymentProofPath } : {}),
         ...teamFields,
         ...buyerFields,
         status: 'active' as const,

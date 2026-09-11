@@ -411,28 +411,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       })
     }
 
-    const { data: created, error: aptErr } = await sb
-      .from('appointments')
-      .insert({
-        tenant_id: tenantId,
-        contact_id: contact.id,
-        external_source: 'ghl',
-        external_id: externalId,
-        appointment_datetime: aptRaw ? new Date(aptRaw).toISOString() : now,
-        duration_minutes: durationMin,
-        status: status || 'scheduled',
-        closer_id: closerId,
-        setter_id: setterId,
-        calendar_name: pick(payload.calendarName, payload.calendar_name),
-        pipeline_name: pick(payload.pipelineName, payload.pipeline_name),
-        pipeline_stage: pick(payload.pipelineStage, payload.pipeline_stage),
-        source,
-        ...utm,
-        ...(ghlQualification ? { qualification: ghlQualification } : {}),
-        raw_payload: payload,
-      })
-      .select('id')
-      .single()
+    const newAppt = {
+      tenant_id: tenantId,
+      contact_id: contact.id,
+      external_source: 'ghl',
+      external_id: externalId,
+      appointment_datetime: aptRaw ? new Date(aptRaw).toISOString() : now,
+      duration_minutes: durationMin,
+      status: status || 'scheduled',
+      closer_id: closerId,
+      setter_id: setterId,
+      calendar_name: pick(payload.calendarName, payload.calendar_name),
+      pipeline_name: pick(payload.pipelineName, payload.pipeline_name),
+      pipeline_stage: pick(payload.pipelineStage, payload.pipeline_stage),
+      source,
+      ...utm,
+      ...(ghlQualification ? { qualification: ghlQualification } : {}),
+      raw_payload: payload,
+    }
+    // Upsert por (tenant_id, external_id) en vez de INSERT plano: el SELECT de arriba no
+    // encontró la cita, pero dos entregas casi simultáneas del mismo webhook (GHL reintenta)
+    // pueden llegar ambas a este punto sin haberse visto la una a la otra. Con INSERT plano la
+    // segunda rompía con un 500 sin explicación (ver appointments_tenant_external_id_key); con
+    // upsert, la segunda actualiza la misma fila en vez de fallar — mismo patrón que Calendly.
+    const { data: created, error: aptErr } = externalId
+      ? await sb.from('appointments').upsert(newAppt, { onConflict: 'tenant_id,external_id' }).select('id').single()
+      : await sb.from('appointments').insert(newAppt).select('id').single()
     if (aptErr) return NextResponse.json({ error: 'Error creando agenda', detail: aptErr.message }, { status: 500 })
 
     // El lead pasa a 'agendado' al crearse su agenda

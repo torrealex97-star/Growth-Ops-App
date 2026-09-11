@@ -107,6 +107,7 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
   const [commissionRules, setCommissionRules] = useState<CommissionRule[]>([])
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<string | null>(null)
+  const [openingProof, setOpeningProof] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showRefundDialog, setShowRefundDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -772,18 +773,31 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
                 <dd className="text-sm text-foreground">{sale.notes}</dd>
               </div>
             )}
-            {sale.payment_proof_url && (
+            {(sale.payment_proof_path || sale.payment_proof_url) && (
               <div className="mt-4 pt-4 border-t border-border">
                 <dt className="text-xs text-muted-foreground mb-1">Justificante de pago</dt>
                 <dd>
-                  <a
-                    href={sale.payment_proof_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm text-brand-400 hover:text-brand-300"
+                  <button
+                    type="button"
+                    disabled={openingProof}
+                    onClick={async () => {
+                      setOpeningProof(true)
+                      try {
+                        const res = await fetch(`/api/${tenant}/evergreen/sales/payment-proof-url?saleId=${sale.id}`)
+                        const d = await res.json().catch(() => ({}))
+                        if (res.ok && d.url) window.open(d.url, '_blank', 'noopener,noreferrer')
+                        else toast.error('No se pudo abrir el justificante', { description: d?.error })
+                      } catch {
+                        toast.error('No se pudo abrir el justificante')
+                      } finally {
+                        setOpeningProof(false)
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 text-sm text-brand-400 hover:text-brand-300 disabled:opacity-60"
                   >
-                    <FileText className="w-3.5 h-3.5" /> Ver justificante <ExternalLink className="w-3 h-3" />
-                  </a>
+                    <FileText className="w-3.5 h-3.5" /> {openingProof ? 'Abriendo…' : 'Ver justificante'}{' '}
+                    <ExternalLink className="w-3 h-3" />
+                  </button>
                 </dd>
               </div>
             )}
