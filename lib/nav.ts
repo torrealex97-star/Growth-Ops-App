@@ -66,12 +66,11 @@ export const NAV_SECTIONS: NavSection[] = [
       },
       {
         label: 'Analítica de ventas', href: '/analitica/embudo', icon: BarChart3,
-        roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller', 'affiliate'],
+        roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'],
         children: [
           { label: 'Embudo', href: '/analitica/embudo', icon: BarChart3, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
           { label: 'Ranking', href: '/analitica/ranking', icon: Gauge, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
           { label: 'Actividad', href: '/analitica/actividad', icon: PhoneCall, roles: [...LEAD, 'setter', 'triager', 'cold_caller'] },
-          { label: 'Objetivos', href: '/analitica/objetivos', icon: Target, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller', 'affiliate'] },
           { label: 'KPI Diario', href: '/analitica/actividad', icon: ClipboardList, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'] },
         ],
       },
@@ -84,7 +83,6 @@ export const NAV_SECTIONS: NavSection[] = [
           { label: 'Biblioteca', href: '/recursos/biblioteca', icon: Video, roles: [...LEAD, 'setter', 'closer', 'cold_caller'] },
           { label: 'Testimonios', href: '/recursos/testimonios', icon: Award, roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller', 'csm', 'marketing', 'editor'] },
           { label: 'Contratos', href: '/recursos/contratos-producto', icon: FileText, roles: [...LEAD, 'closer'] },
-          { label: 'Setting AI', href: '/recursos/setting-ai', icon: Bot, roles: [...LEAD, 'setter'] },
         ],
       },
     ],
@@ -92,6 +90,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     dept: 'marketing',
     items: [
+      { label: 'Setting AI', href: '/setting-ai', icon: Bot, roles: [...LEAD, 'setter', 'marketing'] },
       { label: 'Campañas', href: '/campaigns', icon: Radio, roles: [...LEAD, 'marketing', 'adscripcion'] },
       { label: 'Atribución', href: '/attribution', icon: Megaphone, roles: [...LEAD, 'marketing', 'adscripcion'] },
       { label: 'Data Health', href: '/data-health', icon: Activity, roles: [...LEAD, 'marketing', 'adscripcion'] },

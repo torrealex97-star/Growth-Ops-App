@@ -9,7 +9,6 @@ const TABS: RouteTab[] = [
   { label: 'Biblioteca', href: '/recursos/biblioteca', match: '/recursos/biblioteca' },
   { label: 'Testimonios', href: '/recursos/testimonios', match: '/recursos/testimonios' },
   { label: 'Contratos', href: '/recursos/contratos-producto', match: '/recursos/contratos-producto' },
-  { label: 'Setting AI', href: '/recursos/setting-ai', match: '/recursos/setting-ai' },
 ]
 
 export default function RecursosLayout({ children }: { children: React.ReactNode }) {

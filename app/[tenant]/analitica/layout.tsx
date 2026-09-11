@@ -8,7 +8,6 @@ const TABS: RouteTab[] = [
   { label: 'Embudo', href: '/analitica/embudo', match: '/analitica/embudo' },
   { label: 'Ranking', href: '/analitica/ranking', match: '/analitica/ranking' },
   { label: 'Actividad', href: '/analitica/actividad', match: '/analitica/actividad' },
-  { label: 'Objetivos', href: '/analitica/objetivos', match: '/analitica/objetivos' },
 ]
 
 export default function AnaliticaLayout({ children }: { children: React.ReactNode }) {
