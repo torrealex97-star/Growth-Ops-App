@@ -1,5 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -27,8 +27,9 @@ async function isAuthorized(req: NextRequest): Promise<boolean> {
   } catch { return false }
 }
 
-async function run() {
-  const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+// Corre la generación de gastos mensuales para UNA subcuenta (todas las lecturas/escrituras
+// van filtradas/estampadas por tenant_id).
+async function runForTenant(sb: SupabaseClient, tenantId: string) {
   const now = new Date()
   const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const firstOfMonth = `${period}-01`
@@ -43,10 +44,18 @@ async function run() {
   // actual son justo las que tocan pagar ahora junto al fijo. Se excluyen las canceladas; el resto
   // (pending/approved/liquidated) sí se computa porque de otro modo el sueldo del día 1 nunca
   // incluiría comisión aún no aprobada por el cron de aprobación automática.
-  const { data: team } = await sb.from('users').select('id, full_name, base_salary').eq('is_active', true)
+  // `users` no tiene tenant_id (identidad compartida entre subcuentas): el equipo de ESTA
+  // subcuenta se acota vía tenant_members, para no duplicar el gasto de sueldo del mismo
+  // usuario en cada subcuenta a la que pertenezca (y no violar el índice único
+  // (auto_source, period) de `expenses` al recorrer varias subcuentas en el mismo cron).
+  const { data: memberIds } = await sb.from('tenant_members').select('user_id').eq('tenant_id', tenantId)
+  const memberIdSet = new Set((memberIds || []).map((m: { user_id: string }) => m.user_id))
+  const { data: teamAll } = await sb.from('users').select('id, full_name, base_salary').eq('is_active', true)
+  const team = (teamAll || []).filter((u: { id: string }) => memberIdSet.has(u.id))
   const { data: periodCommissions } = await sb
     .from('commissions')
     .select('user_id, commission_amount, direction')
+    .eq('tenant_id', tenantId)
     .eq('liquidation_month', firstOfMonth)
     .neq('status', 'cancelled')
   const commissionByUser = new Map<string, number>()
@@ -66,6 +75,7 @@ async function run() {
       const concept = commission > 0 ? `Sueldo ${u.full_name} (fijo + comisión)` : `Sueldo ${u.full_name}`
       const fields = { concept, amount: total }
       rows.push({
+        tenant_id: tenantId,
         ...fields, category: 'sueldos',
         expense_date: firstOfMonth, recurring: true, frequency: 'mensual', status: 'pendiente',
         person_id: u.id, auto_source, period,
@@ -77,11 +87,13 @@ async function run() {
   // 2) Gastos recurrentes mensuales (plantillas creadas a mano: recurring=true, frequency='mensual', sin auto_source)
   const { data: templates } = await sb.from('expenses')
     .select('id, concept, category, subcategory, amount, counterparty, person_id')
+    .eq('tenant_id', tenantId)
     .eq('recurring', true).eq('frequency', 'mensual').is('auto_source', null)
   for (const t of templates || []) {
     const auto_source = `recurring:${t.id}`
     const fields = { concept: t.concept, category: t.category, subcategory: t.subcategory, amount: t.amount, counterparty: t.counterparty, person_id: t.person_id }
     rows.push({
+      tenant_id: tenantId,
       ...fields, expense_date: firstOfMonth,
       recurring: true, frequency: 'mensual', status: 'pendiente',
       auto_source, period,
@@ -106,13 +118,28 @@ async function run() {
   for (const s of syncs) {
     const { data, error } = await sb.from('expenses')
       .update(s.fields)
-      .eq('auto_source', s.auto_source).eq('period', period)
+      .eq('auto_source', s.auto_source).eq('period', period).eq('tenant_id', tenantId)
       .select('id')
     if (error) throw new Error(error.message)
     synced += data?.length ?? 0
   }
 
   return { period, candidates: rows.length, inserted, synced }
+}
+
+// Vercel Cron pega a una única URL estática, así que este handler recorre TODAS las
+// subcuentas activas y corre la generación de gastos mensuales una vez por cada una
+// (filtrando/estampando tenant_id en cada lectura/escritura de runForTenant).
+async function run() {
+  const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const { data: tenants, error: tenantsErr } = await sb.from('tenants').select('id, slug').eq('status', 'active')
+  if (tenantsErr) throw new Error(tenantsErr.message)
+
+  const perTenant: Record<string, { period: string; candidates: number; inserted: number; synced: number }> = {}
+  for (const tn of tenants || []) {
+    perTenant[tn.slug] = await runForTenant(sb, tn.id)
+  }
+  return { tenants: perTenant }
 }
 
 export async function POST(req: NextRequest) {

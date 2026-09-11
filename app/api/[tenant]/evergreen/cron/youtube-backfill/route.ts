@@ -10,6 +10,14 @@ export const maxDuration = 120
 // vía Supabase pg_cron, en vez de subir todo el cupo diario de golpe en una sola pasada del
 // sync de Instagram. Cada llamada sube como máximo 1 reel antiguo (el más reciente pendiente).
 // Se dispara con Authorization: Bearer CRON_SECRET.
+//
+// FASE 6 LOTE 4c — NOTA IMPORTANTE (sin resolver en este lote, fuera de su alcance de archivos):
+// runYoutubeSync(sb, cfg, opts) vive en lib/youtube/backfill.ts y NO acepta un tenantId — lee/escribe
+// `youtube_uploads` (y las tablas de origen del backfill) sin filtrar/estampar tenant_id, que ahora
+// es NOT NULL en esa tabla (ver supabase/migrations/20260911150000_multi_tenant_domain_tables.sql).
+// Arreglarlo requiere extender runYoutubeSync(sb, cfg, opts, tenantId) y que este handler recorra
+// `tenants` (status='active') llamándolo una vez por subcuenta — igual que cron/monthly,
+// cron/reminders y cron/reels. lib/youtube/backfill.ts no está en el alcance de este lote.
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('authorization')
   if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {

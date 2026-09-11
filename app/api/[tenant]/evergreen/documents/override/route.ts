@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,19 +26,20 @@ async function getUserRole(userId: string): Promise<string | null> {
   return role?.key || null
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
-    // El usuario se determina SIEMPRE desde la sesión autenticada (cookies),
-    // nunca desde el body — antes se confiaba en un userId enviado por el
-    // cliente (incluso hardcodeado a 'current_user'), lo que rompía el
-    // override y además permitía suplantar a cualquier usuario.
-    const authed = await createServerClient()
-    const { data: { user: me } } = await authed.auth.getUser()
-    if (!me) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    // El usuario y el tenant se determinan SIEMPRE desde la sesión autenticada
+    // (cookies) + la membresía de la subcuenta — nunca desde el body — antes se
+    // confiaba en un userId enviado por el cliente (incluso hardcodeado a
+    // 'current_user'), lo que rompía el override y además permitía suplantar a
+    // cualquier usuario.
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
 
     const data = await req.json()
     const { saleId, reason } = data
-    const userId = me.id
+    const userId = t.userId
 
     if (!saleId || !reason) {
       return NextResponse.json(
@@ -58,11 +59,12 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Validar que la venta exista
+    // Validar que la venta exista (y pertenezca a esta subcuenta)
     const { data: sale } = await supabase
       .from('sales')
       .select('id')
       .eq('id', saleId)
+      .eq('tenant_id', t.tenantId)
       .single()
 
     if (!sale) {
@@ -86,6 +88,7 @@ export async function POST(req: NextRequest) {
         documents_verified_by: userId
       })
       .eq('id', saleId)
+      .eq('tenant_id', t.tenantId)
 
     if (updateError) {
       console.error('Override update error:', updateError)
@@ -100,6 +103,7 @@ export async function POST(req: NextRequest) {
       await supabase
         .from('audit_logs')
         .insert({
+          tenant_id: t.tenantId,
           action: 'document_verification_override',
           target_table: 'sales',
           target_id: saleId,

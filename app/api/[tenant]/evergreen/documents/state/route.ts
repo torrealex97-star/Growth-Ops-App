@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { requireUser } from '@/lib/auth/requireUser'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-export async function GET(req: NextRequest) {
-  const auth = await requireUser()
-  if ('error' in auth) return auth.error
+export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params
+  const t = await requireTenant(tenant)
+  if ('error' in t) return t.error
 
   try {
     const saleId = new URL(req.url).searchParams.get('saleId')
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Obtener estado de documentos de la venta
+    // Obtener estado de documentos de la venta (de esta subcuenta)
     const { data: sale, error } = await supabase
       .from('sales')
       .select(`
@@ -36,6 +37,7 @@ export async function GET(req: NextRequest) {
         student_document_number
       `)
       .eq('id', saleId)
+      .eq('tenant_id', t.tenantId)
       .single()
 
     if (error || !sale) {

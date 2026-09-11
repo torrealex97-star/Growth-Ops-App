@@ -21,24 +21,25 @@ const pick = <T,>(...vals: (T | undefined | null)[]) =>
 
 async function resolveContact(
   sb: SupabaseClient,
+  tenantId: string,
   ids: { ghlContactId: string | null; email: string | null; phone: string | null }
 ): Promise<{ id: string } | null> {
   if (ids.ghlContactId) {
-    const { data } = await sb.from('contacts').select('id').eq('ghl_contact_id', ids.ghlContactId).maybeSingle()
+    const { data } = await sb.from('contacts').select('id').eq('ghl_contact_id', ids.ghlContactId).eq('tenant_id', tenantId).maybeSingle()
     if (data) return data
   }
   if (ids.email) {
-    const { data } = await sb.from('contacts').select('id').eq('email', ids.email).maybeSingle()
+    const { data } = await sb.from('contacts').select('id').eq('email', ids.email).eq('tenant_id', tenantId).maybeSingle()
     if (data) return data
   }
   if (ids.phone) {
-    const { data } = await sb.from('contacts').select('id').eq('phone', ids.phone).maybeSingle()
+    const { data } = await sb.from('contacts').select('id').eq('phone', ids.phone).eq('tenant_id', tenantId).maybeSingle()
     if (data) return data
   }
   return null
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
     const secret = req.headers.get('x-ghl-secret') || req.nextUrl.searchParams.get('secret')
     if (!process.env.ONBOARDING_INBOUND_SECRET || secret !== process.env.ONBOARDING_INBOUND_SECRET) {
@@ -65,7 +66,14 @@ export async function POST(req: NextRequest) {
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const now = new Date().toISOString()
 
-    const contact = await resolveContact(sb, { ghlContactId, email, phone })
+    // Sin sesión de usuario (lo llama GHL): el tenant se resuelve directamente del
+    // slug de la ruta, con el cliente service-role (bypassa RLS).
+    const { tenant } = await params
+    const { data: tenantRow } = await sb.from('tenants').select('id, status').eq('slug', tenant).eq('status', 'active').single()
+    if (!tenantRow) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
+    const tenantId = tenantRow.id
+
+    const contact = await resolveContact(sb, tenantId, { ghlContactId, email, phone })
     if (!contact) {
       return NextResponse.json({ error: 'Alumno no encontrado por ghl_contact_id/email/teléfono' }, { status: 404 })
     }
@@ -77,6 +85,7 @@ export async function POST(req: NextRequest) {
         .from('contracts')
         .select('id, accesos_abiertos_at')
         .eq('contact_id', contact.id)
+        .eq('tenant_id', tenantId)
         .eq('kind', 'venta')
         .neq('contract_party', 'tomador')
         .eq('is_reservation', false)
@@ -86,8 +95,9 @@ export async function POST(req: NextRequest) {
       if (!c) return NextResponse.json({ error: 'Sin contrato de alumno para este contacto' }, { status: 404 })
       // Idempotente: solo grabamos el PRIMER click (no lo pisamos en cada visita).
       if (!c.accesos_abiertos_at) {
-        await sb.from('contracts').update({ accesos_abiertos_at: now }).eq('id', c.id)
+        await sb.from('contracts').update({ accesos_abiertos_at: now }).eq('id', c.id).eq('tenant_id', tenantId)
         await sb.from('audit_logs').insert({
+          tenant_id: tenantId,
           entity_type: 'contract', entity_id: c.id, action: 'update',
           new_values: { accesos_abiertos_at: now, via: 'ghl_onboarding_click' },
         })
@@ -110,15 +120,17 @@ export async function POST(req: NextRequest) {
         .from('sales')
         .select('id')
         .eq('contact_id', contact.id)
+        .eq('tenant_id', tenantId)
         .order('sale_date', { ascending: false })
         .limit(1)
         .maybeSingle()
       if (!sale) return NextResponse.json({ error: 'Sin venta para este contacto' }, { status: 404 })
       const patch: Record<string, unknown> = { onboarding_scheduled_at: now }
       if (sessionAt) patch.onboarding_session_at = sessionAt
-      const { error } = await sb.from('sales').update(patch).eq('id', sale.id)
+      const { error } = await sb.from('sales').update(patch).eq('id', sale.id).eq('tenant_id', tenantId)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       await sb.from('audit_logs').insert({
+        tenant_id: tenantId,
         entity_type: 'sale', entity_id: sale.id, action: 'update',
         new_values: { ...patch, via: 'ghl_onboarding_booked' },
       })
@@ -137,15 +149,17 @@ export async function POST(req: NextRequest) {
         .from('sales')
         .select('id, onboarding_date')
         .eq('contact_id', contact.id)
+        .eq('tenant_id', tenantId)
         .order('sale_date', { ascending: false })
         .limit(1)
         .maybeSingle()
       if (!sale) return NextResponse.json({ error: 'Sin venta para este contacto' }, { status: 404 })
       // Idempotente: si ya se marcó (a mano o por este mismo webhook), no lo pisamos.
       if (!sale.onboarding_date) {
-        const { error } = await sb.from('sales').update({ onboarding_date: completedAt.slice(0, 10) }).eq('id', sale.id)
+        const { error } = await sb.from('sales').update({ onboarding_date: completedAt.slice(0, 10) }).eq('id', sale.id).eq('tenant_id', tenantId)
         if (error) return NextResponse.json({ error: error.message }, { status: 500 })
         await sb.from('audit_logs').insert({
+          tenant_id: tenantId,
           entity_type: 'sale', entity_id: sale.id, action: 'update',
           new_values: { onboarding_date: completedAt.slice(0, 10), via: 'ghl_onboarding_completed' },
         })

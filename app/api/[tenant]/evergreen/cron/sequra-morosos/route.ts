@@ -8,6 +8,15 @@ export const maxDuration = 300
 
 // Sincroniza morosos reales de sequra (merchant iawinners) hacia sequra_delinquent_customers.
 // Auth: header Bearer CRON_SECRET (Vercel Cron) o sesión de admin/director/cobros (botón manual).
+//
+// FASE 6 LOTE 4c — NOTA IMPORTANTE (sin resolver en este lote, fuera de su alcance de archivos):
+// syncSequraDelinquents() vive en lib/sequra/syncDelinquents.ts, no recibe sb ni tenantId (crea su
+// propio cliente internamente) y escribe en `sequra_delinquent_customers` sin tenant_id, que ahora
+// es NOT NULL en esa tabla (ver supabase/migrations/20260911150000_multi_tenant_domain_tables.sql).
+// Arreglarlo requiere extender syncSequraDelinquents(tenantId) para estampar/filtrar tenant_id, y
+// que este handler recorra `tenants` (status='active') llamándolo una vez por subcuenta — igual que
+// cron/monthly, cron/reminders y cron/reels. lib/sequra/syncDelinquents.ts no está en el alcance de
+// este lote.
 async function isAuthorized(req: NextRequest): Promise<boolean> {
   const auth = req.headers.get('authorization')
   if (process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`) return true
