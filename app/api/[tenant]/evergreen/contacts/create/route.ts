@@ -1,9 +1,8 @@
-import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { normalizePhoneE164, dialCodeForCountryISO } from '@/lib/phone'
 import { toCountryISO } from '@/lib/ghl'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 
@@ -11,19 +10,18 @@ export const runtime = 'nodejs'
 // SELECT, así que el insert desde el cliente lo bloquea RLS para roles no-admin
 // (setter/closer/etc.). Este endpoint permite crear contactos a cualquier usuario
 // autenticado con rol, evitando el fallo silencioso "no me deja crear contactos".
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+
     const body = await req.json()
 
-    const cookieStore = await cookies()
-    const authed = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-    )
-    const { data: { user } } = await authed.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-    const { data: urow } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
     const role = (urow?.roles as { key?: string } | null)?.key
     if (!role) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
@@ -46,13 +44,10 @@ export async function POST(req: NextRequest) {
     const countryPrefix = dialCodeForCountryISO(toCountryISO(clean(body.country) as string | null))
     const phone = rawPhone ? normalizePhoneE164(rawPhone, explicitPrefix || countryPrefix) : null
 
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    })
-
     const { data: created, error } = await sb
       .from('contacts')
       .insert({
+        tenant_id: t.tenantId,
         first_name: firstName,
         last_name: lastName,
         full_name: fullName,
@@ -71,7 +66,8 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     await sb.from('audit_logs').insert({
-      actor_user_id: user.id,
+      tenant_id: t.tenantId,
+      actor_user_id: t.userId,
       entity_type: 'contact',
       entity_id: created.id,
       action: 'create',
