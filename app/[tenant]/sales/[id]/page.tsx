@@ -48,7 +48,7 @@ import { ContractSection } from '@/components/sales/ContractSection'
 import { DocumentVerificationSection } from '@/components/sales/DocumentVerificationSection'
 import { toast } from 'sonner'
 import type { SaleWithRelations, Collection, SaleExpectedInstallment, Commission, AuditLog, SaleStatus, CommissionRule } from '@/lib/types/database'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 type AppointmentCallInfo = {
   recording_url: string | null
@@ -89,6 +89,7 @@ const COMMISSION_STATUS_COLORS: Record<string, string> = {
 
 export default function SaleDetailPage({ params }: { params: { id: string } }) {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const { id } = params
   const router = useRouter()
   const [sale, setSale] = useState<SaleWithRelations | null>(null)
@@ -159,13 +160,14 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
         .from('sales')
         .select(`*, contacts(*), products(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name)`)
         .eq('id', id)
+        .eq('tenant_id', tenantId)
         .single(),
-      supabase.from('collections').select('*').eq('sale_id', id).order('collected_at', { ascending: false }),
-      supabase.from('sale_expected_installments').select('*').eq('sale_id', id).order('installment_number'),
+      supabase.from('collections').select('*').eq('sale_id', id).eq('tenant_id', tenantId).order('collected_at', { ascending: false }),
+      supabase.from('sale_expected_installments').select('*').eq('sale_id', id).eq('tenant_id', tenantId).order('installment_number'),
       // Desambiguar el embed: commissions tiene 2 FK a users (user_id y approved_by) → PGRST201 si no
-      supabase.from('commissions').select('*, users!commissions_user_id_fkey(full_name)').eq('sale_id', id),
-      supabase.from('audit_logs').select('*').eq('entity_id', id).order('created_at', { ascending: false }),
-      supabase.from('commission_rules').select('*').eq('is_active', true),
+      supabase.from('commissions').select('*, users!commissions_user_id_fkey(full_name)').eq('sale_id', id).eq('tenant_id', tenantId),
+      supabase.from('audit_logs').select('*').eq('entity_id', id).eq('tenant_id', tenantId).order('created_at', { ascending: false }),
+      supabase.from('commission_rules').select('*').eq('is_active', true).eq('tenant_id', tenantId),
       supabase.auth.getUser(),
       supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
     ])
@@ -201,6 +203,7 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
         .from('appointments')
         .select('recording_url, transcript_drive_url, ai_summary, ai_call_score, ai_lead_score')
         .eq('id', saleData.appointment_id)
+        .eq('tenant_id', tenantId)
         .maybeSingle()
       setAppointmentCall(apptData as AppointmentCallInfo | null)
     } else {
@@ -218,7 +221,7 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
       setUserRole(roleKey)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id])
+  }, [id, tenantId])
 
   useEffect(() => {
     fetchData()

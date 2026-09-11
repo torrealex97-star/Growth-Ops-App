@@ -17,7 +17,7 @@ import { Plus, Download, ShoppingCart } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import type { SaleWithRelations, User, Product, SaleStatus } from '@/lib/types/database'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { getCustomDateRange, inPeriod } from '@/lib/filters/period'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 
@@ -130,6 +130,7 @@ function downloadCSV(filename: string, headers: string[], rows: (string | number
 
 export default function SalesPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const router = useRouter()
   const [sales, setSales] = useState<SaleWithRelations[]>([])
   const [users, setUsers] = useState<User[]>([])
@@ -167,10 +168,11 @@ export default function SalesPage() {
         supabase
           .from('sales')
           .select(`*, contacts(*), products(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name)`)
+          .eq('tenant_id', tenantId)
           .order('sale_date', { ascending: false }),
         supabase.from('users').select('*, roles(key)').eq('is_active', true),
-        supabase.from('products').select('*').eq('is_active', true),
-        supabase.from('contact_attributions').select('contact_id, first_utm_source, utm_source'),
+        supabase.from('products').select('*').eq('is_active', true).eq('tenant_id', tenantId),
+        supabase.from('contact_attributions').select('contact_id, first_utm_source, utm_source').eq('tenant_id', tenantId),
         supabase.auth.getUser(),
       ])
 
@@ -208,7 +210,7 @@ export default function SalesPage() {
     }
 
     fetchData()
-  }, [])
+  }, [tenantId])
 
   const setters = useMemo(() => users.filter((u) => (u as { roles?: { key?: string } }).roles?.key === 'setter'), [users])
   const closers = useMemo(() => users.filter((u) => ['closer', 'admin'].includes((u as { roles?: { key?: string } }).roles?.key ?? '')), [users])

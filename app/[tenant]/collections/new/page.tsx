@@ -20,7 +20,7 @@ import { calculateCommissionsForCollection } from '@/lib/commissions/calculator'
 import { differenceInDays } from 'date-fns'
 import { toast } from 'sonner'
 import type { SaleWithRelations, CommissionRule } from '@/lib/types/database'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 const PAYMENT_METHODS = [
   { value: 'transferencia', label: 'Transferencia' },
@@ -33,6 +33,7 @@ const PAYMENT_METHODS = [
 
 export default function NewCollectionPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const router = useRouter()
   const [saleSearch, setSaleSearch] = useState('')
   const [saleResults, setSaleResults] = useState<SaleWithRelations[]>([])
@@ -60,6 +61,7 @@ export default function NewCollectionPage() {
         .from('sales')
         .select(`*, contacts(*), products(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name)`)
         .eq('id', saleId)
+        .eq('tenant_id', tenantId)
         .maybeSingle()
       if (data) setSelectedSale(data as SaleWithRelations)
     }
@@ -70,7 +72,7 @@ export default function NewCollectionPage() {
   useEffect(() => {
     const fetchRules = async () => {
       const supabase = createClient()
-      const { data } = await supabase.from('commission_rules').select('*').eq('is_active', true)
+      const { data } = await supabase.from('commission_rules').select('*').eq('is_active', true).eq('tenant_id', tenantId)
       setRules(data ?? [])
     }
     fetchRules()
@@ -90,6 +92,7 @@ export default function NewCollectionPage() {
           .select('commissionable_amount, sales!inner(setter_id, closer_id)')
           .or(`setter_id.eq.${repId},closer_id.eq.${repId}`, { foreignTable: 'sales' })
           .eq('status', 'collected')
+          .eq('tenant_id', tenantId)
         acc[repId] = (data ?? []).reduce((s, c: { commissionable_amount: number | string }) => s + Number(c.commissionable_amount || 0), 0)
       }))
       setCashByRep(acc)
@@ -112,6 +115,7 @@ export default function NewCollectionPage() {
         .eq('sale_id', selectedSale.id)
         .eq('is_eligible_for_commission', true)
         .neq('status', 'reversed')
+        .eq('tenant_id', tenantId)
         .limit(1)
       setHasEligiblePriorCollection(!!data && data.length > 0)
     }
@@ -129,11 +133,12 @@ export default function NewCollectionPage() {
       .from('sales')
       .select(`*, contacts(*), products(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name)`)
       .or(`contacts.full_name.ilike.%${query}%,contacts.email.ilike.%${query}%`)
+      .eq('tenant_id', tenantId)
       .limit(6)
 
     setSaleResults((data ?? []) as SaleWithRelations[])
     setSearchLoading(false)
-  }, [])
+  }, [tenantId])
 
   useEffect(() => {
     const timer = setTimeout(() => searchSales(saleSearch), 300)
@@ -206,6 +211,7 @@ export default function NewCollectionPage() {
     const { data: authUser } = await supabase.auth.getUser()
 
     const collectionPayload = {
+      tenant_id: tenantId,
       sale_id: selectedSale.id,
       expected_installment_id: null,
       collected_at: new Date(collectedAt).toISOString(),
@@ -242,13 +248,14 @@ export default function NewCollectionPage() {
     if (!needsCommissionReview) {
       const commissions = calculateCommissionsForCollection(newCollection, selectedSale, rules, cashByRep)
       if (commissions.length > 0) {
-        await supabase.from('commissions').insert(commissions)
+        await supabase.from('commissions').insert(commissions.map((c) => ({ ...c, tenant_id: tenantId })))
       }
     }
 
     // Audit log
     if (authUser.user) {
       await supabase.from('audit_logs').insert({
+        tenant_id: tenantId,
         actor_user_id: authUser.user.id,
         entity_type: 'collection',
         entity_id: newCollection.id,

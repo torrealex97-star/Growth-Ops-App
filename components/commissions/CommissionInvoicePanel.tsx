@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/select'
 import { FileText, Upload, Loader2, CheckCircle2, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTenantId } from '@/lib/tenant-context'
 
 type SimpleMember = { id: string; full_name: string }
 
@@ -55,6 +56,7 @@ export function CommissionInvoicePanel({
   currentUserRole: string
   members: SimpleMember[]
 }) {
+  const tenantId = useTenantId()
   const isAdmin = ['admin', 'director'].includes(currentUserRole)
   const months = useMemo(() => recentMonths(), [])
   // Por defecto, el mes anterior (el que se cierra el día 15).
@@ -76,6 +78,7 @@ export function CommissionInvoicePanel({
     const { data, error } = await supabase
       .from('commission_invoices')
       .select('*')
+      .eq('tenant_id', tenantId)
       .order('period_month', { ascending: false })
     if (error) {
       // Tabla inexistente (migración v35 pendiente) → ocultamos el panel.
@@ -89,7 +92,7 @@ export function CommissionInvoicePanel({
   useEffect(() => {
     fetchInvoices()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [tenantId])
 
   const myInvoiceForPeriod = invoices.find(
     (inv) => inv.user_id === currentUserId && inv.period_month.slice(0, 7) === period.slice(0, 7)
@@ -113,6 +116,7 @@ export function CommissionInvoicePanel({
         .from('commission_invoices')
         .upsert(
           {
+            tenant_id: tenantId,
             user_id: currentUserId,
             period_month: period,
             invoice_url: pub.publicUrl,
@@ -137,7 +141,7 @@ export function CommissionInvoicePanel({
   const togglePaid = async (inv: CommissionInvoice) => {
     const supabase = createClient()
     const next = inv.status === 'pagada' ? 'recibida' : 'pagada'
-    const { error } = await supabase.from('commission_invoices').update({ status: next }).eq('id', inv.id)
+    const { error } = await supabase.from('commission_invoices').update({ status: next }).eq('id', inv.id).eq('tenant_id', tenantId)
     if (error) {
       toast.error('No se pudo actualizar', { description: error.message })
       return
