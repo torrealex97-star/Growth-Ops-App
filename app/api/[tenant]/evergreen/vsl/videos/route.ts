@@ -1,18 +1,24 @@
 import { NextResponse } from 'next/server'
 import { sql, mergeConfig, slugify, DEFAULT_CONFIG } from '@/lib/vsl/db'
-import { requireUser } from '@/lib/auth/requireUser'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const dynamic = 'force-dynamic'
 
-// Lista todos los vídeos VSL.
-export async function GET() {
-  const auth = await requireUser()
+// NOTA: este módulo usa el cliente `postgres` directo (POSTGRES_URL), que bypassa RLS igual
+// que el service-role de Supabase, así que el filtro `tenant_id` explícito en cada consulta
+// es la única protección contra fugas cruzadas de tenant.
+
+// Lista todos los vídeos VSL del tenant.
+export async function GET(_req: Request, { params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params
+  const auth = await requireTenant(tenant)
   if ('error' in auth) return auth.error
 
   try {
     const rows = await sql`
       SELECT id, slug, name, source_url, poster_url, duration_seconds, config, created_at, updated_at
       FROM vsl_videos
+      WHERE tenant_id = ${auth.tenantId}
       ORDER BY created_at DESC
     `
     return NextResponse.json({
@@ -25,8 +31,9 @@ export async function GET() {
 }
 
 // Crea o actualiza un vídeo.
-export async function POST(req: Request) {
-  const auth = await requireUser()
+export async function POST(req: Request, { params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params
+  const auth = await requireTenant(tenant)
   if ('error' in auth) return auth.error
 
   try {
@@ -48,25 +55,26 @@ export async function POST(req: Request) {
           duration_seconds = ${duration},
           config = ${sql.json(config as any)},
           updated_at = now()
-        WHERE id = ${body.id}
+        WHERE id = ${body.id} AND tenant_id = ${auth.tenantId}
         RETURNING id, slug, name, source_url, poster_url, duration_seconds, config, created_at, updated_at
       `
       if (!row) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
       return NextResponse.json({ video: { ...row, config: mergeConfig(row.config) } })
     }
 
-    // Alta: genera slug único a partir del nombre.
+    // Alta: genera slug único a partir del nombre, acotado al tenant (dos tenants pueden
+    // usar el mismo slug: la página pública de VSL vive bajo la ruta del tenant).
     const base = slugify(body.slug || name)
     let slug = base
     for (let i = 2; i < 100; i++) {
-      const [exists] = await sql`SELECT 1 FROM vsl_videos WHERE slug = ${slug} LIMIT 1`
+      const [exists] = await sql`SELECT 1 FROM vsl_videos WHERE slug = ${slug} AND tenant_id = ${auth.tenantId} LIMIT 1`
       if (!exists) break
       slug = `${base}-${i}`
     }
 
     const [row] = await sql`
-      INSERT INTO vsl_videos (slug, name, source_url, poster_url, duration_seconds, config)
-      VALUES (${slug}, ${name}, ${source_url}, ${poster_url}, ${duration}, ${sql.json((config as any) ?? DEFAULT_CONFIG)})
+      INSERT INTO vsl_videos (tenant_id, slug, name, source_url, poster_url, duration_seconds, config)
+      VALUES (${auth.tenantId}, ${slug}, ${name}, ${source_url}, ${poster_url}, ${duration}, ${sql.json((config as any) ?? DEFAULT_CONFIG)})
       RETURNING id, slug, name, source_url, poster_url, duration_seconds, config, created_at, updated_at
     `
     return NextResponse.json({ video: { ...row, config: mergeConfig(row.config) } })
@@ -77,15 +85,16 @@ export async function POST(req: Request) {
 }
 
 // Borra un vídeo (y en cascada sus sesiones).
-export async function DELETE(req: Request) {
-  const auth = await requireUser()
+export async function DELETE(req: Request, { params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params
+  const auth = await requireTenant(tenant)
   if ('error' in auth) return auth.error
 
   try {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 })
-    await sql`DELETE FROM vsl_videos WHERE id = ${id}`
+    await sql`DELETE FROM vsl_videos WHERE id = ${id} AND tenant_id = ${auth.tenantId}`
     return NextResponse.json({ ok: true })
   } catch (e) {
     console.error('[vsl/videos DELETE]', e)

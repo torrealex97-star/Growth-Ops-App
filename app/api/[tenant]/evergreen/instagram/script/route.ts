@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { requireTenant } from '@/lib/auth/requireTenant'
 import { generateScript, type ReelAnalysis } from '@/lib/ai/claude'
 import { readStylePrompt, readBusinessContext } from '@/lib/app-settings'
 import { ctasForPrompt, CTA_CODES } from '@/lib/ctas'
@@ -58,30 +57,25 @@ function matchTestimonioId(
 
 // Genera un guión NUEVO "parecido o mejor" a partir de un reel que ya funcionó.
 // Si saveAsIdea=true, lo guarda como idea en el kanban de Contenido (content_items).
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+
     const { mediaId, competitorMediaId, instruction, cta, testimonio, saveAsIdea, transcript: transcriptOverride } = await req.json()
     if (!mediaId && !competitorMediaId) return NextResponse.json({ error: 'Falta mediaId o competitorMediaId' }, { status: 400 })
     const forcedCta = cta && CTA_CODES.includes(String(cta).toUpperCase()) ? String(cta).toUpperCase() : undefined
 
-    const cookieStore = await cookies()
-    const authed = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-    )
-    const { data: { user } } = await authed.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-    const { data: urow } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
     const role = (urow?.roles as { key?: string } | null)?.key
     if (!role || !ALLOWED_ROLES.includes(role)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
     // Origen: reel propio (ig_media) o de competencia (ig_competitor_media)
     const source = mediaId
-      ? await sb.from('ig_media').select('caption, transcript, ai_analysis, permalink').eq('id', mediaId).single()
-      : await sb.from('ig_competitor_media').select('caption, transcript, ai_analysis, permalink').eq('id', competitorMediaId).single()
+      ? await sb.from('ig_media').select('caption, transcript, ai_analysis, permalink').eq('id', mediaId).eq('tenant_id', t.tenantId).single()
+      : await sb.from('ig_competitor_media').select('caption, transcript, ai_analysis, permalink').eq('id', competitorMediaId).eq('tenant_id', t.tenantId).single()
     const media = source.data
     if (source.error || !media) return NextResponse.json({ error: 'Reel no encontrado' }, { status: 404 })
 
@@ -123,6 +117,7 @@ export async function POST(req: NextRequest) {
       const { data: idea, error: insErr } = await sb
         .from('content_items')
         .insert({
+          tenant_id: t.tenantId,
           title: draft.title,
           content_type: 'reel',
           status: 'idea',
@@ -131,7 +126,7 @@ export async function POST(req: NextRequest) {
           reference_reel_url: media.permalink || null,
           reference_transcript: transcript || null,
           testimonio_id: testimonioId,
-          created_by: user.id,
+          created_by: t.userId,
         })
         .select('id')
         .single()
