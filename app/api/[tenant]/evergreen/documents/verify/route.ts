@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { requireUser } from '@/lib/auth/requireUser'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-export async function POST(req: NextRequest) {
-  const auth = await requireUser()
-  if ('error' in auth) return auth.error
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params
+  const t = await requireTenant(tenant)
+  if ('error' in t) return t.error
 
   try {
     const data = await req.json()
@@ -22,11 +23,12 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Validar que la venta y contacto existan
+    // Validar que la venta y contacto existan (y pertenezcan a esta subcuenta)
     const { data: sale } = await supabase
       .from('sales')
       .select('id, contact_id')
       .eq('id', saleId)
+      .eq('tenant_id', t.tenantId)
       .single()
 
     if (!sale) {
@@ -77,6 +79,7 @@ export async function POST(req: NextRequest) {
     const { data: docVerif, error: dbError } = await supabase
       .from('document_verifications')
       .insert({
+        tenant_id: t.tenantId,
         sale_id: saleId,
         contact_id: contactId,
         country_code: countryCode,

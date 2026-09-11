@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -37,11 +37,11 @@ function isValidNie(raw: string): boolean {
 // Registra el documento de identidad del alumno (tipo + número, sin foto) y decide si pasa la
 // verificación: DNI/NIE se validan por checksum; "otro" es el cortafuegos, siempre pasa; pasaporte
 // solo exige que haya un número escrito (no hay checksum estándar universal).
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
-    const authed = await createServerClient()
-    const { data: { user: me } } = await authed.auth.getUser()
-    if (!me) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
 
     const { saleId, documentType, documentNumber } = await req.json()
     if (!saleId || !documentType) {
@@ -51,13 +51,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Tipo de documento no válido' }, { status: 400 })
     }
 
-    const userRole = await getUserRole(me.id)
+    const userRole = await getUserRole(t.userId)
     const allowedRoles = ['admin', 'director', 'closer']
     if (!userRole || !allowedRoles.includes(userRole)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
-    const { data: sale } = await supabase.from('sales').select('id').eq('id', saleId).single()
+    const { data: sale } = await supabase.from('sales').select('id').eq('id', saleId).eq('tenant_id', t.tenantId).single()
     if (!sale) return NextResponse.json({ error: 'Venta no encontrada' }, { status: 404 })
 
     const number = String(documentNumber ?? '').trim()
@@ -80,9 +80,10 @@ export async function POST(req: NextRequest) {
         student_document_number: number || null,
         documents_verified: true,
         documents_verified_at: new Date().toISOString(),
-        documents_verified_by: me.id,
+        documents_verified_by: t.userId,
       })
       .eq('id', saleId)
+      .eq('tenant_id', t.tenantId)
 
     if (updateError) {
       return NextResponse.json({ error: updateError.message }, { status: 500 })
@@ -90,10 +91,11 @@ export async function POST(req: NextRequest) {
 
     try {
       await supabase.from('audit_logs').insert({
+        tenant_id: t.tenantId,
         action: 'document_verification_register',
         target_table: 'sales',
         target_id: saleId,
-        user_id: me.id,
+        user_id: t.userId,
         details: { documentType, timestamp: new Date().toISOString() },
       })
     } catch {

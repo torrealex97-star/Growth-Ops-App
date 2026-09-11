@@ -79,7 +79,7 @@ async function userIdByEmail(sb: SupabaseClient, email?: string | null): Promise
   return data?.id ?? null
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
     const secret = req.headers.get('x-ghl-secret')
     // Fail-closed: si el secret no está configurado o no coincide, rechazamos.
@@ -116,6 +116,13 @@ export async function POST(req: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
+
+    // Sin sesión de usuario (lo llama GHL): el tenant se resuelve directamente del
+    // slug de la ruta, con el cliente service-role (bypassa RLS).
+    const { tenant } = await params
+    const { data: tenantRow } = await sb.from('tenants').select('id, status').eq('slug', tenant).eq('status', 'active').single()
+    if (!tenantRow) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
+    const tenantId = tenantRow.id
 
     // --- Campos comunes ---
     const email = (pick(payload.email) as string | null)?.toLowerCase?.()?.trim() || null
@@ -166,15 +173,15 @@ export async function POST(req: NextRequest) {
     // y agendas comparten el MISMO contacto (fuente única) y el estado se sincroniza solo.
     let contact: { id: string; full_name: string | null; ghl_contact_id: string | null } | null = null
     if (ghlContactId) {
-      const { data } = await sb.from('contacts').select('id, full_name, ghl_contact_id').eq('ghl_contact_id', ghlContactId).maybeSingle()
+      const { data } = await sb.from('contacts').select('id, full_name, ghl_contact_id').eq('ghl_contact_id', ghlContactId).eq('tenant_id', tenantId).maybeSingle()
       contact = data
     }
     if (!contact && email) {
-      const { data } = await sb.from('contacts').select('id, full_name, ghl_contact_id').eq('email', email).maybeSingle()
+      const { data } = await sb.from('contacts').select('id, full_name, ghl_contact_id').eq('email', email).eq('tenant_id', tenantId).maybeSingle()
       contact = data
     }
     if (!contact && phone) {
-      const { data } = await sb.from('contacts').select('id, full_name, ghl_contact_id').eq('phone', phone).maybeSingle()
+      const { data } = await sb.from('contacts').select('id, full_name, ghl_contact_id').eq('phone', phone).eq('tenant_id', tenantId).maybeSingle()
       contact = data
     }
     if (!contact) {
@@ -183,6 +190,7 @@ export async function POST(req: NextRequest) {
       }
       const parts = (fullName || '').split(' ')
       const { data, error } = await sb.from('contacts').insert({
+        tenant_id: tenantId,
         full_name: fullName || 'Sin nombre',
         first_name: parts[0] || null,
         last_name: parts.slice(1).join(' ') || null,
@@ -197,7 +205,7 @@ export async function POST(req: NextRequest) {
         ...(phone ? { phone } : {}),
         // Backfill del ID de GHL si aún no lo teníamos
         ...(ghlContactId && !contact.ghl_contact_id ? { ghl_contact_id: ghlContactId } : {}),
-      }).eq('id', contact.id)
+      }).eq('id', contact.id).eq('tenant_id', tenantId)
     }
 
     // --- Cualificación del formulario (si GHL la reenvía) ---
@@ -209,18 +217,18 @@ export async function POST(req: NextRequest) {
       for (const { q } of ghlQualification.respuestas as Array<{ q: string; a: string }>) {
         await sb.from('qualification_questions').upsert({ slug: slugifyQ(q), question_text: q, field_key: mapKeyQ(q) }, { onConflict: 'slug', ignoreDuplicates: true })
       }
-      await sb.from('contacts').update({ qualification: ghlQualification, qualification_updated_at: now }).eq('id', contact.id)
+      await sb.from('contacts').update({ qualification: ghlQualification, qualification_updated_at: now }).eq('id', contact.id).eq('tenant_id', tenantId)
     }
 
     // --- 2) Atribución (solo si llegan UTMs/source) ---
     if (hasUtm || source) {
       const { data: attr } = await sb.from('contact_attributions')
-        .select('id, source').eq('contact_id', contact.id).eq('is_primary', true).maybeSingle()
+        .select('id, source').eq('contact_id', contact.id).eq('tenant_id', tenantId).eq('is_primary', true).maybeSingle()
       if (attr) {
         await sb.from('contact_attributions').update({ last_touch_at: now, ...utm, ...lastUtm, source: source || attr.source }).eq('id', attr.id)
       } else {
         await sb.from('contact_attributions').insert({
-          contact_id: contact.id, source, ...utm, ...firstUtm, ...lastUtm, first_touch_at: now, last_touch_at: now, is_primary: true,
+          tenant_id: tenantId, contact_id: contact.id, source, ...utm, ...firstUtm, ...lastUtm, first_touch_at: now, last_touch_at: now, is_primary: true,
         })
       }
     }
@@ -230,7 +238,7 @@ export async function POST(req: NextRequest) {
     if (event.startsWith('vsl') || vslPct !== null) {
       // Requiere columnas: contacts.vsl_watch_pct (numeric), contacts.vsl_watched_at (timestamptz)
       const { error } = await sb.from('contacts')
-        .update({ vsl_watch_pct: vslPct, vsl_watched_at: now }).eq('id', contact.id)
+        .update({ vsl_watch_pct: vslPct, vsl_watched_at: now }).eq('id', contact.id).eq('tenant_id', tenantId)
       if (error) {
         return NextResponse.json({ ok: true, contactId: contact.id, vslStored: false, note: 'Faltan columnas vsl_* (ejecutar migración)' })
       }
@@ -248,7 +256,7 @@ export async function POST(req: NextRequest) {
     // Si el lead/agenda viene de un setter, deja constancia del origen en el
     // contacto (sin pisar un origen ya asignado) → marca "De setter" en Leads.
     if (setterId) {
-      await sb.from('contacts').update({ set_source: 'setter' }).eq('id', contact.id).is('set_source', null)
+      await sb.from('contacts').update({ set_source: 'setter' }).eq('id', contact.id).eq('tenant_id', tenantId).is('set_source', null)
     }
 
     const isAppointmentEvent = !!(externalId || aptRaw || status || event.startsWith('appointment'))
@@ -260,13 +268,13 @@ export async function POST(req: NextRequest) {
     // --- 5) Upsert idempotente de la agenda ---
     let appt: { id: string } | null = null
     if (externalId) {
-      const { data } = await sb.from('appointments').select('id').eq('external_id', externalId).maybeSingle()
+      const { data } = await sb.from('appointments').select('id').eq('external_id', externalId).eq('tenant_id', tenantId).maybeSingle()
       appt = data
     }
     // Fallback: actualización de estado sin external_id → última agenda del contacto
     if (!appt && status && !aptRaw) {
       const { data } = await sb.from('appointments')
-        .select('id').eq('contact_id', contact.id).order('appointment_datetime', { ascending: false }).limit(1).maybeSingle()
+        .select('id').eq('contact_id', contact.id).eq('tenant_id', tenantId).order('appointment_datetime', { ascending: false }).limit(1).maybeSingle()
       appt = data
     }
 
@@ -279,14 +287,15 @@ export async function POST(req: NextRequest) {
       if (hasUtm) Object.assign(upd, utm)
       if (durationMin != null) upd.duration_minutes = durationMin
       if (ghlQualification) upd.qualification = ghlQualification
-      await sb.from('appointments').update(upd).eq('id', appt.id)
+      await sb.from('appointments').update(upd).eq('id', appt.id).eq('tenant_id', tenantId)
       // El lead pasa a 'agendado' al confirmarse/actualizarse su agenda
-      await sb.from('contacts').update({ lead_status: 'agendado' }).eq('id', contact.id)
-      await sb.from('audit_logs').insert({ entity_type: 'appointment', entity_id: appt.id, action: 'update', new_values: upd })
+      await sb.from('contacts').update({ lead_status: 'agendado' }).eq('id', contact.id).eq('tenant_id', tenantId)
+      await sb.from('audit_logs').insert({ tenant_id: tenantId, entity_type: 'appointment', entity_id: appt.id, action: 'update', new_values: upd })
       return NextResponse.json({ ok: true, kind: 'appointment.updated', contactId: contact.id, appointmentId: appt.id, status: status ?? undefined })
     }
 
     const { data: created, error: aptErr } = await sb.from('appointments').insert({
+      tenant_id: tenantId,
       contact_id: contact.id,
       external_source: 'ghl',
       external_id: externalId,
@@ -303,8 +312,8 @@ export async function POST(req: NextRequest) {
     if (aptErr) return NextResponse.json({ error: 'Error creando agenda', detail: aptErr.message }, { status: 500 })
 
     // El lead pasa a 'agendado' al crearse su agenda
-    await sb.from('contacts').update({ lead_status: 'agendado' }).eq('id', contact.id)
-    await sb.from('audit_logs').insert({ entity_type: 'appointment', entity_id: created.id, action: 'create', new_values: { contact_id: contact.id, source, ...utm } })
+    await sb.from('contacts').update({ lead_status: 'agendado' }).eq('id', contact.id).eq('tenant_id', tenantId)
+    await sb.from('audit_logs').insert({ tenant_id: tenantId, entity_type: 'appointment', entity_id: created.id, action: 'create', new_values: { contact_id: contact.id, source, ...utm } })
     return NextResponse.json({ ok: true, kind: 'appointment.created', contactId: contact.id, appointmentId: created.id })
   } catch (err) {
     return NextResponse.json({ error: 'Internal error', detail: err instanceof Error ? err.message : String(err) }, { status: 500 })

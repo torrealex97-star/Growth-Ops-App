@@ -10,6 +10,16 @@ export const maxDuration = 60
 // Separado del cron de campañas porque los ad-insights son lentos; runMetaAdsSync
 // procesa las cuentas en paralelo para caber en 60s. Bajo /api/${tenant}/evergreen/cron/* el
 // middleware NO exige sesión: se autentica con Bearer CRON_SECRET.
+//
+// FASE 6 LOTE 4c — NOTA IMPORTANTE (sin resolver en este lote, fuera de su alcance de archivos):
+// runMetaAdsSync(sb) vive en lib/meta/sync.ts y NO acepta un tenantId — lee `integration_settings`
+// y escribe en `campaign_ads`/`campaigns` sin filtrar/estampar tenant_id. Como esas tablas ahora
+// tienen tenant_id NOT NULL (ver supabase/migrations/20260911150000_multi_tenant_domain_tables.sql),
+// cualquier INSERT nuevo desde aquí fallará en una subcuenta que no sea la sembrada por esa
+// migración. Arreglarlo requiere extender runMetaAdsSync(sb, tenantId) para filtrar
+// integration_settings por tenant y estampar tenant_id en cada fila, y que este handler recorra
+// `tenants` (status='active') llamándolo una vez por subcuenta — igual que se hizo en
+// cron/monthly, cron/reminders y cron/reels. lib/meta/sync.ts no está en el alcance de este lote.
 export async function GET(req: NextRequest) {
   await ensureConfig()
   const auth = req.headers.get('authorization')
