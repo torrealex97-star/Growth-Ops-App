@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getCarruselUser } from "@/lib/carruseles/auth"
+import { requireTenant } from "@/lib/auth/requireTenant"
 import { updateProject } from "@/lib/carruseles/store"
 
 export const runtime = "nodejs"
 
-type Ctx = { params: Promise<{ id: string }> }
+type Ctx = { params: Promise<{ tenant: string; id: string }> }
 
 export async function PUT(req: NextRequest, { params }: Ctx) {
+  const { tenant, id } = await params
+  const t = await requireTenant(tenant)
+  if ("error" in t) return t.error
   const user = await getCarruselUser()
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-  const { id } = await params
   const body = await req.json().catch(() => ({}))
   const updated = await updateProject(id, {
     caption: typeof body.caption === "string" ? body.caption : undefined,
