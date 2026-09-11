@@ -19,6 +19,43 @@ export type PeriodRange = { from: Date | null; to: Date | null }
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0)
 const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
 
+// Los inputs date entregan YYYY-MM-DD. Construir la fecha por partes evita que
+// JavaScript la interprete como UTC y desplace el día según la zona horaria.
+export function parseDateInput(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return null
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const date = new Date(year, month - 1, day)
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null
+  return date
+}
+
+export function toDateInputValue(date = new Date()): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+export function isDateRangeInvalid(from: string, to: string): boolean {
+  const fromDate = parseDateInput(from)
+  const toDate = parseDateInput(to)
+  return !!fromDate && !!toDate && fromDate > toDate
+}
+
+export function getCustomDateRange(fromValue: string, toValue: string): PeriodRange {
+  const parsedFrom = parseDateInput(fromValue)
+  const parsedTo = parseDateInput(toValue)
+  const from = parsedFrom ? startOfDay(parsedFrom) : null
+  const to = parsedTo ? endOfDay(parsedTo) : null
+  if (from && to && from > to) {
+    return { from: startOfDay(parsedTo!), to: endOfDay(parsedFrom!) }
+  }
+  return { from, to }
+}
+
 export function getPeriodRange(preset: PeriodPreset, customFrom: string, customTo: string): PeriodRange {
   const now = new Date()
   switch (preset) {
@@ -26,8 +63,8 @@ export function getPeriodRange(preset: PeriodPreset, customFrom: string, customT
       return { from: startOfDay(now), to: endOfDay(now) }
     case 'day': {
       // Un día concreto elegido en el selector (usa customFrom como la fecha).
-      if (!customFrom) return { from: null, to: null }
-      const d = new Date(customFrom)
+      const d = parseDateInput(customFrom)
+      if (!d) return { from: null, to: null }
       return { from: startOfDay(d), to: endOfDay(d) }
     }
     case 'week': {
@@ -55,9 +92,7 @@ export function getPeriodRange(preset: PeriodPreset, customFrom: string, customT
       return { from: startOfDay(from), to: endOfDay(to) }
     }
     case 'custom': {
-      const from = customFrom ? startOfDay(new Date(customFrom)) : null
-      const to = customTo ? endOfDay(new Date(customTo)) : null
-      return { from, to }
+      return getCustomDateRange(customFrom, customTo)
     }
     default:
       return { from: null, to: null }
@@ -79,7 +114,9 @@ export function getPreviousPeriodRange(range: PeriodRange): PeriodRange {
 export function inPeriod(date: string | Date | null | undefined, range: PeriodRange): boolean {
   if (range.from == null && range.to == null) return true
   if (!date) return false
-  const d = typeof date === 'string' ? new Date(date) : date
+  const d = typeof date === 'string'
+    ? (parseDateInput(date) ?? new Date(date))
+    : date
   if (isNaN(d.getTime())) return false
   if (range.from && d < range.from) return false
   if (range.to && d > range.to) return false

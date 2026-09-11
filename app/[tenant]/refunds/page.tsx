@@ -34,6 +34,7 @@ import { calculateNegativeCommissionsForRefund } from '@/lib/commissions/calcula
 import { toast } from 'sonner'
 import type { Refund, SaleWithRelations, Commission } from '@/lib/types/database'
 import { useTenant } from '@/lib/tenant-context'
+import { getCustomDateRange } from '@/lib/filters/period'
 
 type RefundWithSale = Refund & { sales?: SaleWithRelations }
 
@@ -83,9 +84,7 @@ function getPeriodRange(preset: PeriodPreset, customFrom: string, customTo: stri
       return { from: startOfDay(from), to: endOfDay(to) }
     }
     case 'custom': {
-      const from = customFrom ? startOfDay(new Date(customFrom)) : null
-      const to = customTo ? endOfDay(new Date(customTo)) : null
-      return { from, to }
+      return getCustomDateRange(customFrom, customTo)
     }
     default:
       return { from: null, to: null }

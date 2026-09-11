@@ -1,5 +1,6 @@
 "use client"
 
+import { useId } from 'react'
 import {
   Select,
   SelectContent,
@@ -11,7 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { X, Download } from 'lucide-react'
-import { PERIOD_LABELS, type PeriodPreset } from '@/lib/filters/period'
+import { isDateRangeInvalid, PERIOD_LABELS, toDateInputValue, type PeriodPreset } from '@/lib/filters/period'
 
 export type PeriodFilterMember = { id: string; full_name: string }
 
@@ -51,6 +52,14 @@ export function PeriodFilterBar({
   memberLabel = 'Persona', allMembersLabel = 'Toda la empresa',
   onExport, onClear, hasActiveFilters, className = '',
 }: Props) {
+  const id = useId()
+  const invalidRange = preset === 'custom' && isDateRangeInvalid(customFrom, customTo)
+
+  const handlePresetChange = (next: PeriodPreset) => {
+    if (next === 'day' && !customFrom) onCustomFromChange(toDateInputValue())
+    onPresetChange(next)
+  }
+
   return (
     <div className={`rounded-lg border border-border bg-card/50 p-4 space-y-3 ${className}`}>
       <div className="flex items-center justify-between">
@@ -72,9 +81,9 @@ export function PeriodFilterBar({
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Periodo</Label>
-          <Select value={preset} onValueChange={(v) => onPresetChange(v as PeriodPreset)}>
-            <SelectTrigger className="bg-muted border-border h-9">
+          <Label htmlFor={`${id}-preset`} className="text-xs text-muted-foreground">Periodo</Label>
+          <Select value={preset} onValueChange={(v) => handlePresetChange(v as PeriodPreset)}>
+            <SelectTrigger id={`${id}-preset`} className="bg-muted border-border h-9" aria-label="Periodo">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-card border-border">
@@ -87,20 +96,20 @@ export function PeriodFilterBar({
 
         {preset === 'day' && (
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Día</Label>
-            <Input type="date" value={customFrom} onChange={(e) => onCustomFromChange(e.target.value)} className="bg-muted border-border h-9" />
+            <Label htmlFor={`${id}-day`} className="text-xs text-muted-foreground">Día</Label>
+            <Input id={`${id}-day`} type="date" value={customFrom} onChange={(e) => onCustomFromChange(e.target.value)} className="bg-muted border-border h-9" />
           </div>
         )}
 
         {preset === 'custom' && (
           <>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Desde</Label>
-              <Input type="date" value={customFrom} onChange={(e) => onCustomFromChange(e.target.value)} className="bg-muted border-border h-9" />
+              <Label htmlFor={`${id}-from`} className="text-xs text-muted-foreground">Desde</Label>
+              <Input id={`${id}-from`} type="date" value={customFrom} max={customTo || undefined} onChange={(e) => onCustomFromChange(e.target.value)} className="bg-muted border-border h-9" aria-invalid={invalidRange} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Hasta</Label>
-              <Input type="date" value={customTo} onChange={(e) => onCustomToChange(e.target.value)} className="bg-muted border-border h-9" />
+              <Label htmlFor={`${id}-to`} className="text-xs text-muted-foreground">Hasta</Label>
+              <Input id={`${id}-to`} type="date" value={customTo} min={customFrom || undefined} onChange={(e) => onCustomToChange(e.target.value)} className="bg-muted border-border h-9" aria-invalid={invalidRange} />
             </div>
           </>
         )}
@@ -139,6 +148,9 @@ export function PeriodFilterBar({
           </div>
         )}
       </div>
+      {invalidRange && (
+        <p role="alert" className="text-xs text-amber-400">La fecha «Desde» debe ser anterior o igual a «Hasta».</p>
+      )}
     </div>
   )
 }

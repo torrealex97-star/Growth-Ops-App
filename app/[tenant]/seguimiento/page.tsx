@@ -27,12 +27,14 @@ import {
 } from '@/components/ui/sheet'
 import { AppointmentDetail } from '@/components/appointments/AppointmentDetail'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Search, ClipboardList, MessageSquare, Table2, LayoutGrid, User as UserIcon, Clock } from 'lucide-react'
+import { ClipboardList, MessageSquare, Table2, LayoutGrid, User as UserIcon, Clock, X } from 'lucide-react'
 import { toast } from 'sonner'
 import type { AppointmentWithRelations, AppointmentStatus } from '@/lib/types/database'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import { getQualificationEntries, type Qualification } from '@/lib/appointments/qualification'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
+import { getCustomDateRange, inPeriod } from '@/lib/filters/period'
 
 // Etapas del pipeline interno de seguimiento (independiente de `status` y del `pipeline_stage`
 // de las integraciones externas — ver migration-v58-followup-pipeline.sql).
@@ -185,6 +187,7 @@ export default function SeguimientoPage() {
 
   const canChangeStatus = ['admin', 'director', 'manager', 'closer', 'setter', 'cold_caller'].includes(currentUserRole)
   const isAdmin = currentUserRole === 'admin'
+  const dateRange = useMemo(() => getCustomDateRange(dateFrom, dateTo), [dateFrom, dateTo])
 
   const filtered = useMemo(() => {
     return appointments.filter((a) => {
@@ -198,17 +201,17 @@ export default function SeguimientoPage() {
       }
       if (setterFilter !== 'all' && a.setter_id !== setterFilter) return false
       if (closerFilter !== 'all' && a.closer_id !== closerFilter) return false
-      if (dateFrom && new Date(a.appointment_datetime) < new Date(dateFrom)) return false
-      if (dateTo && new Date(a.appointment_datetime) > new Date(`${dateTo}T23:59:59`)) return false
+      if ((dateFrom || dateTo) && !inPeriod(a.appointment_datetime, dateRange)) return false
       if (search.trim()) {
-        const q = search.trim().toLowerCase()
-        const name = a.contacts?.full_name?.toLowerCase() ?? ''
-        const phone = a.contacts?.phone?.toLowerCase() ?? ''
-        if (!name.includes(q) && !phone.includes(q)) return false
+        const q = normalizeText(search.trim())
+        const name = normalizeText(a.contacts?.full_name ?? '')
+        if (!name.includes(q) && !phoneMatches(a.contacts?.phone, search)) return false
       }
       return true
     })
-  }, [appointments, statusFilter, followupStageFilter, setterFilter, closerFilter, dateFrom, dateTo, search])
+  }, [appointments, statusFilter, followupStageFilter, setterFilter, closerFilter, dateFrom, dateTo, dateRange, search])
+
+  const hasFilters = search.trim() !== '' || statusFilter !== 'all' || followupStageFilter !== 'all' || setterFilter !== 'all' || closerFilter !== 'all' || !!dateFrom || !!dateTo
 
   const byStage = useMemo(() => {
     const map: Record<KanbanStage, AppointmentWithRelations[]> = {
@@ -358,15 +361,7 @@ export default function SeguimientoPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar contacto o teléfono..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 bg-card border-border"
-          />
-        </div>
+        <SearchBox value={search} onChange={setSearch} placeholder="Buscar contacto o teléfono..." className="flex-1 min-w-[200px]" />
 
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-44 bg-card border-border">
@@ -420,6 +415,7 @@ export default function SeguimientoPage() {
         <Input
           type="date"
           value={dateFrom}
+          max={dateTo || undefined}
           onChange={(e) => setDateFrom(e.target.value)}
           className="w-40 bg-card border-border"
           placeholder="Desde"
@@ -427,10 +423,16 @@ export default function SeguimientoPage() {
         <Input
           type="date"
           value={dateTo}
+          min={dateFrom || undefined}
           onChange={(e) => setDateTo(e.target.value)}
           className="w-40 bg-card border-border"
           placeholder="Hasta"
         />
+        {hasFilters && (
+          <Button variant="ghost" onClick={() => { setSearch(''); setStatusFilter('all'); setFollowupStageFilter('all'); setSetterFilter('all'); setCloserFilter('all'); setDateFrom(''); setDateTo('') }} className="text-muted-foreground hover:text-foreground">
+            <X className="h-4 w-4 mr-1" /> Limpiar filtros
+          </Button>
+        )}
       </div>
 
       {/* Table / Kanban */}

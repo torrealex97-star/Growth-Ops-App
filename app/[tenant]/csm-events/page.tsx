@@ -208,8 +208,8 @@ export default function CsmEventsPage() {
         customTo={customTo}
         onCustomFromChange={setCustomFrom}
         onCustomToChange={setCustomTo}
-        onClear={() => { setPeriodPreset('all'); setCustomFrom(''); setCustomTo('') }}
-        hasActiveFilters={periodPreset !== 'all'}
+        onClear={() => { setPeriodPreset('all'); setCustomFrom(''); setCustomTo(''); setQ('') }}
+        hasActiveFilters={periodPreset !== 'all' || q.trim() !== ''}
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { formatCurrency } from '@/lib/utils'
 import type { Campaign, CampaignAd } from '@/lib/types/database'
-import { Megaphone } from 'lucide-react'
+import { Megaphone, X } from 'lucide-react'
+import { SearchBox, normalizeText } from '@/components/ui/search-box'
+import { Button } from '@/components/ui/button'
 
 const div = (a: number, b: number): number | null => (b > 0 ? a / b : null)
 
@@ -57,19 +59,21 @@ export function AdsTable({ campaigns, accounts, version }: Props) {
   // Campañas presentes en los anuncios (para el desplegable de filtro por campaña).
   const campaignOptions = useMemo(() => {
     const ids = new Set<string>()
-    for (const a of ads) if (a.campaign_id) ids.add(a.campaign_id)
+    for (const a of ads) {
+      if (a.campaign_id && (accountFilter === 'all' || a.account_id === accountFilter)) ids.add(a.campaign_id)
+    }
     return Array.from(ids)
       .map((id) => ({ id, name: campaignNameById.get(id) || '(campaña)' }))
       .sort((a, b) => a.name.localeCompare(b.name))
-  }, [ads, campaignNameById])
+  }, [ads, campaignNameById, accountFilter])
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
+    const q = normalizeText(search.trim())
     return ads.filter(
       (a) =>
         (accountFilter === 'all' || a.account_id === accountFilter) &&
         (campaignFilter === 'all' || a.campaign_id === campaignFilter) &&
-        (q === '' || a.name.toLowerCase().includes(q) || (a.adset_name || '').toLowerCase().includes(q))
+        (q === '' || normalizeText(a.name).includes(q) || normalizeText(a.adset_name || '').includes(q))
     )
   }, [ads, accountFilter, campaignFilter, search])
 
@@ -89,7 +93,7 @@ export function AdsTable({ campaigns, accounts, version }: Props) {
             <span className="text-xs text-muted-foreground">Cuenta</span>
             <select
               value={accountFilter}
-              onChange={(e) => setAccountFilter(e.target.value)}
+              onChange={(e) => { setAccountFilter(e.target.value); setCampaignFilter('all') }}
               className="text-sm rounded-lg border border-border bg-muted px-3 py-2 text-foreground focus:outline-none focus:border-brand-500"
             >
               <option value="all">Todas</option>
@@ -112,12 +116,12 @@ export function AdsTable({ campaigns, accounts, version }: Props) {
             ))}
           </select>
         </div>
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar anuncio o conjunto…"
-          className="text-sm rounded-lg border border-border bg-muted px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500 flex-1 min-w-[200px]"
-        />
+        <SearchBox value={search} onChange={setSearch} placeholder="Buscar anuncio o conjunto…" className="flex-1 min-w-[200px]" />
+        {(accountFilter !== 'all' || campaignFilter !== 'all' || search.trim()) && (
+          <Button variant="ghost" size="sm" onClick={() => { setAccountFilter('all'); setCampaignFilter('all'); setSearch('') }} className="text-muted-foreground hover:text-foreground">
+            <X className="h-4 w-4 mr-1" /> Limpiar filtros
+          </Button>
+        )}
       </div>
 
       {/* KPIs */}

@@ -530,8 +530,8 @@ export default function CampaignsPage() {
           customTo={customTo}
           onCustomFromChange={setCustomFrom}
           onCustomToChange={setCustomTo}
-          onClear={() => { setPeriodPreset('all'); setCustomFrom(''); setCustomTo('') }}
-          hasActiveFilters={periodPreset !== 'all'}
+          onClear={() => { setPeriodPreset('all'); setCustomFrom(''); setCustomTo(''); setAccountFilter('all'); setSelectedCampaignIds([]) }}
+          hasActiveFilters={periodPreset !== 'all' || accountFilter !== 'all' || selectedCampaignIds.length > 0}
         />
         {accounts.length > 1 && (
           <div className="flex items-center gap-2">

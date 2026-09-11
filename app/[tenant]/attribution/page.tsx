@@ -11,6 +11,7 @@ import { isPaidSource } from '@/lib/ads/funnel'
 import { QUALIFICATION_KEYS, labelFor, type QualificationAnswer } from '@/lib/qualification'
 import { countryISOForPhone, countryNameForISO } from '@/lib/phone'
 import { useTenant } from '@/lib/tenant-context'
+import { normalizeText } from '@/components/ui/search-box'
 
 type FunnelRow = { source: string; leads: number; appointments: number; sales: number; gross: number }
 
@@ -282,8 +283,8 @@ export default function AttributionPage() {
       qualRows.filter((r) => {
         if (qualSource !== 'all' && (r.source || NO_UTM) !== qualSource) return false
         if (qualSearch.trim()) {
-          const s = qualSearch.toLowerCase()
-          const hay = (r.contact_name + ' ' + r.respuestas.map((x) => x.a).join(' ')).toLowerCase()
+          const s = normalizeText(qualSearch.trim())
+          const hay = normalizeText(r.contact_name + ' ' + r.respuestas.map((x) => x.a).join(' '))
           if (!hay.includes(s)) return false
         }
         return true
@@ -358,9 +359,9 @@ export default function AttributionPage() {
 
   // Agendas filtradas por campaña ("contiene") y fuente de tráfico.
   const filteredAppts = useMemo(() => {
-    const camp = campaignFilter.trim().toLowerCase()
+    const camp = normalizeText(campaignFilter.trim())
     return apptRows.filter((a) => {
-      if (camp && !String(a.utm_campaign ?? '').toLowerCase().includes(camp)) return false
+      if (camp && !normalizeText(String(a.utm_campaign ?? '')).includes(camp)) return false
       if (sourceFilter === 'all') return true
       if (sourceFilter === '__paid__') return isPaidSource(a.utm_source, a.source)
       const s = (a.source || a.utm_source || '').trim()

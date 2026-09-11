@@ -5,13 +5,14 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Video, Search, ExternalLink, FileText, Star, EyeOff, Eye, Drama, Plus, Trash2, X, Loader2 } from 'lucide-react'
+import { Video, ExternalLink, FileText, Star, EyeOff, Eye, Drama, Plus, Trash2, X, Loader2 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import { createClient } from '@/lib/supabase/client'
 import type { Roleplay } from '@/lib/types/database'
 import { toast } from 'sonner'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { SearchBox, normalizeText } from '@/components/ui/search-box'
 
 type Call = {
   id: string
@@ -127,13 +128,13 @@ export default function BibliotecaPage() {
   }, [calls])
 
   const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase()
+    const term = normalizeText(search.trim())
     const min = minScore === 'all' ? 0 : Number(minScore)
     return calls.filter((c) => {
       if (closerFilter !== 'all' && c.closer?.id !== closerFilter) return false
       if (min > 0 && (c.ai_call_score ?? 0) < min) return false
       if (term) {
-        const hay = `${c.contacts?.full_name ?? ''} ${c.closer?.full_name ?? ''}`.toLowerCase()
+        const hay = normalizeText(`${c.contacts?.full_name ?? ''} ${c.closer?.full_name ?? ''}`)
         if (!hay.includes(term)) return false
       }
       return true
@@ -172,10 +173,7 @@ export default function BibliotecaPage() {
       {tab === 'calls' && (<>
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por cliente o closer…" className="pl-9 bg-card border-border" />
-        </div>
+        <SearchBox value={search} onChange={setSearch} placeholder="Buscar por cliente o closer…" className="flex-1 min-w-[200px]" />
         <Select value={closerFilter} onValueChange={setCloserFilter}>
           <SelectTrigger className="w-44 bg-card border-border"><SelectValue /></SelectTrigger>
           <SelectContent className="bg-card border-border">
@@ -192,6 +190,11 @@ export default function BibliotecaPage() {
             <SelectItem value="9">Nota ≥ 9</SelectItem>
           </SelectContent>
         </Select>
+        {(search.trim() || closerFilter !== 'all' || minScore !== 'all') && (
+          <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setCloserFilter('all'); setMinScore('all') }} className="text-muted-foreground hover:text-foreground">
+            <X className="h-4 w-4 mr-1" /> Limpiar filtros
+          </Button>
+        )}
       </div>
 
       {loading ? (

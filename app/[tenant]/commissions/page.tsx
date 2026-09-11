@@ -23,6 +23,7 @@ import { toast } from 'sonner'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import type { CommissionWithRelations, ParticipantType } from '@/lib/types/database'
 import { useTenant } from '@/lib/tenant-context'
+import { getCustomDateRange, inPeriod } from '@/lib/filters/period'
 
 type SimpleMember = { id: string; full_name: string }
 
@@ -85,9 +86,7 @@ function getPeriodRange(preset: PeriodPreset, customFrom: string, customTo: stri
       return { from: startOfDay(from), to: endOfDay(to) }
     }
     case 'custom': {
-      const from = customFrom ? startOfDay(new Date(customFrom)) : null
-      const to = customTo ? endOfDay(new Date(customTo)) : null
-      return { from, to }
+      return getCustomDateRange(customFrom, customTo)
     }
     default:
       return { from: null, to: null }
@@ -242,6 +241,7 @@ export default function CommissionsPage() {
   }
 
   const periodRange = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
+  const directDateRange = useMemo(() => getCustomDateRange(filterFrom, filterTo), [filterFrom, filterTo])
 
   const filteredCommissions = useMemo(() => {
     const nq = normalizeText(q.trim())
@@ -258,18 +258,7 @@ export default function CommissionsPage() {
 
       if (filterMonth !== 'all' && monthKey !== filterMonth) return false
 
-      if (filterFrom) {
-        const created = c.created_at ? new Date(c.created_at) : null
-        const from = new Date(filterFrom)
-        if (!created || created < from) return false
-      }
-
-      if (filterTo) {
-        const created = c.created_at ? new Date(c.created_at) : null
-        const to = new Date(filterTo)
-        to.setHours(23, 59, 59, 999)
-        if (!created || created > to) return false
-      }
+      if ((filterFrom || filterTo) && !inPeriod(c.created_at, directDateRange)) return false
 
       if (filterMember !== 'all' && c.user_id !== filterMember) return false
 
@@ -284,7 +273,7 @@ export default function CommissionsPage() {
 
       return true
     })
-  }, [commissions, q, filterMonth, filterFrom, filterTo, filterMember, filterType, periodPreset, periodRange])
+  }, [commissions, q, filterMonth, filterFrom, filterTo, directDateRange, filterMember, filterType, periodPreset, periodRange])
 
   const hasActiveFilters =
     !!q || filterMonth !== 'all' || filterFrom || filterTo || filterMember !== 'all' || filterType !== 'all' || periodPreset !== 'all'
@@ -481,6 +470,7 @@ export default function CommissionsPage() {
             <Input
               type="date"
               value={filterFrom}
+              max={filterTo || undefined}
               onChange={(e) => setFilterFrom(e.target.value)}
               className="bg-muted border-border h-9"
             />
@@ -491,6 +481,7 @@ export default function CommissionsPage() {
             <Input
               type="date"
               value={filterTo}
+              min={filterFrom || undefined}
               onChange={(e) => setFilterTo(e.target.value)}
               className="bg-muted border-border h-9"
             />
