@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useState } from 'react'
 import { TrendingUp, Loader2, CheckCircle2 } from 'lucide-react'
@@ -34,7 +34,9 @@ export default function RegistroAfiliadoPage() {
     // Enlace por campaña: /${tenant}/afiliados/registro?c=<slug>
     const slug = new URLSearchParams(window.location.search).get('c')?.trim() ?? ''
     setCampaignSlug(slug)
-    const url = slug ? `/api/${tenant}/evergreen/afiliados/form-config?c=${encodeURIComponent(slug)}` : `/api/${tenant}/evergreen/afiliados/form-config`
+    const url = slug
+      ? `/api/${tenant}/evergreen/afiliados/form-config?c=${encodeURIComponent(slug)}`
+      : `/api/${tenant}/evergreen/afiliados/form-config`
     fetch(url)
       .then((r) => r.json())
       .then((data: FormConfig) => setConfig(data))

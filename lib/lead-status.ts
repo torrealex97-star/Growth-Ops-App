@@ -27,10 +27,20 @@ export const LEAD_STATUSES: { value: LeadStatus; label: string; color: string }[
 ]
 
 export const leadStatusMeta = (s: string) => LEAD_STATUSES.find((x) => x.value === s) ?? LEAD_STATUSES[0]
-export const LEAD_STATUS_LABELS: Record<string, string> = Object.fromEntries(LEAD_STATUSES.map((s) => [s.value, s.label]))
-export const LEAD_STATUS_COLORS: Record<string, string> = Object.fromEntries(LEAD_STATUSES.map((s) => [s.value, s.color]))
+export const LEAD_STATUS_LABELS: Record<string, string> = Object.fromEntries(
+  LEAD_STATUSES.map((s) => [s.value, s.label])
+)
+export const LEAD_STATUS_COLORS: Record<string, string> = Object.fromEntries(
+  LEAD_STATUSES.map((s) => [s.value, s.color])
+)
 
 // Estados que implican que ya hubo contacto real con el lead (para el ratio de contactados).
 export const CONTACTED_LEAD_STATUSES: LeadStatus[] = [
-  'whatsapp_enviado', 'llamado', 'en_seguimiento', 'agendado', 'reserva', 'venta', 'cliente',
+  'whatsapp_enviado',
+  'llamado',
+  'en_seguimiento',
+  'agendado',
+  'reserva',
+  'venta',
+  'cliente',
 ]

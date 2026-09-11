@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 async function getUserRole(userId: string): Promise<string | null> {
   const { data } = await supabase.from('users').select('role_id').eq('id', userId).single()
@@ -57,7 +54,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
-    const { data: sale } = await supabase.from('sales').select('id').eq('id', saleId).eq('tenant_id', t.tenantId).single()
+    const { data: sale } = await supabase
+      .from('sales')
+      .select('id')
+      .eq('id', saleId)
+      .eq('tenant_id', t.tenantId)
+      .single()
     if (!sale) return NextResponse.json({ error: 'Venta no encontrada' }, { status: 404 })
 
     const number = String(documentNumber ?? '').trim()
@@ -104,6 +106,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 })
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    )
   }
 }

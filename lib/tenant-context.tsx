@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { createContext, useContext } from 'react'
 
@@ -9,7 +9,15 @@ interface TenantContextValue {
 
 const TenantContext = createContext<TenantContextValue | null>(null)
 
-export function TenantProvider({ tenant, tenantId, children }: { tenant: string; tenantId?: string | null; children: React.ReactNode }) {
+export function TenantProvider({
+  tenant,
+  tenantId,
+  children,
+}: {
+  tenant: string
+  tenantId?: string | null
+  children: React.ReactNode
+}) {
   return <TenantContext.Provider value={{ slug: tenant, id: tenantId ?? null }}>{children}</TenantContext.Provider>
 }
 
@@ -29,6 +37,7 @@ export function useTenant(): string {
 export function useTenantId(): string {
   const ctx = useContext(TenantContext)
   if (!ctx) throw new Error('useTenantId() called outside <TenantProvider> (app/[tenant]/layout.tsx)')
-  if (!ctx.id) throw new Error('tenantId aún no resuelto (llamado antes de que app/[tenant]/layout.tsx termine de cargar)')
+  if (!ctx.id)
+    throw new Error('tenantId aún no resuelto (llamado antes de que app/[tenant]/layout.tsx termine de cargar)')
   return ctx.id
 }

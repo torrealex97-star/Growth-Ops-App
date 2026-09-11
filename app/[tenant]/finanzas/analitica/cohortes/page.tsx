@@ -33,9 +33,7 @@ function buildCohorts(sales: SaleRow[], collections: CollectionRow[]): CohortRow
 
   const ensure = (ym: string) =>
     byCohort.get(ym) ??
-    byCohort
-      .set(ym, { ym, contracted: 0, clients: 0, collectedAt: { 30: 0, 60: 0, 90: 0, 180: 0 } })
-      .get(ym)!
+    byCohort.set(ym, { ym, contracted: 0, clients: 0, collectedAt: { 30: 0, 60: 0, 90: 0, 180: 0 } }).get(ym)!
 
   for (const s of sales) {
     if (!s.sale_date) continue
@@ -102,9 +100,7 @@ export default function CohortsPage() {
           <CalendarRange className="w-5 h-5 text-brand-400" />
           <h1 className="text-2xl font-bold text-foreground">Cohortes</h1>
         </div>
-        <p className="text-muted-foreground text-sm mt-1">
-          Cobro por cohorte de venta a 30/60/90/180 días
-        </p>
+        <p className="text-muted-foreground text-sm mt-1">Cobro por cohorte de venta a 30/60/90/180 días</p>
       </div>
 
       <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -125,7 +121,9 @@ export default function CohortsPage() {
                   <th className="text-right px-4 py-3">Contratado</th>
                   <th className="text-right px-4 py-3">Clientes</th>
                   {WINDOWS.map((w) => (
-                    <th key={w} className="text-right px-4 py-3">%{w}d</th>
+                    <th key={w} className="text-right px-4 py-3">
+                      %{w}d
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -156,10 +154,10 @@ export default function CohortsPage() {
       </div>
 
       <p className="text-xs text-muted-foreground max-w-3xl">
-        Esta vista detecta el deterioro de la calidad de cobro antes de que impacte en el cashflow: si el %30d o %60d
-        de las cohortes recientes empieza a caer respecto a cohortes anteriores, es una señal temprana de que las
-        ventas nuevas están tardando más en convertirse en caja (o directamente no se están cobrando), aunque la
-        facturación bruta siga viéndose bien.
+        Esta vista detecta el deterioro de la calidad de cobro antes de que impacte en el cashflow: si el %30d o %60d de
+        las cohortes recientes empieza a caer respecto a cohortes anteriores, es una señal temprana de que las ventas
+        nuevas están tardando más en convertirse en caja (o directamente no se están cobrando), aunque la facturación
+        bruta siga viéndose bien.
       </p>
     </div>
   )

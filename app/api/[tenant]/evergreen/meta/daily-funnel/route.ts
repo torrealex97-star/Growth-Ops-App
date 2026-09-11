@@ -41,7 +41,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
 
     // 1) Métricas de ads por día (campaign_daily). select('*') para tolerar bases sin las
     //    columnas nuevas (link_clicks / landing_views) hasta que se aplique la migración v33.
-    type AdAgg = { spend: number; impressions: number; reach: number; clicsSalientes: number; visitas: number; registros: number }
+    type AdAgg = {
+      spend: number
+      impressions: number
+      reach: number
+      clicsSalientes: number
+      visitas: number
+      registros: number
+    }
     const adByDate = new Map<string, AdAgg>()
     const PAGE = 1000
     let offset = 0
@@ -57,7 +64,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
         if (!campaignMatch(nameById.get(cid))) continue
         const date = String(r.date ?? '').slice(0, 10)
         if (!date) continue
-        const acc = adByDate.get(date) || { spend: 0, impressions: 0, reach: 0, clicsSalientes: 0, visitas: 0, registros: 0 }
+        const acc = adByDate.get(date) || {
+          spend: 0,
+          impressions: 0,
+          reach: 0,
+          clicsSalientes: 0,
+          visitas: 0,
+          registros: 0,
+        }
         acc.spend += Number(r.spend) || 0
         acc.impressions += Number(r.impressions) || 0
         acc.reach += Number(r.reach) || 0
@@ -74,7 +88,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     const apptByDate = new Map<string, number>()
     offset = 0
     for (let guard = 0; guard < 200; guard++) {
-      let q = sb.from('appointments').select('appointment_datetime, source, utm_source, utm_campaign').eq('tenant_id', t.tenantId)
+      let q = sb
+        .from('appointments')
+        .select('appointment_datetime, source, utm_source, utm_campaign')
+        .eq('tenant_id', t.tenantId)
       if (from) q = q.gte('appointment_datetime', `${from}T00:00:00`)
       if (to) q = q.lte('appointment_datetime', `${to}T23:59:59`)
       const { data, error } = await q.range(offset, offset + PAGE - 1)
@@ -82,7 +99,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
       const rows = (data ?? []) as Array<Record<string, unknown>>
       for (const r of rows) {
         if (paidOnly && !isPaidSource(r.utm_source as string, r.source as string)) continue
-        if (campaignQ && !String(r.utm_campaign ?? '').toLowerCase().includes(campaignQ)) continue
+        if (
+          campaignQ &&
+          !String(r.utm_campaign ?? '')
+            .toLowerCase()
+            .includes(campaignQ)
+        )
+          continue
         const date = String(r.appointment_datetime ?? '').slice(0, 10)
         if (!date) continue
         apptByDate.set(date, (apptByDate.get(date) || 0) + 1)

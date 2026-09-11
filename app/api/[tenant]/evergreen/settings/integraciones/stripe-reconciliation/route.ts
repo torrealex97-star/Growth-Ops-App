@@ -25,6 +25,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
     const result = await reconcileStripePayments(sb, auth.tenantId, cfg.STRIPE_SECRET_KEY, cfg.STRIPE_ACCOUNT_ID)
     return NextResponse.json(result)
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Stripe no respondió correctamente.' }, { status: 502 })
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Stripe no respondió correctamente.' },
+      { status: 502 }
+    )
   }
 }

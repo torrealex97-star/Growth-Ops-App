@@ -23,7 +23,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
-    const { data: appt } = await sb.from('appointments').select('id, external_source, calendly_event_uuid, utm_content, calendar_name').eq('id', appointmentId).eq('tenant_id', t.tenantId).single()
+    const { data: appt } = await sb
+      .from('appointments')
+      .select('id, external_source, calendly_event_uuid, utm_content, calendar_name')
+      .eq('id', appointmentId)
+      .eq('tenant_id', t.tenantId)
+      .single()
     if (!appt) return NextResponse.json({ error: 'Agenda no encontrada' }, { status: 404 })
 
     let calendlyCanceled = false
@@ -36,10 +41,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       calendlyCanceled = r.ok
     }
 
-    await sb.from('appointments').update({ status: 'cancelled_admin' }).eq('id', appointmentId).eq('tenant_id', t.tenantId)
+    await sb
+      .from('appointments')
+      .update({ status: 'cancelled_admin' })
+      .eq('id', appointmentId)
+      .eq('tenant_id', t.tenantId)
     if (appt.calendly_event_uuid) {
       await notifyCreatuagente('cita.cancelada', appt.utm_content, {
-        idExternoEvento: appt.calendly_event_uuid, origen: 'calendly', titulo: appt.calendar_name || 'Llamada',
+        idExternoEvento: appt.calendly_event_uuid,
+        origen: 'calendly',
+        titulo: appt.calendar_name || 'Llamada',
       })
     }
     return NextResponse.json({ ok: true, calendlyCanceled })

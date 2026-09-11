@@ -53,7 +53,9 @@ export function AdsTable({ campaigns, accounts, version }: Props) {
           setLoading(false)
         }
       })
-    return () => { cancel = true }
+    return () => {
+      cancel = true
+    }
   }, [version])
 
   // Campañas presentes en los anuncios (para el desplegable de filtro por campaña).
@@ -93,12 +95,17 @@ export function AdsTable({ campaigns, accounts, version }: Props) {
             <span className="text-xs text-muted-foreground">Cuenta</span>
             <select
               value={accountFilter}
-              onChange={(e) => { setAccountFilter(e.target.value); setCampaignFilter('all') }}
+              onChange={(e) => {
+                setAccountFilter(e.target.value)
+                setCampaignFilter('all')
+              }}
               className="text-sm rounded-lg border border-border bg-muted px-3 py-2 text-foreground focus:outline-none focus:border-brand-500"
             >
               <option value="all">Todas</option>
               {accounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}</option>
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
               ))}
             </select>
           </div>
@@ -112,13 +119,29 @@ export function AdsTable({ campaigns, accounts, version }: Props) {
           >
             <option value="all">Todas ({campaignOptions.length})</option>
             {campaignOptions.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
             ))}
           </select>
         </div>
-        <SearchBox value={search} onChange={setSearch} placeholder="Buscar anuncio o conjunto…" className="flex-1 min-w-[200px]" />
+        <SearchBox
+          value={search}
+          onChange={setSearch}
+          placeholder="Buscar anuncio o conjunto…"
+          className="flex-1 min-w-[200px]"
+        />
         {(accountFilter !== 'all' || campaignFilter !== 'all' || search.trim()) && (
-          <Button variant="ghost" size="sm" onClick={() => { setAccountFilter('all'); setCampaignFilter('all'); setSearch('') }} className="text-muted-foreground hover:text-foreground">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setAccountFilter('all')
+              setCampaignFilter('all')
+              setSearch('')
+            }}
+            className="text-muted-foreground hover:text-foreground"
+          >
             <X className="h-4 w-4 mr-1" /> Limpiar filtros
           </Button>
         )}
@@ -140,7 +163,9 @@ export function AdsTable({ campaigns, accounts, version }: Props) {
         </div>
         <div className="bg-card/50 border border-border rounded-lg p-4">
           <p className="text-xs text-muted-foreground">€ / Seguidor</p>
-          <p className="text-xl font-bold text-foreground mt-1">{costPerFollower === null ? '—' : formatCurrency(costPerFollower)}</p>
+          <p className="text-xl font-bold text-foreground mt-1">
+            {costPerFollower === null ? '—' : formatCurrency(costPerFollower)}
+          </p>
         </div>
       </div>
 
@@ -178,8 +203,14 @@ export function AdsTable({ campaigns, accounts, version }: Props) {
                 return (
                   <tr key={a.id} className="border-b border-border/60 hover:bg-muted/30">
                     <td className="px-4 py-3 text-foreground max-w-[280px]">
-                      <div className="truncate" title={a.name}>{a.name}</div>
-                      {a.adset_name && <div className="text-[11px] text-muted-foreground truncate" title={a.adset_name}>{a.adset_name}</div>}
+                      <div className="truncate" title={a.name}>
+                        {a.name}
+                      </div>
+                      {a.adset_name && (
+                        <div className="text-[11px] text-muted-foreground truncate" title={a.adset_name}>
+                          {a.adset_name}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground max-w-[200px]">
                       <span className="truncate block" title={a.campaign_id ? campaignNameById.get(a.campaign_id) : ''}>
@@ -187,17 +218,29 @@ export function AdsTable({ campaigns, accounts, version }: Props) {
                       </span>
                     </td>
                     {accounts.length > 1 && (
-                      <td className="px-4 py-3 text-[11px] text-muted-foreground">{a.account_name || a.account_id || '—'}</td>
+                      <td className="px-4 py-3 text-[11px] text-muted-foreground">
+                        {a.account_name || a.account_id || '—'}
+                      </td>
                     )}
                     <td className="px-4 py-3">
-                      <span className={`text-[11px] px-1.5 py-0.5 rounded border ${statusBadge(a.status)}`}>{a.status || '—'}</span>
+                      <span className={`text-[11px] px-1.5 py-0.5 rounded border ${statusBadge(a.status)}`}>
+                        {a.status || '—'}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-right text-foreground">{formatCurrency(a.spend || 0)}</td>
                     <td className="px-4 py-3 text-right text-foreground">{(a.leads || 0).toLocaleString('es-ES')}</td>
-                    <td className="px-4 py-3 text-right text-foreground">{(a.followers || 0) > 0 ? (a.followers || 0).toLocaleString('es-ES') : '—'}</td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">{cpf === null ? '—' : formatCurrency(cpf)}</td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">{cpc === null ? '—' : formatCurrency(cpc)}</td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">{ctr === null ? '—' : `${(ctr * 100).toFixed(2)}%`}</td>
+                    <td className="px-4 py-3 text-right text-foreground">
+                      {(a.followers || 0) > 0 ? (a.followers || 0).toLocaleString('es-ES') : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-right text-muted-foreground">
+                      {cpf === null ? '—' : formatCurrency(cpf)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-muted-foreground">
+                      {cpc === null ? '—' : formatCurrency(cpc)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-muted-foreground">
+                      {ctr === null ? '—' : `${(ctr * 100).toFixed(2)}%`}
+                    </td>
                   </tr>
                 )
               })}

@@ -20,8 +20,8 @@ export default function EvergreenError({ error, reset }: { error: Error & { dige
           <div>
             <h2 className="text-foreground font-semibold">Algo ha fallado en esta pantalla</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              No es que se haya quedado colgada: ha ocurrido un error y no se ha podido pintar la página.
-              Copia el mensaje de abajo y pásaselo al equipo para arreglarlo.
+              No es que se haya quedado colgada: ha ocurrido un error y no se ha podido pintar la página. Copia el
+              mensaje de abajo y pásaselo al equipo para arreglarlo.
             </p>
           </div>
         </div>

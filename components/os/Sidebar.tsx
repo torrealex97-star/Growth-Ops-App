@@ -1,15 +1,10 @@
-"use client"
+'use client'
 
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { ROLE_LABELS, ROLE_COLORS, DEPARTMENT_LABELS, type AppRole } from '@/lib/auth/permissions'
-import {
-  LogOut,
-  ChevronRight,
-  ChevronDown,
-  X,
-} from 'lucide-react'
+import { LogOut, ChevronRight, ChevronDown, X } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -44,12 +39,18 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
     try {
       const raw = localStorage.getItem('iaw_sidebar_collapsed')
       if (raw) setCollapsed(JSON.parse(raw))
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [])
   const toggleSection = (dept: string) => {
     setCollapsed((prev) => {
       const next = { ...prev, [dept]: !prev[dept] }
-      try { localStorage.setItem('iaw_sidebar_collapsed', JSON.stringify(next)) } catch { /* ignore */ }
+      try {
+        localStorage.setItem('iaw_sidebar_collapsed', JSON.stringify(next))
+      } catch {
+        /* ignore */
+      }
       return next
     })
   }
@@ -73,24 +74,17 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
       const querySiblingIsActive = siblings.some((sibling) => {
         const [siblingPath, siblingQuery] = sibling.href.split('?')
         if (siblingPath !== hrefPath || !siblingQuery) return false
-        return Array.from(new URLSearchParams(siblingQuery))
-          .every(([key, value]) => searchParams.get(key) === value)
+        return Array.from(new URLSearchParams(siblingQuery)).every(([key, value]) => searchParams.get(key) === value)
       })
       return !querySiblingIsActive
     }
-    return Array.from(new URLSearchParams(hrefQuery))
-      .every(([key, value]) => searchParams.get(key) === value)
+    return Array.from(new URLSearchParams(hrefQuery)).every(([key, value]) => searchParams.get(key) === value)
   }
 
   return (
     <>
       {/* Mobile overlay */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
-          onClick={onClose}
-        />
-      )}
+      {isOpen && <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={onClose} />}
 
       {/* Sidebar */}
       <aside
@@ -107,12 +101,7 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
             </div>
             <span className="font-sans font-semibold text-white text-lg tracking-tight">Scalix Systems</span>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="lg:hidden h-8 w-8"
-            onClick={onClose}
-          >
+          <Button variant="ghost" size="icon" className="lg:hidden h-8 w-8" onClick={onClose}>
             <X className="w-4 h-4" />
           </Button>
         </div>
@@ -136,58 +125,61 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
                     className="w-full flex items-center justify-between px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <span>{DEPARTMENT_LABELS[section.dept]}</span>
-                    <ChevronDown className={cn('w-3 h-3 transition-transform', isCollapsed ? '-rotate-90' : 'rotate-0')} />
+                    <ChevronDown
+                      className={cn('w-3 h-3 transition-transform', isCollapsed ? '-rotate-90' : 'rotate-0')}
+                    />
                   </button>
                 )}
-                {!isCollapsed && visibleItems.map((item) => (
-                  <div key={item.href}>
-                    <Link
-                      href={`/${tenant}${item.href}`}
-                      onClick={() => onClose()}
-                      className={cn(
-                        'relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group',
-                        isActive(item.href)
-                          ? 'bg-[#1C1C1F] text-white border border-[#343438] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
-                          : 'text-[#A1A1AA] hover:text-white hover:bg-[#141416] border border-transparent'
-                      )}
-                    >
-                      {/* Barra de acento del item activo */}
-                      {isActive(item.href) && (
-                        <span className="absolute right-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-white" />
-                      )}
-                      <item.icon className={cn(
-                        'w-4 h-4 shrink-0 transition-colors',
-                        isActive(item.href) ? 'text-white' : 'text-[#6B6B70] group-hover:text-white'
-                      )} />
-                      {item.label}
-                      {item.children && (
-                        <ChevronRight className="w-3 h-3 ml-auto text-muted-foreground" />
-                      )}
-                    </Link>
+                {!isCollapsed &&
+                  visibleItems.map((item) => (
+                    <div key={item.href}>
+                      <Link
+                        href={`/${tenant}${item.href}`}
+                        onClick={() => onClose()}
+                        className={cn(
+                          'relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group',
+                          isActive(item.href)
+                            ? 'bg-[#1C1C1F] text-white border border-[#343438] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+                            : 'text-[#A1A1AA] hover:text-white hover:bg-[#141416] border border-transparent'
+                        )}
+                      >
+                        {/* Barra de acento del item activo */}
+                        {isActive(item.href) && (
+                          <span className="absolute right-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-white" />
+                        )}
+                        <item.icon
+                          className={cn(
+                            'w-4 h-4 shrink-0 transition-colors',
+                            isActive(item.href) ? 'text-white' : 'text-[#6B6B70] group-hover:text-white'
+                          )}
+                        />
+                        {item.label}
+                        {item.children && <ChevronRight className="w-3 h-3 ml-auto text-muted-foreground" />}
+                      </Link>
 
-                    {/* Children (settings submenu) */}
-                    {item.children && isActive(item.href) && (
-                      <div className="ml-4 mt-1 space-y-1 border-l border-border pl-3">
-                        {item.children.filter(isVisible).map((child) => (
-                          <Link
-                            key={child.href}
-                            href={`/${tenant}${child.href}`}
-                            onClick={() => onClose()}
-                            className={cn(
-                              'flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition-colors',
-                              isChildActive(child.href, item.children ?? [])
-                                ? 'text-brand-400'
-                                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                            )}
-                          >
-                            <child.icon className="w-3 h-3" />
-                            {child.label}
-                          </Link>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      {/* Children (settings submenu) */}
+                      {item.children && isActive(item.href) && (
+                        <div className="ml-4 mt-1 space-y-1 border-l border-border pl-3">
+                          {item.children.filter(isVisible).map((child) => (
+                            <Link
+                              key={child.href}
+                              href={`/${tenant}${child.href}`}
+                              onClick={() => onClose()}
+                              className={cn(
+                                'flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition-colors',
+                                isChildActive(child.href, item.children ?? [])
+                                  ? 'text-brand-400'
+                                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                              )}
+                            >
+                              <child.icon className="w-3 h-3" />
+                              {child.label}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
               </div>
             )
           })}
@@ -199,17 +191,11 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
         <div className="p-4">
           <div className="flex items-center gap-3 px-2 py-3">
             <Avatar className="w-8 h-8">
-              <AvatarFallback className="text-xs">
-                {getInitials(user.full_name)}
-              </AvatarFallback>
+              <AvatarFallback className="text-xs">{getInitials(user.full_name)}</AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground truncate">{user.full_name}</p>
-              <Badge
-                className={cn('text-xs px-1.5 py-0 border mt-0.5', ROLE_COLORS[role])}
-              >
-                {ROLE_LABELS[role]}
-              </Badge>
+              <Badge className={cn('text-xs px-1.5 py-0 border mt-0.5', ROLE_COLORS[role])}>{ROLE_LABELS[role]}</Badge>
             </div>
             <Button
               variant="ghost"

@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -33,7 +33,9 @@ export default function RecoverPage() {
         setLoading(false)
         return
       }
-    } catch { /* si el endpoint falla, usamos el fallback de Supabase */ }
+    } catch {
+      /* si el endpoint falla, usamos el fallback de Supabase */
+    }
 
     // 2) Fallback: flujo estándar de Supabase (mismo dispositivo).
     const supabase = createClient()
@@ -70,12 +72,10 @@ export default function RecoverPage() {
               <CheckCircle2 className="w-12 h-12 text-emerald-400 mb-4" />
               <h2 className="text-lg font-semibold text-foreground mb-2">Correo enviado</h2>
               <p className="text-muted-foreground text-sm mb-6">
-                Hemos enviado un enlace de recuperación a <span className="text-foreground">{email}</span>. Revisa tu bandeja de entrada.
+                Hemos enviado un enlace de recuperación a <span className="text-foreground">{email}</span>. Revisa tu
+                bandeja de entrada.
               </p>
-              <Link
-                href={`/${tenant}/login`}
-                className="text-sm text-brand-400 hover:text-brand-300 transition-colors"
-              >
+              <Link href={`/${tenant}/login`} className="text-sm text-brand-400 hover:text-brand-300 transition-colors">
                 Volver al inicio de sesión
               </Link>
             </div>

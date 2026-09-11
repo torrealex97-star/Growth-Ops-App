@@ -7,11 +7,28 @@ import { lastNMonths, monthLabel } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
 import { computeMonthlyPnl } from '@/lib/finance/pnl'
 
-type SaleRow = { gross_amount: number | string; discount: number | string | null; status: string; sale_date: string | null }
-type CollectionRow = { id: string; gross_amount: number | string; processing_fee: number | string | null; collected_at: string | null; status: string }
+type SaleRow = {
+  gross_amount: number | string
+  discount: number | string | null
+  status: string
+  sale_date: string | null
+}
+type CollectionRow = {
+  id: string
+  gross_amount: number | string
+  processing_fee: number | string | null
+  collected_at: string | null
+  status: string
+}
 type RefundRow = { gross_refund_amount: number | string; refund_date: string | null; status: string }
 type ExpenseRow = { amount: number | string; category: string; expense_date: string | null; status: string }
-type CommissionRow = { commission_amount: number | string; direction: string; collection_id: string | null; liquidation_month: string | null; status: string }
+type CommissionRow = {
+  commission_amount: number | string
+  direction: string
+  collection_id: string | null
+  liquidation_month: string | null
+  status: string
+}
 
 function nowYm() {
   const d = new Date()
@@ -98,7 +115,9 @@ export default function PnlPage() {
       setLoading(false)
     }
     load()
-    return () => { mounted = false }
+    return () => {
+      mounted = false
+    }
   }, [])
 
   // Resultado neto/margen: único servicio compartido con Finanzas › Analítica financiera y
@@ -132,7 +151,9 @@ export default function PnlPage() {
             className="bg-card border border-border rounded-lg px-3 py-1.5 text-foreground focus:outline-none focus:border-brand-500"
           >
             {monthOptions.map((m) => (
-              <option key={m} value={m}>{monthLabel(m)}</option>
+              <option key={m} value={m}>
+                {monthLabel(m)}
+              </option>
             ))}
           </select>
         </label>
@@ -157,7 +178,12 @@ export default function PnlPage() {
           <Line label="Gross Profit" value={money(pnl.grossProfit)} bold border />
           <PctLine label="Margen" value={pct(pnl.grossMargin)} />
 
-          <Line label="Comisiones" value={`${pnl.comisiones < 0 ? '+' : '−'} ${money(Math.abs(pnl.comisiones))}`} indent negative={pnl.comisiones >= 0} />
+          <Line
+            label="Comisiones"
+            value={`${pnl.comisiones < 0 ? '+' : '−'} ${money(Math.abs(pnl.comisiones))}`}
+            indent
+            negative={pnl.comisiones >= 0}
+          />
           <Line label="Salarios" value={`− ${money(pnl.salarios)}`} indent negative />
           <Line label="Adspend" value={`− ${money(pnl.adspend)}`} indent negative />
           <Line label="Software" value={`− ${money(pnl.software)}`} indent negative />

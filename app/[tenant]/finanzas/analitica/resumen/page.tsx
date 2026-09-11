@@ -3,14 +3,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { KPICard } from '@/components/os/DashboardKPICard'
-import {
-  PieChart, Wallet, ShoppingCart, Receipt, TrendingDown, Scale, Users, CreditCard,
-} from 'lucide-react'
+import { PieChart, Wallet, ShoppingCart, Receipt, TrendingDown, Scale, Users, CreditCard } from 'lucide-react'
 import { lastNMonths, prevMonth, monthLabel, pctDelta } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
 import { computeMonthlyPnl } from '@/lib/finance/pnl'
 
-type SaleRow = { id: string; gross_amount: number | string; discount: number | string | null; sale_date: string | null; status: string }
+type SaleRow = {
+  id: string
+  gross_amount: number | string
+  discount: number | string | null
+  sale_date: string | null
+  status: string
+}
 type CollectionRow = {
   id: string
   sale_id: string
@@ -24,7 +28,12 @@ type CollectionRow = {
 }
 type ExpenseRow = { amount: number | string; category: string; expense_date: string | null }
 type RefundRow = { gross_refund_amount: number | string; refund_date: string | null }
-type CommissionRow = { commission_amount: number | string; direction: string; collection_id: string | null; liquidation_month: string | null }
+type CommissionRow = {
+  commission_amount: number | string
+  direction: string
+  collection_id: string | null
+  liquidation_month: string | null
+}
 type UserRow = { base_salary: number | string | null }
 
 const num = (x: number | string | null | undefined) => Number(x ?? 0)
@@ -44,15 +53,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   otros: 'Otros',
 }
 
-function MetricCard({
-  label,
-  value,
-  sublabel,
-}: {
-  label: string
-  value: string
-  sublabel?: string
-}) {
+function MetricCard({ label, value, sublabel }: { label: string; value: string; sublabel?: string }) {
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <p className="text-xs text-muted-foreground mb-1">{label}</p>
@@ -81,7 +82,11 @@ export default function FinanzasPage() {
       const supabase = createClient()
       const [salesRes, collRes, expensesRes, refundsRes, commissionsRes, usersRes] = await Promise.all([
         supabase.from('sales').select('id, gross_amount, discount, sale_date, status'),
-        supabase.from('collections').select('id, sale_id, gross_amount, commissionable_amount, processing_fee, vat, collected_at, status, expected_installment_id'),
+        supabase
+          .from('collections')
+          .select(
+            'id, sale_id, gross_amount, commissionable_amount, processing_fee, vat, collected_at, status, expected_installment_id'
+          ),
         supabase.from('expenses').select('amount, category, expense_date'),
         supabase.from('refunds').select('gross_refund_amount, refund_date'),
         supabase.from('commissions').select('commission_amount, direction, collection_id, liquidation_month'),
@@ -97,7 +102,9 @@ export default function FinanzasPage() {
       setLoading(false)
     }
     load()
-    return () => { mounted = false }
+    return () => {
+      mounted = false
+    }
   }, [])
 
   // --- Cálculo de resumen financiero para un mes concreto ---
@@ -115,7 +122,7 @@ export default function FinanzasPage() {
       const commissionYm = (c: CommissionRow) =>
         c.direction === 'negative'
           ? ymOf(c.liquidation_month)
-          : (c.collection_id ? collMonth.get(c.collection_id) : undefined) ?? ymOf(c.liquidation_month)
+          : ((c.collection_id ? collMonth.get(c.collection_id) : undefined) ?? ymOf(c.liquidation_month))
       const monthCommissions = commissions.filter((c) => commissionYm(c) === targetYm)
 
       const contractedSales = monthSales.reduce((a, s) => a + num(s.gross_amount), 0)
@@ -179,9 +186,7 @@ export default function FinanzasPage() {
   // --- Métricas de pagos ("Company") para el mes seleccionado ---
   const paymentsSummary = useMemo(() => {
     const targetYm = ym
-    const monthCollections = collections.filter(
-      (c) => c.status === 'collected' && ymOf(c.collected_at) === targetYm
-    )
+    const monthCollections = collections.filter((c) => c.status === 'collected' && ymOf(c.collected_at) === targetYm)
     const monthSales = sales.filter((s) => ymOf(s.sale_date) === targetYm)
     const monthExpenses = expenses.filter((e) => ymOf(e.expense_date) === targetYm)
     const monthRefunds = refunds.filter((r) => ymOf(r.refund_date) === targetYm)
@@ -242,9 +247,7 @@ export default function FinanzasPage() {
     const totalDiscountAmount = monthSales.reduce((a, s) => a + num(s.discount), 0)
 
     // Taxes + %Tax
-    const taxExpenses = monthExpenses
-      .filter((e) => e.category === 'impuestos')
-      .reduce((a, e) => a + num(e.amount), 0)
+    const taxExpenses = monthExpenses.filter((e) => e.category === 'impuestos').reduce((a, e) => a + num(e.amount), 0)
     const vatCollected = monthCollections.reduce((a, c) => a + num(c.vat), 0)
     const taxesTotal = taxExpenses + vatCollected
     const netRevenueForTax = grossSum - totalRefundsAmount - totalDiscountAmount
@@ -272,25 +275,23 @@ export default function FinanzasPage() {
 
   const months6 = useMemo(() => lastNMonths(6, ym), [ym])
   const series = useMemo(
-    () => months6.map((m) => {
-      const s = summaryFor(m)
-      return { ym: m, label: monthLabel(m), cash: s.cashCollected, expenses: s.totalExpenses, net: s.netResult }
-    }),
+    () =>
+      months6.map((m) => {
+        const s = summaryFor(m)
+        return { ym: m, label: monthLabel(m), cash: s.cashCollected, expenses: s.totalExpenses, net: s.netResult }
+      }),
     [months6, summaryFor]
   )
-  const maxSeriesValue = useMemo(
-    () => Math.max(1, ...series.map((s) => Math.max(s.cash, s.expenses))),
-    [series]
-  )
-  const maxCategoryAmount = useMemo(
-    () => Math.max(1, ...cur.categories.map((c) => c.amount)),
-    [cur.categories]
-  )
+  const maxSeriesValue = useMemo(() => Math.max(1, ...series.map((s) => Math.max(s.cash, s.expenses))), [series])
+  const maxCategoryAmount = useMemo(() => Math.max(1, ...cur.categories.map((c) => c.amount)), [cur.categories])
 
   const delta = (c: number, p: number) => {
     const d = pctDelta(c, p)
     if (d === null) return {}
-    return { delta: Math.round(d), deltaType: d > 0 ? 'up' as const : d < 0 ? 'down' as const : 'neutral' as const }
+    return {
+      delta: Math.round(d),
+      deltaType: d > 0 ? ('up' as const) : d < 0 ? ('down' as const) : ('neutral' as const),
+    }
   }
   const fmt = (n: number) => formatCurrency(n)
   const pct = (v: number | null) => (v === null || !isFinite(v) ? '—' : `${v.toFixed(1)}%`)
@@ -307,7 +308,9 @@ export default function FinanzasPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Resumen financiero</h1>
-            <p className="text-muted-foreground text-sm mt-1">Resultados de la empresa por mes · ver detalle en I&amp;G — Ingresos y Gastos</p>
+            <p className="text-muted-foreground text-sm mt-1">
+              Resultados de la empresa por mes · ver detalle en I&amp;G — Ingresos y Gastos
+            </p>
           </div>
         </div>
         <label className="flex items-center gap-2 text-sm">
@@ -318,7 +321,9 @@ export default function FinanzasPage() {
             className="bg-card border border-border rounded-lg px-3 py-1.5 text-foreground focus:outline-none focus:border-brand-500"
           >
             {monthOptions.map((m) => (
-              <option key={m} value={m}>{monthLabel(m)}</option>
+              <option key={m} value={m}>
+                {monthLabel(m)}
+              </option>
             ))}
           </select>
         </label>
@@ -340,7 +345,9 @@ export default function FinanzasPage() {
         <>
           {/* KPIs del mes */}
           <div>
-            <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Resultados de {monthLabel(ym)}</h2>
+            <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
+              Resultados de {monthLabel(ym)}
+            </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
               <KPICard
                 title="Cash Collected"
@@ -445,7 +452,9 @@ export default function FinanzasPage() {
                             style={{ width: `${(s.cash / maxSeriesValue) * 100}%` }}
                           />
                         </div>
-                        <span className="text-[10px] text-muted-foreground w-20 text-right shrink-0 tabular-nums">{fmt(s.cash)}</span>
+                        <span className="text-[10px] text-muted-foreground w-20 text-right shrink-0 tabular-nums">
+                          {fmt(s.cash)}
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] text-muted-foreground w-14 shrink-0">Gastos</span>
@@ -455,7 +464,9 @@ export default function FinanzasPage() {
                             style={{ width: `${(s.expenses / maxSeriesValue) * 100}%` }}
                           />
                         </div>
-                        <span className="text-[10px] text-muted-foreground w-20 text-right shrink-0 tabular-nums">{fmt(s.expenses)}</span>
+                        <span className="text-[10px] text-muted-foreground w-20 text-right shrink-0 tabular-nums">
+                          {fmt(s.expenses)}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -486,8 +497,8 @@ export default function FinanzasPage() {
                   salariesSummary.pctBooked === null
                     ? 'sin salario base registrado'
                     : Math.abs(salariesSummary.diff) < 0.01
-                    ? 'coincide con lo comprometido'
-                    : `${pct(salariesSummary.pctBooked)} contabilizado · faltan por generar`
+                      ? 'coincide con lo comprometido'
+                      : `${pct(salariesSummary.pctBooked)} contabilizado · faltan por generar`
                 }
               />
             </div>
@@ -509,11 +520,7 @@ export default function FinanzasPage() {
                 value={fmtOrDash(paymentsSummary.avgGrPerPayment)}
                 sublabel="gross revenue medio"
               />
-              <MetricCard
-                label="% Refund"
-                value={pct(paymentsSummary.pctRefund)}
-                sublabel="sobre gross collected"
-              />
+              <MetricCard label="% Refund" value={pct(paymentsSummary.pctRefund)} sublabel="sobre gross collected" />
               <MetricCard
                 label="% New GR"
                 value={pct(paymentsSummary.pctNewGr)}

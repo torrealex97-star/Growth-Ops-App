@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
@@ -7,13 +7,7 @@ import { CommissionsTable } from '@/components/commissions/CommissionsTable'
 import { CommissionInvoicePanel } from '@/components/commissions/CommissionInvoicePanel'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { KPICard } from '@/components/os/DashboardKPICard'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -28,10 +22,18 @@ import { getCustomDateRange, inPeriod } from '@/lib/filters/period'
 type SimpleMember = { id: string; full_name: string }
 
 type FutureRow = {
-  installmentId: string; saleId: string; contact: string; dueDate: string
-  userId: string; userName: string; participantType: ParticipantType
-  base: number; percent: number; amount: number
-  source: 'installment' | 'review'; collectionId?: string
+  installmentId: string
+  saleId: string
+  contact: string
+  dueDate: string
+  userId: string
+  userName: string
+  participantType: ParticipantType
+  base: number
+  percent: number
+  amount: number
+  source: 'installment' | 'review'
+  collectionId?: string
 }
 
 const PARTICIPANT_LABELS: Record<ParticipantType, string> = {
@@ -52,7 +54,11 @@ const PERIOD_LABELS: Record<PeriodPreset, string> = {
   custom: 'Personalizado',
 }
 
-function getPeriodRange(preset: PeriodPreset, customFrom: string, customTo: string): { from: Date | null; to: Date | null } {
+function getPeriodRange(
+  preset: PeriodPreset,
+  customFrom: string,
+  customTo: string
+): { from: Date | null; to: Date | null } {
   const now = new Date()
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0)
   const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
@@ -140,14 +146,12 @@ export default function CommissionsPage() {
   const fetchCommissions = async () => {
     const supabase = createClient()
 
-    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
     if (!authUser) return
 
-    const { data: userData } = await supabase
-      .from('users')
-      .select('*, roles(key)')
-      .eq('id', authUser.id)
-      .single()
+    const { data: userData } = await supabase.from('users').select('*, roles(key)').eq('id', authUser.id).single()
 
     const role = (userData as { roles?: { key?: string } })?.roles?.key ?? ''
     setCurrentUserRole(role)
@@ -176,10 +180,7 @@ export default function CommissionsPage() {
     }
 
     if (canSeeAll) {
-      const { data: usersData } = await supabase
-        .from('users')
-        .select('id, full_name')
-        .order('full_name')
+      const { data: usersData } = await supabase.from('users').select('id, full_name').order('full_name')
       setMembers((usersData as SimpleMember[]) ?? [])
     }
 
@@ -189,7 +190,9 @@ export default function CommissionsPage() {
   const fetchFuture = () => {
     fetch(`/api/${tenant}/evergreen/commissions/future`)
       .then((r) => r.json())
-      .then((d) => { if (d?.rows) setFuture(d.rows as FutureRow[]) })
+      .then((d) => {
+        if (d?.rows) setFuture(d.rows as FutureRow[])
+      })
       .catch(() => {})
   }
 
@@ -242,7 +245,10 @@ export default function CommissionsPage() {
     return d.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
   }
 
-  const periodRange = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
+  const periodRange = useMemo(
+    () => getPeriodRange(periodPreset, customFrom, customTo),
+    [periodPreset, customFrom, customTo]
+  )
   const directDateRange = useMemo(() => getCustomDateRange(filterFrom, filterTo), [filterFrom, filterTo])
 
   const filteredCommissions = useMemo(() => {
@@ -275,10 +281,27 @@ export default function CommissionsPage() {
 
       return true
     })
-  }, [commissions, q, filterMonth, filterFrom, filterTo, directDateRange, filterMember, filterType, periodPreset, periodRange])
+  }, [
+    commissions,
+    q,
+    filterMonth,
+    filterFrom,
+    filterTo,
+    directDateRange,
+    filterMember,
+    filterType,
+    periodPreset,
+    periodRange,
+  ])
 
   const hasActiveFilters =
-    !!q || filterMonth !== 'all' || filterFrom || filterTo || filterMember !== 'all' || filterType !== 'all' || periodPreset !== 'all'
+    !!q ||
+    filterMonth !== 'all' ||
+    filterFrom ||
+    filterTo ||
+    filterMember !== 'all' ||
+    filterType !== 'all' ||
+    periodPreset !== 'all'
 
   const clearFilters = () => {
     setQ('')
@@ -315,12 +338,12 @@ export default function CommissionsPage() {
   }
 
   const pending = useMemo(
-    () => filteredCommissions.filter(c => c.status === 'pending' && c.direction === 'positive'),
+    () => filteredCommissions.filter((c) => c.status === 'pending' && c.direction === 'positive'),
     [filteredCommissions]
   )
-  const approved = useMemo(() => filteredCommissions.filter(c => c.status === 'approved'), [filteredCommissions])
-  const liquidated = useMemo(() => filteredCommissions.filter(c => c.status === 'liquidated'), [filteredCommissions])
-  const negative = useMemo(() => filteredCommissions.filter(c => c.direction === 'negative'), [filteredCommissions])
+  const approved = useMemo(() => filteredCommissions.filter((c) => c.status === 'approved'), [filteredCommissions])
+  const liquidated = useMemo(() => filteredCommissions.filter((c) => c.status === 'liquidated'), [filteredCommissions])
+  const negative = useMemo(() => filteredCommissions.filter((c) => c.direction === 'negative'), [filteredCommissions])
 
   const totalPending = pending.reduce((sum, c) => sum + c.commission_amount, 0)
   const totalApproved = approved.reduce((sum, c) => sum + c.commission_amount, 0)
@@ -385,11 +408,7 @@ export default function CommissionsPage() {
 
       {/* Facturas de comisiones: el comercial adjunta la suya; admin ve todas */}
       {currentUserId && (
-        <CommissionInvoicePanel
-          currentUserId={currentUserId}
-          currentUserRole={currentUserRole}
-          members={members}
-        />
+        <CommissionInvoicePanel currentUserId={currentUserId} currentUserRole={currentUserRole} members={members} />
       )}
 
       {/* Filtros */}
@@ -398,7 +417,12 @@ export default function CommissionsPage() {
           <span className="text-sm font-medium text-foreground">Filtros</span>
           <div className="flex items-center gap-2">
             {hasActiveFilters && (
-              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={clearFilters}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                onClick={clearFilters}
+              >
                 <X className="w-3.5 h-3.5 mr-1" />
                 Limpiar filtros
               </Button>
@@ -422,7 +446,9 @@ export default function CommissionsPage() {
               </SelectTrigger>
               <SelectContent className="bg-card border-border">
                 {(Object.keys(PERIOD_LABELS) as PeriodPreset[]).map((p) => (
-                  <SelectItem key={p} value={p}>{PERIOD_LABELS[p]}</SelectItem>
+                  <SelectItem key={p} value={p}>
+                    {PERIOD_LABELS[p]}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -593,57 +619,87 @@ export default function CommissionsPage() {
         <TabsList className="bg-card border border-border">
           <TabsTrigger value="pending">
             Pendientes
-            {pending.length > 0 && <span className="ml-1.5 text-xs bg-muted px-1.5 rounded-full">{pending.length}</span>}
+            {pending.length > 0 && (
+              <span className="ml-1.5 text-xs bg-muted px-1.5 rounded-full">{pending.length}</span>
+            )}
           </TabsTrigger>
           <TabsTrigger value="approved">
             Aprobadas
-            {approved.length > 0 && <span className="ml-1.5 text-xs bg-muted px-1.5 rounded-full">{approved.length}</span>}
+            {approved.length > 0 && (
+              <span className="ml-1.5 text-xs bg-muted px-1.5 rounded-full">{approved.length}</span>
+            )}
           </TabsTrigger>
           <TabsTrigger value="liquidated">
             Liquidadas
-            {liquidated.length > 0 && <span className="ml-1.5 text-xs bg-muted px-1.5 rounded-full">{liquidated.length}</span>}
+            {liquidated.length > 0 && (
+              <span className="ml-1.5 text-xs bg-muted px-1.5 rounded-full">{liquidated.length}</span>
+            )}
           </TabsTrigger>
           <TabsTrigger value="future">
             Futuras
-            {filteredFuture.length > 0 && <span className="ml-1.5 text-xs bg-muted px-1.5 rounded-full">{filteredFuture.length}</span>}
+            {filteredFuture.length > 0 && (
+              <span className="ml-1.5 text-xs bg-muted px-1.5 rounded-full">{filteredFuture.length}</span>
+            )}
           </TabsTrigger>
           <TabsTrigger value="negative">
             Negativas
-            {negative.length > 0 && <span className="ml-1.5 text-xs bg-muted px-1.5 rounded-full">{negative.length}</span>}
+            {negative.length > 0 && (
+              <span className="ml-1.5 text-xs bg-muted px-1.5 rounded-full">{negative.length}</span>
+            )}
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending" className="mt-4">
-          {loading ? <div className="h-48 bg-card rounded-lg animate-pulse" /> : (
+          {loading ? (
+            <div className="h-48 bg-card rounded-lg animate-pulse" />
+          ) : (
             <CommissionsTable commissions={pending} canApprove={canApprove} onApprove={handleApprove} />
           )}
         </TabsContent>
         <TabsContent value="approved" className="mt-4">
-          {loading ? <div className="h-48 bg-card rounded-lg animate-pulse" /> : (
+          {loading ? (
+            <div className="h-48 bg-card rounded-lg animate-pulse" />
+          ) : (
             <CommissionsTable commissions={approved} canApprove={false} />
           )}
         </TabsContent>
         <TabsContent value="liquidated" className="mt-4">
-          {loading ? <div className="h-48 bg-card rounded-lg animate-pulse" /> : (
+          {loading ? (
+            <div className="h-48 bg-card rounded-lg animate-pulse" />
+          ) : (
             <CommissionsTable commissions={liquidated} canApprove={false} />
           )}
         </TabsContent>
         <TabsContent value="future" className="mt-4">
           <p className="text-xs text-muted-foreground mb-2">
-            Comisión <span className="text-amber-400 font-medium">esperada</span> de las cuotas que el cliente aún tiene que pagar (autofinanciado / Sequra), más las cuotas de un plan <span className="text-blue-400 font-medium">personalizado</span> ya cobradas pero en revisión manual de cobros. Se convierte en comisión real cuando se cobra (o, en revisión, cuando el equipo la aprueba).
+            Comisión <span className="text-amber-400 font-medium">esperada</span> de las cuotas que el cliente aún tiene
+            que pagar (autofinanciado / Sequra), más las cuotas de un plan{' '}
+            <span className="text-blue-400 font-medium">personalizado</span> ya cobradas pero en revisión manual de
+            cobros. Se convierte en comisión real cuando se cobra (o, en revisión, cuando el equipo la aprueba).
           </p>
           <div className="rounded-lg border border-border overflow-hidden">
             <div className="divide-y divide-border max-h-[520px] overflow-y-auto">
               {filteredFuture.length === 0 ? (
-                <div className="p-6 text-center text-sm text-muted-foreground">No hay comisiones futuras por cobrar</div>
+                <div className="p-6 text-center text-sm text-muted-foreground">
+                  No hay comisiones futuras por cobrar
+                </div>
               ) : (
                 filteredFuture
                   .slice()
                   .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
                   .map((f) => (
-                    <div key={`${f.installmentId}-${f.userId}-${f.participantType}`} className="px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-card/40">
+                    <div
+                      key={`${f.installmentId}-${f.userId}-${f.participantType}`}
+                      className="px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-card/40"
+                    >
                       <div className="flex items-center gap-3 min-w-0">
-                        <span className="text-xs text-muted-foreground shrink-0 w-20">{new Date(f.dueDate).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' })}</span>
+                        <span className="text-xs text-muted-foreground shrink-0 w-20">
+                          {new Date(f.dueDate).toLocaleDateString('es-ES', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: '2-digit',
+                          })}
+                        </span>
                         <span className="text-sm text-foreground truncate">{f.userName}</span>
                         <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground capitalize shrink-0">
                           {PARTICIPANT_LABELS[f.participantType] ?? f.participantType}
@@ -669,8 +725,12 @@ export default function CommissionsPage() {
                             {approvingReview === f.collectionId ? 'Aprobando...' : 'Aprobar'}
                           </Button>
                         )}
-                        <Link href={`/${tenant}/ventas/registro/${f.saleId}`} className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300">
-                          Venta<ExternalLink className="w-3 h-3" />
+                        <Link
+                          href={`/${tenant}/ventas/registro/${f.saleId}`}
+                          className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
+                        >
+                          Venta
+                          <ExternalLink className="w-3 h-3" />
                         </Link>
                       </div>
                     </div>
@@ -680,7 +740,9 @@ export default function CommissionsPage() {
           </div>
         </TabsContent>
         <TabsContent value="negative" className="mt-4">
-          {loading ? <div className="h-48 bg-card rounded-lg animate-pulse" /> : (
+          {loading ? (
+            <div className="h-48 bg-card rounded-lg animate-pulse" />
+          ) : (
             <CommissionsTable commissions={negative} canApprove={false} />
           )}
         </TabsContent>
@@ -690,13 +752,17 @@ export default function CommissionsPage() {
       <div className="rounded-lg border border-border overflow-hidden">
         <div className="px-4 py-3 border-b border-border bg-card/50">
           <h2 className="text-sm font-medium text-foreground">Detalle: comision y venta asociada</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Cada comision proviene de una venta concreta. Haz clic para verla.</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Cada comision proviene de una venta concreta. Haz clic para verla.
+          </p>
         </div>
         <div className="divide-y divide-border max-h-[420px] overflow-y-auto">
           {loading ? (
             <div className="p-4 text-sm text-muted-foreground">Cargando...</div>
           ) : filteredCommissions.length === 0 ? (
-            <div className="p-6 text-center text-sm text-muted-foreground">No hay comisiones para los filtros seleccionados</div>
+            <div className="p-6 text-center text-sm text-muted-foreground">
+              No hay comisiones para los filtros seleccionados
+            </div>
           ) : (
             filteredCommissions.map((c) => (
               <div key={c.id} className="px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-card/40">
@@ -708,8 +774,11 @@ export default function CommissionsPage() {
                   <span className="text-xs text-muted-foreground shrink-0">{c.status}</span>
                 </div>
                 <div className="flex items-center gap-4 shrink-0">
-                  <span className={`text-sm font-medium ${c.direction === 'negative' ? 'text-red-400' : 'text-emerald-400'}`}>
-                    {c.direction === 'negative' ? '-' : ''}{formatCurrency(c.commission_amount)}
+                  <span
+                    className={`text-sm font-medium ${c.direction === 'negative' ? 'text-red-400' : 'text-emerald-400'}`}
+                  >
+                    {c.direction === 'negative' ? '-' : ''}
+                    {formatCurrency(c.commission_amount)}
                   </span>
                   {c.sale_id ? (
                     <Link

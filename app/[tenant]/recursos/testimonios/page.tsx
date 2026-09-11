@@ -1,24 +1,24 @@
-"use client"
+'use client'
 
-import { useCallback, useEffect, useMemo, useState } from "react"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { cn } from "@/lib/utils"
-import { Award, Copy, Loader2, PlayCircle, Check, X, Pencil, AlertTriangle, Plus } from "lucide-react"
-import { toast } from "sonner"
-import { testimonioPitch, youtubeThumb, type Testimonio } from "@/lib/testimonios-shared"
-import { NuevoTestimonioDialog } from "@/components/testimonios/NuevoTestimonioDialog"
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
+import { Award, Copy, Loader2, PlayCircle, Check, X, Pencil, AlertTriangle, Plus } from 'lucide-react'
+import { toast } from 'sonner'
+import { testimonioPitch, youtubeThumb, type Testimonio } from '@/lib/testimonios-shared'
+import { NuevoTestimonioDialog } from '@/components/testimonios/NuevoTestimonioDialog'
 import { useTenant } from '@/lib/tenant-context'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 
-type Filter = "todos" | "con-cifras" | "proceso" | "sin-video"
+type Filter = 'todos' | 'con-cifras' | 'proceso' | 'sin-video'
 
 const FILTERS: { key: Filter; label: string }[] = [
-  { key: "todos", label: "Todos" },
-  { key: "con-cifras", label: "Con cifras" },
-  { key: "proceso", label: "De proceso" },
-  { key: "sin-video", label: "Sin vídeo" },
+  { key: 'todos', label: 'Todos' },
+  { key: 'con-cifras', label: 'Con cifras' },
+  { key: 'proceso', label: 'De proceso' },
+  { key: 'sin-video', label: 'Sin vídeo' },
 ]
 
 export default function TestimoniosPage() {
@@ -26,22 +26,22 @@ export default function TestimoniosPage() {
   const [items, setItems] = useState<Testimonio[]>([])
   const [canWrite, setCanWrite] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [q, setQ] = useState("")
-  const [filter, setFilter] = useState<Filter>("todos")
+  const [q, setQ] = useState('')
+  const [filter, setFilter] = useState<Filter>('todos')
   const [editing, setEditing] = useState<string | null>(null)
-  const [draftUrl, setDraftUrl] = useState("")
+  const [draftUrl, setDraftUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const [nuevoOpen, setNuevoOpen] = useState(false)
 
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/${tenant}/evergreen/testimonios`)
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Error")
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Error')
       const json = await res.json()
       setItems(json.testimonios || [])
       setCanWrite(!!json.canWrite)
     } catch (e) {
-      toast.error("No se pudieron cargar los testimonios: " + (e as Error).message)
+      toast.error('No se pudieron cargar los testimonios: ' + (e as Error).message)
     } finally {
       setLoading(false)
     }
@@ -54,9 +54,9 @@ export default function TestimoniosPage() {
   const shown = useMemo(() => {
     const needle = normalizeText(q.trim())
     return items.filter((t) => {
-      if (filter === "con-cifras" && !t.hasRevenue) return false
-      if (filter === "proceso" && t.hasRevenue) return false
-      if (filter === "sin-video" && t.youtubeUrl) return false
+      if (filter === 'con-cifras' && !t.hasRevenue) return false
+      if (filter === 'proceso' && t.hasRevenue) return false
+      if (filter === 'sin-video' && t.youtubeUrl) return false
       if (!needle) return true
       return [t.name, t.avatar, t.sector, t.hook, t.puntoA, t.puntoB, t.vehiculo, t.cifra]
         .filter(Boolean)
@@ -75,15 +75,15 @@ export default function TestimoniosPage() {
     setSaving(true)
     try {
       const res = await fetch(`/api/${tenant}/evergreen/testimonios/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ youtubeUrl: draftUrl.trim() }),
       })
       const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json.error || "Error al guardar")
+      if (!res.ok) throw new Error(json.error || 'Error al guardar')
       setItems((prev) => prev.map((t) => (t.id === id ? json.testimonio : t)))
       setEditing(null)
-      toast.success("Enlace guardado")
+      toast.success('Enlace guardado')
     } catch (e) {
       toast.error((e as Error).message)
     } finally {
@@ -100,8 +100,8 @@ export default function TestimoniosPage() {
             Testimonios
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Casos de éxito con foto, vídeo y la historia de cambio. Para tenerlos a mano en llamada
-            y para añadir prueba social a los guiones.
+            Casos de éxito con foto, vídeo y la historia de cambio. Para tenerlos a mano en llamada y para añadir prueba
+            social a los guiones.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -120,14 +120,14 @@ export default function TestimoniosPage() {
             key={f.key}
             onClick={() => setFilter(f.key)}
             className={cn(
-              "px-3 py-1.5 rounded-md text-xs font-medium border transition-colors",
+              'px-3 py-1.5 rounded-md text-xs font-medium border transition-colors',
               filter === f.key
-                ? "border-brand-400 bg-brand-600/10 text-brand-300"
-                : "border-border text-muted-foreground hover:text-foreground"
+                ? 'border-brand-400 bg-brand-600/10 text-brand-300'
+                : 'border-border text-muted-foreground hover:text-foreground'
             )}
           >
             {f.label}
-            {f.key === "sin-video" && sinVideo > 0 && (
+            {f.key === 'sin-video' && sinVideo > 0 && (
               <span className="ml-1.5 text-[10px] text-muted-foreground">({sinVideo})</span>
             )}
           </button>
@@ -174,7 +174,7 @@ export default function TestimoniosPage() {
                       Sin cifras · proceso
                     </span>
                   )}
-                  {t.kind === "cliente" && (
+                  {t.kind === 'cliente' && (
                     <span className="absolute top-2 right-2 px-2 py-1 rounded-md bg-card/90 border border-border text-[10px] font-medium text-muted-foreground">
                       Cliente, no alumno
                     </span>
@@ -190,13 +190,11 @@ export default function TestimoniosPage() {
                       {t.name}
                     </Link>
                     <p className="text-[11px] text-muted-foreground">
-                      {[t.avatar, t.sector].filter(Boolean).join(" · ")}
+                      {[t.avatar, t.sector].filter(Boolean).join(' · ')}
                     </p>
                   </div>
 
-                  {t.cifra && (
-                    <p className="text-xs text-brand-300 font-medium leading-snug">{t.cifra}</p>
-                  )}
+                  {t.cifra && <p className="text-xs text-brand-300 font-medium leading-snug">{t.cifra}</p>}
 
                   <div className="text-[11px] text-muted-foreground space-y-1 leading-relaxed">
                     {t.puntoA && (
@@ -225,14 +223,14 @@ export default function TestimoniosPage() {
                       <Award className="h-3 w-3" /> Ficha
                     </Link>
                     <button
-                      onClick={() => copy(testimonioPitch(t), "Testimonio copiado")}
+                      onClick={() => copy(testimonioPitch(t), 'Testimonio copiado')}
                       className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground"
                     >
                       <Copy className="h-3 w-3" /> Copiar
                     </button>
                     {t.youtubeUrl ? (
                       <button
-                        onClick={() => copy(t.youtubeUrl!, "Enlace copiado")}
+                        onClick={() => copy(t.youtubeUrl!, 'Enlace copiado')}
                         className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground"
                       >
                         <PlayCircle className="h-3 w-3" /> Enlace
@@ -244,11 +242,11 @@ export default function TestimoniosPage() {
                       <button
                         onClick={() => {
                           setEditing(t.id)
-                          setDraftUrl(t.youtubeUrl || "")
+                          setDraftUrl(t.youtubeUrl || '')
                         }}
                         className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground ml-auto"
                       >
-                        <Pencil className="h-3 w-3" /> {t.youtubeUrl ? "Cambiar" : "Añadir vídeo"}
+                        <Pencil className="h-3 w-3" /> {t.youtubeUrl ? 'Cambiar' : 'Añadir vídeo'}
                       </button>
                     )}
                   </div>
@@ -262,8 +260,8 @@ export default function TestimoniosPage() {
                         className="h-8 text-xs"
                         autoFocus
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") saveUrl(t.id)
-                          if (e.key === "Escape") setEditing(null)
+                          if (e.key === 'Enter') saveUrl(t.id)
+                          if (e.key === 'Escape') setEditing(null)
                         }}
                       />
                       <button

@@ -1,9 +1,9 @@
-"use client"
+'use client'
 
-import { useMemo, useRef, useEffect, useState, useCallback } from "react"
-import { wrapSlideHtml } from "@/lib/carruseles/slide-html"
-import type { AspectRatio } from "@/lib/carruseles/types"
-import { DIMENSIONS } from "@/lib/carruseles/types"
+import { useMemo, useRef, useEffect, useState, useCallback } from 'react'
+import { wrapSlideHtml } from '@/lib/carruseles/slide-html'
+import type { AspectRatio } from '@/lib/carruseles/types'
+import { DIMENSIONS } from '@/lib/carruseles/types'
 
 interface SlideRendererProps {
   html: string
@@ -43,18 +43,18 @@ export function SlideRenderer({ html, aspectRatio, className, style }: SlideRend
     <div
       ref={outerRef}
       className={className}
-      style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", ...style }}
+      style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', ...style }}
     >
       {scale > 0 && (
         <div
           style={{
             width: scaledW,
             height: scaledH,
-            overflow: "hidden",
+            overflow: 'hidden',
             borderRadius: 10,
-            position: "relative",
-            boxShadow: "0 8px 30px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.2)",
-            border: "1px solid rgba(255,255,255,0.08)",
+            position: 'relative',
+            boxShadow: '0 8px 30px rgba(0,0,0,0.35), 0 1px 4px rgba(0,0,0,0.2)',
+            border: '1px solid rgba(255,255,255,0.08)',
           }}
         >
           <iframe
@@ -64,13 +64,13 @@ export function SlideRenderer({ html, aspectRatio, className, style }: SlideRend
             style={{
               width: slideW,
               height: slideH,
-              border: "none",
+              border: 'none',
               transform: `scale(${scale})`,
-              transformOrigin: "top left",
-              position: "absolute",
+              transformOrigin: 'top left',
+              position: 'absolute',
               top: 0,
               left: 0,
-              pointerEvents: "none",
+              pointerEvents: 'none',
             }}
           />
         </div>

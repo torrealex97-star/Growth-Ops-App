@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
@@ -10,14 +10,7 @@ import {
   createColumnHelper,
   type SortingState,
 } from '@tanstack/react-table'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ExternalLink, Trash2 } from 'lucide-react'
@@ -59,142 +52,147 @@ export function SalesTable({ sales, sorting = [], onSortingChange, isAdmin = fal
   const tenant = useTenant()
   const router = useRouter()
 
-  const handleDelete = useCallback(async (e: React.MouseEvent, saleId: string) => {
-    e.stopPropagation()
-    if (!confirm('¿Eliminar esta venta? Esta acción no se puede deshacer. La agenda enlazada NO se borra.')) return
-    // Server-side: borra comisiones/devoluciones/cobros y desenlaza contratos/eventos CSM/bajas
-    // en el orden correcto (el delete directo desde el cliente fallaba por violación de FK en
-    // cuanto la venta tenía algo colgando — cobro, comisión, contrato...).
-    const res = await fetch(`/api/${tenant}/evergreen/sales/delete`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ saleId }),
-    })
-    const data = await res.json()
-    if (!res.ok) { toast.error(data.error || 'Error al eliminar'); return }
-    toast.success('Venta eliminada')
-    onDeleted?.(saleId)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, onDeleted])
+  const handleDelete = useCallback(
+    async (e: React.MouseEvent, saleId: string) => {
+      e.stopPropagation()
+      if (!confirm('¿Eliminar esta venta? Esta acción no se puede deshacer. La agenda enlazada NO se borra.')) return
+      // Server-side: borra comisiones/devoluciones/cobros y desenlaza contratos/eventos CSM/bajas
+      // en el orden correcto (el delete directo desde el cliente fallaba por violación de FK en
+      // cuanto la venta tenía algo colgando — cobro, comisión, contrato...).
+      const res = await fetch(`/api/${tenant}/evergreen/sales/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ saleId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || 'Error al eliminar')
+        return
+      }
+      toast.success('Venta eliminada')
+      onDeleted?.(saleId)
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [isAdmin, onDeleted]
+  )
 
-  const columns = useMemo(() => [
-    columnHelper.accessor('sale_date', {
-      header: 'Fecha',
-      cell: ({ getValue }) => (
-        <span className="text-foreground text-sm">{formatDate(getValue())}</span>
-      ),
-    }),
-    columnHelper.display({
-      id: 'contact',
-      header: 'Contacto',
-      cell: ({ row }) => {
-        const c = row.original.contacts as { full_name?: string | null; email?: string | null; phone?: string | null } | null
-        const contactInfo = [c?.email, c?.phone].filter(Boolean).join(' · ')
-        return (
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <button
-                className="text-brand-400 hover:text-brand-300 text-sm font-medium truncate"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  router.push(`/${tenant}/crm/contactos/${row.original.contact_id}`)
-                }}
-              >
-                {c?.full_name || '—'}
-              </button>
-              {(row.original as { attribution_conflict?: boolean }).attribution_conflict && (
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/40" title="Conflicto de atribución: revisar quién se lleva la comisión">
-                  ⚠ atrib.
-                </span>
-              )}
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor('sale_date', {
+        header: 'Fecha',
+        cell: ({ getValue }) => <span className="text-foreground text-sm">{formatDate(getValue())}</span>,
+      }),
+      columnHelper.display({
+        id: 'contact',
+        header: 'Contacto',
+        cell: ({ row }) => {
+          const c = row.original.contacts as {
+            full_name?: string | null
+            email?: string | null
+            phone?: string | null
+          } | null
+          const contactInfo = [c?.email, c?.phone].filter(Boolean).join(' · ')
+          return (
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <button
+                  className="text-brand-400 hover:text-brand-300 text-sm font-medium truncate"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    router.push(`/${tenant}/crm/contactos/${row.original.contact_id}`)
+                  }}
+                >
+                  {c?.full_name || '—'}
+                </button>
+                {(row.original as { attribution_conflict?: boolean }).attribution_conflict && (
+                  <span
+                    className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/40"
+                    title="Conflicto de atribución: revisar quién se lleva la comisión"
+                  >
+                    ⚠ atrib.
+                  </span>
+                )}
+              </div>
+              {contactInfo && <div className="text-xs text-muted-foreground truncate">{contactInfo}</div>}
             </div>
-            {contactInfo && <div className="text-xs text-muted-foreground truncate">{contactInfo}</div>}
-          </div>
-        )
-      },
-    }),
-    columnHelper.display({
-      id: 'plan',
-      header: 'Plan de Pago',
-      cell: ({ row }) => (
-        <span className="text-foreground text-sm">{row.original.payment_plans?.name || '—'}</span>
-      ),
-    }),
-    columnHelper.accessor('gross_amount', {
-      header: 'Importe Bruto',
-      cell: ({ getValue }) => (
-        <span className="text-foreground font-medium">{formatCurrency(getValue())}</span>
-      ),
-    }),
-    columnHelper.accessor('expected_commissionable_amount', {
-      header: 'Comisionable',
-      cell: ({ getValue }) => (
-        <span className="text-muted-foreground text-sm">{formatCurrency(getValue())}</span>
-      ),
-    }),
-    columnHelper.display({
-      id: 'setter',
-      header: 'Setter',
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">{row.original.setter?.full_name || '—'}</span>
-      ),
-    }),
-    columnHelper.display({
-      id: 'closer',
-      header: 'Closer',
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">{row.original.closer?.full_name || '—'}</span>
-      ),
-    }),
-    columnHelper.accessor('status', {
-      header: 'Estado',
-      cell: ({ getValue }) => {
-        const s = getValue()
-        return (
-          <Badge className={`border text-xs ${STATUS_COLORS[s]}`}>
-            {STATUS_LABELS[s]}
-          </Badge>
-        )
-      },
-    }),
-    columnHelper.display({
-      id: 'actions',
-      header: 'Acciones',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 text-brand-400 hover:text-brand-300"
-            onClick={(e) => {
-              e.stopPropagation()
-              router.push(`/${tenant}/ventas/registro/${row.original.id}`)
-            }}
-          >
-            <ExternalLink className="w-3 h-3 mr-1" />
-            Ver
-          </Button>
-          {isAdmin && (
+          )
+        },
+      }),
+      columnHelper.display({
+        id: 'plan',
+        header: 'Plan de Pago',
+        cell: ({ row }) => <span className="text-foreground text-sm">{row.original.payment_plans?.name || '—'}</span>,
+      }),
+      columnHelper.accessor('gross_amount', {
+        header: 'Importe Bruto',
+        cell: ({ getValue }) => <span className="text-foreground font-medium">{formatCurrency(getValue())}</span>,
+      }),
+      columnHelper.accessor('expected_commissionable_amount', {
+        header: 'Comisionable',
+        cell: ({ getValue }) => <span className="text-muted-foreground text-sm">{formatCurrency(getValue())}</span>,
+      }),
+      columnHelper.display({
+        id: 'setter',
+        header: 'Setter',
+        cell: ({ row }) => (
+          <span className="text-muted-foreground text-sm">{row.original.setter?.full_name || '—'}</span>
+        ),
+      }),
+      columnHelper.display({
+        id: 'closer',
+        header: 'Closer',
+        cell: ({ row }) => (
+          <span className="text-muted-foreground text-sm">{row.original.closer?.full_name || '—'}</span>
+        ),
+      }),
+      columnHelper.accessor('status', {
+        header: 'Estado',
+        cell: ({ getValue }) => {
+          const s = getValue()
+          return <Badge className={`border text-xs ${STATUS_COLORS[s]}`}>{STATUS_LABELS[s]}</Badge>
+        },
+      }),
+      columnHelper.display({
+        id: 'actions',
+        header: 'Acciones',
+        cell: ({ row }) => (
+          <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 text-red-400 hover:text-red-300 hover:bg-red-500/10"
-              onClick={(e) => handleDelete(e, row.original.id)}
+              className="h-8 text-brand-400 hover:text-brand-300"
+              onClick={(e) => {
+                e.stopPropagation()
+                router.push(`/${tenant}/ventas/registro/${row.original.id}`)
+              }}
             >
-              <Trash2 className="w-3 h-3" />
+              <ExternalLink className="w-3 h-3 mr-1" />
+              Ver
             </Button>
-          )}
-        </div>
-      ),
-    }),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [isAdmin, handleDelete])
+            {isAdmin && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                onClick={(e) => handleDelete(e, row.original.id)}
+              >
+                <Trash2 className="w-3 h-3" />
+              </Button>
+            )}
+          </div>
+        ),
+      }),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    ],
+    [isAdmin, handleDelete]
+  )
 
   const table = useReactTable({
     data: sales,
     columns,
     state: { sorting },
-    onSortingChange: onSortingChange as ((updater: SortingState | ((old: SortingState) => SortingState)) => void) | undefined,
+    onSortingChange: onSortingChange as
+      ((updater: SortingState | ((old: SortingState) => SortingState)) => void) | undefined,
     getCoreRowModel: coreRowModel,
     getSortedRowModel: sortedRowModel,
   })
@@ -228,9 +226,7 @@ export function SalesTable({ sales, sorting = [], onSortingChange, isAdmin = fal
                 onClick={() => router.push(`/${tenant}/ventas/registro/${row.original.id}`)}
               >
                 {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
+                  <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
                 ))}
               </TableRow>
             ))

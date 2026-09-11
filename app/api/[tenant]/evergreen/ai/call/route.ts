@@ -13,14 +13,17 @@ function driveFileId(url: string): string | null {
   return m ? m[1] : null
 }
 
-const NOT_PUBLIC = "El archivo de Drive no es público. En Drive: botón 'Compartir' → 'Cualquiera con el enlace' → 'Lector', y reintenta."
+const NOT_PUBLIC =
+  "El archivo de Drive no es público. En Drive: botón 'Compartir' → 'Cualquiera con el enlace' → 'Lector', y reintenta."
 
 async function downloadFromDrive(fileId: string): Promise<{ buf: Buffer; type: string }> {
   const isBinary = (ct: string) => ct && !ct.includes('text/html') && !ct.includes('application/json')
 
   // 1) Google Drive API con API key (si está configurada) — lo más fiable para archivos públicos
   if (process.env.GOOGLE_API_KEY) {
-    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${process.env.GOOGLE_API_KEY}`)
+    const r = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${process.env.GOOGLE_API_KEY}`
+    )
     const ct = r.headers.get('content-type') || ''
     if (r.ok && isBinary(ct)) return { buf: Buffer.from(await r.arrayBuffer()), type: ct }
   }
@@ -54,7 +57,14 @@ async function downloadFromDrive(fileId: string): Promise<{ buf: Buffer; type: s
 async function transcribeGroq(buf: Buffer, mime: string): Promise<string> {
   if (!process.env.GROQ_API_KEY) throw new Error('Falta GROQ_API_KEY')
   const form = new FormData()
-  const ext = mime.includes('mp4') || mime.includes('video') ? 'mp4' : mime.includes('wav') ? 'wav' : mime.includes('m4a') ? 'm4a' : 'mp3'
+  const ext =
+    mime.includes('mp4') || mime.includes('video')
+      ? 'mp4'
+      : mime.includes('wav')
+        ? 'wav'
+        : mime.includes('m4a')
+          ? 'm4a'
+          : 'mp3'
   form.append('file', new Blob([new Uint8Array(buf)], { type: mime }), `call.${ext}`)
   form.append('model', 'whisper-large-v3-turbo')
   form.append('language', 'es')
@@ -97,35 +107,57 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (!transcript && driveUrl) {
       const fileId = driveFileId(driveUrl)
       if (!fileId) return NextResponse.json({ error: 'Enlace de Drive no válido' }, { status: 400 })
-      await sb.from('appointments').update({ transcript_status: 'procesando', transcript_drive_url: driveUrl }).eq('id', appointmentId).eq('tenant_id', t.tenantId)
+      await sb
+        .from('appointments')
+        .update({ transcript_status: 'procesando', transcript_drive_url: driveUrl })
+        .eq('id', appointmentId)
+        .eq('tenant_id', t.tenantId)
       const { buf, type } = await downloadFromDrive(fileId)
       if (buf.byteLength > GROQ_LIMIT_BYTES) {
-        await sb.from('appointments').update({ transcript_status: 'error' }).eq('id', appointmentId).eq('tenant_id', t.tenantId)
-        return NextResponse.json({
-          error: `El archivo pesa ${(buf.byteLength / 1024 / 1024).toFixed(1)}MB y supera el límite de 25MB de la transcripción gratuita. Sube solo el audio (mp3) o activa la transcripción de Meet y pega el texto.`,
-        }, { status: 413 })
+        await sb
+          .from('appointments')
+          .update({ transcript_status: 'error' })
+          .eq('id', appointmentId)
+          .eq('tenant_id', t.tenantId)
+        return NextResponse.json(
+          {
+            error: `El archivo pesa ${(buf.byteLength / 1024 / 1024).toFixed(1)}MB y supera el límite de 25MB de la transcripción gratuita. Sube solo el audio (mp3) o activa la transcripción de Meet y pega el texto.`,
+          },
+          { status: 413 }
+        )
       }
       transcript = await transcribeGroq(buf, type)
-      await sb.from('appointments').update({ transcript, transcript_status: 'listo' }).eq('id', appointmentId).eq('tenant_id', t.tenantId)
+      await sb
+        .from('appointments')
+        .update({ transcript, transcript_status: 'listo' })
+        .eq('id', appointmentId)
+        .eq('tenant_id', t.tenantId)
     }
     if (!transcript || transcript.trim().length < 20) {
-      return NextResponse.json({ error: 'No hay transcripción (pega el texto o un enlace de Drive válido)' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'No hay transcripción (pega el texto o un enlace de Drive válido)' },
+        { status: 400 }
+      )
     }
 
     // 2) Análisis IA
-    const contact = (appt.contacts as { id?: string; full_name?: string } | null)
+    const contact = appt.contacts as { id?: string; full_name?: string } | null
     const analysis = await analyzeCall(transcript, { leadName: contact?.full_name })
 
-    await sb.from('appointments').update({
-      transcript,
-      transcript_status: 'listo',
-      ai_call_score: analysis.call_score,
-      ai_lead_score: analysis.lead_score,
-      ai_suggested_stage: analysis.suggested_stage,
-      ai_summary: analysis.summary,
-      ai_analysis: { objections: analysis.objections, next_steps: analysis.next_steps },
-      ai_analyzed_at: new Date().toISOString(),
-    }).eq('id', appointmentId).eq('tenant_id', t.tenantId)
+    await sb
+      .from('appointments')
+      .update({
+        transcript,
+        transcript_status: 'listo',
+        ai_call_score: analysis.call_score,
+        ai_lead_score: analysis.lead_score,
+        ai_suggested_stage: analysis.suggested_stage,
+        ai_summary: analysis.summary,
+        ai_analysis: { objections: analysis.objections, next_steps: analysis.next_steps },
+        ai_analyzed_at: new Date().toISOString(),
+      })
+      .eq('id', appointmentId)
+      .eq('tenant_id', t.tenantId)
 
     // 3) Generación automática de tareas: DESACTIVADA temporalmente.
     // (Pendiente de entrenar qué tareas deben salir tras una venta/llamada.)

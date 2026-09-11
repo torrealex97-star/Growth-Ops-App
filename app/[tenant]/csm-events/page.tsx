@@ -57,36 +57,37 @@ export default function CsmEventsPage() {
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
 
-  const range = useMemo(
-    () => getPeriodRange(periodPreset, customFrom, customTo),
-    [periodPreset, customFrom, customTo]
-  )
+  const range = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
 
-  const filteredItems = useMemo(
-    () => items.filter((e) => inPeriod(e.event_datetime, range)),
-    [items, range]
-  )
+  const filteredItems = useMemo(() => items.filter((e) => inPeriod(e.event_datetime, range)), [items, range])
 
   const [q, setQ] = useState('')
   const visibleItems = useMemo(() => {
     const nq = normalizeText(q.trim())
     if (!nq) return filteredItems
-    return filteredItems.filter((e) =>
-      normalizeText(e.contacts?.full_name || '').includes(nq) ||
-      normalizeText(e.csm?.full_name || '').includes(nq)
+    return filteredItems.filter(
+      (e) =>
+        normalizeText(e.contacts?.full_name || '').includes(nq) || normalizeText(e.csm?.full_name || '').includes(nq)
     )
   }, [filteredItems, q])
 
   const load = async () => {
     const supabase = createClient()
     const [eRes, uRes] = await Promise.all([
-      supabase.from('csm_events').select('*, contacts(full_name), csm:csm_id(full_name)').order('event_datetime', { ascending: false }),
+      supabase
+        .from('csm_events')
+        .select('*, contacts(full_name), csm:csm_id(full_name)')
+        .order('event_datetime', { ascending: false }),
       supabase.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
     ])
     setItems((eRes.data as CsmEventRow[]) || [])
     setCsmUsers((uRes.data as DbUser[]) || [])
 
-    let { data: cData } = await supabase.from('contacts').select('id, full_name').eq('lead_status', 'cliente').order('full_name')
+    let { data: cData } = await supabase
+      .from('contacts')
+      .select('id, full_name')
+      .eq('lead_status', 'cliente')
+      .order('full_name')
     if (!cData || cData.length === 0) {
       const fallback = await supabase.from('contacts').select('id, full_name').order('full_name').limit(200)
       cData = fallback.data
@@ -95,7 +96,9 @@ export default function CsmEventsPage() {
 
     setLoading(false)
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+  }, [])
 
   const move = async (id: string, status: string) => {
     setItems((prev) => prev.map((e) => (e.id === id ? { ...e, status } : e)))
@@ -105,10 +108,18 @@ export default function CsmEventsPage() {
   }
 
   const create = async () => {
-    if (!ne.contact_id) { toast.error('Selecciona un alumno'); return }
-    if (!ne.event_datetime) { toast.error('Selecciona fecha y hora'); return }
+    if (!ne.contact_id) {
+      toast.error('Selecciona un alumno')
+      return
+    }
+    if (!ne.event_datetime) {
+      toast.error('Selecciona fecha y hora')
+      return
+    }
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
     const { error } = await supabase.from('csm_events').insert({
       contact_id: ne.contact_id,
       csm_id: ne.csm_id || null,
@@ -118,9 +129,14 @@ export default function CsmEventsPage() {
       status: 'agendado',
       created_by: user?.id,
     })
-    if (error) { toast.error('Error al crear', { description: error.message }); return }
-    toast.success('Evento creado'); setShowNew(false)
-    setNe({ contact_id: '', csm_id: '', type: 'onboarding', event_datetime: '', notes: '' }); load()
+    if (error) {
+      toast.error('Error al crear', { description: error.message })
+      return
+    }
+    toast.success('Evento creado')
+    setShowNew(false)
+    setNe({ contact_id: '', csm_id: '', type: 'onboarding', event_datetime: '', notes: '' })
+    load()
   }
 
   const kpis = useMemo(() => {
@@ -131,9 +147,8 @@ export default function CsmEventsPage() {
     })
     const completados = filteredItems.filter((e) => e.status === 'completado')
     const noShows = filteredItems.filter((e) => e.status === 'no_show')
-    const showRate = completados.length + noShows.length > 0
-      ? (completados.length / (completados.length + noShows.length)) * 100
-      : 0
+    const showRate =
+      completados.length + noShows.length > 0 ? (completados.length / (completados.length + noShows.length)) * 100 : 0
     const gradesArr = completados.filter((e) => e.grade != null).map((e) => e.grade as number)
     const avgGrade = gradesArr.length > 0 ? gradesArr.reduce((a, b) => a + b, 0) / gradesArr.length : 0
     const exitosos = completados.filter((e) => e.success === 'si')
@@ -160,7 +175,7 @@ export default function CsmEventsPage() {
     const pctCancelAlumno = booked > 0 ? (canceladosAlumno / booked) * 100 : 0
 
     const noShows = filteredItems.filter((e) => e.status === 'no_show').length
-    const pctShowRate = (live + noShows) > 0 ? (live / (live + noShows)) * 100 : 0
+    const pctShowRate = live + noShows > 0 ? (live / (live + noShows)) * 100 : 0
 
     const agendados = filteredItems.filter((e) => e.status === 'agendado').length
     const confirmados = filteredItems.filter((e) => e.status === 'confirmado').length
@@ -190,12 +205,17 @@ export default function CsmEventsPage() {
     <div className="p-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2"><CalendarCheck className="w-6 h-6 text-brand-400" /> Eventos CSM</h1>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <CalendarCheck className="w-6 h-6 text-brand-400" /> Eventos CSM
+          </h1>
           <p className="text-muted-foreground text-sm mt-1">Onboarding, coaching, revisiones y graduación de alumnos</p>
         </div>
         <div className="flex items-center gap-3">
           <SearchBox value={q} onChange={setQ} placeholder="Buscar alumno o CSM..." className="w-64" />
-          <button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-500 whitespace-nowrap">
+          <button
+            onClick={() => setShowNew(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-500 whitespace-nowrap"
+          >
             <Plus className="w-4 h-4" /> Nuevo evento
           </button>
         </div>
@@ -208,7 +228,12 @@ export default function CsmEventsPage() {
         customTo={customTo}
         onCustomFromChange={setCustomFrom}
         onCustomToChange={setCustomTo}
-        onClear={() => { setPeriodPreset('all'); setCustomFrom(''); setCustomTo(''); setQ('') }}
+        onClear={() => {
+          setPeriodPreset('all')
+          setCustomFrom('')
+          setCustomTo('')
+          setQ('')
+        }}
         hasActiveFilters={periodPreset !== 'all' || q.trim() !== ''}
       />
 
@@ -249,7 +274,9 @@ export default function CsmEventsPage() {
           <div className="bg-card/50 border border-border rounded-lg p-4">
             <p className="text-xs text-muted-foreground">%Cancel(E)</p>
             <p className="text-2xl font-bold text-foreground mt-1">{funnelKpis.pctCancelTotal.toFixed(0)}%</p>
-            <p className="text-[10px] text-muted-foreground mt-1">Admin {funnelKpis.pctCancelAdmin.toFixed(0)}% · Alumno {funnelKpis.pctCancelAlumno.toFixed(0)}%</p>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Admin {funnelKpis.pctCancelAdmin.toFixed(0)}% · Alumno {funnelKpis.pctCancelAlumno.toFixed(0)}%
+            </p>
           </div>
           <div className="bg-card/50 border border-border rounded-lg p-4">
             <p className="text-xs text-muted-foreground">%Show Rate(E)</p>
@@ -275,7 +302,11 @@ export default function CsmEventsPage() {
       ) : visibleItems.length === 0 ? (
         <div className="bg-card/50 border border-border rounded-lg p-10 text-center">
           <CalendarCheck className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground text-sm">{filteredItems.length === 0 ? 'Aún no hay eventos CSM registrados.' : 'Ningún evento coincide con la búsqueda.'}</p>
+          <p className="text-muted-foreground text-sm">
+            {filteredItems.length === 0
+              ? 'Aún no hay eventos CSM registrados.'
+              : 'Ningún evento coincide con la búsqueda.'}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
@@ -292,14 +323,27 @@ export default function CsmEventsPage() {
                     <div key={e.id} className="bg-card border border-border rounded-lg p-3 space-y-2">
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm text-foreground leading-snug">{e.contacts?.full_name || '—'}</p>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">{TYPES.find((t) => t.value === e.type)?.label}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                          {TYPES.find((t) => t.value === e.type)?.label}
+                        </span>
                       </div>
                       {e.csm?.full_name && <p className="text-xs text-muted-foreground">CSM: {e.csm.full_name}</p>}
-                      <p className="text-xs text-muted-foreground">📅 {new Date(e.event_datetime).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}</p>
+                      <p className="text-xs text-muted-foreground">
+                        📅{' '}
+                        {new Date(e.event_datetime).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}
+                      </p>
                       {e.grade != null && <p className="text-xs text-muted-foreground">Grade: {e.grade}/10</p>}
                       {e.notes && <p className="text-xs text-muted-foreground line-clamp-2">{e.notes}</p>}
-                      <select value={e.status} onChange={(ev) => move(e.id, ev.target.value)} className="w-full text-xs rounded border border-border bg-muted text-foreground px-2 py-1">
-                        {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                      <select
+                        value={e.status}
+                        onChange={(ev) => move(e.id, ev.target.value)}
+                        className="w-full text-xs rounded border border-border bg-muted text-foreground px-2 py-1"
+                      >
+                        {STATUSES.map((s) => (
+                          <option key={s.value} value={s.value}>
+                            {s.label}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   ))}
@@ -312,30 +356,69 @@ export default function CsmEventsPage() {
       )}
 
       {showNew && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowNew(false)}>
-          <div className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setShowNew(false)}
+        >
+          <div
+            className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between">
               <h3 className="text-foreground font-semibold">Nuevo evento CSM</h3>
-              <button onClick={() => setShowNew(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+              <button onClick={() => setShowNew(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <select value={ne.contact_id} onChange={(e) => setNe({ ...ne, contact_id: e.target.value })} className={cls}>
+            <select
+              value={ne.contact_id}
+              onChange={(e) => setNe({ ...ne, contact_id: e.target.value })}
+              className={cls}
+            >
               <option value="">— selecciona alumno —</option>
-              {contacts.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+              {contacts.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.full_name}
+                </option>
+              ))}
             </select>
             <div className="grid grid-cols-2 gap-3">
               <select value={ne.csm_id} onChange={(e) => setNe({ ...ne, csm_id: e.target.value })} className={cls}>
                 <option value="">— CSM —</option>
-                {csmUsers.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                {csmUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.full_name}
+                  </option>
+                ))}
               </select>
               <select value={ne.type} onChange={(e) => setNe({ ...ne, type: e.target.value })} className={cls}>
-                {TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                {TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
               </select>
             </div>
-            <input type="datetime-local" value={ne.event_datetime} onChange={(e) => setNe({ ...ne, event_datetime: e.target.value })} className={cls} />
-            <textarea value={ne.notes} onChange={(e) => setNe({ ...ne, notes: e.target.value })} rows={2} placeholder="Notas" className={cls} />
+            <input
+              type="datetime-local"
+              value={ne.event_datetime}
+              onChange={(e) => setNe({ ...ne, event_datetime: e.target.value })}
+              className={cls}
+            />
+            <textarea
+              value={ne.notes}
+              onChange={(e) => setNe({ ...ne, notes: e.target.value })}
+              rows={2}
+              placeholder="Notas"
+              className={cls}
+            />
             <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setShowNew(false)} className="px-3 py-2 text-sm text-muted-foreground">Cancelar</button>
-              <button onClick={create} className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg">Crear</button>
+              <button onClick={() => setShowNew(false)} className="px-3 py-2 text-sm text-muted-foreground">
+                Cancelar
+              </button>
+              <button onClick={create} className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg">
+                Crear
+              </button>
             </div>
           </div>
         </div>
@@ -344,4 +427,5 @@ export default function CsmEventsPage() {
   )
 }
 
-const cls = 'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500'
+const cls =
+  'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500'

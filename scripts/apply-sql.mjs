@@ -10,8 +10,14 @@ for (const line of readFileSync(new URL('../.env.local', import.meta.url), 'utf8
 }
 
 const file = process.argv[2]
-if (!file) { console.error('Uso: node scripts/apply-sql.mjs <fichero.sql>'); process.exit(1) }
-if (!env.POSTGRES_URL) { console.error('Falta POSTGRES_URL en .env.local'); process.exit(1) }
+if (!file) {
+  console.error('Uso: node scripts/apply-sql.mjs <fichero.sql>')
+  process.exit(1)
+}
+if (!env.POSTGRES_URL) {
+  console.error('Falta POSTGRES_URL en .env.local')
+  process.exit(1)
+}
 
 const sqlText = readFileSync(new URL(`../scripts/${file}`, import.meta.url), 'utf8')
 const sql = postgres(env.POSTGRES_URL, { ssl: 'require', max: 1, prepare: false, idle_timeout: 20 })

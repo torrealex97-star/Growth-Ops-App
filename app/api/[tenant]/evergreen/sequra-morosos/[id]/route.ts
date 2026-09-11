@@ -33,7 +33,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 })
     }
 
-    const { error } = await sb.from('sequra_delinquent_customers').update(fields).eq('id', id).eq('tenant_id', t.tenantId)
+    const { error } = await sb
+      .from('sequra_delinquent_customers')
+      .update(fields)
+      .eq('id', id)
+      .eq('tenant_id', t.tenantId)
     if (error) throw new Error(error.message)
 
     return NextResponse.json({ ok: true })

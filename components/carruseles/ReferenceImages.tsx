@@ -1,9 +1,9 @@
-"use client"
+'use client'
 
-import { useRef, useState } from "react"
-import { ImagePlus, X, Loader2 } from "lucide-react"
-import { toast } from "sonner"
-import type { ReferenceImage } from "@/lib/carruseles/types"
+import { useRef, useState } from 'react'
+import { ImagePlus, X, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
+import type { ReferenceImage } from '@/lib/carruseles/types'
 import { useTenant } from '@/lib/tenant-context'
 
 interface Props {
@@ -21,21 +21,21 @@ export function ReferenceImages({ projectId, images, onChange }: Props) {
     setUploading(true)
     try {
       const fd = new FormData()
-      fd.append("file", file)
-      fd.append("projectId", projectId)
-      fd.append("purpose", "reference")
-      const res = await fetch(`/api/${tenant}/evergreen/carruseles/upload`, { method: "POST", body: fd })
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Error")
+      fd.append('file', file)
+      fd.append('projectId', projectId)
+      fd.append('purpose', 'reference')
+      const res = await fetch(`/api/${tenant}/evergreen/carruseles/upload`, { method: 'POST', body: fd })
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Error')
       onChange()
     } catch (e) {
-      toast.error("No se pudo subir la imagen: " + (e as Error).message)
+      toast.error('No se pudo subir la imagen: ' + (e as Error).message)
     } finally {
       setUploading(false)
     }
   }
 
   const remove = async (imageId: string) => {
-    await fetch(`/api/${tenant}/evergreen/carruseles/${projectId}/references?imageId=${imageId}`, { method: "DELETE" })
+    await fetch(`/api/${tenant}/evergreen/carruseles/${projectId}/references?imageId=${imageId}`, { method: 'DELETE' })
     onChange()
   }
 
@@ -61,7 +61,7 @@ export function ReferenceImages({ projectId, images, onChange }: Props) {
           onChange={(e) => {
             const f = e.target.files?.[0]
             if (f) upload(f)
-            e.target.value = ""
+            e.target.value = ''
           }}
         />
       </div>

@@ -19,9 +19,7 @@ export function marketingDestinationFor(rest: string): string | null {
 }
 
 export function permissionLocationFor(relPathname: string, dataHealthTab: boolean): string {
-  return relPathname === '/settings' && dataHealthTab
-    ? '/settings?tab=data-health'
-    : relPathname
+  return relPathname === '/settings' && dataHealthTab ? '/settings?tab=data-health' : relPathname
 }
 
 export function isAllowedLocation(zones: string[], relLocation: string): boolean {

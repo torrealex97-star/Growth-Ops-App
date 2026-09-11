@@ -3,9 +3,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
-  BarChart3, CalendarCheck, Video, PhoneCall, ThumbsUp,
-  HandCoins, Wallet, Trophy, Banknote, Undo2, Gauge, ArrowRight,
-  ClipboardList, ListChecks,
+  BarChart3,
+  CalendarCheck,
+  Video,
+  PhoneCall,
+  ThumbsUp,
+  HandCoins,
+  Wallet,
+  Trophy,
+  Banknote,
+  Undo2,
+  Gauge,
+  ArrowRight,
+  ClipboardList,
+  ListChecks,
 } from 'lucide-react'
 import { lastNMonths, monthLabel } from '@/lib/analytics'
 import { formatCurrency, formatPercent } from '@/lib/utils'
@@ -89,8 +100,16 @@ const CANCELLED_APPT_STATUSES = ['cancelled', 'cancelled_admin', 'cancelled_lead
 const PROGRAMADA_APPT_STATUSES = ['scheduled', 'confirmed', 'rescheduled', 'seguimiento']
 
 function KPICard({
-  title, value, icon: Icon, description,
-}: { title: string; value: string; icon: React.ElementType; description?: string }) {
+  title,
+  value,
+  icon: Icon,
+  description,
+}: {
+  title: string
+  value: string
+  icon: React.ElementType
+  description?: string
+}) {
   return (
     <div className="bg-card border border-border rounded-lg p-4">
       <div className="flex items-center gap-2 mb-2">
@@ -104,8 +123,18 @@ function KPICard({
 }
 
 function FunnelStep({
-  label, value, pctFromPrev, icon: Icon, isLast,
-}: { label: string; value: string; pctFromPrev: string | null; icon: React.ElementType; isLast?: boolean }) {
+  label,
+  value,
+  pctFromPrev,
+  icon: Icon,
+  isLast,
+}: {
+  label: string
+  value: string
+  pctFromPrev: string | null
+  icon: React.ElementType
+  isLast?: boolean
+}) {
   return (
     <div className="flex items-center gap-3">
       <div className="flex-1 min-w-[130px] bg-card border border-border rounded-lg p-4">
@@ -148,9 +177,11 @@ export default function VentasMetricasPage() {
     async function load() {
       const supabase = createClient()
       const [apptRes, salesRes, collRes, usersRes, contactsRes, authRes] = await Promise.all([
-        supabase.from('appointments').select(
-          'id, status, event_type, offered, result, pipe_value, appointment_datetime, setter_id, closer_id, needs_followup, utm_source, utm_term, contact_id'
-        ),
+        supabase
+          .from('appointments')
+          .select(
+            'id, status, event_type, offered, result, pipe_value, appointment_datetime, setter_id, closer_id, needs_followup, utm_source, utm_term, contact_id'
+          ),
         supabase.from('sales').select('id, gross_amount, status, sale_date, closer_id, setter_id, appointment_id'),
         supabase.from('collections').select('gross_amount, commissionable_amount, collected_at'),
         supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
@@ -166,9 +197,7 @@ export default function VentasMetricasPage() {
       // reales, lo que ensuciaba el desglose por persona (bug: "en closer solo debe estar los
       // registrados como closer no más nadie").
       const SALES_ROLES = new Set(['closer', 'setter', 'cold_caller', 'admin'])
-      setPeople(
-        ((usersRes.data as PersonRow[] | null) || []).filter((p) => SALES_ROLES.has(p.roles?.key ?? ''))
-      )
+      setPeople(((usersRes.data as PersonRow[] | null) || []).filter((p) => SALES_ROLES.has(p.roles?.key ?? '')))
       // Región por contacto (LATAM/USA-Canadá/España/Europa) a partir del prefijo del teléfono,
       // para el desglose "agendas por región" que solo ve el director.
       const rMap = new Map<string, string>()
@@ -183,7 +212,9 @@ export default function VentasMetricasPage() {
       setLoading(false)
     }
     load()
-    return () => { mounted = false }
+    return () => {
+      mounted = false
+    }
   }, [])
 
   const monthOptions = useMemo(() => lastNMonths(12, nowYm()).reverse(), [])
@@ -191,15 +222,14 @@ export default function VentasMetricasPage() {
   const range = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
 
   const personAppointments = useMemo(
-    () => personId === 'all'
-      ? appointments
-      : appointments.filter((a) => a.setter_id === personId || a.closer_id === personId),
+    () =>
+      personId === 'all'
+        ? appointments
+        : appointments.filter((a) => a.setter_id === personId || a.closer_id === personId),
     [appointments, personId]
   )
   const personSales = useMemo(
-    () => personId === 'all'
-      ? sales
-      : sales.filter((s) => s.closer_id === personId || s.setter_id === personId),
+    () => (personId === 'all' ? sales : sales.filter((s) => s.closer_id === personId || s.setter_id === personId)),
     [sales, personId]
   )
 
@@ -210,7 +240,10 @@ export default function VentasMetricasPage() {
   // selector de Mes solo actúa cuando el periodo está en "Todo".
   const usingPeriodPreset = periodPreset !== 'all'
   const monthAppointments = useMemo(
-    () => personAppointments.filter((a) => (usingPeriodPreset || ymOf(a.appointment_datetime) === ym) && inPeriod(a.appointment_datetime, range)),
+    () =>
+      personAppointments.filter(
+        (a) => (usingPeriodPreset || ymOf(a.appointment_datetime) === ym) && inPeriod(a.appointment_datetime, range)
+      ),
     [personAppointments, ym, range, usingPeriodPreset]
   )
   const monthSales = useMemo(
@@ -218,7 +251,8 @@ export default function VentasMetricasPage() {
     [personSales, ym, range, usingPeriodPreset]
   )
   const monthCollections = useMemo(
-    () => collections.filter((c) => (usingPeriodPreset || ymOf(c.collected_at) === ym) && inPeriod(c.collected_at, range)),
+    () =>
+      collections.filter((c) => (usingPeriodPreset || ymOf(c.collected_at) === ym) && inPeriod(c.collected_at, range)),
     [collections, ym, range, usingPeriodPreset]
   )
 
@@ -244,9 +278,7 @@ export default function VentasMetricasPage() {
     const liveSalesCalls = salesCalls.filter((a) => isAttended(a.status)).length
     const cancelledSalesCalls = salesCalls.filter((a) => CANCELLED_APPT_STATUSES.includes(a.status)).length
 
-    const offers = monthAppointments.filter(
-      (a) => a.offered === true || a.result === 'offer_made'
-    ).length
+    const offers = monthAppointments.filter((a) => a.offered === true || a.result === 'offer_made').length
     const deposits = monthAppointments.filter((a) => a.result === 'deposit').length
 
     const closedSales = monthSales.filter((s) => s.status === 'active' || s.status === 'partial_refund')
@@ -256,9 +288,12 @@ export default function VentasMetricasPage() {
 
     const netRevenue = monthCollections.reduce((acc, c) => acc + num(c.commissionable_amount || c.gross_amount), 0)
 
-    const refunds = personSales
-      .filter((s) => (usingPeriodPreset || ymOf(s.sale_date) === ym) && inPeriod(s.sale_date, range) && (s.status === 'refunded' || s.status === 'partial_refund' || s.status === 'chargeback'))
-      .length
+    const refunds = personSales.filter(
+      (s) =>
+        (usingPeriodPreset || ymOf(s.sale_date) === ym) &&
+        inPeriod(s.sale_date, range) &&
+        (s.status === 'refunded' || s.status === 'partial_refund' || s.status === 'chargeback')
+    ).length
 
     const programadas = monthAppointments.filter((a) => PROGRAMADA_APPT_STATUSES.includes(a.status)).length
     const seguimientos = monthAppointments.filter((a) => a.needs_followup).length
@@ -310,7 +345,10 @@ export default function VentasMetricasPage() {
   // Filtrado solo por periodo (sin restringir a una persona), para poder comparar a todo el
   // equipo a la vez en la tabla de abajo.
   const periodAppointments = useMemo(
-    () => appointments.filter((a) => (usingPeriodPreset || ymOf(a.appointment_datetime) === ym) && inPeriod(a.appointment_datetime, range)),
+    () =>
+      appointments.filter(
+        (a) => (usingPeriodPreset || ymOf(a.appointment_datetime) === ym) && inPeriod(a.appointment_datetime, range)
+      ),
     [appointments, ym, range, usingPeriodPreset]
   )
   const periodSales = useMemo(
@@ -379,7 +417,9 @@ export default function VentasMetricasPage() {
           >
             <option value="all">Toda la empresa</option>
             {people.map((p) => (
-              <option key={p.id} value={p.id}>{p.full_name}</option>
+              <option key={p.id} value={p.id}>
+                {p.full_name}
+              </option>
             ))}
           </select>
           <select
@@ -390,7 +430,9 @@ export default function VentasMetricasPage() {
             className="bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground disabled:opacity-50"
           >
             {monthOptions.map((m) => (
-              <option key={m} value={m}>{monthLabel(m)}</option>
+              <option key={m} value={m}>
+                {monthLabel(m)}
+              </option>
             ))}
           </select>
         </div>
@@ -407,7 +449,12 @@ export default function VentasMetricasPage() {
         member={personId}
         onMemberChange={setPersonId}
         hasActiveFilters={periodPreset !== 'all' || personId !== 'all'}
-        onClear={() => { setPeriodPreset('all'); setPersonId('all'); setCustomFrom(''); setCustomTo('') }}
+        onClear={() => {
+          setPeriodPreset('all')
+          setPersonId('all')
+          setCustomFrom('')
+          setCustomTo('')
+        }}
       />
 
       {loading ? (
@@ -427,28 +474,70 @@ export default function VentasMetricasPage() {
         <>
           {eventTypeCoverage < 50 && (
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs text-amber-300">
-              Marca el tipo (Demo/Sales Call) en las agendas para separar ambos embudos.
-              Actualmente solo el {formatPercent(eventTypeCoverage, 0)} de las citas del mes tienen event_type definido
-              (las citas sin tipo se cuentan como Sales Call).
+              Marca el tipo (Demo/Sales Call) en las agendas para separar ambos embudos. Actualmente solo el{' '}
+              {formatPercent(eventTypeCoverage, 0)} de las citas del mes tienen event_type definido (las citas sin tipo
+              se cuentan como Sales Call).
             </div>
           )}
 
           {/* Volúmenes */}
           <div>
-            <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Volúmenes — {monthLabel(ym)}</h2>
+            <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
+              Volúmenes — {monthLabel(ym)}
+            </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <KPICard title="Pipe Value" value={formatCurrency(metrics.pipeValue)} icon={Gauge} description="valor en citas activas" />
-              <KPICard title="Programadas" value={String(metrics.programadas)} icon={ClipboardList} description="citas agendadas sin resolver" />
-              <KPICard title="Seguimientos" value={String(metrics.seguimientos)} icon={ListChecks} description="agendas marcadas en seguimiento" />
+              <KPICard
+                title="Pipe Value"
+                value={formatCurrency(metrics.pipeValue)}
+                icon={Gauge}
+                description="valor en citas activas"
+              />
+              <KPICard
+                title="Programadas"
+                value={String(metrics.programadas)}
+                icon={ClipboardList}
+                description="citas agendadas sin resolver"
+              />
+              <KPICard
+                title="Seguimientos"
+                value={String(metrics.seguimientos)}
+                icon={ListChecks}
+                description="agendas marcadas en seguimiento"
+              />
               <KPICard title="Booked Demos" value={String(metrics.bookedDemos)} icon={CalendarCheck} />
-              <KPICard title="Live Demos" value={String(metrics.liveDemos)} icon={Video} description="show / completed" />
-              <KPICard title="Good Demos" value={String(metrics.goodDemos)} icon={ThumbsUp} description="result = good_demo" />
+              <KPICard
+                title="Live Demos"
+                value={String(metrics.liveDemos)}
+                icon={Video}
+                description="show / completed"
+              />
+              <KPICard
+                title="Good Demos"
+                value={String(metrics.goodDemos)}
+                icon={ThumbsUp}
+                description="result = good_demo"
+              />
               <KPICard title="Sales Calls Booked" value={String(metrics.bookedSalesCalls)} icon={CalendarCheck} />
-              <KPICard title="Live Sales Calls" value={String(metrics.liveSalesCalls)} icon={PhoneCall} description="show / completed" />
-              <KPICard title="Offers" value={String(metrics.offers)} icon={HandCoins} description="offered = true o offer_made" />
+              <KPICard
+                title="Live Sales Calls"
+                value={String(metrics.liveSalesCalls)}
+                icon={PhoneCall}
+                description="show / completed"
+              />
+              <KPICard
+                title="Offers"
+                value={String(metrics.offers)}
+                icon={HandCoins}
+                description="offered = true o offer_made"
+              />
               <KPICard title="Deposits" value={String(metrics.deposits)} icon={Wallet} description="result = deposit" />
               <KPICard title="Closes" value={String(metrics.closes)} icon={Trophy} description="ventas del periodo" />
-              <KPICard title="Net Revenue" value={formatCurrency(metrics.netRevenue)} icon={Banknote} description="cobros del periodo" />
+              <KPICard
+                title="Net Revenue"
+                value={formatCurrency(metrics.netRevenue)}
+                icon={Banknote}
+                description="cobros del periodo"
+              />
               <KPICard title="Refunds" value={String(metrics.refunds)} icon={Undo2} />
             </div>
           </div>
@@ -457,17 +546,72 @@ export default function VentasMetricasPage() {
           <div>
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Tasas de conversión</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <KPICard title="% Show Rate (D)" value={pct(metrics.liveDemos, metrics.bookedDemos)} icon={Video} description="Live / Booked Demos" />
-              <KPICard title="% Cancel (D)" value={pct(metrics.cancelledDemos, metrics.bookedDemos)} icon={Undo2} description="cancelled / Booked Demos" />
-              <KPICard title="% Live(D)→(SC)" value={pct(metrics.liveSalesCalls, metrics.liveDemos)} icon={ArrowRight} description="Live Sales Calls / Live Demos" />
-              <KPICard title="% Show Rate (SC)" value={pct(metrics.liveSalesCalls, metrics.bookedSalesCalls)} icon={PhoneCall} description="Live / Booked Sales Calls" />
-              <KPICard title="% Cancel (SC)" value={pct(metrics.cancelledSalesCalls, metrics.bookedSalesCalls)} icon={Undo2} description="cancelled / Booked Sales Calls" />
-              <KPICard title="% Offer/Close" value={pct(metrics.closes, metrics.offers)} icon={Trophy} description="Closes / Offers" />
-              <KPICard title="% Live(SC)/Close" value={pct(metrics.closes, metrics.liveSalesCalls)} icon={Trophy} description="Closes / Live Sales Calls" />
-              <KPICard title="% Booked(SC)/Close" value={pct(metrics.closes, metrics.bookedSalesCalls)} icon={Trophy} description="Closes / Booked Sales Calls" />
-              <KPICard title="% Pipe Closed" value={pct(metrics.closedValue, metrics.pipeValue)} icon={Gauge} description="valor cerrado / Pipe Value" />
-              <KPICard title="Net_rev/LSC" value={ratio(metrics.netRevenue, metrics.liveSalesCalls)} icon={Banknote} description="Net Revenue / Live Sales Calls" />
-              <KPICard title="Net_rev/BSC" value={ratio(metrics.netRevenue, metrics.bookedSalesCalls)} icon={Banknote} description="Net Revenue / Booked Sales Calls" />
+              <KPICard
+                title="% Show Rate (D)"
+                value={pct(metrics.liveDemos, metrics.bookedDemos)}
+                icon={Video}
+                description="Live / Booked Demos"
+              />
+              <KPICard
+                title="% Cancel (D)"
+                value={pct(metrics.cancelledDemos, metrics.bookedDemos)}
+                icon={Undo2}
+                description="cancelled / Booked Demos"
+              />
+              <KPICard
+                title="% Live(D)→(SC)"
+                value={pct(metrics.liveSalesCalls, metrics.liveDemos)}
+                icon={ArrowRight}
+                description="Live Sales Calls / Live Demos"
+              />
+              <KPICard
+                title="% Show Rate (SC)"
+                value={pct(metrics.liveSalesCalls, metrics.bookedSalesCalls)}
+                icon={PhoneCall}
+                description="Live / Booked Sales Calls"
+              />
+              <KPICard
+                title="% Cancel (SC)"
+                value={pct(metrics.cancelledSalesCalls, metrics.bookedSalesCalls)}
+                icon={Undo2}
+                description="cancelled / Booked Sales Calls"
+              />
+              <KPICard
+                title="% Offer/Close"
+                value={pct(metrics.closes, metrics.offers)}
+                icon={Trophy}
+                description="Closes / Offers"
+              />
+              <KPICard
+                title="% Live(SC)/Close"
+                value={pct(metrics.closes, metrics.liveSalesCalls)}
+                icon={Trophy}
+                description="Closes / Live Sales Calls"
+              />
+              <KPICard
+                title="% Booked(SC)/Close"
+                value={pct(metrics.closes, metrics.bookedSalesCalls)}
+                icon={Trophy}
+                description="Closes / Booked Sales Calls"
+              />
+              <KPICard
+                title="% Pipe Closed"
+                value={pct(metrics.closedValue, metrics.pipeValue)}
+                icon={Gauge}
+                description="valor cerrado / Pipe Value"
+              />
+              <KPICard
+                title="Net_rev/LSC"
+                value={ratio(metrics.netRevenue, metrics.liveSalesCalls)}
+                icon={Banknote}
+                description="Net Revenue / Live Sales Calls"
+              />
+              <KPICard
+                title="Net_rev/BSC"
+                value={ratio(metrics.netRevenue, metrics.bookedSalesCalls)}
+                icon={Banknote}
+                description="Net Revenue / Booked Sales Calls"
+              />
             </div>
           </div>
 
@@ -476,25 +620,39 @@ export default function VentasMetricasPage() {
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Embudo — Sales Calls</h2>
             <div className="flex flex-wrap items-center gap-2">
               <FunnelStep
-                label="Booked" value={String(metrics.bookedSalesCalls)}
-                pctFromPrev={null} icon={CalendarCheck}
+                label="Booked"
+                value={String(metrics.bookedSalesCalls)}
+                pctFromPrev={null}
+                icon={CalendarCheck}
               />
               <FunnelStep
-                label="Live" value={String(metrics.liveSalesCalls)}
-                pctFromPrev={pctVal(metrics.liveSalesCalls, metrics.bookedSalesCalls) !== null
-                  ? `${formatPercent(pctVal(metrics.liveSalesCalls, metrics.bookedSalesCalls)!, 1)}` : null}
+                label="Live"
+                value={String(metrics.liveSalesCalls)}
+                pctFromPrev={
+                  pctVal(metrics.liveSalesCalls, metrics.bookedSalesCalls) !== null
+                    ? `${formatPercent(pctVal(metrics.liveSalesCalls, metrics.bookedSalesCalls)!, 1)}`
+                    : null
+                }
                 icon={PhoneCall}
               />
               <FunnelStep
-                label="Offer" value={String(metrics.offers)}
-                pctFromPrev={pctVal(metrics.offers, metrics.liveSalesCalls) !== null
-                  ? `${formatPercent(pctVal(metrics.offers, metrics.liveSalesCalls)!, 1)}` : null}
+                label="Offer"
+                value={String(metrics.offers)}
+                pctFromPrev={
+                  pctVal(metrics.offers, metrics.liveSalesCalls) !== null
+                    ? `${formatPercent(pctVal(metrics.offers, metrics.liveSalesCalls)!, 1)}`
+                    : null
+                }
                 icon={HandCoins}
               />
               <FunnelStep
-                label="Close" value={String(metrics.closes)}
-                pctFromPrev={pctVal(metrics.closes, metrics.offers) !== null
-                  ? `${formatPercent(pctVal(metrics.closes, metrics.offers)!, 1)}` : null}
+                label="Close"
+                value={String(metrics.closes)}
+                pctFromPrev={
+                  pctVal(metrics.closes, metrics.offers) !== null
+                    ? `${formatPercent(pctVal(metrics.closes, metrics.offers)!, 1)}`
+                    : null
+                }
                 icon={Trophy}
                 isLast
               />
@@ -507,20 +665,25 @@ export default function VentasMetricasPage() {
           <div>
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Embudo — Demos</h2>
             <div className="flex flex-wrap items-center gap-2">
+              <FunnelStep label="Booked" value={String(metrics.bookedDemos)} pctFromPrev={null} icon={CalendarCheck} />
               <FunnelStep
-                label="Booked" value={String(metrics.bookedDemos)}
-                pctFromPrev={null} icon={CalendarCheck}
-              />
-              <FunnelStep
-                label="Live" value={String(metrics.liveDemos)}
-                pctFromPrev={pctVal(metrics.liveDemos, metrics.bookedDemos) !== null
-                  ? `${formatPercent(pctVal(metrics.liveDemos, metrics.bookedDemos)!, 1)}` : null}
+                label="Live"
+                value={String(metrics.liveDemos)}
+                pctFromPrev={
+                  pctVal(metrics.liveDemos, metrics.bookedDemos) !== null
+                    ? `${formatPercent(pctVal(metrics.liveDemos, metrics.bookedDemos)!, 1)}`
+                    : null
+                }
                 icon={Video}
               />
               <FunnelStep
-                label="Good Demo" value={String(metrics.goodDemos)}
-                pctFromPrev={pctVal(metrics.goodDemos, metrics.liveDemos) !== null
-                  ? `${formatPercent(pctVal(metrics.goodDemos, metrics.liveDemos)!, 1)}` : null}
+                label="Good Demo"
+                value={String(metrics.goodDemos)}
+                pctFromPrev={
+                  pctVal(metrics.goodDemos, metrics.liveDemos) !== null
+                    ? `${formatPercent(pctVal(metrics.goodDemos, metrics.liveDemos)!, 1)}`
+                    : null
+                }
                 icon={ThumbsUp}
                 isLast
               />
@@ -553,7 +716,9 @@ export default function VentasMetricasPage() {
                         <td className="px-4 py-2 text-foreground">{r.label}</td>
                         <td className="px-4 py-2 text-right text-foreground">{r.count}</td>
                         <td className="px-4 py-2 text-right text-foreground">{formatCurrency(r.revenue)}</td>
-                        <td className="px-4 py-2 text-right text-muted-foreground">{pct(r.revenue, metrics.closedValue)}</td>
+                        <td className="px-4 py-2 text-right text-muted-foreground">
+                          {pct(r.revenue, metrics.closedValue)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -561,7 +726,8 @@ export default function VentasMetricasPage() {
               </div>
             )}
             <p className="text-xs text-muted-foreground mt-2">
-              Fuente = utm_source/utm_term de la agenda que originó la venta. Ventas sin agenda enlazada o sin UTM cuentan como &quot;Directo/Sin UTM&quot;.
+              Fuente = utm_source/utm_term de la agenda que originó la venta. Ventas sin agenda enlazada o sin UTM
+              cuentan como &quot;Directo/Sin UTM&quot;.
             </p>
           </div>
 
@@ -606,7 +772,8 @@ export default function VentasMetricasPage() {
           {myRole === 'director' && regionBreakdown.length > 0 && (
             <div>
               <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
-                Agendas por región — {monthLabel(ym)} <span className="normal-case text-muted-foreground/70">(solo visible para ti)</span>
+                Agendas por región — {monthLabel(ym)}{' '}
+                <span className="normal-case text-muted-foreground/70">(solo visible para ti)</span>
               </h2>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                 {regionBreakdown.map((r) => (
@@ -614,7 +781,8 @@ export default function VentasMetricasPage() {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground mt-2">
-                Región inferida del prefijo internacional del teléfono del contacto (no es 100% exacta: números sin prefijo o con prefijo compartido cuentan como &quot;Otro&quot;).
+                Región inferida del prefijo internacional del teléfono del contacto (no es 100% exacta: números sin
+                prefijo o con prefijo compartido cuentan como &quot;Otro&quot;).
               </p>
             </div>
           )}

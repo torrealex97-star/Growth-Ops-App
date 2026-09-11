@@ -22,11 +22,7 @@ export async function loadTramoContext(
       .select('id, threshold, sort_order')
       .eq('is_active', true)
     if (error || !rows || rows.length === 0) return null
-    const { data: cfg } = await sb
-      .from('sales_tramos_config')
-      .select('metric, period')
-      .eq('id', 1)
-      .maybeSingle()
+    const { data: cfg } = await sb.from('sales_tramos_config').select('metric, period').eq('id', 1).maybeSingle()
     const config: TramoConfig = {
       metric: (cfg?.metric as TramoConfig['metric']) ?? 'sales',
       period: (cfg?.period as TramoConfig['period']) ?? 'month',
@@ -42,11 +38,7 @@ export async function loadTramoContext(
 
 // Valor actual del rep para medir su tramo: nº de ventas completadas o cash collected, en el periodo
 // configurado (mes en curso o histórico). "Venta completada" = activa que NO sea reserva abierta.
-export async function repTramoValue(
-  sb: SupabaseClient,
-  repId: string,
-  config: TramoConfig
-): Promise<number> {
+export async function repTramoValue(sb: SupabaseClient, repId: string, config: TramoConfig): Promise<number> {
   const monthOnly = config.period === 'month'
 
   const { data: salesData } = await sb

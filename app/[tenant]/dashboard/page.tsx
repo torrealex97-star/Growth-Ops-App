@@ -16,26 +16,53 @@ import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import {
-  TrendingUp, ShoppingCart, Wallet, Receipt, Target as TargetIcon,
-  Coins, Percent, Bookmark, Save, Trash2,
+  TrendingUp,
+  ShoppingCart,
+  Wallet,
+  Receipt,
+  Target as TargetIcon,
+  Coins,
+  Percent,
+  Bookmark,
+  Save,
+  Trash2,
 } from 'lucide-react'
 import {
-  lastNMonths, prevMonth, monthLabel, monthlyKpis, pctDelta,
-  revenueByMonth, teamRanking, attributionBySource, targetCurrentValue, setterAgendaStats,
-  type SaleRow, type CollectionRow, type AttributionRow, type UserRow, type AppointmentRow,
+  lastNMonths,
+  prevMonth,
+  monthLabel,
+  monthlyKpis,
+  pctDelta,
+  revenueByMonth,
+  teamRanking,
+  attributionBySource,
+  targetCurrentValue,
+  setterAgendaStats,
+  type SaleRow,
+  type CollectionRow,
+  type AttributionRow,
+  type UserRow,
+  type AppointmentRow,
 } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
 import type { SavedDashboardView } from '@/lib/types/database'
 import { useTenant } from '@/lib/tenant-context'
 
-const SalesChart = dynamic(
-  () => import('@/components/os/SalesChart').then(m => ({ default: m.SalesChart })),
-  { ssr: false, loading: () => <div className="h-64 animate-pulse bg-card rounded-lg" /> }
-)
+const SalesChart = dynamic(() => import('@/components/os/SalesChart').then((m) => ({ default: m.SalesChart })), {
+  ssr: false,
+  loading: () => <div className="h-64 animate-pulse bg-card rounded-lg" />,
+})
 
 type TargetRow = {
-  id: string; name: string; metric_key: string; scope_type: string; scope_user_id: string | null
-  period_type: string | null; period_start: string; period_end: string; target_value: number | string
+  id: string
+  name: string
+  metric_key: string
+  scope_type: string
+  scope_user_id: string | null
+  period_type: string | null
+  period_start: string
+  period_end: string
+  target_value: number | string
 }
 
 function nowYm() {
@@ -77,7 +104,9 @@ export default function DashboardPage() {
   const [myRoleKey, setMyRoleKey] = useState<AppRole | ''>('')
   const [sales, setSales] = useState<SaleRow[]>([])
   const [collections, setCollections] = useState<CollectionRow[]>([])
-  const [commissions, setCommissions] = useState<{ user_id: string; sale_id: string | null; commission_amount: number | string; direction: string; status: string }[]>([])
+  const [commissions, setCommissions] = useState<
+    { user_id: string; sale_id: string | null; commission_amount: number | string; direction: string; status: string }[]
+  >([])
   const [futureCommissions, setFutureCommissions] = useState<{ userId: string; saleId: string; amount: number }[]>([])
   const [users, setUsers] = useState<UserRow[]>([])
   const [roleUsers, setRoleUsers] = useState<RoleUser[]>([])
@@ -113,14 +142,19 @@ export default function DashboardPage() {
     let mounted = true
     async function load() {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
       if (!user || !mounted) return
       setUserId(user.id)
 
       // Columnas base (siempre existen) → determinan el scoping. Se piden SEPARADAS de las columnas
       // nuevas del fijo para que, si la migración del fijo aún no ha corrido, el scoping no se rompa.
       const { data: userData } = await supabase
-        .from('users').select('full_name, data_scope, base_salary, roles(key)').eq('id', user.id).single()
+        .from('users')
+        .select('full_name, data_scope, base_salary, roles(key)')
+        .eq('id', user.id)
+        .single()
       if (userData) {
         setUserName(userData.full_name)
         setMyBaseSalary(Number((userData as { base_salary?: number | null }).base_salary ?? 0))
@@ -135,26 +169,43 @@ export default function DashboardPage() {
 
       // Reglas del fijo (columnas nuevas; pueden no existir aún → si falla, se usan valores por defecto).
       const { data: fijoData } = await supabase
-        .from('users').select('fijo_unlock_type, fijo_min_sales, fijo_min_revenue').eq('id', user.id).single()
+        .from('users')
+        .select('fijo_unlock_type, fijo_min_sales, fijo_min_revenue')
+        .eq('id', user.id)
+        .single()
       if (fijoData) {
-        setMyFijoUnlockType(((fijoData as { fijo_unlock_type?: string | null }).fijo_unlock_type as 'sales' | 'revenue') ?? 'sales')
+        setMyFijoUnlockType(
+          ((fijoData as { fijo_unlock_type?: string | null }).fijo_unlock_type as 'sales' | 'revenue') ?? 'sales'
+        )
         setMyFijoMinSales(Number((fijoData as { fijo_min_sales?: number | null }).fijo_min_sales ?? 0))
         setMyFijoMinRevenue(Number((fijoData as { fijo_min_revenue?: number | null }).fijo_min_revenue ?? 0))
       }
 
-      const [salesRes, collRes, usersRes, roleUsersRes, contactsRes, attrRes, apptRes, targetsRes, viewsRes, commRes] = await Promise.all([
-        supabase.from('sales').select('id, gross_amount, status, sale_date, closer_id, setter_id, affiliate_id, contact_id'),
-        supabase.from('collections').select('sale_id, gross_amount, collected_at, status'),
-        supabase.from('users').select('id, full_name'),
-        supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
-        supabase.from('contacts').select('id'),
-        supabase.from('contact_attributions').select('contact_id, source, utm_source, utm_campaign, utm_content, is_primary'),
-        supabase.from('appointments').select('appointment_datetime, status, setter_id, closer_id, cold_caller_id, affiliate_id'),
-        supabase.from('targets').select('id, name, metric_key, scope_type, scope_user_id, period_type, period_start, period_end, target_value')
-          .eq('is_active', true).eq('scope_type', 'company'),
-        supabase.from('saved_dashboard_views').select('*').or(`user_id.eq.${user.id},scope.eq.shared`),
-        supabase.from('commissions').select('user_id, sale_id, commission_amount, direction, status'),
-      ])
+      const [salesRes, collRes, usersRes, roleUsersRes, contactsRes, attrRes, apptRes, targetsRes, viewsRes, commRes] =
+        await Promise.all([
+          supabase
+            .from('sales')
+            .select('id, gross_amount, status, sale_date, closer_id, setter_id, affiliate_id, contact_id'),
+          supabase.from('collections').select('sale_id, gross_amount, collected_at, status'),
+          supabase.from('users').select('id, full_name'),
+          supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
+          supabase.from('contacts').select('id'),
+          supabase
+            .from('contact_attributions')
+            .select('contact_id, source, utm_source, utm_campaign, utm_content, is_primary'),
+          supabase
+            .from('appointments')
+            .select('appointment_datetime, status, setter_id, closer_id, cold_caller_id, affiliate_id'),
+          supabase
+            .from('targets')
+            .select(
+              'id, name, metric_key, scope_type, scope_user_id, period_type, period_start, period_end, target_value'
+            )
+            .eq('is_active', true)
+            .eq('scope_type', 'company'),
+          supabase.from('saved_dashboard_views').select('*').or(`user_id.eq.${user.id},scope.eq.shared`),
+          supabase.from('commissions').select('user_id, sale_id, commission_amount, direction, status'),
+        ])
 
       if (!mounted) return
       setSales(salesRes.data || [])
@@ -172,11 +223,15 @@ export default function DashboardPage() {
       // Comisiones futuras (esperadas, por cobrar) — endpoint server-side (respeta visibilidad por rol)
       fetch(`/api/${tenant}/evergreen/commissions/future`)
         .then((r) => r.json())
-        .then((d) => { if (mounted && d?.rows) setFutureCommissions(d.rows) })
+        .then((d) => {
+          if (mounted && d?.rows) setFutureCommissions(d.rows)
+        })
         .catch(() => {})
     }
     load()
-    return () => { mounted = false }
+    return () => {
+      mounted = false
+    }
   }, [])
 
   // Meses para el selector: últimos 12 (más reciente primero)
@@ -198,23 +253,29 @@ export default function DashboardPage() {
   }, [range])
 
   // Coincidencia por rol+persona. Si no hay persona elegida (member='all') no filtra por equipo.
-  const saleMatches = useCallback((s: SaleRow) => {
-    if (member === 'all') return true
-    if (role === 'closer') return s.closer_id === member
-    if (role === 'setter' || role === 'cold_caller') return s.setter_id === member // cold callers cobran como setter en ventas
-    const affId = (s as { affiliate_id?: string | null }).affiliate_id
-    if (role === 'affiliate') return affId === member
-    return s.closer_id === member || s.setter_id === member || affId === member
-  }, [member, role])
+  const saleMatches = useCallback(
+    (s: SaleRow) => {
+      if (member === 'all') return true
+      if (role === 'closer') return s.closer_id === member
+      if (role === 'setter' || role === 'cold_caller') return s.setter_id === member // cold callers cobran como setter en ventas
+      const affId = (s as { affiliate_id?: string | null }).affiliate_id
+      if (role === 'affiliate') return affId === member
+      return s.closer_id === member || s.setter_id === member || affId === member
+    },
+    [member, role]
+  )
 
-  const apptMatches = useCallback((a: AppointmentRow) => {
-    if (member === 'all') return true
-    if (role === 'closer') return a.closer_id === member
-    if (role === 'setter') return a.setter_id === member
-    if (role === 'cold_caller') return (a as { cold_caller_id?: string | null }).cold_caller_id === member
-    if (role === 'affiliate') return (a as { affiliate_id?: string | null }).affiliate_id === member
-    return a.setter_id === member || a.closer_id === member
-  }, [member, role])
+  const apptMatches = useCallback(
+    (a: AppointmentRow) => {
+      if (member === 'all') return true
+      if (role === 'closer') return a.closer_id === member
+      if (role === 'setter') return a.setter_id === member
+      if (role === 'cold_caller') return (a as { cold_caller_id?: string | null }).cold_caller_id === member
+      if (role === 'affiliate') return (a as { affiliate_id?: string | null }).affiliate_id === member
+      return a.setter_id === member || a.closer_id === member
+    },
+    [member, role]
+  )
 
   // --- Datos filtrados en cliente (periodo + rol/persona unificados en el filtro de arriba) ---
   const filteredSales = useMemo(() => {
@@ -232,18 +293,36 @@ export default function DashboardPage() {
     return appointments.filter((a) => apptMatches(a) && inPeriod(a.appointment_datetime, range))
   }, [appointments, apptMatches, range])
 
-  const cur = useMemo(() => monthlyKpis(filteredSales, filteredCollections, ym), [filteredSales, filteredCollections, ym])
-  const prev = useMemo(() => monthlyKpis(filteredSales, filteredCollections, prevMonth(ym)), [filteredSales, filteredCollections, ym])
+  const cur = useMemo(
+    () => monthlyKpis(filteredSales, filteredCollections, ym),
+    [filteredSales, filteredCollections, ym]
+  )
+  const prev = useMemo(
+    () => monthlyKpis(filteredSales, filteredCollections, prevMonth(ym)),
+    [filteredSales, filteredCollections, ym]
+  )
   const series = useMemo(() => revenueByMonth(filteredSales, lastNMonths(6, ym)), [filteredSales, ym])
   // roleUsers trae el rol real (roles(key)); necesario para no mezclar puestos en el ranking.
   const usersWithRole = useMemo(
     () => roleUsers.map((u) => ({ id: u.id, full_name: u.full_name, role: u.roles?.key ?? null })),
     [roleUsers]
   )
-  const closers = useMemo(() => teamRanking(filteredSales, filteredCollections, usersWithRole, 'closer'), [filteredSales, filteredCollections, usersWithRole])
-  const setters = useMemo(() => teamRanking(filteredSales, filteredCollections, usersWithRole, 'setter'), [filteredSales, filteredCollections, usersWithRole])
-  const attribution = useMemo(() => attributionBySource(contactIds, attributions, filteredSales), [contactIds, attributions, filteredSales])
-  const setterAgendas = useMemo(() => setterAgendaStats(filteredAppointments, usersWithRole), [filteredAppointments, usersWithRole])
+  const closers = useMemo(
+    () => teamRanking(filteredSales, filteredCollections, usersWithRole, 'closer'),
+    [filteredSales, filteredCollections, usersWithRole]
+  )
+  const setters = useMemo(
+    () => teamRanking(filteredSales, filteredCollections, usersWithRole, 'setter'),
+    [filteredSales, filteredCollections, usersWithRole]
+  )
+  const attribution = useMemo(
+    () => attributionBySource(contactIds, attributions, filteredSales),
+    [contactIds, attributions, filteredSales]
+  )
+  const setterAgendas = useMemo(
+    () => setterAgendaStats(filteredAppointments, usersWithRole),
+    [filteredAppointments, usersWithRole]
+  )
 
   // Comisiones del ámbito filtrado: ganada (cash collected, sin liquidar, neto de devoluciones) y
   // futura (esperada de las cuotas por cobrar). Da visibilidad "en su cuenta" a cada persona.
@@ -269,9 +348,11 @@ export default function DashboardPage() {
     // Ventas del usuario en el mes. OJO: completar una reserva actualiza la MISMA fila de venta,
     // así que contar filas ya cuenta 1 (no se duplica reserva + pago completado). Igual la facturación.
     const mySalesMonth = sales.filter(
-      (s) => (s.closer_id === userId || s.setter_id === userId) &&
+      (s) =>
+        (s.closer_id === userId || s.setter_id === userId) &&
         (s.sale_date || '').slice(0, 7) === ym &&
-        s.status !== 'cancelled' && s.status !== 'refunded'
+        s.status !== 'cancelled' &&
+        s.status !== 'refunded'
     )
     const salesCount = mySalesMonth.length
     const revenue = mySalesMonth.reduce((acc, s) => acc + Number(s.gross_amount || 0), 0)
@@ -291,7 +372,18 @@ export default function DashboardPage() {
     const unlocked = target <= 0 || current >= target
     const fijoEarned = unlocked ? myBaseSalary : 0
     const remaining = Math.max(target - current, 0)
-    return { fijo: myBaseSalary, byRevenue, target, current, salesCount, revenue, unlocked, remaining, comisiones, total: fijoEarned + comisiones }
+    return {
+      fijo: myBaseSalary,
+      byRevenue,
+      target,
+      current,
+      salesCount,
+      revenue,
+      unlocked,
+      remaining,
+      comisiones,
+      total: fijoEarned + comisiones,
+    }
   }, [userId, myBaseSalary, myFijoUnlockType, myFijoMinSales, myFijoMinRevenue, sales, commissions, ym])
 
   // --- Vistas guardadas: helpers ---
@@ -357,7 +449,10 @@ export default function DashboardPage() {
   const delta = (c: number, p: number) => {
     const d = pctDelta(c, p)
     if (d === null) return {}
-    return { delta: Math.round(d), deltaType: d > 0 ? 'up' as const : d < 0 ? 'down' as const : 'neutral' as const }
+    return {
+      delta: Math.round(d),
+      deltaType: d > 0 ? ('up' as const) : d < 0 ? ('down' as const) : ('neutral' as const),
+    }
   }
   const fmt = (n: number) => formatCurrency(n)
 
@@ -387,18 +482,35 @@ export default function DashboardPage() {
         onCustomToChange={setCustomTo}
         roles={selfScoped ? undefined : FILTER_ROLES}
         role={role}
-        onRoleChange={selfScoped ? undefined : (v) => { setRole(v); setMember('all') }}
+        onRoleChange={
+          selfScoped
+            ? undefined
+            : (v) => {
+                setRole(v)
+                setMember('all')
+              }
+        }
         members={selfScoped ? [] : membersForRole}
         member={member}
         onMemberChange={selfScoped ? () => {} : setMember}
         memberLabel={role === 'all' ? 'Persona' : (FILTER_ROLES.find((r) => r.key === role)?.label ?? 'Persona')}
         hasActiveFilters={periodPreset !== 'all' || (!selfScoped && (member !== 'all' || role !== 'all'))}
-        onClear={() => { setPeriodPreset('all'); if (!selfScoped) { setMember('all'); setRole('all') } setCustomFrom(''); setCustomTo('') }}
+        onClear={() => {
+          setPeriodPreset('all')
+          if (!selfScoped) {
+            setMember('all')
+            setRole('all')
+          }
+          setCustomFrom('')
+          setCustomTo('')
+        }}
       />
 
       {/* Vistas guardadas (presets del filtro de arriba) */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-muted-foreground text-xs flex items-center gap-1"><Bookmark className="w-3 h-3" /> Vista</span>
+        <span className="text-muted-foreground text-xs flex items-center gap-1">
+          <Bookmark className="w-3 h-3" /> Vista
+        </span>
         <select
           value={selectedViewId}
           onChange={(e) => handleSelectView(e.target.value)}
@@ -407,7 +519,8 @@ export default function DashboardPage() {
           <option value="">Vista actual</option>
           {savedViews.map((v) => (
             <option key={v.id} value={v.id}>
-              {v.name}{v.scope === 'shared' ? ' (compartida)' : ''}
+              {v.name}
+              {v.scope === 'shared' ? ' (compartida)' : ''}
             </option>
           ))}
         </select>
@@ -438,7 +551,8 @@ export default function DashboardPage() {
               <p className="text-xs uppercase tracking-wider text-brand-300/80">Tu retribución de {monthLabel(ym)}</p>
               <p className="text-3xl font-bold text-foreground mt-1">{loading ? '—' : fmt(myFijo.total)}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Fijo {myFijo.unlocked ? fmt(myFijo.fijo) : `${fmt(0)} (bloqueado)`} · Comisiones {fmt(myFijo.comisiones)}
+                Fijo {myFijo.unlocked ? fmt(myFijo.fijo) : `${fmt(0)} (bloqueado)`} · Comisiones{' '}
+                {fmt(myFijo.comisiones)}
               </p>
             </div>
             {myFijo.target > 0 && (
@@ -458,11 +572,18 @@ export default function DashboardPage() {
                   />
                 </div>
                 <p className="text-xs mt-1.5">
-                  {myFijo.unlocked
-                    ? <span className="text-emerald-400">🎉 ¡Fijo desbloqueado! Ya cuenta en tu total.</span>
-                    : myFijo.byRevenue
-                      ? <span className="text-amber-400">Te faltan {fmt(myFijo.remaining)} de facturación para desbloquear tu fijo de {fmt(myFijo.fijo)}.</span>
-                      : <span className="text-amber-400">Te {myFijo.remaining === 1 ? 'falta' : 'faltan'} {myFijo.remaining} venta{myFijo.remaining === 1 ? '' : 's'} para desbloquear tu fijo de {fmt(myFijo.fijo)}.</span>}
+                  {myFijo.unlocked ? (
+                    <span className="text-emerald-400">🎉 ¡Fijo desbloqueado! Ya cuenta en tu total.</span>
+                  ) : myFijo.byRevenue ? (
+                    <span className="text-amber-400">
+                      Te faltan {fmt(myFijo.remaining)} de facturación para desbloquear tu fijo de {fmt(myFijo.fijo)}.
+                    </span>
+                  ) : (
+                    <span className="text-amber-400">
+                      Te {myFijo.remaining === 1 ? 'falta' : 'faltan'} {myFijo.remaining} venta
+                      {myFijo.remaining === 1 ? '' : 's'} para desbloquear tu fijo de {fmt(myFijo.fijo)}.
+                    </span>
+                  )}
                 </p>
               </div>
             )}
@@ -473,20 +594,54 @@ export default function DashboardPage() {
       <div>
         <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Facturación de {monthLabel(ym)}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KPICard title="Facturación bruta" value={loading ? '—' : fmt(cur.gross)} icon={TrendingUp}
-            loading={loading} description="vs mes anterior" {...delta(cur.gross, prev.gross)} />
-          <KPICard title="Cash Collected" value={loading ? '—' : fmt(cur.cash)} icon={Wallet}
-            loading={loading} description="cobrado real" {...delta(cur.cash, prev.cash)} />
-          <KPICard title="Nº Ventas" value={loading ? '—' : cur.count} icon={ShoppingCart}
-            loading={loading} description="cierres del mes" {...delta(cur.count, prev.count)} />
-          <KPICard title="Ticket medio" value={loading ? '—' : fmt(cur.avgTicket)} icon={Receipt}
-            loading={loading} description="por venta" {...delta(cur.avgTicket, prev.avgTicket)} />
+          <KPICard
+            title="Facturación bruta"
+            value={loading ? '—' : fmt(cur.gross)}
+            icon={TrendingUp}
+            loading={loading}
+            description="vs mes anterior"
+            {...delta(cur.gross, prev.gross)}
+          />
+          <KPICard
+            title="Cash Collected"
+            value={loading ? '—' : fmt(cur.cash)}
+            icon={Wallet}
+            loading={loading}
+            description="cobrado real"
+            {...delta(cur.cash, prev.cash)}
+          />
+          <KPICard
+            title="Nº Ventas"
+            value={loading ? '—' : cur.count}
+            icon={ShoppingCart}
+            loading={loading}
+            description="cierres del mes"
+            {...delta(cur.count, prev.count)}
+          />
+          <KPICard
+            title="Ticket medio"
+            value={loading ? '—' : fmt(cur.avgTicket)}
+            icon={Receipt}
+            loading={loading}
+            description="por venta"
+            {...delta(cur.avgTicket, prev.avgTicket)}
+          />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-          <KPICard title="Comisión ganada" value={loading ? '—' : fmt(commissionKpis.ganada)} icon={Coins}
-            loading={loading} description="cash collected · sin liquidar" />
-          <KPICard title="Comisión futura" value={loading ? '—' : fmt(commissionKpis.futura)} icon={Percent}
-            loading={loading} description="esperada · cuotas por cobrar" />
+          <KPICard
+            title="Comisión ganada"
+            value={loading ? '—' : fmt(commissionKpis.ganada)}
+            icon={Coins}
+            loading={loading}
+            description="cash collected · sin liquidar"
+          />
+          <KPICard
+            title="Comisión futura"
+            value={loading ? '—' : fmt(commissionKpis.futura)}
+            icon={Percent}
+            loading={loading}
+            description="esperada · cuotas por cobrar"
+          />
         </div>
       </div>
 
@@ -513,16 +668,20 @@ export default function DashboardPage() {
                 const goal = Number(t.target_value)
                 const pct = goal ? Math.min((current / goal) * 100, 100) : 0
                 const isMoney = ['revenue', 'cash_collected'].includes(t.metric_key)
-                const show = (n: number) => isMoney ? fmt(n) : Math.round(n).toString()
+                const show = (n: number) => (isMoney ? fmt(n) : Math.round(n).toString())
                 return (
                   <div key={t.id}>
                     <div className="flex justify-between text-xs mb-1">
                       <span className="text-foreground truncate">{t.name}</span>
-                      <span className="text-muted-foreground">{show(current)} / {show(goal)}</span>
+                      <span className="text-muted-foreground">
+                        {show(current)} / {show(goal)}
+                      </span>
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${pct >= 100 ? 'bg-emerald-500' : 'bg-brand-500'}`}
-                        style={{ width: `${pct}%` }} />
+                      <div
+                        className={`h-full rounded-full ${pct >= 100 ? 'bg-emerald-500' : 'bg-brand-500'}`}
+                        style={{ width: `${pct}%` }}
+                      />
                     </div>
                   </div>
                 )

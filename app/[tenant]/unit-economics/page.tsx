@@ -71,11 +71,7 @@ type ChannelRow = {
   roas: number | null
 }
 
-function buildChannelRows(
-  campaigns: CampaignRow[],
-  sales: SaleRow[],
-  contacts: ContactRow[]
-): ChannelRow[] {
+function buildChannelRows(campaigns: CampaignRow[], sales: SaleRow[], contacts: ContactRow[]): ChannelRow[] {
   // campaign id -> channel
   const campaignChannel = new Map<string, string>()
   for (const c of campaigns) campaignChannel.set(c.id, c.channel || 'Sin canal')
@@ -92,7 +88,9 @@ function buildChannelRows(
   const agg = new Map<string, ChannelRow>()
   const ensure = (channel: string) =>
     agg.get(channel) ??
-    agg.set(channel, { channel, adspend: 0, leads: 0, cpl: null, customers: 0, cac: null, revenue: 0, roas: null }).get(channel)!
+    agg
+      .set(channel, { channel, adspend: 0, leads: 0, cpl: null, customers: 0, cac: null, revenue: 0, roas: null })
+      .get(channel)!
 
   for (const c of campaigns) {
     const row = ensure(c.channel || 'Sin canal')
@@ -158,9 +156,7 @@ function buildMarketingFunnel(
 
   const contactHasCampaign = new Set(contactsWithCampaign.map((c) => c.id))
 
-  const salesCallsBooked = appointments.filter(
-    (a) => a.contact_id && contactHasCampaign.has(a.contact_id)
-  ).length
+  const salesCallsBooked = appointments.filter((a) => a.contact_id && contactHasCampaign.has(a.contact_id)).length
 
   const attributedSales = sales.filter(
     (s) => ACTIVE_SALE_STATUSES.includes(s.status) && s.contact_id && contactHasCampaign.has(s.contact_id)
@@ -228,13 +224,12 @@ export default function UnitEconomicsPage() {
       setLoading(false)
     }
     load()
-    return () => { mounted = false }
+    return () => {
+      mounted = false
+    }
   }, [])
 
-  const channelRows = useMemo(
-    () => buildChannelRows(campaigns, sales, contacts),
-    [campaigns, sales, contacts]
-  )
+  const channelRows = useMemo(() => buildChannelRows(campaigns, sales, contacts), [campaigns, sales, contacts])
 
   const totals = useMemo(() => {
     const totalAdspend = campaigns.reduce((a, c) => a + num(c.adspend), 0)
@@ -268,7 +263,9 @@ export default function UnitEconomicsPage() {
           <PieChart className="w-6 h-6 text-white" />
           <h1 className="text-2xl font-semibold text-foreground">Métricas y KPIs</h1>
         </div>
-        <p className="text-muted-foreground text-sm mt-1">Pasa el ratón por las gráficas para ver el rendimiento mes a mes.</p>
+        <p className="text-muted-foreground text-sm mt-1">
+          Pasa el ratón por las gráficas para ver el rendimiento mes a mes.
+        </p>
       </div>
 
       {/* Top cards */}
@@ -425,13 +422,7 @@ export default function UnitEconomicsPage() {
           />
           <KPICard
             title="ROAS"
-            value={
-              loading
-                ? '—'
-                : marketingFunnel.roas !== null
-                  ? `${marketingFunnel.roas.toFixed(2)}x`
-                  : '—'
-            }
+            value={loading ? '—' : marketingFunnel.roas !== null ? `${marketingFunnel.roas.toFixed(2)}x` : '—'}
             icon={TrendingUp}
             loading={loading}
             description="Gross de deals cerrados / adspend"
@@ -447,7 +438,9 @@ export default function UnitEconomicsPage() {
 
         {/* Mini-embudo visual */}
         <div className="rounded-2xl border border-[#26262A] bg-[#141416] p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">Impresiones → Clicks → Leads → Sales Calls → Closes</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-4">
+            Impresiones → Clicks → Leads → Sales Calls → Closes
+          </h3>
           {loading ? (
             <div className="h-24 w-full bg-muted animate-pulse rounded" />
           ) : (
@@ -466,13 +459,9 @@ export default function UnitEconomicsPage() {
                     <div className="flex-1 rounded-2xl border border-[#26262A] bg-[#0A0A0B] p-4 text-center">
                       <p className="text-xs text-muted-foreground uppercase tracking-wider">{stage.label}</p>
                       <p className="text-xl font-bold text-foreground mt-1">{stage.value.toLocaleString('es-ES')}</p>
-                      {pct !== null && (
-                        <p className="text-xs text-white mt-1">{pct.toFixed(1)}% vs. anterior</p>
-                      )}
+                      {pct !== null && <p className="text-xs text-white mt-1">{pct.toFixed(1)}% vs. anterior</p>}
                     </div>
-                    {i < arr.length - 1 && (
-                      <span className="text-muted-foreground text-lg hidden sm:block">→</span>
-                    )}
+                    {i < arr.length - 1 && <span className="text-muted-foreground text-lg hidden sm:block">→</span>}
                   </div>
                 )
               })}
@@ -518,11 +507,7 @@ export default function UnitEconomicsPage() {
                     <td className="py-2.5 pr-4">{row.cac !== null ? formatCurrency(row.cac) : '—'}</td>
                     <td className="py-2.5 pr-4">{formatCurrency(row.revenue)}</td>
                     <td className="py-2.5 pr-4">
-                      {row.roas !== null ? (
-                        <span className={ratioColor(row.roas)}>{row.roas.toFixed(2)}x</span>
-                      ) : (
-                        '—'
-                      )}
+                      {row.roas !== null ? <span className={ratioColor(row.roas)}>{row.roas.toFixed(2)}x</span> : '—'}
                     </td>
                   </tr>
                 ))}
@@ -534,10 +519,10 @@ export default function UnitEconomicsPage() {
 
       {/* Nota de atribución */}
       <p className="text-xs text-muted-foreground leading-relaxed">
-        La atribución por canal se calcula a partir de <span className="text-muted-foreground">contacts.campaign_id</span>{' '}
-        (aproximación tipo last-touch): cada contacto se asigna al canal de la campaña que lo originó, y las ventas
-        activas de esos contactos se atribuyen al canal correspondiente. Los clientes sin campaña asociada no se
-        incluyen en el desglose por canal.
+        La atribución por canal se calcula a partir de{' '}
+        <span className="text-muted-foreground">contacts.campaign_id</span> (aproximación tipo last-touch): cada
+        contacto se asigna al canal de la campaña que lo originó, y las ventas activas de esos contactos se atribuyen al
+        canal correspondiente. Los clientes sin campaña asociada no se incluyen en el desglose por canal.
       </p>
     </div>
   )

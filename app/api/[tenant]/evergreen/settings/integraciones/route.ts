@@ -8,10 +8,9 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 
-async function requireAdmin(tenantSlug: string): Promise<
-  | { ok: true; callerId: string; tenantId: string }
-  | { ok: false; res: NextResponse }
-> {
+async function requireAdmin(
+  tenantSlug: string
+): Promise<{ ok: true; callerId: string; tenantId: string } | { ok: false; res: NextResponse }> {
   const t = await requireTenant(tenantSlug)
   if ('error' in t) return { ok: false, res: t.error }
   const sb = svc()
@@ -24,8 +23,9 @@ async function requireAdmin(tenantSlug: string): Promise<
 }
 
 function svc(): SupabaseClient {
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } })
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
 }
 
 function mask(v: string): string {
@@ -44,9 +44,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
   const encReady = !!process.env.CONFIG_ENC_KEY
   let dbRows: Record<string, { value: string | null; is_secret: boolean }> = {}
   try {
-    const { data } = await svc().from('integration_settings').select('key,value,is_secret').eq('tenant_id', auth.tenantId)
+    const { data } = await svc()
+      .from('integration_settings')
+      .select('key,value,is_secret')
+      .eq('tenant_id', auth.tenantId)
     for (const r of data ?? []) dbRows[(r as { key: string }).key] = r as { value: string | null; is_secret: boolean }
-  } catch { /* tabla sin migrar */ }
+  } catch {
+    /* tabla sin migrar */
+  }
 
   const state: Record<string, { source: 'db' | 'env' | 'none'; secret: boolean; preview: string; value?: string }> = {}
   for (const f of ALL_FIELDS) {
@@ -75,7 +80,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const auth = await requireAdmin(tenant)
   if (!auth.ok) return auth.res
 
-  const body = await req.json().catch(() => ({})) as { action?: string; group?: string; updates?: Record<string, string>; clear?: string[] }
+  const body = (await req.json().catch(() => ({}))) as {
+    action?: string
+    group?: string
+    updates?: Record<string, string>
+    clear?: string[]
+  }
 
   if (body.action === 'test') return runTest(body.group || '', auth.tenantId)
 
@@ -86,7 +96,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const needsEnc = ALL_FIELDS.some((f) => f.secret && updates[f.key])
 
   if (needsEnc && !process.env.CONFIG_ENC_KEY) {
-    return NextResponse.json({ error: 'Falta CONFIG_ENC_KEY en el entorno; no se pueden guardar secretos cifrados.' }, { status: 400 })
+    return NextResponse.json(
+      { error: 'Falta CONFIG_ENC_KEY en el entorno; no se pueden guardar secretos cifrados.' },
+      { status: 400 }
+    )
   }
 
   for (const [key, raw] of Object.entries(updates)) {
@@ -94,7 +107,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const val = (raw ?? '').trim()
     const secret = SECRET_KEYS.has(key)
     if (secret && val === '') continue // no reescribir secreto en blanco
-    rows.push({ key, tenant_id: auth.tenantId, value: secret ? encryptSecret(val) : val, is_secret: secret, updated_by: auth.callerId })
+    rows.push({
+      key,
+      tenant_id: auth.tenantId,
+      value: secret ? encryptSecret(val) : val,
+      is_secret: secret,
+      updated_by: auth.callerId,
+    })
   }
 
   if (rows.length) {
@@ -106,7 +125,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
   if (clear.length) {
-    await client.from('integration_settings').delete().eq('tenant_id', auth.tenantId).in('key', clear.filter(isKnownKey))
+    await client
+      .from('integration_settings')
+      .delete()
+      .eq('tenant_id', auth.tenantId)
+      .in('key', clear.filter(isKnownKey))
   }
 
   invalidateConfigCache(auth.tenantId)
@@ -134,9 +157,15 @@ async function runTest(group: string, tenantId: string): Promise<NextResponse> {
         try {
           const all = await fetchAdAccounts(token, ver, cfg.META_APP_SECRET)
           if (all.length === 0) {
-            return NextResponse.json({ ok: false, message: 'Token válido pero sin acceso a ninguna cuenta publicitaria (revisa permisos ads_read).' })
+            return NextResponse.json({
+              ok: false,
+              message: 'Token válido pero sin acceso a ninguna cuenta publicitaria (revisa permisos ads_read).',
+            })
           }
-          return NextResponse.json({ ok: true, message: `${all.length} cuenta(s) detectada(s): ${all.map((a) => a.name).join(', ')}` })
+          return NextResponse.json({
+            ok: true,
+            message: `${all.length} cuenta(s) detectada(s): ${all.map((a) => a.name).join(', ')}`,
+          })
         } catch (e) {
           return NextResponse.json({ ok: false, message: `No se pudieron listar las cuentas: ${(e as Error).message}` })
         }
@@ -152,10 +181,16 @@ async function runTest(group: string, tenantId: string): Promise<NextResponse> {
       )
       const failed = results.filter((r) => !r.ok)
       if (failed.length > 0) {
-        return NextResponse.json({ ok: false, message: `Fallo en ${failed.map((f) => f.acc).join(', ')}: ${failed[0].err || 'Error de Meta'}` })
+        return NextResponse.json({
+          ok: false,
+          message: `Fallo en ${failed.map((f) => f.acc).join(', ')}: ${failed[0].err || 'Error de Meta'}`,
+        })
       }
       const names = results.map((r) => r.name || r.acc)
-      return NextResponse.json({ ok: true, message: results.length === 1 ? `Cuenta: ${names[0]}` : `${results.length} cuentas OK: ${names.join(', ')}` })
+      return NextResponse.json({
+        ok: true,
+        message: results.length === 1 ? `Cuenta: ${names[0]}` : `${results.length} cuentas OK: ${names.join(', ')}`,
+      })
     }
     if (group === 'instagram') {
       const token = cfg.INSTAGRAM_ACCESS_TOKEN || cfg.META_ACCESS_TOKEN
@@ -185,31 +220,49 @@ async function runTest(group: string, tenantId: string): Promise<NextResponse> {
       const fromDomain = from.match(/@([^>\s]+)/)?.[1]?.toLowerCase() || null
       const r = await fetch('https://api.resend.com/domains', { headers: { Authorization: `Bearer ${key}` } })
       if (r.ok) {
-        const j = await r.json().catch(() => ({})) as { data?: { name: string; status: string }[] }
+        const j = (await r.json().catch(() => ({}))) as { data?: { name: string; status: string }[] }
         const domains = j.data ?? []
         const verified = domains.filter((d) => d.status === 'verified').map((d) => d.name.toLowerCase())
         if (!fromDomain) {
-          return NextResponse.json({ ok: false, message: `Falta configurar el remitente (RESEND_FROM). Dominios verificados: ${verified.join(', ') || 'ninguno'}.` })
+          return NextResponse.json({
+            ok: false,
+            message: `Falta configurar el remitente (RESEND_FROM). Dominios verificados: ${verified.join(', ') || 'ninguno'}.`,
+          })
         }
         if (!verified.includes(fromDomain)) {
-          return NextResponse.json({ ok: false, message: `API key válida, pero el dominio "${fromDomain}" del remitente NO está verificado en Resend. Añádelo y verifícalo en resend.com/domains (o usa un remitente de un dominio verificado: ${verified.join(', ') || 'ninguno'}).` })
+          return NextResponse.json({
+            ok: false,
+            message: `API key válida, pero el dominio "${fromDomain}" del remitente NO está verificado en Resend. Añádelo y verifícalo en resend.com/domains (o usa un remitente de un dominio verificado: ${verified.join(', ') || 'ninguno'}).`,
+          })
         }
         return NextResponse.json({ ok: true, message: `Conexión correcta. Dominio "${fromDomain}" verificado.` })
       }
       // Key de tipo "solo envío": no tiene permiso para listar dominios (401 restricted_api_key).
       // Sigue siendo válida para enviar, así que hacemos una comprobación real intentando un envío
       // de prueba sin destinatario válido para que Resend nos diga si el dominio está verificado.
-      const j = await r.json().catch(() => ({})) as { name?: string }
+      const j = (await r.json().catch(() => ({}))) as { name?: string }
       if (r.status === 401 && j?.name === 'restricted_api_key') {
         const probe = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ from: from || 'onboarding@resend.dev', to: ['verificacion@resend.dev'], subject: 'ping', html: '<p>ping</p>' }),
+          body: JSON.stringify({
+            from: from || 'onboarding@resend.dev',
+            to: ['verificacion@resend.dev'],
+            subject: 'ping',
+            html: '<p>ping</p>',
+          }),
         })
-        const pj = await probe.json().catch(() => ({})) as { message?: string; name?: string }
-        if (probe.ok) return NextResponse.json({ ok: true, message: `Conexión correcta (key de solo envío). Remitente "${fromDomain || from}".` })
+        const pj = (await probe.json().catch(() => ({}))) as { message?: string; name?: string }
+        if (probe.ok)
+          return NextResponse.json({
+            ok: true,
+            message: `Conexión correcta (key de solo envío). Remitente "${fromDomain || from}".`,
+          })
         if (/not verified/i.test(pj.message || '')) {
-          return NextResponse.json({ ok: false, message: `El dominio "${fromDomain}" del remitente NO está verificado en Resend. Añádelo y verifícalo en resend.com/domains.` })
+          return NextResponse.json({
+            ok: false,
+            message: `El dominio "${fromDomain}" del remitente NO está verificado en Resend. Añádelo y verifícalo en resend.com/domains.`,
+          })
         }
         return NextResponse.json({ ok: false, message: pj.message || 'No se pudo enviar el correo de prueba.' })
       }
@@ -224,19 +277,23 @@ async function runTest(group: string, tenantId: string): Promise<NextResponse> {
           ...(cfg.STRIPE_ACCOUNT_ID ? { 'Stripe-Account': cfg.STRIPE_ACCOUNT_ID } : {}),
         },
       })
-      const j = await r.json().catch(() => ({})) as { data?: unknown[]; error?: { message?: string } }
+      const j = (await r.json().catch(() => ({}))) as { data?: unknown[]; error?: { message?: string } }
       return r.ok
-        ? NextResponse.json({ ok: true, message: `Stripe conectado; acceso de lectura de pagos confirmado${j.data?.length ? '.' : ' (sin pagos todavía).'}` })
+        ? NextResponse.json({
+            ok: true,
+            message: `Stripe conectado; acceso de lectura de pagos confirmado${j.data?.length ? '.' : ' (sin pagos todavía).'}`,
+          })
         : NextResponse.json({ ok: false, message: j.error?.message || 'No se pudo conectar con Stripe.' })
     }
     if (group === 'ghl') {
       const token = cfg.GHL_API_TOKEN
       const locationId = cfg.GHL_LOCATION_ID
-      if (!token || !locationId) return NextResponse.json({ ok: false, message: 'Faltan el token o el Location ID de GoHighLevel.' })
+      if (!token || !locationId)
+        return NextResponse.json({ ok: false, message: 'Faltan el token o el Location ID de GoHighLevel.' })
       const r = await fetch(`https://services.leadconnectorhq.com/locations/${encodeURIComponent(locationId)}`, {
         headers: { Authorization: `Bearer ${token}`, Version: '2021-07-28', Accept: 'application/json' },
       })
-      const j = await r.json().catch(() => ({})) as { location?: { name?: string }; message?: string }
+      const j = (await r.json().catch(() => ({}))) as { location?: { name?: string }; message?: string }
       return r.ok
         ? NextResponse.json({ ok: true, message: `Subcuenta ${j.location?.name || locationId} conectada.` })
         : NextResponse.json({ ok: false, message: j.message || `GoHighLevel respondió ${r.status}.` })
@@ -245,11 +302,16 @@ async function runTest(group: string, tenantId: string): Promise<NextResponse> {
       const missing = [!cfg.ANTHROPIC_API_KEY && 'Anthropic', !cfg.GROQ_API_KEY && 'Groq'].filter(Boolean)
       if (missing.length) return NextResponse.json({ ok: false, message: `Falta configurar: ${missing.join(', ')}.` })
       const [anthropic, groq] = await Promise.all([
-        fetch('https://api.anthropic.com/v1/models?limit=1', { headers: { 'x-api-key': cfg.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' } }),
+        fetch('https://api.anthropic.com/v1/models?limit=1', {
+          headers: { 'x-api-key': cfg.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        }),
         fetch('https://api.groq.com/openai/v1/models', { headers: { Authorization: `Bearer ${cfg.GROQ_API_KEY}` } }),
       ])
       if (!anthropic.ok || !groq.ok) {
-        return NextResponse.json({ ok: false, message: `Anthropic: ${anthropic.ok ? 'OK' : anthropic.status}; Groq: ${groq.ok ? 'OK' : groq.status}.` })
+        return NextResponse.json({
+          ok: false,
+          message: `Anthropic: ${anthropic.ok ? 'OK' : anthropic.status}; Groq: ${groq.ok ? 'OK' : groq.status}.`,
+        })
       }
       return NextResponse.json({ ok: true, message: 'Anthropic y Groq conectados.' })
     }
@@ -267,7 +329,7 @@ async function runTest(group: string, tenantId: string): Promise<NextResponse> {
           grant_type: 'refresh_token',
         }),
       })
-      const j = await r.json().catch(() => ({})) as { error_description?: string }
+      const j = (await r.json().catch(() => ({}))) as { error_description?: string }
       return r.ok
         ? NextResponse.json({ ok: true, message: 'OAuth de YouTube válido.' })
         : NextResponse.json({ ok: false, message: j.error_description || 'Credenciales OAuth inválidas.' })
@@ -276,7 +338,11 @@ async function runTest(group: string, tenantId: string): Promise<NextResponse> {
       if (!cfg.SEQURA_MCP_TOKEN) return NextResponse.json({ ok: false, message: 'Falta el token MCP de SeQura.' })
       const r = await fetch('https://simba.sequra.com/mcp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${cfg.SEQURA_MCP_TOKEN}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+          Authorization: `Bearer ${cfg.SEQURA_MCP_TOKEN}`,
+        },
         body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'tools/list', params: {} }),
       })
       return r.ok
@@ -287,7 +353,11 @@ async function runTest(group: string, tenantId: string): Promise<NextResponse> {
       if (!cfg.CREATUAGENTE_WEBHOOK_URL || !cfg.CREATUAGENTE_WEBHOOK_SECRET) {
         return NextResponse.json({ ok: false, message: 'Faltan la URL o el secreto del webhook.' })
       }
-      try { new URL(cfg.CREATUAGENTE_WEBHOOK_URL) } catch { return NextResponse.json({ ok: false, message: 'La URL del webhook no es válida.' }) }
+      try {
+        new URL(cfg.CREATUAGENTE_WEBHOOK_URL)
+      } catch {
+        return NextResponse.json({ ok: false, message: 'La URL del webhook no es válida.' })
+      }
       return NextResponse.json({ ok: true, message: 'Configuración válida. No se envió ningún evento de prueba.' })
     }
     return NextResponse.json({ ok: false, message: 'Esta integración no tiene prueba automática.' })

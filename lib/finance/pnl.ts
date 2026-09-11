@@ -10,10 +10,21 @@
 //   por lo que Refunds NO vuelve a restarse en OpEx ni en ningún otro punto de este cálculo).
 
 export type PnlSaleRow = { gross_amount: number | string; discount: number | string | null; sale_date: string | null }
-export type PnlCollectionRow = { id: string; gross_amount: number | string; processing_fee: number | string | null; collected_at: string | null; status: string }
+export type PnlCollectionRow = {
+  id: string
+  gross_amount: number | string
+  processing_fee: number | string | null
+  collected_at: string | null
+  status: string
+}
 export type PnlRefundRow = { gross_refund_amount: number | string; refund_date: string | null }
 export type PnlExpenseRow = { amount: number | string; category: string; expense_date: string | null }
-export type PnlCommissionRow = { commission_amount: number | string; direction: string; collection_id: string | null; liquidation_month: string | null }
+export type PnlCommissionRow = {
+  commission_amount: number | string
+  direction: string
+  collection_id: string | null
+  liquidation_month: string | null
+}
 
 export interface MonthlyPnl {
   contractedRevenue: number
@@ -63,7 +74,7 @@ export function computeMonthlyPnl(
   const commissionYm = (c: PnlCommissionRow) =>
     c.direction === 'negative'
       ? ymOf(c.liquidation_month)
-      : (c.collection_id ? collMonth.get(c.collection_id) : undefined) ?? ymOf(c.liquidation_month)
+      : ((c.collection_id ? collMonth.get(c.collection_id) : undefined) ?? ymOf(c.liquidation_month))
   const monthCommissions = commissions.filter((c) => commissionYm(c) === ym)
 
   const contractedRevenue = monthSales.reduce((a, s) => a + num(s.gross_amount), 0)

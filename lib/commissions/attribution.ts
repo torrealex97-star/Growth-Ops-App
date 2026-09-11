@@ -23,10 +23,7 @@ type SaleForAttribution = {
 //   - utm_content → users.affiliate_code  (afiliado)
 // Solo rellena lo que esté vacío: NUNCA pisa una asignación manual ni un rep ya puesto por el
 // webhook. Devuelve el parche aplicado (objeto vacío si no encontró a nadie).
-export async function resolveSaleAttribution(
-  sb: SupabaseClient,
-  sale: SaleForAttribution
-): Promise<AttributionPatch> {
+export async function resolveSaleAttribution(sb: SupabaseClient, sale: SaleForAttribution): Promise<AttributionPatch> {
   const needSetter = !sale.setter_id
   const needAffiliate = !sale.affiliate_id
   if (!needSetter && !needAffiliate) return {}
@@ -35,11 +32,7 @@ export async function resolveSaleAttribution(
 
   // 1) Si la venta viene de una agenda, respeta el setter que ya asignó Calendly/GHL (por utm/email).
   if (needSetter && sale.appointment_id) {
-    const { data: appt } = await sb
-      .from('appointments')
-      .select('setter_id')
-      .eq('id', sale.appointment_id)
-      .maybeSingle()
+    const { data: appt } = await sb.from('appointments').select('setter_id').eq('id', sale.appointment_id).maybeSingle()
     if (appt?.setter_id) patch.setter_id = appt.setter_id
   }
 
@@ -80,8 +73,7 @@ export async function resolveSaleAttribution(
     if (match) {
       patch.affiliate_id = match.id as string
       if (sale.affiliate_commission_percent == null) {
-        patch.affiliate_commission_percent =
-          (match.default_affiliate_commission_percent as number | null) ?? null
+        patch.affiliate_commission_percent = (match.default_affiliate_commission_percent as number | null) ?? null
       }
     }
   }

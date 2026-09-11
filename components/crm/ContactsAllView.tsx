@@ -1,16 +1,11 @@
-"use client"
+'use client'
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ContactsTable } from '@/components/contacts/ContactsTable'
 import { ContactForm, type ContactFormData } from '@/components/contacts/ContactForm'
 import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { UserPlus, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Contact } from '@/lib/types/database'

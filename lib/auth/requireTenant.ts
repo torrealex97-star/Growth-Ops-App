@@ -11,25 +11,26 @@ import { NextResponse } from 'next/server'
  * which bypasses RLS entirely), so tenantId must be applied explicitly to
  * every read/write in the route body — never trust a client-supplied tenant_id.
  */
-export async function requireTenant(tenantSlug: string): Promise<
-  { userId: string; tenantId: string; isSuperAdmin: boolean } | { error: NextResponse }
-> {
+export async function requireTenant(
+  tenantSlug: string
+): Promise<{ userId: string; tenantId: string; isSuperAdmin: boolean } | { error: NextResponse }> {
   const cookieStore = await cookies()
-  const authed = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-  )
-  const { data: { user } } = await authed.auth.getUser()
+  const authed = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll()
+      },
+      setAll() {},
+    },
+  })
+  const {
+    data: { user },
+  } = await authed.auth.getUser()
   if (!user) {
     return { error: NextResponse.json({ error: 'No autenticado' }, { status: 401 }) }
   }
 
-  const { data: tenant } = await authed
-    .from('tenants')
-    .select('id, status')
-    .eq('slug', tenantSlug)
-    .maybeSingle()
+  const { data: tenant } = await authed.from('tenants').select('id, status').eq('slug', tenantSlug).maybeSingle()
   if (!tenant || tenant.status !== 'active') {
     return { error: NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 }) }
   }

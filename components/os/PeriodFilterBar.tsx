@@ -1,13 +1,7 @@
-"use client"
+'use client'
 
 import { useId } from 'react'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -45,12 +39,26 @@ type Props = {
 
 // Barra de filtros unificada: Día/Semana/Mes/Trimestre/Año/Personalizado + persona/equipo + export.
 export function PeriodFilterBar({
-  preset, onPresetChange,
-  customFrom, customTo, onCustomFromChange, onCustomToChange,
-  roles, role, onRoleChange, roleLabel = 'Rol', allRolesLabel = 'Todos los roles',
-  members, member, onMemberChange,
-  memberLabel = 'Persona', allMembersLabel = 'Toda la empresa',
-  onExport, onClear, hasActiveFilters, className = '',
+  preset,
+  onPresetChange,
+  customFrom,
+  customTo,
+  onCustomFromChange,
+  onCustomToChange,
+  roles,
+  role,
+  onRoleChange,
+  roleLabel = 'Rol',
+  allRolesLabel = 'Todos los roles',
+  members,
+  member,
+  onMemberChange,
+  memberLabel = 'Persona',
+  allMembersLabel = 'Toda la empresa',
+  onExport,
+  onClear,
+  hasActiveFilters,
+  className = '',
 }: Props) {
   const id = useId()
   const invalidRange = preset === 'custom' && isDateRangeInvalid(customFrom, customTo)
@@ -66,7 +74,12 @@ export function PeriodFilterBar({
         <span className="text-sm font-medium text-foreground">Filtros</span>
         <div className="flex items-center gap-2">
           {onClear && hasActiveFilters && (
-            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={onClear}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-muted-foreground hover:text-foreground"
+              onClick={onClear}
+            >
               <X className="w-3.5 h-3.5 mr-1" />
               Limpiar filtros
             </Button>
@@ -81,14 +94,18 @@ export function PeriodFilterBar({
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="space-y-1.5">
-          <Label htmlFor={`${id}-preset`} className="text-xs text-muted-foreground">Periodo</Label>
+          <Label htmlFor={`${id}-preset`} className="text-xs text-muted-foreground">
+            Periodo
+          </Label>
           <Select value={preset} onValueChange={(v) => handlePresetChange(v as PeriodPreset)}>
             <SelectTrigger id={`${id}-preset`} className="bg-muted border-border h-9" aria-label="Periodo">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-card border-border">
               {(Object.keys(PERIOD_LABELS) as PeriodPreset[]).map((p) => (
-                <SelectItem key={p} value={p}>{PERIOD_LABELS[p]}</SelectItem>
+                <SelectItem key={p} value={p}>
+                  {PERIOD_LABELS[p]}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -96,20 +113,48 @@ export function PeriodFilterBar({
 
         {preset === 'day' && (
           <div className="space-y-1.5">
-            <Label htmlFor={`${id}-day`} className="text-xs text-muted-foreground">Día</Label>
-            <Input id={`${id}-day`} type="date" value={customFrom} onChange={(e) => onCustomFromChange(e.target.value)} className="bg-muted border-border h-9" />
+            <Label htmlFor={`${id}-day`} className="text-xs text-muted-foreground">
+              Día
+            </Label>
+            <Input
+              id={`${id}-day`}
+              type="date"
+              value={customFrom}
+              onChange={(e) => onCustomFromChange(e.target.value)}
+              className="bg-muted border-border h-9"
+            />
           </div>
         )}
 
         {preset === 'custom' && (
           <>
             <div className="space-y-1.5">
-              <Label htmlFor={`${id}-from`} className="text-xs text-muted-foreground">Desde</Label>
-              <Input id={`${id}-from`} type="date" value={customFrom} max={customTo || undefined} onChange={(e) => onCustomFromChange(e.target.value)} className="bg-muted border-border h-9" aria-invalid={invalidRange} />
+              <Label htmlFor={`${id}-from`} className="text-xs text-muted-foreground">
+                Desde
+              </Label>
+              <Input
+                id={`${id}-from`}
+                type="date"
+                value={customFrom}
+                max={customTo || undefined}
+                onChange={(e) => onCustomFromChange(e.target.value)}
+                className="bg-muted border-border h-9"
+                aria-invalid={invalidRange}
+              />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={`${id}-to`} className="text-xs text-muted-foreground">Hasta</Label>
-              <Input id={`${id}-to`} type="date" value={customTo} min={customFrom || undefined} onChange={(e) => onCustomToChange(e.target.value)} className="bg-muted border-border h-9" aria-invalid={invalidRange} />
+              <Label htmlFor={`${id}-to`} className="text-xs text-muted-foreground">
+                Hasta
+              </Label>
+              <Input
+                id={`${id}-to`}
+                type="date"
+                value={customTo}
+                min={customFrom || undefined}
+                onChange={(e) => onCustomToChange(e.target.value)}
+                className="bg-muted border-border h-9"
+                aria-invalid={invalidRange}
+              />
             </div>
           </>
         )}
@@ -124,7 +169,9 @@ export function PeriodFilterBar({
               <SelectContent className="bg-card border-border">
                 <SelectItem value="all">{allRolesLabel}</SelectItem>
                 {roles.map((r) => (
-                  <SelectItem key={r.key} value={r.key}>{r.label}</SelectItem>
+                  <SelectItem key={r.key} value={r.key}>
+                    {r.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -141,7 +188,9 @@ export function PeriodFilterBar({
               <SelectContent className="bg-card border-border">
                 <SelectItem value="all">{allMembersLabel}</SelectItem>
                 {members.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.full_name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -149,7 +198,9 @@ export function PeriodFilterBar({
         )}
       </div>
       {invalidRange && (
-        <p role="alert" className="text-xs text-amber-400">La fecha «Desde» debe ser anterior o igual a «Hasta».</p>
+        <p role="alert" className="text-xs text-amber-400">
+          La fecha «Desde» debe ser anterior o igual a «Hasta».
+        </p>
       )}
     </div>
   )

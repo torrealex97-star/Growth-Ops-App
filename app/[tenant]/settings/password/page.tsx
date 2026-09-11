@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -44,7 +44,9 @@ export default function SetPasswordPage() {
       }
       // 2) Si no, ¿hay sesión activa? (flujo antiguo por callback)
       const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
       setMode(session ? 'session' : 'invalid')
     }
     init()
@@ -128,7 +130,10 @@ export default function SetPasswordPage() {
               <p className="text-muted-foreground text-sm mb-6">
                 El enlace de acceso ha expirado o no es válido. Pide uno nuevo.
               </p>
-              <Link href={`/${tenant}/recover`} className="text-sm text-brand-400 hover:text-brand-300 transition-colors">
+              <Link
+                href={`/${tenant}/recover`}
+                className="text-sm text-brand-400 hover:text-brand-300 transition-colors"
+              >
                 Solicitar nuevo enlace
               </Link>
             </div>

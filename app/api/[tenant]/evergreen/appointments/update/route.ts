@@ -64,8 +64,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (typeof clean.notes === 'string' && clean.notes && appt.calendly_event_uuid) {
       const evento = EVENTO_BY_STATUS[appt.status] ?? 'cita.completada'
       await notifyCreatuagente(evento, appt.utm_content, {
-        idExternoEvento: appt.calendly_event_uuid, origen: 'calendly',
-        titulo: appt.calendar_name || 'Llamada', notas: clean.notes,
+        idExternoEvento: appt.calendly_event_uuid,
+        origen: 'calendly',
+        titulo: appt.calendar_name || 'Llamada',
+        notas: clean.notes,
       })
     }
 

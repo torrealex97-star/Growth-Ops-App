@@ -1,17 +1,17 @@
-"use client"
+'use client'
 
-import { useState, useRef, useEffect, useCallback } from "react"
-import { ChatMessage } from "./ChatMessage"
-import { ChatInput } from "./ChatInput"
-import { ReferenceImages } from "./ReferenceImages"
-import { AlertCircle } from "lucide-react"
-import { toast } from "sonner"
-import type { ReferenceImage } from "@/lib/carruseles/types"
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { ChatMessage } from './ChatMessage'
+import { ChatInput } from './ChatInput'
+import { ReferenceImages } from './ReferenceImages'
+import { AlertCircle } from 'lucide-react'
+import { toast } from 'sonner'
+import type { ReferenceImage } from '@/lib/carruseles/types'
 import { useTenant } from '@/lib/tenant-context'
 
 interface Message {
   id: string
-  role: "user" | "assistant"
+  role: 'user' | 'assistant'
   content: string
 }
 
@@ -24,14 +24,7 @@ interface Props {
   chatInputRef?: React.Ref<HTMLTextAreaElement>
 }
 
-export function ChatPanel({
-  projectId,
-  referenceImages,
-  onStreamStart,
-  onRefresh,
-  onStreamEnd,
-  chatInputRef,
-}: Props) {
+export function ChatPanel({ projectId, referenceImages, onStreamStart, onRefresh, onStreamEnd, chatInputRef }: Props) {
   const tenant = useTenant()
   const [messages, setMessages] = useState<Message[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
@@ -76,47 +69,47 @@ export function ChatPanel({
       onStreamStart?.()
 
       const history = messages.map((m) => ({ role: m.role, content: m.content }))
-      const userMsg: Message = { id: crypto.randomUUID(), role: "user", content: message }
+      const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: message }
       const assistantId = crypto.randomUUID()
-      setMessages((prev) => [...prev, userMsg, { id: assistantId, role: "assistant", content: "" }])
+      setMessages((prev) => [...prev, userMsg, { id: assistantId, role: 'assistant', content: '' }])
 
       abortRef.current = new AbortController()
-      let accumulated = ""
+      let accumulated = ''
 
       try {
         const res = await fetch(`/api/${tenant}/evergreen/carruseles/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message, projectId, history }),
           signal: abortRef.current.signal,
         })
         if (!res.ok) {
           const err = await res.json().catch(() => ({}))
-          throw new Error((err as { error?: string }).error || "Error de conexión con la IA")
+          throw new Error((err as { error?: string }).error || 'Error de conexión con la IA')
         }
         const reader = res.body?.getReader()
-        if (!reader) throw new Error("Sin stream de respuesta")
+        if (!reader) throw new Error('Sin stream de respuesta')
         const decoder = new TextDecoder()
-        let buffer = ""
+        let buffer = ''
 
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
           buffer += decoder.decode(value, { stream: true })
-          const lines = buffer.split("\n")
-          buffer = lines.pop() ?? ""
+          const lines = buffer.split('\n')
+          buffer = lines.pop() ?? ''
           for (const line of lines) {
-            if (!line.startsWith("data: ")) continue
+            if (!line.startsWith('data: ')) continue
             try {
               const data = JSON.parse(line.slice(6))
-              if (data.type === "token" && typeof data.text === "string") {
+              if (data.type === 'token' && typeof data.text === 'string') {
                 accumulated += data.text
                 setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content: accumulated } : m)))
-              } else if (data.type === "refresh") {
+              } else if (data.type === 'refresh') {
                 onRefresh?.()
-              } else if (data.type === "error") {
-                setError(data.error || "Error")
-              } else if (data.type === "warning" && data.warning) {
+              } else if (data.type === 'error') {
+                setError(data.error || 'Error')
+              } else if (data.type === 'warning' && data.warning) {
                 toast.warning(data.warning)
               }
             } catch {
@@ -125,16 +118,16 @@ export function ChatPanel({
           }
         }
       } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") {
+        if (err instanceof Error && err.name === 'AbortError') {
           // conserva lo generado
         } else {
-          setError(err instanceof Error ? err.message : "Error inesperado")
+          setError(err instanceof Error ? err.message : 'Error inesperado')
         }
       } finally {
         setIsStreaming(false)
         abortRef.current = null
         setMessages((prev) => {
-          const cleaned = prev.filter((m) => m.role !== "assistant" || m.id !== assistantId || m.content.length > 0)
+          const cleaned = prev.filter((m) => m.role !== 'assistant' || m.id !== assistantId || m.content.length > 0)
           persist(cleaned)
           return cleaned
         })
@@ -176,7 +169,7 @@ export function ChatPanel({
             key={msg.id}
             role={msg.role}
             content={msg.content}
-            isStreaming={isStreaming && msg.role === "assistant" && msg.id === messages[messages.length - 1]?.id}
+            isStreaming={isStreaming && msg.role === 'assistant' && msg.id === messages[messages.length - 1]?.id}
           />
         ))}
         {error && (

@@ -5,31 +5,31 @@
 export type SocialProofMode = 'off' | 'fake' | 'real'
 
 export interface VslConfig {
-  showBar: boolean       // mostrar barra de progreso
-  barColor: string       // color de la barra (azul eléctrico por defecto)
-  primaryColor: string   // color del botón/acentos
-  autoplay: boolean      // autoplay silenciado al cargar
-  muted: boolean         // arrancar en mute (necesario para autoplay)
+  showBar: boolean // mostrar barra de progreso
+  barColor: string // color de la barra (azul eléctrico por defecto)
+  primaryColor: string // color del botón/acentos
+  autoplay: boolean // autoplay silenciado al cargar
+  muted: boolean // arrancar en mute (necesario para autoplay)
   tryAudioAutoplay: boolean // intentar autoplay CON sonido; si el navegador lo bloquea (Chrome), fallback a mute + overlay
-  restartOnUnmute: boolean  // al activar el sonido, reiniciar desde el principio (para no perderse el hook)
-  lockSeek: boolean      // impedir adelantar el vídeo (típico VSL)
-  fakeProgress: boolean  // barra "acelerada": avanza rápido y da sensación de que queda poco (retención)
-  loop: boolean          // al terminar, vuelve a empezar automáticamente
+  restartOnUnmute: boolean // al activar el sonido, reiniciar desde el principio (para no perderse el hook)
+  lockSeek: boolean // impedir adelantar el vídeo (típico VSL)
+  fakeProgress: boolean // barra "acelerada": avanza rápido y da sensación de que queda poco (retención)
+  loop: boolean // al terminar, vuelve a empezar automáticamente
 
   // --- Prueba social (contador "viendo ahora" / "ya lo vieron") ---
   socialProof: SocialProofMode // off | fake (inventado) | real (sesiones reales)
-  spViewersMin: number   // fake: mínimo de "viendo ahora"
-  spViewersMax: number   // fake: máximo de "viendo ahora"
-  spWatchedBase: number  // fake: base de "ya lo han visto" (sube poco a poco)
+  spViewersMin: number // fake: mínimo de "viendo ahora"
+  spViewersMax: number // fake: máximo de "viendo ahora"
+  spWatchedBase: number // fake: base de "ya lo han visto" (sube poco a poco)
 
   // --- Recuperación de caída (overlay al pausar / intentar salir) ---
-  exitHook: boolean      // mostrar overlay de "espera, no te vayas"
-  exitHookText: string   // mensaje del overlay
+  exitHook: boolean // mostrar overlay de "espera, no te vayas"
+  exitHookText: string // mensaje del overlay
 }
 
 // Azul eléctrico (marca)
-export const BRAND_BLUE = '#2563EB'      // botón / acentos
-export const BRAND_BLUE_BAR = '#3B82F6'  // barra de progreso (un punto más brillante)
+export const BRAND_BLUE = '#2563EB' // botón / acentos
+export const BRAND_BLUE_BAR = '#3B82F6' // barra de progreso (un punto más brillante)
 
 export const DEFAULT_CONFIG: VslConfig = {
   showBar: true,

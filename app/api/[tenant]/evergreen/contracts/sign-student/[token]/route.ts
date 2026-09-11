@@ -5,8 +5,13 @@ import { buildStudentContractPdf } from '@/lib/contracts/pdf-student'
 import { getCompanyProfile } from '@/lib/contracts/company'
 import { applyVars, stripRemainingVars } from '@/lib/contracts/terms'
 import {
-  studentSignerVars, studentConditionLines, STUDENT_SIGNER_FIELDS, validateStudentSigner,
-  DEFAULT_STUDENT_WELCOME, type StudentContractTerms, type StudentSignerData,
+  studentSignerVars,
+  studentConditionLines,
+  STUDENT_SIGNER_FIELDS,
+  validateStudentSigner,
+  DEFAULT_STUDENT_WELCOME,
+  type StudentContractTerms,
+  type StudentSignerData,
 } from '@/lib/contracts/student'
 import { sendStudentSignedEmail, sendStudentOnboardingEmail } from '@/lib/email/resend'
 import { fireOnboardingWebhook, toCountryISO } from '@/lib/ghl'
@@ -26,7 +31,12 @@ function service() {
 // la búsqueda del contrato por tenant_id como defensa en profundidad, ya que el
 // token de firma en sí (aleatorio, único) es el mecanismo de seguridad principal.
 async function resolveTenantId(sb: SupabaseClient, tenantSlug: string): Promise<string | null> {
-  const { data } = await sb.from('tenants').select('id, status').eq('slug', tenantSlug).eq('status', 'active').maybeSingle()
+  const { data } = await sb
+    .from('tenants')
+    .select('id, status')
+    .eq('slug', tenantSlug)
+    .eq('status', 'active')
+    .maybeSingle()
   return data?.id ?? null
 }
 
@@ -51,7 +61,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
   if (!tenantId) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
   const { data } = await sb
     .from('contracts')
-    .select('id, title, body_snapshot, terms, status, signer_name, signer_data, signed_at, signed_pdf_url, contact_id, template_id, read_at')
+    .select(
+      'id, title, body_snapshot, terms, status, signer_name, signer_data, signed_at, signed_pdf_url, contact_id, template_id, read_at'
+    )
     .eq('signing_token', token)
     .eq('kind', 'venta')
     .eq('tenant_id', tenantId)
@@ -65,7 +77,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
   let studentEmail: string | null = null
   const prefill: StudentSignerData = (data.signer_data as StudentSignerData) ?? {}
   if (data.contact_id) {
-    const { data: c } = await sb.from('contacts').select('full_name, email, phone').eq('id', data.contact_id).maybeSingle()
+    const { data: c } = await sb
+      .from('contacts')
+      .select('full_name, email, phone')
+      .eq('id', data.contact_id)
+      .maybeSingle()
     studentName = c?.full_name ?? null
     studentEmail = c?.email ?? null
     if (c) prefill.phone = prefill.phone ?? c.phone ?? null
@@ -74,7 +90,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
   // Mensaje de bienvenida de la plantilla.
   let welcome = DEFAULT_STUDENT_WELCOME
   if (data.template_id) {
-    const { data: tpl } = await sb.from('contract_templates').select('welcome_message').eq('id', data.template_id).maybeSingle()
+    const { data: tpl } = await sb
+      .from('contract_templates')
+      .select('welcome_message')
+      .eq('id', data.template_id)
+      .maybeSingle()
     if (tpl?.welcome_message) welcome = tpl.welcome_message
   }
 
@@ -130,7 +150,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (!tenantId) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
     const { data: c } = await sb
       .from('contracts')
-      .select('id, title, body_snapshot, terms, status, created_by, contact_id, sale_id, is_reservation, contract_party')
+      .select(
+        'id, title, body_snapshot, terms, status, created_by, contact_id, sale_id, is_reservation, contract_party'
+      )
       .eq('signing_token', token)
       .eq('kind', 'venta')
       .eq('tenant_id', tenantId)
@@ -138,9 +160,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (!c) return NextResponse.json({ error: 'Contrato no encontrado' }, { status: 404 })
     if (c.status === 'firmado') return NextResponse.json({ error: 'Este contrato ya está firmado' }, { status: 409 })
 
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-      req.headers.get('x-real-ip') || null
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || null
     const ua = req.headers.get('user-agent')
     const signedAt = new Date().toISOString()
     const terms = (c.terms ?? {}) as StudentContractTerms
@@ -198,7 +218,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const pdfBytes = await buildStudentContractPdf({
       title: c.title ?? 'Contrato de formación',
       bodyText: finalBody,
-      terms, company,
+      terms,
+      company,
       signerName: signerName.trim(),
       signerData: sd,
       signerEmail: studentEmail,
@@ -213,7 +234,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     // Persiste teléfono en el contacto si lo aportó al firmar.
     if (c.contact_id && sd.phone) {
-      await sb.from('contacts').update({ phone: sd.phone }).eq('id', c.contact_id).then(() => {}, () => {})
+      await sb
+        .from('contacts')
+        .update({ phone: sd.phone })
+        .eq('id', c.contact_id)
+        .then(
+          () => {},
+          () => {}
+        )
     }
 
     // Dispara el webhook de onboarding a GHL SOLO en el contrato de alumno (venta
@@ -243,20 +271,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         })
       : { ok: false, skipped: true as const }
 
-    const { error } = await sb.from('contracts').update({
-      status: 'firmado',
-      signed_at: signedAt,
-      signer_name: signerName.trim(),
-      signer_data: sd,
-      signer_ip: ip,
-      signer_user_agent: ua,
-      signed_hash: hash,
-      signed_pdf_url: url,
-      url,
-      // Solo marcamos accesos_enviados si el webhook se disparó de verdad (no si está sin configurar).
-      accesos_enviados_at: webhook.ok ? signedAt : null,
-      onboarding_webhook_ok: webhook.skipped ? null : webhook.ok,
-    }).eq('id', c.id)
+    const { error } = await sb
+      .from('contracts')
+      .update({
+        status: 'firmado',
+        signed_at: signedAt,
+        signer_name: signerName.trim(),
+        signer_data: sd,
+        signer_ip: ip,
+        signer_user_agent: ua,
+        signed_hash: hash,
+        signed_pdf_url: url,
+        url,
+        // Solo marcamos accesos_enviados si el webhook se disparó de verdad (no si está sin configurar).
+        accesos_enviados_at: webhook.ok ? signedAt : null,
+        onboarding_webhook_ok: webhook.skipped ? null : webhook.ok,
+      })
+      .eq('id', c.id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     // Copia del contrato firmado al firmante (alumno o tomador).
@@ -271,11 +302,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     await sb.from('audit_logs').insert({
       tenant_id: tenantId,
-      entity_type: 'contract', entity_id: c.id, action: 'update',
-      new_values: { status: 'firmado', signer_name: signerName.trim(), hash, ip, party: c.contract_party, is_reservation: c.is_reservation, onboarding_webhook: webhook },
+      entity_type: 'contract',
+      entity_id: c.id,
+      action: 'update',
+      new_values: {
+        status: 'firmado',
+        signer_name: signerName.trim(),
+        hash,
+        ip,
+        party: c.contract_party,
+        is_reservation: c.is_reservation,
+        onboarding_webhook: webhook,
+      },
     })
 
-    return NextResponse.json({ ok: true, signedPdfUrl: url, accesosEnviados: webhook.ok, webhookSkipped: !!webhook.skipped })
+    return NextResponse.json({
+      ok: true,
+      signedPdfUrl: url,
+      accesosEnviados: webhook.ok,
+      webhookSkipped: !!webhook.skipped,
+    })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }

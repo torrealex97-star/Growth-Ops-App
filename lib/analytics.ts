@@ -116,7 +116,8 @@ export function teamRanking(
   const saleOwner = new Map<string, string | null>() // sale_id -> userId del rol
   const agg = new Map<string, RankRow>()
   const ensure = (id: string) =>
-    agg.get(id) ?? agg.set(id, { userId: id, name: nameOf.get(id) || 'Sin asignar', sales: 0, gross: 0, cash: 0 }).get(id)!
+    agg.get(id) ??
+    agg.set(id, { userId: id, name: nameOf.get(id) || 'Sin asignar', sales: 0, gross: 0, cash: 0 }).get(id)!
 
   for (const s of sales) {
     const owner = role === 'closer' ? s.closer_id : s.setter_id
@@ -163,12 +164,21 @@ export function attributionBySource(
     row.sales += 1
     row.gross += num(s.gross_amount)
   }
-  bySource.forEach((row) => { row.convRate = row.leads ? (row.sales / row.leads) * 100 : 0 })
+  bySource.forEach((row) => {
+    row.convRate = row.leads ? (row.sales / row.leads) * 100 : 0
+  })
   return Array.from(bySource.values()).sort((a, b) => b.gross - a.gross)
 }
 
 // --- Agendas por setter (agendadas, shows, % show) ---
-export type SetterAgendaRow = { userId: string; name: string; total: number; shows: number; noShows: number; showRate: number }
+export type SetterAgendaRow = {
+  userId: string
+  name: string
+  total: number
+  shows: number
+  noShows: number
+  showRate: number
+}
 export function setterAgendaStats(appointments: AppointmentRow[], users: UserRow[]): SetterAgendaRow[] {
   const nameOf = new Map(users.map((u) => [u.id, u.full_name]))
   // Igual que en teamRanking: no contar como "setter" a alguien que solo quedó puesto como
@@ -180,21 +190,38 @@ export function setterAgendaStats(appointments: AppointmentRow[], users: UserRow
   for (const a of appointments) {
     if (!a.setter_id) continue
     if (knowsRoles && roleOf.get(a.setter_id) !== 'setter' && roleOf.get(a.setter_id) !== 'cold_caller') continue
-    const row = map.get(a.setter_id) ?? map.set(a.setter_id, {
-      userId: a.setter_id, name: nameOf.get(a.setter_id) || 'Sin asignar', total: 0, shows: 0, noShows: 0, showRate: 0,
-    }).get(a.setter_id)!
+    const row =
+      map.get(a.setter_id) ??
+      map
+        .set(a.setter_id, {
+          userId: a.setter_id,
+          name: nameOf.get(a.setter_id) || 'Sin asignar',
+          total: 0,
+          shows: 0,
+          noShows: 0,
+          showRate: 0,
+        })
+        .get(a.setter_id)!
     row.total += 1
     if (a.status === 'show') row.shows += 1
     if (a.status === 'no_show') row.noShows += 1
   }
-  map.forEach((r) => { r.showRate = r.total ? (r.shows / r.total) * 100 : 0 })
+  map.forEach((r) => {
+    r.showRate = r.total ? (r.shows / r.total) * 100 : 0
+  })
   return Array.from(map.values()).sort((a, b) => b.total - a.total)
 }
 
 // --- Embudo completo por fuente: lead → agenda → venta (para adscripción) ---
 export type FunnelRow = {
-  source: string; leads: number; appointments: number; sales: number; gross: number
-  leadToAppt: number; apptToSale: number; leadToSale: number
+  source: string
+  leads: number
+  appointments: number
+  sales: number
+  gross: number
+  leadToAppt: number
+  apptToSale: number
+  leadToSale: number
 }
 export function funnelBySource(
   contactIds: string[],
@@ -209,7 +236,10 @@ export function funnelBySource(
 
   const map = new Map<string, FunnelRow>()
   const ensure = (s: string) =>
-    map.get(s) ?? map.set(s, { source: s, leads: 0, appointments: 0, sales: 0, gross: 0, leadToAppt: 0, apptToSale: 0, leadToSale: 0 }).get(s)!
+    map.get(s) ??
+    map
+      .set(s, { source: s, leads: 0, appointments: 0, sales: 0, gross: 0, leadToAppt: 0, apptToSale: 0, leadToSale: 0 })
+      .get(s)!
 
   for (const cid of contactIds) ensure(srcOf(cid)).leads += 1
   for (const a of appointments) ensure(srcOf(a.contact_id)).appointments += 1
@@ -244,9 +274,23 @@ export type TargetWindow = { start: string; end: string; label: string }
 // --- Utilidades de fecha sobre cadenas 'YYYY-MM-DD' (UTC, sin deriva de zona horaria) ---
 const pad2 = (n: number) => String(n).padStart(2, '0')
 const ymdStr = (d: Date) => `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`
-const parseYmd = (s: string) => new Date(Date.UTC(Number(s.slice(0, 4)), Number(s.slice(5, 7)) - 1, Number(s.slice(8, 10))))
+const parseYmd = (s: string) =>
+  new Date(Date.UTC(Number(s.slice(0, 4)), Number(s.slice(5, 7)) - 1, Number(s.slice(8, 10))))
 const MONTHS_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
-const MONTHS_ES_LONG = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+const MONTHS_ES_LONG = [
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre',
+]
 const dayLabel = (d: Date) => `${d.getUTCDate()} ${MONTHS_ES[d.getUTCMonth()]}`
 
 // Devuelve la ventana calendario (unidad) del tipo de periodo que contiene a `dayStr`.
@@ -257,8 +301,10 @@ export function targetUnitBounds(periodType: string | null | undefined, dayStr: 
   switch (periodType) {
     case 'weekly': {
       const dow = d.getUTCDay() === 0 ? 7 : d.getUTCDay() // lunes = 1
-      const start = new Date(d); start.setUTCDate(d.getUTCDate() - dow + 1)
-      const end = new Date(start); end.setUTCDate(start.getUTCDate() + 6)
+      const start = new Date(d)
+      start.setUTCDate(d.getUTCDate() - dow + 1)
+      const end = new Date(start)
+      end.setUTCDate(start.getUTCDate() + 6)
       return { start: ymdStr(start), end: ymdStr(end), label: `${dayLabel(start)} – ${dayLabel(end)}` }
     }
     case 'monthly': {
@@ -302,7 +348,8 @@ export function targetWindows(t: TargetLike): TargetWindow[] {
   while (cursor <= t.period_end && guard < 800) {
     const w = targetUnitBounds(pt, cursor)
     wins.push(w)
-    const next = parseYmd(w.end); next.setUTCDate(next.getUTCDate() + 1)
+    const next = parseYmd(w.end)
+    next.setUTCDate(next.getUTCDate() + 1)
     cursor = ymdStr(next)
     guard++
   }
@@ -364,7 +411,13 @@ export function targetHistory(
   t: TargetLike & { target_value: number | string },
   data: TargetData,
   today: string
-): { window: TargetWindow; value: number; goal: number; met: boolean; status: 'met' | 'missed' | 'current' | 'pending' }[] {
+): {
+  window: TargetWindow
+  value: number
+  goal: number
+  met: boolean
+  status: 'met' | 'missed' | 'current' | 'pending'
+}[] {
   const goal = num(t.target_value)
   return targetWindows(t).map((window) => {
     const value = targetValueBetween(t, data, window.start, window.end)

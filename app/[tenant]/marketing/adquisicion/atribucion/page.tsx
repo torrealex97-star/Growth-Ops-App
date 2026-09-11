@@ -2,7 +2,18 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Megaphone, Users, Calendar, ShoppingCart, TrendingUp, ArrowLeftRight, Target, Layers, ClipboardList, Globe } from 'lucide-react'
+import {
+  Megaphone,
+  Users,
+  Calendar,
+  ShoppingCart,
+  TrendingUp,
+  ArrowLeftRight,
+  Target,
+  Layers,
+  ClipboardList,
+  Globe,
+} from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
@@ -150,10 +161,7 @@ export default function AttributionPage() {
   const [campaignFilter, setCampaignFilter] = useState('')
   const [sourceFilter, setSourceFilter] = useState<string>('all')
 
-  const range = useMemo(
-    () => getPeriodRange(periodPreset, customFrom, customTo),
-    [periodPreset, customFrom, customTo]
-  )
+  const range = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
   const rangeFrom = useMemo(() => (range.from ? ymdLocal(range.from) : null), [range.from])
   const rangeTo = useMemo(() => (range.to ? ymdLocal(range.to) : null), [range.to])
 
@@ -202,7 +210,9 @@ export default function AttributionPage() {
       setLoadingTouch(false)
     }
     loadGlobal()
-    return () => { mounted = false }
+    return () => {
+      mounted = false
+    }
   }, [])
 
   // Agendas — se recargan cuando cambia el rango de fechas (el filtro de campaña/fuente
@@ -232,7 +242,9 @@ export default function AttributionPage() {
       setLoadingAppts(false)
     }
     loadAppts()
-    return () => { mounted = false }
+    return () => {
+      mounted = false
+    }
   }, [rangeFrom, rangeTo])
 
   // Calidad de leads — respuestas del formulario por contacto (con su fuente primaria).
@@ -242,7 +254,9 @@ export default function AttributionPage() {
       const supabase = createClient()
       const { data } = await supabase
         .from('contacts')
-        .select('id, full_name, qualification, qualification_updated_at, contact_attributions(source, utm_campaign, is_primary)')
+        .select(
+          'id, full_name, qualification, qualification_updated_at, contact_attributions(source, utm_campaign, is_primary)'
+        )
         .not('qualification', 'is', null)
         .order('qualification_updated_at', { ascending: false })
         .limit(500)
@@ -271,13 +285,12 @@ export default function AttributionPage() {
       setLoadingQual(false)
     }
     loadQual()
-    return () => { mounted = false }
+    return () => {
+      mounted = false
+    }
   }, [])
 
-  const qualSources = useMemo(
-    () => Array.from(new Set(qualRows.map((r) => r.source || NO_UTM))).sort(),
-    [qualRows]
-  )
+  const qualSources = useMemo(() => Array.from(new Set(qualRows.map((r) => r.source || NO_UTM))).sort(), [qualRows])
   const filteredQual = useMemo(
     () =>
       qualRows.filter((r) => {
@@ -462,7 +475,13 @@ export default function AttributionPage() {
             <Globe className="w-4 h-4 text-violet-400" /> Top países
           </h3>
           <p className="text-xs text-muted-foreground mb-4">Según el prefijo del teléfono del contacto</p>
-          <BarList bars={countryBars} total={countryTotal} color="violet" loading={loadingTouch} emptyLabel="Sin teléfonos con prefijo detectable." />
+          <BarList
+            bars={countryBars}
+            total={countryTotal}
+            color="violet"
+            loading={loadingTouch}
+            emptyLabel="Sin teléfonos con prefijo detectable."
+          />
         </div>
       </div>
 
@@ -515,7 +534,9 @@ export default function AttributionPage() {
         <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
           <Calendar className="w-5 h-5 text-emerald-400" /> ¿De dónde vienen las agendas?
         </h2>
-        <p className="text-muted-foreground text-sm mt-1">Atribución de las citas agendadas, por fecha, fuente y campaña</p>
+        <p className="text-muted-foreground text-sm mt-1">
+          Atribución de las citas agendadas, por fecha, fuente y campaña
+        </p>
       </div>
 
       {/* Filtros de la sección de agendas: fecha + campaña (contiene) + fuente de tráfico */}
@@ -527,7 +548,13 @@ export default function AttributionPage() {
           customTo={customTo}
           onCustomFromChange={setCustomFrom}
           onCustomToChange={setCustomTo}
-          onClear={() => { setPeriodPreset('all'); setCustomFrom(''); setCustomTo(''); setCampaignFilter(''); setSourceFilter('all') }}
+          onClear={() => {
+            setPeriodPreset('all')
+            setCustomFrom('')
+            setCustomTo('')
+            setCampaignFilter('')
+            setSourceFilter('all')
+          }}
           hasActiveFilters={hasApptFilters}
           className="flex-1 min-w-[280px]"
         />
@@ -550,7 +577,9 @@ export default function AttributionPage() {
             <option value="all">Todas las fuentes</option>
             <option value="__paid__">Solo tráfico pago (Meta)</option>
             {sourceOptions.map((s) => (
-              <option key={s} value={s}>{s}</option>
+              <option key={s} value={s}>
+                {s}
+              </option>
             ))}
           </select>
         </div>
@@ -583,7 +612,13 @@ export default function AttributionPage() {
           {loadingAppts ? '—' : `Desglose diario · ${apptByDate.total} agenda${apptByDate.total === 1 ? '' : 's'}`}
         </p>
         <div className="max-h-[360px] overflow-y-auto pr-1">
-          <BarList bars={apptByDate.bars} total={apptByDate.total} color="emerald" loading={loadingAppts} emptyLabel="Sin agendas en este rango con los filtros aplicados." />
+          <BarList
+            bars={apptByDate.bars}
+            total={apptByDate.total}
+            color="emerald"
+            loading={loadingAppts}
+            emptyLabel="Sin agendas en este rango con los filtros aplicados."
+          />
         </div>
       </div>
 
@@ -653,7 +688,9 @@ export default function AttributionPage() {
           >
             <option value="all">Todas las fuentes</option>
             {qualSources.map((s) => (
-              <option key={s} value={s}>{s}</option>
+              <option key={s} value={s}>
+                {s}
+              </option>
             ))}
           </select>
           <input
@@ -676,7 +713,9 @@ export default function AttributionPage() {
                   <th className="text-left font-medium py-2 pr-3">Contacto</th>
                   <th className="text-left font-medium py-2 pr-3">Fuente</th>
                   {QUALIFICATION_KEYS.map((k) => (
-                    <th key={k} className="text-left font-medium py-2 pr-3 whitespace-nowrap">{labelFor(k)}</th>
+                    <th key={k} className="text-left font-medium py-2 pr-3 whitespace-nowrap">
+                      {labelFor(k)}
+                    </th>
                   ))}
                   <th className="text-left font-medium py-2">Fecha</th>
                 </tr>
@@ -685,7 +724,12 @@ export default function AttributionPage() {
                 {filteredQual.map((r) => (
                   <tr key={r.contact_id} className="border-b border-border/50 last:border-0 align-top">
                     <td className="py-2.5 pr-3 text-foreground max-w-[160px] truncate">
-                      <a href={`/${tenant}/crm/contactos/${r.contact_id}`} className="hover:text-brand-400 hover:underline">{r.contact_name}</a>
+                      <a
+                        href={`/${tenant}/crm/contactos/${r.contact_id}`}
+                        className="hover:text-brand-400 hover:underline"
+                      >
+                        {r.contact_name}
+                      </a>
                     </td>
                     <td className="py-2.5 pr-3 text-muted-foreground">{r.source || '—'}</td>
                     {QUALIFICATION_KEYS.map((k) => (

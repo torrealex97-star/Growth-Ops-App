@@ -5,11 +5,9 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 export const runtime = 'nodejs'
 
 function serviceClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
+  return createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
 }
 
 const VALID_TYPES = ['llamada', 'whatsapp', 'email', 'dm_instagram', 'sms']
@@ -68,7 +66,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   }
 
   const sb = serviceClient()
-  const { data: contact } = await sb.from('contacts').select('id').eq('id', contactId).eq('tenant_id', t.tenantId).maybeSingle()
+  const { data: contact } = await sb
+    .from('contacts')
+    .select('id')
+    .eq('id', contactId)
+    .eq('tenant_id', t.tenantId)
+    .maybeSingle()
   if (!contact) return NextResponse.json({ error: 'Contacto no encontrado' }, { status: 404 })
 
   const { data, error } = await sb

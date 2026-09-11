@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
@@ -6,14 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,19 +28,32 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { ArrowLeft, Plus, Trash2, CheckCircle, RotateCcw, PhoneCall, FileText, ExternalLink, CreditCard, Pencil } from 'lucide-react'
+  ArrowLeft,
+  Plus,
+  Trash2,
+  CheckCircle,
+  RotateCcw,
+  PhoneCall,
+  FileText,
+  ExternalLink,
+  CreditCard,
+  Pencil,
+} from 'lucide-react'
 import { formatDate, formatCurrency, formatPercent } from '@/lib/utils'
 import { ContractSection } from '@/components/sales/ContractSection'
 import { DocumentVerificationSection } from '@/components/sales/DocumentVerificationSection'
 import { toast } from 'sonner'
-import type { SaleWithRelations, Collection, SaleExpectedInstallment, Commission, AuditLog, SaleStatus, CommissionRule } from '@/lib/types/database'
+import type {
+  SaleWithRelations,
+  Collection,
+  SaleExpectedInstallment,
+  Commission,
+  AuditLog,
+  SaleStatus,
+  CommissionRule,
+} from '@/lib/types/database'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 type AppointmentCallInfo = {
@@ -107,8 +113,14 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
   const [editSaving, setEditSaving] = useState(false)
   const [teamUsers, setTeamUsers] = useState<{ id: string; full_name: string; role: string }[]>([])
   const [editForm, setEditForm] = useState({
-    setter_id: 'none', closer_id: 'none', affiliate_id: 'none',
-    affiliate_commission_percent: '', sale_date: '', gross_amount: '', status: 'active', notes: '',
+    setter_id: 'none',
+    closer_id: 'none',
+    affiliate_id: 'none',
+    affiliate_commission_percent: '',
+    sale_date: '',
+    gross_amount: '',
+    status: 'active',
+    notes: '',
   })
   const [refundAmount, setRefundAmount] = useState('')
   const [refundReason, setRefundReason] = useState('')
@@ -147,7 +159,10 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
     })
     const data = await res.json()
     setSavingNote(false)
-    if (!res.ok) { toast.error(data.error || 'Error al guardar la nota'); return }
+    if (!res.ok) {
+      toast.error(data.error || 'Error al guardar la nota')
+      return
+    }
     setNewNote('')
     fetchFollowUps()
   }
@@ -155,22 +170,44 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
   const fetchData = useCallback(async () => {
     const supabase = createClient()
 
-    const [saleRes, collectionsRes, installmentsRes, commissionsRes, auditRes, rulesRes, userRes, usersRes] = await Promise.all([
-      supabase
-        .from('sales')
-        .select(`*, contacts(*), products(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name)`)
-        .eq('id', id)
-        .eq('tenant_id', tenantId)
-        .single(),
-      supabase.from('collections').select('*').eq('sale_id', id).eq('tenant_id', tenantId).order('collected_at', { ascending: false }),
-      supabase.from('sale_expected_installments').select('*').eq('sale_id', id).eq('tenant_id', tenantId).order('installment_number'),
-      // Desambiguar el embed: commissions tiene 2 FK a users (user_id y approved_by) → PGRST201 si no
-      supabase.from('commissions').select('*, users!commissions_user_id_fkey(full_name)').eq('sale_id', id).eq('tenant_id', tenantId),
-      supabase.from('audit_logs').select('*').eq('entity_id', id).eq('tenant_id', tenantId).order('created_at', { ascending: false }),
-      supabase.from('commission_rules').select('*').eq('is_active', true).eq('tenant_id', tenantId),
-      supabase.auth.getUser(),
-      supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
-    ])
+    const [saleRes, collectionsRes, installmentsRes, commissionsRes, auditRes, rulesRes, userRes, usersRes] =
+      await Promise.all([
+        supabase
+          .from('sales')
+          .select(
+            `*, contacts(*), products(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name)`
+          )
+          .eq('id', id)
+          .eq('tenant_id', tenantId)
+          .single(),
+        supabase
+          .from('collections')
+          .select('*')
+          .eq('sale_id', id)
+          .eq('tenant_id', tenantId)
+          .order('collected_at', { ascending: false }),
+        supabase
+          .from('sale_expected_installments')
+          .select('*')
+          .eq('sale_id', id)
+          .eq('tenant_id', tenantId)
+          .order('installment_number'),
+        // Desambiguar el embed: commissions tiene 2 FK a users (user_id y approved_by) → PGRST201 si no
+        supabase
+          .from('commissions')
+          .select('*, users!commissions_user_id_fkey(full_name)')
+          .eq('sale_id', id)
+          .eq('tenant_id', tenantId),
+        supabase
+          .from('audit_logs')
+          .select('*')
+          .eq('entity_id', id)
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false }),
+        supabase.from('commission_rules').select('*').eq('is_active', true).eq('tenant_id', tenantId),
+        supabase.auth.getUser(),
+        supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
+      ])
 
     if (saleRes.error) {
       toast.error('Venta no encontrada')
@@ -182,13 +219,17 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
     // en 0€ en silencio, indistinguible de una venta sin cobros reales.
     if (collectionsRes.error) toast.error('Error al cargar los cobros', { description: collectionsRes.error.message })
     if (installmentsRes.error) toast.error('Error al cargar las cuotas', { description: installmentsRes.error.message })
-    if (commissionsRes.error) toast.error('Error al cargar las comisiones', { description: commissionsRes.error.message })
+    if (commissionsRes.error)
+      toast.error('Error al cargar las comisiones', { description: commissionsRes.error.message })
 
     const saleData = saleRes.data as SaleWithRelations
     setSale(saleData)
     setTeamUsers(
-      ((usersRes.data ?? []) as { id: string; full_name: string; roles?: { key?: string } }[])
-        .map((u) => ({ id: u.id, full_name: u.full_name, role: u.roles?.key ?? '' }))
+      ((usersRes.data ?? []) as { id: string; full_name: string; roles?: { key?: string } }[]).map((u) => ({
+        id: u.id,
+        full_name: u.full_name,
+        role: u.roles?.key ?? '',
+      }))
     )
     setCollections(collectionsRes.data ?? [])
     setInstallments(installmentsRes.data ?? [])
@@ -220,7 +261,7 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
       const roleKey = (userData as { roles?: { key?: string } } | null)?.roles?.key ?? null
       setUserRole(roleKey)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, tenantId])
 
   useEffect(() => {
@@ -237,7 +278,10 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
       body: JSON.stringify({ saleId: id }),
     })
     const data = await res.json()
-    if (!res.ok) { toast.error(data.error || 'Error al eliminar'); return }
+    if (!res.ok) {
+      toast.error(data.error || 'Error al eliminar')
+      return
+    }
     toast.success('Venta eliminada')
     // Cierra el AlertDialog ANTES de navegar: si se navega con el diálogo aún "open", Radix
     // deja <body style="pointer-events:none"> aplicado (bloqueo de scroll del modal) y no se
@@ -253,7 +297,8 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
       setter_id: sale.setter_id ?? 'none',
       closer_id: sale.closer_id ?? 'none',
       affiliate_id: sale.affiliate_id ?? 'none',
-      affiliate_commission_percent: sale.affiliate_commission_percent != null ? String(sale.affiliate_commission_percent) : '',
+      affiliate_commission_percent:
+        sale.affiliate_commission_percent != null ? String(sale.affiliate_commission_percent) : '',
       sale_date: sale.sale_date ?? '',
       gross_amount: String(sale.gross_amount ?? ''),
       status: sale.status ?? 'active',
@@ -367,7 +412,10 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
     })
     const data = await res.json().catch(() => ({}))
     setCollSaving(false)
-    if (!res.ok) { toast.error(data?.error || 'Error al editar el cobro'); return }
+    if (!res.ok) {
+      toast.error(data?.error || 'Error al editar el cobro')
+      return
+    }
     toast.success('Cobro actualizado — comisiones reconciliadas')
     setEditColl(null)
     fetchData()
@@ -379,7 +427,10 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
     const res = await fetch(`/api/${tenant}/evergreen/collections/${deleteColl.id}`, { method: 'DELETE' })
     const data = await res.json().catch(() => ({}))
     setCollDeleting(false)
-    if (!res.ok) { toast.error(data?.error || 'Error al eliminar el cobro'); return }
+    if (!res.ok) {
+      toast.error(data?.error || 'Error al eliminar el cobro')
+      return
+    }
     toast.success('Cobro eliminado — comisiones reconciliadas')
     setDeleteColl(null)
     fetchData()
@@ -391,11 +442,11 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
 
     const findRule = (participantType: 'setter' | 'closer', userId: string | null): CommissionRule | null => {
       if (!userId) return null
-      const rulesForType = commissionRules.filter(r => r.participant_type === participantType)
+      const rulesForType = commissionRules.filter((r) => r.participant_type === participantType)
       // Prioriza regla específica del usuario, si no, regla genérica (user_id null)
-      const userRule = rulesForType.find(r => r.user_id === userId)
+      const userRule = rulesForType.find((r) => r.user_id === userId)
       if (userRule) return userRule
-      const genericRule = rulesForType.find(r => !r.user_id)
+      const genericRule = rulesForType.find((r) => !r.user_id)
       return genericRule ?? null
     }
 
@@ -406,7 +457,14 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
     const commissionableBase = sale.expected_commissionable_amount ?? sale.gross_amount
     const baseAmount = commissionableBase * cashCollectionRatio
 
-    const rows: { role: 'setter' | 'closer'; userId: string; userName: string; percent: number; baseAmount: number; commissionAmount: number }[] = []
+    const rows: {
+      role: 'setter' | 'closer'
+      userId: string
+      userName: string
+      percent: number
+      baseAmount: number
+      commissionAmount: number
+    }[] = []
 
     if (sale.setter_id) {
       const rule = findRule('setter', sale.setter_id)
@@ -445,9 +503,7 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
 
   const isReservation = sale?.payment_plans?.method === 'reserva'
 
-  const isOutOfRefundWindow = sale?.refund_deadline_at
-    ? new Date(sale.refund_deadline_at) < new Date()
-    : false
+  const isOutOfRefundWindow = sale?.refund_deadline_at ? new Date(sale.refund_deadline_at) < new Date() : false
 
   const openRefundDialog = () => {
     setRefundAmount('')
@@ -541,7 +597,12 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground" onClick={() => router.back()}>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="text-muted-foreground hover:text-foreground"
+        onClick={() => router.back()}
+      >
         <ArrowLeft className="w-4 h-4 mr-2" />
         Volver
       </Button>
@@ -553,13 +614,19 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
             <h1 className="text-2xl font-bold text-foreground">{sale.contacts?.full_name}</h1>
             <Badge className={`border ${STATUS_COLORS[sale.status]}`}>{STATUS_LABELS[sale.status]}</Badge>
           </div>
-          <p className="text-muted-foreground">{sale.payment_plans?.name} — {formatCurrency(sale.gross_amount)}</p>
+          <p className="text-muted-foreground">
+            {sale.payment_plans?.name} — {formatCurrency(sale.gross_amount)}
+          </p>
         </div>
         {isReservation && (
           <Button
             size="sm"
             className="bg-emerald-600 hover:bg-emerald-700 text-foreground"
-            onClick={() => router.push(`/${tenant}/ventas/registro/nueva?contact=${sale.contact_id}&reserva=${sale.reservation_amount ?? sale.gross_amount}&product=${sale.product_id}&reservationId=${sale.id}`)}
+            onClick={() =>
+              router.push(
+                `/${tenant}/ventas/registro/nueva?contact=${sale.contact_id}&reserva=${sale.reservation_amount ?? sale.gross_amount}&product=${sale.product_id}&reservationId=${sale.id}`
+              )
+            }
           >
             <CreditCard className="w-4 h-4 mr-2" />
             Completar pago
@@ -601,41 +668,67 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
       </div>
 
       {/* Aviso de conflicto de atribución (primer toque ≠ último). Se aplicó el último; el admin confirma. */}
-      {sale.attribution_conflict && (() => {
-        const meta = (sale.attribution_meta ?? {}) as { setter?: { first?: string | null; applied?: string | null; conflict?: boolean }; affiliate?: { first?: string | null; applied?: string | null; conflict?: boolean } }
-        const nameOf = (uid?: string | null) => {
-          if (!uid) return '—'
-          if (uid === sale.setter?.id) return sale.setter?.full_name ?? uid
-          if (uid === sale.affiliate?.id) return sale.affiliate?.full_name ?? uid
-          const u = teamUsers.find((x) => x.id === uid)
-          return u?.full_name ?? uid
-        }
-        return (
-          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-            <p className="font-semibold mb-1">⚠️ Conflicto de atribución — revisar</p>
-            <p className="text-amber-200/90 text-xs">
-              El primer contacto y el último son de reps distintos. Se aplicó el <b>último</b> toque (regla por defecto).
-              {meta.setter?.conflict && <> Setter: primer toque <b>{nameOf(meta.setter.first)}</b> · aplicado <b>{nameOf(meta.setter.applied)}</b>.</>}
-              {meta.affiliate?.conflict && <> Afiliado: primer toque <b>{nameOf(meta.affiliate.first)}</b> · aplicado <b>{nameOf(meta.affiliate.applied)}</b>.</>}
-              {' '}Pulsa <b>Editar</b> para confirmar o cambiar quién se lleva la comisión (se recalcula sola).
-            </p>
-          </div>
-        )
-      })()}
+      {sale.attribution_conflict &&
+        (() => {
+          const meta = (sale.attribution_meta ?? {}) as {
+            setter?: { first?: string | null; applied?: string | null; conflict?: boolean }
+            affiliate?: { first?: string | null; applied?: string | null; conflict?: boolean }
+          }
+          const nameOf = (uid?: string | null) => {
+            if (!uid) return '—'
+            if (uid === sale.setter?.id) return sale.setter?.full_name ?? uid
+            if (uid === sale.affiliate?.id) return sale.affiliate?.full_name ?? uid
+            const u = teamUsers.find((x) => x.id === uid)
+            return u?.full_name ?? uid
+          }
+          return (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+              <p className="font-semibold mb-1">⚠️ Conflicto de atribución — revisar</p>
+              <p className="text-amber-200/90 text-xs">
+                El primer contacto y el último son de reps distintos. Se aplicó el <b>último</b> toque (regla por
+                defecto).
+                {meta.setter?.conflict && (
+                  <>
+                    {' '}
+                    Setter: primer toque <b>{nameOf(meta.setter.first)}</b> · aplicado{' '}
+                    <b>{nameOf(meta.setter.applied)}</b>.
+                  </>
+                )}
+                {meta.affiliate?.conflict && (
+                  <>
+                    {' '}
+                    Afiliado: primer toque <b>{nameOf(meta.affiliate.first)}</b> · aplicado{' '}
+                    <b>{nameOf(meta.affiliate.applied)}</b>.
+                  </>
+                )}{' '}
+                Pulsa <b>Editar</b> para confirmar o cambiar quién se lleva la comisión (se recalcula sola).
+              </p>
+            </div>
+          )
+        })()}
 
       {/* Tabs */}
       <Tabs defaultValue="detail">
         <TabsList className="bg-card border border-border">
           <TabsTrigger value="detail">Detalle</TabsTrigger>
           <TabsTrigger value="collections">
-            Cobros {collections.length > 0 && <span className="ml-1 text-xs bg-muted px-1.5 rounded-full">{collections.length}</span>}
+            Cobros{' '}
+            {collections.length > 0 && (
+              <span className="ml-1 text-xs bg-muted px-1.5 rounded-full">{collections.length}</span>
+            )}
           </TabsTrigger>
           <TabsTrigger value="installments">
-            Cuotas {installments.length > 0 && <span className="ml-1 text-xs bg-muted px-1.5 rounded-full">{installments.length}</span>}
+            Cuotas{' '}
+            {installments.length > 0 && (
+              <span className="ml-1 text-xs bg-muted px-1.5 rounded-full">{installments.length}</span>
+            )}
           </TabsTrigger>
           {isAdminOrDirector && (
             <TabsTrigger value="commissions">
-              Comisiones {commissions.length > 0 && <span className="ml-1 text-xs bg-muted px-1.5 rounded-full">{commissions.length}</span>}
+              Comisiones{' '}
+              {commissions.length > 0 && (
+                <span className="ml-1 text-xs bg-muted px-1.5 rounded-full">{commissions.length}</span>
+              )}
             </TabsTrigger>
           )}
           <TabsTrigger value="seguimiento">
@@ -662,7 +755,10 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
                 { label: 'Setter', value: sale.setter?.full_name ?? '—' },
                 { label: 'Closer', value: sale.closer?.full_name ?? '—' },
                 { label: 'Afiliado', value: sale.affiliate?.full_name ?? '—' },
-                { label: 'Comision afiliado', value: sale.affiliate_commission_percent ? formatPercent(sale.affiliate_commission_percent) : '—' },
+                {
+                  label: 'Comision afiliado',
+                  value: sale.affiliate_commission_percent ? formatPercent(sale.affiliate_commission_percent) : '—',
+                },
               ].map(({ label, value }) => (
                 <div key={label}>
                   <dt className="text-xs text-muted-foreground mb-1">{label}</dt>
@@ -680,8 +776,12 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
               <div className="mt-4 pt-4 border-t border-border">
                 <dt className="text-xs text-muted-foreground mb-1">Justificante de pago</dt>
                 <dd>
-                  <a href={sale.payment_proof_url} target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm text-brand-400 hover:text-brand-300">
+                  <a
+                    href={sale.payment_proof_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm text-brand-400 hover:text-brand-300"
+                  >
                     <FileText className="w-3.5 h-3.5" /> Ver justificante <ExternalLink className="w-3 h-3" />
                   </a>
                 </dd>
@@ -689,12 +789,16 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
             )}
             {sale.buyer_is_scheduler === false && sale.payer_data && (
               <div className="mt-4 pt-4 border-t border-border">
-                <dt className="text-xs text-muted-foreground mb-1">Tomador / pagador ({sale.payer_data.relation ?? 'otro'})</dt>
+                <dt className="text-xs text-muted-foreground mb-1">
+                  Tomador / pagador ({sale.payer_data.relation ?? 'otro'})
+                </dt>
                 <dd className="text-sm text-foreground">
                   {sale.payer_data.name}
                   {sale.payer_data.dni ? ` · ${sale.payer_data.dni}` : ''}
                   {sale.payer_data.email ? ` · ${sale.payer_data.email}` : ''}
-                  {sale.access_email ? <span className="block text-xs text-muted-foreground mt-0.5">Accesos → {sale.access_email}</span> : null}
+                  {sale.access_email ? (
+                    <span className="block text-xs text-muted-foreground mt-0.5">Accesos → {sale.access_email}</span>
+                  ) : null}
                 </dd>
               </div>
             )}
@@ -774,14 +878,20 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
 
                   {appointmentCall.ai_summary && (
                     <div>
-                      <dt className="text-xs text-muted-foreground mb-1">Resumen IA (puntos de dolor, miedos, deseos)</dt>
-                      <dd className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{appointmentCall.ai_summary}</dd>
+                      <dt className="text-xs text-muted-foreground mb-1">
+                        Resumen IA (puntos de dolor, miedos, deseos)
+                      </dt>
+                      <dd className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                        {appointmentCall.ai_summary}
+                      </dd>
                     </div>
                   )}
 
-                  {!appointmentCall.ai_summary && appointmentCall.ai_call_score == null && appointmentCall.ai_lead_score == null && (
-                    <p className="text-xs text-muted-foreground">Aún no hay análisis IA para esta llamada.</p>
-                  )}
+                  {!appointmentCall.ai_summary &&
+                    appointmentCall.ai_call_score == null &&
+                    appointmentCall.ai_lead_score == null && (
+                      <p className="text-xs text-muted-foreground">Aún no hay análisis IA para esta llamada.</p>
+                    )}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">No se encontró información de la agenda asociada.</p>
@@ -794,8 +904,8 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
         <TabsContent value="collections" className="mt-4">
           <div className="flex justify-between items-center mb-4">
             <p className="text-sm text-muted-foreground">
-              Total cobrado: <span className="text-foreground font-medium">{formatCurrency(totalCollected)}</span>
-              {' '}<span className="text-muted-foreground">/ facturado {formatCurrency(sale.gross_amount)}</span>
+              Total cobrado: <span className="text-foreground font-medium">{formatCurrency(totalCollected)}</span>{' '}
+              <span className="text-muted-foreground">/ facturado {formatCurrency(sale.gross_amount)}</span>
             </p>
             <Button size="sm" onClick={() => router.push(`/${tenant}/finanzas/cobros/cobros/new?saleId=${sale.id}`)}>
               <Plus className="w-4 h-4 mr-2" />
@@ -806,7 +916,8 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
             <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
               <p className="font-semibold mb-0.5">⚠️ Cobros duplicados detectados</p>
               <p className="text-red-300/90 text-xs">
-                Hay {duplicateCollectionIds.size} cobro(s) que repiten la misma cuota. Elimina los sobrantes con el botón 🗑 de cada fila; las comisiones se recalcularán solas.
+                Hay {duplicateCollectionIds.size} cobro(s) que repiten la misma cuota. Elimina los sobrantes con el
+                botón 🗑 de cada fila; las comisiones se recalcularán solas.
               </p>
             </div>
           )}
@@ -820,77 +931,97 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
                   <TableHead className="text-muted-foreground">Metodo</TableHead>
                   <TableHead className="text-muted-foreground">Elegible</TableHead>
                   <TableHead className="text-muted-foreground">Estado</TableHead>
-                  {(isAdminOrDirector || canApproveReview) && <TableHead className="text-muted-foreground">Acciones</TableHead>}
+                  {(isAdminOrDirector || canApproveReview) && (
+                    <TableHead className="text-muted-foreground">Acciones</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {collections.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={(isAdminOrDirector || canApproveReview) ? 7 : 6} className="text-center py-8 text-muted-foreground">No hay cobros registrados</TableCell>
+                    <TableCell
+                      colSpan={isAdminOrDirector || canApproveReview ? 7 : 6}
+                      className="text-center py-8 text-muted-foreground"
+                    >
+                      No hay cobros registrados
+                    </TableCell>
                   </TableRow>
-                ) : collections.map((c) => {
-                  const isDupe = duplicateCollectionIds.has(c.id)
-                  return (
-                  <TableRow key={c.id} className={`border-border ${isDupe ? 'bg-red-500/5' : ''}`}>
-                    <TableCell className="text-foreground text-sm">
-                      {formatDate(c.collected_at)}
-                      {isDupe && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-300">duplicado</span>}
-                    </TableCell>
-                    <TableCell className="text-foreground font-medium">{formatCurrency(c.gross_amount)}</TableCell>
-                    <TableCell className="text-muted-foreground">{formatCurrency(c.commissionable_amount)}</TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{c.payment_method || '—'}</TableCell>
-                    <TableCell>
-                      {c.is_eligible_for_commission ? (
-                        <Badge variant="success">Si</Badge>
-                      ) : c.needs_commission_review ? (
-                        <Badge variant="secondary" className="bg-blue-500/15 text-blue-400">En revisión</Badge>
-                      ) : (
-                        <Badge variant="secondary">No</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={c.status === 'collected' ? 'success' : 'secondary'}>{c.status}</Badge>
-                    </TableCell>
-                    {(isAdminOrDirector || canApproveReview) && (
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          {c.needs_commission_review && canApproveReview && (
-                            <Button
-                              size="sm" variant="outline"
-                              className="h-7 text-xs text-blue-400 border-blue-500/30 hover:bg-blue-500/10"
-                              title="Aprobar comisión de esta cuota"
-                              disabled={approvingCollId === c.id}
-                              onClick={() => handleApproveCollectionReview(c.id)}
-                            >
-                              {approvingCollId === c.id ? 'Aprobando...' : 'Aprobar'}
-                            </Button>
+                ) : (
+                  collections.map((c) => {
+                    const isDupe = duplicateCollectionIds.has(c.id)
+                    return (
+                      <TableRow key={c.id} className={`border-border ${isDupe ? 'bg-red-500/5' : ''}`}>
+                        <TableCell className="text-foreground text-sm">
+                          {formatDate(c.collected_at)}
+                          {isDupe && (
+                            <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-300">
+                              duplicado
+                            </span>
                           )}
-                          {isAdminOrDirector && (
-                            <>
-                              <Button
-                                size="sm" variant="ghost"
-                                className="h-7 w-7 p-0 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
-                                title="Editar cobro"
-                                onClick={() => openEditCollection(c)}
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </Button>
-                              <Button
-                                size="sm" variant="ghost"
-                                className="h-7 w-7 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                                title="Eliminar cobro"
-                                onClick={() => setDeleteColl(c)}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </Button>
-                            </>
+                        </TableCell>
+                        <TableCell className="text-foreground font-medium">{formatCurrency(c.gross_amount)}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {formatCurrency(c.commissionable_amount)}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm">{c.payment_method || '—'}</TableCell>
+                        <TableCell>
+                          {c.is_eligible_for_commission ? (
+                            <Badge variant="success">Si</Badge>
+                          ) : c.needs_commission_review ? (
+                            <Badge variant="secondary" className="bg-blue-500/15 text-blue-400">
+                              En revisión
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">No</Badge>
                           )}
-                        </div>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                  )
-                })}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={c.status === 'collected' ? 'success' : 'secondary'}>{c.status}</Badge>
+                        </TableCell>
+                        {(isAdminOrDirector || canApproveReview) && (
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              {c.needs_commission_review && canApproveReview && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs text-blue-400 border-blue-500/30 hover:bg-blue-500/10"
+                                  title="Aprobar comisión de esta cuota"
+                                  disabled={approvingCollId === c.id}
+                                  onClick={() => handleApproveCollectionReview(c.id)}
+                                >
+                                  {approvingCollId === c.id ? 'Aprobando...' : 'Aprobar'}
+                                </Button>
+                              )}
+                              {isAdminOrDirector && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 w-7 p-0 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                                    title="Editar cobro"
+                                    onClick={() => openEditCollection(c)}
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 w-7 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                    title="Eliminar cobro"
+                                    onClick={() => setDeleteColl(c)}
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    )
+                  })
+                )}
               </TableBody>
             </Table>
           </div>
@@ -913,44 +1044,57 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
               <TableBody>
                 {installments.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={isAdminOrDirector ? 6 : 5} className="text-center py-8 text-muted-foreground">Sin cuotas pendientes</TableCell>
+                    <TableCell colSpan={isAdminOrDirector ? 6 : 5} className="text-center py-8 text-muted-foreground">
+                      Sin cuotas pendientes
+                    </TableCell>
                   </TableRow>
-                ) : installments.map((inst) => (
-                  <TableRow key={inst.id} className="border-border">
-                    <TableCell className="text-foreground">#{inst.installment_number}</TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{formatDate(inst.due_date)}</TableCell>
-                    <TableCell className="text-foreground">{formatCurrency(inst.expected_gross_amount)}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {formatCurrency(inst.expected_commissionable_amount)}
-                      {sale?.payment_plans?.method === 'custom' && inst.installment_number > 1 && inst.status !== 'collected' && (
-                        <span className="block text-[10px] text-blue-400 mt-0.5">
-                          Al cobrarla: revisión manual (no comisiona sola)
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={
-                        inst.status === 'collected' ? 'success' :
-                        inst.status === 'overdue' ? 'destructive' : 'secondary'
-                      }>{inst.status}</Badge>
-                    </TableCell>
-                    {isAdminOrDirector && (
-                      <TableCell>
-                        {(inst.status === 'pending' || inst.status === 'overdue') && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-7 text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 border border-emerald-500/30"
-                            onClick={() => markInstallmentPaid(inst)}
-                          >
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Marcar pagado
-                          </Button>
-                        )}
+                ) : (
+                  installments.map((inst) => (
+                    <TableRow key={inst.id} className="border-border">
+                      <TableCell className="text-foreground">#{inst.installment_number}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">{formatDate(inst.due_date)}</TableCell>
+                      <TableCell className="text-foreground">{formatCurrency(inst.expected_gross_amount)}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatCurrency(inst.expected_commissionable_amount)}
+                        {sale?.payment_plans?.method === 'custom' &&
+                          inst.installment_number > 1 &&
+                          inst.status !== 'collected' && (
+                            <span className="block text-[10px] text-blue-400 mt-0.5">
+                              Al cobrarla: revisión manual (no comisiona sola)
+                            </span>
+                          )}
                       </TableCell>
-                    )}
-                  </TableRow>
-                ))}
+                      <TableCell>
+                        <Badge
+                          variant={
+                            inst.status === 'collected'
+                              ? 'success'
+                              : inst.status === 'overdue'
+                                ? 'destructive'
+                                : 'secondary'
+                          }
+                        >
+                          {inst.status}
+                        </Badge>
+                      </TableCell>
+                      {isAdminOrDirector && (
+                        <TableCell>
+                          {(inst.status === 'pending' || inst.status === 'overdue') && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 border border-emerald-500/30"
+                              onClick={() => markInstallmentPaid(inst)}
+                            >
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Marcar pagado
+                            </Button>
+                          )}
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
@@ -958,86 +1102,98 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
 
         {/* Comisiones — oculto a closers/setters: no deben ver el importe comisionable */}
         {isAdminOrDirector && (
-        <TabsContent value="commissions" className="mt-4">
-          {!hasRealCommissions && expectedCommissions.length > 0 && (
-            <div className="mb-4">
-              <p className="text-xs text-muted-foreground mb-2">
-                Aún no hay comisiones generadas para esta venta (p.ej. pendiente de superar la ventana de devolución). Se muestra la comisión <span className="text-amber-400 font-medium">esperada</span> estimada:
-              </p>
-              <div className="bg-card border border-amber-500/30 rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-border">
-                      <TableHead className="text-muted-foreground">Usuario</TableHead>
-                      <TableHead className="text-muted-foreground">Tipo</TableHead>
-                      <TableHead className="text-muted-foreground">Base</TableHead>
-                      <TableHead className="text-muted-foreground">%</TableHead>
-                      <TableHead className="text-muted-foreground">Importe</TableHead>
-                      <TableHead className="text-muted-foreground">Estado</TableHead>
+          <TabsContent value="commissions" className="mt-4">
+            {!hasRealCommissions && expectedCommissions.length > 0 && (
+              <div className="mb-4">
+                <p className="text-xs text-muted-foreground mb-2">
+                  Aún no hay comisiones generadas para esta venta (p.ej. pendiente de superar la ventana de devolución).
+                  Se muestra la comisión <span className="text-amber-400 font-medium">esperada</span> estimada:
+                </p>
+                <div className="bg-card border border-amber-500/30 rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-border">
+                        <TableHead className="text-muted-foreground">Usuario</TableHead>
+                        <TableHead className="text-muted-foreground">Tipo</TableHead>
+                        <TableHead className="text-muted-foreground">Base</TableHead>
+                        <TableHead className="text-muted-foreground">%</TableHead>
+                        <TableHead className="text-muted-foreground">Importe</TableHead>
+                        <TableHead className="text-muted-foreground">Estado</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {expectedCommissions.map((ec) => (
+                        <TableRow key={`${ec.role}-${ec.userId}`} className="border-border">
+                          <TableCell className="text-foreground">{ec.userName}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">{ec.role}</Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{formatCurrency(ec.baseAmount)}</TableCell>
+                          <TableCell className="text-muted-foreground">{formatPercent(ec.percent)}</TableCell>
+                          <TableCell className="font-medium text-amber-400">
+                            {formatCurrency(ec.commissionAmount)}
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
+                              esperada
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-card border border-border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-border">
+                    <TableHead className="text-muted-foreground">Usuario</TableHead>
+                    <TableHead className="text-muted-foreground">Tipo</TableHead>
+                    <TableHead className="text-muted-foreground">Base</TableHead>
+                    <TableHead className="text-muted-foreground">%</TableHead>
+                    <TableHead className="text-muted-foreground">Importe</TableHead>
+                    <TableHead className="text-muted-foreground">Estado</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {commissions.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        Sin comisiones generadas
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {expectedCommissions.map((ec) => (
-                      <TableRow key={`${ec.role}-${ec.userId}`} className="border-border">
-                        <TableCell className="text-foreground">{ec.userName}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{ec.role}</Badge>
+                  ) : (
+                    commissions.map((com) => (
+                      <TableRow key={com.id} className="border-border">
+                        <TableCell className="text-foreground">
+                          {(com as { users?: { full_name?: string } }).users?.full_name || '—'}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">{formatCurrency(ec.baseAmount)}</TableCell>
-                        <TableCell className="text-muted-foreground">{formatPercent(ec.percent)}</TableCell>
-                        <TableCell className="font-medium text-amber-400">{formatCurrency(ec.commissionAmount)}</TableCell>
                         <TableCell>
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
-                            esperada
+                          <Badge variant="secondary">{com.participant_type}</Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{formatCurrency(com.base_amount)}</TableCell>
+                        <TableCell className="text-muted-foreground">{formatPercent(com.percent)}</TableCell>
+                        <TableCell
+                          className={`font-medium ${com.direction === 'negative' ? 'text-red-400' : 'text-emerald-400'}`}
+                        >
+                          {com.direction === 'negative' ? '-' : ''}
+                          {formatCurrency(com.commission_amount)}
+                        </TableCell>
+                        <TableCell>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${COMMISSION_STATUS_COLORS[com.status]}`}>
+                            {com.status}
                           </span>
                         </TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             </div>
-          )}
-
-          <div className="bg-card border border-border rounded-lg overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border">
-                  <TableHead className="text-muted-foreground">Usuario</TableHead>
-                  <TableHead className="text-muted-foreground">Tipo</TableHead>
-                  <TableHead className="text-muted-foreground">Base</TableHead>
-                  <TableHead className="text-muted-foreground">%</TableHead>
-                  <TableHead className="text-muted-foreground">Importe</TableHead>
-                  <TableHead className="text-muted-foreground">Estado</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {commissions.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Sin comisiones generadas</TableCell>
-                  </TableRow>
-                ) : commissions.map((com) => (
-                  <TableRow key={com.id} className="border-border">
-                    <TableCell className="text-foreground">{(com as { users?: { full_name?: string } }).users?.full_name || '—'}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{com.participant_type}</Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{formatCurrency(com.base_amount)}</TableCell>
-                    <TableCell className="text-muted-foreground">{formatPercent(com.percent)}</TableCell>
-                    <TableCell className={`font-medium ${com.direction === 'negative' ? 'text-red-400' : 'text-emerald-400'}`}>
-                      {com.direction === 'negative' ? '-' : ''}{formatCurrency(com.commission_amount)}
-                    </TableCell>
-                    <TableCell>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${COMMISSION_STATUS_COLORS[com.status]}`}>
-                        {com.status}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </TabsContent>
+          </TabsContent>
         )}
 
         {/* Historial */}
@@ -1091,17 +1247,21 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
               <TableBody>
                 {auditLogs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">Sin historial</TableCell>
-                  </TableRow>
-                ) : auditLogs.map((log) => (
-                  <TableRow key={log.id} className="border-border">
-                    <TableCell className="text-muted-foreground text-sm">{formatDate(log.created_at)}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{log.action}</Badge>
+                    <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                      Sin historial
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{log.actor_user_id || 'Sistema'}</TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  auditLogs.map((log) => (
+                    <TableRow key={log.id} className="border-border">
+                      <TableCell className="text-muted-foreground text-sm">{formatDate(log.created_at)}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">{log.action}</Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm">{log.actor_user_id || 'Sistema'}</TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
@@ -1114,17 +1274,16 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminar venta</AlertDialogTitle>
             <AlertDialogDescription className="text-muted-foreground">
-              Esta acción no se puede deshacer. La venta de <span className="text-foreground font-medium">{sale.contacts?.full_name}</span> ({formatCurrency(sale.gross_amount)}) será eliminada permanentemente.
+              Esta acción no se puede deshacer. La venta de{' '}
+              <span className="text-foreground font-medium">{sale.contacts?.full_name}</span> (
+              {formatCurrency(sale.gross_amount)}) será eliminada permanentemente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="bg-muted border-border text-foreground hover:bg-muted">
               Cancelar
             </AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700 text-foreground"
-              onClick={handleDelete}
-            >
+            <AlertDialogAction className="bg-red-600 hover:bg-red-700 text-foreground" onClick={handleDelete}>
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1136,74 +1295,116 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
         <DialogContent className="bg-card border-border text-foreground max-w-lg">
           <DialogHeader>
             <DialogTitle>Editar venta</DialogTitle>
-            <DialogDescription>Modifica el equipo, importe, fecha y estado de la venta. Queda registrado en el historial.</DialogDescription>
+            <DialogDescription>
+              Modifica el equipo, importe, fecha y estado de la venta. Queda registrado en el historial.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Setter</Label>
                 <Select value={editForm.setter_id} onValueChange={(v) => setEditForm((f) => ({ ...f, setter_id: v }))}>
-                  <SelectTrigger className="bg-muted border-border"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="bg-muted border-border">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent className="bg-card border-border">
                     <SelectItem value="none">Sin setter</SelectItem>
-                    {teamUsers.filter((u) => u.role === 'setter' || u.role === 'cold_caller').map((u) => (
-                      <SelectItem key={u.id} value={u.id}>{u.full_name}{u.role === 'cold_caller' ? ' (cold caller)' : ''}</SelectItem>
-                    ))}
+                    {teamUsers
+                      .filter((u) => u.role === 'setter' || u.role === 'cold_caller')
+                      .map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.full_name}
+                          {u.role === 'cold_caller' ? ' (cold caller)' : ''}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Closer</Label>
                 <Select value={editForm.closer_id} onValueChange={(v) => setEditForm((f) => ({ ...f, closer_id: v }))}>
-                  <SelectTrigger className="bg-muted border-border"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="bg-muted border-border">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent className="bg-card border-border">
                     <SelectItem value="none">Sin closer</SelectItem>
                     {/* Incluye admin: hay admins (ej. [tenant]) que también cierran ventas y deben poder marcarse como closer. */}
-                    {teamUsers.filter((u) => u.role === 'closer' || u.role === 'admin').map((u) => (
-                      <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>
-                    ))}
+                    {teamUsers
+                      .filter((u) => u.role === 'closer' || u.role === 'admin')
+                      .map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.full_name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Afiliado</Label>
-                <Select value={editForm.affiliate_id} onValueChange={(v) => setEditForm((f) => ({ ...f, affiliate_id: v }))}>
-                  <SelectTrigger className="bg-muted border-border"><SelectValue /></SelectTrigger>
+                <Select
+                  value={editForm.affiliate_id}
+                  onValueChange={(v) => setEditForm((f) => ({ ...f, affiliate_id: v }))}
+                >
+                  <SelectTrigger className="bg-muted border-border">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent className="bg-card border-border">
                     <SelectItem value="none">Sin afiliado</SelectItem>
-                    {teamUsers.filter((u) => u.role === 'affiliate').map((u) => (
-                      <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>
-                    ))}
+                    {teamUsers
+                      .filter((u) => u.role === 'affiliate')
+                      .map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.full_name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
               {editForm.affiliate_id !== 'none' && (
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">Comisión afiliado (%)</Label>
-                  <Input type="number" min="0" max="100" step="0.1" className="bg-muted border-border"
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    className="bg-muted border-border"
                     value={editForm.affiliate_commission_percent}
-                    onChange={(e) => setEditForm((f) => ({ ...f, affiliate_commission_percent: e.target.value }))} />
+                    onChange={(e) => setEditForm((f) => ({ ...f, affiliate_commission_percent: e.target.value }))}
+                  />
                 </div>
               )}
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Fecha de venta</Label>
-                <Input type="date" className="bg-muted border-border"
+                <Input
+                  type="date"
+                  className="bg-muted border-border"
                   value={editForm.sale_date}
-                  onChange={(e) => setEditForm((f) => ({ ...f, sale_date: e.target.value }))} />
+                  onChange={(e) => setEditForm((f) => ({ ...f, sale_date: e.target.value }))}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Importe bruto (€)</Label>
-                <Input type="number" min="0" step="0.01" className="bg-muted border-border"
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="bg-muted border-border"
                   value={editForm.gross_amount}
-                  onChange={(e) => setEditForm((f) => ({ ...f, gross_amount: e.target.value }))} />
+                  onChange={(e) => setEditForm((f) => ({ ...f, gross_amount: e.target.value }))}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Estado</Label>
                 <Select value={editForm.status} onValueChange={(v) => setEditForm((f) => ({ ...f, status: v }))}>
-                  <SelectTrigger className="bg-muted border-border"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="bg-muted border-border">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent className="bg-card border-border">
                     {(Object.keys(STATUS_LABELS) as SaleStatus[]).map((s) => (
-                      <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
+                      <SelectItem key={s} value={s}>
+                        {STATUS_LABELS[s]}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1211,15 +1412,27 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Notas</Label>
-              <Textarea className="bg-muted border-border min-h-[70px]"
+              <Textarea
+                className="bg-muted border-border min-h-[70px]"
                 value={editForm.notes}
-                onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))} />
+                onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
+              />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" className="bg-muted border border-border text-foreground hover:bg-muted"
-              onClick={() => setShowEditDialog(false)} disabled={editSaving}>Cancelar</Button>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-foreground" onClick={handleEditSubmit} disabled={editSaving}>
+            <Button
+              variant="ghost"
+              className="bg-muted border border-border text-foreground hover:bg-muted"
+              onClick={() => setShowEditDialog(false)}
+              disabled={editSaving}
+            >
+              Cancelar
+            </Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-foreground"
+              onClick={handleEditSubmit}
+              disabled={editSaving}
+            >
               {editSaving ? 'Guardando...' : 'Guardar cambios'}
             </Button>
           </DialogFooter>
@@ -1232,18 +1445,17 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
           <DialogHeader>
             <DialogTitle>Marcar devolución</DialogTitle>
             <DialogDescription>
-              La devolución se restará automáticamente de la facturación y de las comisiones asociadas a esta venta (se generarán comisiones negativas cuando corresponda).
+              La devolución se restará automáticamente de la facturación y de las comisiones asociadas a esta venta (se
+              generarán comisiones negativas cuando corresponda).
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className={`rounded-md border p-3 text-sm ${isOutOfRefundWindow ? 'border-red-500/30 bg-red-500/10 text-red-400' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'}`}>
-              <p className="font-medium">
-                Plazo de devolución: {formatDate(sale.refund_deadline_at)}
-              </p>
-              <p className="mt-0.5">
-                {isOutOfRefundWindow ? 'Fuera de plazo — 15 días' : 'En plazo'}
-              </p>
+            <div
+              className={`rounded-md border p-3 text-sm ${isOutOfRefundWindow ? 'border-red-500/30 bg-red-500/10 text-red-400' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'}`}
+            >
+              <p className="font-medium">Plazo de devolución: {formatDate(sale.refund_deadline_at)}</p>
+              <p className="mt-0.5">{isOutOfRefundWindow ? 'Fuera de plazo — 15 días' : 'En plazo'}</p>
             </div>
 
             <div>
@@ -1304,38 +1516,66 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
       </Dialog>
 
       {/* Editar cobro (admin/director) */}
-      <Dialog open={!!editColl} onOpenChange={(o) => { if (!o) setEditColl(null) }}>
+      <Dialog
+        open={!!editColl}
+        onOpenChange={(o) => {
+          if (!o) setEditColl(null)
+        }}
+      >
         <DialogContent className="bg-card border-border text-foreground">
           <DialogHeader>
             <DialogTitle>Editar cobro</DialogTitle>
             <DialogDescription>
-              Al cambiar el importe se recalcula el comisionable según el plan y se reconcilian las comisiones de la venta.
+              Al cambiar el importe se recalcula el comisionable según el plan y se reconcilian las comisiones de la
+              venta.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Importe bruto (€)</Label>
-              <Input type="number" min="0" step="0.01" className="bg-muted border-border"
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                className="bg-muted border-border"
                 value={editCollForm.gross_amount}
-                onChange={(e) => setEditCollForm((f) => ({ ...f, gross_amount: e.target.value }))} />
+                onChange={(e) => setEditCollForm((f) => ({ ...f, gross_amount: e.target.value }))}
+              />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Fecha del cobro</Label>
-              <Input type="date" className="bg-muted border-border"
+              <Input
+                type="date"
+                className="bg-muted border-border"
                 value={editCollForm.collected_at}
-                onChange={(e) => setEditCollForm((f) => ({ ...f, collected_at: e.target.value }))} />
+                onChange={(e) => setEditCollForm((f) => ({ ...f, collected_at: e.target.value }))}
+              />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Método de pago</Label>
-              <Input type="text" className="bg-muted border-border" placeholder="tarjeta, transferencia, sequra..."
+              <Input
+                type="text"
+                className="bg-muted border-border"
+                placeholder="tarjeta, transferencia, sequra..."
                 value={editCollForm.payment_method}
-                onChange={(e) => setEditCollForm((f) => ({ ...f, payment_method: e.target.value }))} />
+                onChange={(e) => setEditCollForm((f) => ({ ...f, payment_method: e.target.value }))}
+              />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" className="bg-muted border border-border text-foreground hover:bg-muted"
-              onClick={() => setEditColl(null)} disabled={collSaving}>Cancelar</Button>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-foreground" onClick={handleEditCollectionSubmit} disabled={collSaving}>
+            <Button
+              variant="ghost"
+              className="bg-muted border border-border text-foreground hover:bg-muted"
+              onClick={() => setEditColl(null)}
+              disabled={collSaving}
+            >
+              Cancelar
+            </Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-foreground"
+              onClick={handleEditCollectionSubmit}
+              disabled={collSaving}
+            >
               {collSaving ? 'Guardando...' : 'Guardar cambios'}
             </Button>
           </DialogFooter>
@@ -1343,19 +1583,36 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
       </Dialog>
 
       {/* Eliminar cobro (admin/director) */}
-      <AlertDialog open={!!deleteColl} onOpenChange={(o) => { if (!o) setDeleteColl(null) }}>
+      <AlertDialog
+        open={!!deleteColl}
+        onOpenChange={(o) => {
+          if (!o) setDeleteColl(null)
+        }}
+      >
         <AlertDialogContent className="bg-card border-border text-foreground">
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminar cobro</AlertDialogTitle>
             <AlertDialogDescription className="text-muted-foreground">
-              Se eliminará el cobro de {deleteColl ? formatCurrency(deleteColl.gross_amount) : ''} y sus comisiones asociadas. Las comisiones de la venta se recalcularán con los cobros restantes. Esta acción no se puede deshacer.
+              Se eliminará el cobro de {deleteColl ? formatCurrency(deleteColl.gross_amount) : ''} y sus comisiones
+              asociadas. Las comisiones de la venta se recalcularán con los cobros restantes. Esta acción no se puede
+              deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-muted border-border text-foreground hover:bg-muted" disabled={collDeleting}>
+            <AlertDialogCancel
+              className="bg-muted border-border text-foreground hover:bg-muted"
+              disabled={collDeleting}
+            >
               Cancelar
             </AlertDialogCancel>
-            <AlertDialogAction className="bg-red-600 hover:bg-red-700 text-foreground" onClick={(e) => { e.preventDefault(); handleDeleteCollection() }} disabled={collDeleting}>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-foreground"
+              onClick={(e) => {
+                e.preventDefault()
+                handleDeleteCollection()
+              }}
+              disabled={collDeleting}
+            >
               {collDeleting ? 'Eliminando...' : 'Eliminar cobro'}
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -62,8 +62,7 @@ export default function AfiliadosSettingsPage() {
             program_name: row.program_name ?? 'Programa de Afiliados',
             intro: row.intro ?? '',
             success_message: row.success_message ?? '',
-            form_fields:
-              Array.isArray(row.form_fields) && row.form_fields.length ? row.form_fields : DEFAULT_FIELDS,
+            form_fields: Array.isArray(row.form_fields) && row.form_fields.length ? row.form_fields : DEFAULT_FIELDS,
           })
         }
         setLoading(false)
@@ -173,8 +172,8 @@ export default function AfiliadosSettingsPage() {
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Envía este enlace a tus afiliados. Al enviar el formulario se dan de alta automáticamente y reciben
-          un email para crear su contraseña.
+          Envía este enlace a tus afiliados. Al enviar el formulario se dan de alta automáticamente y reciben un email
+          para crear su contraseña.
         </p>
       </div>
 
@@ -228,8 +227,8 @@ export default function AfiliadosSettingsPage() {
         <div>
           <Label>Campos del formulario</Label>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Activa/desactiva campos, márcalos como obligatorios y edita su etiqueta. Nombre y email siempre
-            se piden (crean la cuenta).
+            Activa/desactiva campos, márcalos como obligatorios y edita su etiqueta. Nombre y email siempre se piden
+            (crean la cuenta).
           </p>
         </div>
         <div className="divide-y divide-border rounded-lg border border-border overflow-hidden">

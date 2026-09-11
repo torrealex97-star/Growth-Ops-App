@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
@@ -6,13 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { CollectionsTable } from '@/components/collections/CollectionsTable'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Plus, DollarSign, Download, X } from 'lucide-react'
 import { toast } from 'sonner'
@@ -33,7 +27,11 @@ const PERIOD_LABELS: Record<PeriodPreset, string> = {
   custom: 'Personalizado',
 }
 
-function getPeriodRange(preset: PeriodPreset, customFrom: string, customTo: string): { from: Date | null; to: Date | null } {
+function getPeriodRange(
+  preset: PeriodPreset,
+  customFrom: string,
+  customTo: string
+): { from: Date | null; to: Date | null } {
   const now = new Date()
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0)
   const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
@@ -135,7 +133,10 @@ export default function CollectionsPage() {
     fetchData()
   }, [tenantId])
 
-  const periodRange = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
+  const periodRange = useMemo(
+    () => getPeriodRange(periodPreset, customFrom, customTo),
+    [periodPreset, customFrom, customTo]
+  )
   const directDateRange = useMemo(() => getCustomDateRange(dateFrom, dateTo), [dateFrom, dateTo])
 
   const filtered = useMemo(() => {
@@ -143,7 +144,8 @@ export default function CollectionsPage() {
     return collections.filter((c) => {
       if (nq) {
         const ct = c.sales?.contacts as { full_name?: string; email?: string | null; phone?: string | null } | null
-        const ok = normalizeText(ct?.full_name || '').includes(nq) ||
+        const ok =
+          normalizeText(ct?.full_name || '').includes(nq) ||
           normalizeText(ct?.email || '').includes(nq) ||
           phoneMatches(ct?.phone, q) ||
           normalizeText(c.sales?.payment_plans?.name || '').includes(nq)
@@ -165,7 +167,8 @@ export default function CollectionsPage() {
     })
   }, [collections, q, eligibleFilter, statusFilter, dateFrom, dateTo, directDateRange, periodPreset, periodRange])
 
-  const hasActiveFilters = !!q || eligibleFilter !== 'all' || statusFilter !== 'all' || dateFrom || dateTo || periodPreset !== 'all'
+  const hasActiveFilters =
+    !!q || eligibleFilter !== 'all' || statusFilter !== 'all' || dateFrom || dateTo || periodPreset !== 'all'
 
   const clearFilters = () => {
     setQ('')
@@ -218,7 +221,12 @@ export default function CollectionsPage() {
           <span className="text-sm font-medium text-foreground">Filtros</span>
           <div className="flex items-center gap-2">
             {hasActiveFilters && (
-              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={clearFilters}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                onClick={clearFilters}
+              >
                 <X className="w-3.5 h-3.5 mr-1" />
                 Limpiar filtros
               </Button>
@@ -242,7 +250,9 @@ export default function CollectionsPage() {
               </SelectTrigger>
               <SelectContent className="bg-card border-border">
                 {(Object.keys(PERIOD_LABELS) as PeriodPreset[]).map((p) => (
-                  <SelectItem key={p} value={p}>{PERIOD_LABELS[p]}</SelectItem>
+                  <SelectItem key={p} value={p}>
+                    {PERIOD_LABELS[p]}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -342,7 +352,9 @@ export default function CollectionsPage() {
       ) : (
         <>
           <CollectionsTable collections={filtered} />
-          <p className="text-xs text-muted-foreground">{filtered.length} de {collections.length} cobros</p>
+          <p className="text-xs text-muted-foreground">
+            {filtered.length} de {collections.length} cobros
+          </p>
         </>
       )}
     </div>

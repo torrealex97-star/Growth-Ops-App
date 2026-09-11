@@ -28,7 +28,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
     const role = (urow?.roles as { key?: string } | null)?.key || ''
-    if (!t.isSuperAdmin && !ALLOWED_ROLES.includes(role)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+    if (!t.isSuperAdmin && !ALLOWED_ROLES.includes(role))
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
     const { data: sale } = await sb
       .from('sales')
@@ -50,8 +51,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     })
 
     const now = new Date().toISOString()
-    const patch = action === 'grant' ? { course_access_granted_at: now, course_access_revoked_at: null } : { course_access_revoked_at: now }
-    const { data: updated, error } = await sb.from('sales').update(patch).eq('id', saleId).eq('tenant_id', t.tenantId).select().single()
+    const patch =
+      action === 'grant'
+        ? { course_access_granted_at: now, course_access_revoked_at: null }
+        : { course_access_revoked_at: now }
+    const { data: updated, error } = await sb
+      .from('sales')
+      .update(patch)
+      .eq('id', saleId)
+      .eq('tenant_id', t.tenantId)
+      .select()
+      .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     await sb.from('audit_logs').insert({

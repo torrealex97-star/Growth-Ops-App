@@ -7,11 +7,9 @@ export const runtime = 'nodejs'
 const VALID_STATUS = ['nueva', 'en_revision', 'planificada', 'en_progreso', 'resuelta', 'descartada']
 
 function serviceClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
+  return createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
 }
 
 async function requireAdmin(tenantSlug: string) {
@@ -41,7 +39,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
     }
 
     const sb = serviceClient()
-    const { data, error } = await sb.from('suggestions').update(update).eq('id', id).eq('tenant_id', guard.tenantId).select().single()
+    const { data, error } = await sb
+      .from('suggestions')
+      .update(update)
+      .eq('id', id)
+      .eq('tenant_id', guard.tenantId)
+      .select()
+      .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ suggestion: data })
   } catch (err) {

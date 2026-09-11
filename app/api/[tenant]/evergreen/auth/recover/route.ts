@@ -14,7 +14,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const { tenant } = await params
   try {
     const { email: rawEmail } = await req.json()
-    const email = String(rawEmail || '').toLowerCase().trim()
+    const email = String(rawEmail || '')
+      .toLowerCase()
+      .trim()
     if (!email) return NextResponse.json({ error: 'Falta el email' }, { status: 400 })
 
     // Sin Resend no podemos enviar nosotros el correo → que la página use el flujo de Supabase.
@@ -22,13 +24,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ ok: true, fallback: true })
     }
 
-    const sb = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
 
-    const { data: tenantRow } = await sb.from('tenants').select('id').eq('slug', tenant).eq('status', 'active').maybeSingle()
+    const { data: tenantRow } = await sb
+      .from('tenants')
+      .select('id')
+      .eq('slug', tenant)
+      .eq('status', 'active')
+      .maybeSingle()
     if (!tenantRow) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin

@@ -39,7 +39,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
       company,
     })
 
-    const filename = `plantilla-${(tpl.name || 'contrato').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}.pdf`
+    const filename = `plantilla-${(tpl.name || 'contrato')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '')}.pdf`
     return new NextResponse(Buffer.from(pdf), {
       status: 200,
       headers: {

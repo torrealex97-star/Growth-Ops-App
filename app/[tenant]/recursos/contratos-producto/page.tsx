@@ -62,10 +62,11 @@ export default function ContratosProductoPage() {
   const filtered = useMemo(() => {
     const nq = normalizeText(q.trim())
     if (!nq) return templates
-    return templates.filter((t) =>
-      normalizeText(t.name).includes(nq) ||
-      normalizeText(KIND_LABEL[t.kind] || t.kind).includes(nq) ||
-      normalizeText(t.body).includes(nq)
+    return templates.filter(
+      (t) =>
+        normalizeText(t.name).includes(nq) ||
+        normalizeText(KIND_LABEL[t.kind] || t.kind).includes(nq) ||
+        normalizeText(t.body).includes(nq)
     )
   }, [templates, q])
 
@@ -77,10 +78,16 @@ export default function ContratosProductoPage() {
             <FileText className="w-6 h-6 text-brand-400" /> Contratos de producto
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Consulta el texto de los contratos del producto para enseñárselos al cliente antes de la venta. Solo lectura.
+            Consulta el texto de los contratos del producto para enseñárselos al cliente antes de la venta. Solo
+            lectura.
           </p>
         </div>
-        <SearchBox value={q} onChange={setQ} placeholder="Buscar por nombre o contenido..." className="w-full sm:w-80" />
+        <SearchBox
+          value={q}
+          onChange={setQ}
+          placeholder="Buscar por nombre o contenido..."
+          className="w-full sm:w-80"
+        />
       </div>
 
       {loading ? (
@@ -89,7 +96,9 @@ export default function ContratosProductoPage() {
         <div className="bg-card border border-border rounded-lg p-10 text-center">
           <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
           <p className="text-muted-foreground text-sm">
-            {templates.length === 0 ? 'Todavía no hay contratos de producto disponibles.' : 'Ningún contrato coincide con la búsqueda.'}
+            {templates.length === 0
+              ? 'Todavía no hay contratos de producto disponibles.'
+              : 'Ningún contrato coincide con la búsqueda.'}
           </p>
         </div>
       ) : (
@@ -103,7 +112,11 @@ export default function ContratosProductoPage() {
                     onClick={() => setOpenId(open ? null : t.id)}
                     className="flex items-center gap-3 flex-1 text-left"
                   >
-                    {open ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
+                    {open ? (
+                      <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                    )}
                     <span className="text-foreground font-medium flex-1">{t.name}</span>
                   </button>
                   {t.payment_method && (
@@ -111,7 +124,9 @@ export default function ContratosProductoPage() {
                       {PAYMENT_LABEL[t.payment_method] || t.payment_method}
                     </span>
                   )}
-                  <span className={`text-[11px] px-2 py-0.5 rounded-md border ${KIND_STYLE[t.kind] || 'border-border text-foreground'}`}>
+                  <span
+                    className={`text-[11px] px-2 py-0.5 rounded-md border ${KIND_STYLE[t.kind] || 'border-border text-foreground'}`}
+                  >
                     {KIND_LABEL[t.kind] || t.kind}
                   </span>
                   <a
@@ -131,9 +146,7 @@ export default function ContratosProductoPage() {
                         {t.welcome_message}
                       </div>
                     )}
-                    <div className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-foreground">
-                      {t.body}
-                    </div>
+                    <div className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-foreground">{t.body}</div>
                   </div>
                 )}
               </div>

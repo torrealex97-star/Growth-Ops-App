@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -17,7 +17,13 @@ import { useTenant, useTenantId } from '@/lib/tenant-context'
 // CONTACTOS (nombre, email, teléfono) y las AGENDAS próximas de esos contactos.
 // Las pantallas se filtran con el mismo criterio de permisos que el menú lateral.
 
-type ContactHit = { id: string; full_name: string; email: string | null; phone: string | null; lead_status: string | null }
+type ContactHit = {
+  id: string
+  full_name: string
+  email: string | null
+  phone: string | null
+  lead_status: string | null
+}
 type ApptHit = { id: string; appointment_datetime: string; contacts: { full_name: string | null } | null }
 
 type Result =
@@ -62,13 +68,23 @@ export function GlobalSearch({ user }: { user: User & { roles: { key: string; na
 
   // Al cerrar, limpia para que la próxima apertura empiece en blanco.
   useEffect(() => {
-    if (!open) { setQuery(''); setContacts([]); setAppts([]); setActive(0) }
+    if (!open) {
+      setQuery('')
+      setContacts([])
+      setAppts([])
+      setActive(0)
+    }
   }, [open])
 
   // Búsqueda en BBDD con debounce. La RLS ya acota lo que cada rol puede ver.
   useEffect(() => {
     const q = query.trim()
-    if (q.length < MIN_REMOTE_QUERY) { setContacts([]); setAppts([]); setSearching(false); return }
+    if (q.length < MIN_REMOTE_QUERY) {
+      setContacts([])
+      setAppts([])
+      setSearching(false)
+      return
+    }
     let cancelled = false
     setSearching(true)
     const timer = setTimeout(async () => {
@@ -77,8 +93,14 @@ export function GlobalSearch({ user }: { user: User & { roles: { key: string; na
       const or = [`full_name.ilike.%${q}%`, `email.ilike.%${q}%`]
       if (digits.length >= 3) or.push(`phone.ilike.%${digits}%`)
       const [cRes, aRes] = await Promise.all([
-        sb.from('contacts').select('id, full_name, email, phone, lead_status').eq('tenant_id', tenantId).or(or.join(',')).limit(8),
-        sb.from('appointments')
+        sb
+          .from('contacts')
+          .select('id, full_name, email, phone, lead_status')
+          .eq('tenant_id', tenantId)
+          .or(or.join(','))
+          .limit(8),
+        sb
+          .from('appointments')
           .select('id, appointment_datetime, contacts!inner(full_name)')
           .eq('tenant_id', tenantId)
           .ilike('contacts.full_name', `%${q}%`)
@@ -90,7 +112,10 @@ export function GlobalSearch({ user }: { user: User & { roles: { key: string; na
       setAppts((aRes.data as unknown as ApptHit[]) ?? [])
       setSearching(false)
     }, 220)
-    return () => { cancelled = true; clearTimeout(timer) }
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
   }, [query, tenantId])
 
   const results = useMemo<Result[]>(() => {
@@ -98,7 +123,14 @@ export function GlobalSearch({ user }: { user: User & { roles: { key: string; na
     const pageHits: Result[] = pages
       .filter((p) => !q || normalizeText(p.label).includes(q) || normalizeText(p.href).includes(q))
       .slice(0, q ? 8 : 6)
-      .map((p) => ({ kind: 'page', key: `page:${p.href}`, label: p.label, sub: p.href.replace(`/${tenant}/`, ''), href: p.href, icon: p.icon }))
+      .map((p) => ({
+        kind: 'page',
+        key: `page:${p.href}`,
+        label: p.label,
+        sub: p.href.replace(`/${tenant}/`, ''),
+        href: p.href,
+        icon: p.icon,
+      }))
 
     const contactHits: Result[] = contacts.map((c) => ({
       kind: 'contact',
@@ -122,17 +154,32 @@ export function GlobalSearch({ user }: { user: User & { roles: { key: string; na
   }, [pages, query, contacts, appts])
 
   // Mantén la selección dentro de rango cuando cambian los resultados.
-  useEffect(() => { setActive((i) => (i >= results.length ? 0 : i)) }, [results.length])
+  useEffect(() => {
+    setActive((i) => (i >= results.length ? 0 : i))
+  }, [results.length])
 
-  const go = useCallback((r: Result) => {
-    setOpen(false)
-    router.push(r.href)
-  }, [router])
+  const go = useCallback(
+    (r: Result) => {
+      setOpen(false)
+      router.push(r.href)
+    },
+    [router]
+  )
 
   const onInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((i) => Math.min(i + 1, results.length - 1)) }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)) }
-    else if (e.key === 'Enter') { const r = results[active]; if (r) { e.preventDefault(); go(r) } }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActive((i) => Math.min(i + 1, results.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActive((i) => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter') {
+      const r = results[active]
+      if (r) {
+        e.preventDefault()
+        go(r)
+      }
+    }
   }
 
   const groupLabel = (kind: Result['kind']) =>
@@ -181,7 +228,9 @@ export function GlobalSearch({ user }: { user: User & { roles: { key: string; na
                 return (
                   <div key={r.key}>
                     {showGroup && (
-                      <p className="px-4 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">{groupLabel(r.kind)}</p>
+                      <p className="px-4 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                        {groupLabel(r.kind)}
+                      </p>
                     )}
                     <button
                       type="button"

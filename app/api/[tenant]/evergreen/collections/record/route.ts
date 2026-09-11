@@ -36,7 +36,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     const { data: sale } = await sb
       .from('sales')
-      .select('id, contact_id, appointment_id, setter_id, closer_id, affiliate_id, affiliate_commission_percent, notes, payment_plans(cash_collection_ratio, fee_percent, method)')
+      .select(
+        'id, contact_id, appointment_id, setter_id, closer_id, affiliate_id, affiliate_commission_percent, notes, payment_plans(cash_collection_ratio, fee_percent, method)'
+      )
       .eq('id', saleId)
       .eq('tenant_id', t.tenantId)
       .single()
@@ -48,7 +50,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const attrPatch = await resolveSaleAttribution(sb, sale as unknown as Parameters<typeof resolveSaleAttribution>[1])
     Object.assign(sale, attrPatch)
 
-    const plan = sale.payment_plans as { cash_collection_ratio?: number; fee_percent?: number; method?: string | null } | null
+    const plan = sale.payment_plans as {
+      cash_collection_ratio?: number
+      fee_percent?: number
+      method?: string | null
+    } | null
     const ratio = Number(plan?.cash_collection_ratio ?? 1)
     const feePercent = Number(plan?.fee_percent ?? 0)
     const now = collectedAt ? new Date(collectedAt).toISOString() : new Date().toISOString()
@@ -67,21 +73,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       .eq('sale_id', saleId)
     const isFirstCollection = !priorCollections
 
-    const { data: coll, error: collErr } = await sb.from('collections').insert({
-      tenant_id: t.tenantId,
-      sale_id: saleId,
-      expected_installment_id: null,
-      collected_at: now,
-      gross_amount: round2(amount),
-      commissionable_amount: round2(explicitCommissionable != null ? explicitCommissionable : amount * ratio),
-      processing_fee: round2(amount * (feePercent / 100)),
-      is_confirmed: true,
-      is_eligible_for_commission: !needsReview,
-      eligible_at: needsReview ? null : now,
-      needs_commission_review: needsReview,
-      status: 'collected',
-      payment_method: method || null,
-    }).select().single()
+    const { data: coll, error: collErr } = await sb
+      .from('collections')
+      .insert({
+        tenant_id: t.tenantId,
+        sale_id: saleId,
+        expected_installment_id: null,
+        collected_at: now,
+        gross_amount: round2(amount),
+        commissionable_amount: round2(explicitCommissionable != null ? explicitCommissionable : amount * ratio),
+        processing_fee: round2(amount * (feePercent / 100)),
+        is_confirmed: true,
+        is_eligible_for_commission: !needsReview,
+        eligible_at: needsReview ? null : now,
+        needs_commission_review: needsReview,
+        status: 'collected',
+        payment_method: method || null,
+      })
+      .select()
+      .single()
 
     if (collErr || !coll) {
       return NextResponse.json({ error: collErr?.message || 'No se pudo registrar el cobro' }, { status: 500 })
@@ -98,7 +108,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (isFirstCollection) {
       const token = await resolveSaleToken(sb, sale.appointment_id)
       await notifyCreatuagenteVenta(token, {
-        idExterno: saleId, importe: round2(amount), moneda: 'EUR', fecha: now, notas: sale.notes || undefined,
+        idExterno: saleId,
+        importe: round2(amount),
+        moneda: 'EUR',
+        fecha: now,
+        notas: sale.notes || undefined,
       })
     }
 

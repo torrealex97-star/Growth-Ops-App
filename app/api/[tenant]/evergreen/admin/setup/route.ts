@@ -172,7 +172,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Plantilla por defecto si esta subcuenta no tiene ninguna (contract_templates.tenant_id es
     // NOT NULL desde la migración multi-tenant — contamos/insertamos scoped a este tenantId para
     // que cada subcuenta reciba su propia plantilla por defecto, no solo la primera que llame a /setup).
-    const [{ count }] = await sql`SELECT count(*)::int AS count FROM public.contract_templates WHERE tenant_id = ${tenantId}`
+    const [{ count }] =
+      await sql`SELECT count(*)::int AS count FROM public.contract_templates WHERE tenant_id = ${tenantId}`
     if (count === 0) {
       await sql`INSERT INTO public.contract_templates (tenant_id, name, role_key, body) VALUES (
         ${tenantId}, 'Contrato colaborador comercial (setter/closer)', 'closer',

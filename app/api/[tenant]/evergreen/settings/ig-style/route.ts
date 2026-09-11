@@ -7,7 +7,7 @@ export const runtime = 'nodejs'
 
 // Claves permitidas para editar desde este endpoint.
 const KEYS = ['ig_style_prompt', 'ig_business_context'] as const
-type Key = typeof KEYS[number]
+type Key = (typeof KEYS)[number]
 const keyFrom = (v: string | null): Key => (KEYS.includes(v as Key) ? (v as Key) : 'ig_style_prompt')
 
 async function getRole(sb: ReturnType<typeof svc>, userId: string) {
@@ -28,9 +28,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   const sb = svc()
   const role = await getRole(sb, t.userId)
   if (!role) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-  if (!['admin', 'director', 'manager', 'marketing', 'editor'].includes(role)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  if (!['admin', 'director', 'manager', 'marketing', 'editor'].includes(role))
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   const key = keyFrom(req.nextUrl.searchParams.get('key'))
-  const prompt = key === 'ig_business_context' ? await readBusinessContext(t.tenantId) : await readStylePrompt(t.tenantId)
+  const prompt =
+    key === 'ig_business_context' ? await readBusinessContext(t.tenantId) : await readStylePrompt(t.tenantId)
   return NextResponse.json({ key, prompt })
 }
 
@@ -44,9 +46,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ tena
   if (!['admin', 'director'].includes(role)) return NextResponse.json({ error: 'Solo admin/director' }, { status: 403 })
   const body = await req.json()
   const key = keyFrom(body?.key ?? null)
-  const { error } = await sb
-    .from('app_settings')
-    .upsert({ key, tenant_id: t.tenantId, value: { prompt: String(body?.prompt ?? '') }, updated_at: new Date().toISOString() }, { onConflict: 'tenant_id,key' })
+  const { error } = await sb.from('app_settings').upsert(
+    {
+      key,
+      tenant_id: t.tenantId,
+      value: { prompt: String(body?.prompt ?? '') },
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'tenant_id,key' }
+  )
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

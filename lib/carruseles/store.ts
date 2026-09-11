@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js"
+import { createClient } from '@supabase/supabase-js'
 import type {
   CarruselProject,
   CarruselTemplate,
@@ -7,20 +7,17 @@ import type {
   AspectRatio,
   ProjectKind,
   ReferenceImage,
-} from "./types"
-import { DEFAULT_BRAND, MAX_SLIDES, MAX_VERSIONS } from "./types"
+} from './types'
+import { DEFAULT_BRAND, MAX_SLIDES, MAX_VERSIONS } from './types'
 
 function svc() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  )
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { persistSession: false },
+  })
 }
 
 function uid(): string {
-  return (globalThis.crypto?.randomUUID?.() ??
-    "id-" + Math.random().toString(36).slice(2) + Date.now().toString(36))
+  return globalThis.crypto?.randomUUID?.() ?? 'id-' + Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -45,17 +42,17 @@ function rowToProject(r: any): CarruselProject {
 export async function listProjects(): Promise<CarruselProject[]> {
   const sb = svc()
   const { data, error } = await sb
-    .from("carrusel_projects")
-    .select("*")
-    .eq("is_template", false)
-    .order("updated_at", { ascending: false })
+    .from('carrusel_projects')
+    .select('*')
+    .eq('is_template', false)
+    .order('updated_at', { ascending: false })
   if (error) throw new Error(error.message)
   return (data ?? []).map(rowToProject)
 }
 
 export async function getProject(id: string): Promise<CarruselProject | null> {
   const sb = svc()
-  const { data, error } = await sb.from("carrusel_projects").select("*").eq("id", id).maybeSingle()
+  const { data, error } = await sb.from('carrusel_projects').select('*').eq('id', id).maybeSingle()
   if (error) throw new Error(error.message)
   return data ? rowToProject(data) : null
 }
@@ -68,9 +65,9 @@ export async function createProject(
 ): Promise<CarruselProject> {
   const sb = svc()
   const { data, error } = await sb
-    .from("carrusel_projects")
+    .from('carrusel_projects')
     .insert({ title, kind, aspect_ratio: aspectRatio, created_by: createdBy ?? null })
-    .select("*")
+    .select('*')
     .single()
   if (error) throw new Error(error.message)
   return rowToProject(data)
@@ -78,7 +75,7 @@ export async function createProject(
 
 export async function updateProject(
   id: string,
-  updates: Partial<Pick<CarruselProject, "title" | "aspectRatio" | "kind" | "caption" | "hashtags">>
+  updates: Partial<Pick<CarruselProject, 'title' | 'aspectRatio' | 'kind' | 'caption' | 'hashtags'>>
 ): Promise<CarruselProject | null> {
   const sb = svc()
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
@@ -87,14 +84,14 @@ export async function updateProject(
   if (updates.kind !== undefined) patch.kind = updates.kind
   if (updates.caption !== undefined) patch.caption = updates.caption
   if (updates.hashtags !== undefined) patch.hashtags = updates.hashtags
-  const { data, error } = await sb.from("carrusel_projects").update(patch).eq("id", id).select("*").maybeSingle()
+  const { data, error } = await sb.from('carrusel_projects').update(patch).eq('id', id).select('*').maybeSingle()
   if (error) throw new Error(error.message)
   return data ? rowToProject(data) : null
 }
 
 export async function deleteProject(id: string): Promise<boolean> {
   const sb = svc()
-  const { error } = await sb.from("carrusel_projects").delete().eq("id", id)
+  const { error } = await sb.from('carrusel_projects').delete().eq('id', id)
   if (error) throw new Error(error.message)
   return true
 }
@@ -105,7 +102,7 @@ export async function duplicateProject(id: string): Promise<CarruselProject | nu
   const sb = svc()
   const slides = src.slides.map((s) => ({ ...s, id: uid(), previousVersions: [] }))
   const { data, error } = await sb
-    .from("carrusel_projects")
+    .from('carrusel_projects')
     .insert({
       title: `${src.title} (copia)`,
       kind: src.kind,
@@ -114,7 +111,7 @@ export async function duplicateProject(id: string): Promise<CarruselProject | nu
       reference_images: src.referenceImages,
       is_template: false,
     })
-    .select("*")
+    .select('*')
     .single()
   if (error) throw new Error(error.message)
   return rowToProject(data)
@@ -125,16 +122,16 @@ export async function duplicateProject(id: string): Promise<CarruselProject | nu
 async function saveSlides(id: string, slides: Slide[]): Promise<CarruselProject | null> {
   const sb = svc()
   const { data, error } = await sb
-    .from("carrusel_projects")
+    .from('carrusel_projects')
     .update({ slides, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .select("*")
+    .eq('id', id)
+    .select('*')
     .maybeSingle()
   if (error) throw new Error(error.message)
   return data ? rowToProject(data) : null
 }
 
-export async function addSlide(projectId: string, html: string, notes = ""): Promise<Slide | null> {
+export async function addSlide(projectId: string, html: string, notes = ''): Promise<Slide | null> {
   const project = await getProject(projectId)
   if (!project) return null
   if (project.slides.length >= MAX_SLIDES) return null
@@ -146,7 +143,7 @@ export async function addSlide(projectId: string, html: string, notes = ""): Pro
 export async function updateSlide(
   projectId: string,
   slideId: string,
-  updates: Partial<Pick<Slide, "html" | "notes">>
+  updates: Partial<Pick<Slide, 'html' | 'notes'>>
 ): Promise<Slide | null> {
   const project = await getProject(projectId)
   if (!project) return null
@@ -211,9 +208,9 @@ export async function addReferenceImage(projectId: string, image: ReferenceImage
   if (!project) return false
   const sb = svc()
   const { error } = await sb
-    .from("carrusel_projects")
+    .from('carrusel_projects')
     .update({ reference_images: [...project.referenceImages, image], updated_at: new Date().toISOString() })
-    .eq("id", projectId)
+    .eq('id', projectId)
   if (error) throw new Error(error.message)
   return true
 }
@@ -223,12 +220,12 @@ export async function removeReferenceImage(projectId: string, imageId: string): 
   if (!project) return false
   const sb = svc()
   const { error } = await sb
-    .from("carrusel_projects")
+    .from('carrusel_projects')
     .update({
       reference_images: project.referenceImages.filter((r) => r.id !== imageId),
       updated_at: new Date().toISOString(),
     })
-    .eq("id", projectId)
+    .eq('id', projectId)
   if (error) throw new Error(error.message)
   return true
 }
@@ -237,11 +234,11 @@ export async function removeReferenceImage(projectId: string, imageId: string): 
 
 export async function getBrand(): Promise<BrandConfig> {
   const sb = svc()
-  const { data, error } = await sb.from("carrusel_brand").select("*").eq("id", 1).maybeSingle()
+  const { data, error } = await sb.from('carrusel_brand').select('*').eq('id', 1).maybeSingle()
   if (error) throw new Error(error.message)
   if (!data) return DEFAULT_BRAND
   return {
-    name: data.name ?? "",
+    name: data.name ?? '',
     colors: { ...DEFAULT_BRAND.colors, ...(data.colors || {}) },
     fonts: { ...DEFAULT_BRAND.fonts, ...(data.fonts || {}) },
     logoUrl: data.logo_url ?? null,
@@ -258,7 +255,7 @@ export async function updateBrand(updates: Partial<BrandConfig>): Promise<BrandC
     fonts: { ...current.fonts, ...(updates.fonts || {}) },
   }
   const sb = svc()
-  const { error } = await sb.from("carrusel_brand").upsert({
+  const { error } = await sb.from('carrusel_brand').upsert({
     id: 1,
     name: merged.name,
     colors: merged.colors,
@@ -275,7 +272,7 @@ export async function updateBrand(updates: Partial<BrandConfig>): Promise<BrandC
 
 export async function listTemplates(): Promise<CarruselTemplate[]> {
   const sb = svc()
-  const { data, error } = await sb.from("carrusel_templates").select("*").order("created_at", { ascending: false })
+  const { data, error } = await sb.from('carrusel_templates').select('*').order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
   return (data ?? []).map((r: any) => ({
     id: r.id,
@@ -293,9 +290,9 @@ export async function createTemplateFromProject(projectId: string): Promise<Carr
   const sb = svc()
   const slides = project.slides.map((s) => ({ ...s, id: uid(), previousVersions: [] }))
   const { data, error } = await sb
-    .from("carrusel_templates")
+    .from('carrusel_templates')
     .insert({ title: project.title, kind: project.kind, aspect_ratio: project.aspectRatio, slides })
-    .select("*")
+    .select('*')
     .single()
   if (error) throw new Error(error.message)
   return {
@@ -310,18 +307,14 @@ export async function createTemplateFromProject(projectId: string): Promise<Carr
 
 export async function deleteTemplate(id: string): Promise<boolean> {
   const sb = svc()
-  const { error } = await sb.from("carrusel_templates").delete().eq("id", id)
+  const { error } = await sb.from('carrusel_templates').delete().eq('id', id)
   if (error) throw new Error(error.message)
   return true
 }
 
 export async function createProjectFromTemplate(templateId: string): Promise<CarruselProject | null> {
   const sb = svc()
-  const { data: tpl, error: terr } = await sb
-    .from("carrusel_templates")
-    .select("*")
-    .eq("id", templateId)
-    .maybeSingle()
+  const { data: tpl, error: terr } = await sb.from('carrusel_templates').select('*').eq('id', templateId).maybeSingle()
   if (terr) throw new Error(terr.message)
   if (!tpl) return null
   const slides = (Array.isArray(tpl.slides) ? tpl.slides : []).map((s: Slide) => ({
@@ -330,7 +323,7 @@ export async function createProjectFromTemplate(templateId: string): Promise<Car
     previousVersions: [],
   }))
   const { data, error } = await sb
-    .from("carrusel_projects")
+    .from('carrusel_projects')
     .insert({
       title: tpl.title,
       kind: tpl.kind,
@@ -338,7 +331,7 @@ export async function createProjectFromTemplate(templateId: string): Promise<Car
       slides,
       is_template: false,
     })
-    .select("*")
+    .select('*')
     .single()
   if (error) throw new Error(error.message)
   return rowToProject(data)

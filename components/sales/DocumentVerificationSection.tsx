@@ -43,7 +43,7 @@ export function DocumentVerificationSection({
   saleId,
   contactCountry,
   contactEmail,
-  userRole
+  userRole,
 }: {
   saleId: string
   contactCountry?: string | null
@@ -120,11 +120,11 @@ export function DocumentVerificationSection({
   return (
     <div className="space-y-4">
       {/* Estado General */}
-      <div className={`rounded-lg border p-4 ${
-        isVerified
-          ? 'border-emerald-500/30 bg-emerald-500/10'
-          : 'border-amber-500/30 bg-amber-500/10'
-      }`}>
+      <div
+        className={`rounded-lg border p-4 ${
+          isVerified ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-amber-500/30 bg-amber-500/10'
+        }`}
+      >
         <div className="flex items-start gap-3">
           {isVerified ? (
             <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
@@ -132,20 +132,23 @@ export function DocumentVerificationSection({
             <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
           )}
           <div className="flex-1 min-w-0">
-            <h3 className={`font-semibold text-sm ${
-              isVerified ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
-            }`}>
+            <h3
+              className={`font-semibold text-sm ${
+                isVerified ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
+              }`}
+            >
               {isVerified ? 'Verificación de documento completada' : 'Falta verificar el documento'}
             </h3>
 
             {isVerified && (
               <div className="mt-2 text-sm text-foreground space-y-1">
                 {docs.student_document_type && (
-                  <p>Documento: {DOCUMENT_TYPE_LABELS[docs.student_document_type]}{docs.student_document_number ? ` — ${docs.student_document_number}` : ''}</p>
+                  <p>
+                    Documento: {DOCUMENT_TYPE_LABELS[docs.student_document_type]}
+                    {docs.student_document_number ? ` — ${docs.student_document_number}` : ''}
+                  </p>
                 )}
-                {docs.documents_verified && (
-                  <p>✓ Verificado el {formatDateTime(docs.documents_verified_at)}</p>
-                )}
+                {docs.documents_verified && <p>✓ Verificado el {formatDateTime(docs.documents_verified_at)}</p>}
                 {docs.documents_verified_override && (
                   <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
                     <Zap className="h-4 w-4" />
@@ -157,7 +160,8 @@ export function DocumentVerificationSection({
 
             {!isVerified && (
               <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
-                Esta venta se cerró sin verificar el documento de identidad del cliente. Indica el tipo y número de documento antes de enviar el contrato.
+                Esta venta se cerró sin verificar el documento de identidad del cliente. Indica el tipo y número de
+                documento antes de enviar el contrato.
               </p>
             )}
           </div>
@@ -171,9 +175,12 @@ export function DocumentVerificationSection({
             <Shield className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
             <div className="flex-1 space-y-3">
               <div>
-                <h4 className="font-semibold text-sm text-amber-900 dark:text-amber-200">Verificar documento de identidad</h4>
+                <h4 className="font-semibold text-sm text-amber-900 dark:text-amber-200">
+                  Verificar documento de identidad
+                </h4>
                 <p className="text-sm text-amber-700 dark:text-amber-300/80 mt-1">
-                  Elige el tipo de documento y escribe el número. DNI y NIE se comprueban al momento; si el cliente no tiene ninguno de estos, elige &quot;Otro&quot; y se verifica sin más trámite.
+                  Elige el tipo de documento y escribe el número. DNI y NIE se comprueban al momento; si el cliente no
+                  tiene ninguno de estos, elige &quot;Otro&quot; y se verifica sin más trámite.
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-2">

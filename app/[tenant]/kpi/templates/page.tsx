@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -28,12 +28,14 @@ export default function KPITemplatesPage() {
     }
 
     const all = data ?? []
-    setSetterTemplates(all.filter(t => t.role_key === 'setter'))
-    setCloserTemplates(all.filter(t => t.role_key === 'closer'))
+    setSetterTemplates(all.filter((t) => t.role_key === 'setter'))
+    setCloserTemplates(all.filter((t) => t.role_key === 'closer'))
     setLoading(false)
   }, [tenantId])
 
-  useEffect(() => { fetchTemplates() }, [fetchTemplates])
+  useEffect(() => {
+    fetchTemplates()
+  }, [fetchTemplates])
 
   return (
     <div className="space-y-6">
@@ -54,22 +56,14 @@ export default function KPITemplatesPage() {
           <TabsContent value="setter" className="mt-4">
             <div className="bg-card border border-border rounded-lg p-6">
               <h3 className="text-sm font-medium text-muted-foreground mb-4">Campos para Setters</h3>
-              <KPITemplateEditor
-                roleKey="setter"
-                templates={setterTemplates}
-                onUpdate={fetchTemplates}
-              />
+              <KPITemplateEditor roleKey="setter" templates={setterTemplates} onUpdate={fetchTemplates} />
             </div>
           </TabsContent>
 
           <TabsContent value="closer" className="mt-4">
             <div className="bg-card border border-border rounded-lg p-6">
               <h3 className="text-sm font-medium text-muted-foreground mb-4">Campos para Closers</h3>
-              <KPITemplateEditor
-                roleKey="closer"
-                templates={closerTemplates}
-                onUpdate={fetchTemplates}
-              />
+              <KPITemplateEditor roleKey="closer" templates={closerTemplates} onUpdate={fetchTemplates} />
             </div>
           </TabsContent>
         </Tabs>

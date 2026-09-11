@@ -1,7 +1,7 @@
-"use client"
+'use client'
 
-import { useState, type KeyboardEvent } from "react"
-import { Send, Square } from "lucide-react"
+import { useState, type KeyboardEvent } from 'react'
+import { Send, Square } from 'lucide-react'
 
 interface Props {
   onSend: (message: string) => void
@@ -11,17 +11,17 @@ interface Props {
 }
 
 export function ChatInput({ onSend, isStreaming, onStop, textareaRef }: Props) {
-  const [value, setValue] = useState("")
+  const [value, setValue] = useState('')
 
   const submit = () => {
     const trimmed = value.trim()
     if (!trimmed || isStreaming) return
     onSend(trimmed)
-    setValue("")
+    setValue('')
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       submit()
     }

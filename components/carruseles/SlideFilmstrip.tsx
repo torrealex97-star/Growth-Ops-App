@@ -1,9 +1,9 @@
-"use client"
+'use client'
 
-import { cn } from "@/lib/utils"
-import { Plus, Trash2, Undo2, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
-import { SlideRenderer } from "./SlideRenderer"
-import type { Slide, AspectRatio } from "@/lib/carruseles/types"
+import { cn } from '@/lib/utils'
+import { Plus, Trash2, Undo2, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
+import { SlideRenderer } from './SlideRenderer'
+import type { Slide, AspectRatio } from '@/lib/carruseles/types'
 
 interface Props {
   slides: Slide[]
@@ -44,12 +44,12 @@ export function SlideFilmstrip({
             <button
               onClick={() => onActiveChange(i)}
               className={cn(
-                "relative rounded-lg overflow-hidden border-2 transition-colors bg-background",
-                i === activeIndex ? "border-brand-400" : "border-transparent hover:border-border"
+                'relative rounded-lg overflow-hidden border-2 transition-colors bg-background',
+                i === activeIndex ? 'border-brand-400' : 'border-transparent hover:border-border'
               )}
-              style={{ width: 76, height: aspectRatio === "9:16" ? 135 : aspectRatio === "A4" ? 107 : 95 }}
+              style={{ width: 76, height: aspectRatio === '9:16' ? 135 : aspectRatio === 'A4' ? 107 : 95 }}
             >
-              <SlideRenderer html={slide.html} aspectRatio={aspectRatio} style={{ width: "100%", height: "100%" }} />
+              <SlideRenderer html={slide.html} aspectRatio={aspectRatio} style={{ width: '100%', height: '100%' }} />
               <span className="absolute bottom-0.5 left-0.5 text-[9px] font-semibold bg-black/60 text-white rounded px-1">
                 {i + 1}
               </span>
@@ -98,7 +98,7 @@ export function SlideFilmstrip({
         {isGenerating && (
           <div
             className="shrink-0 rounded-lg border-2 border-dashed border-border flex items-center justify-center text-muted-foreground"
-            style={{ width: 76, height: aspectRatio === "9:16" ? 135 : aspectRatio === "A4" ? 107 : 95 }}
+            style={{ width: 76, height: aspectRatio === '9:16' ? 135 : aspectRatio === 'A4' ? 107 : 95 }}
           >
             <Loader2 className="h-4 w-4 animate-spin" />
           </div>
@@ -107,7 +107,7 @@ export function SlideFilmstrip({
         <button
           onClick={onAddSlideRequest}
           className="shrink-0 rounded-lg border-2 border-dashed border-border flex items-center justify-center text-muted-foreground hover:text-brand-400 hover:border-brand-400 transition-colors"
-          style={{ width: 76, height: aspectRatio === "9:16" ? 135 : aspectRatio === "A4" ? 107 : 95 }}
+          style={{ width: 76, height: aspectRatio === '9:16' ? 135 : aspectRatio === 'A4' ? 107 : 95 }}
           title="Pedir una slide nueva a la IA"
         >
           <Plus className="h-5 w-5" />

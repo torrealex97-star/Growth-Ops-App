@@ -13,14 +13,14 @@ export type CommissionTier = {
 }
 
 export type ContractTerms = {
-  fixed_salary: number | null       // €/mes (User.base_salary)
+  fixed_salary: number | null // €/mes (User.base_salary)
   currency: string
-  commissions: CommissionTier[]      // tramos aplicables al rol elegido
-  affiliate_percent: number | null   // solo afiliados (User.default_affiliate_commission_percent)
+  commissions: CommissionTier[] // tramos aplicables al rol elegido
+  affiliate_percent: number | null // solo afiliados (User.default_affiliate_commission_percent)
   role_key: string | null
   role_label: string | null
   extra_notes: string | null
-  personal_email?: string | null    // correo personal del colaborador (recibe copia del contrato)
+  personal_email?: string | null // correo personal del colaborador (recibe copia del contrato)
 }
 
 // Datos que el firmante completa al firmar (los que falten). Todos opcionales
@@ -83,7 +83,7 @@ export function buildDefaultTerms(
     fixed_salary: user.base_salary ?? null,
     currency: 'EUR',
     commissions,
-    affiliate_percent: pt === 'affiliate' ? user.default_affiliate_commission_percent ?? null : null,
+    affiliate_percent: pt === 'affiliate' ? (user.default_affiliate_commission_percent ?? null) : null,
     role_key: roleKey ?? null,
     role_label: roleLabel ?? null,
     extra_notes: null,
@@ -95,10 +95,7 @@ const fmtEur = (n: number) =>
 
 // Texto legible de un tramo de comisión.
 export function tierLine(t: CommissionTier): string {
-  const range =
-    t.max_cash != null
-      ? `${fmtEur(t.min_cash)} - ${fmtEur(t.max_cash)} EUR`
-      : `${fmtEur(t.min_cash)} EUR+`
+  const range = t.max_cash != null ? `${fmtEur(t.min_cash)} - ${fmtEur(t.max_cash)} EUR` : `${fmtEur(t.min_cash)} EUR+`
   const label = t.label ? ` (${t.label})` : ''
   return `${range}${label}  ->  ${t.percent}%`
 }
@@ -106,9 +103,7 @@ export function tierLine(t: CommissionTier): string {
 // Sustituye SOLO las variables {{...}} presentes en `vars`; deja intactas las
 // demás (p.ej. las que rellena el firmante más tarde). Case-insensitive.
 export function applyVars(body: string, vars: Record<string, string>): string {
-  return body.replace(/\{\{\s*(\w+)\s*\}\}/g, (m, key: string) =>
-    key in vars ? vars[key] : m
-  )
+  return body.replace(/\{\{\s*(\w+)\s*\}\}/g, (m, key: string) => (key in vars ? vars[key] : m))
 }
 
 // Variables conocidas en el momento de GENERAR el contrato (empresa + miembro).
@@ -117,7 +112,14 @@ export function applyVars(body: string, vars: Record<string, string>): string {
 // aunque el firmante las rellene después).
 export function generationVars(
   company: CompanyProfile,
-  ctx: { fullName: string; email: string | null; personalEmail?: string | null; roleLabel: string | null; startDate: string; fixedSalary: number | null }
+  ctx: {
+    fullName: string
+    email: string | null
+    personalEmail?: string | null
+    roleLabel: string | null
+    startDate: string
+    fixedSalary: number | null
+  }
 ): Record<string, string> {
   const fijo = ctx.fixedSalary != null ? `${fmtEur(ctx.fixedSalary)} EUR/mes` : 'sin retribución fija'
   return {

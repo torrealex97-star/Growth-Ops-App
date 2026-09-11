@@ -79,16 +79,26 @@ export default function ActividadPage() {
         const contactName = nameOf(a.contacts)
         if (a.setter_id) {
           feed.push({
-            id: `appt-set-${a.id}`, personId: a.setter_id as string, datetime: a.appointment_datetime as string,
-            kind: 'agenda', title: `Agendó cita con ${contactName}`, detail: `Estado: ${a.status}`,
-            contactId: a.contact_id as string, contactName,
+            id: `appt-set-${a.id}`,
+            personId: a.setter_id as string,
+            datetime: a.appointment_datetime as string,
+            kind: 'agenda',
+            title: `Agendó cita con ${contactName}`,
+            detail: `Estado: ${a.status}`,
+            contactId: a.contact_id as string,
+            contactName,
           })
         }
         if (a.closer_id && a.closer_id !== a.setter_id) {
           feed.push({
-            id: `appt-clo-${a.id}`, personId: a.closer_id as string, datetime: a.appointment_datetime as string,
-            kind: 'agenda', title: `Cita asignada con ${contactName}`, detail: `Estado: ${a.status}`,
-            contactId: a.contact_id as string, contactName,
+            id: `appt-clo-${a.id}`,
+            personId: a.closer_id as string,
+            datetime: a.appointment_datetime as string,
+            kind: 'agenda',
+            title: `Cita asignada con ${contactName}`,
+            detail: `Estado: ${a.status}`,
+            contactId: a.contact_id as string,
+            contactName,
           })
         }
       }
@@ -97,25 +107,40 @@ export default function ActividadPage() {
         const contactName = nameOf(s.contacts)
         const who = (s.closer_id as string) || (s.setter_id as string) || null
         feed.push({
-          id: `sale-${s.id}`, personId: who, datetime: s.sale_date as string,
-          kind: 'venta', title: `Cerró venta con ${contactName}`, detail: formatCurrency(Number(s.gross_amount) || 0),
-          contactId: s.contact_id as string, contactName,
+          id: `sale-${s.id}`,
+          personId: who,
+          datetime: s.sale_date as string,
+          kind: 'venta',
+          title: `Cerró venta con ${contactName}`,
+          detail: formatCurrency(Number(s.gross_amount) || 0),
+          contactId: s.contact_id as string,
+          contactName,
         })
       }
       for (const n of (notesRes.data ?? []) as Record<string, unknown>[]) {
         const contactName = nameOf(n.contacts)
         feed.push({
-          id: `note-${n.id}`, personId: (n.author_id as string) ?? null, datetime: n.created_at as string,
-          kind: 'nota', title: `Nota en ${contactName}`, detail: String(n.note ?? '').slice(0, 120),
-          contactId: n.contact_id as string, contactName,
+          id: `note-${n.id}`,
+          personId: (n.author_id as string) ?? null,
+          datetime: n.created_at as string,
+          kind: 'nota',
+          title: `Nota en ${contactName}`,
+          detail: String(n.note ?? '').slice(0, 120),
+          contactId: n.contact_id as string,
+          contactName,
         })
       }
       for (const ac of (actRes.data ?? []) as Record<string, unknown>[]) {
         const contactName = nameOf(ac.contacts)
         feed.push({
-          id: `act-${ac.id}`, personId: (ac.person_id as string) ?? null, datetime: ac.activity_datetime as string,
-          kind: 'llamada', title: `${String(ac.type ?? 'Actividad')} — ${contactName}`,
-          detail: String(ac.result ?? ac.notes ?? ''), contactId: ac.contact_id as string, contactName,
+          id: `act-${ac.id}`,
+          personId: (ac.person_id as string) ?? null,
+          datetime: ac.activity_datetime as string,
+          kind: 'llamada',
+          title: `${String(ac.type ?? 'Actividad')} — ${contactName}`,
+          detail: String(ac.result ?? ac.notes ?? ''),
+          contactId: ac.contact_id as string,
+          contactName,
         })
       }
 
@@ -124,7 +149,9 @@ export default function ActividadPage() {
       setLoading(false)
     }
     load()
-    return () => { mounted = false }
+    return () => {
+      mounted = false
+    }
   }, [])
 
   const filtered = useMemo(
@@ -141,7 +168,9 @@ export default function ActividadPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Actividad por comercial</h1>
-            <p className="text-muted-foreground text-sm mt-1">Línea de tiempo: agendas, ventas y notas de cada persona</p>
+            <p className="text-muted-foreground text-sm mt-1">
+              Línea de tiempo: agendas, ventas y notas de cada persona
+            </p>
           </div>
         </div>
         <label className="flex items-center gap-2 text-sm">
@@ -152,7 +181,11 @@ export default function ActividadPage() {
             className="bg-card border border-border rounded-lg px-3 py-1.5 text-foreground focus:outline-none focus:border-brand-500"
           >
             <option value="all">Todo el equipo</option>
-            {people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+            {people.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.full_name}
+              </option>
+            ))}
           </select>
         </label>
       </div>
@@ -167,7 +200,9 @@ export default function ActividadPage() {
         <div className="bg-card border border-border rounded-lg p-10 text-center">
           <Activity className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
           <p className="text-muted-foreground">Sin actividad registrada para esta selección.</p>
-          <p className="text-muted-foreground text-sm mt-1">Las agendas, ventas y notas del comercial aparecerán aquí en orden cronológico.</p>
+          <p className="text-muted-foreground text-sm mt-1">
+            Las agendas, ventas y notas del comercial aparecerán aquí en orden cronológico.
+          </p>
         </div>
       ) : (
         <div className="relative border-l border-border ml-3 space-y-4">
@@ -182,12 +217,18 @@ export default function ActividadPage() {
                 <div className="bg-card border border-border rounded-lg px-4 py-2.5">
                   <div className="flex items-center justify-between gap-3">
                     <span className={`text-[10px] uppercase tracking-wider font-semibold ${color}`}>{label}</span>
-                    <span className="text-xs text-muted-foreground">{dt.toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {dt.toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })}
+                    </span>
                   </div>
                   <p className="text-sm text-foreground mt-0.5">
                     {it.contactId ? (
-                      <Link href={`/${tenant}/crm/contactos/${it.contactId}`} className="hover:text-brand-300">{it.title}</Link>
-                    ) : it.title}
+                      <Link href={`/${tenant}/crm/contactos/${it.contactId}`} className="hover:text-brand-300">
+                        {it.title}
+                      </Link>
+                    ) : (
+                      it.title
+                    )}
                   </p>
                   {it.detail && <p className="text-xs text-muted-foreground mt-0.5 truncate">{it.detail}</p>}
                 </div>

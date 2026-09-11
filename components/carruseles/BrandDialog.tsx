@@ -1,19 +1,13 @@
-"use client"
+'use client'
 
-import { useEffect, useState } from "react"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Loader2 } from "lucide-react"
-import { toast } from "sonner"
-import type { BrandConfig } from "@/lib/carruseles/types"
-import { DEFAULT_BRAND } from "@/lib/carruseles/types"
+import { useEffect, useState } from 'react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
+import type { BrandConfig } from '@/lib/carruseles/types'
+import { DEFAULT_BRAND } from '@/lib/carruseles/types'
 import { useTenant } from '@/lib/tenant-context'
 
 interface Props {
@@ -21,12 +15,12 @@ interface Props {
   onOpenChange: (o: boolean) => void
 }
 
-const COLOR_FIELDS: { key: keyof BrandConfig["colors"]; label: string }[] = [
-  { key: "primary", label: "Primario" },
-  { key: "secondary", label: "Secundario" },
-  { key: "accent", label: "Acento" },
-  { key: "background", label: "Fondo" },
-  { key: "surface", label: "Superficie" },
+const COLOR_FIELDS: { key: keyof BrandConfig['colors']; label: string }[] = [
+  { key: 'primary', label: 'Primario' },
+  { key: 'secondary', label: 'Secundario' },
+  { key: 'accent', label: 'Acento' },
+  { key: 'background', label: 'Fondo' },
+  { key: 'surface', label: 'Superficie' },
 ]
 
 export function BrandDialog({ open, onOpenChange }: Props) {
@@ -40,7 +34,14 @@ export function BrandDialog({ open, onOpenChange }: Props) {
     setLoading(true)
     fetch(`/api/${tenant}/evergreen/carruseles/brand`)
       .then((r) => r.json())
-      .then((b) => setBrand({ ...DEFAULT_BRAND, ...b, colors: { ...DEFAULT_BRAND.colors, ...b.colors }, fonts: { ...DEFAULT_BRAND.fonts, ...b.fonts } }))
+      .then((b) =>
+        setBrand({
+          ...DEFAULT_BRAND,
+          ...b,
+          colors: { ...DEFAULT_BRAND.colors, ...b.colors },
+          fonts: { ...DEFAULT_BRAND.fonts, ...b.fonts },
+        })
+      )
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [open])
@@ -49,12 +50,12 @@ export function BrandDialog({ open, onOpenChange }: Props) {
     setSaving(true)
     try {
       const res = await fetch(`/api/${tenant}/evergreen/carruseles/brand`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(brand),
       })
-      if (!res.ok) throw new Error("Error al guardar")
-      toast.success("Marca guardada")
+      if (!res.ok) throw new Error('Error al guardar')
+      toast.success('Marca guardada')
       onOpenChange(false)
     } catch (e) {
       toast.error((e as Error).message)
@@ -77,7 +78,11 @@ export function BrandDialog({ open, onOpenChange }: Props) {
           <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
             <div>
               <label className="text-xs font-medium text-muted-foreground">Nombre / marca</label>
-              <Input value={brand.name} onChange={(e) => setBrand({ ...brand, name: e.target.value })} placeholder="Tu marca" />
+              <Input
+                value={brand.name}
+                onChange={(e) => setBrand({ ...brand, name: e.target.value })}
+                placeholder="Tu marca"
+              />
             </div>
 
             <div>
@@ -100,20 +105,38 @@ export function BrandDialog({ open, onOpenChange }: Props) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Fuente titulares</label>
-                <Input value={brand.fonts.heading} onChange={(e) => setBrand({ ...brand, fonts: { ...brand.fonts, heading: e.target.value } })} placeholder="Inter" />
+                <Input
+                  value={brand.fonts.heading}
+                  onChange={(e) => setBrand({ ...brand, fonts: { ...brand.fonts, heading: e.target.value } })}
+                  placeholder="Inter"
+                />
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Fuente cuerpo</label>
-                <Input value={brand.fonts.body} onChange={(e) => setBrand({ ...brand, fonts: { ...brand.fonts, body: e.target.value } })} placeholder="Inter" />
+                <Input
+                  value={brand.fonts.body}
+                  onChange={(e) => setBrand({ ...brand, fonts: { ...brand.fonts, body: e.target.value } })}
+                  placeholder="Inter"
+                />
               </div>
             </div>
-            <p className="text-[10px] text-muted-foreground -mt-2">Usa nombres de Google Fonts (ej: Playfair Display, Montserrat).</p>
+            <p className="text-[10px] text-muted-foreground -mt-2">
+              Usa nombres de Google Fonts (ej: Playfair Display, Montserrat).
+            </p>
 
             <div>
               <label className="text-xs font-medium text-muted-foreground">Palabras clave de estilo</label>
               <Input
-                value={brand.styleKeywords.join(", ")}
-                onChange={(e) => setBrand({ ...brand, styleKeywords: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}
+                value={brand.styleKeywords.join(', ')}
+                onChange={(e) =>
+                  setBrand({
+                    ...brand,
+                    styleKeywords: e.target.value
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean),
+                  })
+                }
                 placeholder="minimalista, editorial, tonos cálidos"
               />
             </div>

@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
@@ -29,13 +29,7 @@ const CONTRACT_GATED_ROLES: AppRole[] = ['closer', 'setter', 'affiliate']
 
 type ContractGate = { pendingToken: string | null }
 
-export default function TenantLayout({
-  children,
-  params,
-}: {
-  children: React.ReactNode
-  params: { tenant: string }
-}) {
+export default function TenantLayout({ children, params }: { children: React.ReactNode; params: { tenant: string } }) {
   const tenant = params.tenant
   const [user, setUser] = useState<UserWithRole | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -53,8 +47,7 @@ export default function TenantLayout({
   const relPathname = pathname.replace(new RegExp(`^/${tenant}`), '') || '/'
   const relLocation = permissionLocationFor(relPathname, searchParams.get('tab') === 'data-health')
 
-  const isAuthRoute =
-    AUTH_ROUTES.includes(relPathname) || PUBLIC_PREFIXES.some((p) => relPathname.startsWith(p))
+  const isAuthRoute = AUTH_ROUTES.includes(relPathname) || PUBLIC_PREFIXES.some((p) => relPathname.startsWith(p))
 
   // Red de seguridad: si un diálogo Radix (AlertDialog/Dialog) navega con router.push sin haberse
   // cerrado antes, deja `<body style="pointer-events:none">` colgado (Next.js no recarga la página
@@ -100,7 +93,9 @@ export default function TenantLayout({
     let mounted = true
     const fetchUser = async () => {
       const supabase = createClient()
-      const { data: { user: authUser } } = await supabase.auth.getUser()
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser()
 
       if (!authUser) {
         router.push(`/${tenant}/login`)
@@ -112,11 +107,7 @@ export default function TenantLayout({
       // supabase/migrations/20260911140000_multi_tenant_foundation.sql).
       // Si no hay fila, no tiene acceso a esta subcuenta — RLS es la última
       // línea de defensa aunque este check corra en cliente.
-      const { data: tenantRow } = await supabase
-        .from('tenants')
-        .select('id, status')
-        .eq('slug', tenant)
-        .maybeSingle()
+      const { data: tenantRow } = await supabase.from('tenants').select('id, status').eq('slug', tenant).maybeSingle()
 
       if (!mounted) return
 
@@ -131,11 +122,7 @@ export default function TenantLayout({
       const { data: superAdminCheck } = await supabase.rpc('is_super_admin')
       if (mounted) setIsSuperAdmin(!!superAdminCheck)
 
-      const { data, error } = await supabase
-        .from('users')
-        .select('*, roles(key, name)')
-        .eq('id', authUser.id)
-        .single()
+      const { data, error } = await supabase.from('users').select('*, roles(key, name)').eq('id', authUser.id).single()
 
       if (!mounted) return
 
@@ -173,8 +160,10 @@ export default function TenantLayout({
     }
 
     fetchUser()
-    return () => { mounted = false }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      mounted = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthRoute, tenant])
 
   // Roles acotados por departamento: cada uno solo accede a su zona.
@@ -202,7 +191,11 @@ export default function TenantLayout({
 
   // Auth pages render without sidebar
   if (isAuthRoute) {
-    return <TenantProvider tenant={tenant} tenantId={tenantId}><div className="dark">{children}</div></TenantProvider>
+    return (
+      <TenantProvider tenant={tenant} tenantId={tenantId}>
+        <div className="dark">{children}</div>
+      </TenantProvider>
+    )
   }
 
   if (loading) {
@@ -222,7 +215,11 @@ export default function TenantLayout({
         <div className="max-w-sm text-center">
           <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-4">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+              />
             </svg>
           </div>
           <h2 className="text-foreground font-semibold text-lg mb-2">Sin acceso a esta subcuenta</h2>
@@ -246,12 +243,17 @@ export default function TenantLayout({
         <div className="max-w-sm text-center">
           <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-4">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+              />
             </svg>
           </div>
           <h2 className="text-foreground font-semibold text-lg mb-2">Sin perfil de usuario</h2>
           <p className="text-muted-foreground text-sm mb-6">
-            Tu cuenta de Supabase existe pero no tiene un perfil en la base de datos. Aplica el schema desde el panel de Supabase o contacta con el administrador.
+            Tu cuenta de Supabase existe pero no tiene un perfil en la base de datos. Aplica el schema desde el panel de
+            Supabase o contacta con el administrador.
           </p>
           <button
             onClick={() => router.push(`/${tenant}/login`)}
@@ -277,8 +279,8 @@ export default function TenantLayout({
           </div>
           <h1 className="text-3xl font-bold text-foreground mb-3">Te falta firmar el contrato</h1>
           <p className="text-muted-foreground text-base leading-relaxed mb-2">
-            Hola {user.full_name?.split(' ')[0] || ''}, para poder acceder a tu cuenta primero
-            necesitas <span className="text-foreground font-medium">firmar tu contrato</span>.
+            Hola {user.full_name?.split(' ')[0] || ''}, para poder acceder a tu cuenta primero necesitas{' '}
+            <span className="text-foreground font-medium">firmar tu contrato</span>.
           </p>
           <p className="text-muted-foreground text-sm mb-8">
             {contractGate.pendingToken
@@ -313,9 +315,7 @@ export default function TenantLayout({
           <Sidebar user={user} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
           <div className="flex flex-col flex-1 overflow-hidden">
             <Header user={user} onMenuClick={() => setSidebarOpen(true)} isSuperAdmin={isSuperAdmin} />
-            <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-              {children}
-            </main>
+            <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
           </div>
         </div>
       </ScriptQueueProvider>

@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -25,7 +25,9 @@ export function RouteTabs({ tabs, relPathname }: { tabs: RouteTab[]; relPathname
   return (
     <div className="inline-flex items-center gap-1 rounded-lg bg-muted p-1 text-muted-foreground">
       {tabs.map((t) => {
-        const active = t.exact ? relPathname === t.match : relPathname === t.match || relPathname.startsWith(`${t.match}/`)
+        const active = t.exact
+          ? relPathname === t.match
+          : relPathname === t.match || relPathname.startsWith(`${t.match}/`)
         return (
           <Link
             key={t.href}

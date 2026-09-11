@@ -19,10 +19,7 @@ export async function POST(req: Request) {
     }
 
     const ua = req.headers.get('user-agent') || ''
-    const country =
-      req.headers.get('x-vercel-ip-country') ||
-      req.headers.get('cf-ipcountry') ||
-      null
+    const country = req.headers.get('x-vercel-ip-country') || req.headers.get('cf-ipcountry') || null
     const device = detectDevice(ua)
 
     const [video] = await sql`

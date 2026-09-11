@@ -7,7 +7,12 @@ function svc() {
 }
 
 async function readKey(key: string, tenantId: string): Promise<string> {
-  const { data } = await svc().from('app_settings').select('value').eq('key', key).eq('tenant_id', tenantId).maybeSingle()
+  const { data } = await svc()
+    .from('app_settings')
+    .select('value')
+    .eq('key', key)
+    .eq('tenant_id', tenantId)
+    .maybeSingle()
   const v = (data?.value as { prompt?: string } | null)?.prompt
   return typeof v === 'string' ? v : ''
 }

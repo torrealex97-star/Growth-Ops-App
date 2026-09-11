@@ -27,7 +27,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
-    const { data: prevData, error: prevErr } = await sb.from('sales').select('*').eq('id', saleId).eq('tenant_id', t.tenantId).single()
+    const { data: prevData, error: prevErr } = await sb
+      .from('sales')
+      .select('*')
+      .eq('id', saleId)
+      .eq('tenant_id', t.tenantId)
+      .single()
     if (prevErr || !prevData) return NextResponse.json({ error: 'Venta no encontrada' }, { status: 404 })
     const prev = prevData as Sale
 
@@ -85,8 +90,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       entity_id: saleId,
       action: 'update',
       old_values: {
-        setter_id: prev.setter_id, closer_id: prev.closer_id, affiliate_id: prev.affiliate_id,
-        gross_amount: prev.gross_amount, status: prev.status,
+        setter_id: prev.setter_id,
+        closer_id: prev.closer_id,
+        affiliate_id: prev.affiliate_id,
+        gross_amount: prev.gross_amount,
+        status: prev.status,
       },
       new_values: { ...payload, reconcile: result },
     })
