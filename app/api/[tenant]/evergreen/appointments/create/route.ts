@@ -130,11 +130,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       ...(setterId ? { setter_id: setterId } : {}),
     }
 
-    // Upsert por external_id: si el webhook invitee.created llegó antes, actualiza
-    // esa fila en vez de duplicarla (y viceversa).
+    // Upsert por (tenant_id, external_id): si el webhook invitee.created llegó antes, actualiza
+    // esa fila en vez de duplicarla (y viceversa). El UNIQUE es compuesto por tenant desde
+    // 20260911200000_financial_integrity_constraints.sql — el onConflict debe apuntar a ambas.
     const { data: saved, error: aptErr } = await sb
       .from('appointments')
-      .upsert(apptFields, { onConflict: 'external_id' })
+      .upsert(apptFields, { onConflict: 'tenant_id,external_id' })
       .select('id')
       .single()
     if (aptErr) {

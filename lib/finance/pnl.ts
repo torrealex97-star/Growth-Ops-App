@@ -9,6 +9,15 @@
 // - Pre-Tax Profit = Net Revenue − COGS − Total OpEx (ya parte de un revenue neto de devoluciones,
 //   por lo que Refunds NO vuelve a restarse en OpEx ni en ningún otro punto de este cálculo).
 
+// PostgREST trunca a un límite por defecto (típicamente 1000 filas) cualquier select sin
+// `.range()` explícito — las páginas de P&L/Finanzas traen tablas completas (sales, collections,
+// commissions...) para calcular en cliente, así que sin este límite explícito el negocio podría
+// superar silenciosamente las 1000 filas y el P&L se calcularía sobre un subconjunto truncado
+// sin ningún aviso de error. No se puede acotar por fecha en su lugar: computeMonthlyPnl necesita
+// poder resolver el mes de cualquier commission a través de collection_id incluso si esa
+// collection es de un mes distinto al que se está mostrando (comisiones liquidadas después).
+export const FINANCE_QUERY_ROW_CAP = 49999
+
 export type PnlSaleRow = { gross_amount: number | string; discount: number | string | null; sale_date: string | null }
 export type PnlCollectionRow = {
   id: string

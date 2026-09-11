@@ -81,7 +81,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       const needsReview = await saleNeedsCommissionReview(sb, inst.sale_id, plan?.method)
 
       // Registrar el cobro
-      const { data: newCollection } = await sb
+      const { data: newCollection, error: collErr } = await sb
         .from('collections')
         .insert({
           tenant_id: t.tenantId,
@@ -102,6 +102,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         })
         .select()
         .single()
+      if (collErr) {
+        // 23505 = violación de collections_installment_active_key (UNIQUE parcial en
+        // expected_installment_id) — dos requests casi simultáneas para la misma cuota (doble
+        // clic, retry de red). La que pierde la carrera no es un error real: la cuota ya quedó
+        // cobrada por la otra, así que respondemos igual que la rama de idempotencia de arriba
+        // en vez de devolver un 500 que confundiría a quien reintentó por buena fe.
+        if (collErr.code === '23505') {
+          await sb
+            .from('sale_expected_installments')
+            .update({ status: 'collected', flagged_delinquent: false })
+            .eq('id', installmentId)
+          return NextResponse.json({ ok: true, status: 'collected', already: true, commissionsGenerated: 0 })
+        }
+        return NextResponse.json({ error: 'Error al registrar el cobro', detail: collErr.message }, { status: 500 })
+      }
       await sb
         .from('sale_expected_installments')
         .update({ status: 'collected', flagged_delinquent: false })

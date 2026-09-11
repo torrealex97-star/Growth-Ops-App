@@ -6,7 +6,7 @@ import { KPICard } from '@/components/os/DashboardKPICard'
 import { PieChart, Wallet, ShoppingCart, Receipt, TrendingDown, Scale, Users, CreditCard } from 'lucide-react'
 import { lastNMonths, prevMonth, monthLabel, pctDelta } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
-import { computeMonthlyPnl } from '@/lib/finance/pnl'
+import { computeMonthlyPnl, FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 
 type SaleRow = {
   id: string
@@ -81,15 +81,19 @@ export default function FinanzasPage() {
       setLoading(true)
       const supabase = createClient()
       const [salesRes, collRes, expensesRes, refundsRes, commissionsRes, usersRes] = await Promise.all([
-        supabase.from('sales').select('id, gross_amount, discount, sale_date, status'),
+        supabase.from('sales').select('id, gross_amount, discount, sale_date, status').range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('collections')
           .select(
             'id, sale_id, gross_amount, commissionable_amount, processing_fee, vat, collected_at, status, expected_installment_id'
-          ),
-        supabase.from('expenses').select('amount, category, expense_date'),
-        supabase.from('refunds').select('gross_refund_amount, refund_date'),
-        supabase.from('commissions').select('commission_amount, direction, collection_id, liquidation_month'),
+          )
+          .range(0, FINANCE_QUERY_ROW_CAP),
+        supabase.from('expenses').select('amount, category, expense_date').range(0, FINANCE_QUERY_ROW_CAP),
+        supabase.from('refunds').select('gross_refund_amount, refund_date').range(0, FINANCE_QUERY_ROW_CAP),
+        supabase
+          .from('commissions')
+          .select('commission_amount, direction, collection_id, liquidation_month')
+          .range(0, FINANCE_QUERY_ROW_CAP),
         supabase.from('users').select('base_salary').eq('is_active', true),
       ])
       if (!mounted) return

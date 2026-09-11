@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Receipt } from 'lucide-react'
 import { lastNMonths, monthLabel } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
-import { computeMonthlyPnl } from '@/lib/finance/pnl'
+import { computeMonthlyPnl, FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 
 type SaleRow = {
   gross_amount: number | string
@@ -100,11 +100,17 @@ export default function PnlPage() {
       setLoading(true)
       const supabase = createClient()
       const [salesRes, collRes, refundsRes, expensesRes, commissionsRes] = await Promise.all([
-        supabase.from('sales').select('gross_amount, discount, status, sale_date'),
-        supabase.from('collections').select('id, gross_amount, processing_fee, collected_at, status'),
-        supabase.from('refunds').select('gross_refund_amount, refund_date, status'),
-        supabase.from('expenses').select('amount, category, expense_date, status'),
-        supabase.from('commissions').select('commission_amount, direction, collection_id, liquidation_month, status'),
+        supabase.from('sales').select('gross_amount, discount, status, sale_date').range(0, FINANCE_QUERY_ROW_CAP),
+        supabase
+          .from('collections')
+          .select('id, gross_amount, processing_fee, collected_at, status')
+          .range(0, FINANCE_QUERY_ROW_CAP),
+        supabase.from('refunds').select('gross_refund_amount, refund_date, status').range(0, FINANCE_QUERY_ROW_CAP),
+        supabase.from('expenses').select('amount, category, expense_date, status').range(0, FINANCE_QUERY_ROW_CAP),
+        supabase
+          .from('commissions')
+          .select('commission_amount, direction, collection_id, liquidation_month, status')
+          .range(0, FINANCE_QUERY_ROW_CAP),
       ])
       if (!mounted) return
       setSales(salesRes.data || [])

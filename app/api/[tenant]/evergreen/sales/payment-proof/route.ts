@@ -7,8 +7,12 @@ export const runtime = 'nodejs'
 
 const BUCKET = 'pagos'
 
-// Sube el justificante/captura del pago a Supabase Storage (bucket privado) y
-// devuelve una URL firmada de larga duración para descargarlo desde la venta.
+// Sube el justificante/captura del pago a Supabase Storage (bucket privado) y devuelve su path.
+// Antes se devolvía (y se guardaba en sales.payment_proof_url) una signed URL de 10 años, que en
+// la práctica equivale a una URL permanente sobre un documento con datos de pago — el propio
+// bucket privado dejaba de aportar nada. Ahora se guarda solo el path (sales.payment_proof_path)
+// y el detalle de venta pide una signed URL fresca y corta bajo demanda (ver
+// sales/payment-proof-url/route.ts) cada vez que alguien quiere verlo.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
     const { tenant } = await params
@@ -46,11 +50,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
     if (up.error) return NextResponse.json({ error: up.error.message }, { status: 500 })
 
-    // URL firmada larga (10 años) — el bucket es privado.
-    const signed = await sb.storage.from(BUCKET).createSignedUrl(path, 60 * 60 * 24 * 3650)
-    const url = signed.data?.signedUrl || sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
-
-    return NextResponse.json({ ok: true, url, path })
+    return NextResponse.json({ ok: true, path })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }

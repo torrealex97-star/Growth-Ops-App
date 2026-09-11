@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { CalendarRange } from 'lucide-react'
 import { monthLabel } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
+import { FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 
 type SaleRow = { id: string; sale_date: string | null; gross_amount: number | string; status: string }
 type CollectionRow = { sale_id: string; gross_amount: number | string; collected_at: string | null; status: string }
@@ -77,8 +78,11 @@ export default function CohortsPage() {
     async function load() {
       const supabase = createClient()
       const [salesRes, collRes] = await Promise.all([
-        supabase.from('sales').select('id, sale_date, gross_amount, status'),
-        supabase.from('collections').select('sale_id, gross_amount, collected_at, status'),
+        supabase.from('sales').select('id, sale_date, gross_amount, status').range(0, FINANCE_QUERY_ROW_CAP),
+        supabase
+          .from('collections')
+          .select('sale_id, gross_amount, collected_at, status')
+          .range(0, FINANCE_QUERY_ROW_CAP),
       ])
       if (!mounted) return
       setSales(salesRes.data || [])

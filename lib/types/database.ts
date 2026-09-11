@@ -429,6 +429,9 @@ export type Sale = {
   attribution_meta: Record<string, unknown> | null
   // v29 — justificante de pago + plan de pagos personalizado
   payment_proof_url: string | null
+  // signed URL corta generada bajo demanda (nunca guardada) — ver
+  // sales/payment-proof-url/route.ts. payment_proof_url queda como fallback de ventas antiguas.
+  payment_proof_path: string | null
   custom_plan: Record<string, unknown> | null
   // v38 — comprador (tomador) distinto del agendador
   buyer_is_scheduler: boolean
