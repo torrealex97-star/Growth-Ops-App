@@ -2,18 +2,24 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import postgres from 'postgres'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
 // Aplica el DDL del PROGRAMA DE AFILIADOS (migración v18). Idempotente.
 // Se ejecuta en runtime de Vercel (donde POSTGRES_URL sí está poblado; en local está vacío).
-// Acceso: sesión admin/director  O  Authorization: Bearer <CRON_SECRET>.
-export async function POST(req: NextRequest) {
+// Acceso: sesión admin/director de esta subcuenta (o super_admin)  O  Authorization: Bearer <CRON_SECRET>.
+// Es DDL global (crea tablas si no existen) + una fila singleton de configuración por defecto,
+// no hay datos propiamente tenant-scoped que filtrar aquí.
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params
   const auth = req.headers.get('authorization')
   const viaCron = !!process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`
 
   if (!viaCron) {
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
     const cookieStore = await cookies()
     const authed = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -24,7 +30,7 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     const { data: urow } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
     const role = (urow?.roles as { key?: string } | null)?.key
-    if (!['admin', 'director'].includes(role || '')) {
+    if (!t.isSuperAdmin && !['admin', 'director'].includes(role || '')) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
   }
