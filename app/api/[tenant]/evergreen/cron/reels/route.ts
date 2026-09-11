@@ -85,27 +85,22 @@ type CompetitorMediaRow = {
 // Genera (transcripción + guión adaptado + idea de carrusel) para UN candidato de
 // ig_competitor_media y hace upsert en reel_drafts. Nunca lanza: si algo falla,
 // guarda la fila con gen_error para que se pueda regenerar luego.
-// tenantId es opcional para no romper la firma del caller manual en
-// app/api/${tenant}/evergreen/reels/[id]/route.ts (fuera del alcance de este lote); el cron de
-// abajo SIEMPRE lo pasa, y con él estampa/filtra tenant_id en cada lectura/escritura.
 export async function generateDraftForMedia(
   sb: SupabaseClient,
   media: CompetitorMediaRow,
   accountUsername: string,
-  draftId?: string,
-  tenantId?: string
+  draftId: string | undefined,
+  tenantId: string
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     let transcript = media.transcript || ''
     if (!transcript) {
       if (!media.media_url) throw new Error('Este contenido no tiene vídeo descargable')
       transcript = await transcribeMediaUrl(media.media_url)
-      let q = sb.from('ig_competitor_media').update({ transcript }).eq('id', media.id)
-      if (tenantId) q = q.eq('tenant_id', tenantId)
-      await q
+      await sb.from('ig_competitor_media').update({ transcript }).eq('id', media.id).eq('tenant_id', tenantId)
     }
 
-    const [styleBlock, businessContext] = await Promise.all([readStylePrompt(), readBusinessContext()])
+    const [styleBlock, businessContext] = await Promise.all([readStylePrompt(tenantId), readBusinessContext(tenantId)])
     const draft = await generateScript(
       { transcript, caption: media.caption || undefined, analysis: media.ai_analysis || null },
       undefined,
@@ -115,7 +110,7 @@ export async function generateDraftForMedia(
     const carouselIdea = await generateCarouselIdea(adaptedScript, draft.hook).catch(() => '')
 
     const row = {
-      ...(tenantId ? { tenant_id: tenantId } : {}),
+      tenant_id: tenantId,
       source_media_id: media.id,
       source_permalink: media.permalink,
       source_account: accountUsername,
@@ -130,9 +125,7 @@ export async function generateDraftForMedia(
     }
 
     if (draftId) {
-      let q = sb.from('reel_drafts').update(row).eq('id', draftId)
-      if (tenantId) q = q.eq('tenant_id', tenantId)
-      await q
+      await sb.from('reel_drafts').update(row).eq('id', draftId).eq('tenant_id', tenantId)
     } else {
       await sb.from('reel_drafts').upsert(row, { onConflict: 'source_media_id' })
     }
@@ -140,13 +133,11 @@ export async function generateDraftForMedia(
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     if (draftId) {
-      let q = sb.from('reel_drafts').update({ gen_error: msg }).eq('id', draftId)
-      if (tenantId) q = q.eq('tenant_id', tenantId)
-      await q
+      await sb.from('reel_drafts').update({ gen_error: msg }).eq('id', draftId).eq('tenant_id', tenantId)
     } else {
       await sb.from('reel_drafts').upsert(
         {
-          ...(tenantId ? { tenant_id: tenantId } : {}),
+          tenant_id: tenantId,
           source_media_id: media.id,
           source_permalink: media.permalink,
           source_account: accountUsername,

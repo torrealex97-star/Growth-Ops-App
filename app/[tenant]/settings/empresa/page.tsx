@@ -50,7 +50,7 @@ export default function EmpresaSettingsPage() {
     if (!c.name.trim()) { toast.error('El nombre de la empresa es obligatorio'); return }
     setSaving(true)
     const sb = createClient()
-    const { error } = await sb.from('company_profile').upsert({ id: 1, tenant_id: tenantId, ...c }, { onConflict: 'id' })
+    const { error } = await sb.from('company_profile').upsert({ id: 1, tenant_id: tenantId, ...c }, { onConflict: 'tenant_id' })
     setSaving(false)
     if (error) { toast.error('Error al guardar', { description: error.message }); return }
     toast.success('Datos de empresa guardados', { description: 'Se usarán en los próximos contratos y emails.' })

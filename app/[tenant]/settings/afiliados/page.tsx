@@ -93,7 +93,7 @@ export default function AfiliadosSettingsPage() {
         success_message: s.success_message,
         form_fields: s.form_fields,
       },
-      { onConflict: 'id' }
+      { onConflict: 'tenant_id' }
     )
     setSaving(false)
     if (error) {

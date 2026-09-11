@@ -50,7 +50,7 @@ export async function syncSequraDelinquents(tenantId: string): Promise<SyncResul
         overdue_since: detail.overdueFrom,
         last_synced_at: new Date().toISOString(),
       },
-      { onConflict: 'order_reference', ignoreDuplicates: false }
+      { onConflict: 'tenant_id,order_reference', ignoreDuplicates: false }
     )
     if (error) throw new Error(`Error guardando ${detail.primaryReference}: ${error.message}`)
   }
