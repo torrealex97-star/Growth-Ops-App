@@ -107,9 +107,9 @@ export const NAV_SECTIONS: NavSection[] = [
           { label: 'Reels del día', href: '/instagram/reels', icon: Clapperboard, roles: [...LEAD, 'marketing', 'editor'] },
           { label: 'Carruseles y Flyers', href: '/instagram/carruseles', icon: Images, roles: [...LEAD, 'marketing', 'editor'] },
           { label: 'Competencia', href: '/instagram/competencia', icon: Radar, roles: [...LEAD, 'marketing'] },
-          { label: 'Contenido', href: '/instagram/contenido', icon: Clapperboard, roles: [...LEAD, 'marketing', 'editor'] },
         ],
       },
+      { label: 'Contenido', href: '/marketing/contenido', icon: Clapperboard, roles: [...LEAD, 'marketing', 'editor'] },
       {
         label: 'Afiliados', href: '/marketing/afiliados/afiliados', icon: TrendingUp,
         roles: [...LEAD, 'affiliate'],
@@ -118,6 +118,7 @@ export const NAV_SECTIONS: NavSection[] = [
           { label: 'Campañas', href: '/marketing/afiliados/campanas', icon: Megaphone, roles: LEAD },
         ],
       },
+      { label: 'Setting AI', href: '/setting-ai', icon: Bot, roles: [...LEAD, 'setter', 'marketing'] },
     ],
   },
   {
@@ -165,7 +166,6 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     dept: 'sistema',
     items: [
-      { label: 'Setting AI', href: '/setting-ai', icon: Bot, roles: [...LEAD, 'setter', 'marketing'] },
       { label: 'Sugerencias', href: '/settings/sugerencias', icon: Lightbulb, roles: ['admin', 'director'] },
       { label: 'Actividad', href: '/actividad', icon: Activity, roles: ['admin', 'director'] },
       { label: 'Auditoría', href: '/audit', icon: Shield, roles: ['admin', 'director'] },

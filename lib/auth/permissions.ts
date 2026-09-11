@@ -79,10 +79,10 @@ export const DEPARTMENT_PREFIXES: Record<Department, string[]> = {
   ventas: ['/crm', '/ventas', '/analitica', '/comisiones', '/recursos', '/tasks'],
   // '/marketing/afiliados' se añade aquí porque Afiliados se movió a Marketing (antes vivía
   // bajo el departamento 'finanzas', ver DEPARTMENT_PREFIXES.finanzas más abajo).
-  marketing: ['/marketing/adquisicion', '/marketing/afiliados', '/instagram'],
+  marketing: ['/marketing/adquisicion', '/marketing/afiliados', '/marketing/contenido', '/instagram', '/setting-ai'],
   producto: ['/students', '/csm-events', '/drops', '/contratos'],
   finanzas: ['/finanzas', '/pnl'],
-  sistema: ['/actividad', '/audit', '/settings', '/setting-ai', '/contratos/equipo', '/contratos/plantillas'],
+  sistema: ['/actividad', '/audit', '/settings', '/contratos/equipo', '/contratos/plantillas'],
 }
 
 // Catálogo de páginas navegables agrupadas por departamento. Es la fuente para el selector de
@@ -114,8 +114,8 @@ export const NAV_PAGES: { href: string; label: string; dept: Department }[] = [
   { href: '/instagram/reels', label: 'Instagram · Reels del día', dept: 'marketing' },
   { href: '/instagram/carruseles', label: 'Instagram · Carruseles y Flyers', dept: 'marketing' },
   { href: '/instagram/competencia', label: 'Instagram · Competencia', dept: 'marketing' },
-  { href: '/instagram/contenido', label: 'Instagram · Contenido', dept: 'marketing' },
-  { href: '/setting-ai', label: 'Setting AI', dept: 'sistema' },
+  { href: '/marketing/contenido', label: 'Contenido', dept: 'marketing' },
+  { href: '/setting-ai', label: 'Setting AI', dept: 'marketing' },
   { href: '/students', label: 'Alumnos', dept: 'producto' },
   { href: '/csm-events', label: 'Eventos CSM', dept: 'producto' },
   { href: '/drops', label: 'Cancelaciones', dept: 'producto' },
@@ -186,9 +186,9 @@ export const ROLE_ALLOWED_PREFIXES: Partial<Record<AppRole, string[]>> = {
   gestoria:    ['/finanzas/analitica/resumen', '/finanzas/gastos-facturas/facturas', '/finanzas/gastos-facturas/gestoria', '/pnl'],
   // Data Health usa un permiso exacto con query para no abrir el resto de /settings.
   // Adscripción y Editor conservan solo las pestañas a las que ya tenían acceso antes del cambio.
-  marketing:   ['/marketing/adquisicion', '/instagram', '/settings?tab=data-health', '/setting-ai', '/recursos/testimonios'],
+  marketing:   ['/marketing/adquisicion', '/marketing/contenido', '/instagram', '/settings?tab=data-health', '/setting-ai', '/recursos/testimonios'],
   adscripcion: ['/marketing/adquisicion/campanas', '/marketing/adquisicion/atribucion', '/settings?tab=data-health'],
-  editor:      ['/instagram', '/marketing/adquisicion/vsl', '/recursos/testimonios'],
+  editor:      ['/instagram', '/marketing/contenido', '/marketing/adquisicion/vsl', '/recursos/testimonios'],
   csm:         ['/students', '/csm-events', '/drops', '/recursos/testimonios'],
   // cobros ganó acceso a la pestaña Conciliación (antes inexistente): cotejar SUS PROPIOS cobros
   // contra Stripe/seQura/transferencias es una extensión directa de gestionar Cobros, no un área

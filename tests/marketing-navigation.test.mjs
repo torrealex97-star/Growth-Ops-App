@@ -20,7 +20,8 @@ const NEW_PAGE_FILES = [
   'app/[tenant]/instagram/reels/page.tsx',
   'app/[tenant]/instagram/carruseles/page.tsx',
   'app/[tenant]/instagram/competencia/page.tsx',
-  'app/[tenant]/instagram/contenido/page.tsx',
+  'app/[tenant]/marketing/contenido/page.tsx',
+  'app/[tenant]/setting-ai/page.tsx',
   'app/[tenant]/settings/page.tsx',
 ]
 
@@ -36,7 +37,8 @@ test('todas las rutas históricas apuntan al deep-link esperado', () => {
     '/attribution': '/marketing/adquisicion/atribucion',
     '/vsl': '/marketing/adquisicion/vsl',
     '/content/reels': '/instagram/reels',
-    '/content': '/instagram/contenido',
+    '/content': '/marketing/contenido',
+    '/instagram/contenido': '/marketing/contenido',
     '/carruseles': '/instagram/carruseles',
     '/data-health': '/settings?tab=data-health',
   }
@@ -55,7 +57,7 @@ test('los detalles de carruseles conservan el id al redirigir', () => {
   assert.equal(marketingDestinationFor('/instagram/competencia'), null)
 })
 
-test('Marketing solo contiene los hubs Adquisición e Instagram', () => {
+test('Marketing contiene Adquisición, Instagram, Contenido, Afiliados y Setting AI como hubs de primer nivel', () => {
   const nav = readFileSync(join(root, 'lib/nav.ts'), 'utf8')
   const marketingStart = nav.indexOf("dept: 'marketing'")
   const marketingEnd = nav.indexOf("dept: 'producto'", marketingStart)
@@ -63,8 +65,17 @@ test('Marketing solo contiene los hubs Adquisición e Instagram', () => {
 
   assert.match(marketingSection, /label: 'Adquisición'/)
   assert.match(marketingSection, /label: 'Instagram'/)
-  assert.doesNotMatch(marketingSection, /label: 'Setting AI'/)
+  assert.match(marketingSection, /label: 'Contenido'/)
+  assert.match(marketingSection, /label: 'Afiliados'/)
+  assert.match(marketingSection, /label: 'Setting AI'/)
   assert.doesNotMatch(marketingSection, /label: 'Data Health'/)
+})
+
+test('Setting AI ya no vive bajo Sistema', () => {
+  const nav = readFileSync(join(root, 'lib/nav.ts'), 'utf8')
+  const sistemaStart = nav.indexOf("dept: 'sistema'")
+  const sistemaSection = nav.slice(sistemaStart)
+  assert.doesNotMatch(sistemaSection, /label: 'Setting AI'/)
 })
 
 test('el menú compartido con ⌘K contiene todas las páginas absorbidas', () => {
@@ -76,7 +87,8 @@ test('el menú compartido con ⌘K contiene todas las páginas absorbidas', () =
     ['Reels del día', '/instagram/reels'],
     ['Carruseles y Flyers', '/instagram/carruseles'],
     ['Competencia', '/instagram/competencia'],
-    ['Contenido', '/instagram/contenido'],
+    ['Contenido', '/marketing/contenido'],
+    ['Setting AI', '/setting-ai'],
     ['Data Health', '/settings?tab=data-health'],
   ]
 
@@ -88,7 +100,7 @@ test('el menú compartido con ⌘K contiene todas las páginas absorbidas', () =
 test('los roles limitados no reciben prefijos amplios de configuración o adquisición', () => {
   const permissions = readFileSync(join(root, 'lib/auth/permissions.ts'), 'utf8')
   assert.match(permissions, /adscripcion:\s*\['\/marketing\/adquisicion\/campanas', '\/marketing\/adquisicion\/atribucion', '\/settings\?tab=data-health'\]/)
-  assert.match(permissions, /editor:\s*\['\/instagram', '\/marketing\/adquisicion\/vsl', '\/recursos\/testimonios'\]/)
+  assert.match(permissions, /editor:\s*\['\/instagram', '\/marketing\/contenido', '\/marketing\/adquisicion\/vsl', '\/recursos\/testimonios'\]/)
   assert.doesNotMatch(permissions, /adscripcion:\s*\['\/marketing',/)
   assert.doesNotMatch(permissions, /marketing:\s*\[[^\]]*'\/settings',/)
 })

@@ -136,12 +136,12 @@ Si no hay fallos: {"ok":true,"issues":[]}. Máximo 3 issues, prioriza los más g
 export interface Issue { severidad: string; regla: string; nota: string; better?: string }
 export interface Critique { ok: boolean; issues: Issue[] }
 
-export function parseJSONLoose(txt: string): Critique | null {
+export function parseJSONLoose<T = Critique>(txt: string): T | null {
   if (!txt) return null
   let t = txt.trim().replace(/^```(json)?/i, '').replace(/```$/, '').trim()
   const s = t.indexOf('{'), e = t.lastIndexOf('}')
   if (s >= 0 && e > s) t = t.slice(s, e + 1)
-  try { return JSON.parse(t) as Critique } catch { return null }
+  try { return JSON.parse(t) as T } catch { return null }
 }
 export async function critique(conv: ConvMsg[], model: string): Promise<Critique> {
   const recent = conv.slice(-8)
@@ -194,6 +194,37 @@ ${transcriptNotes || '(sin notas adicionales)'}
 
 Devuelve el prompt completo mejorado siguiendo tus reglas.`
   return { system, user }
+}
+
+// ---------- Análisis de conversaciones reales (IG/FB/TikTok) ----------
+export const ANALYSIS_SYSTEM = `Eres un coach senior de "setting" por DM para un equipo de ventas. Te paso una conversación REAL entre un SETTER (agente) y un LEAD, capturada de una red social (Instagram, Facebook o TikTok).
+
+Analiza:
+- Avatar probable del lead a partir de lo que cuenta (p.ej. emprendedor quemado, agencia/freelance, trabajador quemado, empresario que escala), y si el setter lo detectó y adaptó el mensaje a ese avatar.
+- Fase del proceso de setting alcanzada: apertura/rapport, descubrimiento de dolor/deseo, cualificación de tiempo y dinero, manejo de objeciones, derivación a llamada/agenda.
+- Fortalezas concretas del setter, citando el mensaje.
+- Fallos concretos, citando el mensaje: interrogatorio, sonar a bot, ofrecer llamada sin cualificar, ignorar la objeción del lead, tono/género equivocado, mensajes demasiado largos para un DM, fuga de identidad (admitir ser IA), etc.
+- Recomendaciones accionables para la próxima conversación con este mismo lead o perfil.
+
+Devuelve SOLO un JSON válido, sin texto alrededor, con esta forma exacta:
+{"avatar_detectado":"string corto","fase_alcanzada":"string corto","resumen":"2-3 frases","fortalezas":["..."],"fallos":[{"cita":"...","problema":"..."}],"recomendaciones":["..."]}
+Si la conversación es demasiado corta para concluir algo, dilo en "resumen" y deja los arrays vacíos en vez de inventar.`
+
+export interface ConversationAnalysis {
+  avatar_detectado?: string
+  fase_alcanzada?: string
+  resumen?: string
+  fortalezas?: string[]
+  fallos?: { cita: string; problema: string }[]
+  recomendaciones?: string[]
+}
+
+export async function analyzeConversation(conv: ConvMsg[], model: string): Promise<ConversationAnalysis | null> {
+  const convText = conv.filter((m) => m.text && m.text.trim()).map((m) => (m.who === 'lead' ? 'LEAD' : 'AGENTE') + ': ' + m.text).join('\n')
+  if (!convText) return null
+  const user = `CONVERSACIÓN COMPLETA:\n${convText}\n\nDevuelve SOLO el JSON del análisis.`
+  const txt = await callText({ model, system: ANALYSIS_SYSTEM, messages: [{ role: 'user', content: user }], max_tokens: 1200, temperature: 0.3 })
+  return parseJSONLoose<ConversationAnalysis>(txt)
 }
 
 // Sistema con correcciones en vivo (para chat/autotrain).

@@ -4,7 +4,8 @@ export const LEGACY_MARKETING_ROUTES: Record<string, string> = {
   '/attribution': '/marketing/adquisicion/atribucion',
   '/vsl': '/marketing/adquisicion/vsl',
   '/content/reels': '/instagram/reels',
-  '/content': '/instagram/contenido',
+  '/content': '/marketing/contenido',
+  '/instagram/contenido': '/marketing/contenido', // Contenido se independizó de Instagram (ahora vive junto a Setting AI)
   '/carruseles': '/instagram/carruseles',
   '/data-health': '/settings?tab=data-health',
 }

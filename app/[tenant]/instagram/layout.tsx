@@ -9,7 +9,6 @@ const TABS: RouteTab[] = [
   { label: 'Reels del día', href: '/instagram/reels', match: '/instagram/reels' },
   { label: 'Carruseles y Flyers', href: '/instagram/carruseles', match: '/instagram/carruseles' },
   { label: 'Competencia', href: '/instagram/competencia', match: '/instagram/competencia' },
-  { label: 'Contenido', href: '/instagram/contenido', match: '/instagram/contenido' },
 ]
 
 export default function InstagramLayout({ children }: { children: React.ReactNode }) {
