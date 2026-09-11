@@ -1,10 +1,9 @@
-import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveCloserEventType, createInvitee, CalendlyError } from '@/lib/calendly'
 import { formatDateTime } from '@/lib/utils'
 import { notifyCreatuagente, toZonedISO, addMinutesISO } from '@/lib/creatuagente'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 
@@ -16,8 +15,12 @@ const LEADERSHIP = ['admin', 'director', 'manager']
 // primero, actualiza la fila con los datos del nuevo evento (para que el webhook de
 // Calendly reconcilie por external_id sobre esta misma fila) y solo al final cancela
 // el evento antiguo en Calendly.
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+
     const body = (await req.json()) as {
       appointmentId?: string
       startTime?: string // ISO
@@ -29,34 +32,27 @@ export async function POST(req: NextRequest) {
     if (!appointmentId) return NextResponse.json({ error: 'Falta appointmentId' }, { status: 400 })
     if (!startTime) return NextResponse.json({ error: 'Falta la nueva hora' }, { status: 400 })
 
-    const cookieStore = await cookies()
-    const authed = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-    )
-    const { data: { user } } = await authed.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-    const { data: urow } = await authed.from('users').select('data_scope, roles(key)').eq('id', user.id).single()
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+
+    const { data: urow } = await sb.from('users').select('data_scope, roles(key)').eq('id', t.userId).single()
     const role = (urow?.roles as { key?: string } | null)?.key || ''
     const scope = (urow as { data_scope?: string } | null)?.data_scope || 'own'
     if (!['admin', 'director', 'manager', 'closer', 'setter', 'cold_caller'].includes(role)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    })
-
     const { data: appt } = await sb
       .from('appointments')
       .select('id, contact_id, closer_id, setter_id, external_source, calendly_event_uuid, appointment_datetime, duration_minutes, status, qualification, utm_source, utm_campaign, utm_term, utm_medium, utm_content, calendar_name')
       .eq('id', appointmentId)
+      .eq('tenant_id', t.tenantId)
       .single()
     if (!appt) return NextResponse.json({ error: 'Agenda no encontrada' }, { status: 404 })
     // Liderazgo y quien tiene visibilidad de equipo (data_scope='team') pueden reprogramar cualquier
     // agenda del equipo; el resto solo las suyas. Coherente con la RLS de SELECT.
-    if (!LEADERSHIP.includes(role) && scope !== 'team' && appt.setter_id !== user.id && appt.closer_id !== user.id) {
+    if (!LEADERSHIP.includes(role) && scope !== 'team' && appt.setter_id !== t.userId && appt.closer_id !== t.userId) {
       return NextResponse.json({ error: 'Solo puedes reprogramar tus propias agendas' }, { status: 403 })
     }
 
@@ -84,6 +80,7 @@ export async function POST(req: NextRequest) {
         .from('contacts')
         .select('id, full_name, first_name, last_name, email, phone, qualification')
         .eq('id', appt.contact_id)
+        .eq('tenant_id', t.tenantId)
         .maybeSingle()
       if (!contact?.email) {
         return NextResponse.json({ error: 'El contacto necesita un email para reprogramar en Calendly' }, { status: 400 })
@@ -163,6 +160,7 @@ export async function POST(req: NextRequest) {
           rescheduled_from_status: appt.status,
         })
         .eq('id', appointmentId)
+        .eq('tenant_id', t.tenantId)
       if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 })
 
       await notifyCreatuagente('cita.reprogramada', appt.utm_content, {
@@ -210,11 +208,13 @@ export async function POST(req: NextRequest) {
             .from('appointments')
             .update({ calendly_cleanup_pending: true, calendly_cleanup_event_uuid: oldEventUuid })
             .eq('id', appointmentId)
+            .eq('tenant_id', t.tenantId)
         }
       }
 
       await sb.from('audit_logs').insert({
-        actor_user_id: user.id,
+        tenant_id: t.tenantId,
+        actor_user_id: t.userId,
         entity_type: 'appointment',
         entity_id: appointmentId,
         action: 'reschedule',
@@ -226,8 +226,9 @@ export async function POST(req: NextRequest) {
       // que un fallo aquí tumbe la reprogramación, que ya se aplicó correctamente arriba.
       try {
         await sb.from('activities').insert({
+          tenant_id: t.tenantId,
           contact_id: appt.contact_id,
-          person_id: user.id,
+          person_id: t.userId,
           type: 'llamada',
           direction: 'saliente',
           result: 'cita_agendada',
@@ -250,6 +251,7 @@ export async function POST(req: NextRequest) {
         rescheduled_from_status: appt.status,
       })
       .eq('id', appointmentId)
+      .eq('tenant_id', t.tenantId)
     if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 })
 
     if (appt.calendly_event_uuid) {
@@ -263,7 +265,8 @@ export async function POST(req: NextRequest) {
     }
 
     await sb.from('audit_logs').insert({
-      actor_user_id: user.id,
+      tenant_id: t.tenantId,
+      actor_user_id: t.userId,
       entity_type: 'appointment',
       entity_id: appointmentId,
       action: 'reschedule',
@@ -275,8 +278,9 @@ export async function POST(req: NextRequest) {
     // reprogramación (que ya se aplicó arriba) si falla.
     try {
       await sb.from('activities').insert({
+        tenant_id: t.tenantId,
         contact_id: appt.contact_id,
-        person_id: user.id,
+        person_id: t.userId,
         type: 'llamada',
         direction: 'saliente',
         result: 'cita_agendada',

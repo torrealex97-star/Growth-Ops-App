@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 
@@ -19,17 +19,17 @@ const VALID_RESULTS = ['contactado', 'no_contesta', 'buzon', 'conversacion', 'ci
 // payment_follow_ups: cualquier rol autenticado del CRM puede leer y añadir (la RLS de
 // `activities` ya lo permite scoped por ownership/data_scope).
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id: contactId } = await params
-  const authed = await createServerClient()
-  const { data: { user } } = await authed.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ tenant: string; id: string }> }) {
+  const { tenant, id: contactId } = await params
+  const t = await requireTenant(tenant)
+  if ('error' in t) return t.error
 
   const sb = serviceClient()
   const { data, error } = await sb
     .from('activities')
     .select('id, type, direction, result, duration_min, notes, created_at, users(full_name)')
     .eq('contact_id', contactId)
+    .eq('tenant_id', t.tenantId)
     .order('created_at', { ascending: false })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
@@ -46,11 +46,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   return NextResponse.json({ activities })
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id: contactId } = await params
-  const authed = await createServerClient()
-  const { data: { user } } = await authed.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string; id: string }> }) {
+  const { tenant, id: contactId } = await params
+  const t = await requireTenant(tenant)
+  if ('error' in t) return t.error
 
   const body = await req.json().catch(() => ({}))
   const { type, direction, result, duration_min, notes } = body as {
@@ -69,14 +68,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const sb = serviceClient()
-  const { data: contact } = await sb.from('contacts').select('id').eq('id', contactId).maybeSingle()
+  const { data: contact } = await sb.from('contacts').select('id').eq('id', contactId).eq('tenant_id', t.tenantId).maybeSingle()
   if (!contact) return NextResponse.json({ error: 'Contacto no encontrado' }, { status: 404 })
 
   const { data, error } = await sb
     .from('activities')
     .insert({
+      tenant_id: t.tenantId,
       contact_id: contactId,
-      person_id: user.id,
+      person_id: t.userId,
       type,
       direction: direction || 'saliente',
       result: result || null,

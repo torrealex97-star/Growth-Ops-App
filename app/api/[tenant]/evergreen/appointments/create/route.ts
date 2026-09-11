@@ -1,41 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { resolveCloserEventType, createInvitee, CalendlyError } from '@/lib/calendly'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 
 const ALLOWED_ROLES = ['admin', 'director', 'manager', 'closer', 'setter', 'cold_caller']
 
-// Autentica y valida rol. Devuelve el user para poder auditar quién crea la agenda.
-async function requireAuth(): Promise<
-  { ok: true; userId: string } | { ok: false; res: NextResponse }
-> {
-  const cookieStore = await cookies()
-  const authed = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-  )
-  const { data: { user } } = await authed.auth.getUser()
-  if (!user) return { ok: false, res: NextResponse.json({ error: 'No autenticado' }, { status: 401 }) }
-  const { data: urow } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
-  const role = (urow?.roles as { key?: string } | null)?.key || ''
-  if (!ALLOWED_ROLES.includes(role)) {
-    return { ok: false, res: NextResponse.json({ error: 'No autorizado' }, { status: 403 }) }
-  }
-  return { ok: true, userId: user.id }
-}
-
 // POST /api/${tenant}/evergreen/appointments/create
 // Crea la cita en Calendly (cuenta madre) y la guarda en la app como
 // external_source='calendly', dejando que el webhook invitee.created la
 // actualice sin duplicar (reconcilia por external_id = URI del evento).
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
-    const guard = await requireAuth()
-    if (!guard.ok) return guard.res
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
 
     const body = (await req.json()) as {
       contactId?: string
@@ -55,6 +35,12 @@ export async function POST(req: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
+    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
+    const role = (urow?.roles as { key?: string } | null)?.key || ''
+    if (!ALLOWED_ROLES.includes(role)) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+    }
+
     const parsedDuration = body.durationMinutes && body.durationMinutes > 0 ? body.durationMinutes : 30
 
     // Modo manual: agenda solo en la plataforma (closer sin Calendly, o el usuario lo elige).
@@ -64,6 +50,7 @@ export async function POST(req: NextRequest) {
       const { data: saved, error: insErr } = await sb
         .from('appointments')
         .insert({
+          tenant_id: t.tenantId,
           contact_id: contactId,
           external_source: 'manual',
           source: 'manual',
@@ -76,7 +63,7 @@ export async function POST(req: NextRequest) {
         .select('id')
         .single()
       if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
-      await sb.from('contacts').update({ lead_status: 'agendado' }).eq('id', contactId)
+      await sb.from('contacts').update({ lead_status: 'agendado' }).eq('id', contactId).eq('tenant_id', t.tenantId)
       return NextResponse.json({ ok: true, appointmentId: saved.id, manual: true })
     }
 
@@ -86,6 +73,7 @@ export async function POST(req: NextRequest) {
       .from('contacts')
       .select('id, full_name, first_name, last_name, email, phone')
       .eq('id', contactId)
+      .eq('tenant_id', t.tenantId)
       .maybeSingle()
     if (!contact) return NextResponse.json({ error: 'Contacto no encontrado' }, { status: 404 })
     if (!contact.email) {
@@ -123,6 +111,7 @@ export async function POST(req: NextRequest) {
 
     // Guardar/actualizar la cita reconciliando por external_id (URI del evento).
     const apptFields = {
+      tenant_id: t.tenantId,
       contact_id: contact.id,
       external_source: 'calendly',
       external_id: result.eventUri,
@@ -153,7 +142,7 @@ export async function POST(req: NextRequest) {
     }
     const appointmentId = saved.id
 
-    await sb.from('contacts').update({ lead_status: 'agendado' }).eq('id', contact.id)
+    await sb.from('contacts').update({ lead_status: 'agendado' }).eq('id', contact.id).eq('tenant_id', t.tenantId)
 
     return NextResponse.json({ ok: true, appointmentId, eventUri: result.eventUri })
   } catch (err) {
