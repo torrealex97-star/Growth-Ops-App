@@ -1,7 +1,7 @@
 "use client"
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { ROLE_LABELS, ROLE_COLORS, DEPARTMENT_LABELS, type AppRole } from '@/lib/auth/permissions'
 import {
@@ -19,7 +19,7 @@ import { performLogout } from '@/lib/auth/logout'
 import { useState, useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { User } from '@/lib/types/database'
-import { NAV_SECTIONS, makeNavFilter } from '@/lib/nav'
+import { NAV_SECTIONS, makeNavFilter, type NavItem } from '@/lib/nav'
 import { useTenant } from '@/lib/tenant-context'
 
 interface SidebarProps {
@@ -30,6 +30,7 @@ interface SidebarProps {
 
 export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const tenant = useTenant()
   const relPathname = pathname.replace(new RegExp(`^/${tenant}`), '') || '/'
   const role = user.roles.key as AppRole
@@ -60,8 +61,25 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
   }
 
   const isActive = (href: string) => {
-    if (href === '/dashboard') return relPathname === '/dashboard'
-    return relPathname.startsWith(href)
+    const hrefPath = href.split('?')[0]
+    if (hrefPath === '/dashboard') return relPathname === '/dashboard'
+    return relPathname.startsWith(hrefPath)
+  }
+
+  const isChildActive = (href: string, siblings: NavItem[]) => {
+    const [hrefPath, hrefQuery] = href.split('?')
+    if (relPathname !== hrefPath) return false
+    if (!hrefQuery) {
+      const querySiblingIsActive = siblings.some((sibling) => {
+        const [siblingPath, siblingQuery] = sibling.href.split('?')
+        if (siblingPath !== hrefPath || !siblingQuery) return false
+        return Array.from(new URLSearchParams(siblingQuery))
+          .every(([key, value]) => searchParams.get(key) === value)
+      })
+      return !querySiblingIsActive
+    }
+    return Array.from(new URLSearchParams(hrefQuery))
+      .every(([key, value]) => searchParams.get(key) === value)
   }
 
   return (
@@ -157,7 +175,7 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
                             onClick={() => onClose()}
                             className={cn(
                               'flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition-colors',
-                              relPathname === child.href
+                              isChildActive(child.href, item.children ?? [])
                                 ? 'text-brand-400'
                                 : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                             )}

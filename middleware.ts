@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
+import { marketingDestinationFor } from '@/lib/marketing-navigation'
 
 // Paths that are always public, entirely outside the /[tenant] namespace
 const PUBLIC_PATHS = [
@@ -58,6 +59,14 @@ export async function middleware(request: NextRequest) {
   if (pageMatch) {
     const tenant = pageMatch[1]
     const rest = pageMatch[2] || '/'
+    const legacyDestination = marketingDestinationFor(rest)
+    if (legacyDestination) {
+      const destination = request.nextUrl.clone()
+      const [destinationPath, destinationQuery] = legacyDestination.split('?')
+      destination.pathname = `/${tenant}${destinationPath}`
+      if (destinationQuery) destination.search = destinationQuery
+      return NextResponse.redirect(destination, 301)
+    }
     if (TENANT_PUBLIC_SUFFIXES.some((p) => rest.startsWith(p))) {
       return NextResponse.next()
     }

@@ -71,7 +71,7 @@ type SettingsTab = 'general' | 'data-health'
 
 // Roles que solo tienen permiso para Data Health (no para el resto de Configuración, que sigue
 // siendo solo-admin): ven directamente el panel, sin el selector de pestañas ni las tarjetas.
-const DATA_HEALTH_ONLY_ROLES = new Set(['marketing', 'adscripcion'])
+const DATA_HEALTH_ONLY_ROLES = new Set(['director', 'manager', 'marketing', 'adscripcion'])
 
 function SettingsPageInner() {
   const tenant = useTenant()
@@ -104,7 +104,7 @@ function SettingsPageInner() {
     return <div className="flex items-center gap-2 p-6 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Cargando…</div>
   }
 
-  // Marketing/Adscripción: solo pueden ver Data Health, directamente, sin las tarjetas de
+  // Roles no-admin: solo pueden ver Data Health, directamente, sin las tarjetas de
   // administración (esas siguen siendo solo-admin) ni el selector de pestañas.
   if (dataHealthOnly) {
     return (

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Sidebar } from '@/components/os/Sidebar'
 import { Header } from '@/components/os/Header'
@@ -11,6 +11,7 @@ import { performLogout } from '@/lib/auth/logout'
 import type { User } from '@/lib/types/database'
 import { FileSignature, LogOut } from 'lucide-react'
 import { ScriptQueueProvider } from '@/components/os/ScriptQueue'
+import { isAllowedLocation, permissionLocationFor } from '@/lib/marketing-navigation'
 
 // Rutas confidenciales SOLO para liderazgo (admin/director/manager), aunque el admin
 // haya concedido por error un override de departamento/página que las abriría por prefijo.
@@ -46,9 +47,11 @@ export default function TenantLayout({
   const [contractGate, setContractGate] = useState<ContractGate | null>(null)
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   // Ruta relativa al tenant, sin el segmento /<tenant> — todas las comparaciones
   // de zonas/overrides usan esta forma "portable" (igual en cualquier subcuenta).
   const relPathname = pathname.replace(new RegExp(`^/${tenant}`), '') || '/'
+  const relLocation = permissionLocationFor(relPathname, searchParams.get('tab') === 'data-health')
 
   const isAuthRoute =
     AUTH_ROUTES.includes(relPathname) || PUBLIC_PREFIXES.some((p) => relPathname.startsWith(p))
@@ -192,10 +195,10 @@ export default function TenantLayout({
     }
     const u = user as { dept_overrides?: string[] | null; page_overrides?: string[] | null }
     const zones = allowedPrefixesFor(role, u?.dept_overrides, u?.page_overrides)
-    if (zones && zones.length > 0 && !zones.some((z) => relPathname.startsWith(z))) {
+    if (zones && zones.length > 0 && !isAllowedLocation(zones, relLocation)) {
       router.replace(`/${tenant}${zones[0]}`)
     }
-  }, [user, relPathname, router, contractGate, isSuperAdmin, tenant])
+  }, [user, relPathname, relLocation, router, contractGate, isSuperAdmin, tenant])
 
   // Auth pages render without sidebar
   if (isAuthRoute) {
