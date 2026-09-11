@@ -82,10 +82,10 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
         {/* Logo */}
         <div className="flex items-center justify-between px-6 py-6 border-b border-[#26262A]">
           <div className="flex items-center gap-2.5">
-            <div className="relative flex h-9 w-9 items-center justify-center" aria-label="K100 Software">
-              <span className="text-[34px] font-semibold leading-none tracking-[-0.18em] text-white">K</span>
+            <div className="relative flex h-9 w-9 items-center justify-center" aria-label="Scalix Systems">
+              <span className="text-[34px] font-semibold leading-none tracking-[-0.18em] text-white">S</span>
             </div>
-            <span className="font-sans font-semibold text-white text-lg tracking-tight">K100 Software</span>
+            <span className="font-sans font-semibold text-white text-lg tracking-tight">Scalix Systems</span>
           </div>
           <Button
             variant="ghost"

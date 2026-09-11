@@ -142,7 +142,7 @@ export default function MorososSequraPage() {
             <AlertTriangle className="w-6 h-6 text-brand-400" /> Morosos sequra
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Clientes de K100 Software con cuotas de sequra realmente vencidas — para seguimiento de cobro
+            Clientes de Scalix Systems con cuotas de sequra realmente vencidas — para seguimiento de cobro
           </p>
         </div>
         <div className="text-right shrink-0">
