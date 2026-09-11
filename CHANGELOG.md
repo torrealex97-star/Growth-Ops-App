@@ -1,19 +1,34 @@
-# Registro de cambios — IA WINNERS
+# Registro de cambios — Growth Ops App
 
 > Aquí se anota **cada cambio que se sube a producción**. Formato sencillo:
 > una línea por cambio, agrupado por fecha. Lo más nuevo, arriba.
 >
-> Reglas:
-> - Nada llega a producción sin pasar antes por **staging** (`staging.iawinners.com`) y ser confirmado.
-> - Al hacer merge de `staging` → `main` (deploy a producción), se apunta aquí qué entró.
-> - Etiquetas: `[nuevo]` funcionalidad, `[fix]` corrección, `[mejora]` cambio a algo existente.
+> Etiquetas: `[nuevo]` funcionalidad, `[fix]` corrección, `[mejora]` cambio a algo existente.
 
 ---
 
-## Sin publicar (en staging, pendiente de confirmar)
+## Sin publicar (pendiente de confirmar)
 
-<!-- Añade aquí lo que está en staging esperando el OK para producción -->
+<!-- Añade aquí lo que está pendiente de confirmar -->
 - _(vacío)_
+
+---
+
+## 2026-09-11 — Limpieza a instancia propia + fixes de seguridad P0
+
+- `[mejora]` Eliminado el stack legacy Closer Club / Lanzamiento / Cold Calling / Sorteo
+  (Google Sheets + Postgres crudo) — queda solo el sistema Evergreen.
+- `[fix]` RLS: cerrado el hueco por el que cualquier usuario autenticado podía leer
+  todas las ventas/contactos/cobros de la empresa vía Supabase directo (política
+  `collections_select_team` duplicada anulaba el scoping); `data_scope` ahora es
+  `'own'` por defecto en vez de `'team'`.
+- `[fix]` RLS habilitado en `positive_notes` (antes sin política, dependía solo de
+  que la API no se saltara — ahora también protegido a nivel de base de datos).
+- `[fix]` Añadida autenticación a `documents/state` (filtraba números de documento
+  de identidad sin login), `documents/verify`, `vsl/videos` y `vsl/upload`.
+- `[fix]` Enlace roto `/evergreen/retention` eliminado del menú.
+- `[mejora]` Conectado a Supabase y Vercel propios (proyecto nuevo, sin datos de
+  IA Winners / Closer Club).
 
 ---
 
