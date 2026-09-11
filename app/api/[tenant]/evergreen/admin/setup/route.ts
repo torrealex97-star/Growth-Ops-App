@@ -10,18 +10,28 @@ export const maxDuration = 60
 //  · asegura que los buckets de Storage 'contratos' y 'facturas' son PÚBLICOS
 //    (arregla las descargas de facturas que devolvían 403 por bucket privado).
 // Uso: POST /api/${tenant}/evergreen/admin/setup  con cabecera  x-cron-secret: <CRON_SECRET>
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
+  // Este endpoint es de mantenimiento global (autenticado por secreto, no por sesión de usuario),
+  // pero algunas de las tablas que toca (contract_templates, company_profile) ganaron una columna
+  // tenant_id NOT NULL en la migración multi-tenant — sin resolverla aquí los INSERT fallarían.
   const secret = req.headers.get('x-cron-secret') || req.nextUrl.searchParams.get('secret')
   const accepted = [process.env.CRON_SECRET, process.env.SETUP_SECRET].filter(Boolean)
   if (!accepted.length || !accepted.includes(secret || '')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const { tenant } = await params
   const report: Record<string, unknown> = {}
 
   // ---- 1) DDL idempotente ----
   try {
     const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require', max: 1, prepare: false, idle_timeout: 20 })
+    const [tenantRow] = await sql`SELECT id FROM public.tenants WHERE slug = ${tenant}`
+    if (!tenantRow) {
+      await sql.end()
+      return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
+    }
+    const tenantId = tenantRow.id as string
     await sql.unsafe(`
       -- v16
       CREATE TABLE IF NOT EXISTS public.contract_templates (
@@ -50,13 +60,26 @@ export async function POST(req: NextRequest) {
         email TEXT, phone TEXT, logo_url TEXT, email_signature TEXT,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
-      INSERT INTO public.company_profile (id, name, legal_name, cif) VALUES (1,'[tenant]','[tenant]','B-00000000') ON CONFLICT (id) DO NOTHING;
       ALTER TABLE public.contracts ADD COLUMN IF NOT EXISTS signer_data JSONB;
       ALTER TABLE public.contracts ADD COLUMN IF NOT EXISTS contract_role TEXT;
       ALTER TABLE public.contracts ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMPTZ;
       ALTER TABLE public.users ADD COLUMN IF NOT EXISTS dni TEXT;
       ALTER TABLE public.users ADD COLUMN IF NOT EXISTS address TEXT;
     `)
+    // company_profile.tenant_id es NOT NULL (migración multi-tenant) — el INSERT vive fuera del
+    // bloque .unsafe() de arriba para poder parametrizar tenantId de forma segura. company_profile
+    // sigue siendo un singleton por PK (id=1): si ya existe una fila (de otra subcuenta), este
+    // ON CONFLICT no la duplica ni la reasigna — limitación de diseño de esta tabla, no de esta ruta.
+    try {
+      await sql`
+        INSERT INTO public.company_profile (id, tenant_id, name, legal_name, cif)
+        VALUES (1, ${tenantId}, '[tenant]', '[tenant]', 'B-00000000')
+        ON CONFLICT (id) DO NOTHING
+      `
+      report.company_profile = 'ok'
+    } catch (e) {
+      report.company_profile = `error: ${e instanceof Error ? e.message : String(e)}`
+    }
     // v18 — Atribución automática de ventas desde la agenda (red de seguridad server-side).
     // En cualquier INSERT de venta con agenda, rellena setter/closer/afiliado si vienen vacíos.
     // El setter toma cold_caller si no hay setter (ambos cobran como setter).
@@ -146,11 +169,13 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       report.suggestions = `error: ${e instanceof Error ? e.message : String(e)}`
     }
-    // Plantilla por defecto si no hay ninguna
-    const [{ count }] = await sql`SELECT count(*)::int AS count FROM public.contract_templates`
+    // Plantilla por defecto si esta subcuenta no tiene ninguna (contract_templates.tenant_id es
+    // NOT NULL desde la migración multi-tenant — contamos/insertamos scoped a este tenantId para
+    // que cada subcuenta reciba su propia plantilla por defecto, no solo la primera que llame a /setup).
+    const [{ count }] = await sql`SELECT count(*)::int AS count FROM public.contract_templates WHERE tenant_id = ${tenantId}`
     if (count === 0) {
-      await sql`INSERT INTO public.contract_templates (name, role_key, body) VALUES (
-        'Contrato colaborador comercial (setter/closer)', 'closer',
+      await sql`INSERT INTO public.contract_templates (tenant_id, name, role_key, body) VALUES (
+        ${tenantId}, 'Contrato colaborador comercial (setter/closer)', 'closer',
         ${'CONTRATO DE PRESTACIÓN DE SERVICIOS COMERCIALES\n\nDe una parte, {{empresa}}, con CIF {{cif}}, en adelante "LA EMPRESA".\nDe otra parte, {{nombre}}, con DNI {{dni}}, email {{email}} y domicilio en {{direccion}}, en adelante "EL COLABORADOR".\n\nPRIMERA — OBJETO\nEl Colaborador prestará servicios comerciales en el rol de {{rol}}, con fecha de alta {{fecha}}.\n\nSEGUNDA — CONDICIONES ECONÓMICAS\nSegún el apartado "CONDICIONES ECONÓMICAS ACORDADAS" de este documento.\n\nTERCERA — CONFIDENCIALIDAD\nEl Colaborador mantendrá la confidencialidad de la información a la que acceda.\n\nY en prueba de conformidad, firma electrónicamente el presente contrato.'}
       )`
       report.seed_template = 'inserted'

@@ -1,38 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-// Verifica que quien llama está autenticado y es admin/director. Devuelve el
-// caller o una respuesta de error ya lista para retornar.
-async function requireAdmin(): Promise<
-  | { ok: true; callerId: string }
-  | { ok: false; res: NextResponse }
-> {
-  const cookieStore = await cookies()
-  const authed = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return cookieStore.getAll() },
-        setAll() { /* no-op: solo lectura */ },
-      },
-    }
-  )
-  const { data: { user: caller } } = await authed.auth.getUser()
-  if (!caller) return { ok: false, res: NextResponse.json({ error: 'No autenticado' }, { status: 401 }) }
-  const { data: callerRow } = await authed.from('users').select('roles(key)').eq('id', caller.id).single()
-  const callerRole = (callerRow?.roles as { key?: string } | null)?.key
-  if (callerRole !== 'admin' && callerRole !== 'director') {
-    return { ok: false, res: NextResponse.json({ error: 'No autorizado' }, { status: 403 }) }
-  }
-  return { ok: true, callerId: caller.id }
-}
 
 function serviceClient(): SupabaseClient {
   return createClient(
@@ -42,15 +14,51 @@ function serviceClient(): SupabaseClient {
   )
 }
 
+// Verifica que quien llama está autenticado y es admin/director de ESTA subcuenta (o super_admin).
+// Devuelve el caller o una respuesta de error ya lista para retornar.
+async function requireAdmin(tenantSlug: string, sb: SupabaseClient): Promise<
+  | { ok: true; callerId: string; tenantId: string; isSuperAdmin: boolean }
+  | { ok: false; res: NextResponse }
+> {
+  const t = await requireTenant(tenantSlug)
+  if ('error' in t) return { ok: false, res: t.error }
+  const { data: callerRow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
+  const callerRole = (callerRow?.roles as { key?: string } | null)?.key
+  if (!t.isSuperAdmin && callerRole !== 'admin' && callerRole !== 'director') {
+    return { ok: false, res: NextResponse.json({ error: 'No autorizado' }, { status: 403 }) }
+  }
+  return { ok: true, callerId: t.userId, tenantId: t.tenantId, isSuperAdmin: t.isSuperAdmin }
+}
+
+// SEGURIDAD: `users` no tiene tenant_id (el rol de negocio es global), así que sin esta
+// comprobación un admin de ESTA subcuenta podría editar/eliminar CUALQUIER usuario de la
+// plataforma (de otra subcuenta) con solo conocer su userId. Verifica que el usuario objetivo
+// sea miembro de esta subcuenta (los super_admin, con acceso a todas, se saltan la comprobación).
+async function requireTargetInTenant(sb: SupabaseClient, tenantId: string, isSuperAdmin: boolean, userId: string): Promise<NextResponse | null> {
+  if (isSuperAdmin) return null
+  const { data: membership } = await sb
+    .from('tenant_members')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('user_id', userId)
+    .maybeSingle()
+  if (!membership) {
+    return NextResponse.json({ error: 'El usuario no pertenece a esta subcuenta' }, { status: 403 })
+  }
+  return null
+}
+
 // PATCH — editar los correos de un usuario.
 //   · companyEmail: es el correo de LOGIN. Se actualiza en Supabase Auth
 //     (auth.users) y en public.users.email. Rompe la atribución de agendas de
 //     Calendly/GHL (casan por este email) → el aviso se muestra en la UI.
 //   · personalEmail: correo PERSONAL, solo para el contrato. Solo toca
 //     public.users.personal_email (cadena vacía → se limpia).
-export async function PATCH(req: NextRequest) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
-    const guard = await requireAdmin()
+    const { tenant } = await params
+    const sb = serviceClient()
+    const guard = await requireAdmin(tenant, sb)
     if (!guard.ok) return guard.res
 
     const body = (await req.json()) as {
@@ -61,7 +69,9 @@ export async function PATCH(req: NextRequest) {
     const userId = body.userId
     if (!userId) return NextResponse.json({ error: 'Falta userId' }, { status: 400 })
 
-    const sb = serviceClient()
+    const targetErr = await requireTargetInTenant(sb, guard.tenantId, guard.isSuperAdmin, userId)
+    if (targetErr) return targetErr
+
     const updates: Record<string, string | null> = {}
     let authEmailChanged = false
 
@@ -109,9 +119,10 @@ export async function PATCH(req: NextRequest) {
 }
 
 // Cuenta filas (head + count exact) de una tabla filtrando por una o varias
-// columnas que referencien al usuario. Devuelve 0 si la tabla/columna no existe.
-async function countRefs(sb: SupabaseClient, table: string, filter: string, userId: string): Promise<number> {
-  const q = sb.from(table).select('id', { count: 'exact', head: true })
+// columnas que referencien al usuario, dentro de ESTA subcuenta. Devuelve 0 si
+// la tabla/columna no existe.
+async function countRefs(sb: SupabaseClient, table: string, filter: string, userId: string, tenantId: string): Promise<number> {
+  const q = sb.from(table).select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId)
   const res = filter.includes(',') ? await q.or(filter) : await q.eq(filter, userId)
   return res.error ? 0 : (res.count ?? 0)
 }
@@ -120,9 +131,11 @@ async function countRefs(sb: SupabaseClient, table: string, filter: string, user
 // comisiones, contratos) se bloquea y se avisa: hay que desactivarlo/reasignar
 // antes. Nunca destruye registros financieros. Si no tiene referencias, se
 // elimina de Auth (y por ON DELETE CASCADE se limpia public.users).
-export async function DELETE(req: NextRequest) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
-    const guard = await requireAdmin()
+    const { tenant } = await params
+    const sb = serviceClient()
+    const guard = await requireAdmin(tenant, sb)
     if (!guard.ok) return guard.res
 
     const userId = new URL(req.url).searchParams.get('userId')
@@ -131,13 +144,14 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'No puedes eliminar tu propia cuenta' }, { status: 400 })
     }
 
-    const sb = serviceClient()
+    const targetErr = await requireTargetInTenant(sb, guard.tenantId, guard.isSuperAdmin, userId)
+    if (targetErr) return targetErr
 
     const [sales, appts, commissions, contracts] = await Promise.all([
-      countRefs(sb, 'sales', `setter_id.eq.${userId},closer_id.eq.${userId},affiliate_id.eq.${userId},created_by.eq.${userId}`, userId),
-      countRefs(sb, 'appointments', `setter_id.eq.${userId},closer_id.eq.${userId},triager_id.eq.${userId},cold_caller_id.eq.${userId},affiliate_id.eq.${userId}`, userId),
-      countRefs(sb, 'commissions', 'user_id', userId),
-      countRefs(sb, 'contracts', `user_id.eq.${userId},created_by.eq.${userId}`, userId),
+      countRefs(sb, 'sales', `setter_id.eq.${userId},closer_id.eq.${userId},affiliate_id.eq.${userId},created_by.eq.${userId}`, userId, guard.tenantId),
+      countRefs(sb, 'appointments', `setter_id.eq.${userId},closer_id.eq.${userId},triager_id.eq.${userId},cold_caller_id.eq.${userId},affiliate_id.eq.${userId}`, userId, guard.tenantId),
+      countRefs(sb, 'commissions', 'user_id', userId, guard.tenantId),
+      countRefs(sb, 'contracts', `user_id.eq.${userId},created_by.eq.${userId}`, userId, guard.tenantId),
     ])
 
     const blockers: string[] = []
@@ -163,6 +177,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     await sb.from('audit_logs').insert({
+      tenant_id: guard.tenantId,
       entity_type: 'user',
       entity_id: userId,
       action: 'delete',

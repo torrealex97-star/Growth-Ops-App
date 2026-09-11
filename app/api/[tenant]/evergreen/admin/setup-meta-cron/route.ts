@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import postgres from 'postgres'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -10,7 +11,7 @@ const CRON_EXPR = '*/30 * * * *'
 
 // Programa (o reprograma) en Supabase pg_cron una llamada cada 30 min al endpoint
 // de sincronización de Meta, autenticada con Bearer CRON_SECRET vía pg_net.
-// Auth: sesión admin/director O Bearer CRON_SECRET.
+// Auth: sesión admin/director de ESTA subcuenta (o super_admin) O Bearer CRON_SECRET.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
   const JOB_NAME = `meta-sync-30min-${tenant}` // pg_cron job names son globales en la BD, no por tenant
@@ -19,6 +20,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const bearerOk = !!process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`
 
   if (!bearerOk) {
+    // requireTenant primero: sin esto, un admin/director de OTRA subcuenta podría programar
+    // (des)activar el cron de sincronización de esta subcuenta con solo conocer su slug.
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
     const cookieStore = await cookies()
     const authed = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     const { data: row } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
     const role = (row?.roles as { key?: string } | null)?.key
-    if (role !== 'admin' && role !== 'director') {
+    if (!t.isSuperAdmin && role !== 'admin' && role !== 'director') {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
   }

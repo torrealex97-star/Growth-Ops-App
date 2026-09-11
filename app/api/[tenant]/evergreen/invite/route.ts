@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import { generateUniqueTrackingCode } from '@/lib/tracking'
 import { getCompanyProfile } from '@/lib/contracts/company'
 import { sendInviteEmail, resendConfigured } from '@/lib/email/resend'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 
@@ -39,38 +38,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: `El correo personal "${personalEmail}" no es válido` }, { status: 400 })
     }
 
-    // Verificar que quien llama está autenticado y es admin/director. Sin esto,
-    // cualquier usuario con sesión podría auto-invitarse con role_id de admin.
-    const cookieStore = await cookies()
-    const authed = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() { return cookieStore.getAll() },
-          setAll() { /* no-op: solo lectura */ },
-        },
-      }
-    )
-    const { data: { user: caller } } = await authed.auth.getUser()
-    if (!caller) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-    }
-    const { data: callerRow } = await authed
-      .from('users')
-      .select('roles(key)')
-      .eq('id', caller.id)
-      .single()
-    const callerRole = (callerRow?.roles as { key?: string } | null)?.key
-    if (callerRole !== 'admin' && callerRole !== 'director') {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
-    }
+    // Verificar que quien llama está autenticado y administra ESTA subcuenta. Sin esto,
+    // cualquier usuario con sesión podría auto-invitarse con role_id de admin, o un
+    // admin/director de OTRA subcuenta podría invitar gente a esta.
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
+
+    const { data: callerRow } = await supabase
+      .from('users')
+      .select('roles(key)')
+      .eq('id', t.userId)
+      .single()
+    const callerRole = (callerRow?.roles as { key?: string } | null)?.key
+    if (!t.isSuperAdmin && callerRole !== 'admin' && callerRole !== 'director') {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+    }
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin
     const redirectTo = `${siteUrl}/api/${tenant}/evergreen/auth/callback?next=/${tenant}/settings/password`
@@ -126,13 +114,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       // no podría entrar a NINGÚN tenant (el layout exige una fila en
       // tenant_members o super_admin). onConflict evita degradar a un
       // admin/super_admin ya existente a 'member' si se le reinvita.
-      const { data: tenantRow } = await supabase.from('tenants').select('id').eq('slug', tenant).maybeSingle()
-      if (tenantRow) {
-        await supabase.from('tenant_members').upsert(
-          { tenant_id: tenantRow.id, user_id: userId, role: 'member' },
-          { onConflict: 'tenant_id,user_id', ignoreDuplicates: true }
-        )
-      }
+      await supabase.from('tenant_members').upsert(
+        { tenant_id: t.tenantId, user_id: userId, role: 'member' },
+        { onConflict: 'tenant_id,user_id', ignoreDuplicates: true }
+      )
     }
 
     // 3) Enviar el email de "crea tu contraseña" con nuestra plantilla (si Resend está configurado).
