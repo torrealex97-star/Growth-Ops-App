@@ -6,10 +6,9 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swa
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-display', display: 'swap' })
 
 export const metadata: Metadata = {
-  title: 'IA WINNERS',
-  description: 'Plataforma comercial de IA WINNERS',
+  title: 'K100 Software',
+  description: 'Operating system de negocio K100 Software',
   robots: 'noindex, nofollow',
-  icons: { icon: '/brand/iawinners-logo.png' },
 }
 
 // Aplica el tema guardado (oscuro por defecto) antes de pintar, para evitar el flash.

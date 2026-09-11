@@ -10,7 +10,6 @@ import {
   ChevronDown,
   X,
   ArrowLeft,
-  Zap,
 } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -76,17 +75,17 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed left-0 top-0 z-50 h-full w-64 flex-col bg-card border-r border-border transition-transform duration-300 lg:static lg:flex lg:translate-x-0',
+          'fixed left-0 top-0 z-50 h-full w-64 flex-col bg-[#0A0A0B] border-r border-[#26262A] transition-transform duration-300 lg:static lg:flex lg:translate-x-0',
           isOpen ? 'flex translate-x-0' : '-translate-x-full hidden lg:flex'
         )}
       >
         {/* Logo */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-border">
+        <div className="flex items-center justify-between px-6 py-6 border-b border-[#26262A]">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-[0_0_14px_-3px_rgba(30,158,255,0.7)]">
-              <Zap className="w-4 h-4 text-foreground" fill="currentColor" />
+            <div className="relative flex h-9 w-9 items-center justify-center" aria-label="K100 Software">
+              <span className="text-[34px] font-semibold leading-none tracking-[-0.18em] text-white">K</span>
             </div>
-            <span className="font-display font-bold text-foreground text-lg tracking-tight">IA WINNERS</span>
+            <span className="font-sans font-semibold text-white text-lg tracking-tight">K100 Software</span>
           </div>
           <Button
             variant="ghost"
@@ -139,17 +138,17 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
                       className={cn(
                         'relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group',
                         isActive(item.href)
-                          ? 'bg-brand-600/15 text-brand-300 border border-brand-500/30 shadow-[0_0_18px_-8px_rgba(30,158,255,0.7)]'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted/80 hover:translate-x-0.5 border border-transparent'
+                          ? 'bg-[#1C1C1F] text-white border border-[#343438] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+                          : 'text-[#A1A1AA] hover:text-white hover:bg-[#141416] border border-transparent'
                       )}
                     >
                       {/* Barra de acento del item activo */}
                       {isActive(item.href) && (
-                        <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-brand-400 shadow-[0_0_8px_rgba(30,158,255,0.9)]" />
+                        <span className="absolute right-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-white" />
                       )}
                       <item.icon className={cn(
                         'w-4 h-4 shrink-0 transition-colors',
-                        isActive(item.href) ? 'text-brand-400' : 'text-muted-foreground group-hover:text-brand-300'
+                        isActive(item.href) ? 'text-white' : 'text-[#6B6B70] group-hover:text-white'
                       )} />
                       {item.label}
                       {item.children && (

@@ -7,10 +7,10 @@ import { toast } from 'sonner'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 
 const STAGES = [
-  { value: 'backlog', label: 'Backlog' },
+  { value: 'backlog', label: 'Sin empezar' },
   { value: 'en_curso', label: 'En curso' },
   { value: 'en_revision', label: 'En revisión' },
-  { value: 'hecho', label: 'Hecho' },
+  { value: 'hecho', label: 'Completadas' },
 ] as const
 type Stage = typeof STAGES[number]['value']
 
@@ -200,15 +200,15 @@ export default function TasksPage() {
     <div className="p-6 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2"><ListChecks className="w-6 h-6 text-brand-400" /> Tareas</h1>
-          <p className="text-muted-foreground text-sm mt-1">Tablero de tareas — arrastra las tarjetas entre columnas</p>
+          <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2"><ListChecks className="w-6 h-6 text-white" /> Tareas</h1>
+          <p className="text-muted-foreground text-sm mt-1">El trabajo del equipo, columna por columna.</p>
         </div>
         <div className="flex items-center gap-3">
           <SearchBox value={q} onChange={setQ} placeholder="Buscar tarea o responsable..." className="w-64" />
           {isAdmin && (
             <div className="flex rounded-lg border border-border overflow-hidden text-sm">
-              <button onClick={() => setScope('todas')} className={`px-3 py-2 ${scope === 'todas' ? 'bg-brand-600 text-white' : 'bg-card text-muted-foreground hover:text-foreground'}`}>Todas</button>
-              <button onClick={() => setScope('mias')} className={`px-3 py-2 ${scope === 'mias' ? 'bg-brand-600 text-white' : 'bg-card text-muted-foreground hover:text-foreground'}`}>Mías</button>
+              <button onClick={() => setScope('todas')} className={`px-3 py-2 ${scope === 'todas' ? 'bg-white text-black' : 'bg-card text-muted-foreground hover:text-foreground'}`}>Todas</button>
+              <button onClick={() => setScope('mias')} className={`px-3 py-2 ${scope === 'mias' ? 'bg-white text-black' : 'bg-card text-muted-foreground hover:text-foreground'}`}>Mías</button>
             </div>
           )}
           {isAdmin && (
@@ -217,7 +217,7 @@ export default function TasksPage() {
             </button>
           )}
           {isAdmin && (
-            <button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-500 whitespace-nowrap">
+            <button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-3 py-2 rounded-[10px] text-sm bg-white text-black hover:bg-zinc-200 whitespace-nowrap">
               <Plus className="w-4 h-4" /> Nueva tarea
             </button>
           )}

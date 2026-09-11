@@ -26,14 +26,12 @@ export function KPICard({
   description,
 }: KPICardProps) {
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-border bg-card p-6 lift hover:border-brand-500/40">
-      {/* Acento superior que aparece al pasar el ratón */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-500/70 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+    <div className="group relative overflow-hidden rounded-2xl border border-[#26262A] bg-[#141416] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_8px_24px_rgba(0,0,0,0.3)] transition-colors hover:bg-[#1C1C1F]">
       <div className="flex items-start justify-between mb-4">
         <p className="text-sm font-medium text-muted-foreground">{title}</p>
         {Icon && (
-          <div className="w-9 h-9 rounded-lg bg-brand-600/15 ring-1 ring-brand-500/20 flex items-center justify-center transition-all duration-300 group-hover:bg-brand-600/25 group-hover:ring-brand-500/40 group-hover:shadow-[0_0_16px_-4px_rgba(30,158,255,0.6)]">
-            <Icon className="w-4 h-4 text-brand-400" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#26262A] bg-[#0A0A0B]">
+            <Icon className="w-4 h-4 text-[#A1A1AA]" />
           </div>
         )}
       </div>
@@ -47,7 +45,7 @@ export function KPICard({
         <>
           <div className="flex items-baseline gap-1">
             {prefix && <span className="text-lg text-muted-foreground">{prefix}</span>}
-            <span className="text-2xl font-bold text-foreground">{value}</span>
+            <span className="text-[30px] font-semibold tracking-tight text-white">{value}</span>
             {suffix && <span className="text-lg text-muted-foreground">{suffix}</span>}
           </div>
 

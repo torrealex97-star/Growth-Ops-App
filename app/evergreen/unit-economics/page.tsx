@@ -265,10 +265,10 @@ export default function UnitEconomicsPage() {
       {/* Header */}
       <div>
         <div className="flex items-center gap-2">
-          <PieChart className="w-6 h-6 text-brand-400" />
-          <h1 className="text-2xl font-bold text-foreground">Unit Economics</h1>
+          <PieChart className="w-6 h-6 text-white" />
+          <h1 className="text-2xl font-semibold text-foreground">Métricas y KPIs</h1>
         </div>
-        <p className="text-muted-foreground text-sm mt-1">CAC, LTV, ROAS, MER y CPL por canal</p>
+        <p className="text-muted-foreground text-sm mt-1">Pasa el ratón por las gráficas para ver el rendimiento mes a mes.</p>
       </div>
 
       {/* Top cards */}
@@ -294,11 +294,11 @@ export default function UnitEconomicsPage() {
           loading={loading}
           description="Facturación media por venta activa"
         />
-        <div className="rounded-lg border border-border bg-card p-6">
+        <div className="rounded-2xl border border-[#26262A] bg-[#141416] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_8px_24px_rgba(0,0,0,0.3)]">
           <div className="flex items-start justify-between mb-4">
             <p className="text-sm font-medium text-muted-foreground">LTV:CAC ratio</p>
-            <div className="w-9 h-9 rounded-lg bg-brand-600/20 flex items-center justify-center">
-              <Users className="w-4 h-4 text-brand-400" />
+            <div className="w-9 h-9 rounded-lg border border-[#26262A] bg-[#0A0A0B] flex items-center justify-center">
+              <Users className="w-4 h-4 text-[#A1A1AA]" />
             </div>
           </div>
           {loading ? (
@@ -446,7 +446,7 @@ export default function UnitEconomicsPage() {
         </div>
 
         {/* Mini-embudo visual */}
-        <div className="bg-card border border-border rounded-lg p-5">
+        <div className="rounded-2xl border border-[#26262A] bg-[#141416] p-5">
           <h3 className="text-sm font-semibold text-foreground mb-4">Impresiones → Clicks → Leads → Sales Calls → Closes</h3>
           {loading ? (
             <div className="h-24 w-full bg-muted animate-pulse rounded" />
@@ -463,11 +463,11 @@ export default function UnitEconomicsPage() {
                 const pct = prev !== null ? safeDiv(stage.value * 100, prev) : null
                 return (
                   <div key={stage.label} className="flex items-center gap-2 flex-1">
-                    <div className="flex-1 rounded-lg border border-border bg-background p-4 text-center">
+                    <div className="flex-1 rounded-2xl border border-[#26262A] bg-[#0A0A0B] p-4 text-center">
                       <p className="text-xs text-muted-foreground uppercase tracking-wider">{stage.label}</p>
                       <p className="text-xl font-bold text-foreground mt-1">{stage.value.toLocaleString('es-ES')}</p>
                       {pct !== null && (
-                        <p className="text-xs text-brand-400 mt-1">{pct.toFixed(1)}% vs. anterior</p>
+                        <p className="text-xs text-white mt-1">{pct.toFixed(1)}% vs. anterior</p>
                       )}
                     </div>
                     {i < arr.length - 1 && (
@@ -482,7 +482,7 @@ export default function UnitEconomicsPage() {
       </div>
 
       {/* Tabla por canal */}
-      <div className="bg-card border border-border rounded-lg p-5">
+      <div className="rounded-2xl border border-[#26262A] bg-[#141416] p-5">
         <h3 className="text-sm font-semibold text-foreground mb-4">Unit economics por canal</h3>
         {loading ? (
           <div className="space-y-2">

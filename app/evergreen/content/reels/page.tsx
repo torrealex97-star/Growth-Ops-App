@@ -148,7 +148,7 @@ export default function ReelsDelDiaPage() {
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             Cada día minamos ~5 reels de las cuentas de Competencia y te dejamos aquí el guión adaptado
-            (hook + CTA IA WINNERS), la transcripción original y una idea de carrusel. Tú decides qué aprobar.
+            (hook + CTA K100 SOFTWARE), la transcripción original y una idea de carrusel. Tú decides qué aprobar.
           </p>
         </div>
         <button onClick={load} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-muted text-foreground hover:bg-muted">
@@ -261,7 +261,7 @@ export default function ReelsDelDiaPage() {
                   {/* Guión adaptado (editable) */}
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs text-muted-foreground">Guión adaptado (hook + CTA IA WINNERS)</label>
+                      <label className="text-xs text-muted-foreground">Guión adaptado (hook + CTA K100 SOFTWARE)</label>
                       <button onClick={() => copyScript(d.id)} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
                         <Copy className="w-3 h-3" /> Copiar guion
                       </button>
