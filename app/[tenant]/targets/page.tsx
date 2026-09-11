@@ -26,6 +26,7 @@ import {
   targetCurrentWindow, targetValueBetween, targetHistory,
   type SaleRow, type CollectionRow, type AppointmentRow, type TargetData,
 } from '@/lib/analytics'
+import { useTenantId } from '@/lib/tenant-context'
 
 const METRIC_OPTIONS = [
   { value: 'sales_count', label: 'Numero de ventas' },
@@ -45,6 +46,7 @@ const PERIOD_OPTIONS = [
 ]
 
 export default function TargetsPage() {
+  const tenantId = useTenantId()
   const [targets, setTargets] = useState<TargetType[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [sales, setSales] = useState<SaleRow[]>([])
@@ -90,7 +92,7 @@ export default function TargetsPage() {
     setCanManage(isManager)
     setCurrentUserId(authUser.id)
 
-    let query = supabase.from('targets').select('*').eq('is_active', true).order('created_at', { ascending: false })
+    let query = supabase.from('targets').select('*').eq('tenant_id', tenantId).eq('is_active', true).order('created_at', { ascending: false })
     if (!isManager) {
       // Un usuario ve: objetivos de empresa, los suyos propios y los de SU rol (p.ej. closer).
       const conds = ['scope_type.eq.company', `scope_user_id.eq.${authUser.id}`]
@@ -101,9 +103,9 @@ export default function TargetsPage() {
     const [targetsRes, usersRes, salesRes, collRes, apptRes] = await Promise.all([
       query,
       supabase.from('users').select('*').eq('is_active', true),
-      supabase.from('sales').select('id, gross_amount, status, sale_date, closer_id, setter_id, contact_id'),
-      supabase.from('collections').select('sale_id, gross_amount, collected_at, status'),
-      supabase.from('appointments').select('appointment_datetime, status, setter_id, closer_id'),
+      supabase.from('sales').select('id, gross_amount, status, sale_date, closer_id, setter_id, contact_id').eq('tenant_id', tenantId),
+      supabase.from('collections').select('sale_id, gross_amount, collected_at, status').eq('tenant_id', tenantId),
+      supabase.from('appointments').select('appointment_datetime, status, setter_id, closer_id').eq('tenant_id', tenantId),
     ])
 
     setTargets(targetsRes.data ?? [])
@@ -114,7 +116,7 @@ export default function TargetsPage() {
     setLoading(false)
   }
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => { fetchData() }, [tenantId])
 
   // Cada objetivo filtra por su propia ventana (period_type) y su propio alcance (scope),
   // por eso el cálculo usa los datos completos y no se acota por la barra superior.
@@ -181,11 +183,12 @@ export default function TargetsPage() {
     }
 
     const { error } = editingId
-      ? await supabase.from('targets').update(payload).eq('id', editingId)
+      ? await supabase.from('targets').update(payload).eq('id', editingId).eq('tenant_id', tenantId)
       : await supabase.from('targets').insert({
           ...payload,
           is_active: true,
           created_by: authUser.user?.id ?? '',
+          tenant_id: tenantId,
         })
 
     setSubmitting(false)
@@ -205,7 +208,7 @@ export default function TargetsPage() {
 
     setDeletingId(id)
     const supabase = createClient()
-    const { error } = await supabase.from('targets').delete().eq('id', id)
+    const { error } = await supabase.from('targets').delete().eq('id', id).eq('tenant_id', tenantId)
     setDeletingId(null)
 
     if (error) {

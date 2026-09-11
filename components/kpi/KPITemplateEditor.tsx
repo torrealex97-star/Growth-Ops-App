@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge'
 import { Plus, Edit2, Loader2, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import type { KpiFormTemplate, KpiFieldType } from '@/lib/types/database'
+import { useTenantId } from '@/lib/tenant-context'
 
 const FIELD_TYPES: { value: KpiFieldType; label: string }[] = [
   { value: 'number', label: 'Numero' },
@@ -39,6 +40,7 @@ interface KPITemplateEditorProps {
 }
 
 export function KPITemplateEditor({ roleKey, templates, onUpdate }: KPITemplateEditorProps) {
+  const tenantId = useTenantId()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<KpiFormTemplate | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -81,6 +83,7 @@ export function KPITemplateEditor({ roleKey, templates, onUpdate }: KPITemplateE
       .from('kpi_form_templates')
       .update({ is_active: !t.is_active })
       .eq('id', t.id)
+      .eq('tenant_id', tenantId)
 
     if (error) {
       toast.error('Error al actualizar el campo')
@@ -118,6 +121,7 @@ export function KPITemplateEditor({ roleKey, templates, onUpdate }: KPITemplateE
         .from('kpi_form_templates')
         .update(payload)
         .eq('id', editingTemplate.id)
+        .eq('tenant_id', tenantId)
 
       if (error) {
         toast.error('Error al actualizar el campo')
@@ -126,7 +130,7 @@ export function KPITemplateEditor({ roleKey, templates, onUpdate }: KPITemplateE
       }
       toast.success('Campo actualizado')
     } else {
-      const { error } = await supabase.from('kpi_form_templates').insert(payload)
+      const { error } = await supabase.from('kpi_form_templates').insert({ ...payload, tenant_id: tenantId })
 
       if (error) {
         toast.error('Error al crear el campo', { description: error.message })

@@ -24,6 +24,7 @@ import { ChevronDown, ChevronRight, Shield } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { AuditLog } from '@/lib/types/database'
+import { useTenantId } from '@/lib/tenant-context'
 
 const ENTITY_TYPES = ['sale', 'collection', 'refund', 'appointment', 'contact', 'commission', 'user']
 const ACTIONS = ['create', 'update', 'delete', 'approve']
@@ -36,6 +37,7 @@ const ACTION_COLORS: Record<string, string> = {
 }
 
 export default function AuditPage() {
+  const tenantId = useTenantId()
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
@@ -52,6 +54,7 @@ export default function AuditPage() {
       const { data, error } = await supabase
         .from('audit_logs')
         .select('*')
+        .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
         .limit(500)
 
@@ -63,7 +66,7 @@ export default function AuditPage() {
       setLoading(false)
     }
     fetchLogs()
-  }, [])
+  }, [tenantId])
 
   const filtered = useMemo(() => {
     return logs.filter((l) => {
