@@ -1,22 +1,22 @@
-import { NextRequest, NextResponse } from "next/server"
-import Anthropic from "@anthropic-ai/sdk"
-import { getCarruselUser } from "@/lib/carruseles/auth"
-import { requireTenant } from "@/lib/auth/requireTenant"
-import { createProject, addSlide, updateProject, addReferenceImage } from "@/lib/carruseles/store"
+import { NextRequest, NextResponse } from 'next/server'
+import Anthropic from '@anthropic-ai/sdk'
+import { getCarruselUser } from '@/lib/carruseles/auth'
+import { requireTenant } from '@/lib/auth/requireTenant'
+import { createProject, addSlide, updateProject, addReferenceImage } from '@/lib/carruseles/store'
 import {
   buildCasoExitoSlides,
   buildCaption,
   normalizeCasoTitle,
   MAX_CONTENT_SLIDES,
   type CasoExitoSpec,
-} from "@/lib/carruseles/caso-exito"
-import { ensureConfig } from "@/lib/config"
+} from '@/lib/carruseles/caso-exito'
+import { ensureConfig } from '@/lib/config'
 
-export const runtime = "nodejs"
-export const dynamic = "force-dynamic"
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
-const MODEL = "claude-sonnet-5"
+const MODEL = 'claude-sonnet-5'
 
 const SYSTEM = `Eres el copywriter de esta marca. Escribes carruseles de Instagram de CASOS DE ÉXITO de alumnos/clientes, en español de España, con tono directo, cercano y sin humo.
 
@@ -42,72 +42,75 @@ REGLAS DE ORO:
 - No uses comillas dobles dentro de los textos; usa « » si necesitas citar.`
 
 const TOOL: Anthropic.Tool = {
-  name: "build_caso_exito",
-  description: "Construye la estructura del carrusel de caso de éxito a partir del relato.",
+  name: 'build_caso_exito',
+  description: 'Construye la estructura del carrusel de caso de éxito a partir del relato.',
   input_schema: {
-    type: "object",
+    type: 'object',
     properties: {
-      title: { type: "string", description: "Título interno del carrusel, con el nombre y la cifra ancla." },
-      name: { type: "string", description: "Nombre de la persona tal como debe salir en la portada." },
+      title: { type: 'string', description: 'Título interno del carrusel, con el nombre y la cifra ancla.' },
+      name: { type: 'string', description: 'Nombre de la persona tal como debe salir en la portada.' },
       label: {
-        type: "string",
-        enum: ["Caso de éxito", "Caso cliente"],
-        description: "«Caso cliente» solo si es cliente de la agencia y no alumno de la academia.",
+        type: 'string',
+        enum: ['Caso de éxito', 'Caso cliente'],
+        description: '«Caso cliente» solo si es cliente de la agencia y no alumno de la academia.',
       },
-      hook: { type: "string", description: "Frase gancho de la portada. Máx 90 caracteres." },
+      hook: { type: 'string', description: 'Frase gancho de la portada. Máx 90 caracteres.' },
       slides: {
-        type: "array",
-        description: "5 o 6 slides de contenido en el orden de la estructura obligatoria.",
+        type: 'array',
+        description: '5 o 6 slides de contenido en el orden de la estructura obligatoria.',
         minItems: 4,
         maxItems: MAX_CONTENT_SLIDES,
         items: {
-          type: "object",
+          type: 'object',
           properties: {
-            kicker: { type: "string", description: "Etiqueta corta, 1-4 palabras." },
-            heading: { type: "string", description: "Titular corto y contundente. Máx 60 caracteres." },
-            body: { type: "string", description: "Desarrollo de 1-3 frases. Máx 320 caracteres." },
-            big: { type: "string", description: "Cifra ancla a pantalla grande. Solo en la slide del resultado." },
+            kicker: { type: 'string', description: 'Etiqueta corta, 1-4 palabras.' },
+            heading: { type: 'string', description: 'Titular corto y contundente. Máx 60 caracteres.' },
+            body: { type: 'string', description: 'Desarrollo de 1-3 frases. Máx 320 caracteres.' },
+            big: { type: 'string', description: 'Cifra ancla a pantalla grande. Solo en la slide del resultado.' },
           },
-          required: ["heading"],
+          required: ['heading'],
         },
       },
-      ctaLead: { type: "string", description: "Frase gancho de cierre. Máx 70 caracteres." },
-      caption: { type: "string", description: "Pie de Instagram de 2-4 líneas, sin hashtags." },
+      ctaLead: { type: 'string', description: 'Frase gancho de cierre. Máx 70 caracteres.' },
+      caption: { type: 'string', description: 'Pie de Instagram de 2-4 líneas, sin hashtags.' },
       hashtags: {
-        type: "array",
-        description: "5-6 hashtags sin la almohadilla.",
-        items: { type: "string" },
+        type: 'array',
+        description: '5-6 hashtags sin la almohadilla.',
+        items: { type: 'string' },
       },
     },
-    required: ["title", "name", "hook", "slides", "caption"],
+    required: ['title', 'name', 'hook', 'slides', 'caption'],
   },
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function parseSpec(input: any, fallbackName: string): CasoExitoSpec | null {
-  if (!input || typeof input !== "object") return null
+  if (!input || typeof input !== 'object') return null
   const slides = Array.isArray(input.slides)
     ? input.slides
-        .filter((s: any) => s && typeof s.heading === "string" && s.heading.trim())
+        .filter((s: any) => s && typeof s.heading === 'string' && s.heading.trim())
         .map((s: any) => ({
-          kicker: typeof s.kicker === "string" ? s.kicker.trim() : undefined,
+          kicker: typeof s.kicker === 'string' ? s.kicker.trim() : undefined,
           heading: s.heading.trim(),
-          body: typeof s.body === "string" && s.body.trim() ? s.body.trim() : undefined,
-          big: typeof s.big === "string" && s.big.trim() ? s.big.trim() : undefined,
+          body: typeof s.body === 'string' && s.body.trim() ? s.body.trim() : undefined,
+          big: typeof s.big === 'string' && s.big.trim() ? s.big.trim() : undefined,
         }))
     : []
   if (!slides.length) return null
-  const name = (typeof input.name === "string" && input.name.trim()) || fallbackName
+  const name = (typeof input.name === 'string' && input.name.trim()) || fallbackName
   return {
-    title: normalizeCasoTitle(typeof input.title === "string" ? input.title : "", name),
+    title: normalizeCasoTitle(typeof input.title === 'string' ? input.title : '', name),
     name,
-    label: input.label === "Caso cliente" ? "Caso cliente" : "Caso de éxito",
-    hook: typeof input.hook === "string" && input.hook.trim() ? input.hook.trim() : `El caso de ${name}`,
+    label: input.label === 'Caso cliente' ? 'Caso cliente' : 'Caso de éxito',
+    hook: typeof input.hook === 'string' && input.hook.trim() ? input.hook.trim() : `El caso de ${name}`,
     slides,
-    ctaLead: typeof input.ctaLead === "string" && input.ctaLead.trim() ? input.ctaLead.trim() : undefined,
-    caption: typeof input.caption === "string" ? input.caption : "",
+    ctaLead: typeof input.ctaLead === 'string' && input.ctaLead.trim() ? input.ctaLead.trim() : undefined,
+    caption: typeof input.caption === 'string' ? input.caption : '',
     hashtags: Array.isArray(input.hashtags)
-      ? input.hashtags.map((h: any) => String(h).replace(/^#/, "").trim()).filter(Boolean).slice(0, 8)
+      ? input.hashtags
+          .map((h: any) => String(h).replace(/^#/, '').trim())
+          .filter(Boolean)
+          .slice(0, 8)
       : [],
   }
 }
@@ -115,27 +118,27 @@ function parseSpec(input: any, fallbackName: string): CasoExitoSpec | null {
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
   const t = await requireTenant(tenant)
-  if ("error" in t) return t.error
+  if ('error' in t) return t.error
   const user = await getCarruselUser()
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
   await ensureConfig(t.tenantId).catch(() => {})
   if (!process.env.ANTHROPIC_API_KEY)
-    return NextResponse.json({ error: "ANTHROPIC_API_KEY no configurada" }, { status: 503 })
+    return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada' }, { status: 503 })
 
   const body = await req.json().catch(() => ({}))
-  const name: string = typeof body.name === "string" ? body.name.trim() : ""
-  const photoUrl: string = typeof body.photoUrl === "string" ? body.photoUrl.trim() : ""
-  const story: string = typeof body.story === "string" ? body.story.trim() : ""
+  const name: string = typeof body.name === 'string' ? body.name.trim() : ''
+  const photoUrl: string = typeof body.photoUrl === 'string' ? body.photoUrl.trim() : ''
+  const story: string = typeof body.story === 'string' ? body.story.trim() : ''
 
-  if (!name) return NextResponse.json({ error: "Falta el nombre del alumno" }, { status: 400 })
-  if (!photoUrl) return NextResponse.json({ error: "Falta la foto del caso de éxito" }, { status: 400 })
+  if (!name) return NextResponse.json({ error: 'Falta el nombre del alumno' }, { status: 400 })
+  if (!photoUrl) return NextResponse.json({ error: 'Falta la foto del caso de éxito' }, { status: 400 })
   if (story.length < 80)
     return NextResponse.json(
-      { error: "Cuéntame algo más del caso (mínimo 80 caracteres) para poder montar el carrusel" },
+      { error: 'Cuéntame algo más del caso (mínimo 80 caracteres) para poder montar el carrusel' },
       { status: 400 }
     )
-  if (story.length > 60000) return NextResponse.json({ error: "El relato es demasiado largo" }, { status: 400 })
+  if (story.length > 60000) return NextResponse.json({ error: 'El relato es demasiado largo' }, { status: 400 })
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -145,35 +148,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       model: MODEL as any,
       max_tokens: 4000,
       // Igual que en /chat: este flujo no usa thinking y los bloques vacíos rompen la request.
-      thinking: { type: "disabled" },
+      thinking: { type: 'disabled' },
       system: SYSTEM,
       tools: [TOOL],
-      tool_choice: { type: "tool", name: "build_caso_exito" },
+      tool_choice: { type: 'tool', name: 'build_caso_exito' },
       messages: [
         {
-          role: "user",
+          role: 'user',
           content: `Nombre del protagonista: ${name}\n\nRelato del caso de éxito:\n\n${story}`,
         },
       ],
     } as any)
     const use = res.content.find(
-      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === "build_caso_exito"
+      (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use' && b.name === 'build_caso_exito'
     )
     spec = parseSpec(use?.input, name)
   } catch (e) {
     const err = e as any
-    const msg = err?.error?.error?.message || err?.error?.message || err?.message || "Error de la API"
-    console.error("[carruseles/caso-exito] error:", err?.error ?? err)
+    const msg = err?.error?.error?.message || err?.error?.message || err?.message || 'Error de la API'
+    console.error('[carruseles/caso-exito] error:', err?.error ?? err)
     return NextResponse.json({ error: `No se pudo generar el carrusel: ${msg}` }, { status: 502 })
   }
 
   if (!spec)
     return NextResponse.json(
-      { error: "El modelo no devolvió una estructura válida. Prueba a dar más detalle del caso." },
+      { error: 'El modelo no devolvió una estructura válida. Prueba a dar más detalle del caso.' },
       { status: 502 }
     )
 
-  const project = await createProject(spec.title, "carousel", "4:5", user.id)
+  const project = await createProject(spec.title, 'carousel', '4:5', user.id)
 
   // La foto queda también como imagen de referencia para poder seguir editando por chat.
   await addReferenceImage(project.id, {
@@ -185,14 +188,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
   const html = buildCasoExitoSlides(spec, photoUrl)
   for (const [i, h] of html.entries()) {
-    const notes =
-      i === 0 ? "Portada con foto" : i === html.length - 1 ? "CTA · clase gratuita" : `Contenido ${i}`
+    const notes = i === 0 ? 'Portada con foto' : i === html.length - 1 ? 'CTA · clase gratuita' : `Contenido ${i}`
     await addSlide(project.id, h, notes)
   }
 
   await updateProject(project.id, {
     caption: buildCaption(spec.caption),
-    hashtags: spec.hashtags?.length ? spec.hashtags : ["CasoDeExito"],
+    hashtags: spec.hashtags?.length ? spec.hashtags : ['CasoDeExito'],
   })
 
   return NextResponse.json({ id: project.id, title: spec.title, slides: html.length })

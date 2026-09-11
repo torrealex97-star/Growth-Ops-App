@@ -98,17 +98,16 @@ export function InstallmentsMorosidadView() {
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
 
-  const range = useMemo(
-    () => getPeriodRange(periodPreset, customFrom, customTo),
-    [periodPreset, customFrom, customTo]
-  )
+  const range = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
 
   const load = async () => {
     setLoading(true)
     const supabase = createClient()
     const { data, error } = await supabase
       .from('sale_expected_installments')
-      .select('*, sales(id, gross_amount, contact_id, payment_plan_id, contacts(full_name, email, phone), payment_plans(name, financing_provider))')
+      .select(
+        '*, sales(id, gross_amount, contact_id, payment_plan_id, contacts(full_name, email, phone), payment_plans(name, financing_provider))'
+      )
       .order('due_date')
     if (error) {
       toast.error('Error al cargar cuotas', { description: error.message })
@@ -119,14 +118,13 @@ export function InstallmentsMorosidadView() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+  }, [])
 
   const today = todayStr()
 
-  const filteredRows = useMemo(
-    () => rows.filter((r) => inPeriod(r.due_date, range)),
-    [rows, range]
-  )
+  const filteredRows = useMemo(() => rows.filter((r) => inPeriod(r.due_date, range)), [rows, range])
 
   const { overdueRows, thisMonthRows, upcomingRows, kpis } = useMemo(() => {
     const now = new Date()
@@ -137,9 +135,7 @@ export function InstallmentsMorosidadView() {
     const thisMonth = filteredRows.filter(
       (r) => r.status === 'pending' && r.due_date && r.due_date >= monthStart && r.due_date <= monthEnd
     )
-    const upcoming = filteredRows.filter(
-      (r) => r.status === 'pending' && r.due_date && r.due_date > monthEnd
-    )
+    const upcoming = filteredRows.filter((r) => r.status === 'pending' && r.due_date && r.due_date > monthEnd)
     const overdueAmount = overdue.reduce((sum, r) => sum + (r.expected_gross_amount || 0), 0)
     const flaggedCount = filteredRows.filter((r) => r.flagged_delinquent).length
 
@@ -159,17 +155,28 @@ export function InstallmentsMorosidadView() {
   const visibleRows = useMemo(() => {
     let base: InstallmentRow[]
     switch (tab) {
-      case 'vencidas': base = overdueRows; break
-      case 'este_mes': base = thisMonthRows; break
-      case 'proximas': base = upcomingRows; break
+      case 'vencidas':
+        base = overdueRows
+        break
+      case 'este_mes':
+        base = thisMonthRows
+        break
+      case 'proximas':
+        base = upcomingRows
+        break
       case 'todas':
-      default: base = filteredRows
+      default:
+        base = filteredRows
     }
     const nq = normalizeText(q.trim())
     if (!nq) return base
     return base.filter((r) => {
       const c = r.sales?.contacts
-      return normalizeText(c?.full_name || '').includes(nq) || normalizeText(c?.email || '').includes(nq) || phoneMatches(c?.phone, q)
+      return (
+        normalizeText(c?.full_name || '').includes(nq) ||
+        normalizeText(c?.email || '').includes(nq) ||
+        phoneMatches(c?.phone, q)
+      )
     })
   }, [tab, overdueRows, thisMonthRows, upcomingRows, filteredRows, q])
 
@@ -223,7 +230,12 @@ export function InstallmentsMorosidadView() {
         customTo={customTo}
         onCustomFromChange={setCustomFrom}
         onCustomToChange={setCustomTo}
-        onClear={() => { setPeriodPreset('all'); setCustomFrom(''); setCustomTo(''); setQ('') }}
+        onClear={() => {
+          setPeriodPreset('all')
+          setCustomFrom('')
+          setCustomTo('')
+          setQ('')
+        }}
         hasActiveFilters={periodPreset !== 'all' || q.trim() !== ''}
       />
 
@@ -271,7 +283,15 @@ export function InstallmentsMorosidadView() {
               >
                 {t.label}
                 <span className="ml-1.5 text-xs text-muted-foreground">
-                  ({t.key === 'vencidas' ? overdueRows.length : t.key === 'este_mes' ? thisMonthRows.length : t.key === 'proximas' ? upcomingRows.length : filteredRows.length})
+                  (
+                  {t.key === 'vencidas'
+                    ? overdueRows.length
+                    : t.key === 'este_mes'
+                      ? thisMonthRows.length
+                      : t.key === 'proximas'
+                        ? upcomingRows.length
+                        : filteredRows.length}
+                  )
                 </span>
               </button>
             ))}
@@ -329,7 +349,10 @@ export function InstallmentsMorosidadView() {
                         <td className="px-4 py-3 text-foreground">
                           {row.is_monitoring ? '—' : row.installment_number}
                           {row.is_monitoring && (
-                            <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/30" title="Cuota del alumno con la financiera (Sequra). Solo control de impago; no es cash nuestro.">
+                            <span
+                              className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/30"
+                              title="Cuota del alumno con la financiera (Sequra). Solo control de impago; no es cash nuestro."
+                            >
                               monitor. Sequra
                             </span>
                           )}

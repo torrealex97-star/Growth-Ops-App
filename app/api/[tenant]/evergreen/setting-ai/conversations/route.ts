@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { ensureConfig } from '@/lib/config'
 import {
-  getInstagramConfig, resolveIgUserId, resolveFbPageId, getPageAccessToken, fetchIgConversationsWithMessages,
+  getInstagramConfig,
+  resolveIgUserId,
+  resolveFbPageId,
+  getPageAccessToken,
+  fetchIgConversationsWithMessages,
 } from '@/lib/instagram/client'
 
 export const runtime = 'nodejs'

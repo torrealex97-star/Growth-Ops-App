@@ -24,13 +24,19 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
     const role = (urow?.roles as { key?: string } | null)?.key ?? ''
     const canSeeAll = ['admin', 'director', 'manager'].includes(role)
 
-    const { data: rulesData } = await sb.from('commission_rules').select('*').eq('is_active', true).eq('tenant_id', t.tenantId)
+    const { data: rulesData } = await sb
+      .from('commission_rules')
+      .select('*')
+      .eq('is_active', true)
+      .eq('tenant_id', t.tenantId)
     const rules = (rulesData ?? []) as CommissionRule[]
 
     // Cuotas aún no cobradas (pendientes/vencidas), sin monitorización, de ventas activas
     const { data: insts } = await sb
       .from('sale_expected_installments')
-      .select('id, due_date, expected_commissionable_amount, sales!inner(id, setter_id, closer_id, affiliate_id, affiliate_commission_percent, status, tenant_id, contacts(full_name))')
+      .select(
+        'id, due_date, expected_commissionable_amount, sales!inner(id, setter_id, closer_id, affiliate_id, affiliate_commission_percent, status, tenant_id, contacts(full_name))'
+      )
       .in('status', ['pending', 'overdue'])
       .eq('is_monitoring', false)
       .eq('sales.status', 'active')
@@ -41,7 +47,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
     // pendientes (ver /api/${tenant}/evergreen/collections/approve-review para la aprobación).
     const { data: reviewColls } = await sb
       .from('collections')
-      .select('id, collected_at, commissionable_amount, sales!inner(id, setter_id, closer_id, affiliate_id, affiliate_commission_percent, status, tenant_id, contacts(full_name))')
+      .select(
+        'id, collected_at, commissionable_amount, sales!inner(id, setter_id, closer_id, affiliate_id, affiliate_commission_percent, status, tenant_id, contacts(full_name))'
+      )
       .eq('needs_commission_review', true)
       .eq('status', 'collected')
       .eq('sales.status', 'active')
@@ -77,33 +85,64 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
     }
 
     type Row = {
-      installmentId: string; saleId: string; contact: string; dueDate: string
-      userId: string; userName: string; participantType: 'setter' | 'closer' | 'affiliate'
-      base: number; percent: number; amount: number
-      source: 'installment' | 'review'; collectionId?: string
+      installmentId: string
+      saleId: string
+      contact: string
+      dueDate: string
+      userId: string
+      userName: string
+      participantType: 'setter' | 'closer' | 'affiliate'
+      base: number
+      percent: number
+      amount: number
+      source: 'installment' | 'review'
+      collectionId?: string
     }
     const rows: Row[] = []
 
-    type SaleRel = { id: string; setter_id: string | null; closer_id: string | null; affiliate_id: string | null; affiliate_commission_percent: number | null; contacts?: { full_name?: string } | { full_name?: string }[] | null }
+    type SaleRel = {
+      id: string
+      setter_id: string | null
+      closer_id: string | null
+      affiliate_id: string | null
+      affiliate_commission_percent: number | null
+      contacts?: { full_name?: string } | { full_name?: string }[] | null
+    }
 
     const addRowsFor = async (
-      sale: SaleRel, base: number, dueDate: string, instId: string,
-      source: 'installment' | 'review', collectionId?: string
+      sale: SaleRel,
+      base: number,
+      dueDate: string,
+      instId: string,
+      source: 'installment' | 'review',
+      collectionId?: string
     ) => {
       if (base <= 0) return
       const contactRel = Array.isArray(sale.contacts) ? sale.contacts[0] : sale.contacts
       const contact = contactRel?.full_name ?? '—'
 
-      const add = async (repId: string | null, pType: 'setter' | 'closer' | 'affiliate', fixedPercent?: number | null) => {
+      const add = async (
+        repId: string | null,
+        pType: 'setter' | 'closer' | 'affiliate',
+        fixedPercent?: number | null
+      ) => {
         if (!repId) return
         if (!canSeeAll && repId !== t.userId) return
         const percent = pType === 'affiliate' ? Number(fixedPercent ?? 0) : await getRate(repId, pType)
         if (!percent) return
         rows.push({
-          installmentId: instId, saleId: sale.id, contact, dueDate,
-          userId: repId, userName: nameOf.get(repId) ?? '—', participantType: pType,
-          base, percent, amount: Math.round(base * percent) / 100,
-          source, collectionId,
+          installmentId: instId,
+          saleId: sale.id,
+          contact,
+          dueDate,
+          userId: repId,
+          userName: nameOf.get(repId) ?? '—',
+          participantType: pType,
+          base,
+          percent,
+          amount: Math.round(base * percent) / 100,
+          source,
+          collectionId,
         })
       }
 
@@ -115,7 +154,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
     type InstRow = { id: string; due_date: string; expected_commissionable_amount: number | string; sales: SaleRel }
     for (const raw of insts ?? []) {
       const inst = raw as unknown as InstRow
-      await addRowsFor(inst.sales, Number(inst.expected_commissionable_amount || 0), inst.due_date, inst.id, 'installment')
+      await addRowsFor(
+        inst.sales,
+        Number(inst.expected_commissionable_amount || 0),
+        inst.due_date,
+        inst.id,
+        'installment'
+      )
     }
 
     type ReviewRow = { id: string; collected_at: string; commissionable_amount: number | string; sales: SaleRel }

@@ -6,15 +6,18 @@ import type { SuggestionStatus, SuggestionTeamStat } from '@/lib/types/database'
 export const runtime = 'nodejs'
 
 const STATUS_ORDER: SuggestionStatus[] = [
-  'nueva', 'en_revision', 'planificada', 'en_progreso', 'resuelta', 'descartada',
+  'nueva',
+  'en_revision',
+  'planificada',
+  'en_progreso',
+  'resuelta',
+  'descartada',
 ]
 
 function serviceClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
+  return createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
 }
 
 function emptyByStatus(): Record<SuggestionStatus, number> {
@@ -47,8 +50,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
       const userId = row.user_id as string | null
       if (!userId) continue // sugerencias con autor eliminado (user_id NULL) no cuentan para el ranking
 
-      const usersRaw = row.users as { full_name: string | null; email: string | null }[] | { full_name: string | null; email: string | null } | null
-      const users = Array.isArray(usersRaw) ? usersRaw[0] ?? null : usersRaw
+      const usersRaw = row.users as
+        { full_name: string | null; email: string | null }[] | { full_name: string | null; email: string | null } | null
+      const users = Array.isArray(usersRaw) ? (usersRaw[0] ?? null) : usersRaw
       let stat = byUser.get(userId)
       if (!stat) {
         stat = {

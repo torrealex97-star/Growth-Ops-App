@@ -6,11 +6,13 @@ export function fireConfetti(opts?: { particleCount?: number }) {
 
   const count = opts?.particleCount ?? 130
   const canvas = document.createElement('canvas')
-  canvas.style.cssText =
-    'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999'
+  canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999'
   document.body.appendChild(canvas)
   const ctx = canvas.getContext('2d')
-  if (!ctx) { canvas.remove(); return }
+  if (!ctx) {
+    canvas.remove()
+    return
+  }
 
   const dpr = window.devicePixelRatio || 1
   const resize = () => {
@@ -23,7 +25,17 @@ export function fireConfetti(opts?: { particleCount?: number }) {
   const W = window.innerWidth
   const H = window.innerHeight
   const colors = ['#3b82f6', '#60a5fa', '#22d3ee', '#10b981', '#f59e0b', '#f472b6', '#a78bfa']
-  type P = { x: number; y: number; vx: number; vy: number; size: number; color: string; rot: number; vrot: number; shape: number }
+  type P = {
+    x: number
+    y: number
+    vx: number
+    vy: number
+    size: number
+    color: string
+    rot: number
+    vrot: number
+    shape: number
+  }
 
   // Dos focos de lanzamiento (esquinas inferiores) hacia el centro-arriba.
   const parts: P[] = []
@@ -66,7 +78,11 @@ export function fireConfetti(opts?: { particleCount?: number }) {
       ctx.rotate(p.rot)
       ctx.fillStyle = p.color
       if (p.shape === 0) ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6)
-      else { ctx.beginPath(); ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2); ctx.fill() }
+      else {
+        ctx.beginPath()
+        ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2)
+        ctx.fill()
+      }
       ctx.restore()
     }
     frame++

@@ -166,8 +166,12 @@ export async function reconcileSaleCommissions(
 
   const { data: existingData } = await sb.from('commissions').select('*').eq('sale_id', saleId)
   const existing = (existingData ?? []) as {
-    id: string; collection_id: string | null; user_id: string
-    participant_type: string; direction: string; status: string
+    id: string
+    collection_id: string | null
+    user_id: string
+    participant_type: string
+    direction: string
+    status: string
   }[]
 
   // Claves de comisiones ya LIQUIDADAS (pagadas) → no se recrean ni se borran
@@ -179,11 +183,15 @@ export async function reconcileSaleCommissions(
 
   // Borra las positivas ligadas a cobro que NO estén liquidadas (se reconstruyen abajo).
   // Las negativas (devoluciones) y las liquidadas quedan fuera.
-  const toDelete = existing.filter(
-    (c) => c.direction === 'positive' && c.status !== 'liquidated' && c.collection_id
-  )
+  const toDelete = existing.filter((c) => c.direction === 'positive' && c.status !== 'liquidated' && c.collection_id)
   if (toDelete.length) {
-    await sb.from('commissions').delete().in('id', toDelete.map((c) => c.id))
+    await sb
+      .from('commissions')
+      .delete()
+      .in(
+        'id',
+        toDelete.map((c) => c.id)
+      )
   }
 
   const { data: rulesData } = await sb.from('commission_rules').select('*').eq('is_active', true)

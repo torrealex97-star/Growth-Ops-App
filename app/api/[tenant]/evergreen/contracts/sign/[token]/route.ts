@@ -3,7 +3,14 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
 import { buildContractPdf } from '@/lib/contracts/pdf'
 import { getCompanyProfile } from '@/lib/contracts/company'
-import { applyVars, signerVars, stripRemainingVars, SIGNER_FIELDS, type ContractTerms, type SignerData } from '@/lib/contracts/terms'
+import {
+  applyVars,
+  signerVars,
+  stripRemainingVars,
+  SIGNER_FIELDS,
+  type ContractTerms,
+  type SignerData,
+} from '@/lib/contracts/terms'
 import { sendSignedContractEmail } from '@/lib/email/resend'
 
 export const runtime = 'nodejs'
@@ -21,7 +28,12 @@ function service() {
 // la búsqueda del contrato por tenant_id como defensa en profundidad, ya que el
 // token de firma en sí (aleatorio, único) es el mecanismo de seguridad principal.
 async function resolveTenantId(sb: SupabaseClient, tenantSlug: string): Promise<string | null> {
-  const { data } = await sb.from('tenants').select('id, status').eq('slug', tenantSlug).eq('status', 'active').maybeSingle()
+  const { data } = await sb
+    .from('tenants')
+    .select('id, status')
+    .eq('slug', tenantSlug)
+    .eq('status', 'active')
+    .maybeSingle()
   return data?.id ?? null
 }
 
@@ -59,7 +71,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
   let memberName: string | null = null
   const prefill: SignerData = (data.signer_data as SignerData) ?? {}
   if (data.user_id) {
-    const { data: u } = await sb.from('users').select('full_name, phone, dni, address').eq('id', data.user_id).maybeSingle()
+    const { data: u } = await sb
+      .from('users')
+      .select('full_name, phone, dni, address')
+      .eq('id', data.user_id)
+      .maybeSingle()
     memberName = u?.full_name ?? null
     if (u) {
       prefill.dni = prefill.dni ?? u.dni ?? null
@@ -123,10 +139,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: 'Este contrato ya está firmado' }, { status: 409 })
     }
 
-    const ip =
-      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-      req.headers.get('x-real-ip') ||
-      null
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || null
     const ua = req.headers.get('user-agent')
     const signedAt = new Date().toISOString()
     const terms = (c.terms ?? {}) as ContractTerms
@@ -186,7 +199,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     let memberEmail: string | null = null
     let memberPersonalEmail: string | null = null
     if (c.user_id) {
-      const { data: mu } = await sb.from('users').select('full_name, email, personal_email').eq('id', c.user_id).maybeSingle()
+      const { data: mu } = await sb
+        .from('users')
+        .select('full_name, email, personal_email')
+        .eq('id', c.user_id)
+        .maybeSingle()
       memberName = mu?.full_name ?? null
       memberEmail = mu?.email ?? null
       memberPersonalEmail = mu?.personal_email ?? null

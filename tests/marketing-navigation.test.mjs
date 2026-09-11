@@ -50,10 +50,7 @@ test('todas las rutas históricas apuntan al deep-link esperado', () => {
 })
 
 test('los detalles de carruseles conservan el id al redirigir', () => {
-  assert.equal(
-    marketingDestinationFor('/carruseles/proyecto-123'),
-    '/instagram/carruseles/proyecto-123'
-  )
+  assert.equal(marketingDestinationFor('/carruseles/proyecto-123'), '/instagram/carruseles/proyecto-123')
   assert.equal(marketingDestinationFor('/instagram/competencia'), null)
 })
 
@@ -93,14 +90,22 @@ test('el menú compartido con ⌘K contiene todas las páginas absorbidas', () =
   ]
 
   for (const [label, href] of entries) {
-    assert.match(nav, new RegExp(`label: '${label}'.+href: '${href.replace(/[/?]/g, '\\$&')}'`))
+    // [^}]* en vez de .+ para tolerar que Prettier envuelva el objeto en varias líneas sin dejar
+    // que el match salte por encima del cierre `}` hasta un href de una entrada distinta.
+    assert.match(nav, new RegExp(`label: '${label}'[^}]*href: '${href.replace(/[/?]/g, '\\$&')}'`))
   }
 })
 
 test('los roles limitados no reciben prefijos amplios de configuración o adquisición', () => {
   const permissions = readFileSync(join(root, 'lib/auth/permissions.ts'), 'utf8')
-  assert.match(permissions, /adscripcion:\s*\['\/marketing\/adquisicion\/campanas', '\/marketing\/adquisicion\/atribucion', '\/settings\?tab=data-health'\]/)
-  assert.match(permissions, /editor:\s*\['\/instagram', '\/marketing\/contenido', '\/marketing\/adquisicion\/vsl', '\/recursos\/testimonios'\]/)
+  assert.match(
+    permissions,
+    /adscripcion:\s*\['\/marketing\/adquisicion\/campanas', '\/marketing\/adquisicion\/atribucion', '\/settings\?tab=data-health'\]/
+  )
+  assert.match(
+    permissions,
+    /editor:\s*\['\/instagram', '\/marketing\/contenido', '\/marketing\/adquisicion\/vsl', '\/recursos\/testimonios'\]/
+  )
   assert.doesNotMatch(permissions, /adscripcion:\s*\['\/marketing',/)
   assert.doesNotMatch(permissions, /marketing:\s*\[[^\]]*'\/settings',/)
 })

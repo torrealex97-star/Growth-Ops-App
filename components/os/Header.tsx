@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -52,7 +52,9 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
       const { data } = await q
       if (active) setMissing((data as unknown as MissingLinkAppt[]) ?? [])
     })()
-    return () => { active = false }
+    return () => {
+      active = false
+    }
   }, [role, user.id, tenantId])
 
   // Tenant switcher: solo para super_admin. RLS en `tenants` devuelve todas
@@ -65,26 +67,21 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
       const { data } = await sb.from('tenants').select('slug, name').order('name')
       if (active) setTenants((data as TenantOption[]) ?? [])
     })()
-    return () => { active = false }
+    return () => {
+      active = false
+    }
   }, [isSuperAdmin])
 
   const count = missing.length
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center border-b border-[#26262A] bg-[#0A0A0B]/95 backdrop-blur-xl px-4 lg:px-7">
-      <Button
-        variant="ghost"
-        size="icon"
-        className="lg:hidden mr-2 text-muted-foreground"
-        onClick={onMenuClick}
-      >
+      <Button variant="ghost" size="icon" className="lg:hidden mr-2 text-muted-foreground" onClick={onMenuClick}>
         <Menu className="w-5 h-5" />
       </Button>
 
       <div className="flex-1 flex items-center gap-3">
-        {title && (
-          <h1 className="text-sm font-medium text-muted-foreground">{title}</h1>
-        )}
+        {title && <h1 className="text-sm font-medium text-muted-foreground">{title}</h1>}
         {isSuperAdmin && (
           <Popover>
             <PopoverTrigger asChild>
@@ -143,7 +140,9 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
                     className="block px-4 py-2.5 hover:bg-muted/60 transition-colors"
                   >
                     <p className="text-sm text-foreground truncate">{a.contacts?.full_name || 'Contacto'}</p>
-                    <p className="text-xs text-muted-foreground">{formatDateTime(a.appointment_datetime)} · Falta enlace de la llamada</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDateTime(a.appointment_datetime)} · Falta enlace de la llamada
+                    </p>
                   </Link>
                 ))}
               </div>
@@ -157,15 +156,11 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
           title="Mi perfil y contraseña"
         >
           <Avatar className="w-7 h-7">
-            <AvatarFallback className="text-xs">
-              {getInitials(user.full_name)}
-            </AvatarFallback>
+            <AvatarFallback className="text-xs">{getInitials(user.full_name)}</AvatarFallback>
           </Avatar>
           <div className="hidden sm:block">
             <span className="text-sm text-foreground font-medium">{user.full_name}</span>
-            <Badge className={cn('ml-2 text-xs px-1.5 py-0 border', ROLE_COLORS[role])}>
-              {ROLE_LABELS[role]}
-            </Badge>
+            <Badge className={cn('ml-2 text-xs px-1.5 py-0 border', ROLE_COLORS[role])}>{ROLE_LABELS[role]}</Badge>
           </div>
         </Link>
       </div>

@@ -59,7 +59,10 @@ const driveFileId = (url) => (url.match(/\/file\/d\/([^/]+)/) || url.match(/[?&]
 // Descarga el archivo de Drive a destPath
 async function downloadDrive(fileId, destPath) {
   if (driveClient) {
-    const res = await driveClient.files.get({ fileId, alt: 'media', supportsAllDrives: true }, { responseType: 'stream' })
+    const res = await driveClient.files.get(
+      { fileId, alt: 'media', supportsAllDrives: true },
+      { responseType: 'stream' }
+    )
     await new Promise((resolve, reject) => {
       const out = createWriteStream(destPath)
       res.data.on('error', reject).pipe(out).on('finish', resolve).on('error', reject)
@@ -73,15 +76,20 @@ async function downloadDrive(fileId, destPath) {
   if (!(r.ok && isBinary(ct))) {
     const html = await r.text()
     if (/can't download|no se puede|sign in|request access|need access|denied/i.test(html)) {
-      throw new Error("El archivo de Drive no es público. Compártelo como 'Cualquiera con el enlace' (Lector) o da acceso al service account.")
+      throw new Error(
+        "El archivo de Drive no es público. Compártelo como 'Cualquiera con el enlace' (Lector) o da acceso al service account."
+      )
     }
     const action = (html.match(/action="([^"]+download[^"]*)"/) || [])[1]?.replace(/&amp;/g, '&')
     const params = new URLSearchParams()
     for (const m of html.matchAll(/name="([^"]+)"\s+value="([^"]*)"/g)) params.set(m[1], m[2])
-    const url2 = action ? `${action}?${params.toString()}` : `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`
+    const url2 = action
+      ? `${action}?${params.toString()}`
+      : `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`
     r = await fetch(url2)
     ct = r.headers.get('content-type') || ''
-    if (!(r.ok && isBinary(ct))) throw new Error('No se pudo descargar el archivo de Drive (¿es público y es audio/vídeo?).')
+    if (!(r.ok && isBinary(ct)))
+      throw new Error('No se pudo descargar el archivo de Drive (¿es público y es audio/vídeo?).')
   }
   const buf = Buffer.from(await r.arrayBuffer())
   await (await import('node:fs/promises')).writeFile(destPath, buf)
@@ -91,12 +99,31 @@ async function downloadDrive(fileId, destPath) {
 function makeChunks(inputPath, outDir) {
   return new Promise((resolve, reject) => {
     const outPattern = path.join(outDir, 'chunk_%03d.mp3')
-    const args = ['-i', inputPath, '-vn', '-ac', '1', '-ar', '16000', '-b:a', '24k',
-      '-f', 'segment', '-segment_time', '600', '-reset_timestamps', '1', outPattern, '-y']
+    const args = [
+      '-i',
+      inputPath,
+      '-vn',
+      '-ac',
+      '1',
+      '-ar',
+      '16000',
+      '-b:a',
+      '24k',
+      '-f',
+      'segment',
+      '-segment_time',
+      '600',
+      '-reset_timestamps',
+      '1',
+      outPattern,
+      '-y',
+    ]
     const p = spawn(ffmpegPath, args)
     let err = ''
-    p.stderr.on('data', (d) => { err += d.toString() })
-    p.on('close', (code) => code === 0 ? resolve() : reject(new Error('ffmpeg falló: ' + err.slice(-500))))
+    p.stderr.on('data', (d) => {
+      err += d.toString()
+    })
+    p.on('close', (code) => (code === 0 ? resolve() : reject(new Error('ffmpeg falló: ' + err.slice(-500)))))
     p.on('error', reject)
   })
 }
@@ -109,7 +136,9 @@ async function transcribeChunk(filePath) {
   form.append('language', 'es')
   form.append('response_format', 'json')
   const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-    method: 'POST', headers: { Authorization: `Bearer ${GROQ_API_KEY}` }, body: form,
+    method: 'POST',
+    headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
+    body: form,
   })
   if (!res.ok) throw new Error(`Groq ${res.status}: ${(await res.text()).slice(0, 300)}`)
   return (await res.json()).text || ''
@@ -121,11 +150,22 @@ Analizas la transcripción de una llamada de ventas y devuelves SOLO un objeto J
 {"call_score": number 1-10, "lead_score": number 1-10, "suggested_stage": one of ["Nuevo","Contactado","Cita agendada","Presentado/Demo","Oferta hecha","Depósito","Cerrado ganado","Seguimiento","Perdido/No cualifica"], "summary": string (3-4 frases en español), "objections": string[], "next_steps": string[], "tasks": [{"title": string, "description": string}]}
 No inventes; si la transcripción es pobre, refléjalo en los scores.`
   const msg = await anthropic.messages.create({
-    model: 'claude-sonnet-5', max_tokens: 1500, system,
-    messages: [{ role: 'user', content: `${leadName ? `Lead: ${leadName}\n` : ''}Transcripción:\n"""${transcript.slice(0, 120000)}"""` }],
+    model: 'claude-sonnet-5',
+    max_tokens: 1500,
+    system,
+    messages: [
+      {
+        role: 'user',
+        content: `${leadName ? `Lead: ${leadName}\n` : ''}Transcripción:\n"""${transcript.slice(0, 120000)}"""`,
+      },
+    ],
   })
-  const text = msg.content.filter((b) => b.type === 'text').map((b) => b.text).join('')
-  const s = text.indexOf('{'), e = text.lastIndexOf('}')
+  const text = msg.content
+    .filter((b) => b.type === 'text')
+    .map((b) => b.text)
+    .join('')
+  const s = text.indexOf('{'),
+    e = text.lastIndexOf('}')
   if (s === -1 || e === -1) throw new Error('La IA no devolvió JSON')
   return JSON.parse(text.slice(s, e + 1))
 }
@@ -155,13 +195,19 @@ async function processOne(appt) {
     const contact = appt.contacts || {}
     const analysis = await analyzeCall(transcript, contact.full_name)
 
-    await sb.from('appointments').update({
-      transcript, transcript_status: 'listo',
-      ai_call_score: analysis.call_score, ai_lead_score: analysis.lead_score,
-      ai_suggested_stage: analysis.suggested_stage, ai_summary: analysis.summary,
-      ai_analysis: { objections: analysis.objections, next_steps: analysis.next_steps },
-      ai_analyzed_at: new Date().toISOString(),
-    }).eq('id', id)
+    await sb
+      .from('appointments')
+      .update({
+        transcript,
+        transcript_status: 'listo',
+        ai_call_score: analysis.call_score,
+        ai_lead_score: analysis.lead_score,
+        ai_suggested_stage: analysis.suggested_stage,
+        ai_summary: analysis.summary,
+        ai_analysis: { objections: analysis.objections, next_steps: analysis.next_steps },
+        ai_analyzed_at: new Date().toISOString(),
+      })
+      .eq('id', id)
 
     // Generación automática de tareas DESACTIVADA (pendiente de entrenamiento).
     console.log(`[${id}] LISTO — ${chunks.length} trozos (tareas automáticas desactivadas)`)
@@ -178,21 +224,31 @@ async function tick() {
     .not('transcript_drive_url', 'is', null)
     .order('updated_at', { ascending: true })
     .limit(1)
-  if (error) { console.error('poll error:', error.message); return }
+  if (error) {
+    console.error('poll error:', error.message)
+    return
+  }
   if (!data?.length) return
   const appt = data[0]
   try {
     await processOne(appt)
   } catch (e) {
     console.error(`[${appt.id}] ERROR:`, e.message)
-    await sb.from('appointments').update({ transcript_status: 'error', ai_summary: `Error: ${e.message}` }).eq('id', appt.id)
+    await sb
+      .from('appointments')
+      .update({ transcript_status: 'error', ai_summary: `Error: ${e.message}` })
+      .eq('id', appt.id)
   }
 }
 
 console.log('Worker de transcripción IA WINNERS iniciado. Poll cada', POLL_INTERVAL_MS, 'ms')
 async function loop() {
   for (;;) {
-    try { await tick() } catch (e) { console.error('tick fatal:', e.message) }
+    try {
+      await tick()
+    } catch (e) {
+      console.error('tick fatal:', e.message)
+    }
     await new Promise((r) => setTimeout(r, Number(POLL_INTERVAL_MS)))
   }
 }

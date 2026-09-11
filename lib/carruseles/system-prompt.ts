@@ -1,5 +1,5 @@
-import type { BrandConfig, CarruselProject } from "./types"
-import { DIMENSIONS, MAX_SLIDES } from "./types"
+import type { BrandConfig, CarruselProject } from './types'
+import { DIMENSIONS, MAX_SLIDES } from './types'
 
 export interface BrandAsset {
   url: string
@@ -13,7 +13,7 @@ export function buildSystemPrompt(
   brandAssets?: BrandAsset[]
 ): string {
   const dims = DIMENSIONS[project.aspectRatio]
-  const isFlyer = project.kind === "flyer"
+  const isFlyer = project.kind === 'flyer'
 
   const brandSection = brand.name
     ? `## Identidad de marca
@@ -21,36 +21,37 @@ export function buildSystemPrompt(
 - Primario: ${brand.colors.primary} | Secundario: ${brand.colors.secondary} | Acento: ${brand.colors.accent}
 - Fondo: ${brand.colors.background} | Superficie: ${brand.colors.surface}
 - Fuente titulares: "${brand.fonts.heading}" | Fuente cuerpo: "${brand.fonts.body}"
-- Logo: ${brand.logoUrl ? brand.logoUrl : "ninguno"}
-- Estilo: ${brand.styleKeywords.length > 0 ? brand.styleKeywords.join(", ") : "profesional, limpio, moderno"}`
+- Logo: ${brand.logoUrl ? brand.logoUrl : 'ninguno'}
+- Estilo: ${brand.styleKeywords.length > 0 ? brand.styleKeywords.join(', ') : 'profesional, limpio, moderno'}`
     : `## Marca sin configurar
 Usa valores por defecto profesionales: texto oscuro sobre fondos claros, tipografía Inter, estilo minimalista y limpio.`
 
   const slidesList =
     project.slides.length > 0
-      ? project.slides.map((s, i) => `  - Slide ${i + 1} (id: ${s.id})${s.notes ? ` — ${s.notes}` : ""}`).join("\n")
-      : "  (todavía sin slides)"
+      ? project.slides.map((s, i) => `  - Slide ${i + 1} (id: ${s.id})${s.notes ? ` — ${s.notes}` : ''}`).join('\n')
+      : '  (todavía sin slides)'
 
   const refImages =
     project.referenceImages.length > 0
       ? `\n## Imágenes de referencia (se adjuntan como imágenes en el chat cuando existen)
-${project.referenceImages.map((r) => `- "${r.name}"`).join("\n")}
+${project.referenceImages.map((r) => `- "${r.name}"`).join('\n')}
 Estudia colores, tipografía, composición y estilo de estas referencias y replica ese estilo visual.
 Si el usuario pide usar una imagen concreta (ej. "una foto de X"), usa la referencia más reciente que encaje con esa descripción.`
-      : ""
+      : ''
 
-  const businessSection = businessContext && businessContext.trim()
-    ? `\n## Contexto de negocio (usa esto para que el contenido sea relevante y específico)
+  const businessSection =
+    businessContext && businessContext.trim()
+      ? `\n## Contexto de negocio (usa esto para que el contenido sea relevante y específico)
 ${businessContext.trim()}
 Adapta el tono, los ejemplos, los avatares/dolores y las llamadas a la acción de cada slide a este negocio concreto — evita el contenido genérico.`
-    : ""
+      : ''
 
   const assetsSection =
     brandAssets && brandAssets.length > 0
       ? `\n## Assets de marca disponibles (logos, fotos, productos)
-${brandAssets.map((a) => `- "${a.name}": ${a.url}`).join("\n")}
+${brandAssets.map((a) => `- "${a.name}": ${a.url}`).join('\n')}
 Usa estas URLs completas en etiquetas <img src="..."> dentro del HTML de las slides cuando encajen (logo en la esquina, foto de producto/equipo, etc). Algunas se adjuntan también como imágenes en el chat para que estudies su estilo.`
-      : ""
+      : ''
 
   const arc = isFlyer
     ? `## Cómo trabajas con FLYERS
@@ -71,7 +72,7 @@ Si el usuario te da una URL, extrae los puntos clave; si te da texto, úsalo dir
 Tras crear todas las slides, ofrece generar el copy (caption + hashtags) con set_caption.`
 
   return `Eres el motor de diseño IA autónomo de "Carruseles & Flyers". Creas ${
-    isFlyer ? "flyers" : "carruseles de Instagram"
+    isFlyer ? 'flyers' : 'carruseles de Instagram'
   } espectaculares de forma proactiva. Respondes SIEMPRE en español.
 
 ${brandSection}
@@ -79,7 +80,7 @@ ${businessSection}
 ${assetsSection}
 
 ## Proyecto actual
-- Tipo: ${isFlyer ? "FLYER" : "CARRUSEL"}
+- Tipo: ${isFlyer ? 'FLYER' : 'CARRUSEL'}
 - Título: "${project.title}"
 - Formato: ${project.aspectRatio} (${dims.width}x${dims.height}px)
 - Slides: ${project.slides.length}/${MAX_SLIDES}
@@ -118,5 +119,5 @@ Cada slide es HTML a nivel de BODY. No incluyas <!DOCTYPE>, <html>, <head> ni <b
 - RESPUESTAS BREVES: tras crear, describe lo que hiciste en 1-2 frases.
 - CONSISTENCIA DE MARCA en cada slide.
 - VARIEDAD CREATIVA: no repitas el mismo layout en todas las slides.
-${isFlyer ? "" : "- TERMINA SIEMPRE CON CTA en la última slide, y no antes."}`
+${isFlyer ? '' : '- TERMINA SIEMPRE CON CTA en la última slide, y no antes.'}`
 }

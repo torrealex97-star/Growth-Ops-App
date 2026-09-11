@@ -1,17 +1,22 @@
-"use client"
+'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { Lightbulb, Bug, MessageSquare, Loader2, Trash2, Inbox, Trophy, Sparkles, ChevronDown, ChevronUp } from 'lucide-react'
+import {
+  Lightbulb,
+  Bug,
+  MessageSquare,
+  Loader2,
+  Trash2,
+  Inbox,
+  Trophy,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn, formatDateTime } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { toast } from 'sonner'
@@ -33,7 +38,14 @@ const STATUS_META: Record<SuggestionStatus, { label: string; color: string }> = 
   descartada: { label: 'Descartada', color: 'bg-zinc-500/15 text-muted-foreground border-border/30' },
 }
 
-const STATUS_ORDER: SuggestionStatus[] = ['nueva', 'en_revision', 'planificada', 'en_progreso', 'resuelta', 'descartada']
+const STATUS_ORDER: SuggestionStatus[] = [
+  'nueva',
+  'en_revision',
+  'planificada',
+  'en_progreso',
+  'resuelta',
+  'descartada',
+]
 
 export default function SugerenciasPage() {
   const tenant = useTenant()
@@ -75,7 +87,10 @@ export default function SugerenciasPage() {
     }
   }
 
-  useEffect(() => { load(); loadTeamStats() }, [])
+  useEffect(() => {
+    load()
+    loadTeamStats()
+  }, [])
 
   const patch = async (id: string, body: Record<string, unknown>) => {
     setSavingId(id)
@@ -112,19 +127,18 @@ export default function SugerenciasPage() {
     }
   }
 
-  const filtered = useMemo(
-    () => {
-      const q = normalizeText(search.trim())
-      return items.filter((s) =>
+  const filtered = useMemo(() => {
+    const q = normalizeText(search.trim())
+    return items.filter(
+      (s) =>
         (filterStatus === 'all' || s.status === filterStatus) &&
         (filterType === 'all' || s.type === filterType) &&
-        (q === '' || normalizeText(
-          `${s.title} ${s.message} ${s.users?.full_name ?? ''} ${s.users?.email ?? ''} ${s.page_url ?? ''}`
-        ).includes(q))
-      )
-    },
-    [items, filterStatus, filterType, search]
-  )
+        (q === '' ||
+          normalizeText(
+            `${s.title} ${s.message} ${s.users?.full_name ?? ''} ${s.users?.email ?? ''} ${s.page_url ?? ''}`
+          ).includes(q))
+    )
+  }, [items, filterStatus, filterType, search])
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { nueva: 0, en_revision: 0 }
@@ -139,9 +153,12 @@ export default function SugerenciasPage() {
           <Lightbulb className="w-5 h-5 text-brand-400" /> Sugerencias y mejoras
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Peticiones de mejora, errores y comentarios enviados por el equipo. Gestiona el estado para ir mejorando la plataforma.
-          {' '}
-          <span className="text-foreground">{counts.nueva ?? 0} nueva{counts.nueva === 1 ? '' : 's'}</span>.
+          Peticiones de mejora, errores y comentarios enviados por el equipo. Gestiona el estado para ir mejorando la
+          plataforma.{' '}
+          <span className="text-foreground">
+            {counts.nueva ?? 0} nueva{counts.nueva === 1 ? '' : 's'}
+          </span>
+          .
         </p>
       </div>
 
@@ -155,7 +172,11 @@ export default function SugerenciasPage() {
             <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
               <Trophy className="w-4 h-4 text-amber-400" /> Kaizen — mejora continua del equipo
             </span>
-            {showTeam ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+            {showTeam ? (
+              <ChevronUp className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            )}
           </button>
           {showTeam && (
             <>
@@ -169,10 +190,18 @@ export default function SugerenciasPage() {
                     className="flex items-center gap-3 rounded-lg border border-border bg-background/60 px-3 py-2.5"
                   >
                     <div className="w-6 text-center text-sm font-semibold text-muted-foreground shrink-0">
-                      {i === 0 && t.resolved_total > 0 ? '🏆' : i === 1 && t.resolved_total > 0 ? '🥈' : i === 2 && t.resolved_total > 0 ? '🥉' : `#${i + 1}`}
+                      {i === 0 && t.resolved_total > 0
+                        ? '🏆'
+                        : i === 1 && t.resolved_total > 0
+                          ? '🥈'
+                          : i === 2 && t.resolved_total > 0
+                            ? '🥉'
+                            : `#${i + 1}`}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground truncate">{t.full_name || t.email || 'Sin nombre'}</p>
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {t.full_name || t.email || 'Sin nombre'}
+                      </p>
                       <div className="flex items-center gap-1.5 flex-wrap mt-1">
                         <Badge className="border text-[11px] bg-emerald-500/15 text-emerald-300 border-emerald-500/30">
                           {t.resolved_total} implementada{t.resolved_total === 1 ? '' : 's'}
@@ -214,14 +243,22 @@ export default function SugerenciasPage() {
           className="w-full sm:w-80"
         />
         <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as typeof filterStatus)}>
-          <SelectTrigger className="w-44 bg-background border-border text-foreground"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-44 bg-background border-border text-foreground">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent className="bg-card border-border text-foreground">
             <SelectItem value="all">Todos los estados</SelectItem>
-            {STATUS_ORDER.map((s) => <SelectItem key={s} value={s}>{STATUS_META[s].label}</SelectItem>)}
+            {STATUS_ORDER.map((s) => (
+              <SelectItem key={s} value={s}>
+                {STATUS_META[s].label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Select value={filterType} onValueChange={(v) => setFilterType(v as typeof filterType)}>
-          <SelectTrigger className="w-40 bg-background border-border text-foreground"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-40 bg-background border-border text-foreground">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent className="bg-card border-border text-foreground">
             <SelectItem value="all">Todos los tipos</SelectItem>
             <SelectItem value="mejora">Mejora</SelectItem>
@@ -232,11 +269,15 @@ export default function SugerenciasPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+        <div className="flex justify-center py-16">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-16 text-muted-foreground">
           <Inbox className="w-8 h-8" />
-          <p className="text-sm">No hay sugerencias {filterStatus !== 'all' || filterType !== 'all' ? 'con estos filtros' : 'todavía'}.</p>
+          <p className="text-sm">
+            No hay sugerencias {filterStatus !== 'all' || filterType !== 'all' ? 'con estos filtros' : 'todavía'}.
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -258,18 +299,34 @@ export default function SugerenciasPage() {
                     <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{s.message}</p>
                     <p className="text-xs text-muted-foreground mt-2">
                       {s.users?.full_name || s.users?.email || 'Anónimo'} · {formatDateTime(s.created_at)}
-                      {s.page_url ? <> · <span className="text-muted-foreground">{s.page_url}</span></> : null}
+                      {s.page_url ? (
+                        <>
+                          {' '}
+                          · <span className="text-muted-foreground">{s.page_url}</span>
+                        </>
+                      ) : null}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Select value={s.status} onValueChange={(v) => patch(s.id, { status: v })} disabled={savingId === s.id}>
-                      <SelectTrigger className="w-36 h-8 bg-background border-border text-foreground text-xs"><SelectValue /></SelectTrigger>
+                    <Select
+                      value={s.status}
+                      onValueChange={(v) => patch(s.id, { status: v })}
+                      disabled={savingId === s.id}
+                    >
+                      <SelectTrigger className="w-36 h-8 bg-background border-border text-foreground text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent className="bg-card border-border text-foreground">
-                        {STATUS_ORDER.map((st) => <SelectItem key={st} value={st}>{STATUS_META[st].label}</SelectItem>)}
+                        {STATUS_ORDER.map((st) => (
+                          <SelectItem key={st} value={st}>
+                            {STATUS_META[st].label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <Button
-                      variant="ghost" size="icon"
+                      variant="ghost"
+                      size="icon"
                       className="h-8 w-8 text-muted-foreground hover:text-red-400"
                       onClick={() => remove(s.id)}
                       disabled={savingId === s.id}

@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
@@ -7,13 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ArrowLeft, ArrowRight, Check, Loader2, Search, User, Package, Users, Calendar } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -116,7 +110,15 @@ export default function NewSalePage() {
 
   // Tomador ≠ alumno: el comprador puede ser distinto de quien agenda (madre/empresa/Sequra).
   const [buyerIsScheduler, setBuyerIsScheduler] = useState(true)
-  const [payer, setPayer] = useState({ name: '', dni: '', email: '', phone: '', address: '', city: '', relation: 'madre' })
+  const [payer, setPayer] = useState({
+    name: '',
+    dni: '',
+    email: '',
+    phone: '',
+    address: '',
+    city: '',
+    relation: 'madre',
+  })
   const [accessEmailChoice, setAccessEmailChoice] = useState<'alumno' | 'tomador'>('alumno')
 
   useEffect(() => {
@@ -193,26 +195,29 @@ export default function NewSalePage() {
       }
       loadProduct()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const searchContacts = useCallback(async (query: string) => {
-    if (!query || query.length < 2) {
-      setContactResults([])
-      return
-    }
-    setSearchLoading(true)
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('contacts')
-      .select('*')
-      .or(`full_name.ilike.%${query}%,email.ilike.%${query}%`)
-      .eq('tenant_id', tenantId)
-      .limit(8)
+  const searchContacts = useCallback(
+    async (query: string) => {
+      if (!query || query.length < 2) {
+        setContactResults([])
+        return
+      }
+      setSearchLoading(true)
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('contacts')
+        .select('*')
+        .or(`full_name.ilike.%${query}%,email.ilike.%${query}%`)
+        .eq('tenant_id', tenantId)
+        .limit(8)
 
-    setContactResults(data ?? [])
-    setSearchLoading(false)
-  }, [tenantId])
+      setContactResults(data ?? [])
+      setSearchLoading(false)
+    },
+    [tenantId]
+  )
 
   useEffect(() => {
     const timer = setTimeout(() => searchContacts(contactSearch), 300)
@@ -233,20 +238,23 @@ export default function NewSalePage() {
     setSelectedPlan(null)
   }
 
-  const searchAppointments = useCallback(async (query: string) => {
-    if (!query || query.length < 2) {
-      setAppointmentResults([])
-      return
-    }
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('appointments')
-      .select('*, contacts(full_name)')
-      .eq('contact_id', selectedContact?.id ?? '')
-      .eq('tenant_id', tenantId)
-      .limit(5)
-    setAppointmentResults(data ?? [])
-  }, [selectedContact, tenantId])
+  const searchAppointments = useCallback(
+    async (query: string) => {
+      if (!query || query.length < 2) {
+        setAppointmentResults([])
+        return
+      }
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('appointments')
+        .select('*, contacts(full_name)')
+        .eq('contact_id', selectedContact?.id ?? '')
+        .eq('tenant_id', tenantId)
+        .limit(5)
+      setAppointmentResults(data ?? [])
+    },
+    [selectedContact, tenantId]
+  )
 
   useEffect(() => {
     if (selectedContact) {
@@ -272,7 +280,9 @@ export default function NewSalePage() {
         setAppointmentResults(data as Appointment[])
       }
     })()
-    return () => { active = false }
+    return () => {
+      active = false
+    }
   }, [selectedContact, tenantId])
 
   // Resuelve setter / cold caller / closer / afiliado SIEMPRE, en este orden de prioridad:
@@ -291,16 +301,29 @@ export default function NewSalePage() {
       const supabase = createClient()
       const has = (id?: string | null) => !!id && users.some((u) => u.id === id)
       const norm = (s?: string | null) => (s ?? '').trim().toLowerCase()
-      const bySetter = (code: string) => users.find((x) => norm((x as { tracking_code?: string | null }).tracking_code) === code)?.id ?? null
-      const byAff = (code: string) => users.find((x) => norm((x as { affiliate_code?: string | null }).affiliate_code) === code)?.id ?? null
+      const bySetter = (code: string) =>
+        users.find((x) => norm((x as { tracking_code?: string | null }).tracking_code) === code)?.id ?? null
+      const byAff = (code: string) =>
+        users.find((x) => norm((x as { affiliate_code?: string | null }).affiliate_code) === code)?.id ?? null
 
       // Agenda (fuente principal = último toque al agendar)
-      let apptSetter: string | null = null, apptCloser: string | null = null, apptAff: string | null = null
+      let apptSetter: string | null = null,
+        apptCloser: string | null = null,
+        apptAff: string | null = null
       if (selectedAppointmentId) {
         const { data: apt } = await supabase
-          .from('appointments').select('setter_id, closer_id, cold_caller_id, affiliate_id').eq('id', selectedAppointmentId).eq('tenant_id', tenantId).maybeSingle()
+          .from('appointments')
+          .select('setter_id, closer_id, cold_caller_id, affiliate_id')
+          .eq('id', selectedAppointmentId)
+          .eq('tenant_id', tenantId)
+          .maybeSingle()
         if (apt) {
-          const a = apt as { setter_id: string | null; closer_id: string | null; cold_caller_id: string | null; affiliate_id: string | null }
+          const a = apt as {
+            setter_id: string | null
+            closer_id: string | null
+            cold_caller_id: string | null
+            affiliate_id: string | null
+          }
           apptSetter = (has(a.setter_id) && a.setter_id) || (has(a.cold_caller_id) && a.cold_caller_id) || null
           apptCloser = (has(a.closer_id) && a.closer_id) || null
           apptAff = (has(a.affiliate_id) && a.affiliate_id) || null
@@ -308,20 +331,30 @@ export default function NewSalePage() {
       }
 
       // Atribución UTM del contacto: primer vs último toque
-      let firstSetter: string | null = null, lastSetter: string | null = null, firstAff: string | null = null, lastAff: string | null = null
+      let firstSetter: string | null = null,
+        lastSetter: string | null = null,
+        firstAff: string | null = null,
+        lastAff: string | null = null
       if (selectedContact) {
         const { data: attr } = await supabase
           .from('contact_attributions')
-          .select('utm_term, first_utm_term, last_utm_term, utm_content, first_utm_content, last_utm_content, is_primary, last_touch_at')
+          .select(
+            'utm_term, first_utm_term, last_utm_term, utm_content, first_utm_content, last_utm_content, is_primary, last_touch_at'
+          )
           .eq('contact_id', selectedContact.id)
           .eq('tenant_id', tenantId)
-          .order('is_primary', { ascending: false }).order('last_touch_at', { ascending: false }).limit(1).maybeSingle()
+          .order('is_primary', { ascending: false })
+          .order('last_touch_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
         if (attr) {
           const a = attr as Record<string, string | null>
-          const ft = norm(a.first_utm_term), lt = norm(a.last_utm_term || a.utm_term)
+          const ft = norm(a.first_utm_term),
+            lt = norm(a.last_utm_term || a.utm_term)
           if (ft) firstSetter = bySetter(ft)
           if (lt) lastSetter = bySetter(lt)
-          const fc = norm(a.first_utm_content), lc = norm(a.last_utm_content || a.utm_content)
+          const fc = norm(a.first_utm_content),
+            lc = norm(a.last_utm_content || a.utm_content)
           if (fc) firstAff = byAff(fc)
           if (lc) lastAff = byAff(lc)
         }
@@ -335,11 +368,16 @@ export default function NewSalePage() {
       const setterConflict = !!(firstSetter && appliedSetter && firstSetter !== appliedSetter)
       const affConflict = !!(firstAff && appliedAff && firstAff !== appliedAff)
 
-      if (appliedSetter) { setSetterId(appliedSetter); setLockSetter(true) }
+      if (appliedSetter) {
+        setSetterId(appliedSetter)
+        setLockSetter(true)
+      }
       if (appliedAff) {
-        setAffiliateId(appliedAff); setLockAffiliate(true)
+        setAffiliateId(appliedAff)
+        setLockAffiliate(true)
         const aff = users.find((u) => u.id === appliedAff)
-        const pct = (aff as { default_affiliate_commission_percent?: number | null } | undefined)?.default_affiliate_commission_percent
+        const pct = (aff as { default_affiliate_commission_percent?: number | null } | undefined)
+          ?.default_affiliate_commission_percent
         if (pct != null) setAffiliatePercent((prev) => (prev ? prev : String(pct)))
       }
       setCloserId((prev) => {
@@ -351,11 +389,19 @@ export default function NewSalePage() {
 
       setAttributionConflict(setterConflict || affConflict)
       setAttributionMeta({
-        setter: { first: firstSetter, last: lastSetter, appointment: apptSetter, applied: appliedSetter, conflict: setterConflict },
+        setter: {
+          first: firstSetter,
+          last: lastSetter,
+          appointment: apptSetter,
+          applied: appliedSetter,
+          conflict: setterConflict,
+        },
         affiliate: { first: firstAff, last: lastAff, appointment: apptAff, applied: appliedAff, conflict: affConflict },
       })
     })()
-    return () => { active = false }
+    return () => {
+      active = false
+    }
   }, [selectedAppointmentId, selectedContact, users, currentUserId, currentRoleKey, tenantId])
 
   // El desplegable de "setter" incluye también cold callers: ambos agendan por utm_term y cobran
@@ -368,7 +414,9 @@ export default function NewSalePage() {
     const key = (u as { roles?: { key?: string } }).roles?.key
     return key === 'cold_caller' ? ' (cold caller)' : ''
   }
-  const closers = users.filter((u) => ['closer', 'admin'].includes((u as { roles?: { key?: string } }).roles?.key ?? ''))
+  const closers = users.filter((u) =>
+    ['closer', 'admin'].includes((u as { roles?: { key?: string } }).roles?.key ?? '')
+  )
   const affiliates = users.filter((u) => (u as { roles?: { key?: string } }).roles?.key === 'affiliate')
 
   // Plan personalizado: el precio total lo fija el closer (no viene del plan).
@@ -380,45 +428,39 @@ export default function NewSalePage() {
   // realmente hoy como reserva (100/200/300/500€, personalizable) — eso es lo que se comisiona.
   const isReservaPlanSelected = selectedPlan?.method === 'reserva'
   const effectiveGross = selectedPlan
-    ? (isCustom
-        ? customTotalNumber
-        : (isReservaPlanSelected && !reservationId ? reservationAmountNumber : selectedPlan.gross_price))
+    ? isCustom
+      ? customTotalNumber
+      : isReservaPlanSelected && !reservationId
+        ? reservationAmountNumber
+        : selectedPlan.gross_price
     : 0
   const effectiveRatio = selectedPlan ? (isCustom || isReservaPlanSelected ? 1 : selectedPlan.cash_collection_ratio) : 1
 
   const commissionableAmount = effectiveGross * effectiveRatio
-  const netPendingAmount = selectedPlan
-    ? Math.max(effectiveGross - reservationAmountNumber, 0)
-    : 0
-  const platformFeeAmount = selectedPlan
-    ? (effectiveGross * (selectedPlan.fee_percent ?? 0)) / 100
-    : 0
-  const amountPerPayment = selectedPlan && selectedPlan.number_of_payments > 0
-    ? effectiveGross / selectedPlan.number_of_payments
-    : 0
+  const netPendingAmount = selectedPlan ? Math.max(effectiveGross - reservationAmountNumber, 0) : 0
+  const platformFeeAmount = selectedPlan ? (effectiveGross * (selectedPlan.fee_percent ?? 0)) / 100 : 0
+  const amountPerPayment =
+    selectedPlan && selectedPlan.number_of_payments > 0 ? effectiveGross / selectedPlan.number_of_payments : 0
 
   // Autofinanciado = lo financiamos nosotros en varias cuotas (ni Sequra ni Reserva ni custom)
-  const isAutofinanciado = !!selectedPlan
-    && selectedPlan.number_of_payments > 1
-    && selectedPlan.method !== 'sequra'
-    && selectedPlan.method !== 'reserva'
-    && !isCustom
+  const isAutofinanciado =
+    !!selectedPlan &&
+    selectedPlan.number_of_payments > 1 &&
+    selectedPlan.method !== 'sequra' &&
+    selectedPlan.method !== 'reserva' &&
+    !isCustom
   // El plan personalizado SIEMPRE se registra como entrada + cuotas del resto (nunca como
   // full pay), aunque sea 1 cuota: así el resto pendiente queda reflejado y no se cobra de más.
   const customRestCountNumber = Math.max(1, parseInt(customRestCount || '1', 10))
   const financeAsInstallments = isAutofinanciado || isCustom
-  const downPaymentNumber = isCustom
-    ? (parseFloat(customDown) || 0)
-    : (isAutofinanciado ? (parseFloat(downPayment) || 0) : 0)
+  const downPaymentNumber = isCustom ? parseFloat(customDown) || 0 : isAutofinanciado ? parseFloat(downPayment) || 0 : 0
   const restCountNumber = isCustom
     ? customRestCountNumber
-    : (isAutofinanciado
-        ? Math.max(1, parseInt(restCount || String(selectedPlan?.number_of_payments ?? 1), 10))
-        : (selectedPlan?.number_of_payments ?? 1))
+    : isAutofinanciado
+      ? Math.max(1, parseInt(restCount || String(selectedPlan?.number_of_payments ?? 1), 10))
+      : (selectedPlan?.number_of_payments ?? 1)
   // Resto a financiar = total − reserva ya pagada − entrada
-  const restToFinance = selectedPlan
-    ? Math.max(effectiveGross - reservationAmountNumber - downPaymentNumber, 0)
-    : 0
+  const restToFinance = selectedPlan ? Math.max(effectiveGross - reservationAmountNumber - downPaymentNumber, 0) : 0
   const perRestInstallment = restCountNumber > 0 ? restToFinance / restCountNumber : 0
 
   const handleCreateNewContact = async () => {
@@ -534,7 +576,8 @@ export default function NewSalePage() {
       setter_id: setterId && setterId !== 'none' ? setterId : null,
       closer_id: closerId && closerId !== 'none' ? closerId : null,
       affiliate_id: affiliateId && affiliateId !== 'none' ? affiliateId : null,
-      affiliate_commission_percent: affiliateId && affiliateId !== 'none' && affiliatePercent ? parseFloat(affiliatePercent) : null,
+      affiliate_commission_percent:
+        affiliateId && affiliateId !== 'none' && affiliatePercent ? parseFloat(affiliatePercent) : null,
       attribution_conflict: attributionConflict,
       attribution_meta: attributionMeta,
     }
@@ -542,18 +585,22 @@ export default function NewSalePage() {
     // Tomador (comprador) distinto del agendador: datos del pagador + a qué email van los accesos.
     const buyerFields = {
       buyer_is_scheduler: buyerIsScheduler,
-      payer_data: buyerIsScheduler ? null : {
-        name: payer.name.trim(),
-        dni: payer.dni.trim() || null,
-        email: payer.email.trim() || null,
-        phone: payer.phone.trim() || null,
-        address: payer.address.trim() || null,
-        city: payer.city.trim() || null,
-        relation: payer.relation || null,
-      },
+      payer_data: buyerIsScheduler
+        ? null
+        : {
+            name: payer.name.trim(),
+            dni: payer.dni.trim() || null,
+            email: payer.email.trim() || null,
+            phone: payer.phone.trim() || null,
+            address: payer.address.trim() || null,
+            city: payer.city.trim() || null,
+            relation: payer.relation || null,
+          },
       access_email: buyerIsScheduler
         ? null
-        : (accessEmailChoice === 'tomador' ? (payer.email.trim() || null) : (selectedContact.email || null)),
+        : accessEmailChoice === 'tomador'
+          ? payer.email.trim() || null
+          : selectedContact.email || null,
     }
 
     const alreadyPaid = reservationAmountNumber + downPaymentNumber
@@ -568,19 +615,26 @@ export default function NewSalePage() {
         const rows: Record<string, unknown>[] = []
         if (ourCash > 0) {
           rows.push({
-            sale_id: sid, installment_number: 0,
+            sale_id: sid,
+            installment_number: 0,
             due_date: saleDateObj.toISOString().split('T')[0],
-            expected_gross_amount: ourCash, expected_commissionable_amount: ourCash,
-            status: 'pending', is_monitoring: false,
+            expected_gross_amount: ourCash,
+            expected_commissionable_amount: ourCash,
+            status: 'pending',
+            is_monitoring: false,
           })
         }
         for (let i = 1; i <= N; i++) {
-          const d = new Date(saleDateObj); d.setMonth(d.getMonth() + (i - 1))
+          const d = new Date(saleDateObj)
+          d.setMonth(d.getMonth() + (i - 1))
           rows.push({
-            sale_id: sid, installment_number: i,
+            sale_id: sid,
+            installment_number: i,
             due_date: d.toISOString().split('T')[0],
-            expected_gross_amount: perStudent, expected_commissionable_amount: 0,
-            status: 'pending', is_monitoring: true,
+            expected_gross_amount: perStudent,
+            expected_commissionable_amount: 0,
+            status: 'pending',
+            is_monitoring: true,
           })
         }
         return rows
@@ -630,7 +684,11 @@ export default function NewSalePage() {
       const res = await fetch(`/api/${tenant}/evergreen/sales/complete-reservation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ saleId: reservationId, patch: updatePayload, installments: buildInstallmentRows(reservationId) }),
+        body: JSON.stringify({
+          saleId: reservationId,
+          patch: updatePayload,
+          installments: buildInstallmentRows(reservationId),
+        }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -670,7 +728,9 @@ export default function NewSalePage() {
       // aunque la venta SÍ quedaba guardada (ventas fantasma al reintentar). Insertamos con id propio
       // y return=minimal: el INSERT solo evalúa la policy de WITH CHECK (created_by = auth.uid()).
       const newSaleId = genUuid()
-      const { error: saleError } = await supabase.from('sales').insert({ ...salePayload, id: newSaleId, tenant_id: tenantId })
+      const { error: saleError } = await supabase
+        .from('sales')
+        .insert({ ...salePayload, id: newSaleId, tenant_id: tenantId })
       if (saleError) {
         toast.error('Error al crear la venta', { description: saleError.message })
         setSubmitting(false)
@@ -680,8 +740,11 @@ export default function NewSalePage() {
       await supabase.from('audit_logs').insert({
         tenant_id: tenantId,
         actor_user_id: authUser.user.id,
-        entity_type: 'sale', entity_id: saleId, action: 'create',
-        old_values: null, new_values: salePayload,
+        entity_type: 'sale',
+        entity_id: saleId,
+        action: 'create',
+        old_values: null,
+        new_values: salePayload,
       })
     }
 
@@ -694,7 +757,10 @@ export default function NewSalePage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            saleId, grossAmount: grossAmt, method, collectedAt: nowIso,
+            saleId,
+            grossAmount: grossAmt,
+            method,
+            collectedAt: nowIso,
             ...(commissionableAmt != null ? { commissionableAmount: commissionableAmt } : {}),
           }),
         })
@@ -718,8 +784,15 @@ export default function NewSalePage() {
     if (reservationId) {
       // La reserva ya pagada cuenta como cash collected. Si aún no hay cobro que la cubra
       // (reservas antiguas no lo registraban), lo registramos ahora.
-      const { data: existingColls } = await supabase.from('collections').select('gross_amount').eq('sale_id', saleId).eq('tenant_id', tenantId)
-      const alreadyCollected = (existingColls ?? []).reduce((s, c: { gross_amount: number | string }) => s + Number(c.gross_amount || 0), 0)
+      const { data: existingColls } = await supabase
+        .from('collections')
+        .select('gross_amount')
+        .eq('sale_id', saleId)
+        .eq('tenant_id', tenantId)
+      const alreadyCollected = (existingColls ?? []).reduce(
+        (s, c: { gross_amount: number | string }) => s + Number(c.gross_amount || 0),
+        0
+      )
       if (alreadyCollected < reservationAmountNumber) {
         await recordCollection(reservationAmountNumber - alreadyCollected)
       }
@@ -737,7 +810,10 @@ export default function NewSalePage() {
         // se pasa commissionable explícito para que el endpoint NO re-aplique el ratio del plan.
         const upfront = rows.find((r) => r.installment_number === 0 && r.is_monitoring === false)
         const monitoringRows = rows.filter((r) => !(r.installment_number === 0 && r.is_monitoring === false))
-        if (monitoringRows.length) await supabase.from('sale_expected_installments').insert(monitoringRows.map((r) => ({ ...r, tenant_id: tenantId })))
+        if (monitoringRows.length)
+          await supabase
+            .from('sale_expected_installments')
+            .insert(monitoringRows.map((r) => ({ ...r, tenant_id: tenantId })))
         if (upfront) {
           const amt = Number(upfront.expected_gross_amount)
           await recordCollection(amt, amt)
@@ -750,7 +826,8 @@ export default function NewSalePage() {
       if (downPaymentNumber > 0) await recordCollection(downPaymentNumber)
       if (!reservationId) {
         const rest = buildInstallmentRows(saleId)
-        if (rest.length) await supabase.from('sale_expected_installments').insert(rest.map((r) => ({ ...r, tenant_id: tenantId })))
+        if (rest.length)
+          await supabase.from('sale_expected_installments').insert(rest.map((r) => ({ ...r, tenant_id: tenantId })))
       }
     } else if (isReservaPlan) {
       // Alta de una reserva: el importe reservado cuenta como cash collected al momento.
@@ -782,10 +859,16 @@ export default function NewSalePage() {
       })
       const cd = await cRes.json().catch(() => ({}))
       if (cRes.ok) contractSignUrl = cd.signUrl ?? null
-    } catch { /* no bloquea la venta */ }
+    } catch {
+      /* no bloquea la venta */
+    }
 
     if (contractSignUrl) {
-      try { await navigator.clipboard.writeText(contractSignUrl) } catch { /* clipboard no disponible */ }
+      try {
+        await navigator.clipboard.writeText(contractSignUrl)
+      } catch {
+        /* clipboard no disponible */
+      }
       toast.success(reservationId ? 'Pago completado · contrato enviado' : 'Venta creada · contrato enviado', {
         description: 'Enlace de firma copiado al portapapeles. Pégaselo al alumno si no le llega el correo.',
       })
@@ -799,14 +882,19 @@ export default function NewSalePage() {
     if (step === 1) return !!selectedContact
     if (step === 2) return !!(selectedProduct && selectedPlan && (!isCustom || customTotalNumber > 0))
     if (step === 3) return true
-    return !!(saleDate)
+    return !!saleDate
   }
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
       {/* Header */}
       <div>
-        <Button variant="ghost" size="sm" className="mb-4 text-muted-foreground hover:text-foreground" onClick={() => router.back()}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mb-4 text-muted-foreground hover:text-foreground"
+          onClick={() => router.back()}
+        >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Volver
         </Button>
@@ -822,11 +910,15 @@ export default function NewSalePage() {
           return (
             <div key={s.label} className="flex items-center flex-1">
               <div className="flex flex-col items-center">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
-                  isDone ? 'bg-brand-600 text-white' :
-                  isActive ? 'bg-brand-600/20 border-2 border-brand-500 text-brand-400' :
-                  'bg-muted border-2 border-border text-muted-foreground'
-                }`}>
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                    isDone
+                      ? 'bg-brand-600 text-white'
+                      : isActive
+                        ? 'bg-brand-600/20 border-2 border-brand-500 text-brand-400'
+                        : 'bg-muted border-2 border-border text-muted-foreground'
+                  }`}
+                >
                   {isDone ? <Check className="w-4 h-4" /> : stepNum}
                 </div>
                 <span className={`text-xs mt-1 ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>
@@ -854,7 +946,12 @@ export default function NewSalePage() {
                   <p className="font-medium text-foreground">{selectedContact.full_name}</p>
                   <p className="text-sm text-muted-foreground">{selectedContact.email || 'Sin email'}</p>
                 </div>
-                <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setSelectedContact(null)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  onClick={() => setSelectedContact(null)}
+                >
                   Cambiar
                 </Button>
               </div>
@@ -894,7 +991,9 @@ export default function NewSalePage() {
                 )}
 
                 {!showNewContactForm && contactSearch.length >= 2 && !searchLoading && contactResults.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No se encontraron contactos con &ldquo;{contactSearch}&rdquo;.</p>
+                  <p className="text-sm text-muted-foreground">
+                    No se encontraron contactos con &ldquo;{contactSearch}&rdquo;.
+                  </p>
                 )}
 
                 {!showNewContactForm && (
@@ -952,7 +1051,12 @@ export default function NewSalePage() {
                           'Crear y seleccionar'
                         )}
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setShowNewContactForm(false)} disabled={creatingContact}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setShowNewContactForm(false)}
+                        disabled={creatingContact}
+                      >
                         Cancelar
                       </Button>
                     </div>
@@ -985,9 +1089,7 @@ export default function NewSalePage() {
                     }`}
                   >
                     <p className="font-medium text-foreground">{p.name}</p>
-                    {p.description && (
-                      <p className="text-xs text-muted-foreground mt-1">{p.description}</p>
-                    )}
+                    {p.description && <p className="text-xs text-muted-foreground mt-1">{p.description}</p>}
                   </button>
                 ))}
               </div>
@@ -1016,7 +1118,9 @@ export default function NewSalePage() {
                         </div>
                         <div className="text-right">
                           <p className="font-bold text-foreground">{formatCurrency(plan.gross_price)}</p>
-                          <p className="text-xs text-muted-foreground">{plan.number_of_payments} pago{plan.number_of_payments > 1 ? 's' : ''}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {plan.number_of_payments} pago{plan.number_of_payments > 1 ? 's' : ''}
+                          </p>
                         </div>
                       </div>
                     </button>
@@ -1041,9 +1145,7 @@ export default function NewSalePage() {
                     <p className="text-foreground font-medium">{formatCurrency(selectedPlan.gross_price)}</p>
                   </div>
                   <div className="bg-muted/60 rounded p-2">
-                    <p className="text-muted-foreground text-xs">
-                      Nº pagos / importe
-                    </p>
+                    <p className="text-muted-foreground text-xs">Nº pagos / importe</p>
                     <p className="text-foreground font-medium">
                       {selectedPlan.number_of_payments} × {formatCurrency(amountPerPayment)}
                     </p>
@@ -1051,10 +1153,14 @@ export default function NewSalePage() {
                   <div className="bg-muted/60 rounded p-2">
                     <p className="text-muted-foreground text-xs">Cash Collected estimado</p>
                     <p className="text-emerald-400 font-medium">{formatCurrency(commissionableAmount)}</p>
-                    <p className="text-muted-foreground text-[11px]">{Math.round(selectedPlan.cash_collection_ratio * 100)}% del total</p>
+                    <p className="text-muted-foreground text-[11px]">
+                      {Math.round(selectedPlan.cash_collection_ratio * 100)}% del total
+                    </p>
                   </div>
                   <div className="bg-muted/60 rounded p-2">
-                    <p className="text-muted-foreground text-xs">Comisión plataforma ({selectedPlan.fee_percent ?? 0}%)</p>
+                    <p className="text-muted-foreground text-xs">
+                      Comisión plataforma ({selectedPlan.fee_percent ?? 0}%)
+                    </p>
                     <p className="text-amber-400 font-medium">{formatCurrency(platformFeeAmount)}</p>
                   </div>
                 </div>
@@ -1067,22 +1173,40 @@ export default function NewSalePage() {
             {isCustom && (
               <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-4 space-y-4">
                 <h3 className="text-sm font-medium text-cyan-300">Plan de pago personalizado</h3>
-                <p className="text-xs text-muted-foreground -mt-2">Ej: paga una parte ahora y el resto por Sequra/transferencia en varias cuotas.</p>
+                <p className="text-xs text-muted-foreground -mt-2">
+                  Ej: paga una parte ahora y el resto por Sequra/transferencia en varias cuotas.
+                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label className="text-xs text-foreground">Precio total (€)</Label>
-                    <Input type="number" min="0" step="0.01" value={customTotal}
-                      onChange={(e) => setCustomTotal(e.target.value)} className="bg-muted border-border" placeholder="1997" />
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={customTotal}
+                      onChange={(e) => setCustomTotal(e.target.value)}
+                      className="bg-muted border-border"
+                      placeholder="1997"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs text-foreground">Pago inicial ahora (€)</Label>
-                    <Input type="number" min="0" step="0.01" value={customDown}
-                      onChange={(e) => setCustomDown(e.target.value)} className="bg-muted border-border" placeholder="500" />
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={customDown}
+                      onChange={(e) => setCustomDown(e.target.value)}
+                      className="bg-muted border-border"
+                      placeholder="500"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs text-foreground">Resto mediante</Label>
                     <Select value={customRestMethod} onValueChange={setCustomRestMethod}>
-                      <SelectTrigger className="bg-muted border-border"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="bg-muted border-border">
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent className="bg-card border-border">
                         <SelectItem value="sequra">Sequra</SelectItem>
                         <SelectItem value="transferencia">Transferencia</SelectItem>
@@ -1093,23 +1217,45 @@ export default function NewSalePage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs text-foreground">Nº cuotas para el resto</Label>
-                    <Input type="number" min="1" step="1" value={customRestCount}
-                      onChange={(e) => setCustomRestCount(e.target.value)} className="bg-muted border-border" placeholder="3" />
+                    <Input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={customRestCount}
+                      onChange={(e) => setCustomRestCount(e.target.value)}
+                      className="bg-muted border-border"
+                      placeholder="3"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs text-foreground">1ª cuota (fecha)</Label>
-                    <Input type="date" value={installmentsStartDate}
-                      onChange={(e) => setInstallmentsStartDate(e.target.value)} className="bg-muted border-border" />
+                    <Input
+                      type="date"
+                      value={installmentsStartDate}
+                      onChange={(e) => setInstallmentsStartDate(e.target.value)}
+                      className="bg-muted border-border"
+                    />
                   </div>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs text-foreground">Notas del plan (opcional)</Label>
-                  <Input value={customRestNotes} onChange={(e) => setCustomRestNotes(e.target.value)}
-                    className="bg-muted border-border" placeholder="Detalle acordado con el alumno" />
+                  <Input
+                    value={customRestNotes}
+                    onChange={(e) => setCustomRestNotes(e.target.value)}
+                    className="bg-muted border-border"
+                    placeholder="Detalle acordado con el alumno"
+                  />
                 </div>
                 {customTotalNumber > 0 && (
                   <div className="text-xs text-muted-foreground border-t border-cyan-500/20 pt-3 space-y-0.5">
-                    <p>Inicial ahora: <span className="text-emerald-400 font-medium">{formatCurrency(downPaymentNumber)}</span> · Resto a financiar: <span className="text-foreground font-medium">{formatCurrency(restToFinance)}</span> en <span className="text-foreground font-medium">{restCountNumber}</span> cuota{restCountNumber === 1 ? '' : 's'} de <span className="text-foreground font-medium">{formatCurrency(perRestInstallment)}</span></p>
+                    <p>
+                      Inicial ahora:{' '}
+                      <span className="text-emerald-400 font-medium">{formatCurrency(downPaymentNumber)}</span> · Resto
+                      a financiar: <span className="text-foreground font-medium">{formatCurrency(restToFinance)}</span>{' '}
+                      en <span className="text-foreground font-medium">{restCountNumber}</span> cuota
+                      {restCountNumber === 1 ? '' : 's'} de{' '}
+                      <span className="text-foreground font-medium">{formatCurrency(perRestInstallment)}</span>
+                    </p>
                   </div>
                 )}
               </div>
@@ -1133,25 +1279,34 @@ export default function NewSalePage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm text-foreground">Plan de pago para el resto ({formatCurrency(netPendingAmount)})</Label>
+                  <Label className="text-sm text-foreground">
+                    Plan de pago para el resto ({formatCurrency(netPendingAmount)})
+                  </Label>
                   <div className="grid grid-cols-1 gap-2">
-                    {paymentPlans.filter(p => p.code !== 'RESERVA').map(plan => (
-                      <button
-                        key={plan.id}
-                        type="button"
-                        onClick={() => { setPendingPlanId(plan.id); setPendingPlan(plan) }}
-                        className={`p-3 rounded-lg border text-left transition-colors text-sm ${
-                          pendingPlanId === plan.id
-                            ? 'border-amber-500 bg-amber-600/10'
-                            : 'border-border hover:border-border bg-muted/50'
-                        }`}
-                      >
-                        <div className="flex justify-between">
-                          <span className="text-foreground font-medium">{plan.name}</span>
-                          <span className="text-muted-foreground">{plan.number_of_payments} {plan.number_of_payments === 1 ? 'pago' : 'pagos'}</span>
-                        </div>
-                      </button>
-                    ))}
+                    {paymentPlans
+                      .filter((p) => p.code !== 'RESERVA')
+                      .map((plan) => (
+                        <button
+                          key={plan.id}
+                          type="button"
+                          onClick={() => {
+                            setPendingPlanId(plan.id)
+                            setPendingPlan(plan)
+                          }}
+                          className={`p-3 rounded-lg border text-left transition-colors text-sm ${
+                            pendingPlanId === plan.id
+                              ? 'border-amber-500 bg-amber-600/10'
+                              : 'border-border hover:border-border bg-muted/50'
+                          }`}
+                        >
+                          <div className="flex justify-between">
+                            <span className="text-foreground font-medium">{plan.name}</span>
+                            <span className="text-muted-foreground">
+                              {plan.number_of_payments} {plan.number_of_payments === 1 ? 'pago' : 'pagos'}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
                   </div>
                 </div>
               </div>
@@ -1166,7 +1321,9 @@ export default function NewSalePage() {
 
             {attributionConflict && (
               <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-300">
-                ⚠️ <b>Conflicto de atribución:</b> el primer contacto y el último son de reps distintos. Se aplica el <b>último</b> (el que agendó/reactivó) y la venta queda marcada para que un <b>admin</b> la revise y ajuste si procede.
+                ⚠️ <b>Conflicto de atribución:</b> el primer contacto y el último son de reps distintos. Se aplica el{' '}
+                <b>último</b> (el que agendó/reactivó) y la venta queda marcada para que un <b>admin</b> la revise y
+                ajuste si procede.
               </div>
             )}
 
@@ -1179,12 +1336,17 @@ export default function NewSalePage() {
                 <SelectContent className="bg-card border-border">
                   <SelectItem value="none">Sin setter</SelectItem>
                   {setters.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>{u.full_name}{roleLabel(u)}</SelectItem>
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.full_name}
+                      {roleLabel(u)}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {lockSetter && (
-                <p className="text-xs text-amber-400/80">🔒 Traído automáticamente de la agenda/atribución. Lo cambia un admin desde &quot;editar venta&quot;.</p>
+                <p className="text-xs text-amber-400/80">
+                  🔒 Traído automáticamente de la agenda/atribución. Lo cambia un admin desde &quot;editar venta&quot;.
+                </p>
               )}
             </div>
 
@@ -1197,7 +1359,9 @@ export default function NewSalePage() {
                 <SelectContent className="bg-card border-border">
                   <SelectItem value="none">Sin closer</SelectItem>
                   {closers.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.full_name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1205,25 +1369,33 @@ export default function NewSalePage() {
 
             <div className="space-y-2">
               <Label>Afiliado (opcional)</Label>
-              <Select value={affiliateId} disabled={lockAffiliate} onValueChange={(val) => {
-                setAffiliateId(val)
-                const aff = affiliates.find((u) => u.id === val)
-                if (aff?.default_affiliate_commission_percent) {
-                  setAffiliatePercent(String(aff.default_affiliate_commission_percent))
-                }
-              }}>
+              <Select
+                value={affiliateId}
+                disabled={lockAffiliate}
+                onValueChange={(val) => {
+                  setAffiliateId(val)
+                  const aff = affiliates.find((u) => u.id === val)
+                  if (aff?.default_affiliate_commission_percent) {
+                    setAffiliatePercent(String(aff.default_affiliate_commission_percent))
+                  }
+                }}
+              >
                 <SelectTrigger className={`bg-muted border-border ${lockAffiliate ? 'opacity-90' : ''}`}>
                   <SelectValue placeholder="Seleccionar afiliado..." />
                 </SelectTrigger>
                 <SelectContent className="bg-card border-border">
                   <SelectItem value="none">Sin afiliado</SelectItem>
                   {affiliates.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.full_name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {lockAffiliate && (
-                <p className="text-xs text-amber-400/80">🔒 Traído automáticamente. Lo cambia un admin desde &quot;editar venta&quot;.</p>
+                <p className="text-xs text-amber-400/80">
+                  🔒 Traído automáticamente. Lo cambia un admin desde &quot;editar venta&quot;.
+                </p>
               )}
             </div>
 
@@ -1262,7 +1434,9 @@ export default function NewSalePage() {
                         }`}
                         onClick={() => setSelectedAppointmentId(appt.id === selectedAppointmentId ? null : appt.id)}
                       >
-                        <p className="text-foreground text-sm">{new Date(appt.appointment_datetime).toLocaleDateString('es-ES')}</p>
+                        <p className="text-foreground text-sm">
+                          {new Date(appt.appointment_datetime).toLocaleDateString('es-ES')}
+                        </p>
                         <p className="text-muted-foreground text-xs">{appt.status}</p>
                       </button>
                     ))}
@@ -1337,12 +1511,15 @@ export default function NewSalePage() {
                 </div>
                 {selectedPlan && reservationAmountNumber > 0 && !isReservaPlanSelected && (
                   <p className="text-xs text-muted-foreground">
-                    Total {formatCurrency(selectedPlan.gross_price)} − Reserva {formatCurrency(reservationAmountNumber)} = <span className="text-foreground font-medium">{formatCurrency(netPendingAmount)} a cobrar</span>
+                    Total {formatCurrency(selectedPlan.gross_price)} − Reserva {formatCurrency(reservationAmountNumber)}{' '}
+                    = <span className="text-foreground font-medium">{formatCurrency(netPendingAmount)} a cobrar</span>
                   </p>
                 )}
                 {selectedPlan && reservationAmountNumber > 0 && isReservaPlanSelected && !reservationId && (
                   <p className="text-xs text-muted-foreground">
-                    Se cobra y comisiona el importe real de la reserva: <span className="text-foreground font-medium">{formatCurrency(reservationAmountNumber)}</span>. El resto se calculará al completar el pago con el producto/plan final.
+                    Se cobra y comisiona el importe real de la reserva:{' '}
+                    <span className="text-foreground font-medium">{formatCurrency(reservationAmountNumber)}</span>. El
+                    resto se calculará al completar el pago con el producto/plan final.
                   </p>
                 )}
               </div>
@@ -1356,7 +1533,9 @@ export default function NewSalePage() {
                   <div className="space-y-1.5">
                     <Label className="text-xs text-foreground">Entrada ahora (€)</Label>
                     <Input
-                      type="number" min="0" step="0.01"
+                      type="number"
+                      min="0"
+                      step="0.01"
                       value={downPayment}
                       onChange={(e) => setDownPayment(e.target.value)}
                       className="bg-muted border-border"
@@ -1366,7 +1545,9 @@ export default function NewSalePage() {
                   <div className="space-y-1.5">
                     <Label className="text-xs text-foreground">Nº cuotas para el resto</Label>
                     <Input
-                      type="number" min="1" step="1"
+                      type="number"
+                      min="1"
+                      step="1"
                       value={restCount}
                       onChange={(e) => setRestCount(e.target.value)}
                       className="bg-muted border-border"
@@ -1384,9 +1565,28 @@ export default function NewSalePage() {
                   </div>
                 </div>
                 <div className="text-xs text-muted-foreground space-y-0.5 border-t border-blue-500/20 pt-3">
-                  <p>Entrada ahora (cash collected): <span className="text-emerald-400 font-medium">{formatCurrency(downPaymentNumber)}</span>{reservationAmountNumber > 0 && <> · Reserva ya pagada: <span className="text-emerald-400 font-medium">{formatCurrency(reservationAmountNumber)}</span></>}</p>
-                  <p>Resto a financiar: <span className="text-foreground font-medium">{formatCurrency(restToFinance)}</span> en <span className="text-foreground font-medium">{restCountNumber}</span> cuota{restCountNumber === 1 ? '' : 's'} de <span className="text-foreground font-medium">{formatCurrency(perRestInstallment)}</span></p>
-                  <p className="text-muted-foreground">Ejemplo: paga la entrada hoy y el resto en {restCountNumber} mensualidades desde el {formatDate(installmentsStartDate)}.</p>
+                  <p>
+                    Entrada ahora (cash collected):{' '}
+                    <span className="text-emerald-400 font-medium">{formatCurrency(downPaymentNumber)}</span>
+                    {reservationAmountNumber > 0 && (
+                      <>
+                        {' '}
+                        · Reserva ya pagada:{' '}
+                        <span className="text-emerald-400 font-medium">{formatCurrency(reservationAmountNumber)}</span>
+                      </>
+                    )}
+                  </p>
+                  <p>
+                    Resto a financiar:{' '}
+                    <span className="text-foreground font-medium">{formatCurrency(restToFinance)}</span> en{' '}
+                    <span className="text-foreground font-medium">{restCountNumber}</span> cuota
+                    {restCountNumber === 1 ? '' : 's'} de{' '}
+                    <span className="text-foreground font-medium">{formatCurrency(perRestInstallment)}</span>
+                  </p>
+                  <p className="text-muted-foreground">
+                    Ejemplo: paga la entrada hoy y el resto en {restCountNumber} mensualidades desde el{' '}
+                    {formatDate(installmentsStartDate)}.
+                  </p>
                 </div>
               </div>
             )}
@@ -1400,41 +1600,79 @@ export default function NewSalePage() {
                   onChange={(e) => setBuyerIsScheduler(e.target.checked)}
                   className="h-4 w-4 rounded border-border bg-card accent-brand-500"
                 />
-                <span className="text-sm text-foreground">La persona que <b>compra</b> es la misma que <b>agenda</b> (el alumno)</span>
+                <span className="text-sm text-foreground">
+                  La persona que <b>compra</b> es la misma que <b>agenda</b> (el alumno)
+                </span>
               </label>
 
               {!buyerIsScheduler && (
                 <div className="space-y-3 border-t border-border pt-3">
-                  <p className="text-xs text-amber-300">Paga otra persona (madre/padre/empresa/socio). Se genera un <b>contrato de tomador</b> aparte y la factura irá a su nombre.</p>
+                  <p className="text-xs text-amber-300">
+                    Paga otra persona (madre/padre/empresa/socio). Se genera un <b>contrato de tomador</b> aparte y la
+                    factura irá a su nombre.
+                  </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-xs text-foreground">Nombre del tomador *</Label>
-                      <Input value={payer.name} onChange={(e) => setPayer({ ...payer, name: e.target.value })} className="bg-muted border-border" placeholder="Nombre y apellidos / empresa" />
+                      <Input
+                        value={payer.name}
+                        onChange={(e) => setPayer({ ...payer, name: e.target.value })}
+                        className="bg-muted border-border"
+                        placeholder="Nombre y apellidos / empresa"
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs text-foreground">DNI / CIF</Label>
-                      <Input value={payer.dni} onChange={(e) => setPayer({ ...payer, dni: e.target.value })} className="bg-muted border-border" placeholder="00000000X / B00000000" />
+                      <Input
+                        value={payer.dni}
+                        onChange={(e) => setPayer({ ...payer, dni: e.target.value })}
+                        className="bg-muted border-border"
+                        placeholder="00000000X / B00000000"
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs text-foreground">Email del tomador</Label>
-                      <Input type="email" value={payer.email} onChange={(e) => setPayer({ ...payer, email: e.target.value })} className="bg-muted border-border" placeholder="tomador@email.com" />
+                      <Input
+                        type="email"
+                        value={payer.email}
+                        onChange={(e) => setPayer({ ...payer, email: e.target.value })}
+                        className="bg-muted border-border"
+                        placeholder="tomador@email.com"
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs text-foreground">Teléfono</Label>
-                      <Input value={payer.phone} onChange={(e) => setPayer({ ...payer, phone: e.target.value })} className="bg-muted border-border" placeholder="+34…" />
+                      <Input
+                        value={payer.phone}
+                        onChange={(e) => setPayer({ ...payer, phone: e.target.value })}
+                        className="bg-muted border-border"
+                        placeholder="+34…"
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs text-foreground">Dirección</Label>
-                      <Input value={payer.address} onChange={(e) => setPayer({ ...payer, address: e.target.value })} className="bg-muted border-border" placeholder="Calle, número" />
+                      <Input
+                        value={payer.address}
+                        onChange={(e) => setPayer({ ...payer, address: e.target.value })}
+                        className="bg-muted border-border"
+                        placeholder="Calle, número"
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs text-foreground">Ciudad</Label>
-                      <Input value={payer.city} onChange={(e) => setPayer({ ...payer, city: e.target.value })} className="bg-muted border-border" placeholder="Ciudad" />
+                      <Input
+                        value={payer.city}
+                        onChange={(e) => setPayer({ ...payer, city: e.target.value })}
+                        className="bg-muted border-border"
+                        placeholder="Ciudad"
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs text-foreground">Relación con el alumno</Label>
                       <Select value={payer.relation} onValueChange={(v) => setPayer({ ...payer, relation: v })}>
-                        <SelectTrigger className="bg-muted border-border"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="bg-muted border-border">
+                          <SelectValue />
+                        </SelectTrigger>
                         <SelectContent className="bg-card border-border">
                           <SelectItem value="madre">Madre</SelectItem>
                           <SelectItem value="padre">Padre</SelectItem>
@@ -1447,10 +1685,17 @@ export default function NewSalePage() {
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs text-foreground">¿A qué email van los accesos?</Label>
-                      <Select value={accessEmailChoice} onValueChange={(v) => setAccessEmailChoice(v as 'alumno' | 'tomador')}>
-                        <SelectTrigger className="bg-muted border-border"><SelectValue /></SelectTrigger>
+                      <Select
+                        value={accessEmailChoice}
+                        onValueChange={(v) => setAccessEmailChoice(v as 'alumno' | 'tomador')}
+                      >
+                        <SelectTrigger className="bg-muted border-border">
+                          <SelectValue />
+                        </SelectTrigger>
                         <SelectContent className="bg-card border-border">
-                          <SelectItem value="alumno">Email del alumno{selectedContact?.email ? ` (${selectedContact.email})` : ''}</SelectItem>
+                          <SelectItem value="alumno">
+                            Email del alumno{selectedContact?.email ? ` (${selectedContact.email})` : ''}
+                          </SelectItem>
                           <SelectItem value="tomador">Email del tomador</SelectItem>
                         </SelectContent>
                       </Select>
@@ -1471,7 +1716,9 @@ export default function NewSalePage() {
               {proofFile ? (
                 <p className="text-xs text-emerald-400">Adjuntado: {proofFile.name}</p>
               ) : (
-                <p className="text-xs text-muted-foreground">Sube la captura de Stripe / el justificante de transferencia como prueba del pago.</p>
+                <p className="text-xs text-muted-foreground">
+                  Sube la captura de Stripe / el justificante de transferencia como prueba del pago.
+                </p>
               )}
             </div>
 
@@ -1523,13 +1770,13 @@ export default function NewSalePage() {
               {setterId && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Setter</span>
-                  <span className="text-foreground">{users.find(u => u.id === setterId)?.full_name}</span>
+                  <span className="text-foreground">{users.find((u) => u.id === setterId)?.full_name}</span>
                 </div>
               )}
               {closerId && (
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Closer</span>
-                  <span className="text-foreground">{users.find(u => u.id === closerId)?.full_name}</span>
+                  <span className="text-foreground">{users.find((u) => u.id === closerId)?.full_name}</span>
                 </div>
               )}
             </div>
@@ -1539,10 +1786,7 @@ export default function NewSalePage() {
 
       {/* Navigation */}
       <div className="flex justify-between">
-        <Button
-          variant="outline"
-          onClick={() => step > 1 ? setStep((s) => (s - 1) as Step) : router.back()}
-        >
+        <Button variant="outline" onClick={() => (step > 1 ? setStep((s) => (s - 1) as Step) : router.back())}>
           <ArrowLeft className="w-4 h-4 mr-2" />
           {step === 1 ? 'Cancelar' : 'Anterior'}
         </Button>

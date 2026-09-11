@@ -1,10 +1,20 @@
 import { LEGACY_MARKETING_ROUTES } from '@/lib/marketing-navigation'
 
 export type AppRole =
-  | 'admin' | 'director' | 'manager'
-  | 'setter' | 'closer' | 'triager' | 'cold_caller' | 'affiliate'
-  | 'marketing' | 'adscripcion' | 'editor'
-  | 'csm' | 'cobros' | 'gestoria'
+  | 'admin'
+  | 'director'
+  | 'manager'
+  | 'setter'
+  | 'closer'
+  | 'triager'
+  | 'cold_caller'
+  | 'affiliate'
+  | 'marketing'
+  | 'adscripcion'
+  | 'editor'
+  | 'csm'
+  | 'cobros'
+  | 'gestoria'
 
 export type Department = 'ventas' | 'marketing' | 'producto' | 'finanzas' | 'sistema'
 
@@ -56,20 +66,20 @@ export const isLeadership = (role: AppRole) => LEADERSHIP.includes(role)
 
 // ---- Departamentos que cada rol puede ver ----
 export const ROLE_DEPARTMENTS: Record<AppRole, Department[]> = {
-  admin:       ['ventas', 'marketing', 'producto', 'finanzas', 'sistema'],
-  director:    ['ventas', 'marketing', 'producto', 'finanzas', 'sistema'],
-  manager:     ['ventas', 'marketing', 'producto', 'finanzas'],
-  setter:      ['ventas'],
-  closer:      ['ventas'],
-  triager:     ['ventas'],
+  admin: ['ventas', 'marketing', 'producto', 'finanzas', 'sistema'],
+  director: ['ventas', 'marketing', 'producto', 'finanzas', 'sistema'],
+  manager: ['ventas', 'marketing', 'producto', 'finanzas'],
+  setter: ['ventas'],
+  closer: ['ventas'],
+  triager: ['ventas'],
   cold_caller: ['ventas'],
-  affiliate:   ['ventas'],
-  marketing:   ['marketing'],
+  affiliate: ['ventas'],
+  marketing: ['marketing'],
   adscripcion: ['marketing'],
-  editor:      ['marketing'],
-  csm:         ['producto'],
-  cobros:      ['finanzas'],
-  gestoria:    ['finanzas'],
+  editor: ['marketing'],
+  csm: ['producto'],
+  cobros: ['finanzas'],
+  gestoria: ['finanzas'],
 }
 
 // Prefijos de ruta por departamento (para acceso configurable por usuario)
@@ -162,8 +172,7 @@ export function allowedPrefixesFor(
   return rolePrefixes ? normalizeAllowedPrefixes(rolePrefixes) : undefined
 }
 
-export const hasDepartment = (role: AppRole, dept: Department) =>
-  ROLE_DEPARTMENTS[role]?.includes(dept) ?? false
+export const hasDepartment = (role: AppRole, dept: Department) => ROLE_DEPARTMENTS[role]?.includes(dept) ?? false
 
 // ---- Rutas permitidas por rol (para acotar el acceso en el layout) ----
 // Los roles de liderazgo (admin/director/manager) no tienen restricción (undefined).
@@ -176,25 +185,48 @@ export const hasDepartment = (role: AppRole, dept: Department) =>
 // así que cualquier rol que antes pudiera enviar su KPI (setter/closer/triager/cold_caller) necesita
 // ese sub-prefijo aunque antes no viera la propia página de Prospección.
 export const ROLE_ALLOWED_PREFIXES: Partial<Record<AppRole, string[]>> = {
-  setter:      ['/dashboard', '/crm', '/ventas', '/analitica', '/comisiones', '/tasks', '/recursos/enlaces', '/recursos/biblioteca', '/recursos/testimonios', '/setting-ai'],
-  closer:      ['/dashboard', '/crm', '/ventas', '/analitica', '/comisiones', '/tasks', '/recursos'],
-  triager:     ['/crm', '/analitica', '/tasks', '/recursos/testimonios'],
+  setter: [
+    '/dashboard',
+    '/crm',
+    '/ventas',
+    '/analitica',
+    '/comisiones',
+    '/tasks',
+    '/recursos/enlaces',
+    '/recursos/biblioteca',
+    '/recursos/testimonios',
+    '/setting-ai',
+  ],
+  closer: ['/dashboard', '/crm', '/ventas', '/analitica', '/comisiones', '/tasks', '/recursos'],
+  triager: ['/crm', '/analitica', '/tasks', '/recursos/testimonios'],
   cold_caller: ['/crm', '/analitica', '/tasks', '/recursos/enlaces', '/recursos/biblioteca', '/recursos/testimonios'],
-  affiliate:   ['/marketing/afiliados', '/comisiones', '/recursos/enlaces'],
+  affiliate: ['/marketing/afiliados', '/comisiones', '/recursos/enlaces'],
   // gestoria antes veía el prefijo completo '/finanzas' (dashboard) + '/facturas' + '/gestoria' +
   // '/pnl' sueltos — ninguno de esos daba acceso a Gastos/Cobros/Devoluciones/Morosidad, así que al
   // anidar todo bajo /finanzas se usan sub-prefijos precisos para no ampliar su acceso.
-  gestoria:    ['/finanzas/analitica/resumen', '/finanzas/gastos-facturas/facturas', '/finanzas/gastos-facturas/gestoria', '/finanzas/analitica/pnl'],
+  gestoria: [
+    '/finanzas/analitica/resumen',
+    '/finanzas/gastos-facturas/facturas',
+    '/finanzas/gastos-facturas/gestoria',
+    '/finanzas/analitica/pnl',
+  ],
   // Data Health usa un permiso exacto con query para no abrir el resto de /settings.
   // Adscripción y Editor conservan solo las pestañas a las que ya tenían acceso antes del cambio.
-  marketing:   ['/marketing/adquisicion', '/marketing/contenido', '/instagram', '/settings?tab=data-health', '/setting-ai', '/recursos/testimonios'],
+  marketing: [
+    '/marketing/adquisicion',
+    '/marketing/contenido',
+    '/instagram',
+    '/settings?tab=data-health',
+    '/setting-ai',
+    '/recursos/testimonios',
+  ],
   adscripcion: ['/marketing/adquisicion/campanas', '/marketing/adquisicion/atribucion', '/settings?tab=data-health'],
-  editor:      ['/instagram', '/marketing/contenido', '/marketing/adquisicion/vsl', '/recursos/testimonios'],
-  csm:         ['/students', '/csm-events', '/drops', '/recursos/testimonios'],
+  editor: ['/instagram', '/marketing/contenido', '/marketing/adquisicion/vsl', '/recursos/testimonios'],
+  csm: ['/students', '/csm-events', '/drops', '/recursos/testimonios'],
   // cobros ganó acceso a la pestaña Conciliación (antes inexistente): cotejar SUS PROPIOS cobros
   // contra Stripe/seQura/transferencias es una extensión directa de gestionar Cobros, no un área
   // administrativa nueva — no gana Devoluciones, que siempre fue solo-liderazgo.
-  cobros:      ['/finanzas/morosidad', '/finanzas/cobros/cobros', '/finanzas/cobros/conciliacion', '/ventas/pagos'],
+  cobros: ['/finanzas/morosidad', '/finanzas/cobros/cobros', '/finanzas/cobros/conciliacion', '/ventas/pagos'],
 }
 
 export const PERMISSIONS = {
@@ -205,7 +237,8 @@ export const PERMISSIONS = {
   canViewContacts: (role: AppRole) => hasDepartment(role, 'ventas') || isLeadership(role),
   canViewAppointments: (role: AppRole) => hasDepartment(role, 'ventas') || isLeadership(role),
   canViewPipeline: (role: AppRole) => hasDepartment(role, 'ventas') || isLeadership(role),
-  canViewPaymentPipeline: (role: AppRole) => ['admin', 'director', 'manager', 'closer', 'setter', 'cobros'].includes(role),
+  canViewPaymentPipeline: (role: AppRole) =>
+    ['admin', 'director', 'manager', 'closer', 'setter', 'cobros'].includes(role),
 
   // --- Finanzas ---
   canRegisterCollection: (role: AppRole) => ['admin', 'director'].includes(role),
@@ -244,7 +277,8 @@ export const PERMISSIONS = {
   canManageTargets: (role: AppRole) => ['admin', 'director'].includes(role),
 
   // --- Enlaces ---
-  canViewLinks: (role: AppRole) => ['admin', 'director', 'manager', 'setter', 'closer', 'cold_caller', 'affiliate'].includes(role),
+  canViewLinks: (role: AppRole) =>
+    ['admin', 'director', 'manager', 'setter', 'closer', 'cold_caller', 'affiliate'].includes(role),
   canManageLinkTemplates: (role: AppRole) => ['admin', 'director'].includes(role),
 
   // --- Programa de afiliados ---

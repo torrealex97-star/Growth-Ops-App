@@ -29,15 +29,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: 'Solo un admin puede borrar agendas' }, { status: 403 })
     }
 
-    const { data: appt } = await sb.from('appointments').select('*').eq('id', appointmentId).eq('tenant_id', t.tenantId).single()
+    const { data: appt } = await sb
+      .from('appointments')
+      .select('*')
+      .eq('id', appointmentId)
+      .eq('tenant_id', t.tenantId)
+      .single()
     if (!appt) return NextResponse.json({ error: 'Agenda no encontrada' }, { status: 404 })
 
     // ¿Hay una venta colgando de esta agenda? Entonces no es un duplicado limpio.
-    const { data: linkedSales } = await sb.from('sales').select('id, status').eq('appointment_id', appointmentId).eq('tenant_id', t.tenantId)
+    const { data: linkedSales } = await sb
+      .from('sales')
+      .select('id, status')
+      .eq('appointment_id', appointmentId)
+      .eq('tenant_id', t.tenantId)
     if (linkedSales && linkedSales.length > 0) {
-      return NextResponse.json({
-        error: 'Esta agenda tiene una venta enlazada. Desenlaza o corrige la venta antes de borrarla.',
-      }, { status: 409 })
+      return NextResponse.json(
+        {
+          error: 'Esta agenda tiene una venta enlazada. Desenlaza o corrige la venta antes de borrarla.',
+        },
+        { status: 409 }
+      )
     }
 
     // Guarda el snapshot ANTES de borrar, para poder recuperarla si el borrado fue un error.
@@ -54,7 +66,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
 
     // Desenlaza las reagendas que apuntan a esta como origen.
-    await sb.from('appointments').update({ origin_appointment_id: null }).eq('origin_appointment_id', appointmentId).eq('tenant_id', t.tenantId)
+    await sb
+      .from('appointments')
+      .update({ origin_appointment_id: null })
+      .eq('origin_appointment_id', appointmentId)
+      .eq('tenant_id', t.tenantId)
 
     const { error: delErr } = await sb.from('appointments').delete().eq('id', appointmentId).eq('tenant_id', t.tenantId)
     if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 })

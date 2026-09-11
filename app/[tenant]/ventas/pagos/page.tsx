@@ -1,27 +1,15 @@
-"use client"
+'use client'
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { KPICard } from '@/components/os/DashboardKPICard'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Wallet, TrendingUp, AlertTriangle, Clock, Download, User as UserIcon, MessageSquare } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -42,7 +30,11 @@ const PERIOD_LABELS: Record<PeriodPreset, string> = {
   custom: 'Personalizado',
 }
 
-function getPeriodRange(preset: PeriodPreset, customFrom: string, customTo: string): { from: Date | null; to: Date | null } {
+function getPeriodRange(
+  preset: PeriodPreset,
+  customFrom: string,
+  customTo: string
+): { from: Date | null; to: Date | null } {
   const now = new Date()
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0)
   const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
@@ -190,14 +182,24 @@ export default function PaymentsPipelinePage() {
       const [salesRes, collectionsRes, installmentsRes] = await Promise.all([
         supabase
           .from('sales')
-          .select(`*, contacts(*), products(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name)`)
+          .select(
+            `*, contacts(*), products(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name)`
+          )
           .eq('tenant_id', tenantId)
           .order('sale_date', { ascending: false }),
         // Solo 'collected': igual que Finanzas › Resumen y el resto de pantallas de Cash Collected —
         // antes incluía también cobros 'reversed'/'disputed', lo que sobrestimaba el total aquí
         // respecto a las demás pantallas.
-        supabase.from('collections').select('sale_id, gross_amount').eq('tenant_id', tenantId).eq('status', 'collected'),
-        supabase.from('sale_expected_installments').select('sale_id, status, due_date, expected_gross_amount, is_monitoring').eq('is_monitoring', false).eq('tenant_id', tenantId),
+        supabase
+          .from('collections')
+          .select('sale_id, gross_amount')
+          .eq('tenant_id', tenantId)
+          .eq('status', 'collected'),
+        supabase
+          .from('sale_expected_installments')
+          .select('sale_id, status, due_date, expected_gross_amount, is_monitoring')
+          .eq('is_monitoring', false)
+          .eq('tenant_id', tenantId),
       ])
 
       // Última nota de seguimiento por venta (para el indicador en la tarjeta del kanban).
@@ -228,7 +230,10 @@ export default function PaymentsPipelinePage() {
     fetchData()
   }, [tenantId])
 
-  const periodRange = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
+  const periodRange = useMemo(
+    () => getPeriodRange(periodPreset, customFrom, customTo),
+    [periodPreset, customFrom, customTo]
+  )
 
   const filteredSales = useMemo(() => {
     return sales.filter((s) => {
@@ -284,7 +289,8 @@ export default function PaymentsPipelinePage() {
 
       const pendingAmount = Math.max(sale.gross_amount - cashCollected, 0)
 
-      const isFullyCollected = cashCollected >= sale.gross_amount ||
+      const isFullyCollected =
+        cashCollected >= sale.gross_amount ||
         (saleInstallments.length > 0 && saleInstallments.every((i) => i.status === 'collected'))
 
       const isOpenReservation = sale.payment_plans?.method === 'reserva' && !sale.reservation_completed_at
@@ -348,7 +354,11 @@ export default function PaymentsPipelinePage() {
     const list = nq
       ? aggregates.filter((a) => {
           const c = a.sale.contacts as { full_name?: string; email?: string | null; phone?: string | null } | null
-          return normalizeText(c?.full_name || '').includes(nq) || normalizeText(c?.email || '').includes(nq) || phoneMatches(c?.phone, q)
+          return (
+            normalizeText(c?.full_name || '').includes(nq) ||
+            normalizeText(c?.email || '').includes(nq) ||
+            phoneMatches(c?.phone, q)
+          )
         })
       : aggregates
     list.forEach((a) => {
@@ -366,7 +376,16 @@ export default function PaymentsPipelinePage() {
   }, [periodPreset, customFrom, customTo])
 
   const handleExportCSV = () => {
-    const headers = ['Contacto', 'Producto', 'Closer', 'Facturado', 'Cobrado', 'Pendiente', 'Estado', 'Próximo vencimiento']
+    const headers = [
+      'Contacto',
+      'Producto',
+      'Closer',
+      'Facturado',
+      'Cobrado',
+      'Pendiente',
+      'Estado',
+      'Próximo vencimiento',
+    ]
     const rows = aggregates.map((a) => [
       a.sale.contacts?.full_name ?? '',
       a.sale.products?.name ?? '',
@@ -388,7 +407,9 @@ export default function PaymentsPipelinePage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-foreground">Pipeline de pagos</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Estado de cobro de cada venta, de reserva a pago completado</p>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            Estado de cobro de cada venta, de reserva a pago completado
+          </p>
         </div>
       </div>
 
@@ -414,7 +435,9 @@ export default function PaymentsPipelinePage() {
               </SelectTrigger>
               <SelectContent className="bg-card border-border">
                 {(Object.keys(PERIOD_LABELS) as PeriodPreset[]).map((p) => (
-                  <SelectItem key={p} value={p}>{PERIOD_LABELS[p]}</SelectItem>
+                  <SelectItem key={p} value={p}>
+                    {PERIOD_LABELS[p]}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -471,12 +494,7 @@ export default function PaymentsPipelinePage() {
           icon={Clock}
           loading={loading}
         />
-        <KPICard
-          title="En mora"
-          value={formatCurrency(kpis.totalEnMora)}
-          icon={AlertTriangle}
-          loading={loading}
-        />
+        <KPICard title="En mora" value={formatCurrency(kpis.totalEnMora)} icon={AlertTriangle} loading={loading} />
       </div>
 
       {/* Kanban */}
@@ -501,16 +519,19 @@ export default function PaymentsPipelinePage() {
                     <span className={`w-2 h-2 rounded-full ${STAGE_DOT[stage]}`} />
                     <h3 className="text-sm font-semibold text-foreground">{STAGE_LABELS[stage]}</h3>
                   </div>
-                  <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">{stageSales.length}</span>
+                  <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
+                    {stageSales.length}
+                  </span>
                 </div>
                 <div className="p-3 space-y-3 flex-1 overflow-y-auto max-h-[70vh]">
                   {stageSales.length === 0 ? (
                     <p className="text-xs text-muted-foreground text-center py-6">Sin ventas en esta etapa</p>
                   ) : (
                     stageSales.map((a) => {
-                      const pct = a.sale.gross_amount > 0
-                        ? Math.min(Math.round((a.cashCollected / a.sale.gross_amount) * 100), 100)
-                        : 0
+                      const pct =
+                        a.sale.gross_amount > 0
+                          ? Math.min(Math.round((a.cashCollected / a.sale.gross_amount) * 100), 100)
+                          : 0
                       return (
                         <Link
                           key={a.sale.id}
@@ -530,12 +551,16 @@ export default function PaymentsPipelinePage() {
                           >
                             <MessageSquare className="w-3.5 h-3.5" />
                           </button>
-                          <p className="text-sm font-medium text-foreground truncate">{a.sale.contacts?.full_name ?? '—'}</p>
+                          <p className="text-sm font-medium text-foreground truncate">
+                            {a.sale.contacts?.full_name ?? '—'}
+                          </p>
                           <p className="text-xs text-muted-foreground truncate">{a.sale.products?.name ?? '—'}</p>
                           {a.sale.closer?.full_name && (
                             <div className="flex items-center gap-1 mt-1">
                               <UserIcon className="w-3 h-3 text-muted-foreground" />
-                              <span className="text-[11px] text-muted-foreground truncate">{a.sale.closer.full_name}</span>
+                              <span className="text-[11px] text-muted-foreground truncate">
+                                {a.sale.closer.full_name}
+                              </span>
                             </div>
                           )}
 
@@ -551,15 +576,20 @@ export default function PaymentsPipelinePage() {
 
                           <div className="mt-2 flex items-center justify-between text-[11px]">
                             <span className="text-muted-foreground">
-                              Cobrado <span className="text-foreground font-medium">{formatCurrency(a.cashCollected)}</span> / {formatCurrency(a.sale.gross_amount)}
+                              Cobrado{' '}
+                              <span className="text-foreground font-medium">{formatCurrency(a.cashCollected)}</span> /{' '}
+                              {formatCurrency(a.sale.gross_amount)}
                             </span>
                           </div>
                           <p className="text-[11px] text-muted-foreground mt-0.5">
-                            Pendiente <span className="text-foreground font-medium">{formatCurrency(a.pendingAmount)}</span>
+                            Pendiente{' '}
+                            <span className="text-foreground font-medium">{formatCurrency(a.pendingAmount)}</span>
                           </p>
 
                           {a.nextDueDate && (
-                            <p className={`text-[11px] mt-1.5 flex items-center gap-1 ${a.hasOverdue ? 'text-red-400' : 'text-muted-foreground'}`}>
+                            <p
+                              className={`text-[11px] mt-1.5 flex items-center gap-1 ${a.hasOverdue ? 'text-red-400' : 'text-muted-foreground'}`}
+                            >
                               <Clock className="w-3 h-3" />
                               Próximo venc.: {formatDate(a.nextDueDate)}
                             </p>
@@ -582,7 +612,12 @@ export default function PaymentsPipelinePage() {
         </div>
       )}
 
-      <Dialog open={!!noteSale} onOpenChange={(open) => { if (!open) setNoteSale(null) }}>
+      <Dialog
+        open={!!noteSale}
+        onOpenChange={(open) => {
+          if (!open) setNoteSale(null)
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Nota de seguimiento — {noteSale?.name}</DialogTitle>
@@ -595,7 +630,9 @@ export default function PaymentsPipelinePage() {
             autoFocus
           />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNoteSale(null)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setNoteSale(null)}>
+              Cancelar
+            </Button>
             <Button onClick={submitNote} disabled={savingNote || !noteText.trim()}>
               {savingNote ? 'Guardando…' : 'Guardar nota'}
             </Button>

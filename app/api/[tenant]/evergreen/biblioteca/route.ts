@@ -22,16 +22,27 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
     if (!ALLOWED.includes(role)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     const lead = LEADERSHIP.includes(role)
 
-    const base = 'id, appointment_datetime, recording_url, transcript_drive_url, ai_summary, ai_call_score, status, contacts(full_name), closer:closer_id(id, full_name)'
+    const base =
+      'id, appointment_datetime, recording_url, transcript_drive_url, ai_summary, ai_call_score, status, contacts(full_name), closer:closer_id(id, full_name)'
 
     // Intento con library_shared; si la columna aún no existe, reintento sin ella (todo compartido).
-    let q = sb.from('appointments').select(`${base}, library_shared`).eq('tenant_id', t.tenantId)
-      .not('recording_url', 'is', null).order('appointment_datetime', { ascending: false }).limit(300)
+    let q = sb
+      .from('appointments')
+      .select(`${base}, library_shared`)
+      .eq('tenant_id', t.tenantId)
+      .not('recording_url', 'is', null)
+      .order('appointment_datetime', { ascending: false })
+      .limit(300)
     if (!lead) q = q.eq('library_shared', true)
     let { data, error } = await q
     if (error) {
-      const r = await sb.from('appointments').select(base).eq('tenant_id', t.tenantId)
-        .not('recording_url', 'is', null).order('appointment_datetime', { ascending: false }).limit(300)
+      const r = await sb
+        .from('appointments')
+        .select(base)
+        .eq('tenant_id', t.tenantId)
+        .not('recording_url', 'is', null)
+        .order('appointment_datetime', { ascending: false })
+        .limit(300)
       data = (r.data ?? []).map((a) => ({ ...a, library_shared: true })) as typeof data
     }
     return NextResponse.json({ ok: true, calls: data ?? [], leadership: lead })

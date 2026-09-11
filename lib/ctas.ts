@@ -5,18 +5,22 @@
 // tu oferta con UNO de estos CTAs.
 
 export type Cta = {
-  code: string          // palabra clave que el usuario comenta (CTA)
+  code: string // palabra clave que el usuario comenta (CTA)
   label: string
   funnel: 'top' | 'middle' | 'bottom'
   avatar: 'ambos' | 'agencia' | 'negocio'
-  description: string   // qué entrega / qué promete
-  url: string           // recurso al que apunta
+  description: string // qué entrega / qué promete
+  url: string // recurso al que apunta
 }
 
 export const CTAS: Cta[] = [
   {
-    code: 'INFO', label: 'INFO — Hablar directamente (setter)', funnel: 'top', avatar: 'ambos',
-    description: 'Abre una conversación directa por DM para hablar con el equipo (responde el setter). No es un vídeo, es iniciar conversación.',
+    code: 'INFO',
+    label: 'INFO — Hablar directamente (setter)',
+    funnel: 'top',
+    avatar: 'ambos',
+    description:
+      'Abre una conversación directa por DM para hablar con el equipo (responde el setter). No es un vídeo, es iniciar conversación.',
     url: '',
   },
 ]
@@ -25,7 +29,9 @@ export const CTA_CODES = CTAS.map((c) => c.code)
 
 // Texto compacto de los CTAs para inyectar en el prompt de la IA.
 export function ctasForPrompt(): string {
-  return CTAS.map((c) => `- CTA "${c.code}" (${c.funnel}, avatar ${c.avatar}): ${c.description}${c.url ? ` [recurso: ${c.url}]` : ''}`).join('\n')
+  return CTAS.map(
+    (c) => `- CTA "${c.code}" (${c.funnel}, avatar ${c.avatar}): ${c.description}${c.url ? ` [recurso: ${c.url}]` : ''}`
+  ).join('\n')
 }
 
 // Contexto de negocio por defecto (editable en Configuración → Integraciones → Negocio).

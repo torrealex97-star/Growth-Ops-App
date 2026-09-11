@@ -2,7 +2,19 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Wallet, Plus, X, Sparkles, ShieldCheck, RefreshCw, Info, Edit2, Trash2, Paperclip, Download } from 'lucide-react'
+import {
+  Wallet,
+  Plus,
+  X,
+  Sparkles,
+  ShieldCheck,
+  RefreshCw,
+  Info,
+  Edit2,
+  Trash2,
+  Paperclip,
+  Download,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
@@ -20,7 +32,12 @@ const PERIOD_LABELS: Record<PeriodPreset, string> = {
   custom: 'Personalizado',
 }
 
-function getPeriodRange(preset: PeriodPreset, month: string, customFrom: string, customTo: string): { from: Date | null; to: Date | null } {
+function getPeriodRange(
+  preset: PeriodPreset,
+  month: string,
+  customFrom: string,
+  customTo: string
+): { from: Date | null; to: Date | null } {
   const now = new Date()
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0)
   const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
@@ -166,7 +183,12 @@ type AiExtracted = {
 
 // Nota legible para dejar constancia de una conversión de moneda automática.
 function currencyConversionNote(extracted: AiExtracted): string | null {
-  if (!extracted.original_currency || typeof extracted.original_amount !== 'number' || typeof extracted.amount !== 'number') return null
+  if (
+    !extracted.original_currency ||
+    typeof extracted.original_amount !== 'number' ||
+    typeof extracted.amount !== 'number'
+  )
+    return null
   return `Factura original en ${extracted.original_currency} ${extracted.original_amount.toFixed(2)} · convertido a ${extracted.amount.toFixed(2)} € (tasa ${extracted.fx_rate?.toFixed(4) ?? '?'})`
 }
 
@@ -252,7 +274,9 @@ export default function ExpensesPage() {
   const [customTo, setCustomTo] = useState('')
   const [q, setQ] = useState('')
   const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null)
-  const [bulkProgress, setBulkProgress] = useState<{ name: string; status: 'analizando' | 'guardada' | 'error'; error?: string }[] | null>(null)
+  const [bulkProgress, setBulkProgress] = useState<
+    { name: string; status: 'analizando' | 'guardada' | 'error'; error?: string }[] | null
+  >(null)
   const [attachingId, setAttachingId] = useState<string | null>(null)
   const attachInputRef = useRef<HTMLInputElement>(null)
   const [attachTargetId, setAttachTargetId] = useState<string | null>(null)
@@ -283,9 +307,14 @@ export default function ExpensesPage() {
     }
     setLoading(false)
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+  }, [])
 
-  const periodRange = useMemo(() => getPeriodRange(periodPreset, month, customFrom, customTo), [periodPreset, month, customFrom, customTo])
+  const periodRange = useMemo(
+    () => getPeriodRange(periodPreset, month, customFrom, customTo),
+    [periodPreset, month, customFrom, customTo]
+  )
 
   const monthItems = useMemo(() => {
     if (periodPreset === 'month') {
@@ -309,7 +338,19 @@ export default function ExpensesPage() {
   }, [periodPreset, month, customFrom, customTo])
 
   const handleExportCSV = () => {
-    const headers = ['Fecha', 'Concepto', 'Categoria', 'Subcategoria', 'Importe', 'Estado', 'Recurrente', 'Frecuencia', 'Metodo de pago', 'Contraparte', 'Notas']
+    const headers = [
+      'Fecha',
+      'Concepto',
+      'Categoria',
+      'Subcategoria',
+      'Importe',
+      'Estado',
+      'Recurrente',
+      'Frecuencia',
+      'Metodo de pago',
+      'Contraparte',
+      'Notas',
+    ]
     const rows = monthItems.map((e) => [
       formatDate(e.expense_date),
       e.concept,
@@ -354,12 +395,13 @@ export default function ExpensesPage() {
   const visibleItems = useMemo(() => {
     const nq = normalizeText(q.trim())
     if (!nq) return monthItems
-    return monthItems.filter((e) =>
-      normalizeText(e.concept || '').includes(nq) ||
-      normalizeText(e.counterparty || '').includes(nq) ||
-      normalizeText(e.subcategory || '').includes(nq) ||
-      normalizeText(e.notes || '').includes(nq) ||
-      normalizeText(CATEGORIES.find((c) => c.value === e.category)?.label || e.category).includes(nq)
+    return monthItems.filter(
+      (e) =>
+        normalizeText(e.concept || '').includes(nq) ||
+        normalizeText(e.counterparty || '').includes(nq) ||
+        normalizeText(e.subcategory || '').includes(nq) ||
+        normalizeText(e.notes || '').includes(nq) ||
+        normalizeText(CATEGORIES.find((c) => c.value === e.category)?.label || e.category).includes(nq)
     )
   }, [monthItems, q])
 
@@ -378,8 +420,10 @@ export default function ExpensesPage() {
     setItems((cur) => cur.map((e) => (e.id === id ? { ...e, status: next } : e)))
     const supabase = createClient()
     const { error } = await supabase.from('expenses').update({ status: next }).eq('id', id)
-    if (error) { toast.error('No se pudo actualizar el estado', { description: error.message }); setItems(prev) }
-    else toast.success('Estado actualizado')
+    if (error) {
+      toast.error('No se pudo actualizar el estado', { description: error.message })
+      setItems(prev)
+    } else toast.success('Estado actualizado')
   }
 
   const resetNewModal = () => {
@@ -468,7 +512,9 @@ export default function ExpensesPage() {
       const extracted: AiExtracted = data.extracted || {}
 
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
       let invoiceUrl: string | null = null
       try {
@@ -531,9 +577,13 @@ export default function ExpensesPage() {
           : { name: files[i].name, status: 'error', error: result.error }
         return next
       })
-      if (result.ok) { okCount++; load() }
+      if (result.ok) {
+        okCount++
+        load()
+      }
     }
-    if (okCount > 0) toast.success(`${okCount} factura${okCount === 1 ? '' : 's'} guardada${okCount === 1 ? '' : 's'} en Gastos`)
+    if (okCount > 0)
+      toast.success(`${okCount} factura${okCount === 1 ? '' : 's'} guardada${okCount === 1 ? '' : 's'} en Gastos`)
   }
 
   // Adjunta la factura real a un gasto YA creado (típicamente uno recurrente que el cron generó
@@ -549,7 +599,10 @@ export default function ExpensesPage() {
         return
       }
       const { data: pub } = supabase.storage.from('facturas').getPublicUrl(path)
-      const { error } = await supabase.from('expenses').update({ invoice_url: pub?.publicUrl || path }).eq('id', expenseId)
+      const { error } = await supabase
+        .from('expenses')
+        .update({ invoice_url: pub?.publicUrl || path })
+        .eq('id', expenseId)
       if (error) {
         toast.error('No se pudo adjuntar la factura', { description: error.message })
         return
@@ -581,13 +634,24 @@ export default function ExpensesPage() {
   }
 
   const create = async () => {
-    if (!ne.concept.trim()) { toast.error('Pon un concepto'); return }
+    if (!ne.concept.trim()) {
+      toast.error('Pon un concepto')
+      return
+    }
     const amountNum = parseFloat(ne.amount)
-    if (!ne.amount || isNaN(amountNum) || amountNum <= 0) { toast.error('Introduce un importe válido'); return }
-    if (!ne.expense_date) { toast.error('Selecciona una fecha'); return }
+    if (!ne.amount || isNaN(amountNum) || amountNum <= 0) {
+      toast.error('Introduce un importe válido')
+      return
+    }
+    if (!ne.expense_date) {
+      toast.error('Selecciona una fecha')
+      return
+    }
 
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
     let invoiceUrl: string | null = null
     if (aiFile) {
@@ -623,7 +687,10 @@ export default function ExpensesPage() {
       needs_review: !!aiExtracted,
       ai_extracted: aiExtracted || null,
     })
-    if (error) { toast.error('Error al crear el gasto', { description: error.message }); return }
+    if (error) {
+      toast.error('Error al crear el gasto', { description: error.message })
+      return
+    }
     toast.success('Gasto creado')
     resetNewModal()
     load()
@@ -633,7 +700,10 @@ export default function ExpensesPage() {
     setItems((prev) => prev.map((e) => (e.id === id ? { ...e, needs_review: false } : e)))
     const supabase = createClient()
     const { error } = await supabase.from('expenses').update({ needs_review: false }).eq('id', id)
-    if (error) { toast.error('No se pudo confirmar el gasto'); load() }
+    if (error) {
+      toast.error('No se pudo confirmar el gasto')
+      load()
+    }
   }
 
   const openEdit = (e: Expense) => {
@@ -657,10 +727,19 @@ export default function ExpensesPage() {
 
   const saveEdit = async () => {
     if (!editing) return
-    if (!ee.concept.trim()) { toast.error('Pon un concepto'); return }
+    if (!ee.concept.trim()) {
+      toast.error('Pon un concepto')
+      return
+    }
     const amountNum = parseFloat(ee.amount)
-    if (!ee.amount || isNaN(amountNum) || amountNum <= 0) { toast.error('Introduce un importe válido'); return }
-    if (!ee.expense_date) { toast.error('Selecciona una fecha'); return }
+    if (!ee.amount || isNaN(amountNum) || amountNum <= 0) {
+      toast.error('Introduce un importe válido')
+      return
+    }
+    if (!ee.expense_date) {
+      toast.error('Selecciona una fecha')
+      return
+    }
 
     const supabase = createClient()
     const { error } = await supabase
@@ -676,7 +755,10 @@ export default function ExpensesPage() {
         notes: ee.notes.trim() || null,
       })
       .eq('id', editing.id)
-    if (error) { toast.error('Error al actualizar el gasto', { description: error.message }); return }
+    if (error) {
+      toast.error('Error al actualizar el gasto', { description: error.message })
+      return
+    }
     toast.success('Gasto actualizado')
     closeEdit()
     load()
@@ -691,7 +773,9 @@ export default function ExpensesPage() {
       if (path) {
         const { error: storageError } = await supabase.storage.from('facturas').remove([path])
         if (storageError) {
-          toast.error('No se pudo borrar el archivo de la factura, se borrará el gasto igualmente', { description: storageError.message })
+          toast.error('No se pudo borrar el archivo de la factura, se borrará el gasto igualmente', {
+            description: storageError.message,
+          })
         }
       }
     }
@@ -699,8 +783,10 @@ export default function ExpensesPage() {
     const prev = items
     setItems((cur) => cur.filter((it) => it.id !== e.id))
     const { error } = await supabase.from('expenses').delete().eq('id', e.id)
-    if (error) { toast.error('No se pudo borrar el gasto', { description: error.message }); setItems(prev) }
-    else toast.success('Gasto borrado')
+    if (error) {
+      toast.error('No se pudo borrar el gasto', { description: error.message })
+      setItems(prev)
+    } else toast.success('Gasto borrado')
   }
 
   const generateMonth = async () => {
@@ -715,7 +801,9 @@ export default function ExpensesPage() {
       toast.success(`Generados ${data.inserted} gastos de ${data.period}`)
       load()
     } catch (err) {
-      toast.error('Error al generar los gastos del mes', { description: err instanceof Error ? err.message : undefined })
+      toast.error('Error al generar los gastos del mes', {
+        description: err instanceof Error ? err.message : undefined,
+      })
     } finally {
       setGenerating(false)
     }
@@ -737,7 +825,9 @@ export default function ExpensesPage() {
             className="bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-brand-500"
           >
             {(Object.keys(PERIOD_LABELS) as PeriodPreset[]).map((p) => (
-              <option key={p} value={p}>{PERIOD_LABELS[p]}</option>
+              <option key={p} value={p}>
+                {PERIOD_LABELS[p]}
+              </option>
             ))}
           </select>
           {periodPreset === 'month' && (
@@ -798,16 +888,22 @@ export default function ExpensesPage() {
             disabled={generating}
             className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-muted border border-border text-foreground hover:border-brand-500 disabled:opacity-60"
           >
-            <RefreshCw className={`w-4 h-4 text-brand-400 ${generating ? 'animate-spin' : ''}`} /> {generating ? 'Generando…' : 'Generar gastos del mes'}
+            <RefreshCw className={`w-4 h-4 text-brand-400 ${generating ? 'animate-spin' : ''}`} />{' '}
+            {generating ? 'Generando…' : 'Generar gastos del mes'}
           </button>
-          <button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-500">
+          <button
+            onClick={() => setShowNew(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-500"
+          >
             <Plus className="w-4 h-4" /> Nuevo gasto
           </button>
         </div>
       </div>
 
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Info className="w-3.5 h-3.5" /> Los sueldos del equipo y los gastos recurrentes mensuales se generan automáticamente el día 1 de cada mes, o al pulsar &quot;Generar gastos del mes&quot;. Es idempotente: no duplica gastos ya generados.
+        <Info className="w-3.5 h-3.5" /> Los sueldos del equipo y los gastos recurrentes mensuales se generan
+        automáticamente el día 1 de cada mes, o al pulsar &quot;Generar gastos del mes&quot;. Es idempotente: no duplica
+        gastos ya generados.
       </p>
 
       {bulkProgress && (
@@ -838,7 +934,9 @@ export default function ExpensesPage() {
       {loading ? (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {[0, 1, 2, 3].map((i) => <div key={i} className="h-24 bg-card rounded-lg animate-pulse" />)}
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-24 bg-card rounded-lg animate-pulse" />
+            ))}
           </div>
           <div className="h-64 bg-card rounded-lg animate-pulse" />
         </div>
@@ -862,12 +960,20 @@ export default function ExpensesPage() {
             <div className="bg-card/50 border border-border rounded-lg p-4">
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Total pendiente</p>
               <p className="text-xl font-bold text-red-400 mt-1">{formatCurrency(totals.pendiente)}</p>
-              <KpiDelta current={totals.pendiente} previous={previousTotals.pendiente} hasPrevious={hasPreviousPeriod} />
+              <KpiDelta
+                current={totals.pendiente}
+                previous={previousTotals.pendiente}
+                hasPrevious={hasPreviousPeriod}
+              />
             </div>
             <div className="bg-card/50 border border-border rounded-lg p-4">
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Gasto recurrente mensual</p>
               <p className="text-xl font-bold text-brand-400 mt-1">{formatCurrency(totals.recurrenteMensual)}</p>
-              <KpiDelta current={totals.recurrenteMensual} previous={previousTotals.recurrenteMensual} hasPrevious={hasPreviousPeriod} />
+              <KpiDelta
+                current={totals.recurrenteMensual}
+                previous={previousTotals.recurrenteMensual}
+                hasPrevious={hasPreviousPeriod}
+              />
             </div>
           </div>
 
@@ -883,7 +989,9 @@ export default function ExpensesPage() {
                     <div key={c.value}>
                       <div className="flex items-center justify-between text-xs mb-1">
                         <span className="text-foreground font-medium">{c.label}</span>
-                        <span className="text-muted-foreground">{formatCurrency(c.amount)} · {pct.toFixed(1)}%</span>
+                        <span className="text-muted-foreground">
+                          {formatCurrency(c.amount)} · {pct.toFixed(1)}%
+                        </span>
                       </div>
                       <div className="h-2 bg-muted rounded-full overflow-hidden">
                         <div className="h-full bg-brand-500 rounded-full" style={{ width: `${Math.min(100, pct)}%` }} />
@@ -897,7 +1005,11 @@ export default function ExpensesPage() {
 
           <div className="bg-card/50 border border-border rounded-lg overflow-hidden">
             {visibleItems.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground text-sm">{monthItems.length === 0 ? 'No hay gastos registrados para este mes' : 'Ningún gasto coincide con la búsqueda'}</div>
+              <div className="p-8 text-center text-muted-foreground text-sm">
+                {monthItems.length === 0
+                  ? 'No hay gastos registrados para este mes'
+                  : 'Ningún gasto coincide con la búsqueda'}
+              </div>
             ) : (
               <table className="w-full text-sm">
                 <thead>
@@ -916,97 +1028,131 @@ export default function ExpensesPage() {
                     const isExpanded = expandedInvoiceId === e.id
                     const isPdf = !!e.invoice_url && e.invoice_url.toLowerCase().split('?')[0].endsWith('.pdf')
                     return (
-                    <Fragment key={e.id}>
-                    <tr
-                      onClick={() => setExpandedInvoiceId((cur) => (cur === e.id ? null : e.id))}
-                      className="border-b border-border/50 hover:bg-card/50 cursor-pointer"
-                    >
-                      <td className="px-4 py-3 text-foreground">
-                        {e.concept}
-                        {e.recurring && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300 border border-brand-500/30">recurrente</span>}
-                        {e.auto_source && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">auto</span>}
-                        {e.needs_review && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">Revisar</span>}
-                        {e.invoice_url && (
-                          <span title="Ver factura" className={`ml-2 inline-flex items-center ${isExpanded ? 'text-brand-400' : 'text-muted-foreground'}`}>
-                            <Paperclip className="w-3.5 h-3.5" />
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs px-2 py-1 rounded bg-muted text-foreground">
-                          {CATEGORIES.find((c) => c.value === e.category)?.label || e.category}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-foreground font-medium">{formatCurrency(e.amount)}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{formatDate(e.expense_date)}</td>
-                      <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
-                        <select
-                          value={e.status}
-                          onChange={(ev) => updateStatus(e.id, ev.target.value as Expense['status'])}
-                          disabled={!canManage}
-                          title={STATUS_LABELS[e.status]}
-                          className={`text-xs pl-2 pr-6 py-1 rounded border transition-colors cursor-pointer disabled:cursor-default disabled:opacity-90 ${STATUS_COLORS[e.status]}`}
+                      <Fragment key={e.id}>
+                        <tr
+                          onClick={() => setExpandedInvoiceId((cur) => (cur === e.id ? null : e.id))}
+                          className="border-b border-border/50 hover:bg-card/50 cursor-pointer"
                         >
-                          {STATUS_OPTIONS.map((s) => (
-                            <option key={s.value} value={s.value} className="bg-card text-foreground">
-                              {s.label}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
-                        {e.needs_review ? (
-                          <button
-                            onClick={() => toggleReview(e.id)}
-                            className="text-xs px-2 py-1 rounded border bg-brand-500/20 text-brand-300 border-brand-500/30 hover:bg-brand-500/30 flex items-center gap-1"
-                          >
-                            <ShieldCheck className="w-3 h-3" /> Confirmar
-                          </button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </td>
-                      {canManage && (
-                        <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => openEdit(e)} title="Editar" className="text-muted-foreground hover:text-brand-400">
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => removeExpense(e)} title="Borrar" className="text-muted-foreground hover:text-red-400">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                    {isExpanded && (
-                      <tr className="border-b border-border/50 bg-muted/30">
-                        <td colSpan={canManage ? 7 : 6} className="px-4 py-4">
-                          {e.invoice_url ? (
-                            isPdf ? (
-                              <iframe src={e.invoice_url} className="w-full h-[500px] rounded border border-border bg-white" title={`Factura ${e.concept}`} />
+                          <td className="px-4 py-3 text-foreground">
+                            {e.concept}
+                            {e.recurring && (
+                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300 border border-brand-500/30">
+                                recurrente
+                              </span>
+                            )}
+                            {e.auto_source && (
+                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                                auto
+                              </span>
+                            )}
+                            {e.needs_review && (
+                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                Revisar
+                              </span>
+                            )}
+                            {e.invoice_url && (
+                              <span
+                                title="Ver factura"
+                                className={`ml-2 inline-flex items-center ${isExpanded ? 'text-brand-400' : 'text-muted-foreground'}`}
+                              >
+                                <Paperclip className="w-3.5 h-3.5" />
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="text-xs px-2 py-1 rounded bg-muted text-foreground">
+                              {CATEGORIES.find((c) => c.value === e.category)?.label || e.category}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-foreground font-medium">{formatCurrency(e.amount)}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{formatDate(e.expense_date)}</td>
+                          <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
+                            <select
+                              value={e.status}
+                              onChange={(ev) => updateStatus(e.id, ev.target.value as Expense['status'])}
+                              disabled={!canManage}
+                              title={STATUS_LABELS[e.status]}
+                              className={`text-xs pl-2 pr-6 py-1 rounded border transition-colors cursor-pointer disabled:cursor-default disabled:opacity-90 ${STATUS_COLORS[e.status]}`}
+                            >
+                              {STATUS_OPTIONS.map((s) => (
+                                <option key={s.value} value={s.value} className="bg-card text-foreground">
+                                  {s.label}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
+                            {e.needs_review ? (
+                              <button
+                                onClick={() => toggleReview(e.id)}
+                                className="text-xs px-2 py-1 rounded border bg-brand-500/20 text-brand-300 border-brand-500/30 hover:bg-brand-500/30 flex items-center gap-1"
+                              >
+                                <ShieldCheck className="w-3 h-3" /> Confirmar
+                              </button>
                             ) : (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={e.invoice_url} alt={`Factura ${e.concept}`} className="max-h-[500px] rounded border border-border" />
-                            )
-                          ) : (
-                            <div className="flex items-center gap-3" onClick={(ev) => ev.stopPropagation()}>
-                              <p className="text-xs text-muted-foreground">Sin factura adjunta</p>
-                              {canManage && (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          {canManage && (
+                            <td className="px-4 py-3" onClick={(ev) => ev.stopPropagation()}>
+                              <div className="flex items-center gap-2">
                                 <button
-                                  onClick={() => { setAttachTargetId(e.id); attachInputRef.current?.click() }}
-                                  disabled={attachingId === e.id}
-                                  className="text-xs px-2 py-1 rounded-md border border-brand-500/30 bg-brand-500/10 text-brand-300 hover:bg-brand-500/20 disabled:opacity-50"
+                                  onClick={() => openEdit(e)}
+                                  title="Editar"
+                                  className="text-muted-foreground hover:text-brand-400"
                                 >
-                                  {attachingId === e.id ? 'Subiendo…' : 'Subir factura'}
+                                  <Edit2 className="w-4 h-4" />
                                 </button>
-                              )}
-                            </div>
+                                <button
+                                  onClick={() => removeExpense(e)}
+                                  title="Borrar"
+                                  className="text-muted-foreground hover:text-red-400"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
                           )}
-                        </td>
-                      </tr>
-                    )}
-                    </Fragment>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="border-b border-border/50 bg-muted/30">
+                            <td colSpan={canManage ? 7 : 6} className="px-4 py-4">
+                              {e.invoice_url ? (
+                                isPdf ? (
+                                  <iframe
+                                    src={e.invoice_url}
+                                    className="w-full h-[500px] rounded border border-border bg-white"
+                                    title={`Factura ${e.concept}`}
+                                  />
+                                ) : (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={e.invoice_url}
+                                    alt={`Factura ${e.concept}`}
+                                    className="max-h-[500px] rounded border border-border"
+                                  />
+                                )
+                              ) : (
+                                <div className="flex items-center gap-3" onClick={(ev) => ev.stopPropagation()}>
+                                  <p className="text-xs text-muted-foreground">Sin factura adjunta</p>
+                                  {canManage && (
+                                    <button
+                                      onClick={() => {
+                                        setAttachTargetId(e.id)
+                                        attachInputRef.current?.click()
+                                      }}
+                                      disabled={attachingId === e.id}
+                                      className="text-xs px-2 py-1 rounded-md border border-brand-500/30 bg-brand-500/10 text-brand-300 hover:bg-brand-500/20 disabled:opacity-50"
+                                    >
+                                      {attachingId === e.id ? 'Subiendo…' : 'Subir factura'}
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
                     )
                   })}
                 </tbody>
@@ -1018,10 +1164,15 @@ export default function ExpensesPage() {
 
       {showNew && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={resetNewModal}>
-          <div className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between">
               <h3 className="text-foreground font-semibold">Nuevo gasto</h3>
-              <button onClick={resetNewModal} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+              <button onClick={resetNewModal} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
             </div>
             {analyzing && (
               <p className="text-xs text-brand-300 flex items-center gap-1.5">
@@ -1030,52 +1181,137 @@ export default function ExpensesPage() {
             )}
             {aiExtracted && !analyzing && (
               <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 space-y-1">
-                <p className="flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" /> Datos extraídos con IA — revisa antes de crear</p>
+                <p className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" /> Datos extraídos con IA — revisa antes de crear
+                </p>
                 {typeof aiExtracted.confidence === 'number' && (
-                  <p className="text-muted-foreground">Confianza: {Math.round(aiExtracted.confidence * (aiExtracted.confidence <= 1 ? 100 : 1))}%</p>
+                  <p className="text-muted-foreground">
+                    Confianza: {Math.round(aiExtracted.confidence * (aiExtracted.confidence <= 1 ? 100 : 1))}%
+                  </p>
                 )}
-                {typeof aiExtracted.vat === 'number' && <p className="text-muted-foreground">IVA detectado: {formatCurrency(aiExtracted.vat)}</p>}
+                {typeof aiExtracted.vat === 'number' && (
+                  <p className="text-muted-foreground">IVA detectado: {formatCurrency(aiExtracted.vat)}</p>
+                )}
               </div>
             )}
-            <input value={ne.concept} onChange={(e) => setNe({ ...ne, concept: e.target.value })} placeholder="Concepto" className={cls} />
+            <input
+              value={ne.concept}
+              onChange={(e) => setNe({ ...ne, concept: e.target.value })}
+              placeholder="Concepto"
+              className={cls}
+            />
             <div className="grid grid-cols-2 gap-3">
-              <select value={ne.category} onChange={(e) => setNe({ ...ne, category: e.target.value as Expense['category'] })} className={cls}>
-                {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              <select
+                value={ne.category}
+                onChange={(e) => setNe({ ...ne, category: e.target.value as Expense['category'] })}
+                className={cls}
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
               </select>
-              <input value={ne.subcategory} onChange={(e) => setNe({ ...ne, subcategory: e.target.value })} placeholder="Subcategoría" className={cls} />
+              <input
+                value={ne.subcategory}
+                onChange={(e) => setNe({ ...ne, subcategory: e.target.value })}
+                placeholder="Subcategoría"
+                className={cls}
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <input type="number" step="0.01" min="0" value={ne.amount} onChange={(e) => setNe({ ...ne, amount: e.target.value })} placeholder="Importe (€)" className={cls} />
-              <input type="date" value={ne.expense_date} onChange={(e) => setNe({ ...ne, expense_date: e.target.value })} className={cls} />
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={ne.amount}
+                onChange={(e) => setNe({ ...ne, amount: e.target.value })}
+                placeholder="Importe (€)"
+                className={cls}
+              />
+              <input
+                type="date"
+                value={ne.expense_date}
+                onChange={(e) => setNe({ ...ne, expense_date: e.target.value })}
+                className={cls}
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <select value={ne.payment_method} onChange={(e) => setNe({ ...ne, payment_method: e.target.value })} className={cls}>
-                {PAYMENT_METHODS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+              <select
+                value={ne.payment_method}
+                onChange={(e) => setNe({ ...ne, payment_method: e.target.value })}
+                className={cls}
+              >
+                {PAYMENT_METHODS.map((p) => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
+                  </option>
+                ))}
               </select>
-              <select value={ne.status} onChange={(e) => setNe({ ...ne, status: e.target.value as Expense['status'] })} className={cls}>
-                {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              <select
+                value={ne.status}
+                onChange={(e) => setNe({ ...ne, status: e.target.value as Expense['status'] })}
+                className={cls}
+              >
+                {STATUS_OPTIONS.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-2 text-sm text-foreground">
-                <input type="checkbox" checked={ne.recurring} onChange={(e) => setNe({ ...ne, recurring: e.target.checked })} className="rounded border-border bg-muted" />
+                <input
+                  type="checkbox"
+                  checked={ne.recurring}
+                  onChange={(e) => setNe({ ...ne, recurring: e.target.checked })}
+                  className="rounded border-border bg-muted"
+                />
                 Gasto recurrente
               </label>
               {ne.recurring && (
-                <select value={ne.frequency} onChange={(e) => setNe({ ...ne, frequency: e.target.value as NonNullable<Expense['frequency']> })} className="flex-1 bg-muted border border-border rounded-lg p-2 text-sm text-foreground">
-                  {FREQUENCIES.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+                <select
+                  value={ne.frequency}
+                  onChange={(e) => setNe({ ...ne, frequency: e.target.value as NonNullable<Expense['frequency']> })}
+                  className="flex-1 bg-muted border border-border rounded-lg p-2 text-sm text-foreground"
+                >
+                  {FREQUENCIES.map((f) => (
+                    <option key={f.value} value={f.value}>
+                      {f.label}
+                    </option>
+                  ))}
                 </select>
               )}
             </div>
-            <input value={ne.counterparty} onChange={(e) => setNe({ ...ne, counterparty: e.target.value })} placeholder="Proveedor / contraparte" className={cls} />
+            <input
+              value={ne.counterparty}
+              onChange={(e) => setNe({ ...ne, counterparty: e.target.value })}
+              placeholder="Proveedor / contraparte"
+              className={cls}
+            />
             <select value={ne.person_id} onChange={(e) => setNe({ ...ne, person_id: e.target.value })} className={cls}>
               <option value="">— persona (opcional) —</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.full_name}
+                </option>
+              ))}
             </select>
-            <textarea value={ne.notes} onChange={(e) => setNe({ ...ne, notes: e.target.value })} rows={2} placeholder="Notas" className={cls} />
+            <textarea
+              value={ne.notes}
+              onChange={(e) => setNe({ ...ne, notes: e.target.value })}
+              rows={2}
+              placeholder="Notas"
+              className={cls}
+            />
             <div className="flex justify-end gap-2 pt-1">
-              <button onClick={resetNewModal} className="px-3 py-2 text-sm text-muted-foreground">Cancelar</button>
-              <button onClick={create} className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg">Crear</button>
+              <button onClick={resetNewModal} className="px-3 py-2 text-sm text-muted-foreground">
+                Cancelar
+              </button>
+              <button onClick={create} className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg">
+                Crear
+              </button>
             </div>
           </div>
         </div>
@@ -1083,30 +1319,89 @@ export default function ExpensesPage() {
 
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={closeEdit}>
-          <div className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between">
               <h3 className="text-foreground font-semibold">Editar gasto</h3>
-              <button onClick={closeEdit} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+              <button onClick={closeEdit} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <input value={ee.concept} onChange={(e) => setEe({ ...ee, concept: e.target.value })} placeholder="Concepto" className={cls} />
+            <input
+              value={ee.concept}
+              onChange={(e) => setEe({ ...ee, concept: e.target.value })}
+              placeholder="Concepto"
+              className={cls}
+            />
             <div className="grid grid-cols-2 gap-3">
-              <select value={ee.category} onChange={(e) => setEe({ ...ee, category: e.target.value as Expense['category'] })} className={cls}>
-                {CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              <select
+                value={ee.category}
+                onChange={(e) => setEe({ ...ee, category: e.target.value as Expense['category'] })}
+                className={cls}
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
               </select>
-              <input value={ee.subcategory} onChange={(e) => setEe({ ...ee, subcategory: e.target.value })} placeholder="Subcategoría" className={cls} />
+              <input
+                value={ee.subcategory}
+                onChange={(e) => setEe({ ...ee, subcategory: e.target.value })}
+                placeholder="Subcategoría"
+                className={cls}
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <input type="number" step="0.01" min="0" value={ee.amount} onChange={(e) => setEe({ ...ee, amount: e.target.value })} placeholder="Importe (€)" className={cls} />
-              <input type="date" value={ee.expense_date} onChange={(e) => setEe({ ...ee, expense_date: e.target.value })} className={cls} />
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={ee.amount}
+                onChange={(e) => setEe({ ...ee, amount: e.target.value })}
+                placeholder="Importe (€)"
+                className={cls}
+              />
+              <input
+                type="date"
+                value={ee.expense_date}
+                onChange={(e) => setEe({ ...ee, expense_date: e.target.value })}
+                className={cls}
+              />
             </div>
-            <select value={ee.status} onChange={(e) => setEe({ ...ee, status: e.target.value as Expense['status'] })} className={cls}>
-              {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            <select
+              value={ee.status}
+              onChange={(e) => setEe({ ...ee, status: e.target.value as Expense['status'] })}
+              className={cls}
+            >
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
             </select>
-            <input value={ee.counterparty} onChange={(e) => setEe({ ...ee, counterparty: e.target.value })} placeholder="Proveedor / contraparte" className={cls} />
-            <textarea value={ee.notes} onChange={(e) => setEe({ ...ee, notes: e.target.value })} rows={2} placeholder="Notas" className={cls} />
+            <input
+              value={ee.counterparty}
+              onChange={(e) => setEe({ ...ee, counterparty: e.target.value })}
+              placeholder="Proveedor / contraparte"
+              className={cls}
+            />
+            <textarea
+              value={ee.notes}
+              onChange={(e) => setEe({ ...ee, notes: e.target.value })}
+              rows={2}
+              placeholder="Notas"
+              className={cls}
+            />
             <div className="flex justify-end gap-2 pt-1">
-              <button onClick={closeEdit} className="px-3 py-2 text-sm text-muted-foreground">Cancelar</button>
-              <button onClick={saveEdit} className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg">Guardar</button>
+              <button onClick={closeEdit} className="px-3 py-2 text-sm text-muted-foreground">
+                Cancelar
+              </button>
+              <button onClick={saveEdit} className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg">
+                Guardar
+              </button>
             </div>
           </div>
         </div>
@@ -1115,4 +1410,5 @@ export default function ExpensesPage() {
   )
 }
 
-const cls = 'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500'
+const cls =
+  'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500'

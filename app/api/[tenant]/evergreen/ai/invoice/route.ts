@@ -8,7 +8,11 @@ export const maxDuration = 60
 
 // Convierte un importe a EUR usando tipos de cambio del BCE (vía frankfurter.dev, sin clave).
 // Si la moneda ya es EUR o la conversión falla, devuelve null y el importe se deja tal cual.
-async function convertToEur(amount: number, currency: string, date: string | null): Promise<{ amountEur: number; rate: number } | null> {
+async function convertToEur(
+  amount: number,
+  currency: string,
+  date: string | null
+): Promise<{ amountEur: number; rate: number } | null> {
   const code = currency.trim().toUpperCase()
   if (code === 'EUR') return null
   try {

@@ -25,7 +25,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: 'Solo liderazgo puede reasignar el closer' }, { status: 403 })
     }
 
-    const { data: appt } = await sb.from('appointments').select('id').eq('id', appointmentId).eq('tenant_id', t.tenantId).single()
+    const { data: appt } = await sb
+      .from('appointments')
+      .select('id')
+      .eq('id', appointmentId)
+      .eq('tenant_id', t.tenantId)
+      .single()
     if (!appt) return NextResponse.json({ error: 'Agenda no encontrada' }, { status: 404 })
 
     if (closerId) {

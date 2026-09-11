@@ -35,10 +35,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    let up = await sb.storage.from(BUCKET).upload(path, bytes, { contentType: contentType || 'application/octet-stream', upsert: false })
+    let up = await sb.storage
+      .from(BUCKET)
+      .upload(path, bytes, { contentType: contentType || 'application/octet-stream', upsert: false })
     if (up.error && /bucket.*not.*found|not found/i.test(up.error.message)) {
       await sb.storage.createBucket(BUCKET, { public: false })
-      up = await sb.storage.from(BUCKET).upload(path, bytes, { contentType: contentType || 'application/octet-stream', upsert: false })
+      up = await sb.storage
+        .from(BUCKET)
+        .upload(path, bytes, { contentType: contentType || 'application/octet-stream', upsert: false })
     }
     if (up.error) return NextResponse.json({ error: up.error.message }, { status: 500 })
 

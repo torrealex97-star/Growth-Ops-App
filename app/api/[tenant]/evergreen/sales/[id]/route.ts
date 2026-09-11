@@ -37,7 +37,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 })
     }
 
-    const { data: updated, error } = await sb.from('sales').update(patch).eq('id', id).eq('tenant_id', t.tenantId).select().single()
+    const { data: updated, error } = await sb
+      .from('sales')
+      .update(patch)
+      .eq('id', id)
+      .eq('tenant_id', t.tenantId)
+      .select()
+      .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     await sb.from('audit_logs').insert({

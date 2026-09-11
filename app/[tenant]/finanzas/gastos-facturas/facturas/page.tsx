@@ -52,7 +52,9 @@ export default function FacturasPage() {
     setItems((data as Expense[]) || [])
     setLoading(false)
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+  }, [])
 
   const monthItems = useMemo(
     () => items.filter((e) => e.expense_date && e.expense_date.startsWith(month)),
@@ -68,10 +70,11 @@ export default function FacturasPage() {
   const visible = useMemo(() => {
     const nq = normalizeText(q.trim())
     if (!nq) return monthItems
-    return monthItems.filter((e) =>
-      normalizeText(e.concept || '').includes(nq) ||
-      normalizeText(e.counterparty || '').includes(nq) ||
-      normalizeText(CATEGORY_LABELS[e.category] || e.category).includes(nq)
+    return monthItems.filter(
+      (e) =>
+        normalizeText(e.concept || '').includes(nq) ||
+        normalizeText(e.counterparty || '').includes(nq) ||
+        normalizeText(CATEGORY_LABELS[e.category] || e.category).includes(nq)
     )
   }, [monthItems, q])
 
@@ -81,7 +84,8 @@ export default function FacturasPage() {
       return
     }
     const lines = monthItems.map(
-      (e) => `${formatDate(e.expense_date)} - ${e.concept} - ${e.counterparty || 'Sin proveedor'} - ${formatCurrency(e.amount)}`
+      (e) =>
+        `${formatDate(e.expense_date)} - ${e.concept} - ${e.counterparty || 'Sin proveedor'} - ${formatCurrency(e.amount)}`
     )
     const text = lines.join('\n')
     try {
@@ -121,7 +125,9 @@ export default function FacturasPage() {
       {loading ? (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[0, 1].map((i) => <div key={i} className="h-24 bg-card rounded-lg animate-pulse" />)}
+            {[0, 1].map((i) => (
+              <div key={i} className="h-24 bg-card rounded-lg animate-pulse" />
+            ))}
           </div>
           <div className="h-64 bg-card rounded-lg animate-pulse" />
         </div>
@@ -140,7 +146,11 @@ export default function FacturasPage() {
 
           <div className="bg-card/50 border border-border rounded-lg overflow-hidden">
             {visible.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground text-sm">{monthItems.length === 0 ? 'No hay facturas registradas para este mes' : 'Ninguna factura coincide con la búsqueda'}</div>
+              <div className="p-8 text-center text-muted-foreground text-sm">
+                {monthItems.length === 0
+                  ? 'No hay facturas registradas para este mes'
+                  : 'Ninguna factura coincide con la búsqueda'}
+              </div>
             ) : (
               <table className="w-full text-sm">
                 <thead>

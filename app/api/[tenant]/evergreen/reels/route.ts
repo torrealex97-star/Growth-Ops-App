@@ -45,7 +45,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   // Si no se pidió un día concreto y hoy no tiene nada, cae a los más recientes
   // (por si el cron aún no ha corrido hoy).
   if (!day && (!data || data.length === 0)) {
-    let fallback = sb.from('reel_drafts').select('*').eq('tenant_id', t.tenantId).order('created_at', { ascending: false }).limit(20)
+    let fallback = sb
+      .from('reel_drafts')
+      .select('*')
+      .eq('tenant_id', t.tenantId)
+      .order('created_at', { ascending: false })
+      .limit(20)
     if (status) fallback = fallback.eq('status', status)
     const { data: recent, error: recentErr } = await fallback
     if (recentErr) return NextResponse.json({ error: recentErr.message }, { status: 500 })

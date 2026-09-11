@@ -57,15 +57,20 @@ Devuelve SOLO un objeto JSON con estas claves exactas:
     model: MODEL_FAST,
     max_tokens: 700,
     system,
-    messages: [{
-      role: 'user',
-      content: [
-        { type: isPdf ? 'document' : 'image', source } as never,
-        { type: 'text', text: 'Extrae los datos de esta factura en JSON.' },
-      ],
-    }],
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: isPdf ? 'document' : 'image', source } as never,
+          { type: 'text', text: 'Extrae los datos de esta factura en JSON.' },
+        ],
+      },
+    ],
   })
-  const text = msg.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join('')
+  const text = msg.content
+    .filter((b) => b.type === 'text')
+    .map((b) => (b as { text: string }).text)
+    .join('')
   return parseJson<InvoiceExtract>(text)
 }
 
@@ -73,9 +78,20 @@ Devuelve SOLO un objeto JSON con estas claves exactas:
 // corresponda, para no tener que escribirlas a mano. Devuelve el mismo texto con
 // las variables sustituidas.
 const CONTRACT_VARS = [
-  'empresa', 'cif', 'empresa_direccion', 'representante',
-  'nombre', 'email', 'telefono', 'rol', 'fecha', 'fijo',
-  'dni', 'direccion', 'codigo_postal', 'ciudad',
+  'empresa',
+  'cif',
+  'empresa_direccion',
+  'representante',
+  'nombre',
+  'email',
+  'telefono',
+  'rol',
+  'fecha',
+  'fijo',
+  'dni',
+  'direccion',
+  'codigo_postal',
+  'ciudad',
 ]
 export async function contractVariablesFromText(text: string): Promise<string> {
   const system = `Eres un asistente que prepara PLANTILLAS de contrato para una empresa.
@@ -97,9 +113,16 @@ Devuelve SOLO el texto resultante, sin explicaciones ni comillas de código.`
     system,
     messages: [{ role: 'user', content: text.slice(0, 40000) }],
   })
-  let out = msg.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join('').trim()
+  let out = msg.content
+    .filter((b) => b.type === 'text')
+    .map((b) => (b as { text: string }).text)
+    .join('')
+    .trim()
   // Quita posibles fences de código
-  out = out.replace(/^```[a-z]*\n?/i, '').replace(/\n?```$/i, '').trim()
+  out = out
+    .replace(/^```[a-z]*\n?/i, '')
+    .replace(/\n?```$/i, '')
+    .trim()
   // Sanea variables no reconocidas hacia el conjunto permitido no es necesario; se dejan tal cual.
   void CONTRACT_VARS
   return out
@@ -117,7 +140,10 @@ export type CallAnalysis = {
 }
 
 // Analiza la transcripción de una llamada y devuelve valoración + etapa + tareas.
-export async function analyzeCall(transcript: string, context?: { leadName?: string; product?: string }): Promise<CallAnalysis> {
+export async function analyzeCall(
+  transcript: string,
+  context?: { leadName?: string; product?: string }
+): Promise<CallAnalysis> {
   const system = `Eres un sales coach experto en alto ticket.
 Analizas la transcripción de una llamada de ventas y devuelves SOLO un objeto JSON:
 {"call_score": number 1-10, "lead_score": number 1-10, "suggested_stage": one of ["Nuevo","Contactado","Cita agendada","Presentado/Demo","Oferta hecha","Depósito","Cerrado ganado","Seguimiento","Perdido/No cualifica"], "summary": string (3-4 frases en español), "objections": string[], "next_steps": string[], "tasks": [{"title": string, "description": string}]}
@@ -135,18 +161,21 @@ No inventes; si la transcripción es pobre, refléjalo en los scores.`
     system,
     messages: [{ role: 'user', content: user }],
   })
-  const text = msg.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join('')
+  const text = msg.content
+    .filter((b) => b.type === 'text')
+    .map((b) => (b as { text: string }).text)
+    .join('')
   return parseJson<CallAnalysis>(text)
 }
 
 // ── Instagram orgánico ───────────────────────────────────────────────────────
 
 export type ReelAnalysis = {
-  hook: string            // el gancho de los primeros 3 segundos
-  estructura: string      // cómo está construido el guión
-  tema: string            // de qué va, en 1 frase
+  hook: string // el gancho de los primeros 3 segundos
+  estructura: string // cómo está construido el guión
+  tema: string // de qué va, en 1 frase
   por_que_funciona: string // hipótesis de por qué rinde bien
-  tags: string[]          // temáticas/formato para agrupar contenido similar
+  tags: string[] // temáticas/formato para agrupar contenido similar
 }
 
 // Analiza la transcripción de un reel y explica QUÉ lo hace funcionar.
@@ -169,17 +198,20 @@ Responde en español. Sé concreto y accionable; nada de generalidades.`
     system,
     messages: [{ role: 'user', content: user }],
   })
-  const text = msg.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join('')
+  const text = msg.content
+    .filter((b) => b.type === 'text')
+    .map((b) => (b as { text: string }).text)
+    .join('')
   return parseJson<ReelAnalysis>(text)
 }
 
 export type ScriptDraft = {
-  title: string          // título/idea corta del nuevo reel
-  hook: string           // gancho de los primeros 3s (mantiene el del original)
-  script: string         // guión completo listo para grabar (con pausas/beats)
-  caption: string        // caption sugerido con CTA
-  notes: string          // por qué esta versión debería rendir igual o mejor
-  cta_used?: string       // código del CTA usado (AGENCIA/INFO/NEGOCIO/CLIENTES/VIDEO/CLASE)
+  title: string // título/idea corta del nuevo reel
+  hook: string // gancho de los primeros 3s (mantiene el del original)
+  script: string // guión completo listo para grabar (con pausas/beats)
+  caption: string // caption sugerido con CTA
+  notes: string // por qué esta versión debería rendir igual o mejor
+  cta_used?: string // código del CTA usado (AGENCIA/INFO/NEGOCIO/CLIENTES/VIDEO/CLASE)
   testimonio_used?: string // nombre del caso de éxito citado, si se pidió prueba social
 }
 
@@ -219,8 +251,13 @@ Responde en español.`
     model: MODEL_SMART,
     max_tokens: 2000,
     system,
-    messages: [{ role: 'user', content: ref || 'Genera un guión de reel sobre IA aplicada a negocio con nuestro hook y CTA.' }],
+    messages: [
+      { role: 'user', content: ref || 'Genera un guión de reel sobre IA aplicada a negocio con nuestro hook y CTA.' },
+    ],
   })
-  const text = msg.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join('')
+  const text = msg.content
+    .filter((b) => b.type === 'text')
+    .map((b) => (b as { text: string }).text)
+    .join('')
   return parseJson<ScriptDraft>(text)
 }

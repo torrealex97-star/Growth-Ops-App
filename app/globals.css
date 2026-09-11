@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 :root {
-  --pink-primary: #C9477A;
-  --pink-light: #E8729A;
+  --pink-primary: #c9477a;
+  --pink-light: #e8729a;
   --dark-bg: #0f0f1a;
   --dark-card: #1a1a2e;
   --dark-border: #2a2a3e;
@@ -19,7 +19,12 @@ html {
 }
 
 body {
-  font-family: var(--font-sans), Inter, system-ui, -apple-system, sans-serif;
+  font-family:
+    var(--font-sans),
+    Inter,
+    system-ui,
+    -apple-system,
+    sans-serif;
 }
 
 /* Scrollbar */
@@ -57,7 +62,9 @@ body {
 }
 /* Glow eléctrico sutil (usar con moderación en CTAs/tarjetas destacadas) */
 .brand-glow {
-  box-shadow: 0 0 0 1px hsl(var(--primary) / 0.25), 0 0 28px -6px hsl(var(--primary) / 0.5);
+  box-shadow:
+    0 0 0 1px hsl(var(--primary) / 0.25),
+    0 0 28px -6px hsl(var(--primary) / 0.5);
 }
 .font-display {
   font-family: var(--font-display), 'Space Grotesk', Inter, sans-serif;
@@ -68,38 +75,76 @@ body {
 /* Tarjeta interactiva: se eleva y realza el borde al pasar el ratón. */
 .card-interactive {
   cursor: pointer;
-  transition: transform .2s cubic-bezier(.2,.8,.2,1), box-shadow .22s ease, border-color .2s ease, background-color .2s ease;
+  transition:
+    transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.22s ease,
+    border-color 0.2s ease,
+    background-color 0.2s ease;
   will-change: transform;
 }
 .card-interactive:hover {
   transform: translateY(-3px);
   border-color: hsl(var(--primary) / 0.45);
-  box-shadow: 0 12px 34px -16px rgba(0,0,0,.65), 0 0 0 1px hsl(var(--primary) / 0.12), 0 0 22px -10px hsl(var(--primary) / 0.35);
+  box-shadow:
+    0 12px 34px -16px rgba(0, 0, 0, 0.65),
+    0 0 0 1px hsl(var(--primary) / 0.12),
+    0 0 22px -10px hsl(var(--primary) / 0.35);
 }
-.card-interactive:active { transform: translateY(-1px); }
+.card-interactive:active {
+  transform: translateY(-1px);
+}
 
 /* Elevación ligera sin cambiar borde (para stat-cards, etc.) */
-.lift { transition: transform .2s cubic-bezier(.2,.8,.2,1), box-shadow .22s ease; will-change: transform; }
-.lift:hover { transform: translateY(-3px); box-shadow: 0 12px 30px -16px rgba(0,0,0,.6); }
+.lift {
+  transition:
+    transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.22s ease;
+  will-change: transform;
+}
+.lift:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 30px -16px rgba(0, 0, 0, 0.6);
+}
 
 /* Micro "press" para botones/tarjetas pulsables */
-.press { transition: transform .12s ease; }
-.press:active { transform: scale(.97); }
+.press {
+  transition: transform 0.12s ease;
+}
+.press:active {
+  transform: scale(0.97);
+}
 
 /* Foco visible accesible (teclado) con color de marca */
 :focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--primary) / 0.55);
+  box-shadow:
+    0 0 0 2px hsl(var(--background)),
+    0 0 0 4px hsl(var(--primary) / 0.55);
   border-radius: 8px;
 }
 
 /* Cursor de puntero en elementos accionables */
-button:not(:disabled), a[href], [role="button"], summary, label[for] { cursor: pointer; }
+button:not(:disabled),
+a[href],
+[role='button'],
+summary,
+label[for] {
+  cursor: pointer;
+}
 
 /* Respeta a quien prefiere menos movimiento */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
-  .card-interactive:hover, .lift:hover { transform: none; }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .card-interactive:hover,
+  .lift:hover {
+    transform: none;
+  }
 }
 
 /* Scalix Systems design tokens. */
@@ -153,22 +198,23 @@ button:not(:disabled), a[href], [role="button"], summary, label[for] { cursor: p
   border: 1px solid #26262a;
   border-radius: 16px;
   background: #141416;
-  box-shadow: 0 1px 0 rgba(255,255,255,.03) inset, 0 8px 24px rgba(0,0,0,.3);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.03) inset,
+    0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 /* Loading skeleton */
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 .skeleton {
-  background: linear-gradient(
-    90deg,
-    #1a1a2e 25%,
-    #222238 50%,
-    #1a1a2e 75%
-  );
+  background: linear-gradient(90deg, #1a1a2e 25%, #222238 50%, #1a1a2e 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 8px;

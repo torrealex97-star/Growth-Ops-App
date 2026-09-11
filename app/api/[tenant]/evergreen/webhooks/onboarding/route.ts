@@ -16,7 +16,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 // Auth: header 'x-ghl-secret' o query '?secret=' == ONBOARDING_INBOUND_SECRET (fail-closed).
 // Identificación del alumno: ghl_contact_id → email → teléfono.
 
-const pick = <T,>(...vals: (T | undefined | null)[]) =>
+const pick = <T>(...vals: (T | undefined | null)[]) =>
   vals.find((v) => v !== undefined && v !== null && v !== '') ?? null
 
 async function resolveContact(
@@ -25,15 +25,30 @@ async function resolveContact(
   ids: { ghlContactId: string | null; email: string | null; phone: string | null }
 ): Promise<{ id: string } | null> {
   if (ids.ghlContactId) {
-    const { data } = await sb.from('contacts').select('id').eq('ghl_contact_id', ids.ghlContactId).eq('tenant_id', tenantId).maybeSingle()
+    const { data } = await sb
+      .from('contacts')
+      .select('id')
+      .eq('ghl_contact_id', ids.ghlContactId)
+      .eq('tenant_id', tenantId)
+      .maybeSingle()
     if (data) return data
   }
   if (ids.email) {
-    const { data } = await sb.from('contacts').select('id').eq('email', ids.email).eq('tenant_id', tenantId).maybeSingle()
+    const { data } = await sb
+      .from('contacts')
+      .select('id')
+      .eq('email', ids.email)
+      .eq('tenant_id', tenantId)
+      .maybeSingle()
     if (data) return data
   }
   if (ids.phone) {
-    const { data } = await sb.from('contacts').select('id').eq('phone', ids.phone).eq('tenant_id', tenantId).maybeSingle()
+    const { data } = await sb
+      .from('contacts')
+      .select('id')
+      .eq('phone', ids.phone)
+      .eq('tenant_id', tenantId)
+      .maybeSingle()
     if (data) return data
   }
   return null
@@ -51,16 +66,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const empty = (v: unknown) => v === undefined || v === null || v === ''
     const fill = (obj: unknown) => {
       if (obj && typeof obj === 'object')
-        for (const [k, v] of Object.entries(obj as Record<string, unknown>))
-          if (empty(payload[k])) payload[k] = v
+        for (const [k, v] of Object.entries(obj as Record<string, unknown>)) if (empty(payload[k])) payload[k] = v
     }
-    fill(payload.contact); fill(payload.appointment); fill(payload.customData); fill(payload.custom_data)
+    fill(payload.contact)
+    fill(payload.appointment)
+    fill(payload.customData)
+    fill(payload.custom_data)
 
     const event = (req.nextUrl.searchParams.get('event') || (payload.event as string) || '').toLowerCase()
     const email = (pick(payload.email) as string | null)?.toLowerCase?.().trim() || null
     const phone = (pick(payload.phone) as string | null)?.trim() || null
     const ghlContactId = pick(
-      payload.contactId, payload.contact_id, payload.ghlContactId, payload.ghl_contact_id, payload.id
+      payload.contactId,
+      payload.contact_id,
+      payload.ghlContactId,
+      payload.ghl_contact_id,
+      payload.id
     ) as string | null
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -69,7 +90,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Sin sesión de usuario (lo llama GHL): el tenant se resuelve directamente del
     // slug de la ruta, con el cliente service-role (bypassa RLS).
     const { tenant } = await params
-    const { data: tenantRow } = await sb.from('tenants').select('id, status').eq('slug', tenant).eq('status', 'active').single()
+    const { data: tenantRow } = await sb
+      .from('tenants')
+      .select('id, status')
+      .eq('slug', tenant)
+      .eq('status', 'active')
+      .single()
     if (!tenantRow) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
     const tenantId = tenantRow.id
 
@@ -98,7 +124,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         await sb.from('contracts').update({ accesos_abiertos_at: now }).eq('id', c.id).eq('tenant_id', tenantId)
         await sb.from('audit_logs').insert({
           tenant_id: tenantId,
-          entity_type: 'contract', entity_id: c.id, action: 'update',
+          entity_type: 'contract',
+          entity_id: c.id,
+          action: 'update',
           new_values: { accesos_abiertos_at: now, via: 'ghl_onboarding_click' },
         })
       }
@@ -108,7 +136,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // --- event=booked : agendó su sesión de onboarding ---
     if (event === 'booked' || event === 'onboarding.booked' || event === 'onboarding.scheduled') {
       const sessionRaw = pick(
-        payload.startTime, payload.start_time, payload.appointmentDate, payload.appointment_date, payload.selectedSlot
+        payload.startTime,
+        payload.start_time,
+        payload.appointmentDate,
+        payload.appointment_date,
+        payload.selectedSlot
       ) as string | null
       let sessionAt: string | null = null
       if (sessionRaw) {
@@ -131,7 +163,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       await sb.from('audit_logs').insert({
         tenant_id: tenantId,
-        entity_type: 'sale', entity_id: sale.id, action: 'update',
+        entity_type: 'sale',
+        entity_id: sale.id,
+        action: 'update',
         new_values: { ...patch, via: 'ghl_onboarding_booked' },
       })
       return NextResponse.json({ ok: true, event: 'booked', saleId: sale.id, contactId: contact.id, sessionAt })
@@ -139,7 +173,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     // --- event=completed : la sesión de onboarding se realizó ---
     if (event === 'completed' || event === 'onboarding.completed' || event === 'onboarding.done') {
-      const completedRaw = pick(payload.completedAt, payload.completed_at, payload.startTime, payload.start_time) as string | null
+      const completedRaw = pick(payload.completedAt, payload.completed_at, payload.startTime, payload.start_time) as
+        string | null
       let completedAt = now
       if (completedRaw) {
         const d = new Date(completedRaw)
@@ -156,19 +191,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       if (!sale) return NextResponse.json({ error: 'Sin venta para este contacto' }, { status: 404 })
       // Idempotente: si ya se marcó (a mano o por este mismo webhook), no lo pisamos.
       if (!sale.onboarding_date) {
-        const { error } = await sb.from('sales').update({ onboarding_date: completedAt.slice(0, 10) }).eq('id', sale.id).eq('tenant_id', tenantId)
+        const { error } = await sb
+          .from('sales')
+          .update({ onboarding_date: completedAt.slice(0, 10) })
+          .eq('id', sale.id)
+          .eq('tenant_id', tenantId)
         if (error) return NextResponse.json({ error: error.message }, { status: 500 })
         await sb.from('audit_logs').insert({
           tenant_id: tenantId,
-          entity_type: 'sale', entity_id: sale.id, action: 'update',
+          entity_type: 'sale',
+          entity_id: sale.id,
+          action: 'update',
           new_values: { onboarding_date: completedAt.slice(0, 10), via: 'ghl_onboarding_completed' },
         })
       }
       return NextResponse.json({ ok: true, event: 'completed', saleId: sale.id, contactId: contact.id })
     }
 
-    return NextResponse.json({ error: `Evento no reconocido: "${event}". Usa ?event=click, ?event=booked o ?event=completed` }, { status: 400 })
+    return NextResponse.json(
+      { error: `Evento no reconocido: "${event}". Usa ?event=click, ?event=booked o ?event=completed` },
+      { status: 400 }
+    )
   } catch (err) {
-    return NextResponse.json({ error: 'Internal error', detail: err instanceof Error ? err.message : String(err) }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Internal error', detail: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    )
   }
 }

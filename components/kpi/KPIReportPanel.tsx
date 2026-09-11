@@ -1,18 +1,11 @@
-"use client"
+'use client'
 
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { KPIForm } from '@/components/kpi/KPIForm'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { ClipboardList, Edit2 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
@@ -50,10 +43,7 @@ export function KPIReportPanel() {
   const [customTo, setCustomTo] = useState('')
   const [member, setMember] = useState<string>('all')
 
-  const range = useMemo(
-    () => getPeriodRange(periodPreset, customFrom, customTo),
-    [periodPreset, customFrom, customTo]
-  )
+  const range = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
   const hasActiveFilters = periodPreset !== 'all' || member !== 'all'
   const clearFilters = () => {
     setPeriodPreset('all')
@@ -66,16 +56,14 @@ export function KPIReportPanel() {
     setLoading(true)
     const supabase = createClient()
 
-    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
     if (!authUser) return
 
     setCurrentUserId(authUser.id)
 
-    const { data: userData } = await supabase
-      .from('users')
-      .select('*, roles(key)')
-      .eq('id', authUser.id)
-      .single()
+    const { data: userData } = await supabase.from('users').select('*, roles(key)').eq('id', authUser.id).single()
 
     const role = (userData as { roles?: { key?: string } })?.roles?.key ?? ''
     setCurrentRoleKey(role)
@@ -111,9 +99,7 @@ export function KPIReportPanel() {
             .eq('user_id', authUser.id)
             .order('report_date', { ascending: false })
             .limit(14),
-      lead
-        ? supabase.from('users').select('id, full_name').eq('is_active', true)
-        : Promise.resolve({ data: null }),
+      lead ? supabase.from('users').select('id, full_name').eq('is_active', true) : Promise.resolve({ data: null }),
     ])
 
     const tpls = templatesRes.data ?? []
@@ -132,7 +118,9 @@ export function KPIReportPanel() {
         const res = await fetch(`/api/${tenant}/evergreen/kpi/auto?date=${date}`)
         const d = await res.json()
         if (res.ok && d.metrics) auto = buildAutoValues(role, d.metrics)
-      } catch { /* si falla, los auto quedan a 0 */ }
+      } catch {
+        /* si falla, los auto quedan a 0 */
+      }
     }
     setAutoValues(auto)
 
@@ -167,7 +155,9 @@ export function KPIReportPanel() {
     setLoading(false)
   }
 
-  useEffect(() => { fetchData(selectedDate) }, [selectedDate, tenantId])
+  useEffect(() => {
+    fetchData(selectedDate)
+  }, [selectedDate, tenantId])
 
   const filteredReports = useMemo(() => {
     return recentReports
@@ -187,9 +177,7 @@ export function KPIReportPanel() {
       tenant_id: tenantId,
     }
 
-    const { error } = await supabase
-      .from('kpi_daily_reports')
-      .upsert(payload, { onConflict: 'user_id,report_date' })
+    const { error } = await supabase.from('kpi_daily_reports').upsert(payload, { onConflict: 'user_id,report_date' })
 
     if (error) {
       toast.error('Error al guardar el informe', { description: error.message })
@@ -223,9 +211,7 @@ export function KPIReportPanel() {
       ) : (
         <div className="bg-card border border-border rounded-lg p-6">
           <div className="flex items-center justify-between mb-5">
-            <h2 className="font-semibold text-foreground">
-              {formatDate(selectedDate)}
-            </h2>
+            <h2 className="font-semibold text-foreground">{formatDate(selectedDate)}</h2>
             {existingReport && readOnly && (
               <div className="flex items-center gap-3">
                 <Badge variant="success">{fullyAuto ? 'Automático' : 'Enviado'}</Badge>
@@ -242,12 +228,18 @@ export function KPIReportPanel() {
           {fullyAuto ? (
             <div className="mb-5 flex items-start gap-2 rounded-md border border-brand-500/30 bg-brand-500/10 px-3 py-2.5">
               <Sparkles className="w-4 h-4 text-brand-300 mt-0.5 shrink-0" />
-              <p className="text-sm text-brand-200">Este informe se genera <b>automáticamente</b> con tus agendas y ventas registradas. No necesitas rellenar nada.</p>
+              <p className="text-sm text-brand-200">
+                Este informe se genera <b>automáticamente</b> con tus agendas y ventas registradas. No necesitas
+                rellenar nada.
+              </p>
             </div>
           ) : autoFields.size > 0 ? (
             <div className="mb-5 flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2.5">
               <Sparkles className="w-4 h-4 text-brand-300 mt-0.5 shrink-0" />
-              <p className="text-sm text-foreground">Las agendas y shows salen <b>automáticamente</b> de tus agendas. Solo rellena el resto (conversaciones, mensajes, etc.).</p>
+              <p className="text-sm text-foreground">
+                Las agendas y shows salen <b>automáticamente</b> de tus agendas. Solo rellena el resto (conversaciones,
+                mensajes, etc.).
+              </p>
             </div>
           ) : null}
 
@@ -285,9 +277,7 @@ export function KPIReportPanel() {
 
           <div className="bg-card border border-border rounded-lg overflow-hidden">
             <div className="px-6 py-4 border-b border-border">
-              <h3 className="font-medium text-foreground text-sm">
-                {isLead ? 'Informes' : 'Ultimos 14 dias'}
-              </h3>
+              <h3 className="font-medium text-foreground text-sm">{isLead ? 'Informes' : 'Ultimos 14 dias'}</h3>
             </div>
             {filteredReports.length === 0 ? (
               <div className="p-6 text-center text-sm text-muted-foreground">
@@ -313,11 +303,7 @@ export function KPIReportPanel() {
                       }}
                     >
                       <TableCell className="text-foreground text-sm">{formatDate(r.report_date)}</TableCell>
-                      {isLead && (
-                        <TableCell className="text-foreground text-sm">
-                          {r.users?.full_name ?? '—'}
-                        </TableCell>
-                      )}
+                      {isLead && <TableCell className="text-foreground text-sm">{r.users?.full_name ?? '—'}</TableCell>}
                       <TableCell>
                         <Badge variant="success">Enviado</Badge>
                       </TableCell>

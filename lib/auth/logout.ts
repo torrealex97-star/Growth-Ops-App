@@ -14,10 +14,7 @@ import { createClient } from '@/lib/supabase/client'
 export async function performLogout(redirectTo = '/') {
   try {
     const supabase = createClient()
-    await Promise.race([
-      supabase.auth.signOut({ scope: 'local' }),
-      new Promise((resolve) => setTimeout(resolve, 2500)),
-    ])
+    await Promise.race([supabase.auth.signOut({ scope: 'local' }), new Promise((resolve) => setTimeout(resolve, 2500))])
   } catch {
     // Ignoramos: redirigimos igualmente.
   } finally {

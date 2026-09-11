@@ -33,7 +33,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
     })
     return NextResponse.json(result)
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'No se pudo calcular la conciliación.' }, { status: 500 })
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'No se pudo calcular la conciliación.' },
+      { status: 500 }
+    )
   }
 }
 

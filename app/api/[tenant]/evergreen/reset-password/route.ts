@@ -30,16 +30,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const t = await requireTenant(tenant)
     if ('error' in t) return t.error
 
-    const admin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
-    const { data: callerRow } = await admin
-      .from('users')
-      .select('roles(key)')
-      .eq('id', t.userId)
-      .single()
+    const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+    const { data: callerRow } = await admin.from('users').select('roles(key)').eq('id', t.userId).single()
     const callerRole = (callerRow?.roles as { key?: string } | null)?.key
     if (!t.isSuperAdmin && callerRole !== 'admin' && callerRole !== 'director') {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })

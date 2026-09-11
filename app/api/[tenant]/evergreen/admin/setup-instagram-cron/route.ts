@@ -28,9 +28,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const authed = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll() {},
+        },
+      }
     )
-    const { data: { user } } = await authed.auth.getUser()
+    const {
+      data: { user },
+    } = await authed.auth.getUser()
     if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
     const { data: row } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
     const role = (row?.roles as { key?: string } | null)?.key
@@ -47,8 +56,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const report: Record<string, unknown> = {}
 
   try {
-    try { await sql.unsafe(`CREATE EXTENSION IF NOT EXISTS pg_net;`); report.pg_net = 'ok' } catch (e) { report.pg_net = e instanceof Error ? e.message : 'error' }
-    try { await sql.unsafe(`CREATE EXTENSION IF NOT EXISTS pg_cron;`); report.pg_cron = 'ok' } catch (e) { report.pg_cron = e instanceof Error ? e.message : 'error' }
+    try {
+      await sql.unsafe(`CREATE EXTENSION IF NOT EXISTS pg_net;`)
+      report.pg_net = 'ok'
+    } catch (e) {
+      report.pg_net = e instanceof Error ? e.message : 'error'
+    }
+    try {
+      await sql.unsafe(`CREATE EXTENSION IF NOT EXISTS pg_cron;`)
+      report.pg_cron = 'ok'
+    } catch (e) {
+      report.pg_cron = e instanceof Error ? e.message : 'error'
+    }
 
     await sql.unsafe(`DO $$ BEGIN PERFORM cron.unschedule('${JOB_NAME}'); EXCEPTION WHEN OTHERS THEN NULL; END $$;`)
     const command = `select net.http_get(url := '${SYNC_URL}', headers := '{"Authorization": "Bearer ${secret}"}'::jsonb);`
@@ -58,11 +77,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     await sql.end()
 
     if (!report.job) {
-      return NextResponse.json({ error: 'No se pudo crear el job. Habilita pg_cron y pg_net en Supabase → Database → Extensions.', report }, { status: 500 })
+      return NextResponse.json(
+        { error: 'No se pudo crear el job. Habilita pg_cron y pg_net en Supabase → Database → Extensions.', report },
+        { status: 500 }
+      )
     }
     return NextResponse.json({ ok: true, message: 'Cron de Instagram (cada 6 h) activado en Supabase', report })
   } catch (e) {
     await sql.end().catch(() => {})
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Error configurando pg_cron', report }, { status: 500 })
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Error configurando pg_cron', report },
+      { status: 500 }
+    )
   }
 }

@@ -93,7 +93,25 @@ export function countryISOForPhone(phone: string | null | undefined): string | n
 
 // Región comercial a partir del ISO del teléfono, para desgloses tipo "agendas por región"
 // (LATAM / USA-Canadá / España / Europa). "Otro" cubre ISOs no mapeados (p.ej. AU, sin prefijo…).
-const LATAM_ISOS = new Set(['MX', 'AR', 'CO', 'CL', 'PE', 'VE', 'EC', 'UY', 'PY', 'BO', 'GT', 'CR', 'PA', 'DO', 'HN', 'SV', 'NI'])
+const LATAM_ISOS = new Set([
+  'MX',
+  'AR',
+  'CO',
+  'CL',
+  'PE',
+  'VE',
+  'EC',
+  'UY',
+  'PY',
+  'BO',
+  'GT',
+  'CR',
+  'PA',
+  'DO',
+  'HN',
+  'SV',
+  'NI',
+])
 const EUROPE_ISOS = new Set(['PT', 'FR', 'IT', 'DE', 'GB', 'AD'])
 export function regionForISO(iso: string | null | undefined): 'España' | 'LATAM' | 'USA/Canadá' | 'Europa' | 'Otro' {
   if (!iso) return 'Otro'

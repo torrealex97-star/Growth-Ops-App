@@ -18,9 +18,9 @@ const ORIGENES: { key: Origen; label: string }[] = [
 function MorosidadPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const origen: Origen = (['interno', 'sequra'].includes(searchParams.get('origen') || '')
+  const origen: Origen = ['interno', 'sequra'].includes(searchParams.get('origen') || '')
     ? (searchParams.get('origen') as Origen)
-    : 'todas')
+    : 'todas'
 
   const setOrigen = (o: Origen) => {
     const params = new URLSearchParams(searchParams.toString())

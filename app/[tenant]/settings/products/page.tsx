@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -7,12 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Plus, ChevronDown, ChevronRight, Edit2, Loader2, Package } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -64,7 +59,9 @@ export default function ProductsPage() {
     setLoading(false)
   }
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => {
+    fetchData()
+  }, [])
 
   const openNewProduct = () => {
     setEditingProduct(null)
@@ -129,9 +126,13 @@ export default function ProductsPage() {
       }
       toast.success('Producto actualizado')
     } else {
-      const { error } = await supabase
-        .from('products')
-        .insert({ name: productName, description: productDesc || null, duration_months: durationMonths, is_active: true, tenant_id: tenantId })
+      const { error } = await supabase.from('products').insert({
+        name: productName,
+        description: productDesc || null,
+        duration_months: durationMonths,
+        is_active: true,
+        tenant_id: tenantId,
+      })
 
       if (error) {
         toast.error('Error al crear producto', { description: error.message })
@@ -164,7 +165,11 @@ export default function ProductsPage() {
     }
 
     if (editingPlan) {
-      const { error } = await supabase.from('payment_plans').update(payload).eq('id', editingPlan.id).eq('tenant_id', tenantId)
+      const { error } = await supabase
+        .from('payment_plans')
+        .update(payload)
+        .eq('id', editingPlan.id)
+        .eq('tenant_id', tenantId)
       if (error) {
         toast.error('Error al actualizar plan')
         setSubmitting(false)
@@ -194,7 +199,11 @@ export default function ProductsPage() {
 
   const togglePlanActive = async (plan: PaymentPlan) => {
     const supabase = createClient()
-    await supabase.from('payment_plans').update({ is_active: !plan.is_active }).eq('id', plan.id).eq('tenant_id', tenantId)
+    await supabase
+      .from('payment_plans')
+      .update({ is_active: !plan.is_active })
+      .eq('id', plan.id)
+      .eq('tenant_id', tenantId)
     fetchData()
   }
 
@@ -237,16 +246,15 @@ export default function ProductsPage() {
                 onClick={() => setExpandedProduct(expandedProduct === product.id ? null : product.id)}
               >
                 <div className="text-muted-foreground">
-                  {expandedProduct === product.id
-                    ? <ChevronDown className="w-4 h-4" />
-                    : <ChevronRight className="w-4 h-4" />
-                  }
+                  {expandedProduct === product.id ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
                 </div>
                 <div className="flex-1">
                   <p className="font-medium text-foreground">{product.name}</p>
-                  {product.description && (
-                    <p className="text-xs text-muted-foreground mt-0.5">{product.description}</p>
-                  )}
+                  {product.description && <p className="text-xs text-muted-foreground mt-0.5">{product.description}</p>}
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant={product.is_active ? 'success' : 'secondary'}>
@@ -260,7 +268,10 @@ export default function ProductsPage() {
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                    onClick={(e) => { e.stopPropagation(); openEditProduct(product) }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openEditProduct(product)
+                    }}
                   >
                     <Edit2 className="w-3.5 h-3.5" />
                   </Button>
@@ -271,17 +282,13 @@ export default function ProductsPage() {
                 <div className="border-t border-border px-5 py-4">
                   <div className="flex justify-between items-center mb-3">
                     <p className="text-sm font-medium text-muted-foreground">Planes de Pago</p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openNewPlan(product.id)}
-                    >
+                    <Button size="sm" variant="outline" onClick={() => openNewPlan(product.id)}>
                       <Plus className="w-3 h-3 mr-1" />
                       Nuevo Plan
                     </Button>
                   </div>
 
-                  {(!product.payment_plans || product.payment_plans.length === 0) ? (
+                  {!product.payment_plans || product.payment_plans.length === 0 ? (
                     <p className="text-muted-foreground text-sm">No hay planes de pago</p>
                   ) : (
                     <div className="space-y-2">
@@ -295,13 +302,12 @@ export default function ProductsPage() {
                           <div className="flex-1">
                             <p className="text-sm font-medium text-foreground">{plan.name}</p>
                             <p className="text-xs text-muted-foreground">
-                              {formatCurrency(plan.gross_price)} — {plan.number_of_payments} pago{plan.number_of_payments > 1 ? 's' : ''}
+                              {formatCurrency(plan.gross_price)} — {plan.number_of_payments} pago
+                              {plan.number_of_payments > 1 ? 's' : ''}
                               {plan.financing_provider && ` — ${plan.financing_provider}`}
                             </p>
                           </div>
-                          <span className="text-xs text-muted-foreground">
-                            ratio: {plan.cash_collection_ratio}
-                          </span>
+                          <span className="text-xs text-muted-foreground">ratio: {plan.cash_collection_ratio}</span>
                           <div className="flex gap-1">
                             <Button
                               variant="ghost"
@@ -341,11 +347,19 @@ export default function ProductsPage() {
           <div className="space-y-4 mt-2">
             <div className="space-y-2">
               <Label>Nombre *</Label>
-              <Input value={productName} onChange={(e) => setProductName(e.target.value)} className="bg-muted border-border" />
+              <Input
+                value={productName}
+                onChange={(e) => setProductName(e.target.value)}
+                className="bg-muted border-border"
+              />
             </div>
             <div className="space-y-2">
               <Label>Descripcion</Label>
-              <Textarea value={productDesc} onChange={(e) => setProductDesc(e.target.value)} className="bg-muted border-border min-h-[80px]" />
+              <Textarea
+                value={productDesc}
+                onChange={(e) => setProductDesc(e.target.value)}
+                className="bg-muted border-border min-h-[80px]"
+              />
             </div>
             <div className="space-y-2">
               <Label>Duración (meses)</Label>
@@ -359,7 +373,9 @@ export default function ProductsPage() {
               />
             </div>
             <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setProductDialog(false)} disabled={submitting}>Cancelar</Button>
+              <Button variant="outline" onClick={() => setProductDialog(false)} disabled={submitting}>
+                Cancelar
+              </Button>
               <Button onClick={handleSaveProduct} disabled={submitting || !productName}>
                 {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Guardar'}
               </Button>
@@ -378,39 +394,83 @@ export default function ProductsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Nombre *</Label>
-                <Input value={planName} onChange={(e) => setPlanName(e.target.value)} className="bg-muted border-border" placeholder="1 pago" />
+                <Input
+                  value={planName}
+                  onChange={(e) => setPlanName(e.target.value)}
+                  className="bg-muted border-border"
+                  placeholder="1 pago"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Codigo</Label>
-                <Input value={planCode} onChange={(e) => setPlanCode(e.target.value)} className="bg-muted border-border" placeholder="1PAY" />
+                <Input
+                  value={planCode}
+                  onChange={(e) => setPlanCode(e.target.value)}
+                  className="bg-muted border-border"
+                  placeholder="1PAY"
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Precio bruto *</Label>
-                <Input type="number" min="0" step="0.01" value={planGrossPrice} onChange={(e) => setPlanGrossPrice(e.target.value)} className="bg-muted border-border" />
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={planGrossPrice}
+                  onChange={(e) => setPlanGrossPrice(e.target.value)}
+                  className="bg-muted border-border"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Nro pagos</Label>
-                <Input type="number" min="1" value={planPayments} onChange={(e) => setPlanPayments(e.target.value)} className="bg-muted border-border" />
+                <Input
+                  type="number"
+                  min="1"
+                  value={planPayments}
+                  onChange={(e) => setPlanPayments(e.target.value)}
+                  className="bg-muted border-border"
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Proveedor financiacion</Label>
-                <Input value={planProvider} onChange={(e) => setPlanProvider(e.target.value)} className="bg-muted border-border" placeholder="Sequra" />
+                <Input
+                  value={planProvider}
+                  onChange={(e) => setPlanProvider(e.target.value)}
+                  className="bg-muted border-border"
+                  placeholder="Sequra"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Ratio comisionable (0-1)</Label>
-                <Input type="number" min="0" max="1" step="0.01" value={planRatio} onChange={(e) => setPlanRatio(e.target.value)} className="bg-muted border-border" />
+                <Input
+                  type="number"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={planRatio}
+                  onChange={(e) => setPlanRatio(e.target.value)}
+                  className="bg-muted border-border"
+                />
               </div>
             </div>
             <div className="space-y-2">
               <Label>Orden</Label>
-              <Input type="number" min="0" value={planSortOrder} onChange={(e) => setPlanSortOrder(e.target.value)} className="bg-muted border-border" />
+              <Input
+                type="number"
+                min="0"
+                value={planSortOrder}
+                onChange={(e) => setPlanSortOrder(e.target.value)}
+                className="bg-muted border-border"
+              />
             </div>
             <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setPlanDialog(false)} disabled={submitting}>Cancelar</Button>
+              <Button variant="outline" onClick={() => setPlanDialog(false)} disabled={submitting}>
+                Cancelar
+              </Button>
               <Button onClick={handleSavePlan} disabled={submitting || !planName || !planGrossPrice}>
                 {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Guardar'}
               </Button>

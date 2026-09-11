@@ -1,12 +1,5 @@
 import { addMonths, startOfMonth } from 'date-fns'
-import type {
-  Collection,
-  Commission,
-  InsertCommission,
-  Sale,
-  CommissionRule,
-  Refund,
-} from '@/lib/types/database'
+import type { Collection, Commission, InsertCommission, Sale, CommissionRule, Refund } from '@/lib/types/database'
 
 export function getLiquidationMonth(collectedAt: Date): string {
   // First day of NEXT month
@@ -35,9 +28,7 @@ function pickRuleFromPool(
   }
   // Las reglas ligadas a un tramo NO aplican fuera de su tramo → se excluyen del modelo por cash.
   const cashPool = pool.filter((r) => !r.tramo_id)
-  const inTier = cashPool.filter(
-    (r) => repCash >= (r.min_cash ?? 0) && (r.max_cash == null || repCash < r.max_cash)
-  )
+  const inTier = cashPool.filter((r) => repCash >= (r.min_cash ?? 0) && (r.max_cash == null || repCash < r.max_cash))
   if (inTier.length) return inTier.sort((a, b) => (b.min_cash ?? 0) - (a.min_cash ?? 0))[0]
   const below = cashPool
     .filter((r) => repCash >= (r.min_cash ?? 0))
@@ -235,11 +226,11 @@ export function calculateExpectedInstallments(
 // Devuelve solo las cuotas del resto (la reserva/entrada se registran como cobros aparte).
 export function buildRestInstallments(opts: {
   saleId: string
-  totalGross: number          // precio total (facturación)
+  totalGross: number // precio total (facturación)
   cashCollectionRatio: number // ratio para el importe comisionable de cada cuota
-  alreadyPaid: number         // reserva + entrada ya cobradas al momento
-  restCount: number           // nº de cuotas para el resto
-  startDate: Date             // fecha de la primera cuota del resto
+  alreadyPaid: number // reserva + entrada ya cobradas al momento
+  restCount: number // nº de cuotas para el resto
+  startDate: Date // fecha de la primera cuota del resto
 }) {
   const { saleId, totalGross, cashCollectionRatio, alreadyPaid, restCount, startDate } = opts
   const remaining = Math.max(Math.round((totalGross - alreadyPaid) * 100) / 100, 0)

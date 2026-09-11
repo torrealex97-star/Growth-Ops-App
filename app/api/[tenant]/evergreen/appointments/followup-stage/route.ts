@@ -41,7 +41,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
-    const { data: appt } = await sb.from('appointments').select('id, setter_id, closer_id').eq('id', appointmentId).eq('tenant_id', t.tenantId).single()
+    const { data: appt } = await sb
+      .from('appointments')
+      .select('id, setter_id, closer_id')
+      .eq('id', appointmentId)
+      .eq('tenant_id', t.tenantId)
+      .single()
     if (!appt) return NextResponse.json({ error: 'Agenda no encontrada' }, { status: 404 })
 
     if (!LEADERSHIP.includes(role) && scope !== 'team' && appt.setter_id !== t.userId && appt.closer_id !== t.userId) {
@@ -55,11 +60,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       update.notes = reason.trim()
     }
 
-    const { error } = await sb
-      .from('appointments')
-      .update(update)
-      .eq('id', appointmentId)
-      .eq('tenant_id', t.tenantId)
+    const { error } = await sb.from('appointments').update(update).eq('id', appointmentId).eq('tenant_id', t.tenantId)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true, notes: typeof update.notes === 'string' ? update.notes : undefined })
   } catch (err) {

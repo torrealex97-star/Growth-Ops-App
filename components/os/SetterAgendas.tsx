@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { CalendarCheck } from 'lucide-react'
 import type { SetterAgendaRow } from '@/lib/analytics'
@@ -16,7 +16,10 @@ export function SetterAgendas({ rows }: { rows: SetterAgendaRow[] }) {
       ) : (
         <div className="space-y-1">
           {withData.map((r) => (
-            <div key={r.userId} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted/60 transition-colors">
+            <div
+              key={r.userId}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted/60 transition-colors"
+            >
               <span className="flex-1 min-w-0 truncate text-sm text-foreground">{r.name}</span>
               <div className="text-right shrink-0">
                 <p className="text-sm font-semibold text-foreground">
@@ -24,7 +27,9 @@ export function SetterAgendas({ rows }: { rows: SetterAgendaRow[] }) {
                 </p>
                 <p className="text-[11px] text-muted-foreground">
                   {r.shows} shows · {r.noShows} no-show ·{' '}
-                  <span className={r.showRate >= 60 ? 'text-emerald-400' : 'text-muted-foreground'}>{r.showRate.toFixed(0)}% show</span>
+                  <span className={r.showRate >= 60 ? 'text-emerald-400' : 'text-muted-foreground'}>
+                    {r.showRate.toFixed(0)}% show
+                  </span>
                 </p>
               </div>
             </div>

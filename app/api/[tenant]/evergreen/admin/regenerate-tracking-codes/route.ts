@@ -31,9 +31,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       const authed = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
+        {
+          cookies: {
+            getAll() {
+              return cookieStore.getAll()
+            },
+            setAll() {},
+          },
+        }
       )
-      const { data: { user } } = await authed.auth.getUser()
+      const {
+        data: { user },
+      } = await authed.auth.getUser()
       if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
       const { data: urow } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
       const role = (urow?.roles as { key?: string } | null)?.key

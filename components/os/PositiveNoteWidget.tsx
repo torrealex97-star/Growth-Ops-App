@@ -5,7 +5,13 @@ import { Heart, Users } from 'lucide-react'
 import { useTenant } from '@/lib/tenant-context'
 
 type Note = { id: string; period_type: 'daily' | 'weekly'; content: string; is_shared: boolean } | null
-type WallEntry = { id: string; period_type: 'daily' | 'weekly'; content: string; created_at: string; users?: { full_name?: string } | null }
+type WallEntry = {
+  id: string
+  period_type: 'daily' | 'weekly'
+  content: string
+  created_at: string
+  users?: { full_name?: string } | null
+}
 
 const TABS: { key: 'daily' | 'weekly'; label: string; placeholder: string }[] = [
   { key: 'daily', label: 'Hoy', placeholder: '¿Qué te llevas positivo de hoy?' },
@@ -37,7 +43,10 @@ export function PositiveNoteWidget() {
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/${tenant}/evergreen/positive-notes`)
-      if (!res.ok) { setLoading(false); return }
+      if (!res.ok) {
+        setLoading(false)
+        return
+      }
       const data = await res.json()
       setDaily(data.daily ?? null)
       setWeekly(data.weekly ?? null)
@@ -47,7 +56,9 @@ export function PositiveNoteWidget() {
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    load()
+  }, [load])
 
   useEffect(() => {
     const current = tab === 'daily' ? daily : weekly
@@ -67,7 +78,8 @@ export function PositiveNoteWidget() {
       })
       if (!res.ok) return
       const data = await res.json()
-      if (tab === 'daily') setDaily(data.note); else setWeekly(data.note)
+      if (tab === 'daily') setDaily(data.note)
+      else setWeekly(data.note)
       setSavedMsg('Guardado ✓')
       setTimeout(() => setSavedMsg(''), 3000)
       if (isShared) load() // refresca el muro si acaba de entrar/salir de él
@@ -109,7 +121,12 @@ export function PositiveNoteWidget() {
 
       <div className="flex items-center justify-between mt-3">
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
-          <input type="checkbox" checked={isShared} onChange={(e) => setIsShared(e.target.checked)} className="accent-brand-500" />
+          <input
+            type="checkbox"
+            checked={isShared}
+            onChange={(e) => setIsShared(e.target.checked)}
+            className="accent-brand-500"
+          />
           Compartir con el equipo
         </label>
         <div className="flex items-center gap-2">

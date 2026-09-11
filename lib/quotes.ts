@@ -74,7 +74,10 @@ function dayOfYear(date: Date): number {
 // Misma frase para todo el equipo el mismo día natural (zona España, mercado principal).
 export function getDailyQuote(date: Date = new Date()): string {
   const madridDateStr = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone: 'Europe/Madrid',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   }).format(date)
   const madridDate = new Date(`${madridDateStr}T00:00:00Z`)
   const idx = dayOfYear(madridDate) % DAILY_QUOTES.length

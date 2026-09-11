@@ -16,21 +16,34 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     const closerId = req.nextUrl.searchParams.get('closerId')
     const date = req.nextUrl.searchParams.get('date') // YYYY-MM-DD
     if (!closerId) return NextResponse.json({ error: 'Falta closerId' }, { status: 400 })
-    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return NextResponse.json({ error: 'Fecha inválida' }, { status: 400 })
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date))
+      return NextResponse.json({ error: 'Fecha inválida' }, { status: 400 })
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
     // `users` no tiene tenant_id: comprobamos que el closer pertenece a esta
     // subcuenta vía tenant_members para no filtrar disponibilidad entre tenants.
-    const { data: membership } = await sb.from('tenant_members').select('id').eq('tenant_id', t.tenantId).eq('user_id', closerId).maybeSingle()
+    const { data: membership } = await sb
+      .from('tenant_members')
+      .select('id')
+      .eq('tenant_id', t.tenantId)
+      .eq('user_id', closerId)
+      .maybeSingle()
     if (!membership) return NextResponse.json({ error: 'Closer no encontrado' }, { status: 404 })
-    const { data: closer } = await sb.from('users').select('email, calendly_email, full_name').eq('id', closerId).maybeSingle()
+    const { data: closer } = await sb
+      .from('users')
+      .select('email, calendly_email, full_name')
+      .eq('id', closerId)
+      .maybeSingle()
     if (!closer?.email) return NextResponse.json({ error: 'El closer no tiene email' }, { status: 400 })
 
     const et = await resolveCloserEventType(closer.calendly_email || closer.email)
     if (!et) {
-      return NextResponse.json({ hasCalendly: false, reason: 'Este closer no tiene un event type en la cuenta madre de Calendly' })
+      return NextResponse.json({
+        hasCalendly: false,
+        reason: 'Este closer no tiene un event type en la cuenta madre de Calendly',
+      })
     }
 
     // Ventana del día seleccionado. Calendly exige start_time futuro y rango ≤ 7 días.
@@ -40,7 +53,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     // start debe ser estrictamente futuro (+1 min de margen)
     const startDate = dayStart.getTime() > now.getTime() + 60000 ? dayStart : new Date(now.getTime() + 60000)
     if (startDate.getTime() >= dayEnd.getTime()) {
-      return NextResponse.json({ hasCalendly: true, eventType: { uri: et.uri, name: et.name, duration: et.duration, scheduling_url: et.scheduling_url }, slots: [] })
+      return NextResponse.json({
+        hasCalendly: true,
+        eventType: { uri: et.uri, name: et.name, duration: et.duration, scheduling_url: et.scheduling_url },
+        slots: [],
+      })
     }
 
     const slots = await getAvailableTimes(et.uri, startDate.toISOString(), dayEnd.toISOString())
@@ -51,7 +68,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     })
   } catch (err) {
     if (err instanceof CalendlyError) {
-      return NextResponse.json({ error: 'Calendly: ' + err.message, status: err.status, detail: err.body }, { status: 502 })
+      return NextResponse.json(
+        { error: 'Calendly: ' + err.message, status: err.status, detail: err.body },
+        { status: 502 }
+      )
     }
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }

@@ -1,4 +1,4 @@
-"use client"
+'use client'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
@@ -13,33 +13,33 @@ import {
   createColumnHelper,
   type SortingState,
 } from '@tanstack/react-table'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { AppointmentDetail } from '@/components/appointments/AppointmentDetail'
 import { CalendarPopover } from '@/components/ui/calendar-popover'
-import { Calendar, Search, Plus, X, Loader2, ChevronLeft, ChevronRight, Sparkles, Table2, CalendarDays, Loader, Users as UsersIcon, Copy, Banknote, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import {
+  Calendar,
+  Search,
+  Plus,
+  X,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  Sparkles,
+  Table2,
+  CalendarDays,
+  Loader,
+  Users as UsersIcon,
+  Copy,
+  Banknote,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+} from 'lucide-react'
 import { formatDateTime, formatDate, formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { AppointmentWithRelations, AppointmentStatus, User, Contact, Sale } from '@/lib/types/database'
@@ -56,7 +56,8 @@ import {
   CATEGORY_BADGE_CLASSES,
 } from '@/lib/appointments/status'
 
-const cls = 'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500'
+const cls =
+  'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500'
 
 const columnHelper = createColumnHelper<AppointmentWithRelations>()
 const coreRowModel = getCoreRowModel()
@@ -70,8 +71,14 @@ const PX_PER_HOUR = 52 // debe coincidir con min-h de la celda de hora
 // Paleta estable por closer: en vista semana con varios closers solapados, el color
 // distingue a quién pertenece cada cita (antes todas usaban el mismo tono brand-300).
 const CLOSER_DOT_COLORS = [
-  'bg-sky-400', 'bg-amber-400', 'bg-violet-400', 'bg-rose-400',
-  'bg-lime-400', 'bg-cyan-400', 'bg-fuchsia-400', 'bg-orange-400',
+  'bg-sky-400',
+  'bg-amber-400',
+  'bg-violet-400',
+  'bg-rose-400',
+  'bg-lime-400',
+  'bg-cyan-400',
+  'bg-fuchsia-400',
+  'bg-orange-400',
 ]
 function closerColorClass(closerId: string | null | undefined): string {
   if (!closerId) return 'bg-muted-foreground'
@@ -119,7 +126,9 @@ export default function AppointmentsPage() {
   const [currentUserScope, setCurrentUserScope] = useState<string>('own')
   const [currentUserName, setCurrentUserName] = useState<string>('')
   // Conflictos de closer: contacto ya atendido por un closer distinto al de su agenda más reciente.
-  const [closerConflicts, setCloserConflicts] = useState<Record<string, { owning_closer_id: string; owning_closer_name: string; conflicting_appointment_id: string }>>({})
+  const [closerConflicts, setCloserConflicts] = useState<
+    Record<string, { owning_closer_id: string; owning_closer_name: string; conflicting_appointment_id: string }>
+  >({})
   const [reassigningConflictId, setReassigningConflictId] = useState<string | null>(null)
 
   // View switcher
@@ -228,7 +237,10 @@ export default function AppointmentsPage() {
     const [appRes, usersRes, salesRes] = await Promise.all([
       appointmentsQuery,
       supabase.from('users').select('*, roles(key)').eq('is_active', true),
-      supabase.from('sales').select('id, contact_id, appointment_id, closer_id, setter_id, status, gross_amount').eq('tenant_id', tenantId),
+      supabase
+        .from('sales')
+        .select('id, contact_id, appointment_id, closer_id, setter_id, status, gross_amount')
+        .eq('tenant_id', tenantId),
     ])
 
     if (appRes.error) {
@@ -257,7 +269,9 @@ export default function AppointmentsPage() {
       return
     }
     try {
-      const res = await fetch(`/api/${tenant}/evergreen/appointments/closer-conflicts?contactIds=${contactIds.join(',')}`)
+      const res = await fetch(
+        `/api/${tenant}/evergreen/appointments/closer-conflicts?contactIds=${contactIds.join(',')}`
+      )
       const json = await res.json()
       if (res.ok) setCloserConflicts(json.conflicts || {})
     } catch {
@@ -303,7 +317,9 @@ export default function AppointmentsPage() {
     setNaCalendlyMsg('')
     ;(async () => {
       try {
-        const res = await fetch(`/api/${tenant}/evergreen/calendly/availability?closerId=${naCloserId}&date=${naSlotDate}`)
+        const res = await fetch(
+          `/api/${tenant}/evergreen/calendly/availability?closerId=${naCloserId}&date=${naSlotDate}`
+        )
         const json = await res.json()
         if (cancelled) return
         if (!res.ok) {
@@ -320,12 +336,17 @@ export default function AppointmentsPage() {
           if (json.eventType?.duration) setNaDurationMinutes(String(json.eventType.duration))
         }
       } catch {
-        if (!cancelled) { setNaCalendlyMsg('Error de red al cargar huecos'); setNaSlots([]) }
+        if (!cancelled) {
+          setNaCalendlyMsg('Error de red al cargar huecos')
+          setNaSlots([])
+        }
       } finally {
         if (!cancelled) setNaSlotsLoading(false)
       }
     })()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [showNewModal, naCloserId, naSlotDate])
 
   const resetNewAppointmentForm = () => {
@@ -520,10 +541,7 @@ export default function AppointmentsPage() {
     return dupes
   }, [appointments])
 
-  const tableDateRange = useMemo(
-    () => getPeriodRange('custom', dateFrom, dateTo),
-    [dateFrom, dateTo]
-  )
+  const tableDateRange = useMemo(() => getPeriodRange('custom', dateFrom, dateTo), [dateFrom, dateTo])
 
   const filteredAppointments = useMemo(() => {
     return appointments.filter((a) => {
@@ -532,7 +550,8 @@ export default function AppointmentsPage() {
       if (statusFilter !== 'all' && a.status !== statusFilter) return false
       if (channelFilter === 'instagram' && a.utm_source !== 'instagram-setting') return false
       if (channelFilter === 'facebook' && a.utm_source !== 'facebook-setting') return false
-      if (channelFilter === 'other' && ['instagram-setting', 'facebook-setting'].includes(a.utm_source || '')) return false
+      if (channelFilter === 'other' && ['instagram-setting', 'facebook-setting'].includes(a.utm_source || ''))
+        return false
       if (setterFilter !== 'all' && a.setter_id !== setterFilter) return false
       if (closerFilter !== 'all' && a.closer_id !== closerFilter) return false
       if ((dateFrom || dateTo) && !inPeriod(a.appointment_datetime, tableDateRange)) return false
@@ -548,9 +567,31 @@ export default function AppointmentsPage() {
       }
       return true
     })
-  }, [appointments, statusFilter, channelFilter, setterFilter, closerFilter, dateFrom, dateTo, tableDateRange, search, onlyDuplicates, duplicateIds, onlyFollowUp])
+  }, [
+    appointments,
+    statusFilter,
+    channelFilter,
+    setterFilter,
+    closerFilter,
+    dateFrom,
+    dateTo,
+    tableDateRange,
+    search,
+    onlyDuplicates,
+    duplicateIds,
+    onlyFollowUp,
+  ])
 
-  const hasTableFilters = search.trim() !== '' || statusFilter !== 'all' || channelFilter !== 'all' || setterFilter !== 'all' || closerFilter !== 'all' || !!dateFrom || !!dateTo || onlyDuplicates || onlyFollowUp
+  const hasTableFilters =
+    search.trim() !== '' ||
+    statusFilter !== 'all' ||
+    channelFilter !== 'all' ||
+    setterFilter !== 'all' ||
+    closerFilter !== 'all' ||
+    !!dateFrom ||
+    !!dateTo ||
+    onlyDuplicates ||
+    onlyFollowUp
 
   const clearTableFilters = () => {
     setSearch('')
@@ -565,10 +606,7 @@ export default function AppointmentsPage() {
   }
 
   // Días de la semana actual (Lun..Dom)
-  const weekDays = useMemo(
-    () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
-    [weekStart]
-  )
+  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart])
   const pxPerHour = calMode === 'day' ? 88 : PX_PER_HOUR
 
   // Columnas del calendario:
@@ -581,12 +619,17 @@ export default function AppointmentsPage() {
       const d = weekStart
       const today = isSameDay(d, new Date())
       const chosen = dayCloserIds.length ? closers.filter((c) => dayCloserIds.includes(c.id)) : closers
-      if (chosen.length === 0) return [{ key: 'all', label: 'Sin closer asignado', sub: '', date: d, closerId: null, today }]
+      if (chosen.length === 0)
+        return [{ key: 'all', label: 'Sin closer asignado', sub: '', date: d, closerId: null, today }]
       return chosen.map((c) => ({ key: c.id, label: c.full_name, sub: 'Closer', date: d, closerId: c.id, today }))
     }
     return weekDays.map((d, i) => ({
-      key: String(i), label: DAY_NAMES[(d.getDay() + 6) % 7], sub: String(d.getDate()),
-      date: d, closerId: null, today: isSameDay(d, new Date()),
+      key: String(i),
+      label: DAY_NAMES[(d.getDay() + 6) % 7],
+      sub: String(d.getDate()),
+      date: d,
+      closerId: null,
+      today: isSameDay(d, new Date()),
     }))
   }, [calMode, weekStart, weekDays, dayCloserIds, closers])
 
@@ -607,9 +650,7 @@ export default function AppointmentsPage() {
       (a) => a.status !== 'rescheduled' || !contactosConReplicaActiva.has(a.contact_id)
     )
     if (calMode === 'day' || calendarUserFilter === 'all') return visible
-    return visible.filter(
-      (a) => a.closer_id === calendarUserFilter || a.setter_id === calendarUserFilter
-    )
+    return visible.filter((a) => a.closer_id === calendarUserFilter || a.setter_id === calendarUserFilter)
   }, [appointments, calendarUserFilter, calMode])
 
   // Agrupa las agendas de la semana visible por día, con posición/altura proporcional a la duración
@@ -644,15 +685,23 @@ export default function AppointmentsPage() {
         const colEnds: number[] = [] // fondo (top+height) del último item de cada columna
         for (const it of cluster) {
           let c = colEnds.findIndex((end) => it.top >= end - 0.01)
-          if (c === -1) { c = colEnds.length; colEnds.push(0) }
+          if (c === -1) {
+            c = colEnds.length
+            colEnds.push(0)
+          }
           colEnds[c] = it.top + it.height
           it.colIndex = c
         }
-        cluster.forEach((it) => { it.colCount = colEnds.length })
+        cluster.forEach((it) => {
+          it.colCount = colEnds.length
+        })
         cluster = []
       }
       for (const it of arr) {
-        if (cluster.length && it.top >= clusterBottom - 0.01) { flush(); clusterBottom = -1 }
+        if (cluster.length && it.top >= clusterBottom - 0.01) {
+          flush()
+          clusterBottom = -1
+        }
         cluster.push(it)
         clusterBottom = Math.max(clusterBottom, it.top + it.height)
       }
@@ -715,34 +764,62 @@ export default function AppointmentsPage() {
   )
   const metricsPrevRange = useMemo(() => getPreviousPeriodRange(metricsRange), [metricsRange])
 
-  const computeSetterMetrics = (source: AppointmentWithRelations[]) => setters.map((u) => {
-    const agendas = source.filter((a) => a.setter_id === u.id)
-    const shows = agendas.filter((a) => SHOW_STATUSES.includes(a.status)).length
-    const noShows = agendas.filter((a) => NO_SHOW_STATUSES.includes(a.status)).length
-    const programadas = agendas.filter((a) => getAppointmentCategory(a.status, hasPurchased(a)) === 'programada').length
-    const seguimientos = agendas.filter((a) => a.needs_followup).length
-    const showRate = agendas.length > 0 ? (shows / agendas.length) * 100 : null
-    return { id: u.id, name: u.full_name, agendas: agendas.length, shows, noShows, programadas, seguimientos, showRate }
-  })
+  const computeSetterMetrics = (source: AppointmentWithRelations[]) =>
+    setters.map((u) => {
+      const agendas = source.filter((a) => a.setter_id === u.id)
+      const shows = agendas.filter((a) => SHOW_STATUSES.includes(a.status)).length
+      const noShows = agendas.filter((a) => NO_SHOW_STATUSES.includes(a.status)).length
+      const programadas = agendas.filter(
+        (a) => getAppointmentCategory(a.status, hasPurchased(a)) === 'programada'
+      ).length
+      const seguimientos = agendas.filter((a) => a.needs_followup).length
+      const showRate = agendas.length > 0 ? (shows / agendas.length) * 100 : null
+      return {
+        id: u.id,
+        name: u.full_name,
+        agendas: agendas.length,
+        shows,
+        noShows,
+        programadas,
+        seguimientos,
+        showRate,
+      }
+    })
 
-  const computeCloserMetrics = (apptSource: AppointmentWithRelations[], salesSource: Sale[]) => closers.map((u) => {
-    const asignadas = apptSource.filter((a) => a.closer_id === u.id)
-    const showsAtendidos = asignadas.filter((a) => SHOW_STATUSES.includes(a.status)).length
-    const programadas = asignadas.filter((a) => getAppointmentCategory(a.status, hasPurchased(a)) === 'programada').length
-    const seguimientos = asignadas.filter((a) => a.needs_followup).length
-    const ventasCloser = salesSource.filter((s) => s.closer_id === u.id && s.status === 'active')
-    const cierres = ventasCloser.length
-    const ingresos = ventasCloser.reduce((sum, s) => sum + (s.gross_amount || 0), 0)
-    const closeRate = showsAtendidos > 0 ? (cierres / showsAtendidos) * 100 : null
-    return { id: u.id, name: u.full_name, asignadas: asignadas.length, showsAtendidos, cierres, closeRate, ingresos, programadas, seguimientos }
-  })
+  const computeCloserMetrics = (apptSource: AppointmentWithRelations[], salesSource: Sale[]) =>
+    closers.map((u) => {
+      const asignadas = apptSource.filter((a) => a.closer_id === u.id)
+      const showsAtendidos = asignadas.filter((a) => SHOW_STATUSES.includes(a.status)).length
+      const programadas = asignadas.filter(
+        (a) => getAppointmentCategory(a.status, hasPurchased(a)) === 'programada'
+      ).length
+      const seguimientos = asignadas.filter((a) => a.needs_followup).length
+      const ventasCloser = salesSource.filter((s) => s.closer_id === u.id && s.status === 'active')
+      const cierres = ventasCloser.length
+      const ingresos = ventasCloser.reduce((sum, s) => sum + (s.gross_amount || 0), 0)
+      const closeRate = showsAtendidos > 0 ? (cierres / showsAtendidos) * 100 : null
+      return {
+        id: u.id,
+        name: u.full_name,
+        asignadas: asignadas.length,
+        showsAtendidos,
+        cierres,
+        closeRate,
+        ingresos,
+        programadas,
+        seguimientos,
+      }
+    })
 
   const metricsAppointments = useMemo(
-    () => metricsPeriodPreset === 'all' ? appointments : appointments.filter((a) => inPeriod(a.appointment_datetime, metricsRange)),
+    () =>
+      metricsPeriodPreset === 'all'
+        ? appointments
+        : appointments.filter((a) => inPeriod(a.appointment_datetime, metricsRange)),
     [appointments, metricsPeriodPreset, metricsRange]
   )
   const metricsSales = useMemo(
-    () => metricsPeriodPreset === 'all' ? sales : sales.filter((s) => inPeriod(s.sale_date, metricsRange)),
+    () => (metricsPeriodPreset === 'all' ? sales : sales.filter((s) => inPeriod(s.sale_date, metricsRange))),
     [sales, metricsPeriodPreset, metricsRange]
   )
   const prevMetricsAppointments = useMemo(
@@ -766,12 +843,12 @@ export default function AppointmentsPage() {
   )
   const hasPrevPeriod = metricsPeriodPreset !== 'all' && metricsPrevRange.from !== null
   const prevSetterMetrics = useMemo(
-    () => hasPrevPeriod ? computeSetterMetrics(prevMetricsAppointments) : [],
+    () => (hasPrevPeriod ? computeSetterMetrics(prevMetricsAppointments) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [setters, prevMetricsAppointments, purchased, hasPrevPeriod]
   )
   const prevCloserMetrics = useMemo(
-    () => hasPrevPeriod ? computeCloserMetrics(prevMetricsAppointments, prevMetricsSales) : [],
+    () => (hasPrevPeriod ? computeCloserMetrics(prevMetricsAppointments, prevMetricsSales) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [closers, prevMetricsAppointments, prevMetricsSales, purchased, hasPrevPeriod]
   )
@@ -780,7 +857,8 @@ export default function AppointmentsPage() {
   const RateDelta = ({ current, previous }: { current: number | null; previous: number | null }) => {
     if (!hasPrevPeriod || current === null || previous === null) return null
     const delta = current - previous
-    if (Math.abs(delta) < 0.05) return <span className="text-[11px] text-muted-foreground ml-1.5">· = vs. anterior</span>
+    if (Math.abs(delta) < 0.05)
+      return <span className="text-[11px] text-muted-foreground ml-1.5">· = vs. anterior</span>
     const up = delta > 0
     return (
       <span className={`text-[11px] ml-1.5 ${up ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -797,11 +875,9 @@ export default function AppointmentsPage() {
   }
 
   const handleStatusChange = (id: string, status: AppointmentStatus) => {
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status } : a))
-    )
+    setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)))
     if (selectedAppointment?.id === id) {
-      setSelectedAppointment((prev) => prev ? { ...prev, status } : prev)
+      setSelectedAppointment((prev) => (prev ? { ...prev, status } : prev))
     }
   }
 
@@ -810,34 +886,48 @@ export default function AppointmentsPage() {
       prev.map((a) => (a.id === id ? { ...a, ...patch, status: 'scheduled' as AppointmentStatus } : a))
     )
     if (selectedAppointment?.id === id) {
-      setSelectedAppointment((prev) => prev ? { ...prev, ...patch, status: 'scheduled' as AppointmentStatus } : prev)
+      setSelectedAppointment((prev) => (prev ? { ...prev, ...patch, status: 'scheduled' as AppointmentStatus } : prev))
     }
   }
 
   const handleFollowUpChange = (id: string, needsFollowup: boolean) => {
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, needs_followup: needsFollowup } : a))
-    )
+    setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, needs_followup: needsFollowup } : a)))
     if (selectedAppointment?.id === id) {
-      setSelectedAppointment((prev) => prev ? { ...prev, needs_followup: needsFollowup } : prev)
+      setSelectedAppointment((prev) => (prev ? { ...prev, needs_followup: needsFollowup } : prev))
     }
   }
 
   const handleCloserChanged = (id: string, closer: { id: string; full_name: string } | null) => {
     setAppointments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, closer_id: closer?.id ?? null, closer: closer as unknown as AppointmentWithRelations['closer'] } : a))
+      prev.map((a) =>
+        a.id === id
+          ? { ...a, closer_id: closer?.id ?? null, closer: closer as unknown as AppointmentWithRelations['closer'] }
+          : a
+      )
     )
     if (selectedAppointment?.id === id) {
-      setSelectedAppointment((prev) => prev ? { ...prev, closer_id: closer?.id ?? null, closer: closer as unknown as AppointmentWithRelations['closer'] } : prev)
+      setSelectedAppointment((prev) =>
+        prev
+          ? { ...prev, closer_id: closer?.id ?? null, closer: closer as unknown as AppointmentWithRelations['closer'] }
+          : prev
+      )
     }
   }
 
   const handleSetterChanged = (id: string, setter: { id: string; full_name: string } | null) => {
     setAppointments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, setter_id: setter?.id ?? null, setter: setter as unknown as AppointmentWithRelations['setter'] } : a))
+      prev.map((a) =>
+        a.id === id
+          ? { ...a, setter_id: setter?.id ?? null, setter: setter as unknown as AppointmentWithRelations['setter'] }
+          : a
+      )
     )
     if (selectedAppointment?.id === id) {
-      setSelectedAppointment((prev) => prev ? { ...prev, setter_id: setter?.id ?? null, setter: setter as unknown as AppointmentWithRelations['setter'] } : prev)
+      setSelectedAppointment((prev) =>
+        prev
+          ? { ...prev, setter_id: setter?.id ?? null, setter: setter as unknown as AppointmentWithRelations['setter'] }
+          : prev
+      )
     }
   }
 
@@ -846,13 +936,21 @@ export default function AppointmentsPage() {
   const rescheduleAppointment = async (appt: AppointmentWithRelations, newStartISO: string) => {
     const prevDatetime = appt.appointment_datetime
     setAppointments((prev) =>
-      prev.map((a) => (a.id === appt.id ? { ...a, appointment_datetime: newStartISO, status: 'scheduled' as AppointmentStatus } : a))
+      prev.map((a) =>
+        a.id === appt.id ? { ...a, appointment_datetime: newStartISO, status: 'scheduled' as AppointmentStatus } : a
+      )
     )
     const doReschedule = async (manualOnly: boolean) => {
       const res = await fetch(`/api/${tenant}/evergreen/appointments/reschedule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appointmentId: appt.id, startTime: newStartISO, durationMinutes: appt.duration_minutes || undefined, timezone: guessContactTimezone(appt.contacts), manualOnly }),
+        body: JSON.stringify({
+          appointmentId: appt.id,
+          startTime: newStartISO,
+          durationMinutes: appt.duration_minutes || undefined,
+          timezone: guessContactTimezone(appt.contacts),
+          manualOnly,
+        }),
       })
       const data = await res.json()
       if (!res.ok || data?.error) throw new Error(data?.error || 'No se pudo reprogramar')
@@ -875,16 +973,15 @@ export default function AppointmentsPage() {
       }
       if (data?.calendlyCanceled === false) {
         toast.warning('Agenda reprogramada, pero el evento antiguo sigue en Calendly/Google Calendar', {
-          description: 'No se pudo cancelar el evento anterior automáticamente. Bórralo a mano para evitar un duplicado.',
+          description:
+            'No se pudo cancelar el evento anterior automáticamente. Bórralo a mano para evitar un duplicado.',
         })
       } else {
         toast.success('Agenda reprogramada')
       }
     } catch (err) {
       // Revertir
-      setAppointments((prev) =>
-        prev.map((a) => (a.id === appt.id ? { ...a, appointment_datetime: prevDatetime } : a))
-      )
+      setAppointments((prev) => prev.map((a) => (a.id === appt.id ? { ...a, appointment_datetime: prevDatetime } : a)))
       toast.error('No se pudo reprogramar', { description: err instanceof Error ? err.message : undefined })
     }
   }
@@ -914,145 +1011,159 @@ export default function AppointmentsPage() {
   // (created_at desc), no la fecha del evento — para ver rápido lo que va entrando.
   const [sorting, setSorting] = useState<SortingState>([{ id: 'created_at', desc: true }])
 
-  const columns = useMemo(() => [
-    columnHelper.accessor('created_at', {
-      header: 'Reservado el',
-      cell: ({ getValue }) => (
-        <span className="text-muted-foreground text-sm">{formatDateTime(getValue())}</span>
-      ),
-    }),
-    columnHelper.accessor('appointment_datetime', {
-      header: 'Fecha/Hora',
-      cell: ({ getValue }) => (
-        <span className="text-foreground text-sm">{formatDateTime(getValue())}</span>
-      ),
-    }),
-    columnHelper.display({
-      id: 'contact',
-      header: 'Contacto',
-      cell: ({ row }) => (
-        <button
-          className="text-brand-400 hover:text-brand-300 text-sm font-medium"
-          onClick={(e) => {
-            e.stopPropagation()
-            router.push(`/${tenant}/crm/contactos/${row.original.contact_id}`)
-          }}
-        >
-          {row.original.contacts?.full_name || '—'}
-        </button>
-      ),
-    }),
-    columnHelper.display({
-      id: 'setter',
-      header: 'Setter',
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">{row.original.setter?.full_name || '—'}</span>
-      ),
-    }),
-    columnHelper.display({
-      id: 'closer',
-      header: 'Closer',
-      cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">{row.original.closer?.full_name || '—'}</span>
-      ),
-    }),
-    columnHelper.accessor('status', {
-      header: 'Estado',
-      cell: ({ getValue, row }) => {
-        const s = getValue()
-        const category = getAppointmentCategory(s, hasPurchased(row.original))
-        const conflict = row.original.contact_id ? closerConflicts[row.original.contact_id] : undefined
-        return (
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <Badge className={`border text-xs gap-1 ${CATEGORY_BADGE_CLASSES[category]}`}>
-              {category === 'compra' && <Banknote className="w-3 h-3" />}
-              {CATEGORY_LABELS[category]}
-            </Badge>
-            {row.original.needs_followup ? (
-              <Badge className="border text-xs bg-indigo-500/20 text-indigo-300 border-indigo-500/30">Seguimiento</Badge>
-            ) : null}
-            {row.original.rescheduled_from_status === 'no_show' && (
-              <Badge className="border text-xs bg-red-500/10 text-red-400 border-red-500/30">Reagenda / No show</Badge>
-            )}
-            {row.original.rescheduled_from_status === 'show' && (
-              <Badge className="border text-xs bg-emerald-500/10 text-emerald-400 border-emerald-500/30">Reagenda / Show</Badge>
-            )}
-            {conflict && (
-              <div className="flex items-center gap-1.5 flex-wrap" onClick={(e) => e.stopPropagation()}>
-                <Badge
-                  className="border text-xs bg-amber-500/20 text-amber-400 border-amber-500/30"
-                  title="Este contacto ya fue atendido por otro closer en una cita anterior"
-                >
-                  ⚠ Ya atendido por {conflict.owning_closer_name}
-                </Badge>
-                {canReassignConflict && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-6 px-2 text-xs border-amber-700/60 text-amber-400 hover:bg-amber-500/10"
-                    disabled={reassigningConflictId === conflict.conflicting_appointment_id}
-                    onClick={() => handleReassignConflict(conflict.conflicting_appointment_id, conflict.owning_closer_id)}
-                  >
-                    Reasignar a {conflict.owning_closer_name}
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        )
-      },
-    }),
-    columnHelper.accessor('source', {
-      header: 'Fuente',
-      cell: ({ getValue }) => <span className="text-muted-foreground text-sm">{getValue() || '—'}</span>,
-    }),
-    // Origen del lead: la IA (Instagram/Facebook Setting) marca sus propios leads con
-    // utm_source 'instagram-setting'/'facebook-setting' + utm_term conteniendo "IA".
-    // El resto de UTMs son campañas de pago normales; sin UTM = orgánico/referido.
-    columnHelper.display({
-      id: 'origin',
-      header: 'Origen',
-      cell: ({ row }) => {
-        const a = row.original
-        const isIA = ['instagram-setting', 'facebook-setting'].includes(a.utm_source || '') && (a.utm_term || '').toUpperCase().includes('IA')
-        const utm = a.utm_source || a.utm_campaign
-        const fullTooltip = [
-          a.utm_source && `source: ${a.utm_source}`,
-          a.utm_medium && `medium: ${a.utm_medium}`,
-          a.utm_campaign && `campaign: ${a.utm_campaign}`,
-          a.utm_content && `content: ${a.utm_content}`,
-          a.utm_term && `term: ${a.utm_term}`,
-        ].filter(Boolean).join(' · ')
-        if (isIA) {
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor('created_at', {
+        header: 'Reservado el',
+        cell: ({ getValue }) => <span className="text-muted-foreground text-sm">{formatDateTime(getValue())}</span>,
+      }),
+      columnHelper.accessor('appointment_datetime', {
+        header: 'Fecha/Hora',
+        cell: ({ getValue }) => <span className="text-foreground text-sm">{formatDateTime(getValue())}</span>,
+      }),
+      columnHelper.display({
+        id: 'contact',
+        header: 'Contacto',
+        cell: ({ row }) => (
+          <button
+            className="text-brand-400 hover:text-brand-300 text-sm font-medium"
+            onClick={(e) => {
+              e.stopPropagation()
+              router.push(`/${tenant}/crm/contactos/${row.original.contact_id}`)
+            }}
+          >
+            {row.original.contacts?.full_name || '—'}
+          </button>
+        ),
+      }),
+      columnHelper.display({
+        id: 'setter',
+        header: 'Setter',
+        cell: ({ row }) => (
+          <span className="text-muted-foreground text-sm">{row.original.setter?.full_name || '—'}</span>
+        ),
+      }),
+      columnHelper.display({
+        id: 'closer',
+        header: 'Closer',
+        cell: ({ row }) => (
+          <span className="text-muted-foreground text-sm">{row.original.closer?.full_name || '—'}</span>
+        ),
+      }),
+      columnHelper.accessor('status', {
+        header: 'Estado',
+        cell: ({ getValue, row }) => {
+          const s = getValue()
+          const category = getAppointmentCategory(s, hasPurchased(row.original))
+          const conflict = row.original.contact_id ? closerConflicts[row.original.contact_id] : undefined
           return (
-            <Badge className="border text-xs bg-violet-500/20 text-violet-300 border-violet-500/30" title={fullTooltip}>
-              IA{a.utm_source === 'instagram-setting' ? ' (IG)' : a.utm_source === 'facebook-setting' ? ' (FB)' : ''}
-            </Badge>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Badge className={`border text-xs gap-1 ${CATEGORY_BADGE_CLASSES[category]}`}>
+                {category === 'compra' && <Banknote className="w-3 h-3" />}
+                {CATEGORY_LABELS[category]}
+              </Badge>
+              {row.original.needs_followup ? (
+                <Badge className="border text-xs bg-indigo-500/20 text-indigo-300 border-indigo-500/30">
+                  Seguimiento
+                </Badge>
+              ) : null}
+              {row.original.rescheduled_from_status === 'no_show' && (
+                <Badge className="border text-xs bg-red-500/10 text-red-400 border-red-500/30">
+                  Reagenda / No show
+                </Badge>
+              )}
+              {row.original.rescheduled_from_status === 'show' && (
+                <Badge className="border text-xs bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                  Reagenda / Show
+                </Badge>
+              )}
+              {conflict && (
+                <div className="flex items-center gap-1.5 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                  <Badge
+                    className="border text-xs bg-amber-500/20 text-amber-400 border-amber-500/30"
+                    title="Este contacto ya fue atendido por otro closer en una cita anterior"
+                  >
+                    ⚠ Ya atendido por {conflict.owning_closer_name}
+                  </Badge>
+                  {canReassignConflict && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 px-2 text-xs border-amber-700/60 text-amber-400 hover:bg-amber-500/10"
+                      disabled={reassigningConflictId === conflict.conflicting_appointment_id}
+                      onClick={() =>
+                        handleReassignConflict(conflict.conflicting_appointment_id, conflict.owning_closer_id)
+                      }
+                    >
+                      Reasignar a {conflict.owning_closer_name}
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
           )
-        }
-        return utm ? (
-          <Badge className="border text-xs bg-sky-500/20 text-sky-300 border-sky-500/30" title={fullTooltip}>
-            UTM{a.utm_source ? `: ${a.utm_source}` : ''}
-          </Badge>
-        ) : (
-          <Badge className="border text-xs bg-zinc-500/20 text-muted-foreground border-border/30">Sin UTM</Badge>
-        )
-      },
-    }),
-    columnHelper.accessor('utm_campaign', {
-      header: 'UTM Campaign',
-      cell: ({ getValue }) => <span className="text-muted-foreground text-sm">{getValue() || '—'}</span>,
-    }),
-    columnHelper.accessor('utm_medium', {
-      header: 'UTM Medium',
-      cell: ({ getValue }) => <span className="text-muted-foreground text-sm">{getValue() || '—'}</span>,
-    }),
-    columnHelper.accessor('utm_content', {
-      header: 'UTM Content',
-      cell: ({ getValue }) => <span className="text-muted-foreground text-sm">{getValue() || '—'}</span>,
-    }),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [purchased, closerConflicts, reassigningConflictId])
+        },
+      }),
+      columnHelper.accessor('source', {
+        header: 'Fuente',
+        cell: ({ getValue }) => <span className="text-muted-foreground text-sm">{getValue() || '—'}</span>,
+      }),
+      // Origen del lead: la IA (Instagram/Facebook Setting) marca sus propios leads con
+      // utm_source 'instagram-setting'/'facebook-setting' + utm_term conteniendo "IA".
+      // El resto de UTMs son campañas de pago normales; sin UTM = orgánico/referido.
+      columnHelper.display({
+        id: 'origin',
+        header: 'Origen',
+        cell: ({ row }) => {
+          const a = row.original
+          const isIA =
+            ['instagram-setting', 'facebook-setting'].includes(a.utm_source || '') &&
+            (a.utm_term || '').toUpperCase().includes('IA')
+          const utm = a.utm_source || a.utm_campaign
+          const fullTooltip = [
+            a.utm_source && `source: ${a.utm_source}`,
+            a.utm_medium && `medium: ${a.utm_medium}`,
+            a.utm_campaign && `campaign: ${a.utm_campaign}`,
+            a.utm_content && `content: ${a.utm_content}`,
+            a.utm_term && `term: ${a.utm_term}`,
+          ]
+            .filter(Boolean)
+            .join(' · ')
+          if (isIA) {
+            return (
+              <Badge
+                className="border text-xs bg-violet-500/20 text-violet-300 border-violet-500/30"
+                title={fullTooltip}
+              >
+                IA{a.utm_source === 'instagram-setting' ? ' (IG)' : a.utm_source === 'facebook-setting' ? ' (FB)' : ''}
+              </Badge>
+            )
+          }
+          return utm ? (
+            <Badge className="border text-xs bg-sky-500/20 text-sky-300 border-sky-500/30" title={fullTooltip}>
+              UTM{a.utm_source ? `: ${a.utm_source}` : ''}
+            </Badge>
+          ) : (
+            <Badge className="border text-xs bg-zinc-500/20 text-muted-foreground border-border/30">Sin UTM</Badge>
+          )
+        },
+      }),
+      columnHelper.accessor('utm_campaign', {
+        header: 'UTM Campaign',
+        cell: ({ getValue }) => <span className="text-muted-foreground text-sm">{getValue() || '—'}</span>,
+      }),
+      columnHelper.accessor('utm_medium', {
+        header: 'UTM Medium',
+        cell: ({ getValue }) => <span className="text-muted-foreground text-sm">{getValue() || '—'}</span>,
+      }),
+      columnHelper.accessor('utm_content', {
+        header: 'UTM Content',
+        cell: ({ getValue }) => <span className="text-muted-foreground text-sm">{getValue() || '—'}</span>,
+      }),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    ],
+    [purchased, closerConflicts, reassigningConflictId]
+  )
 
   const table = useReactTable({
     data: filteredAppointments,
@@ -1148,7 +1259,12 @@ export default function AppointmentsPage() {
         <>
           {/* Filters */}
           <div className="flex flex-wrap gap-3">
-            <SearchBox value={search} onChange={setSearch} placeholder="Buscar por nombre, email o teléfono..." className="flex-1 min-w-[200px]" />
+            <SearchBox
+              value={search}
+              onChange={setSearch}
+              placeholder="Buscar por nombre, email o teléfono..."
+              className="flex-1 min-w-[200px]"
+            />
 
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-40 bg-card border-border">
@@ -1157,7 +1273,9 @@ export default function AppointmentsPage() {
               <SelectContent className="bg-card border-border">
                 <SelectItem value="all">Todos los estados</SelectItem>
                 {Object.entries(STATUS_LABELS).map(([v, l]) => (
-                  <SelectItem key={v} value={v}>{l}</SelectItem>
+                  <SelectItem key={v} value={v}>
+                    {l}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1181,7 +1299,9 @@ export default function AppointmentsPage() {
               <SelectContent className="bg-card border-border">
                 <SelectItem value="all">Todos los setters</SelectItem>
                 {setters.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.full_name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1193,7 +1313,9 @@ export default function AppointmentsPage() {
               <SelectContent className="bg-card border-border">
                 <SelectItem value="all">Todos los closers</SelectItem>
                 {closers.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.full_name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1220,7 +1342,11 @@ export default function AppointmentsPage() {
               <Button
                 variant={onlyDuplicates ? 'default' : 'outline'}
                 onClick={() => setOnlyDuplicates((v) => !v)}
-                className={onlyDuplicates ? 'bg-amber-600 hover:bg-amber-500' : 'border-amber-700/60 text-amber-400 hover:bg-amber-500/10'}
+                className={
+                  onlyDuplicates
+                    ? 'bg-amber-600 hover:bg-amber-500'
+                    : 'border-amber-700/60 text-amber-400 hover:bg-amber-500/10'
+                }
                 title="Mismo contacto con más de una agenda el mismo día"
               >
                 <Copy className="w-4 h-4 mr-1.5" />
@@ -1232,14 +1358,22 @@ export default function AppointmentsPage() {
               <Button
                 variant={onlyFollowUp ? 'default' : 'outline'}
                 onClick={() => setOnlyFollowUp((v) => !v)}
-                className={onlyFollowUp ? 'bg-indigo-600 hover:bg-indigo-500' : 'border-indigo-700/60 text-indigo-300 hover:bg-indigo-500/10'}
+                className={
+                  onlyFollowUp
+                    ? 'bg-indigo-600 hover:bg-indigo-500'
+                    : 'border-indigo-700/60 text-indigo-300 hover:bg-indigo-500/10'
+                }
                 title="Agendas marcadas en seguimiento"
               >
                 En seguimiento ({appointments.filter((a) => a.needs_followup).length})
               </Button>
             )}
             {hasTableFilters && (
-              <Button variant="ghost" onClick={clearTableFilters} className="text-muted-foreground hover:text-foreground">
+              <Button
+                variant="ghost"
+                onClick={clearTableFilters}
+                className="text-muted-foreground hover:text-foreground"
+              >
                 <X className="w-4 h-4 mr-1.5" /> Limpiar filtros
               </Button>
             )}
@@ -1247,8 +1381,11 @@ export default function AppointmentsPage() {
 
           {onlyDuplicates && (
             <p className="text-xs text-amber-400/90">
-              Mostrando contactos con más de una agenda el mismo día (revisa antes: dos llamadas reales también salen aquí). Abre la que sobra y{' '}
-              {isAdmin ? 'bórrala con «Borrar duplicada» para que deje de contar en los KPIs.' : 'pide a un admin que la borre: solo dirección puede hacerlo.'}
+              Mostrando contactos con más de una agenda el mismo día (revisa antes: dos llamadas reales también salen
+              aquí). Abre la que sobra y{' '}
+              {isAdmin
+                ? 'bórrala con «Borrar duplicada» para que deje de contar en los KPIs.'
+                : 'pide a un admin que la borre: solo dirección puede hacerlo.'}
             </p>
           )}
 
@@ -1338,13 +1475,19 @@ export default function AppointmentsPage() {
               <div className="flex rounded-md border border-border overflow-hidden">
                 <button
                   className={`px-3 py-1.5 text-sm ${calMode === 'day' ? 'bg-brand-600 text-white' : 'text-muted-foreground hover:text-foreground'}`}
-                  onClick={() => { setCalMode('day'); setWeekStart(startOfDay(new Date())) }}
+                  onClick={() => {
+                    setCalMode('day')
+                    setWeekStart(startOfDay(new Date()))
+                  }}
                 >
                   Día
                 </button>
                 <button
                   className={`px-3 py-1.5 text-sm ${calMode === 'week' ? 'bg-brand-600 text-white' : 'text-muted-foreground hover:text-foreground'}`}
-                  onClick={() => { setCalMode('week'); setWeekStart((prev) => getMondayOfWeek(prev)) }}
+                  onClick={() => {
+                    setCalMode('week')
+                    setWeekStart((prev) => getMondayOfWeek(prev))
+                  }}
                 >
                   Semana
                 </button>
@@ -1386,10 +1529,14 @@ export default function AppointmentsPage() {
                   <SelectContent className="bg-card border-border">
                     <SelectItem value="all">Todo el equipo</SelectItem>
                     {closers.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>{u.full_name} (closer)</SelectItem>
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.full_name} (closer)
+                      </SelectItem>
                     ))}
                     {setters.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>{u.full_name} (setter)</SelectItem>
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.full_name} (setter)
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1411,9 +1558,11 @@ export default function AppointmentsPage() {
                 return (
                   <button
                     key={c.id}
-                    onClick={() => setDayCloserIds((prev) => on ? prev.filter((x) => x !== c.id) : [...prev, c.id])}
+                    onClick={() => setDayCloserIds((prev) => (on ? prev.filter((x) => x !== c.id) : [...prev, c.id]))}
                     className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
-                      on ? 'bg-brand-600 text-white border-brand-500' : 'bg-card text-muted-foreground border-border hover:text-foreground'
+                      on
+                        ? 'bg-brand-600 text-white border-brand-500'
+                        : 'bg-card text-muted-foreground border-border hover:text-foreground'
                     }`}
                   >
                     {c.full_name}
@@ -1421,7 +1570,10 @@ export default function AppointmentsPage() {
                 )
               })}
               {dayCloserIds.length > 0 && (
-                <button onClick={() => setDayCloserIds([])} className="text-xs text-muted-foreground hover:text-foreground underline">
+                <button
+                  onClick={() => setDayCloserIds([])}
+                  className="text-xs text-muted-foreground hover:text-foreground underline"
+                >
                   Ver todos
                 </button>
               )}
@@ -1432,7 +1584,10 @@ export default function AppointmentsPage() {
           <div className="rounded-lg border border-border overflow-x-auto">
             <div style={{ minWidth: calMode === 'day' ? 60 + calColumns.length * 200 : 900 }}>
               {/* Cabecera: días (semana) o closers (día) */}
-              <div className="grid border-b border-border" style={{ gridTemplateColumns: `60px repeat(${calColumns.length}, 1fr)` }}>
+              <div
+                className="grid border-b border-border"
+                style={{ gridTemplateColumns: `60px repeat(${calColumns.length}, 1fr)` }}
+              >
                 <div className="p-2" />
                 {calColumns.map((col) => (
                   <div
@@ -1540,62 +1695,66 @@ export default function AppointmentsPage() {
                         const isCancelled = category === 'cancelada'
                         const draggable = !isCancelled && canDragAppointment(appt)
                         return (
-                        <button
-                          key={appt.id}
-                          draggable={draggable}
-                          onDragStart={(e) => {
-                            setDraggingId(appt.id)
-                            dragOriginRef.current = { x: e.clientX, y: e.clientY }
-                            e.dataTransfer.effectAllowed = 'move'
-                          }}
-                          onDragEnd={() => {
-                            setDraggingId(null)
-                            dragOriginRef.current = null
-                          }}
-                          onClick={() => {
-                            setSelectedAppointment(appt)
-                            setSheetOpen(true)
-                          }}
-                          title={`${new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit' }).format(new Date(appt.appointment_datetime))} · ${appt.contacts?.full_name || '—'} · Closer: ${appt.closer?.full_name || 'Sin closer'}`}
-                          style={{
-                            top: `${top}px`,
-                            height: `${height}px`,
-                            left: `calc(${(colIndex / colCount) * 100}% + 2px)`,
-                            width: `calc(${(1 / colCount) * 100}% - 4px)`,
-                          }}
-                          className={`absolute text-left border rounded px-1.5 py-1 transition-colors overflow-hidden ${
-                            draggable ? 'cursor-grab active:cursor-grabbing' : ''
-                          } ${CATEGORY_BLOCK_CLASSES[category]} ${isCancelled ? 'z-10' : 'z-20'} ${appt.needs_followup ? 'ring-2 ring-indigo-400/70' : ''}`}
-                        >
-                          <p className="text-[11px] text-foreground truncate flex items-center gap-1">
-                            {category === 'compra' && (
-                              <Banknote className="w-3 h-3 text-green-400 shrink-0" aria-label="Venta" />
+                          <button
+                            key={appt.id}
+                            draggable={draggable}
+                            onDragStart={(e) => {
+                              setDraggingId(appt.id)
+                              dragOriginRef.current = { x: e.clientX, y: e.clientY }
+                              e.dataTransfer.effectAllowed = 'move'
+                            }}
+                            onDragEnd={() => {
+                              setDraggingId(null)
+                              dragOriginRef.current = null
+                            }}
+                            onClick={() => {
+                              setSelectedAppointment(appt)
+                              setSheetOpen(true)
+                            }}
+                            title={`${new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit' }).format(new Date(appt.appointment_datetime))} · ${appt.contacts?.full_name || '—'} · Closer: ${appt.closer?.full_name || 'Sin closer'}`}
+                            style={{
+                              top: `${top}px`,
+                              height: `${height}px`,
+                              left: `calc(${(colIndex / colCount) * 100}% + 2px)`,
+                              width: `calc(${(1 / colCount) * 100}% - 4px)`,
+                            }}
+                            className={`absolute text-left border rounded px-1.5 py-1 transition-colors overflow-hidden ${
+                              draggable ? 'cursor-grab active:cursor-grabbing' : ''
+                            } ${CATEGORY_BLOCK_CLASSES[category]} ${isCancelled ? 'z-10' : 'z-20'} ${appt.needs_followup ? 'ring-2 ring-indigo-400/70' : ''}`}
+                          >
+                            <p className="text-[11px] text-foreground truncate flex items-center gap-1">
+                              {category === 'compra' && (
+                                <Banknote className="w-3 h-3 text-green-400 shrink-0" aria-label="Venta" />
+                              )}
+                              {new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit' }).format(
+                                new Date(appt.appointment_datetime)
+                              )}{' '}
+                              {appt.contacts?.full_name || '—'}
+                            </p>
+                            <p className="text-[10px] text-brand-300 truncate flex items-center gap-1">
+                              <span
+                                className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${closerColorClass(appt.closer_id)}`}
+                              />
+                              {appt.closer?.full_name || 'Sin closer'}
+                            </p>
+                            {appt.setter?.full_name && (
+                              <p className="text-[9px] text-muted-foreground truncate">{appt.setter.full_name}</p>
                             )}
-                            {new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit' }).format(
-                              new Date(appt.appointment_datetime)
-                            )}{' '}
-                            {appt.contacts?.full_name || '—'}
-                          </p>
-                          <p className="text-[10px] text-brand-300 truncate flex items-center gap-1">
-                            <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${closerColorClass(appt.closer_id)}`} />
-                            {appt.closer?.full_name || 'Sin closer'}
-                          </p>
-                          {appt.setter?.full_name && (
-                            <p className="text-[9px] text-muted-foreground truncate">{appt.setter.full_name}</p>
-                          )}
-                          <div className="flex items-center gap-1 flex-wrap mt-0.5">
-                            <Badge className={`border text-[10px] gap-1 ${CATEGORY_BADGE_CLASSES[category]}`}>
-                              {category === 'compra' && <Banknote className="w-3 h-3" />}
-                              {CATEGORY_LABELS[category]}
-                            </Badge>
-                            {appt.needs_followup ? (
-                              <Badge className="border text-[10px] bg-indigo-500/20 text-indigo-300 border-indigo-500/30">Seguimiento</Badge>
-                            ) : null}
-                            {appt.duration_minutes ? (
-                              <span className="text-[10px] text-muted-foreground">{appt.duration_minutes} min</span>
-                            ) : null}
-                          </div>
-                        </button>
+                            <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                              <Badge className={`border text-[10px] gap-1 ${CATEGORY_BADGE_CLASSES[category]}`}>
+                                {category === 'compra' && <Banknote className="w-3 h-3" />}
+                                {CATEGORY_LABELS[category]}
+                              </Badge>
+                              {appt.needs_followup ? (
+                                <Badge className="border text-[10px] bg-indigo-500/20 text-indigo-300 border-indigo-500/30">
+                                  Seguimiento
+                                </Badge>
+                              ) : null}
+                              {appt.duration_minutes ? (
+                                <span className="text-[10px] text-muted-foreground">{appt.duration_minutes} min</span>
+                              ) : null}
+                            </div>
+                          </button>
                         )
                       })}
                     </div>
@@ -1650,9 +1809,7 @@ export default function AppointmentsPage() {
                         Procesando
                       </Badge>
                     ) : (
-                      <Badge className="border text-xs bg-red-500/20 text-red-400 border-red-500/30">
-                        Error
-                      </Badge>
+                      <Badge className="border text-xs bg-red-500/20 text-red-400 border-red-500/30">Error</Badge>
                     )}
                   </button>
                 ))}
@@ -1688,20 +1845,22 @@ export default function AppointmentsPage() {
                     <div>
                       <p className="text-xs text-muted-foreground">Nota llamada</p>
                       <p className="text-sm font-semibold text-foreground">
-                        {appt.ai_call_score !== null && appt.ai_call_score !== undefined ? `${appt.ai_call_score}/10` : '—'}
+                        {appt.ai_call_score !== null && appt.ai_call_score !== undefined
+                          ? `${appt.ai_call_score}/10`
+                          : '—'}
                       </p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Nota lead</p>
                       <p className="text-sm font-semibold text-foreground">
-                        {appt.ai_lead_score !== null && appt.ai_lead_score !== undefined ? `${appt.ai_lead_score}/10` : '—'}
+                        {appt.ai_lead_score !== null && appt.ai_lead_score !== undefined
+                          ? `${appt.ai_lead_score}/10`
+                          : '—'}
                       </p>
                     </div>
                   </div>
 
-                  {appt.ai_summary && (
-                    <p className="text-sm text-muted-foreground line-clamp-3">{appt.ai_summary}</p>
-                  )}
+                  {appt.ai_summary && <p className="text-sm text-muted-foreground line-clamp-3">{appt.ai_summary}</p>}
 
                   <Button
                     variant="outline"
@@ -1765,7 +1924,10 @@ export default function AppointmentsPage() {
                         <TableCell className="text-indigo-300 text-sm">{m.seguimientos}</TableCell>
                         <TableCell className={`text-sm font-semibold ${rateColor(m.showRate)}`}>
                           {m.showRate !== null ? `${m.showRate.toFixed(1)}%` : '—'}
-                          <RateDelta current={m.showRate} previous={prevSetterMetrics.find((p) => p.id === m.id)?.showRate ?? null} />
+                          <RateDelta
+                            current={m.showRate}
+                            previous={prevSetterMetrics.find((p) => p.id === m.id)?.showRate ?? null}
+                          />
                         </TableCell>
                       </TableRow>
                     ))
@@ -1810,7 +1972,10 @@ export default function AppointmentsPage() {
                         <TableCell className="text-foreground text-sm">{m.cierres}</TableCell>
                         <TableCell className={`text-sm font-semibold ${rateColor(m.closeRate)}`}>
                           {m.closeRate !== null ? `${m.closeRate.toFixed(1)}%` : '—'}
-                          <RateDelta current={m.closeRate} previous={prevCloserMetrics.find((p) => p.id === m.id)?.closeRate ?? null} />
+                          <RateDelta
+                            current={m.closeRate}
+                            previous={prevCloserMetrics.find((p) => p.id === m.id)?.closeRate ?? null}
+                          />
                         </TableCell>
                         <TableCell className="text-foreground text-sm">{formatCurrency(m.ingresos)}</TableCell>
                       </TableRow>
@@ -1827,9 +1992,7 @@ export default function AppointmentsPage() {
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent className="bg-card border-border text-foreground w-full sm:max-w-xl overflow-y-auto">
           <SheetHeader>
-            <SheetTitle className="text-foreground">
-              Detalle de Agenda
-            </SheetTitle>
+            <SheetTitle className="text-foreground">Detalle de Agenda</SheetTitle>
             {selectedAppointment && (
               <p className="text-muted-foreground text-sm">{selectedAppointment.contacts?.full_name}</p>
             )}
@@ -1900,7 +2063,9 @@ export default function AppointmentsPage() {
                 <div className="bg-muted border border-border rounded-lg p-3 flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-foreground">{naSelectedContact.full_name}</p>
-                    <p className="text-xs text-muted-foreground">{naSelectedContact.email || naSelectedContact.phone || 'Sin datos'}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {naSelectedContact.email || naSelectedContact.phone || 'Sin datos'}
+                    </p>
                   </div>
                   <button
                     className="text-xs text-muted-foreground hover:text-foreground"
@@ -1925,7 +2090,9 @@ export default function AppointmentsPage() {
                       <option value={naContactTimezone}>{naContactTimezone}</option>
                     )}
                     {TIMEZONE_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -2009,7 +2176,9 @@ export default function AppointmentsPage() {
                         onChange={(e) => setNaNewContactInstagram(e.target.value)}
                         className={cls}
                       />
-                      <p className="text-xs text-muted-foreground">* Nombre obligatorio, y al menos email o teléfono.</p>
+                      <p className="text-xs text-muted-foreground">
+                        * Nombre obligatorio, y al menos email o teléfono.
+                      </p>
                       <div className="flex gap-2">
                         <Button size="sm" onClick={handleCreateContactInline} disabled={!naNewContactName}>
                           Crear y seleccionar
@@ -2031,7 +2200,9 @@ export default function AppointmentsPage() {
                 <select value={naSetterId} onChange={(e) => setNaSetterId(e.target.value)} className={cls}>
                   <option value="">— sin setter —</option>
                   {setters.map((u) => (
-                    <option key={u.id} value={u.id}>{u.full_name}</option>
+                    <option key={u.id} value={u.id}>
+                      {u.full_name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -2040,7 +2211,9 @@ export default function AppointmentsPage() {
                 <select value={naCloserId} onChange={(e) => setNaCloserId(e.target.value)} className={cls}>
                   <option value="">— sin closer —</option>
                   {closers.map((u) => (
-                    <option key={u.id} value={u.id}>{u.full_name}</option>
+                    <option key={u.id} value={u.id}>
+                      {u.full_name}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -2054,7 +2227,10 @@ export default function AppointmentsPage() {
                     <input
                       type="checkbox"
                       checked={naManualMode}
-                      onChange={(e) => { setNaManualMode(e.target.checked); setNaSelectedSlot('') }}
+                      onChange={(e) => {
+                        setNaManualMode(e.target.checked)
+                        setNaSelectedSlot('')
+                      }}
                       className="accent-brand-500"
                     />
                     Elegir hora libre en la plataforma (sin crear evento en Calendly)
@@ -2109,7 +2285,9 @@ export default function AppointmentsPage() {
                     </div>
 
                     {!naSlotDate && (
-                      <p className="text-xs text-muted-foreground">Elige un día para ver los huecos disponibles en el Calendly del closer.</p>
+                      <p className="text-xs text-muted-foreground">
+                        Elige un día para ver los huecos disponibles en el Calendly del closer.
+                      </p>
                     )}
                     {naSlotDate && naSlotsLoading && (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -2118,7 +2296,9 @@ export default function AppointmentsPage() {
                     )}
                     {naSlotDate && !naSlotsLoading && naHasCalendly === false && (
                       <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 space-y-2">
-                        <p className="text-xs text-amber-400">{naCalendlyMsg || 'Este closer no tiene Calendly.'} La cita se creará solo en la app.</p>
+                        <p className="text-xs text-amber-400">
+                          {naCalendlyMsg || 'Este closer no tiene Calendly.'} La cita se creará solo en la app.
+                        </p>
                         <input
                           type="datetime-local"
                           value={naDatetime}
@@ -2130,13 +2310,21 @@ export default function AppointmentsPage() {
                     {naSlotDate && !naSlotsLoading && naCalendlyMsg && naHasCalendly === null && (
                       <p className="text-xs text-red-400">{naCalendlyMsg}</p>
                     )}
-                    {naSlotDate && !naSlotsLoading && naHasCalendly === true && (
-                      naSlots.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">No hay huecos disponibles ese día. Prueba otra fecha.</p>
+                    {naSlotDate &&
+                      !naSlotsLoading &&
+                      naHasCalendly === true &&
+                      (naSlots.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">
+                          No hay huecos disponibles ese día. Prueba otra fecha.
+                        </p>
                       ) : (
                         <div className="grid grid-cols-4 gap-2 max-h-40 overflow-y-auto">
                           {naSlots.map((s) => {
-                            const label = new Date(s.start_time).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: userTimezone })
+                            const label = new Date(s.start_time).toLocaleTimeString('es-ES', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              timeZone: userTimezone,
+                            })
                             const active = naSelectedSlot === s.start_time
                             return (
                               <button
@@ -2150,8 +2338,7 @@ export default function AppointmentsPage() {
                             )
                           })}
                         </div>
-                      )
-                    )}
+                      ))}
                   </>
                 )}
               </div>

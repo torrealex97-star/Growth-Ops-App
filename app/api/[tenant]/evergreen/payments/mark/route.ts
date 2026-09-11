@@ -46,7 +46,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       if (inst.status === 'collected' || (existingColl && existingColl.length > 0)) {
         // Asegura que la cuota queda marcada como cobrada, pero sin duplicar el cobro.
         if (inst.status !== 'collected') {
-          await sb.from('sale_expected_installments')
+          await sb
+            .from('sale_expected_installments')
             .update({ status: 'collected', flagged_delinquent: false })
             .eq('id', installmentId)
         }
@@ -56,7 +57,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       // Cuota de monitorización (p.ej. alumno→Sequra): NO es cash nuestro.
       // Solo marcamos que el alumno pagó a la financiera; sin collection ni comisión.
       if (inst.is_monitoring) {
-        await sb.from('sale_expected_installments')
+        await sb
+          .from('sale_expected_installments')
           .update({ status: 'collected', flagged_delinquent: false })
           .eq('id', installmentId)
         return NextResponse.json({ ok: true, status: 'collected', monitoring: true })
@@ -79,24 +81,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       const needsReview = await saleNeedsCommissionReview(sb, inst.sale_id, plan?.method)
 
       // Registrar el cobro
-      const { data: newCollection } = await sb.from('collections').insert({
-        tenant_id: t.tenantId,
-        sale_id: inst.sale_id,
-        expected_installment_id: inst.id,
-        collected_at: now,
-        gross_amount: inst.expected_gross_amount,
-        commissionable_amount: inst.expected_commissionable_amount,
-        processing_fee: processingFee,
-        is_confirmed: true,
-        is_eligible_for_commission: !needsReview,
-        eligible_at: needsReview ? null : now,
-        needs_commission_review: needsReview,
-        payment_channel: 'online',
-        status: 'collected',
-        recovered: inst.status === 'overdue' || inst.flagged_delinquent,
-        recovered_at: (inst.status === 'overdue' || inst.flagged_delinquent) ? now.slice(0, 10) : null,
-      }).select().single()
-      await sb.from('sale_expected_installments')
+      const { data: newCollection } = await sb
+        .from('collections')
+        .insert({
+          tenant_id: t.tenantId,
+          sale_id: inst.sale_id,
+          expected_installment_id: inst.id,
+          collected_at: now,
+          gross_amount: inst.expected_gross_amount,
+          commissionable_amount: inst.expected_commissionable_amount,
+          processing_fee: processingFee,
+          is_confirmed: true,
+          is_eligible_for_commission: !needsReview,
+          eligible_at: needsReview ? null : now,
+          needs_commission_review: needsReview,
+          payment_channel: 'online',
+          status: 'collected',
+          recovered: inst.status === 'overdue' || inst.flagged_delinquent,
+          recovered_at: inst.status === 'overdue' || inst.flagged_delinquent ? now.slice(0, 10) : null,
+        })
+        .select()
+        .single()
+      await sb
+        .from('sale_expected_installments')
         .update({ status: 'collected', flagged_delinquent: false })
         .eq('id', installmentId)
 
@@ -109,21 +116,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           .eq('id', inst.sale_id)
           .single()
         if (saleFull) {
-          commissionsGenerated = await generateCommissionsForCollection(sb, newCollection as Collection, saleFull as Sale)
+          commissionsGenerated = await generateCommissionsForCollection(
+            sb,
+            newCollection as Collection,
+            saleFull as Sale
+          )
         }
       }
       return NextResponse.json({ ok: true, status: 'collected', commissionsGenerated, needsReview })
     }
 
     if (action === 'delinquent') {
-      await sb.from('sale_expected_installments')
-        .update({ flagged_delinquent: true, status: 'overdue', reminder_count: (inst.reminder_count ?? 0) + 1, last_reminder_at: new Date().toISOString() })
+      await sb
+        .from('sale_expected_installments')
+        .update({
+          flagged_delinquent: true,
+          status: 'overdue',
+          reminder_count: (inst.reminder_count ?? 0) + 1,
+          last_reminder_at: new Date().toISOString(),
+        })
         .eq('id', installmentId)
       return NextResponse.json({ ok: true, status: 'overdue' })
     }
 
     // unflag
-    await sb.from('sale_expected_installments')
+    await sb
+      .from('sale_expected_installments')
       .update({ flagged_delinquent: false, status: 'pending' })
       .eq('id', installmentId)
     return NextResponse.json({ ok: true, status: 'pending' })

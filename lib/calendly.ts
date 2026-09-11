@@ -58,7 +58,11 @@ async function cf<T = unknown>(path: string, init?: RequestInit): Promise<T> {
   }
   const text = await res.text()
   let json: unknown = {}
-  try { json = text ? JSON.parse(text) : {} } catch { json = { raw: text } }
+  try {
+    json = text ? JSON.parse(text) : {}
+  } catch {
+    json = { raw: text }
+  }
   if (!res.ok) throw new CalendlyError(res.status, json)
   return json as T
 }
@@ -131,7 +135,11 @@ export async function resolveCloserEventType(email: string): Promise<CalendlyEve
 }
 
 // Huecos disponibles del event type entre start y end (máx 7 días por petición).
-export async function getAvailableTimes(eventTypeUri: string, startISO: string, endISO: string): Promise<CalendlySlot[]> {
+export async function getAvailableTimes(
+  eventTypeUri: string,
+  startISO: string,
+  endISO: string
+): Promise<CalendlySlot[]> {
   const q =
     `/event_type_available_times?event_type=${encodeURIComponent(eventTypeUri)}` +
     `&start_time=${encodeURIComponent(startISO)}&end_time=${encodeURIComponent(endISO)}`
@@ -141,10 +149,7 @@ export async function getAvailableTimes(eventTypeUri: string, startISO: string, 
 
 // Construye el objeto location válido a partir de la config del event type.
 // Para tipos que exigen input del invitee usamos los datos del contacto.
-function buildLocation(
-  et: CalendlyEventType,
-  invitee: { phone?: string | null }
-): Record<string, string> | undefined {
+function buildLocation(et: CalendlyEventType, invitee: { phone?: string | null }): Record<string, string> | undefined {
   const cfgs = et.location_configurations || []
   if (cfgs.length === 0) return undefined // el event type no define location → se omite
   const c = cfgs[0]

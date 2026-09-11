@@ -18,7 +18,13 @@ const eventSchema = z.object({
   appointment_id: z.string().uuid().nullable().optional(),
   sale_id: z.string().uuid().nullable().optional(),
   revenue: z.number().finite().nullable().optional(),
-  currency: z.string().trim().length(3).transform((v) => v.toUpperCase()).nullable().optional(),
+  currency: z
+    .string()
+    .trim()
+    .length(3)
+    .transform((v) => v.toUpperCase())
+    .nullable()
+    .optional(),
   consent_snapshot: z.record(z.string(), z.unknown()),
   properties: z.record(z.string(), z.unknown()).default({}),
 })
@@ -45,23 +51,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const parsed = eventSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: 'Evento inválido', details: parsed.error.flatten().fieldErrors },
-      { status: 422 }
-    )
+    return NextResponse.json({ error: 'Evento inválido', details: parsed.error.flatten().fieldErrors }, { status: 422 })
   }
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false, autoRefreshToken: false } }
-  )
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
 
-  const { data: tenantRow } = await supabase
-    .from('tenants')
-    .select('id, status')
-    .eq('slug', tenantSlug)
-    .maybeSingle()
+  const { data: tenantRow } = await supabase.from('tenants').select('id, status').eq('slug', tenantSlug).maybeSingle()
   if (!tenantRow || tenantRow.status !== 'active') {
     return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
   }
@@ -79,8 +76,5 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'No se pudo registrar el evento' }, { status: 500 })
   }
 
-  return NextResponse.json(
-    { accepted: true, duplicate: !data, event: data ?? null },
-    { status: data ? 201 : 200 }
-  )
+  return NextResponse.json({ accepted: true, duplicate: !data, event: data ?? null }, { status: data ? 201 : 200 })
 }

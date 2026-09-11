@@ -20,15 +20,17 @@ async function handle(req: NextRequest, tenantSlug: string) {
   const auth = req.headers.get('authorization')
   const bearerOk = !!process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`
 
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
   let tenantId: string
   if (bearerOk) {
     // Cron (pg_net) sin sesión de usuario: resuelve el tenant directamente por slug.
-    const { data: tenantRow } = await sb.from('tenants').select('id, status').eq('slug', tenantSlug).eq('status', 'active').maybeSingle()
+    const { data: tenantRow } = await sb
+      .from('tenants')
+      .select('id, status')
+      .eq('slug', tenantSlug)
+      .eq('status', 'active')
+      .maybeSingle()
     if (!tenantRow) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
     tenantId = tenantRow.id as string
   } else {

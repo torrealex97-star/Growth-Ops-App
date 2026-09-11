@@ -7,19 +7,17 @@ export const runtime = 'nodejs'
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 function serviceClient(): SupabaseClient {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
 }
 
 // Verifica que quien llama está autenticado y es admin/director de ESTA subcuenta (o super_admin).
 // Devuelve el caller o una respuesta de error ya lista para retornar.
-async function requireAdmin(tenantSlug: string, sb: SupabaseClient): Promise<
-  | { ok: true; callerId: string; tenantId: string; isSuperAdmin: boolean }
-  | { ok: false; res: NextResponse }
-> {
+async function requireAdmin(
+  tenantSlug: string,
+  sb: SupabaseClient
+): Promise<{ ok: true; callerId: string; tenantId: string; isSuperAdmin: boolean } | { ok: false; res: NextResponse }> {
   const t = await requireTenant(tenantSlug)
   if ('error' in t) return { ok: false, res: t.error }
   const { data: callerRow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
@@ -34,7 +32,12 @@ async function requireAdmin(tenantSlug: string, sb: SupabaseClient): Promise<
 // comprobación un admin de ESTA subcuenta podría editar/eliminar CUALQUIER usuario de la
 // plataforma (de otra subcuenta) con solo conocer su userId. Verifica que el usuario objetivo
 // sea miembro de esta subcuenta (los super_admin, con acceso a todas, se saltan la comprobación).
-async function requireTargetInTenant(sb: SupabaseClient, tenantId: string, isSuperAdmin: boolean, userId: string): Promise<NextResponse | null> {
+async function requireTargetInTenant(
+  sb: SupabaseClient,
+  tenantId: string,
+  isSuperAdmin: boolean,
+  userId: string
+): Promise<NextResponse | null> {
   if (isSuperAdmin) return null
   const { data: membership } = await sb
     .from('tenant_members')
@@ -87,7 +90,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
           email: companyEmail,
           email_confirm: true,
         })
-        if (authErr) return NextResponse.json({ error: `No se pudo cambiar el correo de login: ${authErr.message}` }, { status: 400 })
+        if (authErr)
+          return NextResponse.json(
+            { error: `No se pudo cambiar el correo de login: ${authErr.message}` },
+            { status: 400 }
+          )
         updates.email = companyEmail
         authEmailChanged = true
       }
@@ -121,7 +128,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
 // Cuenta filas (head + count exact) de una tabla filtrando por una o varias
 // columnas que referencien al usuario, dentro de ESTA subcuenta. Devuelve 0 si
 // la tabla/columna no existe.
-async function countRefs(sb: SupabaseClient, table: string, filter: string, userId: string, tenantId: string): Promise<number> {
+async function countRefs(
+  sb: SupabaseClient,
+  table: string,
+  filter: string,
+  userId: string,
+  tenantId: string
+): Promise<number> {
   const q = sb.from(table).select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId)
   const res = filter.includes(',') ? await q.or(filter) : await q.eq(filter, userId)
   return res.error ? 0 : (res.count ?? 0)
@@ -148,8 +161,20 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ t
     if (targetErr) return targetErr
 
     const [sales, appts, commissions, contracts] = await Promise.all([
-      countRefs(sb, 'sales', `setter_id.eq.${userId},closer_id.eq.${userId},affiliate_id.eq.${userId},created_by.eq.${userId}`, userId, guard.tenantId),
-      countRefs(sb, 'appointments', `setter_id.eq.${userId},closer_id.eq.${userId},triager_id.eq.${userId},cold_caller_id.eq.${userId},affiliate_id.eq.${userId}`, userId, guard.tenantId),
+      countRefs(
+        sb,
+        'sales',
+        `setter_id.eq.${userId},closer_id.eq.${userId},affiliate_id.eq.${userId},created_by.eq.${userId}`,
+        userId,
+        guard.tenantId
+      ),
+      countRefs(
+        sb,
+        'appointments',
+        `setter_id.eq.${userId},closer_id.eq.${userId},triager_id.eq.${userId},cold_caller_id.eq.${userId},affiliate_id.eq.${userId}`,
+        userId,
+        guard.tenantId
+      ),
       countRefs(sb, 'commissions', 'user_id', userId, guard.tenantId),
       countRefs(sb, 'contracts', `user_id.eq.${userId},created_by.eq.${userId}`, userId, guard.tenantId),
     ])
@@ -161,19 +186,25 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ t
     if (contracts) blockers.push(`${contracts} contrato${contracts === 1 ? '' : 's'}`)
 
     if (blockers.length > 0) {
-      return NextResponse.json({
-        error: `No se puede eliminar: el usuario tiene ${blockers.join(', ')} asociada(s). Desactívalo (Estado → Inactivo) o reasigna esos registros primero.`,
-        blockers,
-      }, { status: 409 })
+      return NextResponse.json(
+        {
+          error: `No se puede eliminar: el usuario tiene ${blockers.join(', ')} asociada(s). Desactívalo (Estado → Inactivo) o reasigna esos registros primero.`,
+          blockers,
+        },
+        { status: 409 }
+      )
     }
 
     const { data: victim } = await sb.from('users').select('email, full_name').eq('id', userId).maybeSingle()
 
     const { error } = await sb.auth.admin.deleteUser(userId)
     if (error) {
-      return NextResponse.json({
-        error: `No se pudo eliminar: ${error.message}. Si tiene datos asociados, desactívalo en su lugar.`,
-      }, { status: 400 })
+      return NextResponse.json(
+        {
+          error: `No se pudo eliminar: ${error.message}. Si tiene datos asociados, desactívalo en su lugar.`,
+        },
+        { status: 400 }
+      )
     }
 
     await sb.from('audit_logs').insert({

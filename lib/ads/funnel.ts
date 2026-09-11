@@ -43,8 +43,17 @@ export type AdFunnel = AdTotals & {
 
 export function sumTotals(campaigns: Campaign[]): AdTotals {
   const t: AdTotals = {
-    inversion: 0, alcance: 0, impresiones: 0, linkClicks: 0, visitas: 0,
-    leads: 0, agendas: 0, llamadas: 0, cierres: 0, facturacion: 0, seguidores: 0,
+    inversion: 0,
+    alcance: 0,
+    impresiones: 0,
+    linkClicks: 0,
+    visitas: 0,
+    leads: 0,
+    agendas: 0,
+    llamadas: 0,
+    cierres: 0,
+    facturacion: 0,
+    seguidores: 0,
   }
   for (const c of campaigns) {
     t.inversion += c.adspend || 0
@@ -180,8 +189,17 @@ export function sumDailyRows(rows: DailyFunnelInput[]): DailyFunnelRow {
 
 // Fuentes UTM que consideramos "tráfico pago" (Meta) al contar agendas por día.
 export const PAID_UTM_SOURCES = new Set([
-  'facebook', 'fb', 'meta', 'meta_ads', 'facebook_ads',
-  'ig', 'instagram', 'instagram_ads', 'an', 'audience_network', 'messenger',
+  'facebook',
+  'fb',
+  'meta',
+  'meta_ads',
+  'facebook_ads',
+  'ig',
+  'instagram',
+  'instagram_ads',
+  'an',
+  'audience_network',
+  'messenger',
 ])
 
 export function isPaidSource(...values: Array<string | null | undefined>): boolean {

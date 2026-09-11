@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -44,7 +44,9 @@ export function PendingAttendanceAlert({ userId, isLeadership }: { userId: strin
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [userId, isLeadership])
+  useEffect(() => {
+    load()
+  }, [userId, isLeadership])
 
   const markStatus = async (id: string, status: AppointmentStatus) => {
     setUpdating(id)
@@ -77,7 +79,10 @@ export function PendingAttendanceAlert({ userId, isLeadership }: { userId: strin
       </p>
       <div className="space-y-2">
         {pending.map((p) => (
-          <div key={p.id} className="flex items-center justify-between gap-3 rounded-lg bg-card/60 border border-border/60 px-3 py-2">
+          <div
+            key={p.id}
+            className="flex items-center justify-between gap-3 rounded-lg bg-card/60 border border-border/60 px-3 py-2"
+          >
             <div className="min-w-0">
               <p className="text-sm text-foreground truncate">{p.contacts?.full_name ?? 'Sin nombre'}</p>
               <p className="text-xs text-muted-foreground">{formatDateTime(p.appointment_datetime)}</p>

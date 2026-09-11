@@ -1,5 +1,16 @@
 // ==================== ENUMS ====================
-export type AppointmentStatus = 'scheduled' | 'confirmed' | 'show' | 'no_show' | 'cancelled' | 'rescheduled' | 'completed' | 'cancelled_admin' | 'cancelled_lead' | 'seguimiento' | 'reserva'
+export type AppointmentStatus =
+  | 'scheduled'
+  | 'confirmed'
+  | 'show'
+  | 'no_show'
+  | 'cancelled'
+  | 'rescheduled'
+  | 'completed'
+  | 'cancelled_admin'
+  | 'cancelled_lead'
+  | 'seguimiento'
+  | 'reserva'
 export type SaleStatus = 'active' | 'refunded' | 'partial_refund' | 'chargeback' | 'cancelled'
 export type CollectionStatus = 'collected' | 'reversed' | 'disputed'
 export type CommissionStatus = 'pending' | 'approved' | 'liquidated' | 'cancelled'
@@ -72,7 +83,17 @@ export type Contact = {
   company_name: string | null
   notes: string | null
   instagram: string | null
-  lead_status: 'registrado' | 'whatsapp_enviado' | 'llamado' | 'agendado' | 'no_contesta' | 'descartado' | 'cliente' | 'en_seguimiento' | 'reserva' | 'venta'
+  lead_status:
+    | 'registrado'
+    | 'whatsapp_enviado'
+    | 'llamado'
+    | 'agendado'
+    | 'no_contesta'
+    | 'descartado'
+    | 'cliente'
+    | 'en_seguimiento'
+    | 'reserva'
+    | 'venta'
   lead_channel: 'whatsapp' | 'llamada' | 'email' | 'otro' | null
   first_seen_at: string | null
   last_seen_at: string | null
@@ -173,7 +194,8 @@ export type Appointment = {
   needs_followup: boolean
   // v58 — etapa del pipeline interno de seguimiento comercial (recontacto/pago/reagenda),
   // independiente de `status` y del `pipeline_stage` de las integraciones externas
-  followup_stage: 'pendiente_recontacto' | 'en_seguimiento_pago' | 'reagendado_pendiente' | 'cerrado' | 'descualificado' | null
+  followup_stage:
+    'pendiente_recontacto' | 'en_seguimiento_pago' | 'reagendado_pendiente' | 'cerrado' | 'descualificado' | null
   last_contacted_at: string | null
   // v61 — status que tenía la cita justo antes de reagendarla (para distinguir en el historial
   // si la reagenda viene de un no_show o de un show)
@@ -856,8 +878,7 @@ export type InsertAuditLog = Omit<AuditLog, 'id' | 'created_at'>
 
 // v21 — sugerencias y mejoras de la plataforma enviadas por los usuarios
 export type SuggestionType = 'mejora' | 'error' | 'comentario'
-export type SuggestionStatus =
-  | 'nueva' | 'en_revision' | 'planificada' | 'en_progreso' | 'resuelta' | 'descartada'
+export type SuggestionStatus = 'nueva' | 'en_revision' | 'planificada' | 'en_progreso' | 'resuelta' | 'descartada'
 
 export type Suggestion = {
   id: string

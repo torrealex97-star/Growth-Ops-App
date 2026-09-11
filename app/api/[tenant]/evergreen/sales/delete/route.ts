@@ -42,7 +42,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const { data: sale } = await sb.from('sales').select('*').eq('id', saleId).eq('tenant_id', t.tenantId).single()
     if (!sale) return NextResponse.json({ error: 'Venta no encontrada' }, { status: 404 })
 
-    const [{ data: collections }, { data: commissions }, { data: refunds }, { data: contracts }, { data: csmEvents }, { data: drops }] = await Promise.all([
+    const [
+      { data: collections },
+      { data: commissions },
+      { data: refunds },
+      { data: contracts },
+      { data: csmEvents },
+      { data: drops },
+    ] = await Promise.all([
       sb.from('collections').select('*').eq('sale_id', saleId),
       sb.from('commissions').select('*').eq('sale_id', saleId),
       sb.from('refunds').select('*').eq('sale_id', saleId),
@@ -61,7 +68,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       old_values: { sale, collections, commissions, refunds, contracts, csmEvents, drops },
       new_values: { reason: typeof reason === 'string' && reason.trim() ? reason.trim() : null },
     })
-    if (logErr) return NextResponse.json({ error: `No se pudo registrar el borrado: ${logErr.message}` }, { status: 500 })
+    if (logErr)
+      return NextResponse.json({ error: `No se pudo registrar el borrado: ${logErr.message}` }, { status: 500 })
 
     // Desenlaza (no borra) filas que solo REFERENCIAN la venta: se conservan sin el vínculo.
     await Promise.all([
@@ -75,13 +83,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Orden que respeta las FK: comisiones → devoluciones → cobros → venta.
     // (sale_expected_installments/document_verifications/payment_follow_ups cascadean solas)
     const { error: commErr } = await sb.from('commissions').delete().eq('sale_id', saleId)
-    if (commErr) return NextResponse.json({ error: `No se pudieron borrar las comisiones: ${commErr.message}` }, { status: 500 })
+    if (commErr)
+      return NextResponse.json({ error: `No se pudieron borrar las comisiones: ${commErr.message}` }, { status: 500 })
 
     const { error: refErr } = await sb.from('refunds').delete().eq('sale_id', saleId)
-    if (refErr) return NextResponse.json({ error: `No se pudieron borrar las devoluciones: ${refErr.message}` }, { status: 500 })
+    if (refErr)
+      return NextResponse.json({ error: `No se pudieron borrar las devoluciones: ${refErr.message}` }, { status: 500 })
 
     const { error: collErr } = await sb.from('collections').delete().eq('sale_id', saleId)
-    if (collErr) return NextResponse.json({ error: `No se pudieron borrar los cobros: ${collErr.message}` }, { status: 500 })
+    if (collErr)
+      return NextResponse.json({ error: `No se pudieron borrar los cobros: ${collErr.message}` }, { status: 500 })
 
     const { error: saleErr } = await sb.from('sales').delete().eq('id', saleId).eq('tenant_id', t.tenantId)
     if (saleErr) return NextResponse.json({ error: saleErr.message }, { status: 500 })

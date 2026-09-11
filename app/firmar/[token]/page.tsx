@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
@@ -87,12 +87,17 @@ export default function FirmarPage() {
     })
     const d = await res.json()
     setSubmitting(false)
-    if (!res.ok) { setError(d.error || 'No se pudo firmar'); return }
+    if (!res.ok) {
+      setError(d.error || 'No se pudo firmar')
+      return
+    }
     setSignedUrl(d.signedPdfUrl)
   }
 
-  if (loading) return <div className="min-h-screen grid place-items-center bg-zinc-100 text-zinc-500">Cargando contrato…</div>
-  if (error && !data) return <div className="min-h-screen grid place-items-center bg-zinc-100 text-red-600 px-6 text-center">{error}</div>
+  if (loading)
+    return <div className="min-h-screen grid place-items-center bg-zinc-100 text-zinc-500">Cargando contrato…</div>
+  if (error && !data)
+    return <div className="min-h-screen grid place-items-center bg-zinc-100 text-red-600 px-6 text-center">{error}</div>
   if (!data) return null
 
   const done = !!signedUrl || data.status === 'firmado'
@@ -107,7 +112,9 @@ export default function FirmarPage() {
             <div>
               <span className="text-lg font-bold text-zinc-900">{data.company.name}</span>
               {(data.company.cif || data.company.address) && (
-                <p className="text-[11px] text-zinc-400">{[data.company.cif && `CIF ${data.company.cif}`, data.company.address].filter(Boolean).join(' · ')}</p>
+                <p className="text-[11px] text-zinc-400">
+                  {[data.company.cif && `CIF ${data.company.cif}`, data.company.address].filter(Boolean).join(' · ')}
+                </p>
               )}
             </div>
             <span className="text-xs text-zinc-400">Contrato · firma electrónica</span>
@@ -115,7 +122,9 @@ export default function FirmarPage() {
 
           <h1 className="text-xl font-bold text-zinc-900 mb-6">{data.title}</h1>
 
-          <div className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-zinc-700">{done ? data.body : preview(data.body, sd)}</div>
+          <div className="whitespace-pre-wrap text-[13.5px] leading-relaxed text-zinc-700">
+            {done ? data.body : preview(data.body, sd)}
+          </div>
 
           <div className="mt-8 rounded-lg bg-zinc-50 border border-zinc-200 p-5">
             <h2 className="text-sm font-bold text-zinc-900 mb-3">CONDICIONES ECONÓMICAS ACORDADAS</h2>
@@ -127,15 +136,23 @@ export default function FirmarPage() {
               <div className="mt-2 text-sm text-zinc-700">
                 <span className="font-medium">Comisiones (sobre cash collected):</span>
                 <ul className="mt-1 space-y-0.5 list-disc list-inside text-zinc-600">
-                  {data.terms.commissions.map((t, i) => <li key={i}>{tierText(t)}</li>)}
+                  {data.terms.commissions.map((t, i) => (
+                    <li key={i}>{tierText(t)}</li>
+                  ))}
                 </ul>
               </div>
             ) : data.terms.affiliate_percent != null ? (
-              <p className="mt-2 text-sm text-zinc-700"><span className="font-medium">Comisión de afiliado:</span> {data.terms.affiliate_percent}%</p>
+              <p className="mt-2 text-sm text-zinc-700">
+                <span className="font-medium">Comisión de afiliado:</span> {data.terms.affiliate_percent}%
+              </p>
             ) : (
               <p className="mt-2 text-sm text-zinc-500">Sin comisiones variables asociadas.</p>
             )}
-            {data.terms.extra_notes && <p className="mt-2 text-sm text-zinc-600"><span className="font-medium">Notas:</span> {data.terms.extra_notes}</p>}
+            {data.terms.extra_notes && (
+              <p className="mt-2 text-sm text-zinc-600">
+                <span className="font-medium">Notas:</span> {data.terms.extra_notes}
+              </p>
+            )}
           </div>
 
           <div className="mt-8 grid grid-cols-2 gap-6 text-sm">
@@ -149,7 +166,7 @@ export default function FirmarPage() {
             <div>
               <p className="font-semibold text-zinc-900">EL COLABORADOR</p>
               <div className="mt-6 border-t border-zinc-300 pt-1 text-zinc-600">
-                <p>{done ? (data.signerName || name) : (name || '—')}</p>
+                <p>{done ? data.signerName || name : name || '—'}</p>
                 <p className="text-xs text-zinc-500">{done ? 'Firmado electrónicamente' : 'Pendiente de firma'}</p>
               </div>
             </div>
@@ -160,7 +177,13 @@ export default function FirmarPage() {
           <div className="mt-6 bg-emerald-50 border border-emerald-200 rounded-xl p-6 text-center">
             <p className="text-emerald-800 font-medium">✓ Contrato firmado correctamente</p>
             {signedUrl && (
-              <a href={signedUrl} target="_blank" rel="noopener noreferrer" download className="inline-block mt-3 text-sm font-medium text-emerald-700 underline">
+              <a
+                href={signedUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                download
+                className="inline-block mt-3 text-sm font-medium text-emerald-700 underline"
+              >
                 Descargar PDF firmado
               </a>
             )}
@@ -171,12 +194,20 @@ export default function FirmarPage() {
             {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
 
             <label className="block text-sm text-zinc-600 mb-1">Nombre y apellidos completos</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-400 mb-4" placeholder="Escribe tu nombre completo" />
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-400 mb-4"
+              placeholder="Escribe tu nombre completo"
+            />
 
             <div className="grid grid-cols-2 gap-3">
               {data.signerFields.map((f) => (
                 <div key={f.key} className={f.key === 'address' ? 'col-span-2' : ''}>
-                  <label className="block text-sm text-zinc-600 mb-1">{f.label}{f.required && <span className="text-red-500"> *</span>}</label>
+                  <label className="block text-sm text-zinc-600 mb-1">
+                    {f.label}
+                    {f.required && <span className="text-red-500"> *</span>}
+                  </label>
                   <input
                     value={sd[f.key] ?? ''}
                     onChange={(e) => setField(f.key, e.target.value)}
@@ -187,18 +218,31 @@ export default function FirmarPage() {
             </div>
 
             <label className="flex items-start gap-2 mt-4 text-sm text-zinc-600 cursor-pointer">
-              <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 accent-emerald-600" />
-              <span>He leído y acepto las condiciones del presente contrato y consiento firmarlo electrónicamente.</span>
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+                className="mt-0.5 accent-emerald-600"
+              />
+              <span>
+                He leído y acepto las condiciones del presente contrato y consiento firmarlo electrónicamente.
+              </span>
             </label>
 
             {missingRequired.length > 0 && (
               <p className="mt-3 text-xs text-amber-600">Faltan por completar: {missingRequired.join(', ')}</p>
             )}
 
-            <button onClick={sign} disabled={submitting || !canSign} className="mt-5 w-full rounded-md bg-zinc-900 text-white py-2.5 text-sm font-medium disabled:opacity-40 hover:bg-zinc-800 transition-colors">
+            <button
+              onClick={sign}
+              disabled={submitting || !canSign}
+              className="mt-5 w-full rounded-md bg-zinc-900 text-white py-2.5 text-sm font-medium disabled:opacity-40 hover:bg-zinc-800 transition-colors"
+            >
               {submitting ? 'Firmando…' : 'Firmar y aceptar'}
             </button>
-            <p className="mt-3 text-xs text-zinc-400 text-center">Firma electrónica simple (eIDAS). Se registrarán fecha, IP y un hash del documento como evidencia.</p>
+            <p className="mt-3 text-xs text-zinc-400 text-center">
+              Firma electrónica simple (eIDAS). Se registrarán fecha, IP y un hash del documento como evidencia.
+            </p>
           </div>
         )}
       </div>

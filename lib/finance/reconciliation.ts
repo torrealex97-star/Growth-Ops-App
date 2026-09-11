@@ -49,26 +49,25 @@ export async function buildConciliacion(
   tenantId: string,
   opts: { stripeSecretKey?: string | null; stripeAccountId?: string | null }
 ): Promise<{ rows: ConciliacionRow[]; summary: Record<ConciliacionStatus, number> & { total: number } }> {
-  const [{ data: collections, error: collErr }, { data: refunds, error: refErr }, { data: manualRecords, error: manualErr }] =
-    await Promise.all([
-      sb
-        .from('collections')
-        .select('id,sale_id,gross_amount,status,payment_method,collected_at,sales(contacts(full_name,email))')
-        .eq('tenant_id', tenantId)
-        .order('collected_at', { ascending: false })
-        .limit(1000),
-      sb
-        .from('refunds')
-        .select('sale_id,refund_date,gross_refund_amount')
-        .eq('tenant_id', tenantId)
-        .limit(1000),
-      sb
-        .from('manual_platform_records')
-        .select('id,platform,reference,amount,transacted_at,matched_collection_id,notes')
-        .eq('tenant_id', tenantId)
-        .order('transacted_at', { ascending: false })
-        .limit(1000),
-    ])
+  const [
+    { data: collections, error: collErr },
+    { data: refunds, error: refErr },
+    { data: manualRecords, error: manualErr },
+  ] = await Promise.all([
+    sb
+      .from('collections')
+      .select('id,sale_id,gross_amount,status,payment_method,collected_at,sales(contacts(full_name,email))')
+      .eq('tenant_id', tenantId)
+      .order('collected_at', { ascending: false })
+      .limit(1000),
+    sb.from('refunds').select('sale_id,refund_date,gross_refund_amount').eq('tenant_id', tenantId).limit(1000),
+    sb
+      .from('manual_platform_records')
+      .select('id,platform,reference,amount,transacted_at,matched_collection_id,notes')
+      .eq('tenant_id', tenantId)
+      .order('transacted_at', { ascending: false })
+      .limit(1000),
+  ])
   if (collErr) throw new Error(collErr.message)
   if (refErr) throw new Error(refErr.message)
   if (manualErr) throw new Error(manualErr.message)
@@ -89,12 +88,16 @@ export async function buildConciliacion(
     try {
       const stripe = await reconcileStripePayments(sb, tenantId, opts.stripeSecretKey, opts.stripeAccountId)
       for (const r of stripe.rows) {
-        let status: ConciliacionStatus = r.reconciliation === 'matched' || r.reconciliation === 'probable' ? 'conciliado' : 'descuadre'
+        let status: ConciliacionStatus =
+          r.reconciliation === 'matched' || r.reconciliation === 'probable' ? 'conciliado' : 'descuadre'
         let detail =
-          r.reconciliation === 'matched' ? 'Cotejado por referencia de pago'
-          : r.reconciliation === 'probable' ? 'Coincidencia probable (venta + importe)'
-          : r.reconciliation === 'missing' ? 'Cobro sin venta asociada en la app'
-          : 'Importe distinto al registrado internamente'
+          r.reconciliation === 'matched'
+            ? 'Cotejado por referencia de pago'
+            : r.reconciliation === 'probable'
+              ? 'Coincidencia probable (venta + importe)'
+              : r.reconciliation === 'missing'
+                ? 'Cobro sin venta asociada en la app'
+                : 'Importe distinto al registrado internamente'
         // Devolución en Stripe sin reflejar en Devoluciones internas.
         if (r.providerStatus === 'refunded') {
           const saleRefunds = r.saleId ? refundsBySale.get(r.saleId) || [] : []
@@ -163,7 +166,8 @@ export async function buildConciliacion(
     for (const c of sequraCollections) {
       const email = c.sales?.contacts?.email?.toLowerCase() || null
       const delinquent = email ? debtByEmail.get(email) : undefined
-      const hasOpenDebt = !!delinquent && delinquent.debt > 0 && !['recuperado', 'incobrable'].includes(delinquent.status)
+      const hasOpenDebt =
+        !!delinquent && delinquent.debt > 0 && !['recuperado', 'incobrable'].includes(delinquent.status)
       rows.push({
         id: `sequra_${c.id}`,
         platform: 'sequra',
@@ -230,7 +234,9 @@ export async function buildConciliacion(
       collectionId: null,
       internalAmount: null,
       status: 'descuadre',
-      detail: m.notes ? `Registro de plataforma sin cobro asociado — ${m.notes}` : 'Registro de plataforma sin cobro asociado',
+      detail: m.notes
+        ? `Registro de plataforma sin cobro asociado — ${m.notes}`
+        : 'Registro de plataforma sin cobro asociado',
     })
   }
 

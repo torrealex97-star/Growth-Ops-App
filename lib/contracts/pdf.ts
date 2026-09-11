@@ -54,7 +54,10 @@ export async function buildContractPdf(input: ContractPdfInput): Promise<Uint8Ar
   const wrap = (text: string, f: PDFFont, size: number): string[] => {
     const out: string[] = []
     for (const rawLine of sanitize(text).split('\n')) {
-      if (rawLine.trim() === '') { out.push(''); continue }
+      if (rawLine.trim() === '') {
+        out.push('')
+        continue
+      }
       const words = rawLine.split(/\s+/)
       let cur = ''
       for (const word of words) {
@@ -93,14 +96,22 @@ export async function buildContractPdf(input: ContractPdfInput): Promise<Uint8Ar
   // ---- Cabecera ----
   page.drawText(sanitize(company.name), { x: MARGIN, y, size: 16, font: bold, color: rgb(0.05, 0.05, 0.08) })
   y -= 12
-  const companyMeta = [company.cif ? `CIF ${company.cif}` : null, [company.address, company.postal_code, company.city].filter(Boolean).join(', ') || null]
+  const companyMeta = [
+    company.cif ? `CIF ${company.cif}` : null,
+    [company.address, company.postal_code, company.city].filter(Boolean).join(', ') || null,
+  ]
     .filter(Boolean)
     .join('  ·  ')
   if (companyMeta) {
     page.drawText(sanitize(companyMeta), { x: MARGIN, y, size: 7.5, font, color: rgb(0.5, 0.5, 0.55) })
     y -= 10
   }
-  page.drawLine({ start: { x: MARGIN, y: y }, end: { x: A4.w - MARGIN, y }, thickness: 1, color: rgb(0.85, 0.85, 0.88) })
+  page.drawLine({
+    start: { x: MARGIN, y: y },
+    end: { x: A4.w - MARGIN, y },
+    thickness: 1,
+    color: rgb(0.85, 0.85, 0.88),
+  })
   y -= 24
 
   // ---- Título ----
@@ -167,12 +178,12 @@ export async function buildContractPdf(input: ContractPdfInput): Promise<Uint8Ar
     }
   }
 
-  sigBlock(leftX, 'LA EMPRESA', [companySignatureLabel(company), company.representative ?? company.name, `Fecha: ${fecha}`])
-  sigBlock(rightX, 'EL COLABORADOR', [
-    input.signerName,
-    'Firmado electronicamente',
+  sigBlock(leftX, 'LA EMPRESA', [
+    companySignatureLabel(company),
+    company.representative ?? company.name,
     `Fecha: ${fecha}`,
   ])
+  sigBlock(rightX, 'EL COLABORADOR', [input.signerName, 'Firmado electronicamente', `Fecha: ${fecha}`])
 
   y = colY - 80
 

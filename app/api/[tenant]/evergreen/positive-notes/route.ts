@@ -7,18 +7,19 @@ export const runtime = 'nodejs'
 const VALID_PERIODS = ['daily', 'weekly']
 
 function serviceClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
+  return createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
 }
 
 // Fecha/semana de HOY en horario de España (mercado principal del equipo), para que el corte de
 // día/semana sea el mismo para todos independientemente del huso horario del navegador.
 function madridNow(): Date {
   const s = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone: 'Europe/Madrid',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   }).format(new Date())
   return new Date(`${s}T00:00:00Z`)
 }
@@ -32,7 +33,7 @@ function weeklyKey(d: Date): string {
   const date = new Date(d.getTime())
   date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7))
   const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1))
-  const weekNo = Math.ceil((((date.getTime() - yearStart.getTime()) / 86_400_000) + 1) / 7)
+  const weekNo = Math.ceil(((date.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7)
   return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`
 }
 
@@ -52,8 +53,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
   const sb = serviceClient()
 
   const [mineRes, wallRes] = await Promise.all([
-    sb.from('positive_notes').select('*').eq('user_id', t.userId).eq('tenant_id', t.tenantId).in('period_key', [dKey, wKey]),
-    sb.from('positive_notes')
+    sb
+      .from('positive_notes')
+      .select('*')
+      .eq('user_id', t.userId)
+      .eq('tenant_id', t.tenantId)
+      .in('period_key', [dKey, wKey]),
+    sb
+      .from('positive_notes')
       .select('id, period_type, content, created_at, users(full_name)')
       .eq('is_shared', true)
       .eq('tenant_id', t.tenantId)
@@ -90,7 +97,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const { data, error } = await sb
     .from('positive_notes')
     .upsert(
-      { user_id: t.userId, tenant_id: t.tenantId, period_type: periodType, period_key: periodKey, content: content.slice(0, 2000), is_shared: isShared },
+      {
+        user_id: t.userId,
+        tenant_id: t.tenantId,
+        period_type: periodType,
+        period_key: periodKey,
+        content: content.slice(0, 2000),
+        is_shared: isShared,
+      },
       { onConflict: 'user_id,period_type,period_key' }
     )
     .select()
