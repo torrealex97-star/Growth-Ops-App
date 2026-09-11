@@ -160,7 +160,7 @@ export default function ContratosPage() {
           <p>
             <span className="text-muted-foreground">URL: </span>
             <code className="text-brand-300 bg-muted px-1.5 py-0.5 rounded">
-              https://app.iawinners.com/api/${tenant}/evergreen/webhooks/contract
+              {typeof window !== 'undefined' ? window.location.origin : ''}/api/{tenant}/evergreen/webhooks/contract
             </code>
           </p>
           <p>

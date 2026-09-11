@@ -65,7 +65,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       await sb.from('users').update({ personal_email: providedPersonalEmail }).eq('id', member.id)
     }
 
-    const company = await getCompanyProfile(sb)
+    const company = await getCompanyProfile(sb, t.tenantId)
     const finalRoleLabel = roleLabel ?? terms.role_label ?? 'Colaborador'
 
     // Cuerpo: plantilla + variables conocidas (empresa/miembro). Las variables del

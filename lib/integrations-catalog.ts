@@ -72,7 +72,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     required: ['RESEND_API_KEY', 'RESEND_FROM'],
     fields: [
       { key: 'RESEND_API_KEY', label: 'API Key', type: 'password', secret: true, placeholder: 're_…' },
-      { key: 'RESEND_FROM', label: 'Remitente', type: 'text', secret: false, placeholder: 'IA WINNERS <app@tudominio.com>' },
+      { key: 'RESEND_FROM', label: 'Remitente', type: 'text', secret: false, placeholder: 'Tu Empresa <app@tudominio.com>' },
     ],
   },
   {

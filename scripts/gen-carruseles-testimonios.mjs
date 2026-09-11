@@ -1,4 +1,4 @@
-// Genera los carruseles de CASOS DE ÉXITO de IA WINNERS.
+// Genera los carruseles de CASOS DE ÉXITO.
 // Estilo de marca idéntico a gen-carruseles-adri.mjs (navy + azul eléctrico + cromo).
 // Re-ejecutable: borra por título antes de insertar.
 //
@@ -71,14 +71,12 @@ const root = (inner, bg) =>
 
 const brandRow = (top = 60) =>
   `<div style="position:absolute;top:${top}px;left:64px;display:flex;align-items:center;gap:12px;z-index:5;">
-    <span style="display:inline-flex;width:44px;height:44px;border-radius:12px;background:${C.accent};box-shadow:0 0 30px rgba(30,158,255,.8);align-items:center;justify-content:center;color:#fff;font-size:22px;font-weight:800;font-family:${DISPLAY};">IA</span>
-    <span style="font-family:${DISPLAY};font-weight:700;font-size:27px;color:#fff;letter-spacing:.02em;">IA WINNERS</span>
+    <span style="display:inline-flex;width:44px;height:44px;border-radius:12px;background:${C.accent};box-shadow:0 0 30px rgba(30,158,255,.8);align-items:center;justify-content:center;color:#fff;font-size:22px;font-weight:800;font-family:${DISPLAY};">S</span>
   </div>`
 
 const handle = () =>
   `<div style="position:absolute;bottom:56px;left:64px;display:flex;align-items:center;gap:12px;font-family:${DISPLAY};font-weight:700;font-size:26px;letter-spacing:.02em;color:rgba(255,255,255,.85);z-index:5;">
-    <span style="display:inline-flex;width:40px;height:40px;border-radius:11px;background:${C.accent};box-shadow:0 0 26px rgba(30,158,255,.75);align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:800;">IA</span>
-    IA WINNERS
+    <span style="display:inline-flex;width:40px;height:40px;border-radius:11px;background:${C.accent};box-shadow:0 0 26px rgba(30,158,255,.75);align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:800;">S</span>
   </div>`
 
 const swipe = () =>
@@ -158,7 +156,7 @@ function buildCarousels(P) {
     T.push({ slug, title, caption, hashtags, slides })
 
   const HT = (...extra) => [
-    "IAWinners",
+    "CasoDeExito",
     "AgenciaDeIA",
     "CasoDeExito",
     "InteligenciaArtificial",

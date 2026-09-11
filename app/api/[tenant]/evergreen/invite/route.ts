@@ -121,7 +121,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
 
     // 3) Enviar el email de "crea tu contraseña" con nuestra plantilla (si Resend está configurado).
-    const company = await getCompanyProfile(supabase)
+    const company = await getCompanyProfile(supabase, t.tenantId)
     let emailed = false
     let emailError: string | null = null
     const r = await sendInviteEmail({ to: email, fullName: fullName || email, company, url: inviteUrl })

@@ -1,4 +1,4 @@
-// Acceso a datos de testimonios / casos de éxito de IA WINNERS (solo servidor).
+// Acceso a datos de testimonios / casos de éxito (solo servidor).
 //
 // Los usan: (a) el apartado de testimonios que consultan los closers en llamada y
 // (b) el generador de guiones, que puede añadir prueba social al contenido.

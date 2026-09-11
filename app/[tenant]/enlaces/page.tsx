@@ -915,7 +915,7 @@ export default function EnlacesPage() {
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
                 className="bg-muted border-border"
-                placeholder="https://iawinners.com/landing"
+                placeholder="https://tudominio.com/landing"
               />
               <p className="text-xs text-muted-foreground">
                 Se añadirá automáticamente utm_term (setter/cold caller) o utm_content (afiliado) con el código de cada usuario.

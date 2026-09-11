@@ -1,7 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 import { searchAllOrders, showOrder } from './client'
 
-const MERCHANT_REFERENCE = 'iawinners'
+// Identificador de comercio en SeQura — es una cuenta real de terceros, no una marca:
+// configúralo con tu propia referencia de comercio SeQura (SEQURA_MERCHANT_REFERENCE).
+const MERCHANT_REFERENCE = process.env.SEQURA_MERCHANT_REFERENCE || 'iawinners'
 
 // Mora real = cuota vencida sin pagar (overdue_days > 0), no cuotas futuras
 // normales de un pago aplazado (eso simplemente da debt > 0).

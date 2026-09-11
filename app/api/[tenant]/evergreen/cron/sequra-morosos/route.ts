@@ -8,7 +8,7 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 export const runtime = 'nodejs'
 export const maxDuration = 300
 
-// Sincroniza morosos reales de sequra (merchant iawinners) hacia sequra_delinquent_customers.
+// Sincroniza morosos reales de sequra hacia sequra_delinquent_customers.
 // Auth: header Bearer CRON_SECRET (Vercel Cron) o sesión de admin/director/cobros (botón manual).
 //
 // BUGFIX (regresión de la migración multi-tenant, no hardening rutinario): syncSequraDelinquents

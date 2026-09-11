@@ -93,9 +93,8 @@ export function CasoExitoDialog({ open, onOpenChange }: Props) {
             Nuevo caso de éxito
           </DialogTitle>
           <DialogDescription>
-            Sube la foto y pega la explicación del caso. Se monta solo el carrusel completo con el estilo
-            de IA WINNERS: portada con la foto, punto A, el giro, la cifra, el vehículo y el CTA a la
-            clase gratuita.
+            Sube la foto y pega la explicación del caso. Se monta solo el carrusel completo con tu estilo
+            de marca: portada con la foto, punto A, el giro, la cifra, el vehículo y el CTA de cierre.
           </DialogDescription>
         </DialogHeader>
 

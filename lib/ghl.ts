@@ -76,7 +76,7 @@ async function postToOnboardingWebhook(
         'Content-Type': 'application/json',
         // Cabecera opcional por si la automatización de GHL quiere validar origen.
         ...(process.env.GHL_ONBOARDING_WEBHOOK_SECRET
-          ? { 'x-iawinners-secret': process.env.GHL_ONBOARDING_WEBHOOK_SECRET }
+          ? { 'x-onboarding-secret': process.env.GHL_ONBOARDING_WEBHOOK_SECRET }
           : {}),
       },
       body: JSON.stringify({ event, ...payload }),

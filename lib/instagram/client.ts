@@ -1,4 +1,4 @@
-// Cliente de la Instagram Graph API (orgánico) — @adrian.martinez.s.
+// Cliente de la Instagram Graph API (orgánico).
 // Distinto de lib/meta/client.ts (ese es la Marketing/Ads API). Aquí leemos el
 // contenido orgánico: reels/posts + sus insights, crecimiento de la cuenta,
 // demografía de la audiencia, comentarios y conversaciones (DMs).
@@ -77,7 +77,7 @@ export async function resolveIgUserId(cfg: IgConfig): Promise<{ id: string; user
     if (iba?.id) return { id: String(iba.id), username: iba.username }
   }
   throw new Error(
-    'No encuentro ninguna cuenta de Instagram business vinculada al token. Verifica que @adrian.martinez.s es cuenta profesional, está vinculada a una página de Facebook, y que la página está asignada al System User WINNER (o define IG_USER_ID).'
+    'No encuentro ninguna cuenta de Instagram business vinculada al token. Verifica que tu cuenta es profesional, está vinculada a una página de Facebook, y que la página está asignada al System User del token (o define IG_USER_ID).'
   )
 }
 

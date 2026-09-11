@@ -151,11 +151,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     const paymentMethod = (sale.payment_method as string | null) ?? plan.method ?? null
     const isReservation = paymentMethod === 'reserva'
-    const company = await getCompanyProfile(sb)
+    const company = await getCompanyProfile(sb, t.tenantId)
 
     const custom = (sale.custom_plan ?? null) as StudentContractTerms['custom']
     const terms: StudentContractTerms = {
-      product_name: product.name || 'Programa IA WINNERS',
+      product_name: product.name || 'Programa',
       duration_months: product.duration_months ?? null,
       gross_amount: Number(sale.gross_amount) || 0,
       currency: 'EUR',

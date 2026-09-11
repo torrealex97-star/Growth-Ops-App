@@ -28,6 +28,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
+    const { data: tenantRow } = await sb.from('tenants').select('id').eq('slug', tenant).eq('status', 'active').maybeSingle()
+    if (!tenantRow) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
+
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin
     const redirectTo = `${siteUrl}/api/${tenant}/evergreen/auth/callback?next=/${tenant}/settings/password`
 
@@ -41,7 +44,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
 
     const url = `${siteUrl}/api/${tenant}/evergreen/auth/callback?token_hash=${encodeURIComponent(hashedToken)}&type=recovery&next=/${tenant}/settings/password`
-    const company = await getCompanyProfile(sb)
+    const company = await getCompanyProfile(sb, tenantRow.id)
     const sent = await sendRecoveryEmail({ to: email, company, url })
     // Si Resend falla (p.ej. dominio aún sin verificar), que la página use el
     // flujo estándar de Supabase para que el usuario reciba igualmente el correo.
