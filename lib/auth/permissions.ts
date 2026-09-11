@@ -76,7 +76,7 @@ export const DEPARTMENT_PREFIXES: Record<Department, string[]> = {
   direccion: ['/evergreen/dashboard', '/evergreen/unit-economics', '/evergreen/cohorts', '/evergreen/pnl'],
   ventas: ['/evergreen/leads', '/evergreen/contacts', '/evergreen/appointments', '/evergreen/seguimiento', '/evergreen/sales', '/evergreen/reservas', '/evergreen/pagos', '/evergreen/pipeline', '/evergreen/ventas-metricas', '/evergreen/prospecting', '/evergreen/commissions', '/evergreen/targets', '/evergreen/kpi', '/evergreen/tasks', '/evergreen/enlaces', '/evergreen/biblioteca', '/evergreen/setting-ai', '/evergreen/contratos/producto'],
   marketing: ['/evergreen/campaigns', '/evergreen/attribution', '/evergreen/data-health', '/evergreen/content', '/evergreen/content/reels', '/evergreen/instagram', '/evergreen/vsl', '/evergreen/carruseles'],
-  producto: ['/evergreen/students', '/evergreen/csm-events', '/evergreen/retention', '/evergreen/drops', '/evergreen/contratos'],
+  producto: ['/evergreen/students', '/evergreen/csm-events', '/evergreen/drops', '/evergreen/contratos'],
   finanzas: ['/evergreen/finanzas', '/evergreen/proyeccion', '/evergreen/expenses', '/evergreen/facturas', '/evergreen/morosidad', '/evergreen/morosos-sequra', '/evergreen/collections', '/evergreen/refunds', '/evergreen/afiliados', '/evergreen/pnl', '/evergreen/gestoria'],
   sistema: ['/evergreen/actividad', '/evergreen/audit', '/evergreen/settings', '/evergreen/contratos/equipo', '/evergreen/contratos/plantillas'],
 }
@@ -117,7 +117,6 @@ export const NAV_PAGES: { href: string; label: string; dept: Department }[] = [
   { href: '/evergreen/vsl', label: 'VSL / Vídeos', dept: 'marketing' },
   { href: '/evergreen/students', label: 'Alumnos', dept: 'producto' },
   { href: '/evergreen/csm-events', label: 'Eventos CSM', dept: 'producto' },
-  { href: '/evergreen/retention', label: 'Retención', dept: 'producto' },
   { href: '/evergreen/drops', label: 'Cancelaciones', dept: 'producto' },
   { href: '/evergreen/contratos', label: 'Contratos', dept: 'producto' },
   { href: '/evergreen/finanzas', label: 'Resumen financiero', dept: 'finanzas' },
@@ -170,7 +169,7 @@ export const ROLE_ALLOWED_PREFIXES: Partial<Record<AppRole, string[]>> = {
   marketing:   ['/evergreen/campaigns', '/evergreen/attribution', '/evergreen/data-health', '/evergreen/content', '/evergreen/content/reels', '/evergreen/instagram', '/evergreen/vsl', '/evergreen/carruseles'],
   adscripcion: ['/evergreen/attribution', '/evergreen/campaigns', '/evergreen/data-health'],
   editor:      ['/evergreen/content', '/evergreen/content/reels', '/evergreen/instagram', '/evergreen/vsl', '/evergreen/carruseles'],
-  csm:         ['/evergreen/students', '/evergreen/csm-events', '/evergreen/retention', '/evergreen/drops'],
+  csm:         ['/evergreen/students', '/evergreen/csm-events', '/evergreen/drops'],
   cobros:      ['/evergreen/morosidad', '/evergreen/morosos-sequra', '/evergreen/collections', '/evergreen/pagos'],
 }
 
