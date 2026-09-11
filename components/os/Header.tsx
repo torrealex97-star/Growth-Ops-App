@@ -13,7 +13,7 @@ import { createClient } from '@/lib/supabase/client'
 import { getInitials, cn, formatDateTime } from '@/lib/utils'
 import { FeedbackDialog } from '@/components/os/FeedbackDialog'
 import { GlobalSearch } from '@/components/os/GlobalSearch'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 import type { User } from '@/lib/types/database'
 
 interface HeaderProps {
@@ -29,6 +29,7 @@ type TenantOption = { slug: string; name: string }
 export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) {
   const role = user.roles.key as AppRole
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const router = useRouter()
   const [missing, setMissing] = useState<MissingLinkAppt[]>([])
   const [tenants, setTenants] = useState<TenantOption[]>([])
@@ -42,6 +43,7 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
       let q = sb
         .from('appointments')
         .select('id, appointment_datetime, contacts(full_name)')
+        .eq('tenant_id', tenantId)
         .eq('status', 'show')
         .is('recording_url', null)
         .order('appointment_datetime', { ascending: false })
@@ -51,7 +53,7 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
       if (active) setMissing((data as unknown as MissingLinkAppt[]) ?? [])
     })()
     return () => { active = false }
-  }, [role, user.id])
+  }, [role, user.id, tenantId])
 
   // Tenant switcher: solo para super_admin. RLS en `tenants` devuelve todas
   // las subcuentas cuando is_super_admin() es true.

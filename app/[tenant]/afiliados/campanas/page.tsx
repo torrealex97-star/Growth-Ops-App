@@ -25,7 +25,7 @@ import { toast } from 'sonner'
 import { PERMISSIONS, type AppRole } from '@/lib/auth/permissions'
 import { generateTrackingCode } from '@/lib/tracking'
 import type { AffiliateCampaign, AffiliateCampaignType } from '@/lib/types/database'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 type Affiliate = { id: string; full_name: string; affiliate_code: string | null }
 
@@ -39,6 +39,7 @@ const TYPE_LABEL: Record<string, string> = Object.fromEntries(TYPE_OPTIONS.map((
 
 export default function CampanasAfiliadosPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [role, setRole] = useState<AppRole | ''>('')
   const [loading, setLoading] = useState(true)
   const [campaigns, setCampaigns] = useState<AffiliateCampaign[]>([])
@@ -74,9 +75,9 @@ export default function CampanasAfiliadosPage() {
     setRole(((me as { roles?: { key?: string } } | null)?.roles?.key ?? '') as AppRole)
 
     const [campRes, affRes, memRes] = await Promise.all([
-      sb.from('affiliate_campaigns').select('*').order('created_at', { ascending: false }),
+      sb.from('affiliate_campaigns').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }),
       sb.from('users').select('id, full_name, affiliate_code, roles!inner(key)').eq('roles.key', 'affiliate'),
-      sb.from('affiliate_campaign_members').select('campaign_id'),
+      sb.from('affiliate_campaign_members').select('campaign_id').eq('tenant_id', tenantId),
     ])
 
     setCampaigns((campRes.data as AffiliateCampaign[]) ?? [])
@@ -88,7 +89,7 @@ export default function CampanasAfiliadosPage() {
     }
     setCounts(c)
     setLoading(false)
-  }, [])
+  }, [tenantId])
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
@@ -113,9 +114,10 @@ export default function CampanasAfiliadosPage() {
     // Al crear generamos el slug del enlace público de registro/alta a la campaña.
     // Al editar lo dejamos intacto para no romper enlaces ya compartidos.
     const { error } = editingId
-      ? await sb.from('affiliate_campaigns').update(payload).eq('id', editingId)
+      ? await sb.from('affiliate_campaigns').update(payload).eq('id', editingId).eq('tenant_id', tenantId)
       : await sb.from('affiliate_campaigns').insert({
           ...payload,
+          tenant_id: tenantId,
           created_by: currentUserId,
           registration_slug: generateTrackingCode(10),
         })
@@ -128,7 +130,7 @@ export default function CampanasAfiliadosPage() {
   const handleDelete = async (c: AffiliateCampaign) => {
     if (!confirm(`¿Eliminar la campaña "${c.name}"? Se quitarán todas sus asignaciones.`)) return
     const sb = createClient()
-    const { error } = await sb.from('affiliate_campaigns').delete().eq('id', c.id)
+    const { error } = await sb.from('affiliate_campaigns').delete().eq('id', c.id).eq('tenant_id', tenantId)
     if (error) { toast.error('Error al eliminar', { description: error.message }); return }
     toast.success('Campaña eliminada'); fetchAll()
   }
@@ -151,7 +153,7 @@ export default function CampanasAfiliadosPage() {
 
   const toggleActive = async (c: AffiliateCampaign) => {
     const sb = createClient()
-    const { error } = await sb.from('affiliate_campaigns').update({ is_active: !c.is_active }).eq('id', c.id)
+    const { error } = await sb.from('affiliate_campaigns').update({ is_active: !c.is_active }).eq('id', c.id).eq('tenant_id', tenantId)
     if (error) { toast.error('Error al actualizar'); return }
     fetchAll()
   }
@@ -160,7 +162,7 @@ export default function CampanasAfiliadosPage() {
   const openAssign = async (c: AffiliateCampaign) => {
     setAssignCampaign(c); setSearch(''); setAssignOpen(true)
     const sb = createClient()
-    const { data } = await sb.from('affiliate_campaign_members').select('affiliate_id').eq('campaign_id', c.id)
+    const { data } = await sb.from('affiliate_campaign_members').select('affiliate_id').eq('campaign_id', c.id).eq('tenant_id', tenantId)
     setSelected(new Set(((data as { affiliate_id: string }[]) ?? []).map((m) => m.affiliate_id)))
   }
 
@@ -196,6 +198,7 @@ export default function CampanasAfiliadosPage() {
       .from('affiliate_campaign_members')
       .select('affiliate_id')
       .eq('campaign_id', assignCampaign.id)
+      .eq('tenant_id', tenantId)
     const current = new Set(((currentRows as { affiliate_id: string }[]) ?? []).map((m) => m.affiliate_id))
 
     const toAdd = Array.from(selected).filter((id) => !current.has(id))
@@ -207,6 +210,7 @@ export default function CampanasAfiliadosPage() {
           campaign_id: assignCampaign.id,
           affiliate_id,
           created_by: currentUserId,
+          tenant_id: tenantId,
         }))
       )
       if (error) { setSavingAssign(false); toast.error('Error al asignar', { description: error.message }); return }
@@ -216,6 +220,7 @@ export default function CampanasAfiliadosPage() {
         .from('affiliate_campaign_members')
         .delete()
         .eq('campaign_id', assignCampaign.id)
+        .eq('tenant_id', tenantId)
         .in('affiliate_id', toRemove)
       if (error) { setSavingAssign(false); toast.error('Error al quitar afiliados', { description: error.message }); return }
     }

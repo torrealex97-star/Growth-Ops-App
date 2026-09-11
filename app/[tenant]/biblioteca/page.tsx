@@ -11,7 +11,7 @@ import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import { createClient } from '@/lib/supabase/client'
 import type { Roleplay } from '@/lib/types/database'
 import { toast } from 'sonner'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 type Call = {
   id: string
@@ -36,6 +36,7 @@ type TeamUser = { id: string; full_name: string }
 
 export default function BibliotecaPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [role, setRole] = useState<AppRole | ''>('')
   const [calls, setCalls] = useState<Call[]>([])
   const [loading, setLoading] = useState(true)
@@ -74,13 +75,13 @@ export default function BibliotecaPage() {
   const loadRoleplays = async () => {
     const sb = createClient()
     const [{ data: rps }, { data: us }] = await Promise.all([
-      sb.from('roleplays').select('*').order('created_at', { ascending: false }),
+      sb.from('roleplays').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }),
       sb.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
     ])
     setRoleplays((rps as Roleplay[]) ?? [])
     setTeamUsers((us as TeamUser[]) ?? [])
   }
-  useEffect(() => { loadRoleplays() }, [])
+  useEffect(() => { loadRoleplays() }, [tenantId])
 
   const saveRoleplay = async () => {
     if (!rp.title.trim()) { toast.error('Ponle un título al roleplay'); return }
@@ -97,6 +98,7 @@ export default function BibliotecaPage() {
       notes: rp.notes.trim() || null,
       shared: true,
       created_by: user?.id ?? null,
+      tenant_id: tenantId,
     })
     setSavingRp(false)
     if (error) { toast.error('No se pudo guardar', { description: error.message }); return }
@@ -109,7 +111,7 @@ export default function BibliotecaPage() {
   const removeRoleplay = async (id: string) => {
     if (!confirm('¿Eliminar este roleplay?')) return
     const sb = createClient()
-    const { error } = await sb.from('roleplays').delete().eq('id', id)
+    const { error } = await sb.from('roleplays').delete().eq('id', id).eq('tenant_id', tenantId)
     if (error) { toast.error('No se pudo eliminar', { description: error.message }); return }
     setRoleplays((prev) => prev.filter((r) => r.id !== id))
     toast.success('Roleplay eliminado')

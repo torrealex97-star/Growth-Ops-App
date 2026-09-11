@@ -6,8 +6,10 @@ import { KPITemplateEditor } from '@/components/kpi/KPITemplateEditor'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
 import type { KpiFormTemplate } from '@/lib/types/database'
+import { useTenantId } from '@/lib/tenant-context'
 
 export default function KPITemplatesPage() {
+  const tenantId = useTenantId()
   const [setterTemplates, setSetterTemplates] = useState<KpiFormTemplate[]>([])
   const [closerTemplates, setCloserTemplates] = useState<KpiFormTemplate[]>([])
   const [loading, setLoading] = useState(true)
@@ -17,6 +19,7 @@ export default function KPITemplatesPage() {
     const { data, error } = await supabase
       .from('kpi_form_templates')
       .select('*')
+      .eq('tenant_id', tenantId)
       .order('sort_order')
 
     if (error) {
@@ -28,7 +31,7 @@ export default function KPITemplatesPage() {
     setSetterTemplates(all.filter(t => t.role_key === 'setter'))
     setCloserTemplates(all.filter(t => t.role_key === 'closer'))
     setLoading(false)
-  }, [])
+  }, [tenantId])
 
   useEffect(() => { fetchTemplates() }, [fetchTemplates])
 

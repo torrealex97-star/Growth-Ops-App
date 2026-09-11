@@ -19,7 +19,7 @@ import { Link2, Copy, Check, Plus, Pencil, Trash2, Loader2, AlertTriangle, Exter
 import { toast } from 'sonner'
 import { PERMISSIONS, ROLE_LABELS, type AppRole } from '@/lib/auth/permissions'
 import type { LinkTemplate, ResourceLink, ResourceLinkDivision } from '@/lib/types/database'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 type CurrentUser = {
   id: string
@@ -51,6 +51,7 @@ function buildTrackedUrl(baseUrl: string, role: AppRole, code: string): string {
 
 export default function EnlacesPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [user, setUser] = useState<CurrentUser | null>(null)
   const [templates, setTemplates] = useState<LinkTemplate[]>([])
   const [allTemplates, setAllTemplates] = useState<LinkTemplate[]>([])
@@ -129,6 +130,7 @@ export default function EnlacesPage() {
       const { data, error } = await supabase
         .from('link_templates')
         .select('*')
+        .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
       if (!error) setAllTemplates((data as LinkTemplate[]) ?? [])
     }
@@ -174,6 +176,7 @@ export default function EnlacesPage() {
         .from('affiliate_campaign_members')
         .select('affiliate_campaigns(id, name, base_url, is_active)')
         .eq('affiliate_id', current.id)
+        .eq('tenant_id', tenantId)
       if (campErr) {
         toast.error('Error al cargar tus campañas')
       } else {
@@ -190,6 +193,7 @@ export default function EnlacesPage() {
     const { data: activeTemplates, error: templatesError } = await supabase
       .from('link_templates')
       .select('*')
+      .eq('tenant_id', tenantId)
       .eq('is_active', true)
       .contains('applies_to', [role])
       .order('name')
@@ -201,7 +205,7 @@ export default function EnlacesPage() {
     }
 
     setLoading(false)
-  }, [])
+  }, [tenantId])
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
@@ -331,8 +335,8 @@ export default function EnlacesPage() {
     }
 
     const { error } = editingId
-      ? await supabase.from('link_templates').update(payload).eq('id', editingId)
-      : await supabase.from('link_templates').insert(payload)
+      ? await supabase.from('link_templates').update(payload).eq('id', editingId).eq('tenant_id', tenantId)
+      : await supabase.from('link_templates').insert({ ...payload, tenant_id: tenantId })
 
     setSubmitting(false)
     if (error) {
@@ -351,7 +355,7 @@ export default function EnlacesPage() {
   const handleDelete = async (template: LinkTemplate) => {
     if (!confirm(`¿Eliminar la plantilla "${template.name}"?`)) return
     const supabase = createClient()
-    const { error } = await supabase.from('link_templates').delete().eq('id', template.id)
+    const { error } = await supabase.from('link_templates').delete().eq('id', template.id).eq('tenant_id', tenantId)
     if (error) {
       toast.error('Error al eliminar la plantilla', { description: error.message })
       return
@@ -366,6 +370,7 @@ export default function EnlacesPage() {
       .from('link_templates')
       .update({ is_active: !template.is_active })
       .eq('id', template.id)
+      .eq('tenant_id', tenantId)
     if (error) {
       toast.error('Error al actualizar la plantilla')
       return

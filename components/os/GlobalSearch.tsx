@@ -10,7 +10,7 @@ import { makeNavFilter, visibleNavItems, type NavItem } from '@/lib/nav'
 import { formatDateTime } from '@/lib/utils'
 import type { AppRole } from '@/lib/auth/permissions'
 import type { User } from '@/lib/types/database'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 // Búsqueda global (la "lupa" de la cabecera): abre con clic o con Cmd/Ctrl+K y busca en un mismo
 // sitio las PANTALLAS que el usuario tiene permitidas (ventas, objetivos, calendario…), los
@@ -29,6 +29,7 @@ const MIN_REMOTE_QUERY = 2
 
 export function GlobalSearch({ user }: { user: User & { roles: { key: string; name: string } } }) {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const router = useRouter()
   const role = user.roles.key as AppRole
   const u = user as unknown as { dept_overrides?: string[] | null; page_overrides?: string[] | null }
@@ -76,9 +77,10 @@ export function GlobalSearch({ user }: { user: User & { roles: { key: string; na
       const or = [`full_name.ilike.%${q}%`, `email.ilike.%${q}%`]
       if (digits.length >= 3) or.push(`phone.ilike.%${digits}%`)
       const [cRes, aRes] = await Promise.all([
-        sb.from('contacts').select('id, full_name, email, phone, lead_status').or(or.join(',')).limit(8),
+        sb.from('contacts').select('id, full_name, email, phone, lead_status').eq('tenant_id', tenantId).or(or.join(',')).limit(8),
         sb.from('appointments')
           .select('id, appointment_datetime, contacts!inner(full_name)')
+          .eq('tenant_id', tenantId)
           .ilike('contacts.full_name', `%${q}%`)
           .order('appointment_datetime', { ascending: false })
           .limit(5),
@@ -89,7 +91,7 @@ export function GlobalSearch({ user }: { user: User & { roles: { key: string; na
       setSearching(false)
     }, 220)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [query])
+  }, [query, tenantId])
 
   const results = useMemo<Result[]>(() => {
     const q = normalizeText(query.trim())

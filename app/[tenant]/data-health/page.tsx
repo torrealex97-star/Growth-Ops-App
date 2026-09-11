@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import type { DataHealthSummary } from '@/lib/types/tracking'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 type EventRow = {
   id: string
@@ -61,6 +61,7 @@ function Metric({ label, value, detail, tone = 'neutral' }: { label: string; val
 
 export default function DataHealthPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [summary, setSummary] = useState<DataHealthSummary>(EMPTY)
   const [events, setEvents] = useState<EventRow[]>([])
   const [deliveries, setDeliveries] = useState<DeliveryRow[]>([])
@@ -75,16 +76,16 @@ export default function DataHealthPage() {
       eventCount, matchedCount, pendingCount, rejectedCount, reviewCount,
       deliveryCount, acceptedCount, failedCount, latestEvents, latestDeliveries,
     ] = await Promise.all([
-      sb.from('canonical_events').select('*', { count: 'exact', head: true }),
-      sb.from('canonical_events').select('*', { count: 'exact', head: true }).in('processing_status', ['matched', 'processed']),
-      sb.from('canonical_events').select('*', { count: 'exact', head: true }).in('processing_status', ['received', 'pending']),
-      sb.from('canonical_events').select('*', { count: 'exact', head: true }).eq('processing_status', 'rejected'),
-      sb.from('identity_matches').select('*', { count: 'exact', head: true }).eq('status', 'needs_review'),
-      sb.from('delivery_attempts').select('*', { count: 'exact', head: true }),
-      sb.from('delivery_attempts').select('*', { count: 'exact', head: true }).eq('status', 'accepted'),
-      sb.from('delivery_attempts').select('*', { count: 'exact', head: true }).in('status', ['failed', 'rejected']),
-      sb.from('canonical_events').select('id,event_id,event_name,source,occurred_at,received_at,processing_status,rejection_reason').order('received_at', { ascending: false }).limit(20),
-      sb.from('delivery_attempts').select('id,destination,status,http_status,latency_ms,attempt_number,last_error,next_retry_at,created_at').order('created_at', { ascending: false }).limit(20),
+      sb.from('canonical_events').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+      sb.from('canonical_events').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId).in('processing_status', ['matched', 'processed']),
+      sb.from('canonical_events').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId).in('processing_status', ['received', 'pending']),
+      sb.from('canonical_events').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('processing_status', 'rejected'),
+      sb.from('identity_matches').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('status', 'needs_review'),
+      sb.from('delivery_attempts').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+      sb.from('delivery_attempts').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('status', 'accepted'),
+      sb.from('delivery_attempts').select('*', { count: 'exact', head: true }).eq('tenant_id', tenantId).in('status', ['failed', 'rejected']),
+      sb.from('canonical_events').select('id,event_id,event_name,source,occurred_at,received_at,processing_status,rejection_reason').eq('tenant_id', tenantId).order('received_at', { ascending: false }).limit(20),
+      sb.from('delivery_attempts').select('id,destination,status,http_status,latency_ms,attempt_number,last_error,next_retry_at,created_at').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(20),
     ])
 
     const firstError = [eventCount, matchedCount, pendingCount, rejectedCount, reviewCount, deliveryCount, acceptedCount, failedCount, latestEvents, latestDeliveries].find((r) => r.error)?.error
@@ -107,7 +108,7 @@ export default function DataHealthPage() {
       })
     }
     setLoading(false)
-  }, [])
+  }, [tenantId])
 
   useEffect(() => { void load() }, [load])
 

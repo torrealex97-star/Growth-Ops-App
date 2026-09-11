@@ -23,13 +23,14 @@ import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { buildAutoValues, autoFieldKeys } from '@/lib/kpi/auto'
 import { Sparkles } from 'lucide-react'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 type MemberOption = { id: string; full_name: string }
 type KpiDailyReportWithUser = KpiDailyReport & { users?: { full_name: string } | null }
 
 export default function KPIReportPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [templates, setTemplates] = useState<KpiFormTemplate[]>([])
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [existingReport, setExistingReport] = useState<KpiDailyReport | null>(null)
@@ -85,12 +86,14 @@ export default function KPIReportPage() {
       supabase
         .from('kpi_form_templates')
         .select('*')
+        .eq('tenant_id', tenantId)
         .eq('role_key', role)
         .eq('is_active', true)
         .order('sort_order'),
       supabase
         .from('kpi_daily_reports')
         .select('*')
+        .eq('tenant_id', tenantId)
         .eq('user_id', authUser.id)
         .eq('report_date', date)
         .single(),
@@ -98,11 +101,13 @@ export default function KPIReportPage() {
         ? supabase
             .from('kpi_daily_reports')
             .select('*, users(full_name)')
+            .eq('tenant_id', tenantId)
             .order('report_date', { ascending: false })
             .limit(500)
         : supabase
             .from('kpi_daily_reports')
             .select('*')
+            .eq('tenant_id', tenantId)
             .eq('user_id', authUser.id)
             .order('report_date', { ascending: false })
             .limit(14),
@@ -140,6 +145,7 @@ export default function KPIReportPage() {
         report_date: date,
         data: { ...(reportRes.data?.data as Record<string, unknown> | undefined), ...auto },
         submitted_at: new Date().toISOString(),
+        tenant_id: tenantId,
       }
       const { data: saved } = await supabase
         .from('kpi_daily_reports')
@@ -161,7 +167,7 @@ export default function KPIReportPage() {
     setLoading(false)
   }
 
-  useEffect(() => { fetchData(selectedDate) }, [selectedDate])
+  useEffect(() => { fetchData(selectedDate) }, [selectedDate, tenantId])
 
   const filteredReports = useMemo(() => {
     return recentReports
@@ -178,6 +184,7 @@ export default function KPIReportPage() {
       report_date: selectedDate,
       data,
       submitted_at: new Date().toISOString(),
+      tenant_id: tenantId,
     }
 
     const { error } = await supabase
