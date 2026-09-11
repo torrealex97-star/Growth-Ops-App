@@ -19,11 +19,8 @@ function svc() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 }
 
-// NOTA: readStylePrompt()/readBusinessContext() (lib/app-settings.ts) leen `app_settings`
-// por `key` global, sin filtrar por tenant_id — ese helper es compartido por otras rutas
-// fuera de este lote y no se ha tocado aquí. app_settings.key tampoco tiene un UNIQUE
-// per-tenant todavía, así que el valor sigue siendo efectivamente global entre tenants
-// hasta que se actualice ese helper (fuera del alcance de este lote).
+// readStylePrompt()/readBusinessContext() (lib/app-settings.ts) filtran por tenant_id;
+// app_settings tiene PK (tenant_id, key) desde 20260911170000_tenant_scope_singleton_constraints.sql.
 export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
   const t = await requireTenant(tenant)
@@ -33,7 +30,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   if (!role) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
   if (!['admin', 'director', 'manager', 'marketing', 'editor'].includes(role)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   const key = keyFrom(req.nextUrl.searchParams.get('key'))
-  const prompt = key === 'ig_business_context' ? await readBusinessContext() : await readStylePrompt()
+  const prompt = key === 'ig_business_context' ? await readBusinessContext(t.tenantId) : await readStylePrompt(t.tenantId)
   return NextResponse.json({ key, prompt })
 }
 
@@ -49,7 +46,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ tena
   const key = keyFrom(body?.key ?? null)
   const { error } = await sb
     .from('app_settings')
-    .upsert({ key, tenant_id: t.tenantId, value: { prompt: String(body?.prompt ?? '') }, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    .upsert({ key, tenant_id: t.tenantId, value: { prompt: String(body?.prompt ?? '') }, updated_at: new Date().toISOString() }, { onConflict: 'tenant_id,key' })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

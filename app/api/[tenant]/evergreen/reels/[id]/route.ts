@@ -46,7 +46,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
     if (mediaErr || !media) return NextResponse.json({ error: 'No se encontró el reel de origen (¿se eliminó de Competencia?)' }, { status: 404 })
 
     const { data: comp } = await sb.from('ig_competitors').select('username').eq('id', media.competitor_id).eq('tenant_id', t.tenantId).single()
-    const result = await generateDraftForMedia(sb, media, comp?.username || draft.source_account || '', id)
+    const result = await generateDraftForMedia(sb, media, comp?.username || draft.source_account || '', id, t.tenantId)
     if (!result.ok) return NextResponse.json({ error: result.error || 'No se pudo regenerar' }, { status: 500 })
 
     const { data: updated } = await sb.from('reel_drafts').select('*').eq('id', id).eq('tenant_id', t.tenantId).single()

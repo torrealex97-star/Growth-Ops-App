@@ -85,7 +85,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       : (media.transcript || undefined)
 
     // Estilo + contexto de negocio + CTAs alimentan la generación nichada.
-    const [styleBlock, businessContext] = await Promise.all([readStylePrompt(), readBusinessContext()])
+    const [styleBlock, businessContext] = await Promise.all([readStylePrompt(t.tenantId), readBusinessContext(t.tenantId)])
 
     // Prueba social opcional: "auto" deja que la IA elija el caso que mejor encaje con
     // el tema del reel; un id concreto fuerza ese testimonio. Vacío = guión sin testimonio.

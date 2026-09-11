@@ -70,7 +70,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .from('canonical_events')
     .upsert(
       { ...parsed.data, tenant_id: tenantRow.id, processing_status: 'received' },
-      { onConflict: 'source,idempotency_key', ignoreDuplicates: true }
+      { onConflict: 'tenant_id,source,idempotency_key', ignoreDuplicates: true }
     )
     .select('id,event_id,event_name,received_at,processing_status')
     .maybeSingle()
