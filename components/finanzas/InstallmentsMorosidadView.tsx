@@ -87,7 +87,7 @@ function StatusBadge({ row, today }: { row: InstallmentRow; today: string }) {
   )
 }
 
-export default function MorosidadPage() {
+export function InstallmentsMorosidadView() {
   const tenant = useTenant()
   const [rows, setRows] = useState<InstallmentRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -208,12 +208,12 @@ export default function MorosidadPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-          <AlertTriangle className="w-6 h-6 text-brand-400" /> Morosidad
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">Control de pagos a plazos y financiados</p>
+        <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-brand-400" /> Pagos a plazos (interno)
+        </h2>
+        <p className="text-muted-foreground text-xs mt-1">Control de pagos a plazos y financiados</p>
       </div>
 
       <PeriodFilterBar

@@ -45,6 +45,20 @@ const nextConfig = {
       // así que solo redirigimos la ruta breve de Recursos de venta, no la original.
       { source: '/:tenant/recursos/setting-ai', destination: '/:tenant/setting-ai', permanent: true },
 
+      // Reorganización de "Finanzas" (Analítica financiera / Gastos & Facturas / Cobros &
+      // Conciliación / Morosidad) + Afiliados movido a Marketing.
+      { source: '/:tenant/finanzas', destination: '/:tenant/finanzas/analitica/resumen', permanent: true },
+      { source: '/:tenant/proyeccion', destination: '/:tenant/finanzas/analitica/proyeccion', permanent: true },
+      { source: '/:tenant/expenses', destination: '/:tenant/finanzas/gastos-facturas/gastos', permanent: true },
+      { source: '/:tenant/facturas', destination: '/:tenant/finanzas/gastos-facturas/facturas', permanent: true },
+      { source: '/:tenant/gestoria', destination: '/:tenant/finanzas/gastos-facturas/gestoria', permanent: true },
+      { source: '/:tenant/collections', destination: '/:tenant/finanzas/cobros/cobros', permanent: true },
+      { source: '/:tenant/collections/new', destination: '/:tenant/finanzas/cobros/cobros/new', permanent: true },
+      { source: '/:tenant/refunds', destination: '/:tenant/finanzas/cobros/devoluciones', permanent: true },
+      { source: '/:tenant/morosidad', destination: '/:tenant/finanzas/morosidad', permanent: true },
+      { source: '/:tenant/morosos-sequra', destination: '/:tenant/finanzas/morosidad?origen=sequra', permanent: true },
+      { source: '/:tenant/afiliados', destination: '/:tenant/marketing/afiliados/afiliados', permanent: true },
+      { source: '/:tenant/afiliados/campanas', destination: '/:tenant/marketing/afiliados/campanas', permanent: true },
     ]
   },
 }

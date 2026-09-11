@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/table'
 import { lastNMonths, monthLabel } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
+import { computeMonthlyPnl } from '@/lib/finance/pnl'
 
 type SaleRow = { gross_amount: number | string; discount: number | string | null; status: string; sale_date: string | null }
 type CollectionRow = { id: string; gross_amount: number | string; processing_fee: number | string | null; collected_at: string | null; status: string }
@@ -22,7 +23,6 @@ type CommissionRow = { commission_amount: number | string; direction: string; co
 type PartnerRow = { id: string; name: string; profit_percent: number | string; is_active: boolean }
 
 const num = (x: number | string | null | undefined) => Number(x ?? 0)
-const ymOf = (d: string | null | undefined) => (d ? String(d).slice(0, 7) : '')
 
 function nowYm() {
   const d = new Date()
@@ -115,82 +115,12 @@ export default function PnlPage() {
     return () => { mounted = false }
   }, [])
 
-  const pnl = useMemo(() => {
-    const monthSales = sales.filter((s) => ymOf(s.sale_date) === ym)
-    const monthCollections = collections.filter((c) => c.status === 'collected' && ymOf(c.collected_at) === ym)
-    const monthRefunds = refunds.filter((r) => ymOf(r.refund_date) === ym)
-    const monthExpenses = expenses.filter((e) => ymOf(e.expense_date) === ym)
-
-    // Correlación (matching): la comisión es un coste del INGRESO que la generó, así que se
-    // reconoce en el mes del COBRO asociado (collected_at), no en su mes de liquidación/pago.
-    // Antes se comparaba `liquidation_month === ym` (fecha completa 'YYYY-MM-01' vs 'YYYY-MM') → nunca
-    // casaba y la comisión salía siempre 0. Las negativas (devoluciones) se imputan a su mes de
-    // liquidación (= mes de la devolución).
-    const collMonth = new Map(collections.map((c) => [c.id, ymOf(c.collected_at)]))
-    const commissionYm = (c: CommissionRow) =>
-      c.direction === 'negative'
-        ? ymOf(c.liquidation_month)
-        : (c.collection_id ? collMonth.get(c.collection_id) : undefined) ?? ymOf(c.liquidation_month)
-    const monthCommissions = commissions.filter((c) => commissionYm(c) === ym)
-
-    const contractedRevenue = monthSales.reduce((a, s) => a + num(s.gross_amount), 0)
-    const grossRevenue = monthCollections.reduce((a, c) => a + num(c.gross_amount), 0)
-    const realizedCr = contractedRevenue ? grossRevenue / contractedRevenue : null
-
-    const totalRefunds = monthRefunds.reduce((a, r) => a + num(r.gross_refund_amount), 0)
-    const totalDiscounts = monthSales.reduce((a, s) => a + num(s.discount), 0)
-
-    const netRevenue = grossRevenue - totalRefunds - totalDiscounts
-
-    const cogs = monthExpenses
-      .filter((e) => e.category === 'cogs')
-      .reduce((a, e) => a + num(e.amount), 0)
-
-    const grossProfit = netRevenue - cogs
-    const grossMargin = netRevenue ? grossProfit / netRevenue : null
-
-    const comisiones = monthCommissions.reduce((a, c) => {
-      const amt = num(c.commission_amount)
-      return a + (c.direction === 'negative' ? -amt : amt)
-    }, 0)
-    const salarios = monthExpenses.filter((e) => e.category === 'sueldos').reduce((a, e) => a + num(e.amount), 0)
-    const adspend = monthExpenses.filter((e) => e.category === 'publicidad').reduce((a, e) => a + num(e.amount), 0)
-    const software = monthExpenses.filter((e) => e.category === 'herramientas').reduce((a, e) => a + num(e.amount), 0)
-    const platformFees = monthCollections.reduce((a, c) => a + num(c.processing_fee), 0)
-    const otros = monthExpenses
-      .filter((e) => e.category === 'eventos' || e.category === 'otros')
-      .reduce((a, e) => a + num(e.amount), 0)
-
-    const totalOpex = comisiones + salarios + adspend + software + platformFees + otros
-
-    const preTaxProfit = netRevenue - cogs - totalOpex
-    const preTaxMargin = netRevenue ? preTaxProfit / netRevenue : null
-
-    const roiBase = totalOpex + cogs
-    const roi = roiBase ? preTaxProfit / roiBase : null
-
-    return {
-      contractedRevenue,
-      grossRevenue,
-      realizedCr,
-      totalRefunds,
-      totalDiscounts,
-      netRevenue,
-      cogs,
-      grossProfit,
-      grossMargin,
-      comisiones,
-      salarios,
-      adspend,
-      software,
-      platformFees,
-      otros,
-      totalOpex,
-      preTaxProfit,
-      preTaxMargin,
-      roi,
-    }
-  }, [sales, collections, refunds, expenses, commissions, ym])
+  // Resultado neto/margen: único servicio compartido con Finanzas › Analítica financiera y
+  // Gastos & Facturas › Export gestoría (lib/finance/pnl.ts) — no se recalcula aquí.
+  const pnl = useMemo(
+    () => computeMonthlyPnl(ym, { sales, collections, refunds, expenses, commissions }),
+    [sales, collections, refunds, expenses, commissions, ym]
+  )
 
   const partnersDistribution = useMemo(() => {
     return partners.map((p) => {

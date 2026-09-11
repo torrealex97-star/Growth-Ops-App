@@ -266,7 +266,7 @@ export default function NewCollectionPage() {
     }
 
     toast.success('Cobro registrado correctamente')
-    router.push(`/${tenant}/collections`)
+    router.push(`/${tenant}/finanzas/cobros/cobros`)
   }
 
   return (

@@ -5,8 +5,10 @@ import { createClient } from '@/lib/supabase/client'
 import { Receipt, ExternalLink, Download } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { lastNMonths, monthLabel } from '@/lib/analytics'
+import { computeMonthlyPnl, type PnlSaleRow, type PnlCommissionRow } from '@/lib/finance/pnl'
 
 type CollectionRow = {
+  id: string
   sale_id: string
   gross_amount: number | string
   processing_fee: number | string | null
@@ -95,6 +97,8 @@ export default function GestoriaPage() {
   const [collections, setCollections] = useState<CollectionRow[]>([])
   const [expenses, setExpenses] = useState<ExpenseRow[]>([])
   const [refunds, setRefunds] = useState<RefundRow[]>([])
+  const [sales, setSales] = useState<PnlSaleRow[]>([])
+  const [commissions, setCommissions] = useState<PnlCommissionRow[]>([])
 
   const monthOptions = useMemo(() => lastNMonths(12, nowYm()).reverse(), [])
 
@@ -103,19 +107,23 @@ export default function GestoriaPage() {
     async function load() {
       setLoading(true)
       const supabase = createClient()
-      const [collRes, expensesRes, refundsRes] = await Promise.all([
+      const [collRes, expensesRes, refundsRes, salesRes, commissionsRes] = await Promise.all([
         supabase
           .from('collections')
-          .select('sale_id, gross_amount, processing_fee, vat, collected_at, status'),
+          .select('id, sale_id, gross_amount, processing_fee, vat, collected_at, status'),
         supabase
           .from('expenses')
           .select('id, concept, category, amount, expense_date, counterparty, invoice_url'),
         supabase.from('refunds').select('gross_refund_amount, refund_date'),
+        supabase.from('sales').select('gross_amount, discount, sale_date'),
+        supabase.from('commissions').select('commission_amount, direction, collection_id, liquidation_month'),
       ])
       if (!mounted) return
       setCollections(collRes.data || [])
       setExpenses(expensesRes.data || [])
       setRefunds(refundsRes.data || [])
+      setSales(salesRes.data || [])
+      setCommissions(commissionsRes.data || [])
       setLoading(false)
     }
     load()
@@ -141,16 +149,19 @@ export default function GestoriaPage() {
     [monthExpenses]
   )
 
+  // Resultado neto/margen: mismo servicio compartido que Analítica financiera › Resumen y el
+  // I&G de Dirección › Métricas (lib/finance/pnl.ts) — no se recalcula aquí, solo se lee.
   const summary = useMemo(() => {
     const cashCollected = monthCollections.reduce((a, c) => a + num(c.gross_amount), 0)
     const platformFees = monthCollections.reduce((a, c) => a + num(c.processing_fee), 0)
     const vat = monthCollections.reduce((a, c) => a + num(c.vat), 0)
     const totalExpenses = monthExpenses.reduce((a, e) => a + num(e.amount), 0)
     const totalRefunds = monthRefunds.reduce((a, r) => a + num(r.gross_refund_amount), 0)
-    const netResult = cashCollected - totalRefunds - totalExpenses - platformFees
-    const margin = cashCollected ? (netResult / cashCollected) * 100 : null
+    const pnl = computeMonthlyPnl(ym, { sales, collections, refunds, expenses, commissions })
+    const netResult = pnl.preTaxProfit
+    const margin = pnl.preTaxMargin === null ? null : pnl.preTaxMargin * 100
     return { cashCollected, platformFees, vat, totalExpenses, totalRefunds, netResult, margin }
-  }, [monthCollections, monthExpenses, monthRefunds])
+  }, [monthCollections, monthExpenses, monthRefunds, ym, sales, collections, refunds, expenses, commissions])
 
   const fmt = (n: number) => formatCurrency(n)
   const pct = (v: number | null) => (v === null || !isFinite(v) ? '—' : `${v.toFixed(1)}%`)
@@ -271,9 +282,7 @@ export default function GestoriaPage() {
               </div>
             </div>
             <p className="text-[11px] text-muted-foreground mt-2">
-              Resultado neto = Cash Collected ({fmt(summary.cashCollected)}) − Devoluciones (
-              {fmt(summary.totalRefunds)}) − Gastos ({fmt(summary.totalExpenses)}) − Comisiones
-              plataforma ({fmt(summary.platformFees)})
+              Resultado neto = mismo cálculo que I&amp;G (Dirección › Métricas): Net Revenue − COGS − OpEx
             </p>
           </div>
 
