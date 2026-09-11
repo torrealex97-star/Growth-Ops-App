@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 
@@ -14,24 +14,23 @@ function serviceClient() {
   )
 }
 
-async function requireAdmin() {
-  const authed = await createServerClient()
-  const { data: { user } } = await authed.auth.getUser()
-  if (!user) return { error: 'No autenticado', status: 401 as const }
+async function requireAdmin(tenantSlug: string) {
+  const t = await requireTenant(tenantSlug)
+  if ('error' in t) return { error: 'No autenticado', status: 401 as const }
   const sb = serviceClient()
-  const { data } = await sb.from('users').select('roles(key)').eq('id', user.id).single()
+  const { data } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
   const role = (data?.roles as { key?: string } | null)?.key
   if (role !== 'admin' && role !== 'director') return { error: 'Sin permisos', status: 403 as const }
-  return { ok: true as const }
+  return { ok: true as const, tenantId: t.tenantId }
 }
 
 // PATCH — admin/director gestiona estado y notas internas.
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ tenant: string; id: string }> }) {
   try {
-    const guard = await requireAdmin()
+    const { tenant, id } = await params
+    const guard = await requireAdmin(tenant)
     if ('error' in guard) return NextResponse.json({ error: guard.error }, { status: guard.status })
 
-    const { id } = await params
     const body = await req.json()
     const update: Record<string, unknown> = {}
     if (typeof body.status === 'string' && VALID_STATUS.includes(body.status)) update.status = body.status
@@ -42,7 +41,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     const sb = serviceClient()
-    const { data, error } = await sb.from('suggestions').update(update).eq('id', id).select().single()
+    const { data, error } = await sb.from('suggestions').update(update).eq('id', id).eq('tenant_id', guard.tenantId).select().single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ suggestion: data })
   } catch (err) {
@@ -51,14 +50,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 // DELETE — admin/director elimina una sugerencia.
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ tenant: string; id: string }> }) {
   try {
-    const guard = await requireAdmin()
+    const { tenant, id } = await params
+    const guard = await requireAdmin(tenant)
     if ('error' in guard) return NextResponse.json({ error: guard.error }, { status: guard.status })
 
-    const { id } = await params
     const sb = serviceClient()
-    const { error } = await sb.from('suggestions').delete().eq('id', id)
+    const { error } = await sb.from('suggestions').delete().eq('id', id).eq('tenant_id', guard.tenantId)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ ok: true })
   } catch (err) {

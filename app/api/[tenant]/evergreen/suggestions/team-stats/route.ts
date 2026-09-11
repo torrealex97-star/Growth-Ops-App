@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 import type { SuggestionStatus, SuggestionTeamStat } from '@/lib/types/database'
 
 export const runtime = 'nodejs'
@@ -25,16 +25,17 @@ function emptyByStatus(): Record<SuggestionStatus, number> {
 // puede ver el ranking (solo contadores agregados por persona, nunca el
 // contenido de las sugerencias de otros), para que sea un reconocimiento
 // social visible a todo el equipo y no solo a admin/director.
-export async function GET() {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
-    const authed = await createServerClient()
-    const { data: { user } } = await authed.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
 
     const sb = serviceClient()
     const { data, error } = await sb
       .from('suggestions')
       .select('user_id, status, resolved_at, users(full_name, email)')
+      .eq('tenant_id', t.tenantId)
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

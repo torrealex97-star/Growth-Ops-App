@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
-  requireCaller, callText, modelFrom, DEFAULT_MODEL,
+  callText, modelFrom, DEFAULT_MODEL,
   leadSystem, toLeadMessages, toAgentMessages, ensureStartsUser,
   critique, autoPersona, buildImprovePrompt, liveSystem,
   type ConvMsg, type Persona, type Correction,
 } from '@/lib/setting-ai/core'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
-export async function POST(req: NextRequest) {
-  if (!(await requireCaller())) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params
+  const t = await requireTenant(tenant)
+  if ('error' in t) return t.error
   if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada' }, { status: 503 })
 
   const b = await req.json().catch(() => ({}))

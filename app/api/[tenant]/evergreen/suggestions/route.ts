@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 
@@ -14,36 +14,34 @@ function serviceClient() {
   )
 }
 
-async function getMe() {
-  const authed = await createServerClient()
-  const { data: { user } } = await authed.auth.getUser()
-  if (!user) return null
-  const sb = serviceClient()
+async function getRole(sb: ReturnType<typeof serviceClient>, userId: string) {
   const { data } = await sb
     .from('users')
     .select('id, roles(key)')
-    .eq('id', user.id)
+    .eq('id', userId)
     .single()
-  const role = (data?.roles as { key?: string } | null)?.key ?? null
-  return { id: user.id, role }
+  return (data?.roles as { key?: string } | null)?.key ?? null
 }
 
 // GET — admin/director ven todas; el resto ve solo las suyas.
 // Con ?mine=1 cualquiera (también admin) ve SOLO las suyas (para el tablón "Mis sugerencias").
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
-    const me = await getMe()
-    if (!me) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
 
     const sb = serviceClient()
+    const role = await getRole(sb, t.userId)
     let q = sb
       .from('suggestions')
       .select('*, users(full_name, email)')
+      .eq('tenant_id', t.tenantId)
       .order('created_at', { ascending: false })
 
     const mineOnly = req.nextUrl.searchParams.get('mine') === '1'
-    const isAdmin = me.role === 'admin' || me.role === 'director'
-    if (!isAdmin || mineOnly) q = q.eq('user_id', me.id)
+    const isAdmin = role === 'admin' || role === 'director'
+    if (!isAdmin || mineOnly) q = q.eq('user_id', t.userId)
 
     const { data, error } = await q
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -54,10 +52,11 @@ export async function GET(req: NextRequest) {
 }
 
 // POST — cualquier usuario autenticado envía una sugerencia.
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
-    const me = await getMe()
-    if (!me) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
 
     const body = await req.json()
     const type = VALID_TYPES.includes(body.type) ? body.type : 'mejora'
@@ -72,7 +71,7 @@ export async function POST(req: NextRequest) {
     const sb = serviceClient()
     const { data, error } = await sb
       .from('suggestions')
-      .insert({ user_id: me.id, type, title: title.slice(0, 200), message, page_url })
+      .insert({ user_id: t.userId, tenant_id: t.tenantId, type, title: title.slice(0, 200), message, page_url })
       .select()
       .single()
 

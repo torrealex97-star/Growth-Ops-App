@@ -1,8 +1,7 @@
-import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { analyzeCall } from '@/lib/ai/claude'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -73,20 +72,14 @@ async function transcribeGroq(buf: Buffer, mime: string): Promise<string> {
   return data.text || ''
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+
     const { appointmentId, driveUrl, transcript: providedTranscript } = await req.json()
     if (!appointmentId) return NextResponse.json({ error: 'Falta appointmentId' }, { status: 400 })
-
-    // Auth: sesión válida
-    const cookieStore = await cookies()
-    const authed = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-    )
-    const { data: { user: caller } } = await authed.auth.getUser()
-    if (!caller) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
@@ -95,6 +88,7 @@ export async function POST(req: NextRequest) {
       .from('appointments')
       .select('id, closer_id, setter_id, transcript, contacts(id, full_name, lead_status)')
       .eq('id', appointmentId)
+      .eq('tenant_id', t.tenantId)
       .single()
     if (apptErr || !appt) return NextResponse.json({ error: 'Agenda no encontrada' }, { status: 404 })
 
@@ -103,16 +97,16 @@ export async function POST(req: NextRequest) {
     if (!transcript && driveUrl) {
       const fileId = driveFileId(driveUrl)
       if (!fileId) return NextResponse.json({ error: 'Enlace de Drive no válido' }, { status: 400 })
-      await sb.from('appointments').update({ transcript_status: 'procesando', transcript_drive_url: driveUrl }).eq('id', appointmentId)
+      await sb.from('appointments').update({ transcript_status: 'procesando', transcript_drive_url: driveUrl }).eq('id', appointmentId).eq('tenant_id', t.tenantId)
       const { buf, type } = await downloadFromDrive(fileId)
       if (buf.byteLength > GROQ_LIMIT_BYTES) {
-        await sb.from('appointments').update({ transcript_status: 'error' }).eq('id', appointmentId)
+        await sb.from('appointments').update({ transcript_status: 'error' }).eq('id', appointmentId).eq('tenant_id', t.tenantId)
         return NextResponse.json({
           error: `El archivo pesa ${(buf.byteLength / 1024 / 1024).toFixed(1)}MB y supera el límite de 25MB de la transcripción gratuita. Sube solo el audio (mp3) o activa la transcripción de Meet y pega el texto.`,
         }, { status: 413 })
       }
       transcript = await transcribeGroq(buf, type)
-      await sb.from('appointments').update({ transcript, transcript_status: 'listo' }).eq('id', appointmentId)
+      await sb.from('appointments').update({ transcript, transcript_status: 'listo' }).eq('id', appointmentId).eq('tenant_id', t.tenantId)
     }
     if (!transcript || transcript.trim().length < 20) {
       return NextResponse.json({ error: 'No hay transcripción (pega el texto o un enlace de Drive válido)' }, { status: 400 })
@@ -131,7 +125,7 @@ export async function POST(req: NextRequest) {
       ai_summary: analysis.summary,
       ai_analysis: { objections: analysis.objections, next_steps: analysis.next_steps },
       ai_analyzed_at: new Date().toISOString(),
-    }).eq('id', appointmentId)
+    }).eq('id', appointmentId).eq('tenant_id', t.tenantId)
 
     // 3) Generación automática de tareas: DESACTIVADA temporalmente.
     // (Pendiente de entrenar qué tareas deben salir tras una venta/llamada.)

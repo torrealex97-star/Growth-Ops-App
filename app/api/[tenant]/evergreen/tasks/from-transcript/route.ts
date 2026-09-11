@@ -1,26 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import Anthropic from '@anthropic-ai/sdk'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const maxDuration = 60
 
 // Recibe una transcripción y devuelve TAREAS PROPUESTAS (no las inserta).
 // El usuario las revisa/edita en la UI y confirma antes de crearlas.
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
     // Requiere sesión: usa service-role + LLM de pago, no puede ser anónimo.
-    const cookieStore = await cookies()
-    const authed = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-    )
-    const { data: { user: caller } } = await authed.auth.getUser()
-    if (!caller) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-    }
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
 
     const { transcript } = await req.json()
     if (!transcript || typeof transcript !== 'string' || transcript.trim().length < 20) {
