@@ -1,30 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { resolveCloserEventType, getAvailableTimes, CalendlyError } from '@/lib/calendly'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 
-// Verifica que quien llama está autenticado (cualquier usuario del panel).
-async function requireAuth(): Promise<{ ok: true } | { ok: false; res: NextResponse }> {
-  const cookieStore = await cookies()
-  const authed = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-  )
-  const { data: { user } } = await authed.auth.getUser()
-  if (!user) return { ok: false, res: NextResponse.json({ error: 'No autenticado' }, { status: 401 }) }
-  return { ok: true }
-}
-
 // GET /api/${tenant}/evergreen/calendly/availability?closerId=...&date=YYYY-MM-DD
 // Devuelve el event type del closer y sus huecos disponibles ese día.
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
-    const guard = await requireAuth()
-    if (!guard.ok) return guard.res
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
 
     const closerId = req.nextUrl.searchParams.get('closerId')
     const date = req.nextUrl.searchParams.get('date') // YYYY-MM-DD
@@ -34,6 +21,10 @@ export async function GET(req: NextRequest) {
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
+    // `users` no tiene tenant_id: comprobamos que el closer pertenece a esta
+    // subcuenta vía tenant_members para no filtrar disponibilidad entre tenants.
+    const { data: membership } = await sb.from('tenant_members').select('id').eq('tenant_id', t.tenantId).eq('user_id', closerId).maybeSingle()
+    if (!membership) return NextResponse.json({ error: 'Closer no encontrado' }, { status: 404 })
     const { data: closer } = await sb.from('users').select('email, calendly_email, full_name').eq('id', closerId).maybeSingle()
     if (!closer?.email) return NextResponse.json({ error: 'El closer no tiene email' }, { status: 400 })
 

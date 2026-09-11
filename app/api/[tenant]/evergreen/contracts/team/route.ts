@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { randomBytes } from 'crypto'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 import { applyVars, generationVars, type ContractTerms } from '@/lib/contracts/terms'
 import { getCompanyProfile } from '@/lib/contracts/company'
 import { sendContractEmail, resendConfigured } from '@/lib/email/resend'
@@ -13,11 +13,12 @@ export const runtime = 'nodejs'
 //  · el ROL es seleccionable (roleKey/roleLabel) e independiente del rol del user.
 //  · las condiciones (terms) llegan ya confirmadas/editadas desde la UI.
 //  · registra quién da el alta (created_by = usuario logueado).
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
-    const authed = await createServerClient()
-    const { data: { user: me } } = await authed.auth.getUser()
-    if (!me) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+    const me = { id: t.userId }
 
     const { userId, templateId, title, terms, roleKey, roleLabel, personalEmail: rawPersonalEmail } = (await req.json()) as {
       userId?: string
@@ -44,6 +45,12 @@ export async function POST(req: NextRequest) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
+    // `users` no tiene tenant_id: comprobamos que el miembro pertenece a esta
+    // subcuenta vía tenant_members para no poder generar un contrato para un
+    // usuario de otro tenant.
+    const { data: membership } = await sb.from('tenant_members').select('id').eq('tenant_id', t.tenantId).eq('user_id', userId).maybeSingle()
+    if (!membership) return NextResponse.json({ error: 'Miembro no encontrado' }, { status: 404 })
+
     const { data: member } = await sb
       .from('users')
       .select('id, full_name, email, personal_email, phone, dni, address, start_date')
@@ -65,7 +72,7 @@ export async function POST(req: NextRequest) {
     // firmante (dni, direccion…) se dejan como placeholder para la 2ª pasada al firmar.
     let templateBody = ''
     if (templateId) {
-      const { data: tpl } = await sb.from('contract_templates').select('body').eq('id', templateId).maybeSingle()
+      const { data: tpl } = await sb.from('contract_templates').select('body').eq('id', templateId).eq('tenant_id', t.tenantId).maybeSingle()
       templateBody = tpl?.body ?? ''
     }
     const startDate = member.start_date
@@ -101,6 +108,7 @@ export async function POST(req: NextRequest) {
         signing_token: token,
         sent_at: now,
         created_by: me.id,
+        tenant_id: t.tenantId,
       })
       .select('id')
       .single()
@@ -120,10 +128,11 @@ export async function POST(req: NextRequest) {
       const r = await sendContractEmail({ to: primary, cc, memberName: member.full_name, company, signUrl })
       emailed = r.ok
       emailError = r.ok ? null : r.error ?? null
-      if (r.ok) await sb.from('contracts').update({ email_sent_at: now }).eq('id', created.id)
+      if (r.ok) await sb.from('contracts').update({ email_sent_at: now }).eq('id', created.id).eq('tenant_id', t.tenantId)
     }
 
     await sb.from('audit_logs').insert({
+      tenant_id: t.tenantId,
       entity_type: 'contract',
       entity_id: created.id,
       action: 'create',

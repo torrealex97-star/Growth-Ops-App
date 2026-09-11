@@ -1,18 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { contractVariablesFromText } from '@/lib/ai/claude'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
 // Recibe texto de contrato pegado y devuelve el mismo texto con las variables
 // {{...}} insertadas donde corresponda (para crear plantillas más rápido).
-export async function POST(req: NextRequest) {
+// No toca ninguna tabla con tenant_id (solo llama a la IA), pero se exige
+// requireTenant igualmente para que solo miembros de esta subcuenta la usen.
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+
     const authed = await createClient()
-    const { data: { user: me } } = await authed.auth.getUser()
-    if (!me) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-    const { data: row } = await authed.from('users').select('roles(key)').eq('id', me.id).maybeSingle()
+    const { data: row } = await authed.from('users').select('roles(key)').eq('id', t.userId).maybeSingle()
     const role = (row?.roles as { key?: string } | null)?.key
     if (!['admin', 'director'].includes(role || '')) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })

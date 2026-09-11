@@ -25,11 +25,34 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
+    // Público (sin login): resolvemos el tenant por slug directamente en vez de
+    // requireTenant (que exige sesión) y acotamos cada lectura/escritura a su tenant_id.
+    const { data: tenantRow } = await supabase
+      .from('tenants')
+      .select('id, status')
+      .eq('slug', tenant)
+      .maybeSingle()
+    if (!tenantRow || tenantRow.status !== 'active') {
+      return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
+    }
+    const tenantId = tenantRow.id
+
+    // Alta en la subcuenta: sin esta fila, el afiliado tendría perfil pero no
+    // podría entrar a NINGÚN tenant (el layout exige una fila en tenant_members
+    // o super_admin). onConflict evita degradar a un miembro ya existente.
+    const ensureTenantMembership = async (affiliateUserId: string) => {
+      await supabase.from('tenant_members').upsert(
+        { tenant_id: tenantId, user_id: affiliateUserId, role: 'member' },
+        { onConflict: 'tenant_id,user_id', ignoreDuplicates: true }
+      )
+    }
+
     // 1) Config del programa (campos + % por defecto + mensaje)
     const { data: settings } = await supabase
       .from('affiliate_program_settings')
       .select('default_commission_percent, success_message, form_fields')
       .eq('id', 1)
+      .eq('tenant_id', tenantId)
       .maybeSingle()
 
     const fields = ((settings?.form_fields as AffiliateFormField[] | null) ?? []).filter((f) => f.enabled)
@@ -48,6 +71,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         .from('affiliate_campaigns')
         .select('id, name, is_active')
         .eq('registration_slug', campaignSlug)
+        .eq('tenant_id', tenantId)
         .maybeSingle()
       const c = camp as { id: string; name: string; is_active: boolean } | null
       if (c?.is_active) campaign = { id: c.id, name: c.name }
@@ -59,7 +83,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       await supabase
         .from('affiliate_campaign_members')
         .upsert(
-          { campaign_id: campaign.id, affiliate_id: affiliateId, created_by: createdBy },
+          { campaign_id: campaign.id, affiliate_id: affiliateId, created_by: createdBy, tenant_id: tenantId },
           { onConflict: 'campaign_id,affiliate_id', ignoreDuplicates: true }
         )
     }
@@ -90,6 +114,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const { data: existing } = await supabase.from('users').select('id').eq('email', email).maybeSingle()
     if (existing) {
       const existingId = (existing as { id: string }).id
+      await ensureTenantMembership(existingId)
       if (campaign) {
         await assignToCampaign(existingId)
         return NextResponse.json({
@@ -149,9 +174,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         source: str('source') || null,
         motivation: str('motivation') || null,
         extra: Object.keys(extra).length ? extra : null,
+        tenant_id: tenantId,
       },
       { onConflict: 'user_id' }
     )
+
+    // 7b) Alta en la subcuenta (sin esto, el afiliado no podría entrar al panel).
+    await ensureTenantMembership(invited.user.id)
 
     // 8) Asignación a la campaña del enlace (si venía una)
     await assignToCampaign(invited.user.id)

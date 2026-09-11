@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 import type { KpiAutoMetrics } from '@/lib/kpi/auto'
 
 export const runtime = 'nodejs'
@@ -9,22 +9,26 @@ export const runtime = 'nodejs'
 // usuario y una fecha (agendas atribuidas por setter_id/closer_id + ventas +
 // cash collected del closer). Usa service role para no depender de RLS.
 // GET /api/${tenant}/evergreen/kpi/auto?date=YYYY-MM-DD[&userId=...(solo líderes)]
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
-    const authed = await createServerClient()
-    const { data: { user: me } } = await authed.auth.getUser()
-    if (!me) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
 
     const date = req.nextUrl.searchParams.get('date')
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return NextResponse.json({ error: 'Falta date (YYYY-MM-DD)' }, { status: 400 })
     }
 
+    const sb = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+
     // Por defecto, el propio usuario. Un líder puede pedir el de otro.
-    let targetId = me.id
+    let targetId = t.userId
     const asked = req.nextUrl.searchParams.get('userId')
-    if (asked && asked !== me.id) {
-      const { data: row } = await authed.from('users').select('roles(key)').eq('id', me.id).maybeSingle()
+    if (asked && asked !== t.userId) {
+      const { data: row } = await sb.from('users').select('roles(key)').eq('id', t.userId).maybeSingle()
       const role = (row?.roles as { key?: string } | null)?.key
       if (['admin', 'director', 'manager'].includes(role || '')) targetId = asked
     }
@@ -34,17 +38,13 @@ export async function GET(req: NextRequest) {
     nextDay.setUTCDate(nextDay.getUTCDate() + 1)
     const end = nextDay.toISOString()
 
-    const sb = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    })
-
     const SHOW = ['show', 'completed']
 
     const [setterAll, closerAll, salesRes, collRes] = await Promise.all([
-      sb.from('appointments').select('status').eq('setter_id', targetId).gte('appointment_datetime', start).lt('appointment_datetime', end),
-      sb.from('appointments').select('status').eq('closer_id', targetId).gte('appointment_datetime', start).lt('appointment_datetime', end),
-      sb.from('sales').select('id').eq('closer_id', targetId).eq('sale_date', date),
-      sb.from('collections').select('gross_amount, sales!inner(closer_id)').eq('sales.closer_id', targetId).gte('collected_at', start).lt('collected_at', end),
+      sb.from('appointments').select('status').eq('setter_id', targetId).eq('tenant_id', t.tenantId).gte('appointment_datetime', start).lt('appointment_datetime', end),
+      sb.from('appointments').select('status').eq('closer_id', targetId).eq('tenant_id', t.tenantId).gte('appointment_datetime', start).lt('appointment_datetime', end),
+      sb.from('sales').select('id').eq('closer_id', targetId).eq('tenant_id', t.tenantId).eq('sale_date', date),
+      sb.from('collections').select('gross_amount, sales!inner(closer_id)').eq('sales.closer_id', targetId).eq('tenant_id', t.tenantId).gte('collected_at', start).lt('collected_at', end),
     ])
 
     const setterAppts = setterAll.data ?? []
