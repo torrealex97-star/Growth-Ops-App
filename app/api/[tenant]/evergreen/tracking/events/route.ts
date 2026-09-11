@@ -23,11 +23,18 @@ const eventSchema = z.object({
   properties: z.record(z.string(), z.unknown()).default({}),
 })
 
-export async function POST(request: NextRequest) {
+// Endpoint de ingesta PÚBLICO: lo llaman píxeles/scripts de tracking sin sesión de
+// usuario, autenticados solo con el secreto compartido TRACKING_INGEST_KEY (igual que
+// los webhooks). No hay cookie de sesión que resolver con requireTenant(), así que el
+// tenant se resuelve aquí directamente a partir del slug de la ruta con el cliente
+// service-role, verificando que exista y esté activo.
+export async function POST(request: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   const secret = process.env.TRACKING_INGEST_KEY
   if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
+
+  const { tenant: tenantSlug } = await params
 
   let body: unknown
   try {
@@ -50,10 +57,19 @@ export async function POST(request: NextRequest) {
     { auth: { persistSession: false, autoRefreshToken: false } }
   )
 
+  const { data: tenantRow } = await supabase
+    .from('tenants')
+    .select('id, status')
+    .eq('slug', tenantSlug)
+    .maybeSingle()
+  if (!tenantRow || tenantRow.status !== 'active') {
+    return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
+  }
+
   const { data, error } = await supabase
     .from('canonical_events')
     .upsert(
-      { ...parsed.data, processing_status: 'received' },
+      { ...parsed.data, tenant_id: tenantRow.id, processing_status: 'received' },
       { onConflict: 'source,idempotency_key', ignoreDuplicates: true }
     )
     .select('id,event_id,event_name,received_at,processing_status')

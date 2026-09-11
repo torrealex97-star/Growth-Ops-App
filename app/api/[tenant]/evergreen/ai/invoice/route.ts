@@ -1,8 +1,7 @@
-import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { extractInvoice, type InvoiceExtract } from '@/lib/ai/claude'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -29,26 +28,22 @@ async function convertToEur(amount: number, currency: string, date: string | nul
 
 // Recibe una factura (base64 + mediaType) y devuelve los datos extraídos.
 // NO crea el gasto: la UI lo muestra como borrador para revisar y confirmar.
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+
     const { fileBase64, mediaType } = await req.json()
     if (!fileBase64 || !mediaType) return NextResponse.json({ error: 'Falta el archivo' }, { status: 400 })
 
-    const cookieStore = await cookies()
-    const authed = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-    )
-    const { data: { user: caller } } = await authed.auth.getUser()
-    if (!caller) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-    const { data: callerRow } = await authed.from('users').select('roles(key)').eq('id', caller.id).single()
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const { data: callerRow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
     const role = (callerRow?.roles as { key?: string } | null)?.key
     if (!['admin', 'director', 'manager'].includes(role || '')) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const { data: team } = await sb.from('users').select('full_name').eq('is_active', true)
     const teamNames = (team || []).map((u) => u.full_name)
 

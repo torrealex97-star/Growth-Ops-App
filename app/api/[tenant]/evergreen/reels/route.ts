@@ -1,25 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 
 const ALLOWED_ROLES = ['admin', 'director', 'manager', 'marketing', 'editor']
 
-async function requireRole() {
-  const cookieStore = await cookies()
-  const authed = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-  )
-  const { data: { user } } = await authed.auth.getUser()
-  if (!user) return { error: 'No autenticado', status: 401 as const }
-  const { data: row } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
+async function requireRole(sb: ReturnType<typeof svc>, userId: string) {
+  const { data: row } = await sb.from('users').select('roles(key)').eq('id', userId).single()
   const role = (row?.roles as { key?: string } | null)?.key
   if (!role || !ALLOWED_ROLES.includes(role)) return { error: 'No autorizado', status: 403 as const }
-  return { user }
+  return null
 }
 
 function svc() {
@@ -28,15 +19,18 @@ function svc() {
 
 // GET ?day=YYYY-MM-DD&status=pendiente|aprobado|descartado
 // Por defecto: borradores de HOY (o los más recientes si hoy no tiene nada aún).
-export async function GET(req: NextRequest) {
-  const auth = await requireRole()
-  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
-
+export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params
+  const t = await requireTenant(tenant)
+  if ('error' in t) return t.error
   const sb = svc()
+  const roleErr = await requireRole(sb, t.userId)
+  if (roleErr) return NextResponse.json({ error: roleErr.error }, { status: roleErr.status })
+
   const day = req.nextUrl.searchParams.get('day')
   const status = req.nextUrl.searchParams.get('status')
 
-  let query = sb.from('reel_drafts').select('*').order('created_at', { ascending: false })
+  let query = sb.from('reel_drafts').select('*').eq('tenant_id', t.tenantId).order('created_at', { ascending: false })
   if (day) {
     query = query.eq('draft_day', day)
   } else {
@@ -51,7 +45,7 @@ export async function GET(req: NextRequest) {
   // Si no se pidió un día concreto y hoy no tiene nada, cae a los más recientes
   // (por si el cron aún no ha corrido hoy).
   if (!day && (!data || data.length === 0)) {
-    let fallback = sb.from('reel_drafts').select('*').order('created_at', { ascending: false }).limit(20)
+    let fallback = sb.from('reel_drafts').select('*').eq('tenant_id', t.tenantId).order('created_at', { ascending: false }).limit(20)
     if (status) fallback = fallback.eq('status', status)
     const { data: recent, error: recentErr } = await fallback
     if (recentErr) return NextResponse.json({ error: recentErr.message }, { status: 500 })

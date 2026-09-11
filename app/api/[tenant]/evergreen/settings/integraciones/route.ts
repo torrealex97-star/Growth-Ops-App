@@ -1,32 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import crypto from 'crypto'
 import { encryptSecret, invalidateConfigCache, ensureConfig } from '@/lib/config'
 import { ALL_FIELDS, SECRET_KEYS, isKnownKey, INTEGRATION_GROUPS } from '@/lib/integrations-catalog'
 import { parseAccountIds, fetchAdAccounts } from '@/lib/meta/client'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 
-async function requireAdmin(): Promise<
-  | { ok: true; callerId: string }
+async function requireAdmin(tenantSlug: string): Promise<
+  | { ok: true; callerId: string; tenantId: string }
   | { ok: false; res: NextResponse }
 > {
-  const cookieStore = await cookies()
-  const authed = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-  )
-  const { data: { user: caller } } = await authed.auth.getUser()
-  if (!caller) return { ok: false, res: NextResponse.json({ error: 'No autenticado' }, { status: 401 }) }
-  const { data: row } = await authed.from('users').select('roles(key)').eq('id', caller.id).single()
+  const t = await requireTenant(tenantSlug)
+  if ('error' in t) return { ok: false, res: t.error }
+  const sb = svc()
+  const { data: row } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
   const role = (row?.roles as { key?: string } | null)?.key
   if (role !== 'admin' && role !== 'director') {
     return { ok: false, res: NextResponse.json({ error: 'No autorizado' }, { status: 403 }) }
   }
-  return { ok: true, callerId: caller.id }
+  return { ok: true, callerId: t.userId, tenantId: t.tenantId }
 }
 
 function svc(): SupabaseClient {
@@ -42,14 +36,15 @@ function mask(v: string): string {
 
 // GET — estado de cada clave: configurada (BBDD), en env (fallback) o vacía.
 // Nunca devuelve secretos en claro (solo máscara). Los no-secretos sí (para editarlos).
-export async function GET() {
-  const auth = await requireAdmin()
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params
+  const auth = await requireAdmin(tenant)
   if (!auth.ok) return auth.res
 
   const encReady = !!process.env.CONFIG_ENC_KEY
   let dbRows: Record<string, { value: string | null; is_secret: boolean }> = {}
   try {
-    const { data } = await svc().from('integration_settings').select('key,value,is_secret')
+    const { data } = await svc().from('integration_settings').select('key,value,is_secret').eq('tenant_id', auth.tenantId)
     for (const r of data ?? []) dbRows[(r as { key: string }).key] = r as { value: string | null; is_secret: boolean }
   } catch { /* tabla sin migrar */ }
 
@@ -75,8 +70,9 @@ export async function GET() {
 // POST — guardar cambios. body: { updates: { KEY: value } }.
 // Secreto con valor vacío => NO se toca (para no borrar al no reescribir el campo enmascarado).
 // Para BORRAR una clave: enviar { clear: ["KEY", …] }.
-export async function POST(req: NextRequest) {
-  const auth = await requireAdmin()
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params
+  const auth = await requireAdmin(tenant)
   if (!auth.ok) return auth.res
 
   const body = await req.json().catch(() => ({})) as { action?: string; group?: string; updates?: Record<string, string>; clear?: string[] }
@@ -86,7 +82,7 @@ export async function POST(req: NextRequest) {
   const updates = body.updates || {}
   const clear = body.clear || []
   const client = svc()
-  const rows: { key: string; value: string; is_secret: boolean; updated_by: string }[] = []
+  const rows: { key: string; tenant_id: string; value: string; is_secret: boolean; updated_by: string }[] = []
   const needsEnc = ALL_FIELDS.some((f) => f.secret && updates[f.key])
 
   if (needsEnc && !process.env.CONFIG_ENC_KEY) {
@@ -98,7 +94,7 @@ export async function POST(req: NextRequest) {
     const val = (raw ?? '').trim()
     const secret = SECRET_KEYS.has(key)
     if (secret && val === '') continue // no reescribir secreto en blanco
-    rows.push({ key, value: secret ? encryptSecret(val) : val, is_secret: secret, updated_by: auth.callerId })
+    rows.push({ key, tenant_id: auth.tenantId, value: secret ? encryptSecret(val) : val, is_secret: secret, updated_by: auth.callerId })
   }
 
   if (rows.length) {
@@ -106,7 +102,7 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
   if (clear.length) {
-    await client.from('integration_settings').delete().in('key', clear.filter(isKnownKey))
+    await client.from('integration_settings').delete().eq('tenant_id', auth.tenantId).in('key', clear.filter(isKnownKey))
   }
 
   invalidateConfigCache()

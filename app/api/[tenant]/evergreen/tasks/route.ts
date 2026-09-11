@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import { getCompanyProfile } from '@/lib/contracts/company'
 import { sendTaskAssignedEmail } from '@/lib/email/resend'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 
@@ -22,15 +21,11 @@ type TaskInput = {
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
   try {
-    const cookieStore = await cookies()
-    const authed = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-    )
-    const { data: { user } } = await authed.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-    const { data: urow } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
     const role = (urow?.roles as { key?: string } | null)?.key || ''
     if (!['admin', 'director', 'manager'].includes(role)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
@@ -39,26 +34,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const body = await req.json()
     const inputs: TaskInput[] = Array.isArray(body?.tasks) ? body.tasks : [body]
     const clean = inputs
-      .filter((t) => t && typeof t.title === 'string' && t.title.trim())
-      .map((t) => ({
-        title: t.title!.trim(),
-        description: t.description?.toString().trim() || null,
-        assignee_id: t.assignee_id || null,
-        stage: t.stage || 'backlog',
-        priority: t.priority || 'media',
-        due_date: t.due_date || null,
-        source: t.source || 'manual',
-        created_by: user.id,
+      .filter((task) => task && typeof task.title === 'string' && task.title.trim())
+      .map((task) => ({
+        title: task.title!.trim(),
+        description: task.description?.toString().trim() || null,
+        assignee_id: task.assignee_id || null,
+        stage: task.stage || 'backlog',
+        priority: task.priority || 'media',
+        due_date: task.due_date || null,
+        source: task.source || 'manual',
+        created_by: t.userId,
+        tenant_id: t.tenantId,
       }))
     if (!clean.length) return NextResponse.json({ error: 'Ninguna tarea válida' }, { status: 400 })
 
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const { data: created, error } = await sb.from('tasks').insert(clean).select('id, title, description, assignee_id, priority, due_date')
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     // Aviso por email a cada responsable (correo de empresa). No bloquea la creación.
     let emailed = 0
-    const assignees = Array.from(new Set((created ?? []).map((t) => t.assignee_id).filter(Boolean))) as string[]
+    const assignees = Array.from(new Set((created ?? []).map((c) => c.assignee_id).filter(Boolean))) as string[]
     if (assignees.length) {
       const [{ data: users }, company] = await Promise.all([
         sb.from('users').select('id, full_name, email').in('id', assignees),
@@ -66,18 +61,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       ])
       const byId = new Map((users ?? []).map((u) => [u.id, u]))
       const base = process.env.NEXT_PUBLIC_SITE_URL || new URL(req.url).origin
-      for (const t of created ?? []) {
-        if (!t.assignee_id) continue
-        const u = byId.get(t.assignee_id)
+      for (const c of created ?? []) {
+        if (!c.assignee_id) continue
+        const u = byId.get(c.assignee_id)
         if (!u?.email) continue
         const r = await sendTaskAssignedEmail({
           to: u.email,
           assigneeName: u.full_name || 'equipo',
           company,
-          taskTitle: t.title,
-          taskDescription: t.description,
-          dueDate: t.due_date,
-          priority: t.priority,
+          taskTitle: c.title,
+          taskDescription: c.description,
+          dueDate: c.due_date,
+          priority: c.priority,
           url: `${base}/${tenant}/tasks`,
         })
         if (r.ok) emailed++
