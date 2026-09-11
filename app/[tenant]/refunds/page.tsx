@@ -33,7 +33,7 @@ import { formatDate, formatCurrency } from '@/lib/utils'
 import { calculateNegativeCommissionsForRefund } from '@/lib/commissions/calculator'
 import { toast } from 'sonner'
 import type { Refund, SaleWithRelations, Commission } from '@/lib/types/database'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { getCustomDateRange } from '@/lib/filters/period'
 
 type RefundWithSale = Refund & { sales?: SaleWithRelations }
@@ -116,6 +116,7 @@ function downloadCSV(filename: string, headers: string[], rows: (string | number
 
 export default function RefundsPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [refunds, setRefunds] = useState<RefundWithSale[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -140,6 +141,7 @@ export default function RefundsPage() {
     const { data, error } = await supabase
       .from('refunds')
       .select(`*, sales(*, contacts(*), payment_plans(*))`)
+      .eq('tenant_id', tenantId)
       .order('refund_date', { ascending: false })
 
     if (error) {
@@ -165,11 +167,12 @@ export default function RefundsPage() {
       .from('sales')
       .select(`*, contacts(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name), products(*)`)
       .neq('status', 'refunded')
+      .eq('tenant_id', tenantId)
       .limit(6)
 
     setSaleResults((data ?? []) as SaleWithRelations[])
     setSearchLoading(false)
-  }, [])
+  }, [tenantId])
 
   useEffect(() => {
     const timer = setTimeout(() => searchSales(saleSearch), 300)
@@ -233,6 +236,7 @@ export default function RefundsPage() {
     const { data: authUser } = await supabase.auth.getUser()
 
     const refundPayload = {
+      tenant_id: tenantId,
       sale_id: selectedSale.id,
       collection_id: null,
       refund_date: refundDate,
@@ -275,6 +279,7 @@ export default function RefundsPage() {
       .select('*')
       .eq('sale_id', selectedSale.id)
       .eq('direction', 'positive')
+      .eq('tenant_id', tenantId)
 
     if (existingCommissions && existingCommissions.length > 0) {
       const negativeCommissions = calculateNegativeCommissionsForRefund(
@@ -282,13 +287,14 @@ export default function RefundsPage() {
         existingCommissions as Commission[]
       )
       if (negativeCommissions.length > 0) {
-        await supabase.from('commissions').insert(negativeCommissions)
+        await supabase.from('commissions').insert(negativeCommissions.map((c) => ({ ...c, tenant_id: tenantId })))
       }
     }
 
     // Audit log
     if (authUser.user) {
       await supabase.from('audit_logs').insert({
+        tenant_id: tenantId,
         actor_user_id: authUser.user.id,
         entity_type: 'refund',
         entity_id: newRefund.id,

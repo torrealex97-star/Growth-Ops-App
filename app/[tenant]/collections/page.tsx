@@ -18,7 +18,7 @@ import { Plus, DollarSign, Download, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 import type { CollectionWithRelations } from '@/lib/types/database'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { getCustomDateRange, inPeriod } from '@/lib/filters/period'
 
 type PeriodPreset = 'all' | 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom'
@@ -99,6 +99,7 @@ function downloadCSV(filename: string, headers: string[], rows: (string | number
 
 export default function CollectionsPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const router = useRouter()
   const [collections, setCollections] = useState<CollectionWithRelations[]>([])
   const [loading, setLoading] = useState(true)
@@ -121,6 +122,7 @@ export default function CollectionsPage() {
       const { data, error } = await supabase
         .from('collections')
         .select(`*, sales(*, contacts(*), payment_plans(*))`)
+        .eq('tenant_id', tenantId)
         .order('collected_at', { ascending: false })
 
       if (error) {
@@ -131,7 +133,7 @@ export default function CollectionsPage() {
       setLoading(false)
     }
     fetchData()
-  }, [])
+  }, [tenantId])
 
   const periodRange = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
   const directDateRange = useMemo(() => getCustomDateRange(dateFrom, dateTo), [dateFrom, dateTo])

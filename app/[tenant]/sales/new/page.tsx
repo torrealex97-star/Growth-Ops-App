@@ -20,7 +20,7 @@ import { toast } from 'sonner'
 import { buildRestInstallments } from '@/lib/commissions/calculator'
 import { addDays } from 'date-fns'
 import type { Contact, Product, PaymentPlan, User as DbUser, Appointment } from '@/lib/types/database'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 // UUID v4 con fallback para navegadores sin crypto.randomUUID (contextos no seguros/antiguos).
 function genUuid(): string {
@@ -44,6 +44,7 @@ const STEPS = [
 
 export default function NewSalePage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const router = useRouter()
 
   const [step, setStep] = useState<Step>(1)
@@ -122,7 +123,7 @@ export default function NewSalePage() {
     const fetchData = async () => {
       const supabase = createClient()
       const [productsRes, usersRes] = await Promise.all([
-        supabase.from('products').select('*').eq('is_active', true).order('name'),
+        supabase.from('products').select('*').eq('is_active', true).eq('tenant_id', tenantId).order('name'),
         supabase.from('users').select('*, roles(key)').eq('is_active', true),
       ])
       // Sin esto, un fallo de RLS dejaba los selectores de Producto/Closer/Setter vacíos en
@@ -141,7 +142,7 @@ export default function NewSalePage() {
       }
     }
     fetchData()
-  }, [])
+  }, [tenantId])
 
   // Prefill desde query params (?contact=&reserva=&product=&reservationId=) al venir de "Completar pago" de una reserva
   useEffect(() => {
@@ -166,6 +167,7 @@ export default function NewSalePage() {
           .from('contacts')
           .select('*')
           .eq('id', contactId)
+          .eq('tenant_id', tenantId)
           .single()
         if (!error && data) {
           setSelectedContact(data)
@@ -182,6 +184,7 @@ export default function NewSalePage() {
           .from('products')
           .select('*')
           .eq('id', productId)
+          .eq('tenant_id', tenantId)
           .single()
         if (!error && data) {
           setSelectedProduct(data)
@@ -204,11 +207,12 @@ export default function NewSalePage() {
       .from('contacts')
       .select('*')
       .or(`full_name.ilike.%${query}%,email.ilike.%${query}%`)
+      .eq('tenant_id', tenantId)
       .limit(8)
 
     setContactResults(data ?? [])
     setSearchLoading(false)
-  }, [])
+  }, [tenantId])
 
   useEffect(() => {
     const timer = setTimeout(() => searchContacts(contactSearch), 300)
@@ -222,6 +226,7 @@ export default function NewSalePage() {
       .select('*')
       .eq('product_id', productId)
       .eq('is_active', true)
+      .eq('tenant_id', tenantId)
       .order('sort_order')
 
     setPaymentPlans(data ?? [])
@@ -238,9 +243,10 @@ export default function NewSalePage() {
       .from('appointments')
       .select('*, contacts(full_name)')
       .eq('contact_id', selectedContact?.id ?? '')
+      .eq('tenant_id', tenantId)
       .limit(5)
     setAppointmentResults(data ?? [])
-  }, [selectedContact])
+  }, [selectedContact, tenantId])
 
   useEffect(() => {
     if (selectedContact) {
@@ -258,6 +264,7 @@ export default function NewSalePage() {
         .from('appointments')
         .select('*, contacts(full_name)')
         .eq('contact_id', selectedContact.id)
+        .eq('tenant_id', tenantId)
         .order('appointment_datetime', { ascending: false })
         .limit(1)
       if (active && data && data[0]) {
@@ -266,7 +273,7 @@ export default function NewSalePage() {
       }
     })()
     return () => { active = false }
-  }, [selectedContact])
+  }, [selectedContact, tenantId])
 
   // Resuelve setter / cold caller / closer / afiliado SIEMPRE, en este orden de prioridad:
   //   1) La AGENDA seleccionada (setter_id / cold_caller_id / closer_id / affiliate_id)  ← fuente principal
@@ -291,7 +298,7 @@ export default function NewSalePage() {
       let apptSetter: string | null = null, apptCloser: string | null = null, apptAff: string | null = null
       if (selectedAppointmentId) {
         const { data: apt } = await supabase
-          .from('appointments').select('setter_id, closer_id, cold_caller_id, affiliate_id').eq('id', selectedAppointmentId).maybeSingle()
+          .from('appointments').select('setter_id, closer_id, cold_caller_id, affiliate_id').eq('id', selectedAppointmentId).eq('tenant_id', tenantId).maybeSingle()
         if (apt) {
           const a = apt as { setter_id: string | null; closer_id: string | null; cold_caller_id: string | null; affiliate_id: string | null }
           apptSetter = (has(a.setter_id) && a.setter_id) || (has(a.cold_caller_id) && a.cold_caller_id) || null
@@ -307,6 +314,7 @@ export default function NewSalePage() {
           .from('contact_attributions')
           .select('utm_term, first_utm_term, last_utm_term, utm_content, first_utm_content, last_utm_content, is_primary, last_touch_at')
           .eq('contact_id', selectedContact.id)
+          .eq('tenant_id', tenantId)
           .order('is_primary', { ascending: false }).order('last_touch_at', { ascending: false }).limit(1).maybeSingle()
         if (attr) {
           const a = attr as Record<string, string | null>
@@ -348,7 +356,7 @@ export default function NewSalePage() {
       })
     })()
     return () => { active = false }
-  }, [selectedAppointmentId, selectedContact, users, currentUserId, currentRoleKey])
+  }, [selectedAppointmentId, selectedContact, users, currentUserId, currentRoleKey, tenantId])
 
   // El desplegable de "setter" incluye también cold callers: ambos agendan por utm_term y cobran
   // como setter. Así el rep atribuido por UTM (setter o cold caller) aparece pre-seleccionado.
@@ -662,7 +670,7 @@ export default function NewSalePage() {
       // aunque la venta SÍ quedaba guardada (ventas fantasma al reintentar). Insertamos con id propio
       // y return=minimal: el INSERT solo evalúa la policy de WITH CHECK (created_by = auth.uid()).
       const newSaleId = genUuid()
-      const { error: saleError } = await supabase.from('sales').insert({ ...salePayload, id: newSaleId })
+      const { error: saleError } = await supabase.from('sales').insert({ ...salePayload, id: newSaleId, tenant_id: tenantId })
       if (saleError) {
         toast.error('Error al crear la venta', { description: saleError.message })
         setSubmitting(false)
@@ -670,6 +678,7 @@ export default function NewSalePage() {
       }
       saleId = newSaleId
       await supabase.from('audit_logs').insert({
+        tenant_id: tenantId,
         actor_user_id: authUser.user.id,
         entity_type: 'sale', entity_id: saleId, action: 'create',
         old_values: null, new_values: salePayload,
@@ -709,7 +718,7 @@ export default function NewSalePage() {
     if (reservationId) {
       // La reserva ya pagada cuenta como cash collected. Si aún no hay cobro que la cubra
       // (reservas antiguas no lo registraban), lo registramos ahora.
-      const { data: existingColls } = await supabase.from('collections').select('gross_amount').eq('sale_id', saleId)
+      const { data: existingColls } = await supabase.from('collections').select('gross_amount').eq('sale_id', saleId).eq('tenant_id', tenantId)
       const alreadyCollected = (existingColls ?? []).reduce((s, c: { gross_amount: number | string }) => s + Number(c.gross_amount || 0), 0)
       if (alreadyCollected < reservationAmountNumber) {
         await recordCollection(reservationAmountNumber - alreadyCollected)
@@ -728,7 +737,7 @@ export default function NewSalePage() {
         // se pasa commissionable explícito para que el endpoint NO re-aplique el ratio del plan.
         const upfront = rows.find((r) => r.installment_number === 0 && r.is_monitoring === false)
         const monitoringRows = rows.filter((r) => !(r.installment_number === 0 && r.is_monitoring === false))
-        if (monitoringRows.length) await supabase.from('sale_expected_installments').insert(monitoringRows)
+        if (monitoringRows.length) await supabase.from('sale_expected_installments').insert(monitoringRows.map((r) => ({ ...r, tenant_id: tenantId })))
         if (upfront) {
           const amt = Number(upfront.expected_gross_amount)
           await recordCollection(amt, amt)
@@ -741,7 +750,7 @@ export default function NewSalePage() {
       if (downPaymentNumber > 0) await recordCollection(downPaymentNumber)
       if (!reservationId) {
         const rest = buildInstallmentRows(saleId)
-        if (rest.length) await supabase.from('sale_expected_installments').insert(rest)
+        if (rest.length) await supabase.from('sale_expected_installments').insert(rest.map((r) => ({ ...r, tenant_id: tenantId })))
       }
     } else if (isReservaPlan) {
       // Alta de una reserva: el importe reservado cuenta como cash collected al momento.

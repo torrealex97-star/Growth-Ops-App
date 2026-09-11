@@ -27,7 +27,7 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 import type { SaleWithRelations, Collection, SaleExpectedInstallment } from '@/lib/types/database'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { getCustomDateRange } from '@/lib/filters/period'
 
 type PeriodPreset = 'all' | 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom'
@@ -141,6 +141,7 @@ type SaleAggregate = {
 
 export default function PaymentsPipelinePage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [sales, setSales] = useState<SaleWithRelations[]>([])
   const [collections, setCollections] = useState<Collection[]>([])
   const [installments, setInstallments] = useState<SaleExpectedInstallment[]>([])
@@ -190,15 +191,17 @@ export default function PaymentsPipelinePage() {
         supabase
           .from('sales')
           .select(`*, contacts(*), products(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name)`)
+          .eq('tenant_id', tenantId)
           .order('sale_date', { ascending: false }),
-        supabase.from('collections').select('sale_id, gross_amount'),
-        supabase.from('sale_expected_installments').select('sale_id, status, due_date, expected_gross_amount, is_monitoring').eq('is_monitoring', false),
+        supabase.from('collections').select('sale_id, gross_amount').eq('tenant_id', tenantId),
+        supabase.from('sale_expected_installments').select('sale_id, status, due_date, expected_gross_amount, is_monitoring').eq('is_monitoring', false).eq('tenant_id', tenantId),
       ])
 
       // Última nota de seguimiento por venta (para el indicador en la tarjeta del kanban).
       const { data: notesData } = await supabase
         .from('payment_follow_ups')
         .select('sale_id, note, created_at')
+        .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
       const notesMap = new Map<string, { note: string; created_at: string }>()
       for (const n of (notesData ?? []) as { sale_id: string; note: string; created_at: string }[]) {
@@ -220,7 +223,7 @@ export default function PaymentsPipelinePage() {
     }
 
     fetchData()
-  }, [])
+  }, [tenantId])
 
   const periodRange = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
 

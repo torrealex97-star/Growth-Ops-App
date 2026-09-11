@@ -22,7 +22,7 @@ import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import type { CommissionWithRelations, ParticipantType } from '@/lib/types/database'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { getCustomDateRange, inPeriod } from '@/lib/filters/period'
 
 type SimpleMember = { id: string; full_name: string }
@@ -118,6 +118,7 @@ function downloadCSV(filename: string, headers: string[], rows: (string | number
 
 export default function CommissionsPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [commissions, setCommissions] = useState<CommissionWithRelations[]>([])
   const [future, setFuture] = useState<FutureRow[]>([])
   const [members, setMembers] = useState<SimpleMember[]>([])
@@ -159,6 +160,7 @@ export default function CommissionsPage() {
       // `commissions` tiene DOS FK a `users` (user_id y approved_by); hay que desambiguar el embed
       // con el nombre del FK, o PostgREST devuelve PGRST201 y la consulta entera falla (lista vacía).
       .select(`*, users!commissions_user_id_fkey(id, full_name), sales(id, contact_id, contacts(full_name))`)
+      .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
 
     if (!canSeeAll) {
@@ -361,6 +363,7 @@ export default function CommissionsPage() {
       .from('commissions')
       .update({ status: 'approved', approved_by: authUser.user?.id })
       .in('id', ids)
+      .eq('tenant_id', tenantId)
 
     if (error) {
       toast.error('Error al aprobar comisiones')
