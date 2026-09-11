@@ -18,10 +18,12 @@ import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { Product, PaymentPlan } from '@/lib/types/database'
 import { ProductExtrasManager } from '@/components/settings/ProductExtrasManager'
+import { useTenantId } from '@/lib/tenant-context'
 
 type ProductWithPlans = Product & { payment_plans: PaymentPlan[] }
 
 export default function ProductsPage() {
+  const tenantId = useTenantId()
   const [products, setProducts] = useState<ProductWithPlans[]>([])
   const [loading, setLoading] = useState(true)
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null)
@@ -51,6 +53,7 @@ export default function ProductsPage() {
     const { data, error } = await supabase
       .from('products')
       .select(`*, payment_plans(*)`)
+      .eq('tenant_id', tenantId)
       .order('name')
 
     if (error) {
@@ -117,6 +120,7 @@ export default function ProductsPage() {
         .from('products')
         .update({ name: productName, description: productDesc || null, duration_months: durationMonths })
         .eq('id', editingProduct.id)
+        .eq('tenant_id', tenantId)
 
       if (error) {
         toast.error('Error al actualizar producto')
@@ -127,7 +131,7 @@ export default function ProductsPage() {
     } else {
       const { error } = await supabase
         .from('products')
-        .insert({ name: productName, description: productDesc || null, duration_months: durationMonths, is_active: true })
+        .insert({ name: productName, description: productDesc || null, duration_months: durationMonths, is_active: true, tenant_id: tenantId })
 
       if (error) {
         toast.error('Error al crear producto', { description: error.message })
@@ -160,7 +164,7 @@ export default function ProductsPage() {
     }
 
     if (editingPlan) {
-      const { error } = await supabase.from('payment_plans').update(payload).eq('id', editingPlan.id)
+      const { error } = await supabase.from('payment_plans').update(payload).eq('id', editingPlan.id).eq('tenant_id', tenantId)
       if (error) {
         toast.error('Error al actualizar plan')
         setSubmitting(false)
@@ -168,7 +172,7 @@ export default function ProductsPage() {
       }
       toast.success('Plan actualizado')
     } else {
-      const { error } = await supabase.from('payment_plans').insert(payload)
+      const { error } = await supabase.from('payment_plans').insert({ ...payload, tenant_id: tenantId })
       if (error) {
         toast.error('Error al crear plan', { description: error.message })
         setSubmitting(false)
@@ -184,13 +188,13 @@ export default function ProductsPage() {
 
   const toggleProductActive = async (p: Product) => {
     const supabase = createClient()
-    await supabase.from('products').update({ is_active: !p.is_active }).eq('id', p.id)
+    await supabase.from('products').update({ is_active: !p.is_active }).eq('id', p.id).eq('tenant_id', tenantId)
     fetchData()
   }
 
   const togglePlanActive = async (plan: PaymentPlan) => {
     const supabase = createClient()
-    await supabase.from('payment_plans').update({ is_active: !plan.is_active }).eq('id', plan.id)
+    await supabase.from('payment_plans').update({ is_active: !plan.is_active }).eq('id', plan.id).eq('tenant_id', tenantId)
     fetchData()
   }
 

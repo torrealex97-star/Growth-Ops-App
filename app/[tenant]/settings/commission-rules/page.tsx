@@ -41,6 +41,7 @@ import { Plus, Percent, Loader2, Pencil, Trash2 } from 'lucide-react'
 import { formatDate, formatPercent } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { CommissionRule, ParticipantType } from '@/lib/types/database'
+import { useTenantId } from '@/lib/tenant-context'
 
 const PARTICIPANT_LABELS: Record<ParticipantType, string> = {
   setter: 'Setter',
@@ -70,6 +71,7 @@ const formatMoney = (n: number) =>
   n.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 
 export default function CommissionRulesPage() {
+  const tenantId = useTenantId()
   const [rules, setRules] = useState<CommissionRule[]>([])
   const [users, setUsers] = useState<SimpleUser[]>([])
   const [tramos, setTramos] = useState<SimpleTramo[]>([])
@@ -102,6 +104,7 @@ export default function CommissionRulesPage() {
     const { data, error } = await supabase
       .from('commission_rules')
       .select('*')
+      .eq('tenant_id', tenantId)
       .order('participant_type')
       .order('min_cash', { ascending: true })
 
@@ -132,6 +135,7 @@ export default function CommissionRulesPage() {
       .from('sales_tramos')
       .select('id, name, emoji')
       .eq('is_active', true)
+      .eq('tenant_id', tenantId)
       .order('sort_order', { ascending: true })
 
     if (!error) {
@@ -257,8 +261,8 @@ export default function CommissionRulesPage() {
     }
 
     const { error } = isEditing
-      ? await supabase.from('commission_rules').update(payload).eq('id', editingRuleId)
-      : await supabase.from('commission_rules').insert({ ...payload, is_active: true })
+      ? await supabase.from('commission_rules').update(payload).eq('id', editingRuleId).eq('tenant_id', tenantId)
+      : await supabase.from('commission_rules').insert({ ...payload, is_active: true, tenant_id: tenantId })
 
     setSubmitting(false)
     if (error) {
@@ -280,6 +284,7 @@ export default function CommissionRulesPage() {
       .from('commission_rules')
       .delete()
       .eq('id', ruleToDelete.id)
+      .eq('tenant_id', tenantId)
 
     setDeleting(false)
     if (error) {
@@ -298,6 +303,7 @@ export default function CommissionRulesPage() {
       .from('commission_rules')
       .update({ is_active: !rule.is_active })
       .eq('id', rule.id)
+      .eq('tenant_id', tenantId)
 
     if (error) {
       toast.error('Error al actualizar la regla')

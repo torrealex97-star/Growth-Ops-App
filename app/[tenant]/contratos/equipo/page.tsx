@@ -14,7 +14,7 @@ import type { CommissionRule, ContractTemplate, User, Role, Contract } from '@/l
 import { buildDefaultTerms, type ContractTerms } from '@/lib/contracts/terms'
 import { ROLE_LABELS, type AppRole } from '@/lib/auth/permissions'
 import { ContractTermsEditor } from '@/components/contracts/ContractTermsEditor'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 type UserWithRole = User & { roles: Role }
 type TeamContract = Contract & { users: { full_name: string; roles: { name: string } | null } | null }
@@ -27,6 +27,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default function ContratosEquipoPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [users, setUsers] = useState<UserWithRole[]>([])
   const [rules, setRules] = useState<CommissionRule[]>([])
   const [templates, setTemplates] = useState<ContractTemplate[]>([])
@@ -47,9 +48,9 @@ export default function ContratosEquipoPage() {
     const sb = createClient()
     const [u, r, t, c] = await Promise.all([
       sb.from('users').select('*, roles(*)').eq('is_active', true).order('full_name'),
-      sb.from('commission_rules').select('*'),
-      sb.from('contract_templates').select('*').eq('is_active', true).order('created_at', { ascending: false }),
-      sb.from('contracts').select('*, users:user_id(full_name, roles(name))').eq('kind', 'equipo').order('created_at', { ascending: false }),
+      sb.from('commission_rules').select('*').eq('tenant_id', tenantId),
+      sb.from('contract_templates').select('*').eq('is_active', true).eq('tenant_id', tenantId).order('created_at', { ascending: false }),
+      sb.from('contracts').select('*, users:user_id(full_name, roles(name))').eq('kind', 'equipo').eq('tenant_id', tenantId).order('created_at', { ascending: false }),
     ])
     setUsers((u.data ?? []) as UserWithRole[])
     setRules((r.data ?? []) as CommissionRule[])
@@ -110,7 +111,7 @@ export default function ContratosEquipoPage() {
   const del = async (c: TeamContract) => {
     if (!confirm('¿Eliminar este contrato?')) return
     const sb = createClient()
-    const { error } = await sb.from('contracts').delete().eq('id', c.id)
+    const { error } = await sb.from('contracts').delete().eq('id', c.id).eq('tenant_id', tenantId)
     if (error) { toast.error('No se pudo eliminar', { description: error.message }); return }
     load()
   }
