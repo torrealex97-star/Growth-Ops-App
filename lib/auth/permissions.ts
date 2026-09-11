@@ -6,10 +6,9 @@ export type AppRole =
   | 'marketing' | 'adscripcion' | 'editor'
   | 'csm' | 'cobros' | 'gestoria'
 
-export type Department = 'direccion' | 'ventas' | 'marketing' | 'producto' | 'finanzas' | 'sistema'
+export type Department = 'ventas' | 'marketing' | 'producto' | 'finanzas' | 'sistema'
 
 export const DEPARTMENT_LABELS: Record<Department, string> = {
-  direccion: 'Dirección',
   ventas: 'Ventas',
   marketing: 'Marketing',
   producto: 'Producto / Alumnos',
@@ -57,9 +56,9 @@ export const isLeadership = (role: AppRole) => LEADERSHIP.includes(role)
 
 // ---- Departamentos que cada rol puede ver ----
 export const ROLE_DEPARTMENTS: Record<AppRole, Department[]> = {
-  admin:       ['direccion', 'ventas', 'marketing', 'producto', 'finanzas', 'sistema'],
-  director:    ['direccion', 'ventas', 'marketing', 'producto', 'finanzas', 'sistema'],
-  manager:     ['direccion', 'ventas', 'marketing', 'producto', 'finanzas'],
+  admin:       ['ventas', 'marketing', 'producto', 'finanzas', 'sistema'],
+  director:    ['ventas', 'marketing', 'producto', 'finanzas', 'sistema'],
+  manager:     ['ventas', 'marketing', 'producto', 'finanzas'],
   setter:      ['ventas'],
   closer:      ['ventas'],
   triager:     ['ventas'],
@@ -75,23 +74,23 @@ export const ROLE_DEPARTMENTS: Record<AppRole, Department[]> = {
 
 // Prefijos de ruta por departamento (para acceso configurable por usuario)
 export const DEPARTMENT_PREFIXES: Record<Department, string[]> = {
-  direccion: ['/dashboard', '/unit-economics', '/cohorts', '/pnl'],
   ventas: ['/crm', '/ventas', '/analitica', '/comisiones', '/recursos', '/tasks'],
   // '/marketing/afiliados' se añade aquí porque Afiliados se movió a Marketing (antes vivía
   // bajo el departamento 'finanzas', ver DEPARTMENT_PREFIXES.finanzas más abajo).
   marketing: ['/marketing/adquisicion', '/marketing/afiliados', '/marketing/contenido', '/instagram', '/setting-ai'],
   producto: ['/students', '/csm-events', '/drops', '/contratos'],
-  finanzas: ['/finanzas', '/pnl'],
+  // '/dashboard' y '/unit-economics' viven aquí porque la sección "Dirección" se disolvió: sus
+  // páginas (Cohortes, I&G) ya viven bajo /finanzas/analitica, y el resto de KPIs generales de
+  // liderazgo (Dashboard, Unit Economics) se agrupan con Finanzas a efectos de permisos.
+  finanzas: ['/finanzas', '/dashboard', '/unit-economics'],
   sistema: ['/actividad', '/audit', '/settings', '/contratos/equipo', '/contratos/plantillas'],
 }
 
 // Catálogo de páginas navegables agrupadas por departamento. Es la fuente para el selector de
 // visibilidad página-a-página (on/off individual) y para filtrar el menú.
 export const NAV_PAGES: { href: string; label: string; dept: Department }[] = [
-  { href: '/dashboard', label: 'Dashboard', dept: 'direccion' },
-  { href: '/unit-economics', label: 'Unit Economics', dept: 'direccion' },
-  { href: '/cohorts', label: 'Cohortes', dept: 'direccion' },
-  { href: '/pnl', label: 'I&G (P&L)', dept: 'direccion' },
+  { href: '/dashboard', label: 'Dashboard', dept: 'finanzas' },
+  { href: '/unit-economics', label: 'Unit Economics', dept: 'finanzas' },
   { href: '/crm/contactos', label: 'CRM · Contactos', dept: 'ventas' },
   { href: '/crm/agendas', label: 'CRM · Agendas', dept: 'ventas' },
   { href: '/crm/seguimiento', label: 'CRM · Seguimiento', dept: 'ventas' },
@@ -122,6 +121,8 @@ export const NAV_PAGES: { href: string; label: string; dept: Department }[] = [
   { href: '/contratos', label: 'Contratos', dept: 'producto' },
   { href: '/finanzas/analitica/resumen', label: 'Analítica financiera · Resumen', dept: 'finanzas' },
   { href: '/finanzas/analitica/proyeccion', label: 'Analítica financiera · Proyección de caja', dept: 'finanzas' },
+  { href: '/finanzas/analitica/pnl', label: 'Analítica financiera · I&G (P&L)', dept: 'finanzas' },
+  { href: '/finanzas/analitica/cohortes', label: 'Analítica financiera · Cohortes', dept: 'finanzas' },
   { href: '/finanzas/gastos-facturas/gastos', label: 'Gastos & Facturas · Gastos', dept: 'finanzas' },
   { href: '/finanzas/gastos-facturas/facturas', label: 'Gastos & Facturas · Facturas', dept: 'finanzas' },
   { href: '/finanzas/gastos-facturas/gestoria', label: 'Gastos & Facturas · Export gestoría', dept: 'finanzas' },
@@ -183,7 +184,7 @@ export const ROLE_ALLOWED_PREFIXES: Partial<Record<AppRole, string[]>> = {
   // gestoria antes veía el prefijo completo '/finanzas' (dashboard) + '/facturas' + '/gestoria' +
   // '/pnl' sueltos — ninguno de esos daba acceso a Gastos/Cobros/Devoluciones/Morosidad, así que al
   // anidar todo bajo /finanzas se usan sub-prefijos precisos para no ampliar su acceso.
-  gestoria:    ['/finanzas/analitica/resumen', '/finanzas/gastos-facturas/facturas', '/finanzas/gastos-facturas/gestoria', '/pnl'],
+  gestoria:    ['/finanzas/analitica/resumen', '/finanzas/gastos-facturas/facturas', '/finanzas/gastos-facturas/gestoria', '/finanzas/analitica/pnl'],
   // Data Health usa un permiso exacto con query para no abrir el resto de /settings.
   // Adscripción y Editor conservan solo las pestañas a las que ya tenían acceso antes del cambio.
   marketing:   ['/marketing/adquisicion', '/marketing/contenido', '/instagram', '/settings?tab=data-health', '/setting-ai', '/recursos/testimonios'],
@@ -229,7 +230,7 @@ export const PERMISSIONS = {
   canManageCsm: (role: AppRole) => ['admin', 'director', 'csm'].includes(role),
   canViewDrops: (role: AppRole) => ['admin', 'director', 'manager', 'csm'].includes(role),
 
-  // --- Dirección / Analítica ---
+  // --- Resumen general (Dashboard / Unit Economics / Cohortes, antes agrupadas en "Dirección") ---
   canViewGlobalDashboard: (role: AppRole) => isLeadership(role),
   canViewUnitEconomics: (role: AppRole) => isLeadership(role),
   canViewCohorts: (role: AppRole) => isLeadership(role),

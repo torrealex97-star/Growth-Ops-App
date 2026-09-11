@@ -36,13 +36,6 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    dept: 'direccion',
-    items: [
-      { label: 'Cohortes', href: '/cohorts', icon: CalendarRange, roles: LEAD },
-      { label: 'I&G (P&L)', href: '/pnl', icon: Receipt, roles: [...LEAD, 'gestoria'] },
-    ],
-  },
-  {
     dept: 'ventas',
     items: [
       {
@@ -140,6 +133,8 @@ export const NAV_SECTIONS: NavSection[] = [
         children: [
           { label: 'Resumen', href: '/finanzas/analitica/resumen', icon: PieChart, roles: [...LEAD, 'gestoria'] },
           { label: 'Proyección de caja', href: '/finanzas/analitica/proyeccion', icon: LineChart, roles: LEAD },
+          { label: 'I&G (P&L)', href: '/finanzas/analitica/pnl', icon: Receipt, roles: [...LEAD, 'gestoria'] },
+          { label: 'Cohortes', href: '/finanzas/analitica/cohortes', icon: CalendarRange, roles: LEAD },
         ],
       },
       {
@@ -179,7 +174,6 @@ export const NAV_SECTIONS: NavSection[] = [
           { label: 'Data Health', href: '/settings?tab=data-health', icon: Activity, roles: [...LEAD, 'marketing', 'adscripcion'] },
           { label: 'Productos', href: '/settings/products', icon: Package, roles: ['admin'] },
           { label: 'Reglas Comisión', href: '/settings/commission-rules', icon: Percent, roles: ['admin'] },
-          { label: 'Socios', href: '/settings/partners', icon: Percent, roles: ['admin'] },
           { label: 'Usuarios', href: '/settings/users', icon: UserCog, roles: ['admin'] },
           { label: 'Tramos', href: '/settings/tramos', icon: Layers, roles: ['admin'] },
           { label: 'Plantillas de contratos', href: '/contratos/plantillas', icon: FileText, roles: ['admin', 'director'] },

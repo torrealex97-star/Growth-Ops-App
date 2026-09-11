@@ -791,20 +791,6 @@ export type Drop = {
 
 export type InsertDrop = Omit<Drop, 'id' | 'created_at' | 'updated_at'>
 
-// ==================== PARTNERS (socios / reparto de beneficios) ====================
-export type Partner = {
-  id: string
-  name: string
-  user_id: string | null
-  profit_percent: number
-  is_active: boolean
-  notes: string | null
-  created_at: string
-  updated_at: string
-}
-
-export type InsertPartner = Omit<Partner, 'id' | 'created_at' | 'updated_at'>
-
 // ==================== CONTRACTS ====================
 export type Contract = {
   id: string
