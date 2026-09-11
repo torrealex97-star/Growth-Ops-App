@@ -1,7 +1,6 @@
-import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 import { generateCommissionsForCollection, saleNeedsCommissionReview } from '@/lib/commissions/generate'
 import { resolveSaleAttribution } from '@/lib/commissions/attribution'
 import { notifyCreatuagenteVenta, resolveSaleToken } from '@/lib/creatuagente'
@@ -13,8 +12,12 @@ export const runtime = 'nodejs'
 // Se usa desde el alta/completar de ventas (reserva ya pagada, entrada, resto de un full-pay).
 // Va por service role porque `collections`/`commissions` solo permiten INSERT a admin/director
 // vía RLS, pero un closer/setter sí puede crear ventas.
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+
     const { saleId, grossAmount, method, collectedAt, commissionableAmount } = await req.json()
     const amount = Number(grossAmount)
     if (!saleId || !amount || amount <= 0) {
@@ -24,25 +27,18 @@ export async function POST(req: NextRequest) {
     // y NO hay que re-aplicar el ratio del plan (p.ej. el adelanto de Sequra, que recibimos neto).
     const explicitCommissionable = commissionableAmount != null ? Number(commissionableAmount) : null
 
-    const cookieStore = await cookies()
-    const authed = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-    )
-    const { data: { user } } = await authed.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-    const { data: urow } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
     const role = (urow?.roles as { key?: string } | null)?.key
     if (!['admin', 'director', 'manager', 'closer', 'setter', 'cobros'].includes(role || '')) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const { data: sale } = await sb
       .from('sales')
       .select('id, contact_id, appointment_id, setter_id, closer_id, affiliate_id, affiliate_commission_percent, notes, payment_plans(cash_collection_ratio, fee_percent, method)')
       .eq('id', saleId)
+      .eq('tenant_id', t.tenantId)
       .single()
     if (!sale) return NextResponse.json({ error: 'Venta no encontrada' }, { status: 404 })
 
@@ -72,6 +68,7 @@ export async function POST(req: NextRequest) {
     const isFirstCollection = !priorCollections
 
     const { data: coll, error: collErr } = await sb.from('collections').insert({
+      tenant_id: t.tenantId,
       sale_id: saleId,
       expected_installment_id: null,
       collected_at: now,

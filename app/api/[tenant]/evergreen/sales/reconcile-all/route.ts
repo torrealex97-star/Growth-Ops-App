@@ -1,38 +1,40 @@
-import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 import { reconcileSaleCommissions } from '@/lib/commissions/generate'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-// Reparación masiva: reconcilia las comisiones de TODAS las ventas a partir de sus cobros reales,
-// para cuadrar la contabilidad (corrige cobros que no generaron comisión y tramos desalineados).
-// Idempotente. Acceso: sesión admin/director O cabecera Authorization: Bearer <CRON_SECRET>.
-export async function POST(req: NextRequest) {
+// Reparación masiva: reconcilia las comisiones de TODAS las ventas (de esta subcuenta) a partir
+// de sus cobros reales, para cuadrar la contabilidad (corrige cobros que no generaron comisión y
+// tramos desalineados). Idempotente. Acceso: sesión admin/director O cabecera
+// Authorization: Bearer <CRON_SECRET> (en ese caso reconcilia todos los tenants activos).
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
+    const { tenant } = await params
     const auth = req.headers.get('authorization')
     const viaCron = !!process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`
 
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+    let tenantId: string | null = null
     if (!viaCron) {
-      const cookieStore = await cookies()
-      const authed = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-      )
-      const { data: { user } } = await authed.auth.getUser()
-      if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-      const { data: urow } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
+      const t = await requireTenant(tenant)
+      if ('error' in t) return t.error
+      const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
       const role = (urow?.roles as { key?: string } | null)?.key
       if (!['admin', 'director'].includes(role || '')) {
         return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
       }
+      tenantId = t.tenantId
+    } else {
+      const { data: tenantRow } = await sb.from('tenants').select('id').eq('slug', tenant).maybeSingle()
+      tenantId = tenantRow?.id ?? null
     }
+    if (!tenantId) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
 
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { data: sales } = await sb.from('sales').select('id')
+    const { data: sales } = await sb.from('sales').select('id').eq('tenant_id', tenantId)
     const ids = (sales ?? []).map((s: { id: string }) => s.id)
 
     let created = 0

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 import { reconcileSaleCommissions } from '@/lib/commissions/generate'
 
 export const runtime = 'nodejs'
@@ -14,11 +15,10 @@ function serviceClient() {
 }
 
 // Solo admin/director pueden editar/eliminar cobros (afecta a la contabilidad y a las comisiones).
-async function requireAdmin() {
+async function requireAdmin(sb: ReturnType<typeof serviceClient>) {
   const authed = await createServerClient()
   const { data: { user } } = await authed.auth.getUser()
   if (!user) return { error: 'No autenticado', status: 401 as const }
-  const sb = serviceClient()
   const { data } = await sb.from('users').select('roles(key)').eq('id', user.id).single()
   const role = (data?.roles as { key?: string } | null)?.key
   if (role !== 'admin' && role !== 'director') return { error: 'Sin permisos', status: 403 as const }
@@ -43,23 +43,26 @@ async function syncInstallmentStatus(sb: ReturnType<typeof serviceClient>, insta
 
 // PATCH — edita un cobro (importe, comisionable, fecha, método, elegibilidad) y RECONCILIA las
 // comisiones de la venta con los cobros resultantes.
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ tenant: string; id: string }> }) {
   try {
-    const guard = await requireAdmin()
+    const { tenant, id } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+    const sb = serviceClient()
+    const guard = await requireAdmin(sb)
     if ('error' in guard) return NextResponse.json({ error: guard.error }, { status: guard.status })
 
-    const { id } = await params
     const body = await req.json()
-    const sb = serviceClient()
 
     const { data: coll } = await sb
       .from('collections')
-      .select('id, sale_id, gross_amount, commissionable_amount, sales(payment_plans(cash_collection_ratio, fee_percent))')
+      .select('id, sale_id, gross_amount, commissionable_amount, sales!inner(payment_plans(cash_collection_ratio, fee_percent))')
       .eq('id', id)
+      .eq('tenant_id', t.tenantId)
       .single()
     if (!coll) return NextResponse.json({ error: 'Cobro no encontrado' }, { status: 404 })
 
-    const plan = (coll.sales as { payment_plans?: { cash_collection_ratio?: number; fee_percent?: number } } | null)?.payment_plans
+    const plan = (coll.sales as unknown as { payment_plans?: { cash_collection_ratio?: number; fee_percent?: number } } | null)?.payment_plans
     const ratio = Number(plan?.cash_collection_ratio ?? 1)
     const feePercent = Number(plan?.fee_percent ?? 0)
     const round2 = (n: number) => Math.round(n * 100) / 100
@@ -92,13 +95,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 })
     }
 
-    const { error: upErr } = await sb.from('collections').update(update).eq('id', id)
+    const { error: upErr } = await sb.from('collections').update(update).eq('id', id).eq('tenant_id', t.tenantId)
     if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 })
 
     // Reconcilia comisiones (positivas no liquidadas) de la venta con los cobros actuales.
     const recon = await reconcileSaleCommissions(sb, coll.sale_id)
 
     await sb.from('audit_logs').insert({
+      tenant_id: t.tenantId,
       actor_user_id: guard.userId,
       entity_type: 'collection',
       entity_id: id,
@@ -115,18 +119,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 // DELETE — elimina un cobro (p.ej. un duplicado), borra sus comisiones y RECONCILIA la venta para
 // que el cash collected y las comisiones cuadren con los cobros reales.
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ tenant: string; id: string }> }) {
   try {
-    const guard = await requireAdmin()
-    if ('error' in guard) return NextResponse.json({ error: guard.error }, { status: guard.status })
-
-    const { id } = await params
+    const { tenant, id } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
     const sb = serviceClient()
+    const guard = await requireAdmin(sb)
+    if ('error' in guard) return NextResponse.json({ error: guard.error }, { status: guard.status })
 
     const { data: coll } = await sb
       .from('collections')
       .select('id, sale_id, expected_installment_id, gross_amount')
       .eq('id', id)
+      .eq('tenant_id', t.tenantId)
       .single()
     if (!coll) return NextResponse.json({ error: 'Cobro no encontrado' }, { status: 404 })
 
@@ -143,7 +149,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
     // Borra primero las comisiones del cobro (evita conflictos de FK), luego el cobro.
     await sb.from('commissions').delete().eq('collection_id', id)
-    const { error: delErr } = await sb.from('collections').delete().eq('id', id)
+    const { error: delErr } = await sb.from('collections').delete().eq('id', id).eq('tenant_id', t.tenantId)
     if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 })
 
     // La cuota asociada vuelve a 'pending' si se queda sin cobros; si tenía otro (duplicado), 'collected'.
@@ -153,6 +159,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const recon = await reconcileSaleCommissions(sb, coll.sale_id)
 
     await sb.from('audit_logs').insert({
+      tenant_id: t.tenantId,
       actor_user_id: guard.userId,
       entity_type: 'collection',
       entity_id: id,

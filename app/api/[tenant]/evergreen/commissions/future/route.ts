@@ -1,7 +1,6 @@
-import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 import { pickCommissionRule } from '@/lib/commissions/calculator'
 import { repNetCash } from '@/lib/commissions/generate'
 import { tramoIdByReps } from '@/lib/commissions/tramos'
@@ -14,42 +13,39 @@ export const runtime = 'nodejs'
 // al cobrarse cada cuota), pero se muestran para que el equipo vea en tiempo real lo que le queda
 // por cobrar. Se calculan sobre el comisionable de la cuota × el % del TRAMO actual del rep.
 // Visibilidad: admin/director/manager ven todo; el resto solo lo suyo.
-export async function GET() {
+export async function GET(_req: Request, { params }: { params: Promise<{ tenant: string }> }) {
   try {
-    const cookieStore = await cookies()
-    const authed = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-    )
-    const { data: { user } } = await authed.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-    const { data: urow } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
     const role = (urow?.roles as { key?: string } | null)?.key ?? ''
     const canSeeAll = ['admin', 'director', 'manager'].includes(role)
 
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
-    const { data: rulesData } = await sb.from('commission_rules').select('*').eq('is_active', true)
+    const { data: rulesData } = await sb.from('commission_rules').select('*').eq('is_active', true).eq('tenant_id', t.tenantId)
     const rules = (rulesData ?? []) as CommissionRule[]
 
     // Cuotas aún no cobradas (pendientes/vencidas), sin monitorización, de ventas activas
     const { data: insts } = await sb
       .from('sale_expected_installments')
-      .select('id, due_date, expected_commissionable_amount, sales!inner(id, setter_id, closer_id, affiliate_id, affiliate_commission_percent, status, contacts(full_name))')
+      .select('id, due_date, expected_commissionable_amount, sales!inner(id, setter_id, closer_id, affiliate_id, affiliate_commission_percent, status, tenant_id, contacts(full_name))')
       .in('status', ['pending', 'overdue'])
       .eq('is_monitoring', false)
       .eq('sales.status', 'active')
+      .eq('sales.tenant_id', t.tenantId)
 
     // Cuotas de un plan personalizado YA cobradas pero en revisión manual de cobros: siguen sin
     // comisión real hasta que el equipo las apruebe, así que se proyectan aquí igual que las
     // pendientes (ver /api/${tenant}/evergreen/collections/approve-review para la aprobación).
     const { data: reviewColls } = await sb
       .from('collections')
-      .select('id, collected_at, commissionable_amount, sales!inner(id, setter_id, closer_id, affiliate_id, affiliate_commission_percent, status, contacts(full_name))')
+      .select('id, collected_at, commissionable_amount, sales!inner(id, setter_id, closer_id, affiliate_id, affiliate_commission_percent, status, tenant_id, contacts(full_name))')
       .eq('needs_commission_review', true)
       .eq('status', 'collected')
       .eq('sales.status', 'active')
+      .eq('sales.tenant_id', t.tenantId)
 
     // Nombres de usuarios
     const { data: users } = await sb.from('users').select('id, full_name')
@@ -100,7 +96,7 @@ export async function GET() {
 
       const add = async (repId: string | null, pType: 'setter' | 'closer' | 'affiliate', fixedPercent?: number | null) => {
         if (!repId) return
-        if (!canSeeAll && repId !== user.id) return
+        if (!canSeeAll && repId !== t.userId) return
         const percent = pType === 'affiliate' ? Number(fixedPercent ?? 0) : await getRate(repId, pType)
         if (!percent) return
         rows.push({

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { randomBytes } from 'crypto'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 
@@ -9,11 +9,11 @@ const BUCKET = 'pagos'
 
 // Sube el justificante/captura del pago a Supabase Storage (bucket privado) y
 // devuelve una URL firmada de larga duración para descargarlo desde la venta.
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
-    const authed = await createServerClient()
-    const { data: { user: me } } = await authed.auth.getUser()
-    if (!me) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
 
     const { filename, contentType, dataBase64 } = (await req.json()) as {
       filename?: string
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     }
 
     const ext = (filename?.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '')
-    const path = `${new Date().toISOString().slice(0, 10)}/${randomBytes(12).toString('hex')}.${ext}`
+    const path = `${tenant}/${new Date().toISOString().slice(0, 10)}/${randomBytes(12).toString('hex')}.${ext}`
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
       auth: { autoRefreshToken: false, persistSession: false },

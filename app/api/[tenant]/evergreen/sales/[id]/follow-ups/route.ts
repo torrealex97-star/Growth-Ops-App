@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 
@@ -16,13 +16,15 @@ function serviceClient() {
 // llamadas de cobro, promesas de pago, acuerdos... Cualquier rol de la plataforma puede leer y
 // añadir notas (igual que el resto del CRM); no se editan ni se borran una vez creadas.
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id: saleId } = await params
-  const authed = await createServerClient()
-  const { data: { user } } = await authed.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ tenant: string; id: string }> }) {
+  const { tenant, id: saleId } = await params
+  const t = await requireTenant(tenant)
+  if ('error' in t) return t.error
 
   const sb = serviceClient()
+  const { data: sale } = await sb.from('sales').select('id').eq('id', saleId).eq('tenant_id', t.tenantId).maybeSingle()
+  if (!sale) return NextResponse.json({ error: 'Venta no encontrada' }, { status: 404 })
+
   const { data, error } = await sb
     .from('payment_follow_ups')
     .select('id, note, created_at, created_by, users(full_name)')
@@ -39,11 +41,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   return NextResponse.json({ notes })
 }
 
-export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id: saleId } = await params
-  const authed = await createServerClient()
-  const { data: { user } } = await authed.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string; id: string }> }) {
+  const { tenant, id: saleId } = await params
+  const t = await requireTenant(tenant)
+  if ('error' in t) return t.error
 
   const { note } = await req.json()
   if (typeof note !== 'string' || !note.trim()) {
@@ -51,12 +52,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const sb = serviceClient()
-  const { data: sale } = await sb.from('sales').select('id').eq('id', saleId).maybeSingle()
+  const { data: sale } = await sb.from('sales').select('id').eq('id', saleId).eq('tenant_id', t.tenantId).maybeSingle()
   if (!sale) return NextResponse.json({ error: 'Venta no encontrada' }, { status: 404 })
 
   const { data, error } = await sb
     .from('payment_follow_ups')
-    .insert({ sale_id: saleId, note: note.trim(), created_by: user.id })
+    .insert({ sale_id: saleId, note: note.trim(), created_by: t.userId })
     .select('id, note, created_at')
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
