@@ -119,7 +119,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const user = await getCarruselUser()
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
-  await ensureConfig().catch(() => {})
+  await ensureConfig(t.tenantId).catch(() => {})
   if (!process.env.ANTHROPIC_API_KEY)
     return NextResponse.json({ error: "ANTHROPIC_API_KEY no configurada" }, { status: 503 })
 

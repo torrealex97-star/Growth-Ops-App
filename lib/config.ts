@@ -53,20 +53,29 @@ function svc() {
 }
 
 type Cache = { at: number; vals: Record<string, string> }
-let cache: Cache | null = null
+// Multi-tenant: cada subcuenta tiene sus propias credenciales en `integration_settings`
+// (columna tenant_id). Antes esto era un único `Cache | null` global, compartido por TODAS
+// las peticiones que atendiera la misma instancia de servidor durante 30s — con varias
+// subcuentas, las credenciales de un tenant podían pisar las de otro en process.env durante
+// ese margen. Ahora la caché va indexada por tenantId, y cada llamada exige un tenantId
+// explícito (nada de "config por defecto").
+const cacheByTenant = new Map<string, Cache>()
 const TTL_MS = 30_000
 
-// Vuelca los valores configurados a process.env (solo los que tengan valor; el env
-// existente actúa de fallback para lo no configurado). Cacheado 30s por proceso.
-export async function ensureConfig(force = false): Promise<void> {
-  if (!force && cache && Date.now() - cache.at < TTL_MS) {
-    apply(cache.vals)
+// Vuelca los valores configurados de UN tenant a process.env (solo los que tengan valor; el
+// env existente actúa de fallback para lo no configurado). Cacheado 30s por tenant/proceso.
+export async function ensureConfig(tenantId: string, force = false): Promise<void> {
+  if (!tenantId) return // sin tenant no hay config de integración que cargar
+  const cached = cacheByTenant.get(tenantId)
+  if (!force && cached && Date.now() - cached.at < TTL_MS) {
+    apply(cached.vals)
     return
   }
   try {
     const { data, error } = await svc()
       .from('integration_settings')
       .select('key,value,is_secret')
+      .eq('tenant_id', tenantId)
     if (error) return // tabla aún no migrada → usar solo env
     const vals: Record<string, string> = {}
     for (const row of data ?? []) {
@@ -78,7 +87,7 @@ export async function ensureConfig(force = false): Promise<void> {
       }
       vals[(row as { key: string }).key] = v
     }
-    cache = { at: Date.now(), vals }
+    cacheByTenant.set(tenantId, { at: Date.now(), vals })
     apply(vals)
   } catch {
     // Sin BBDD/tabla → seguimos con el env de Vercel.
@@ -91,7 +100,9 @@ function apply(vals: Record<string, string>) {
   }
 }
 
-// Invalida la caché (llamar tras guardar en el panel).
-export function invalidateConfigCache() {
-  cache = null
+// Invalida la caché (llamar tras guardar en el panel). Sin tenantId, invalida TODAS
+// las subcuentas (usar solo en contextos sin tenant conocido).
+export function invalidateConfigCache(tenantId?: string) {
+  if (tenantId) cacheByTenant.delete(tenantId)
+  else cacheByTenant.clear()
 }

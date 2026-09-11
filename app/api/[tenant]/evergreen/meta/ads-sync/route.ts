@@ -14,12 +14,10 @@ const ALLOWED_ROLES = ['admin', 'director', 'manager', 'marketing']
 // cuentas en paralelo para caber en 60s. Auth: sesión (rol permitido) O Bearer CRON_SECRET.
 // GET = cron (pg_net) · POST = botón manual.
 //
-// NOTA multi-tenant: las credenciales de Meta (resolveMetaConfigs) y el upsert de
-// runMetaAdsSync hacia `campaign_ads` siguen siendo globales (token único, onConflict por
-// external_id sin tenant_id), heredado de la era single-tenant. Aquí solo podemos verificar
-// que el slug resuelve a un tenant activo antes de lanzar el sync; el aislamiento real por
-// tenant de esos datos requiere tocar lib/meta/sync.ts y lib/meta/client.ts, fuera del
-// alcance de este lote.
+// BUGFIX (regresión de la migración multi-tenant, no hardening rutinario): runMetaAdsSync ahora
+// exige tenantId — filtra/estampa tenant_id en cada tabla que toca. ensureConfig también exige
+// tenantId (antes era una caché global de 30s compartida entre subcuentas) — se resuelve el
+// tenant PRIMERO y se llama a ensureConfig(tenantId) antes de leer nada de process.env.
 async function handle(req: NextRequest, tenantSlug: string) {
   const auth = req.headers.get('authorization')
   const bearerOk = !!process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`
@@ -29,10 +27,12 @@ async function handle(req: NextRequest, tenantSlug: string) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
+  let tenantId: string
   if (bearerOk) {
     // Cron (pg_net) sin sesión de usuario: resuelve el tenant directamente por slug.
     const { data: tenantRow } = await sb.from('tenants').select('id, status').eq('slug', tenantSlug).eq('status', 'active').maybeSingle()
     if (!tenantRow) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
+    tenantId = tenantRow.id as string
   } else {
     const t = await requireTenant(tenantSlug)
     if ('error' in t) return t.error
@@ -41,10 +41,12 @@ async function handle(req: NextRequest, tenantSlug: string) {
     if (!role || !ALLOWED_ROLES.includes(role)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
+    tenantId = t.tenantId
   }
 
+  await ensureConfig(tenantId)
   try {
-    const result = await runMetaAdsSync(sb)
+    const result = await runMetaAdsSync(sb, tenantId)
     return NextResponse.json(result)
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Error al sincronizar los anuncios de Meta'
@@ -53,13 +55,11 @@ async function handle(req: NextRequest, tenantSlug: string) {
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
-  await ensureConfig()
   const { tenant } = await params
   return handle(req, tenant)
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
-  await ensureConfig()
   const { tenant } = await params
   return handle(req, tenant)
 }

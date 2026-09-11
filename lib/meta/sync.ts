@@ -85,7 +85,7 @@ function groupBy<T>(rows: T[], key: (r: T) => string): Map<string, T[]> {
 // (/api/${tenant}/evergreen/meta/sync) como el cron de 30 min (/api/${tenant}/evergreen/cron/meta).
 // Recorre TODAS las cuentas publicitarias declaradas (una o varias, mismo token)
 // y agrega los totales. Requiere un cliente Supabase con service-role (salta RLS).
-export async function runMetaSync(sb: SupabaseClient): Promise<MetaSyncResult> {
+export async function runMetaSync(sb: SupabaseClient, tenantId: string): Promise<MetaSyncResult> {
   const configs = await resolveMetaConfigs()
   if (configs.length === 0) {
     throw new Error(
@@ -94,19 +94,22 @@ export async function runMetaSync(sb: SupabaseClient): Promise<MetaSyncResult> {
   }
 
   // Cargar atribuciones para el cruce de LEADS FUNNEL (una sola consulta, común a
-  // todas las cuentas).
+  // todas las cuentas), acotadas al tenant.
   const { data: attribs } = await sb
     .from('contact_attributions')
     .select('contact_id, utm_source, utm_campaign, first_utm_source, first_utm_campaign, last_utm_source, last_utm_campaign')
+    .eq('tenant_id', tenantId)
 
   // CRM: agendas y ventas por contacto, para el funnel (Agendas → Llamadas →
   // Cierres). Se atribuyen a la campaña por el mismo contacto que ya casó por UTM.
   const { data: apptRows } = await sb
     .from('appointments')
     .select('contact_id, status')
+    .eq('tenant_id', tenantId)
   const { data: saleRows } = await sb
     .from('sales')
     .select('contact_id, status, gross_amount')
+    .eq('tenant_id', tenantId)
 
   const crm: CrmIndex = {
     appointmentsByContact: groupBy(apptRows || [], (r) => String(r.contact_id)),
@@ -118,12 +121,13 @@ export async function runMetaSync(sb: SupabaseClient): Promise<MetaSyncResult> {
 
   // Mapa de campañas Meta ya existentes (external_id → id) para upsert manual
   // (no dependemos de ON CONFLICT: el índice único podría no existir). Los ids de
-  // campaña de Meta son globalmente únicos, así que un solo mapa vale para todas
-  // las cuentas.
+  // campaña de Meta son globalmente únicos, pero acotamos por tenant para no mezclar
+  // campañas de otra subcuenta en el mapa (y no actualizar por error una fila ajena).
   const { data: existingRows } = await sb
     .from('campaigns')
     .select('id, external_id')
     .eq('provider', 'meta')
+    .eq('tenant_id', tenantId)
   const existingByExt = new Map<string, string>(
     (existingRows || []).filter((r) => r.external_id).map((r) => [r.external_id as string, r.id as string])
   )
@@ -141,7 +145,7 @@ export async function runMetaSync(sb: SupabaseClient): Promise<MetaSyncResult> {
   }
 
   for (const cfg of configs) {
-    await syncOneAccount(sb, cfg, attribs || [], crm, existingByExt, at, period, totals)
+    await syncOneAccount(sb, tenantId, cfg, attribs || [], crm, existingByExt, at, period, totals)
   }
 
   return {
@@ -161,6 +165,7 @@ export async function runMetaSync(sb: SupabaseClient): Promise<MetaSyncResult> {
 // Sincroniza UNA cuenta publicitaria, acumulando sus resultados en `totals`.
 async function syncOneAccount(
   sb: SupabaseClient,
+  tenantId: string,
   cfg: MetaConfig,
   attribs: Array<Record<string, unknown>>,
   crm: CrmIndex,
@@ -229,6 +234,7 @@ async function syncOneAccount(
 
     // 3) Upsert manual por (provider, external_id): update si existe, insert si no.
     const row = {
+      tenant_id: tenantId,
       provider: 'meta',
       external_id: c.id,
       account_id: cfg.accountId, // cuenta publicitaria de origen (act_XXX)
@@ -284,6 +290,7 @@ async function syncOneAccount(
     if (spendThisMonth > 0) {
       await sb.from('expenses').upsert(
         {
+          tenant_id: tenantId,
           concept: `Ads Meta - ${c.name}`,
           category: 'publicidad',
           subcategory: 'ads',
@@ -311,7 +318,7 @@ export type MetaDailySyncResult = {
   at: string
 }
 
-export async function runMetaDailySync(sb: SupabaseClient, sinceDays = 180): Promise<MetaDailySyncResult> {
+export async function runMetaDailySync(sb: SupabaseClient, tenantId: string, sinceDays = 180): Promise<MetaDailySyncResult> {
   const configs = await resolveMetaConfigs()
   if (configs.length === 0) {
     throw new Error('Faltan credenciales de Meta o el token no tiene acceso a ninguna cuenta.')
@@ -322,19 +329,21 @@ export async function runMetaDailySync(sb: SupabaseClient, sinceDays = 180): Pro
     .from('campaigns')
     .select('id, external_id')
     .eq('provider', 'meta')
+    .eq('tenant_id', tenantId)
   const campaignByExt = new Map<string, string>(
     (existingRows || []).filter((r) => r.external_id).map((r) => [r.external_id as string, r.id as string])
   )
 
   const at = new Date().toISOString()
   const perAccount = await Promise.all(
-    configs.map((cfg) => syncDailyOneAccount(sb, cfg, campaignByExt, sinceDays).catch(() => 0))
+    configs.map((cfg) => syncDailyOneAccount(sb, tenantId, cfg, campaignByExt, sinceDays).catch(() => 0))
   )
   return { ok: true, daysSynced: perAccount.reduce((a, b) => a + b, 0), accounts: configs.length, at }
 }
 
 async function syncDailyOneAccount(
   sb: SupabaseClient,
+  tenantId: string,
   cfg: MetaConfig,
   campaignByExt: Map<string, string>,
   sinceDays: number
@@ -345,6 +354,7 @@ async function syncDailyOneAccount(
       const campaignId = campaignByExt.get(d.campaign_id)
       if (!campaignId || !d.date) return null
       return {
+        tenant_id: tenantId,
         campaign_id: campaignId,
         external_id: d.campaign_id,
         account_id: cfg.accountId,
@@ -387,7 +397,7 @@ export type MetaAdsSyncResult = {
   at: string
 }
 
-export async function runMetaAdsSync(sb: SupabaseClient): Promise<MetaAdsSyncResult> {
+export async function runMetaAdsSync(sb: SupabaseClient, tenantId: string): Promise<MetaAdsSyncResult> {
   const configs = await resolveMetaConfigs()
   if (configs.length === 0) {
     throw new Error('Faltan credenciales de Meta o el token no tiene acceso a ninguna cuenta.')
@@ -398,13 +408,14 @@ export async function runMetaAdsSync(sb: SupabaseClient): Promise<MetaAdsSyncRes
     .from('campaigns')
     .select('id, external_id')
     .eq('provider', 'meta')
+    .eq('tenant_id', tenantId)
   const campaignByExt = new Map<string, string>(
     (existingRows || []).filter((r) => r.external_id).map((r) => [r.external_id as string, r.id as string])
   )
 
   const at = new Date().toISOString()
   const perAccount = await Promise.all(
-    configs.map((cfg) => syncAdsOneAccount(sb, cfg, campaignByExt, at).catch(() => 0))
+    configs.map((cfg) => syncAdsOneAccount(sb, tenantId, cfg, campaignByExt, at).catch(() => 0))
   )
   return { ok: true, adsSynced: perAccount.reduce((a, b) => a + b, 0), accounts: configs.length, at }
 }
@@ -412,6 +423,7 @@ export async function runMetaAdsSync(sb: SupabaseClient): Promise<MetaAdsSyncRes
 // Sincroniza los anuncios de UNA cuenta → tabla campaign_ads. Devuelve nº sincronizados.
 async function syncAdsOneAccount(
   sb: SupabaseClient,
+  tenantId: string,
   cfg: MetaConfig,
   campaignByExt: Map<string, string>,
   at: string
@@ -435,6 +447,7 @@ async function syncAdsOneAccount(
     const s = (ad.effective_status || ad.status || '').toUpperCase()
     const status = s === 'ACTIVE' ? 'activa' : s.includes('PAUSED') ? 'pausada' : 'finalizada'
     return {
+      tenant_id: tenantId,
       external_id: ad.id,
       campaign_external_id: ad.campaign_id || null,
       campaign_id: ad.campaign_id ? campaignByExt.get(ad.campaign_id) || null : null,

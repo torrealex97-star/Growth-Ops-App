@@ -77,7 +77,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
   const body = await req.json().catch(() => ({})) as { action?: string; group?: string; updates?: Record<string, string>; clear?: string[] }
 
-  if (body.action === 'test') return runTest(body.group || '')
+  if (body.action === 'test') return runTest(body.group || '', auth.tenantId)
 
   const updates = body.updates || {}
   const clear = body.clear || []
@@ -98,15 +98,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   }
 
   if (rows.length) {
-    const { error } = await client.from('integration_settings').upsert(rows, { onConflict: 'key' })
+    // NOTA: el índice único original era (key) global; ver la migración
+    // supabase/migrations/20260911160000_fix_cron_unique_constraints.sql (pendiente
+    // de aplicar) que lo sustituye por (tenant_id, key) — sin eso, dos subcuentas
+    // guardando la misma clave (p.ej. META_ACCESS_TOKEN) se pisarían entre sí.
+    const { error } = await client.from('integration_settings').upsert(rows, { onConflict: 'tenant_id,key' })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
   if (clear.length) {
     await client.from('integration_settings').delete().eq('tenant_id', auth.tenantId).in('key', clear.filter(isKnownKey))
   }
 
-  invalidateConfigCache()
-  await ensureConfig(true).catch(() => {})
+  invalidateConfigCache(auth.tenantId)
+  await ensureConfig(auth.tenantId, true).catch(() => {})
   return NextResponse.json({ ok: true, saved: rows.length, cleared: clear.length })
 }
 
@@ -116,8 +120,8 @@ function metaProof(token: string, appSecret?: string): string {
   return crypto.createHmac('sha256', appSecret).update(token).digest('hex')
 }
 
-async function runTest(group: string): Promise<NextResponse> {
-  await ensureConfig(true).catch(() => {})
+async function runTest(group: string, tenantId: string): Promise<NextResponse> {
+  await ensureConfig(tenantId, true).catch(() => {})
   try {
     if (group === 'meta') {
       const token = process.env.META_ACCESS_TOKEN

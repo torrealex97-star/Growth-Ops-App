@@ -11,17 +11,12 @@ export const maxDuration = 60
 // procesa las cuentas en paralelo para caber en 60s. Bajo /api/${tenant}/evergreen/cron/* el
 // middleware NO exige sesión: se autentica con Bearer CRON_SECRET.
 //
-// FASE 6 LOTE 4c — NOTA IMPORTANTE (sin resolver en este lote, fuera de su alcance de archivos):
-// runMetaAdsSync(sb) vive en lib/meta/sync.ts y NO acepta un tenantId — lee `integration_settings`
-// y escribe en `campaign_ads`/`campaigns` sin filtrar/estampar tenant_id. Como esas tablas ahora
-// tienen tenant_id NOT NULL (ver supabase/migrations/20260911150000_multi_tenant_domain_tables.sql),
-// cualquier INSERT nuevo desde aquí fallará en una subcuenta que no sea la sembrada por esa
-// migración. Arreglarlo requiere extender runMetaAdsSync(sb, tenantId) para filtrar
-// integration_settings por tenant y estampar tenant_id en cada fila, y que este handler recorra
-// `tenants` (status='active') llamándolo una vez por subcuenta — igual que se hizo en
-// cron/monthly, cron/reminders y cron/reels. lib/meta/sync.ts no está en el alcance de este lote.
+// BUGFIX (regresión de la migración multi-tenant, no hardening rutinario): runMetaAdsSync
+// ahora exige tenantId — filtra integration_settings/campaigns por tenant y estampa tenant_id
+// en cada fila de campaign_ads. Vercel Cron pega a una única URL estática, así que este handler
+// recorre TODAS las subcuentas activas y corre la sync una vez por cada una (mismo patrón que
+// cron/monthly y cron/reminders).
 export async function GET(req: NextRequest) {
-  await ensureConfig()
   const auth = req.headers.get('authorization')
   if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
@@ -31,8 +26,15 @@ export async function GET(req: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
-    const result = await runMetaAdsSync(sb)
-    return NextResponse.json(result)
+    const { data: tenants, error: tenantsErr } = await sb.from('tenants').select('id, slug').eq('status', 'active')
+    if (tenantsErr) throw new Error(tenantsErr.message)
+
+    const perTenant: Record<string, unknown> = {}
+    for (const tn of tenants || []) {
+      await ensureConfig(tn.id)
+      perTenant[tn.slug] = await runMetaAdsSync(sb, tn.id)
+    }
+    return NextResponse.json({ ok: true, tenants: perTenant })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Error al sincronizar los anuncios de Meta'
     return NextResponse.json({ error: msg }, { status: 500 })
