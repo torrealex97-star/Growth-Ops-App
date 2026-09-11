@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { getCarruselUser } from "@/lib/carruseles/auth"
+import { requireTenant } from "@/lib/auth/requireTenant"
 import { addReferenceImage } from "@/lib/carruseles/store"
 
 export const runtime = "nodejs"
@@ -9,7 +10,10 @@ const BUCKET = "carrusel-uploads"
 const ALLOWED = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"]
 const MAX = 15 * 1024 * 1024
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params
+  const t = await requireTenant(tenant)
+  if ("error" in t) return t.error
   const user = await getCarruselUser()
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
@@ -24,7 +28,7 @@ export async function POST(req: NextRequest) {
   const purpose = (form.get("purpose") as string) || "reference"
 
   const ext = file.name.split(".").pop()?.toLowerCase() || "png"
-  const key = `${purpose}/${crypto.randomUUID()}.${ext}`
+  const key = `${tenant}/${purpose}/${crypto.randomUUID()}.${ext}`
   const buf = Buffer.from(await file.arrayBuffer())
 
   const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {

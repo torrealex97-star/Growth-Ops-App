@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
+import { requireTenant } from "@/lib/auth/requireTenant"
 
 export const runtime = "nodejs"
 
 // Proxy de Google Fonts: devuelve el CSS con @font-face (woff2) para poder
 // embeber las fuentes en el PNG exportado (html-to-image fontEmbedCSS).
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest, { params: routeParams }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await routeParams
+  const t = await requireTenant(tenant)
+  if ("error" in t) return t.error
   const families = new URL(req.url).searchParams.get("families") || ""
   if (!families.trim()) return new NextResponse("", { headers: { "Content-Type": "text/css" } })
 

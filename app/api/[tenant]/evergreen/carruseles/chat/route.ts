@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
 import { getCarruselUser } from "@/lib/carruseles/auth"
+import { requireTenant } from "@/lib/auth/requireTenant"
 import { getBrand, getProject, addSlide, updateSlide, deleteSlide, updateProject } from "@/lib/carruseles/store"
 import { buildSystemPrompt, type BrandAsset } from "@/lib/carruseles/system-prompt"
 import { MAX_SLIDES } from "@/lib/carruseles/types"
@@ -160,7 +161,10 @@ function parseBrandAssets(raw: string | undefined): BrandAsset[] {
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params
+  const t = await requireTenant(tenant)
+  if ("error" in t) return t.error
   const user = await getCarruselUser()
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
 
