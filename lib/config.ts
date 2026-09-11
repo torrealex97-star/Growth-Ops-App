@@ -62,36 +62,48 @@ type Cache = { at: number; vals: Record<string, string> }
 const cacheByTenant = new Map<string, Cache>()
 const TTL_MS = 30_000
 
-// Vuelca los valores configurados de UN tenant a process.env (solo los que tengan valor; el
-// env existente actúa de fallback para lo no configurado). Cacheado 30s por tenant/proceso.
-export async function ensureConfig(tenantId: string, force = false): Promise<void> {
-  if (!tenantId) return // sin tenant no hay config de integración que cargar
+// Devuelve una instantánea aislada para una petición concreta. Es la opción segura
+// para código nuevo multi-tenant: no depende de mutar process.env, que es global al
+// proceso y puede ser compartido por peticiones concurrentes de distintas subcuentas.
+export async function getTenantConfig(tenantId: string, force = false): Promise<Record<string, string>> {
+  if (!tenantId) return {}
   const cached = cacheByTenant.get(tenantId)
-  if (!force && cached && Date.now() - cached.at < TTL_MS) {
-    apply(cached.vals)
-    return
-  }
+  if (!force && cached && Date.now() - cached.at < TTL_MS) return { ...cached.vals }
   try {
     const { data, error } = await svc()
       .from('integration_settings')
       .select('key,value,is_secret')
       .eq('tenant_id', tenantId)
-    if (error) return // tabla aún no migrada → usar solo env
+    if (error) return {}
     const vals: Record<string, string> = {}
     for (const row of data ?? []) {
       const raw = (row as { value: string | null }).value
       if (!raw) continue
-      let v = raw
+      let value = raw
       if ((row as { is_secret: boolean }).is_secret && isEncrypted(raw)) {
-        try { v = decryptSecret(raw) } catch { continue }
+        try { value = decryptSecret(raw) } catch { continue }
       }
-      vals[(row as { key: string }).key] = v
+      vals[(row as { key: string }).key] = value
     }
     cacheByTenant.set(tenantId, { at: Date.now(), vals })
-    apply(vals)
+    return { ...vals }
   } catch {
-    // Sin BBDD/tabla → seguimos con el env de Vercel.
+    return {}
   }
+}
+
+export async function getTenantConfigWithFallback(tenantId: string, force = false): Promise<Record<string, string>> {
+  const tenant = await getTenantConfig(tenantId, force)
+  const fallback: Record<string, string> = {}
+  for (const [key, value] of Object.entries(process.env)) if (value) fallback[key] = value
+  return { ...fallback, ...tenant }
+}
+
+// Vuelca los valores configurados de UN tenant a process.env (solo los que tengan valor; el
+// env existente actúa de fallback para lo no configurado). Cacheado 30s por tenant/proceso.
+export async function ensureConfig(tenantId: string, force = false): Promise<void> {
+  if (!tenantId) return // sin tenant no hay config de integración que cargar
+  apply(await getTenantConfig(tenantId, force))
 }
 
 function apply(vals: Record<string, string>) {

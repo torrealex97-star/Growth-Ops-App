@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
-import { encryptSecret, invalidateConfigCache, ensureConfig } from '@/lib/config'
+import { encryptSecret, invalidateConfigCache, getTenantConfigWithFallback } from '@/lib/config'
 import { ALL_FIELDS, SECRET_KEYS, isKnownKey, INTEGRATION_GROUPS } from '@/lib/integrations-catalog'
 import { parseAccountIds, fetchAdAccounts } from '@/lib/meta/client'
 import { requireTenant } from '@/lib/auth/requireTenant'
@@ -110,7 +110,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   }
 
   invalidateConfigCache(auth.tenantId)
-  await ensureConfig(auth.tenantId, true).catch(() => {})
   return NextResponse.json({ ok: true, saved: rows.length, cleared: clear.length })
 }
 
@@ -121,19 +120,19 @@ function metaProof(token: string, appSecret?: string): string {
 }
 
 async function runTest(group: string, tenantId: string): Promise<NextResponse> {
-  await ensureConfig(tenantId, true).catch(() => {})
+  const cfg = await getTenantConfigWithFallback(tenantId, true)
   try {
     if (group === 'meta') {
-      const token = process.env.META_ACCESS_TOKEN
+      const token = cfg.META_ACCESS_TOKEN
       if (!token) return NextResponse.json({ ok: false, message: 'Falta el token de Meta.' })
-      const ver = process.env.META_API_VERSION || 'v21.0'
-      const proof = metaProof(token, process.env.META_APP_SECRET)
+      const ver = cfg.META_API_VERSION || 'v21.0'
+      const proof = metaProof(token, cfg.META_APP_SECRET)
       const proofQs = proof ? `&appsecret_proof=${proof}` : ''
-      const accounts = parseAccountIds(process.env.META_AD_ACCOUNT_ID)
+      const accounts = parseAccountIds(cfg.META_AD_ACCOUNT_ID)
       // Sin cuentas explícitas → modo "todas": descubrir las accesibles por el token.
       if (accounts.length === 0) {
         try {
-          const all = await fetchAdAccounts(token, ver, process.env.META_APP_SECRET)
+          const all = await fetchAdAccounts(token, ver, cfg.META_APP_SECRET)
           if (all.length === 0) {
             return NextResponse.json({ ok: false, message: 'Token válido pero sin acceso a ninguna cuenta publicitaria (revisa permisos ads_read).' })
           }
@@ -159,10 +158,10 @@ async function runTest(group: string, tenantId: string): Promise<NextResponse> {
       return NextResponse.json({ ok: true, message: results.length === 1 ? `Cuenta: ${names[0]}` : `${results.length} cuentas OK: ${names.join(', ')}` })
     }
     if (group === 'instagram') {
-      const token = process.env.INSTAGRAM_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN
+      const token = cfg.INSTAGRAM_ACCESS_TOKEN || cfg.META_ACCESS_TOKEN
       if (!token) return NextResponse.json({ ok: false, message: 'Falta el token de Instagram/Meta.' })
-      const ver = process.env.META_API_VERSION || 'v21.0'
-      const proof = metaProof(token, process.env.META_APP_SECRET)
+      const ver = cfg.META_API_VERSION || 'v21.0'
+      const proof = metaProof(token, cfg.META_APP_SECRET)
       const url = `https://graph.facebook.com/${ver}/me/accounts?fields=name&access_token=${encodeURIComponent(token)}${proof ? `&appsecret_proof=${proof}` : ''}`
       const r = await fetch(url)
       const j = await r.json()
@@ -171,7 +170,7 @@ async function runTest(group: string, tenantId: string): Promise<NextResponse> {
         : NextResponse.json({ ok: false, message: j.error?.message || 'Error de Instagram' })
     }
     if (group === 'calendly') {
-      const token = process.env.CALENDLY_API_TOKEN
+      const token = cfg.CALENDLY_API_TOKEN
       if (!token) return NextResponse.json({ ok: false, message: 'Falta el PAT de Calendly.' })
       const r = await fetch('https://api.calendly.com/users/me', { headers: { Authorization: `Bearer ${token}` } })
       const j = await r.json()
@@ -180,9 +179,9 @@ async function runTest(group: string, tenantId: string): Promise<NextResponse> {
         : NextResponse.json({ ok: false, message: j.message || 'Token inválido' })
     }
     if (group === 'email') {
-      const key = process.env.RESEND_API_KEY
+      const key = cfg.RESEND_API_KEY
       if (!key) return NextResponse.json({ ok: false, message: 'Falta la API key de Resend.' })
-      const from = process.env.RESEND_FROM || ''
+      const from = cfg.RESEND_FROM || ''
       const fromDomain = from.match(/@([^>\s]+)/)?.[1]?.toLowerCase() || null
       const r = await fetch('https://api.resend.com/domains', { headers: { Authorization: `Bearer ${key}` } })
       if (r.ok) {
@@ -215,6 +214,81 @@ async function runTest(group: string, tenantId: string): Promise<NextResponse> {
         return NextResponse.json({ ok: false, message: pj.message || 'No se pudo enviar el correo de prueba.' })
       }
       return NextResponse.json({ ok: false, message: 'API key inválida.' })
+    }
+    if (group === 'stripe') {
+      const key = cfg.STRIPE_SECRET_KEY
+      if (!key) return NextResponse.json({ ok: false, message: 'Falta la Secret Key de Stripe.' })
+      const r = await fetch('https://api.stripe.com/v1/payment_intents?limit=1', {
+        headers: {
+          Authorization: `Bearer ${key}`,
+          ...(cfg.STRIPE_ACCOUNT_ID ? { 'Stripe-Account': cfg.STRIPE_ACCOUNT_ID } : {}),
+        },
+      })
+      const j = await r.json().catch(() => ({})) as { data?: unknown[]; error?: { message?: string } }
+      return r.ok
+        ? NextResponse.json({ ok: true, message: `Stripe conectado; acceso de lectura de pagos confirmado${j.data?.length ? '.' : ' (sin pagos todavía).'}` })
+        : NextResponse.json({ ok: false, message: j.error?.message || 'No se pudo conectar con Stripe.' })
+    }
+    if (group === 'ghl') {
+      const token = cfg.GHL_API_TOKEN
+      const locationId = cfg.GHL_LOCATION_ID
+      if (!token || !locationId) return NextResponse.json({ ok: false, message: 'Faltan el token o el Location ID de GoHighLevel.' })
+      const r = await fetch(`https://services.leadconnectorhq.com/locations/${encodeURIComponent(locationId)}`, {
+        headers: { Authorization: `Bearer ${token}`, Version: '2021-07-28', Accept: 'application/json' },
+      })
+      const j = await r.json().catch(() => ({})) as { location?: { name?: string }; message?: string }
+      return r.ok
+        ? NextResponse.json({ ok: true, message: `Subcuenta ${j.location?.name || locationId} conectada.` })
+        : NextResponse.json({ ok: false, message: j.message || `GoHighLevel respondió ${r.status}.` })
+    }
+    if (group === 'ai') {
+      const missing = [!cfg.ANTHROPIC_API_KEY && 'Anthropic', !cfg.GROQ_API_KEY && 'Groq'].filter(Boolean)
+      if (missing.length) return NextResponse.json({ ok: false, message: `Falta configurar: ${missing.join(', ')}.` })
+      const [anthropic, groq] = await Promise.all([
+        fetch('https://api.anthropic.com/v1/models?limit=1', { headers: { 'x-api-key': cfg.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' } }),
+        fetch('https://api.groq.com/openai/v1/models', { headers: { Authorization: `Bearer ${cfg.GROQ_API_KEY}` } }),
+      ])
+      if (!anthropic.ok || !groq.ok) {
+        return NextResponse.json({ ok: false, message: `Anthropic: ${anthropic.ok ? 'OK' : anthropic.status}; Groq: ${groq.ok ? 'OK' : groq.status}.` })
+      }
+      return NextResponse.json({ ok: true, message: 'Anthropic y Groq conectados.' })
+    }
+    if (group === 'youtube') {
+      if (!cfg.YOUTUBE_CLIENT_ID || !cfg.YOUTUBE_CLIENT_SECRET || !cfg.YOUTUBE_REFRESH_TOKEN) {
+        return NextResponse.json({ ok: false, message: 'Faltan credenciales OAuth de YouTube.' })
+      }
+      const r = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: cfg.YOUTUBE_CLIENT_ID,
+          client_secret: cfg.YOUTUBE_CLIENT_SECRET,
+          refresh_token: cfg.YOUTUBE_REFRESH_TOKEN,
+          grant_type: 'refresh_token',
+        }),
+      })
+      const j = await r.json().catch(() => ({})) as { error_description?: string }
+      return r.ok
+        ? NextResponse.json({ ok: true, message: 'OAuth de YouTube válido.' })
+        : NextResponse.json({ ok: false, message: j.error_description || 'Credenciales OAuth inválidas.' })
+    }
+    if (group === 'sequra') {
+      if (!cfg.SEQURA_MCP_TOKEN) return NextResponse.json({ ok: false, message: 'Falta el token MCP de SeQura.' })
+      const r = await fetch('https://simba.sequra.com/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${cfg.SEQURA_MCP_TOKEN}` },
+        body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'tools/list', params: {} }),
+      })
+      return r.ok
+        ? NextResponse.json({ ok: true, message: 'SeQura conectado.' })
+        : NextResponse.json({ ok: false, message: `SeQura respondió ${r.status}; renueva el token si ha caducado.` })
+    }
+    if (group === 'creatuagente') {
+      if (!cfg.CREATUAGENTE_WEBHOOK_URL || !cfg.CREATUAGENTE_WEBHOOK_SECRET) {
+        return NextResponse.json({ ok: false, message: 'Faltan la URL o el secreto del webhook.' })
+      }
+      try { new URL(cfg.CREATUAGENTE_WEBHOOK_URL) } catch { return NextResponse.json({ ok: false, message: 'La URL del webhook no es válida.' }) }
+      return NextResponse.json({ ok: true, message: 'Configuración válida. No se envió ningún evento de prueba.' })
     }
     return NextResponse.json({ ok: false, message: 'Esta integración no tiene prueba automática.' })
   } catch (e) {
