@@ -32,6 +32,7 @@ import { Plus, Percent, Loader2, Pencil, Trash2, AlertTriangle } from 'lucide-re
 import { formatPercent } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { Partner } from '@/lib/types/database'
+import { useTenantId } from '@/lib/tenant-context'
 
 type SimpleUser = {
   id: string
@@ -39,6 +40,7 @@ type SimpleUser = {
 }
 
 export default function PartnersPage() {
+  const tenantId = useTenantId()
   const [partners, setPartners] = useState<Partner[]>([])
   const [users, setUsers] = useState<SimpleUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -58,6 +60,7 @@ export default function PartnersPage() {
     const { data, error } = await supabase
       .from('partners')
       .select('*')
+      .eq('tenant_id', tenantId)
       .order('profit_percent', { ascending: false })
 
     if (error) {
@@ -145,8 +148,8 @@ export default function PartnersPage() {
     }
 
     const { error } = editingId
-      ? await supabase.from('partners').update(payload).eq('id', editingId)
-      : await supabase.from('partners').insert(payload)
+      ? await supabase.from('partners').update(payload).eq('id', editingId).eq('tenant_id', tenantId)
+      : await supabase.from('partners').insert({ ...payload, tenant_id: tenantId })
 
     setSubmitting(false)
     if (error) {
@@ -166,7 +169,7 @@ export default function PartnersPage() {
     if (!confirm(`¿Eliminar al socio "${partner.name}"?`)) return
 
     const supabase = createClient()
-    const { error } = await supabase.from('partners').delete().eq('id', partner.id)
+    const { error } = await supabase.from('partners').delete().eq('id', partner.id).eq('tenant_id', tenantId)
 
     if (error) {
       toast.error('Error al eliminar el socio', { description: error.message })
@@ -182,6 +185,7 @@ export default function PartnersPage() {
       .from('partners')
       .update({ is_active: !partner.is_active })
       .eq('id', partner.id)
+      .eq('tenant_id', tenantId)
 
     if (error) {
       toast.error('Error al actualizar el socio')

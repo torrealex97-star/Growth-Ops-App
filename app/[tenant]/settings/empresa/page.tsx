@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Building2, Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTenantId } from '@/lib/tenant-context'
 
 type Company = {
   name: string
@@ -29,13 +30,14 @@ const EMPTY: Company = {
 }
 
 export default function EmpresaSettingsPage() {
+  const tenantId = useTenantId()
   const [c, setC] = useState<Company>(EMPTY)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     const sb = createClient()
-    sb.from('company_profile').select('*').eq('id', 1).maybeSingle().then(({ data }) => {
+    sb.from('company_profile').select('*').eq('id', 1).eq('tenant_id', tenantId).maybeSingle().then(({ data }) => {
       if (data) setC({ ...EMPTY, ...Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v ?? ''])) } as Company)
       setLoading(false)
     })
@@ -48,7 +50,7 @@ export default function EmpresaSettingsPage() {
     if (!c.name.trim()) { toast.error('El nombre de la empresa es obligatorio'); return }
     setSaving(true)
     const sb = createClient()
-    const { error } = await sb.from('company_profile').upsert({ id: 1, ...c }, { onConflict: 'id' })
+    const { error } = await sb.from('company_profile').upsert({ id: 1, tenant_id: tenantId, ...c }, { onConflict: 'id' })
     setSaving(false)
     if (error) { toast.error('Error al guardar', { description: error.message }); return }
     toast.success('Datos de empresa guardados', { description: 'Se usarán en los próximos contratos y emails.' })

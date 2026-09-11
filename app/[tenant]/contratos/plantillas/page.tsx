@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { FileText, Plus, Edit2, Loader2, Trash2, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ContractTemplate } from '@/lib/types/database'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 // Variables disponibles para insertar en el cuerpo (clic para insertar).
 const VARS: { v: string; help: string }[] = [
@@ -59,6 +59,7 @@ const kindLabel = (k: string) => KINDS.find((x) => x.value === k)?.label ?? k
 
 export default function PlantillasPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [templates, setTemplates] = useState<ContractTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [dialog, setDialog] = useState(false)
@@ -75,7 +76,7 @@ export default function PlantillasPage() {
 
   const load = async () => {
     const sb = createClient()
-    const { data } = await sb.from('contract_templates').select('*').order('created_at', { ascending: false })
+    const { data } = await sb.from('contract_templates').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false })
     setTemplates((data ?? []) as ContractTemplate[])
     setLoading(false)
   }
@@ -129,8 +130,8 @@ export default function PlantillasPage() {
       body,
     }
     const { error } = editing
-      ? await sb.from('contract_templates').update(payload).eq('id', editing.id)
-      : await sb.from('contract_templates').insert(payload)
+      ? await sb.from('contract_templates').update(payload).eq('id', editing.id).eq('tenant_id', tenantId)
+      : await sb.from('contract_templates').insert({ ...payload, tenant_id: tenantId })
     setSaving(false)
     if (error) { toast.error('Error al guardar', { description: error.message }); return }
     toast.success('Plantilla guardada')
@@ -141,7 +142,7 @@ export default function PlantillasPage() {
   const remove = async (t: ContractTemplate) => {
     if (!confirm(`¿Eliminar la plantilla "${t.name}"?`)) return
     const sb = createClient()
-    const { error } = await sb.from('contract_templates').delete().eq('id', t.id)
+    const { error } = await sb.from('contract_templates').delete().eq('id', t.id).eq('tenant_id', tenantId)
     if (error) { toast.error('No se pudo eliminar', { description: error.message }); return }
     toast.success('Plantilla eliminada')
     load()

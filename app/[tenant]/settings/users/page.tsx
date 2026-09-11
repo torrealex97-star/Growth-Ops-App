@@ -36,7 +36,7 @@ import { formatCurrency } from '@/lib/utils'
 import { generateUniqueTrackingCode } from '@/lib/tracking'
 import { buildDefaultTerms, type ContractTerms } from '@/lib/contracts/terms'
 import { ContractTermsEditor, CONTRACT_ROLES } from '@/components/contracts/ContractTermsEditor'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 // Roles que necesitan tracking_code para generar enlaces con UTM
 const TRACKING_ROLES: AppRole[] = ['setter', 'closer', 'cold_caller', 'affiliate']
@@ -45,6 +45,7 @@ type UserWithRole = User & { roles: Role }
 
 export default function UsersPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [users, setUsers] = useState<UserWithRole[]>([])
   const [roles, setRoles] = useState<Role[]>([])
   const [loading, setLoading] = useState(true)
@@ -98,8 +99,8 @@ export default function UsersPage() {
     const [usersRes, rolesRes, tplRes, rulesRes] = await Promise.all([
       supabase.from('users').select('*, roles(*)').order('full_name'),
       supabase.from('roles').select('*').order('name'),
-      supabase.from('contract_templates').select('*').eq('is_active', true).order('created_at', { ascending: false }),
-      supabase.from('commission_rules').select('*'),
+      supabase.from('contract_templates').select('*').eq('is_active', true).eq('tenant_id', tenantId).order('created_at', { ascending: false }),
+      supabase.from('commission_rules').select('*').eq('tenant_id', tenantId),
     ])
 
     setUsers((usersRes.data ?? []) as UserWithRole[])

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Plus, Gift, Trash2, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTenantId } from '@/lib/tenant-context'
 
 type ProductExtra = {
   id: string
@@ -15,6 +16,7 @@ type ProductExtra = {
 }
 
 export function ProductExtrasManager() {
+  const tenantId = useTenantId()
   const [extras, setExtras] = useState<ProductExtra[]>([])
   const [available, setAvailable] = useState<boolean | null>(null)
   const [name, setName] = useState('')
@@ -26,6 +28,7 @@ export function ProductExtrasManager() {
     const { data, error } = await supabase
       .from('product_extras')
       .select('*')
+      .eq('tenant_id', tenantId)
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true })
     if (error) { setAvailable(false); return }
@@ -43,6 +46,7 @@ export function ProductExtrasManager() {
       name: name.trim(),
       description: description.trim() || null,
       is_active: true,
+      tenant_id: tenantId,
     })
     setSaving(false)
     if (error) { toast.error('No se pudo crear', { description: error.message }); return }
@@ -53,13 +57,13 @@ export function ProductExtrasManager() {
 
   const toggleActive = async (e: ProductExtra) => {
     const supabase = createClient()
-    await supabase.from('product_extras').update({ is_active: !e.is_active }).eq('id', e.id)
+    await supabase.from('product_extras').update({ is_active: !e.is_active }).eq('id', e.id).eq('tenant_id', tenantId)
     fetchExtras()
   }
 
   const removeExtra = async (e: ProductExtra) => {
     const supabase = createClient()
-    const { error } = await supabase.from('product_extras').delete().eq('id', e.id)
+    const { error } = await supabase.from('product_extras').delete().eq('id', e.id).eq('tenant_id', tenantId)
     if (error) { toast.error('No se pudo borrar', { description: error.message }); return }
     fetchExtras()
   }

@@ -10,7 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Users, Loader2, Save, Copy, Check, GripVertical, Database } from 'lucide-react'
 import { toast } from 'sonner'
 import type { AffiliateFormField, AffiliateProgramSettings } from '@/lib/types/database'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 const DEFAULT_FIELDS: AffiliateFormField[] = [
   { key: 'full_name', label: 'Nombre completo', enabled: true, required: true, fixed: true },
@@ -30,6 +30,7 @@ type State = Pick<
 
 export default function AfiliadosSettingsPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [s, setS] = useState<State>({
     default_commission_percent: 20,
     program_name: 'Programa de Afiliados',
@@ -51,6 +52,7 @@ export default function AfiliadosSettingsPage() {
     sb.from('affiliate_program_settings')
       .select('*')
       .eq('id', 1)
+      .eq('tenant_id', tenantId)
       .maybeSingle()
       .then(({ data }) => {
         if (data) {
@@ -84,6 +86,7 @@ export default function AfiliadosSettingsPage() {
     const { error } = await sb.from('affiliate_program_settings').upsert(
       {
         id: 1,
+        tenant_id: tenantId,
         default_commission_percent: s.default_commission_percent,
         program_name: s.program_name.trim() || 'Programa de Afiliados',
         intro: s.intro,

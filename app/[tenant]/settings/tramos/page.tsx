@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Trophy, Plus, Trash2, Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTenantId } from '@/lib/tenant-context'
 
 type Tramo = {
   id: string
@@ -21,6 +22,7 @@ type Period = 'month' | 'all'
 const cls = 'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500'
 
 export default function TramosSettingsPage() {
+  const tenantId = useTenantId()
   const [tramos, setTramos] = useState<Tramo[]>([])
   const [metric, setMetric] = useState<Metric>('sales')
   const [period, setPeriod] = useState<Period>('month')
@@ -38,8 +40,8 @@ export default function TramosSettingsPage() {
   const load = async () => {
     const sb = createClient()
     const [tRes, cRes] = await Promise.all([
-      sb.from('sales_tramos').select('*').order('threshold', { ascending: true }),
-      sb.from('sales_tramos_config').select('metric, period').eq('id', 1).maybeSingle(),
+      sb.from('sales_tramos').select('*').eq('tenant_id', tenantId).order('threshold', { ascending: true }),
+      sb.from('sales_tramos_config').select('metric, period').eq('id', 1).eq('tenant_id', tenantId).maybeSingle(),
     ])
     if (tRes.error && /relation .* does not exist|sales_tramos/.test(tRes.error.message)) setTableMissing(true)
     setTramos((tRes.data as Tramo[]) ?? [])
@@ -54,7 +56,7 @@ export default function TramosSettingsPage() {
   const saveConfig = async (nextMetric: Metric, nextPeriod: Period) => {
     setSavingCfg(true)
     const sb = createClient()
-    const { error } = await sb.from('sales_tramos_config').upsert({ id: 1, metric: nextMetric, period: nextPeriod })
+    const { error } = await sb.from('sales_tramos_config').upsert({ id: 1, tenant_id: tenantId, metric: nextMetric, period: nextPeriod })
     setSavingCfg(false)
     if (error) { toast.error('No se pudo guardar la configuración', { description: error.message }); return }
     toast.success('Configuración guardada')
@@ -69,7 +71,7 @@ export default function TramosSettingsPage() {
     const sb = createClient()
     const { data, error } = await sb.from('sales_tramos').insert({
       name, threshold, emoji: nEmoji.trim() || null, reward: nReward.trim() || null,
-      sort_order: tramos.length + 1, is_active: true,
+      sort_order: tramos.length + 1, is_active: true, tenant_id: tenantId,
     }).select().single()
     setAdding(false)
     if (error) { toast.error('No se pudo crear el tramo', { description: error.message }); return }
@@ -81,7 +83,7 @@ export default function TramosSettingsPage() {
   const deleteTramo = async (id: string) => {
     if (!window.confirm('¿Borrar este tramo?')) return
     const sb = createClient()
-    const { error } = await sb.from('sales_tramos').delete().eq('id', id)
+    const { error } = await sb.from('sales_tramos').delete().eq('id', id).eq('tenant_id', tenantId)
     if (error) { toast.error('No se pudo borrar', { description: error.message }); return }
     setTramos((prev) => prev.filter((t) => t.id !== id))
   }
