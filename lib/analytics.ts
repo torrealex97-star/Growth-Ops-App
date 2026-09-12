@@ -257,6 +257,31 @@ export function funnelBySource(
   return Array.from(map.values()).sort((a, b) => b.gross - a.gross)
 }
 
+export type FunnelTotals = {
+  leads: number
+  appointments: number
+  sales: number
+  leadToAppt: number
+  apptToSale: number
+  leadToSale: number
+}
+
+// Colapsa el desglose por fuente de funnelBySource() en un único funnel agregado
+// (Leads → Agendas → Ventas) para el resumen ejecutivo del Dashboard.
+export function aggregateFunnel(rows: FunnelRow[]): FunnelTotals {
+  const leads = rows.reduce((sum, r) => sum + r.leads, 0)
+  const appointments = rows.reduce((sum, r) => sum + r.appointments, 0)
+  const sales = rows.reduce((sum, r) => sum + r.sales, 0)
+  return {
+    leads,
+    appointments,
+    sales,
+    leadToAppt: leads ? (appointments / leads) * 100 : 0,
+    apptToSale: appointments ? (sales / appointments) * 100 : 0,
+    leadToSale: leads ? (sales / leads) * 100 : 0,
+  }
+}
+
 // --- Progreso real de un objetivo ---
 export type TargetLike = {
   metric_key: string
