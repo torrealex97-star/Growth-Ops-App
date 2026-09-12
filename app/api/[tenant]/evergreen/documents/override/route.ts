@@ -2,10 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+// Cliente construido dentro del handler (no a nivel de módulo): crearlo al importar el módulo
+// rompía el build entero si NEXT_PUBLIC_SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY no estaban
+// disponibles en ese momento (p.ej. Vercel Preview sin esas env vars) — "supabaseUrl is required".
+function serviceClient() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+}
 
 // Helper: obtener el rol del usuario autenticado
-async function getUserRole(userId: string): Promise<string | null> {
+async function getUserRole(supabase: ReturnType<typeof serviceClient>, userId: string): Promise<string | null> {
   const { data } = await supabase.from('users').select('role_id').eq('id', userId).single()
 
   if (!data?.role_id) return null
@@ -17,6 +22,7 @@ async function getUserRole(userId: string): Promise<string | null> {
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
+    const supabase = serviceClient()
     // El usuario y el tenant se determinan SIEMPRE desde la sesión autenticada
     // (cookies) + la membresía de la subcuenta — nunca desde el body — antes se
     // confiaba en un userId enviado por el cliente (incluso hardcodeado a
@@ -35,7 +41,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
 
     // Validar permisos: solo admin, director, closer
-    const userRole = await getUserRole(userId)
+    const userRole = await getUserRole(supabase, userId)
     const allowedRoles = ['admin', 'director', 'closer']
 
     if (!userRole || !allowedRoles.includes(userRole)) {
