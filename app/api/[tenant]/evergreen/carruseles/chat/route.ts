@@ -72,7 +72,6 @@ const TOOLS: Anthropic.Tool[] = [
   },
 ]
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 async function executeTool(projectId: string, name: string, input: any): Promise<string> {
   try {
     if (name === "add_slide") {

@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { ListChecks, Plus, Sparkles, X, Loader2, Trash2, Calendar } from 'lucide-react'
 import { toast } from 'sonner'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 const STAGES = [
   { value: 'backlog', label: 'Sin empezar' },
@@ -34,6 +34,7 @@ type DbUser = { id: string; full_name: string }
 
 export default function TasksPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [tasks, setTasks] = useState<Task[]>([])
   const [users, setUsers] = useState<DbUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -64,7 +65,7 @@ export default function TasksPage() {
   const load = async () => {
     const supabase = createClient()
     const [tRes, uRes, authRes] = await Promise.all([
-      supabase.from('tasks').select('*, assignee:assignee_id(full_name)').order('created_at', { ascending: false }),
+      supabase.from('tasks').select('*, assignee:assignee_id(full_name)').eq('tenant_id', tenantId).order('created_at', { ascending: false }),
       supabase.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
       supabase.auth.getUser(),
     ])
@@ -92,7 +93,7 @@ export default function TasksPage() {
   const patch = async (id: string, p: Partial<Task>) => {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...p } : t)))
     const supabase = createClient()
-    const { error } = await supabase.from('tasks').update(p).eq('id', id)
+    const { error } = await supabase.from('tasks').update(p).eq('id', id).eq('tenant_id', tenantId)
     if (error) { toast.error('No se pudo actualizar'); load() }
   }
 
@@ -101,7 +102,7 @@ export default function TasksPage() {
     const prev = tasks
     setTasks((cur) => cur.filter((t) => t.id !== id))
     const supabase = createClient()
-    const { error } = await supabase.from('tasks').delete().eq('id', id)
+    const { error } = await supabase.from('tasks').delete().eq('id', id).eq('tenant_id', tenantId)
     if (error) { toast.error('No se pudo borrar', { description: error.message }); setTasks(prev) }
     else toast.success('Tarea borrada')
   }

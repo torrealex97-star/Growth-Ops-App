@@ -328,7 +328,7 @@ export default function CommissionRulesPage() {
           <h1 className="text-2xl font-bold text-foreground">Reglas de Comision</h1>
           <p className="text-muted-foreground text-sm mt-1">
             Configura porcentajes por tipo de participante, tramos de cash collected y reps concretos.
-            Deja "Activa hasta" vacio para que la regla sea indefinida (de siempre).
+            Deja “Activa hasta” vacio para que la regla sea indefinida (de siempre).
           </p>
         </div>
         {canManageRules && (
@@ -490,7 +490,7 @@ export default function CommissionRulesPage() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                "Todos" aplica a cualquier {PARTICIPANT_LABELS[participantType].toLowerCase()} sin regla especifica propia.
+                “Todos” aplica a cualquier {PARTICIPANT_LABELS[participantType].toLowerCase()} sin regla especifica propia.
               </p>
             </div>
 
@@ -587,7 +587,7 @@ export default function CommissionRulesPage() {
               </div>
             </div>
             <p className="text-xs text-muted-foreground -mt-2">
-              Vacio en "Activa hasta" significa que la regla es <strong>indefinida (de siempre)</strong>, sin fecha de caducidad.
+              Vacio en “Activa hasta” significa que la regla es <strong>indefinida (de siempre)</strong>, sin fecha de caducidad.
             </p>
 
             <div className="flex justify-end gap-3 pt-2">

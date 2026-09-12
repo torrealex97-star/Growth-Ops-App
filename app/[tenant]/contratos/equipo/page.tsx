@@ -135,7 +135,7 @@ export default function ContratosEquipoPage() {
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <FileSignature className="w-12 h-12 text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium text-foreground mb-2">Sin contratos de equipo</h3>
-          <p className="text-muted-foreground text-sm">Genera el primero con el botón "Nuevo contrato".</p>
+          <p className="text-muted-foreground text-sm">Genera el primero con el botón “Nuevo contrato”.</p>
         </div>
       ) : (
         <div className="rounded-lg border border-border divide-y divide-border overflow-hidden">

@@ -465,7 +465,7 @@ export default function UsersPage() {
         </div>
       </div>
       <p className="text-xs text-muted-foreground -mt-4">
-        Los sueldos fijos del equipo (campo "Sueldo base mensual") se contabilizan como gasto mensual en la categoría
+        Los sueldos fijos del equipo (campo “Sueldo base mensual”) se contabilizan como gasto mensual en la categoría
         Sueldos y aparecen automáticamente en Gastos y en el Resumen financiero.
       </p>
 

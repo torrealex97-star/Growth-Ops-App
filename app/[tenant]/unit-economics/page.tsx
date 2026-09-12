@@ -6,6 +6,7 @@ import { KPICard } from '@/components/os/DashboardKPICard'
 import { PieChart, Target, Users, TrendingUp, Wallet, Filter, MousePointerClick, Megaphone } from 'lucide-react'
 import { ACTIVE_SALE_STATUSES } from '@/lib/analytics'
 import { formatCurrency, formatPercent } from '@/lib/utils'
+import { useTenantId } from '@/lib/tenant-context'
 
 type CampaignRow = {
   id: string
@@ -201,6 +202,7 @@ function ratioColor(ratio: number | null): string {
 }
 
 export default function UnitEconomicsPage() {
+  const tenantId = useTenantId()
   const [loading, setLoading] = useState(true)
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([])
   const [sales, setSales] = useState<SaleRow[]>([])
@@ -213,11 +215,11 @@ export default function UnitEconomicsPage() {
     async function load() {
       const supabase = createClient()
       const [campRes, salesRes, collRes, contactsRes, apptRes] = await Promise.all([
-        supabase.from('campaigns').select('id, channel, adspend, leads_generated, impressions, clicks'),
-        supabase.from('sales').select('id, gross_amount, status, contact_id, sale_date'),
-        supabase.from('collections').select('gross_amount, collected_at, status'),
-        supabase.from('contacts').select('id, campaign_id'),
-        supabase.from('appointments').select('id, contact_id, status, appointment_datetime, pipe_value'),
+        supabase.from('campaigns').select('id, channel, adspend, leads_generated, impressions, clicks').eq('tenant_id', tenantId),
+        supabase.from('sales').select('id, gross_amount, status, contact_id, sale_date').eq('tenant_id', tenantId),
+        supabase.from('collections').select('gross_amount, collected_at, status').eq('tenant_id', tenantId),
+        supabase.from('contacts').select('id, campaign_id').eq('tenant_id', tenantId),
+        supabase.from('appointments').select('id, contact_id, status, appointment_datetime, pipe_value').eq('tenant_id', tenantId),
       ])
       if (!mounted) return
       setCampaigns(campRes.data || [])

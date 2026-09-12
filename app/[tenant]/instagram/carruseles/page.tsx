@@ -75,7 +75,7 @@ export default function CarruselesDashboard() {
     }
   }
 
-  const useTemplate = async (id: string) => {
+  const applyTemplate = async (id: string) => {
     const res = await fetch(`/api/${tenant}/evergreen/carruseles/templates/${id}/use`, { method: "POST" })
     if (res.ok) {
       const project = await res.json()
@@ -226,7 +226,7 @@ export default function CarruselesDashboard() {
                 {templates.map((t) => (
                   <button
                     key={t.id}
-                    onClick={() => useTemplate(t.id)}
+                    onClick={() => applyTemplate(t.id)}
                     className="group text-left rounded-xl border border-border bg-card overflow-hidden hover:border-brand-400/50 transition-colors"
                   >
                     <div className="aspect-[4/5] bg-background/40 relative overflow-hidden">

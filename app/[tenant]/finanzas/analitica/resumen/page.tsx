@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { lastNMonths, prevMonth, monthLabel, pctDelta } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
+import { useTenantId } from '@/lib/tenant-context'
 import { computeMonthlyPnl } from '@/lib/finance/pnl'
 
 type SaleRow = { id: string; gross_amount: number | string; discount: number | string | null; sale_date: string | null; status: string }
@@ -72,6 +73,7 @@ function MetricCard({
 }
 
 export default function FinanzasPage() {
+  const tenantId = useTenantId()
   const [loading, setLoading] = useState(true)
   const [ym, setYm] = useState(nowYm())
   const [sales, setSales] = useState<SaleRow[]>([])
@@ -90,13 +92,13 @@ export default function FinanzasPage() {
       setLoading(true)
       const supabase = createClient()
       const [salesRes, collRes, expensesRes, refundsRes, commissionsRes, usersRes, partnersRes] = await Promise.all([
-        supabase.from('sales').select('id, gross_amount, discount, sale_date, status'),
-        supabase.from('collections').select('id, sale_id, gross_amount, commissionable_amount, processing_fee, vat, collected_at, status, expected_installment_id'),
-        supabase.from('expenses').select('amount, category, expense_date'),
-        supabase.from('refunds').select('gross_refund_amount, refund_date'),
-        supabase.from('commissions').select('commission_amount, direction, collection_id, liquidation_month'),
+        supabase.from('sales').select('id, gross_amount, discount, sale_date, status').eq('tenant_id', tenantId),
+        supabase.from('collections').select('id, sale_id, gross_amount, commissionable_amount, processing_fee, vat, collected_at, status, expected_installment_id').eq('tenant_id', tenantId),
+        supabase.from('expenses').select('amount, category, expense_date').eq('tenant_id', tenantId),
+        supabase.from('refunds').select('gross_refund_amount, refund_date').eq('tenant_id', tenantId),
+        supabase.from('commissions').select('commission_amount, direction, collection_id, liquidation_month').eq('tenant_id', tenantId),
         supabase.from('users').select('base_salary').eq('is_active', true),
-        supabase.from('partners').select('id, name, profit_percent, is_active').eq('is_active', true),
+        supabase.from('partners').select('id, name, profit_percent, is_active').eq('tenant_id', tenantId).eq('is_active', true),
       ])
       if (!mounted) return
       setSales(salesRes.data || [])

@@ -7,7 +7,7 @@ import { toast } from 'sonner'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { getCustomDateRange, getPreviousPeriodRange, inPeriod, type PeriodRange } from '@/lib/filters/period'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 type PeriodPreset = 'month' | 'today' | 'week' | 'quarter' | 'year' | 'custom'
 
@@ -233,6 +233,7 @@ function KpiDelta({ current, previous, hasPrevious }: { current: number; previou
 
 export default function ExpensesPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [items, setItems] = useState<Expense[]>([])
   const [users, setUsers] = useState<DbUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -261,7 +262,7 @@ export default function ExpensesPage() {
     setLoading(true)
     const supabase = createClient()
     const [eRes, uRes, authRes] = await Promise.all([
-      supabase.from('expenses').select('*').order('expense_date', { ascending: false }),
+      supabase.from('expenses').select('*').eq('tenant_id', tenantId).order('expense_date', { ascending: false }),
       supabase.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
       supabase.auth.getUser(),
     ])
@@ -377,7 +378,7 @@ export default function ExpensesPage() {
     const prev = items
     setItems((cur) => cur.map((e) => (e.id === id ? { ...e, status: next } : e)))
     const supabase = createClient()
-    const { error } = await supabase.from('expenses').update({ status: next }).eq('id', id)
+    const { error } = await supabase.from('expenses').update({ status: next }).eq('id', id).eq('tenant_id', tenantId)
     if (error) { toast.error('No se pudo actualizar el estado', { description: error.message }); setItems(prev) }
     else toast.success('Estado actualizado')
   }
@@ -492,6 +493,7 @@ export default function ExpensesPage() {
       }
 
       const { error } = await supabase.from('expenses').insert({
+        tenant_id: tenantId,
         concept: extracted.concept || file.name,
         category: (extracted.category as Expense['category']) || 'otros',
         subcategory: extracted.counterparty || null,
@@ -549,7 +551,7 @@ export default function ExpensesPage() {
         return
       }
       const { data: pub } = supabase.storage.from('facturas').getPublicUrl(path)
-      const { error } = await supabase.from('expenses').update({ invoice_url: pub?.publicUrl || path }).eq('id', expenseId)
+      const { error } = await supabase.from('expenses').update({ invoice_url: pub?.publicUrl || path }).eq('id', expenseId).eq('tenant_id', tenantId)
       if (error) {
         toast.error('No se pudo adjuntar la factura', { description: error.message })
         return
@@ -606,6 +608,7 @@ export default function ExpensesPage() {
     }
 
     const { error } = await supabase.from('expenses').insert({
+      tenant_id: tenantId,
       concept: ne.concept.trim(),
       category: ne.category,
       subcategory: ne.subcategory.trim() || null,
@@ -632,7 +635,7 @@ export default function ExpensesPage() {
   const toggleReview = async (id: string) => {
     setItems((prev) => prev.map((e) => (e.id === id ? { ...e, needs_review: false } : e)))
     const supabase = createClient()
-    const { error } = await supabase.from('expenses').update({ needs_review: false }).eq('id', id)
+    const { error } = await supabase.from('expenses').update({ needs_review: false }).eq('id', id).eq('tenant_id', tenantId)
     if (error) { toast.error('No se pudo confirmar el gasto'); load() }
   }
 
@@ -676,6 +679,7 @@ export default function ExpensesPage() {
         notes: ee.notes.trim() || null,
       })
       .eq('id', editing.id)
+      .eq('tenant_id', tenantId)
     if (error) { toast.error('Error al actualizar el gasto', { description: error.message }); return }
     toast.success('Gasto actualizado')
     closeEdit()
@@ -698,7 +702,7 @@ export default function ExpensesPage() {
 
     const prev = items
     setItems((cur) => cur.filter((it) => it.id !== e.id))
-    const { error } = await supabase.from('expenses').delete().eq('id', e.id)
+    const { error } = await supabase.from('expenses').delete().eq('id', e.id).eq('tenant_id', tenantId)
     if (error) { toast.error('No se pudo borrar el gasto', { description: error.message }); setItems(prev) }
     else toast.success('Gasto borrado')
   }

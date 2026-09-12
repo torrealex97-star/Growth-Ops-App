@@ -83,7 +83,6 @@ const TOOL: Anthropic.Tool = {
   },
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 function parseSpec(input: any, fallbackName: string): CasoExitoSpec | null {
   if (!input || typeof input !== "object") return null
   const slides = Array.isArray(input.slides)

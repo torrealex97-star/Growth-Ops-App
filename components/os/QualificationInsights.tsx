@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ClipboardList, MessageSquareQuote } from 'lucide-react'
 import { QUALIFICATION_KEYS, labelFor, type Qualification } from '@/lib/qualification'
+import { useTenantId } from '@/lib/tenant-context'
 
 // Panel del dashboard: "Qué responde la gente".
 // Agrega las respuestas del formulario (cualificación) guardadas a nivel de contacto:
@@ -22,6 +23,7 @@ function normVal(v: string): string {
 }
 
 export function QualificationInsights() {
+  const tenantId = useTenantId()
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<Row[]>([])
 
@@ -32,12 +34,13 @@ export function QualificationInsights() {
       const { data } = await supabase
         .from('contacts')
         .select('full_name, qualification, qualification_updated_at')
+        .eq('tenant_id', tenantId)
         .not('qualification', 'is', null)
         .order('qualification_updated_at', { ascending: false })
         .limit(1000)
       if (!mounted) return
       setRows(
-        (data || []).map((r: any) => ({
+        (data || []).map((r: { full_name: string | null; qualification: Qualification | null; qualification_updated_at: string | null }) => ({
           name: r.full_name || '—',
           qualification: r.qualification || {},
           at: r.qualification_updated_at,

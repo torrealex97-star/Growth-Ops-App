@@ -7,7 +7,7 @@ const nextConfig = {
     // Reorganización de la sección "Ventas" (CRM / Ventas & Cobros / Analítica / Comisiones /
     // Recursos de venta). Redirects 301 desde cada ruta vieja para no romper enlaces ni bookmarks.
     // ':tenant' matchea cualquier subcuenta — la reorganización es la misma para todas.
-    return [
+    const redirects = [
       // CRM
       { source: '/:tenant/contacts', destination: '/:tenant/crm/contactos', permanent: true },
       { source: '/:tenant/contacts/:id', destination: '/:tenant/crm/contactos/:id', permanent: true },
@@ -59,7 +59,22 @@ const nextConfig = {
       { source: '/:tenant/morosos-sequra', destination: '/:tenant/finanzas/morosidad?origen=sequra', permanent: true },
       { source: '/:tenant/afiliados', destination: '/:tenant/marketing/afiliados/afiliados', permanent: true },
       { source: '/:tenant/afiliados/campanas', destination: '/:tenant/marketing/afiliados/campanas', permanent: true },
+
+      // Producto / Alumnos: una sola pantalla con deep-links por pestaña.
+      { source: '/:tenant/students', destination: '/:tenant/alumnos/journey', statusCode: 301 },
+      { source: '/:tenant/csm-events', destination: '/:tenant/alumnos/soporte', statusCode: 301 },
+      { source: '/:tenant/drops', destination: '/:tenant/alumnos/cancelaciones', statusCode: 301 },
+      { source: '/:tenant/contratos', destination: '/:tenant/alumnos/contratos', statusCode: 301 },
+      { source: '/:tenant/contratos/equipo', destination: '/:tenant/direccion/contratos-equipo', statusCode: 301 },
     ]
+
+    // Next interpreta `permanent: true` como 308. El requisito de compatibilidad es 301,
+    // así que normalizamos también las redirecciones creadas antes de esta auditoría.
+    return redirects.map((redirect) =>
+      'permanent' in redirect
+        ? { source: redirect.source, destination: redirect.destination, statusCode: 301 }
+        : redirect
+    )
   },
 }
 

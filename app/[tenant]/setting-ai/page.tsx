@@ -1,7 +1,6 @@
 "use client"
 import { useTenant } from '@/lib/tenant-context'
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import { DEFAULT_BASE_PROMPT, BRAND, BRAND_PERSON } from "@/lib/setting-ai/default-prompt"
 import {

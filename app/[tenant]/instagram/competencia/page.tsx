@@ -11,7 +11,7 @@ import { CTAS } from '@/lib/ctas'
 import type { Testimonio } from '@/lib/testimonios-shared'
 import { createClient } from '@/lib/supabase/client'
 import { useScriptQueue } from '@/components/os/ScriptQueue'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 type Competitor = { id: string; username: string; followers_count: number; media_count: number; last_synced_at: string | null }
 type CMedia = {
@@ -39,6 +39,7 @@ const normUrl = (u: string | null) => (u || '').split('?')[0].split('#')[0].repl
 
 export default function CompetenciaPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const { enqueue } = useScriptQueue()
   const [competitors, setCompetitors] = useState<Competitor[]>([])
   const [media, setMedia] = useState<CMedia[]>([])
@@ -78,7 +79,7 @@ export default function CompetenciaPage() {
   // Reels que ya se convirtieron en idea (para marcarlos en las tarjetas).
   const loadIdeas = async () => {
     const supabase = createClient()
-    const { data } = await supabase.from('content_items').select('reference_reel_url').not('reference_reel_url', 'is', null)
+    const { data } = await supabase.from('content_items').select('reference_reel_url').eq('tenant_id', tenantId).not('reference_reel_url', 'is', null)
     setIdeaUrls(new Set((data || []).map((r: { reference_reel_url: string | null }) => normUrl(r.reference_reel_url)).filter(Boolean)))
   }
   useEffect(() => {

@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 type InstallmentRow = {
   id: string
@@ -89,6 +89,7 @@ function StatusBadge({ row, today }: { row: InstallmentRow; today: string }) {
 
 export function InstallmentsMorosidadView() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [rows, setRows] = useState<InstallmentRow[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<TabKey>('vencidas')
@@ -109,6 +110,7 @@ export function InstallmentsMorosidadView() {
     const { data, error } = await supabase
       .from('sale_expected_installments')
       .select('*, sales(id, gross_amount, contact_id, payment_plan_id, contacts(full_name, email, phone), payment_plans(name, financing_provider))')
+      .eq('tenant_id', tenantId)
       .order('due_date')
     if (error) {
       toast.error('Error al cargar cuotas', { description: error.message })

@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { KPIReportPanel } from '@/components/kpi/KPIReportPanel'
 import { Plus } from 'lucide-react'
+import { useTenantId } from '@/lib/tenant-context'
 
 // ==================== TYPES ====================
 
@@ -120,6 +121,7 @@ type MemberRow = {
 // ==================== PAGE ====================
 
 export default function ProspectingPage() {
+  const tenantId = useTenantId()
   const [loading, setLoading] = useState(true)
   const [reports, setReports] = useState<KpiReportRow[]>([])
   const [roleUsers, setRoleUsers] = useState<RoleUser[]>([])
@@ -144,7 +146,7 @@ export default function ProspectingPage() {
 
       const [usersRes, salesRes] = await Promise.all([
         supabase.from('users').select('id, full_name, is_active, roles(key)').eq('is_active', true),
-        supabase.from('sales').select('setter_id, closer_id, gross_amount, status, sale_date'),
+        supabase.from('sales').select('setter_id, closer_id, gross_amount, status, sale_date').eq('tenant_id', tenantId),
       ])
 
       if (!mounted) return
@@ -169,6 +171,7 @@ export default function ProspectingPage() {
       const { data } = await supabase
         .from('kpi_daily_reports')
         .select('user_id, role_key, report_date, data')
+        .eq('tenant_id', tenantId)
         .gte('report_date', from)
         .lte('report_date', to)
 

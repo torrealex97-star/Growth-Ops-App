@@ -12,7 +12,7 @@ import { AdsFunnelPanel } from '@/components/os/AdsFunnelPanel'
 import { DailyMetricsPanel } from '@/components/os/DailyMetricsPanel'
 import { AdsTable } from '@/components/os/AdsTable'
 import { MultiSelect } from '@/components/ui/multi-select'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 // Gasto y métricas de ads agregadas por campaña dentro del rango seleccionado (campaign_daily).
 type RangeMetrics = {
@@ -90,6 +90,7 @@ const ymdLocal = (d: Date) =>
 
 export default function CampaignsPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [items, setItems] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
@@ -218,7 +219,7 @@ export default function CampaignsPage() {
 
   const load = async () => {
     const supabase = createClient()
-    const { data, error } = await supabase.from('campaigns').select('*').order('created_at', { ascending: false })
+    const { data, error } = await supabase.from('campaigns').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false })
     if (error) toast.error('Error al cargar campañas', { description: error.message })
     const campaigns = (data as Campaign[]) || []
     setItems(campaigns)
@@ -229,6 +230,7 @@ export default function CampaignsPage() {
       const { data: exps, error: expErr } = await supabase
         .from('expenses')
         .select('auto_source')
+        .eq('tenant_id', tenantId)
         .eq('period', period)
         .in('auto_source', sources)
       if (!expErr && exps) {
@@ -338,7 +340,7 @@ export default function CampaignsPage() {
   const updateStatus = async (id: string, status: string) => {
     setItems((prev) => prev.map((c) => (c.id === id ? { ...c, status: status as Campaign['status'] } : c)))
     const supabase = createClient()
-    const { error } = await supabase.from('campaigns').update({ status }).eq('id', id)
+    const { error } = await supabase.from('campaigns').update({ status }).eq('id', id).eq('tenant_id', tenantId)
     if (error) toast.error('No se pudo actualizar el estado')
   }
 
@@ -348,6 +350,7 @@ export default function CampaignsPage() {
     const supabase = createClient()
     return supabase.from('expenses').upsert(
       {
+        tenant_id: tenantId,
         concept: `Ads - ${name}`,
         category: 'publicidad',
         subcategory: 'ads',
@@ -367,6 +370,7 @@ export default function CampaignsPage() {
     const { data: { user } } = await supabase.auth.getUser()
     const adspendNum = nc.adspend ? Number(nc.adspend) : 0
     const { data: created, error } = await supabase.from('campaigns').insert({
+      tenant_id: tenantId,
       name: nc.name.trim(),
       channel: nc.channel,
       type: nc.type || null,
@@ -412,7 +416,7 @@ export default function CampaignsPage() {
       clicks: qe.clicks ? Number(qe.clicks) : 0,
       leads_generated: qe.leads_generated ? Number(qe.leads_generated) : 0,
     }
-    const { error } = await supabase.from('campaigns').update(payload).eq('id', editing.id)
+    const { error } = await supabase.from('campaigns').update(payload).eq('id', editing.id).eq('tenant_id', tenantId)
     if (error) { setSavingEdit(false); toast.error('No se pudo actualizar', { description: error.message }); return }
     // Auto-enlace: mantener el gasto de ads al día con el gasto real editado.
     if (payload.adspend > 0) {
@@ -723,7 +727,7 @@ export default function CampaignsPage() {
 
           <p className="text-xs text-muted-foreground">
             Usa <span className="text-muted-foreground">Editar</span> para ir actualizando el gasto acumulado, impresiones, clics y leads de cada campaña.
-            Con <span className="text-muted-foreground">Contabilizar en gastos</span> el importe de "Gasto real" se registra automáticamente como un gasto
+            Con <span className="text-muted-foreground">Contabilizar en gastos</span> el importe de “Gasto real” se registra automáticamente como un gasto
             de publicidad en Finanzas y se refleja en el P&amp;L del mes en curso; si vuelves a pulsarlo, actualiza el mismo gasto en vez de duplicarlo.
           </p>
         </>
@@ -755,7 +759,7 @@ export default function CampaignsPage() {
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Esto solo actualiza los datos de la campaña. Para que el gasto entre en Finanzas/P&amp;L, usa después "Contabilizar en gastos".
+              Esto solo actualiza los datos de la campaña. Para que el gasto entre en Finanzas/P&amp;L, usa después “Contabilizar en gastos”.
             </p>
             <div className="flex justify-end gap-2 pt-1">
               <button onClick={() => setEditing(null)} className="px-3 py-2 text-sm text-muted-foreground">Cancelar</button>

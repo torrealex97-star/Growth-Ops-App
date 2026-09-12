@@ -7,7 +7,7 @@ import { FileText, Plus, X, ExternalLink, Send, Webhook } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 const STATUSES = [
   { value: 'pendiente', label: 'Pendiente' },
@@ -40,6 +40,7 @@ type Contract = {
 
 export default function ContratosPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [contracts, setContracts] = useState<Contract[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
@@ -53,8 +54,9 @@ export default function ContratosPage() {
       supabase
         .from('contracts')
         .select('*, contacts(full_name), sales(id)')
+        .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false }),
-      supabase.from('contacts').select('id, full_name').order('full_name'),
+      supabase.from('contacts').select('id, full_name').eq('tenant_id', tenantId).order('full_name'),
     ])
     setContracts((cRes.data as Contract[]) || [])
     setContacts((contactsRes.data as Contact[]) || [])
@@ -67,7 +69,7 @@ export default function ContratosPage() {
     const supabase = createClient()
     const payload: Record<string, unknown> = { status }
     if (status === 'firmado') payload.signed_at = new Date().toISOString()
-    const { error } = await supabase.from('contracts').update(payload).eq('id', id)
+    const { error } = await supabase.from('contracts').update(payload).eq('id', id).eq('tenant_id', tenantId)
     if (error) {
       toast.error('No se pudo actualizar el estado')
       load()
@@ -79,7 +81,7 @@ export default function ContratosPage() {
   const sendContract = async (id: string) => {
     setContracts((prev) => prev.map((c) => (c.id === id ? { ...c, status: 'enviado' } : c)))
     const supabase = createClient()
-    const { error } = await supabase.from('contracts').update({ status: 'enviado' }).eq('id', id)
+    const { error } = await supabase.from('contracts').update({ status: 'enviado' }).eq('id', id).eq('tenant_id', tenantId)
     if (error) {
       toast.error('No se pudo marcar como enviado')
       load()
@@ -95,6 +97,7 @@ export default function ContratosPage() {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     const { error } = await supabase.from('contracts').insert({
+      tenant_id: tenantId,
       contact_id: nc.contact_id || null,
       title: nc.title.trim(),
       url: nc.url || null,

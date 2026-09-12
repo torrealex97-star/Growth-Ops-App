@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
+import { useTenantId } from '@/lib/tenant-context'
 
 const STATUSES = [
   { value: 'agendado', label: 'Agendado' },
@@ -47,6 +48,7 @@ type DbUser = { id: string; full_name: string }
 type DbContact = { id: string; full_name: string }
 
 export default function CsmEventsPage() {
+  const tenantId = useTenantId()
   const [items, setItems] = useState<CsmEventRow[]>([])
   const [contacts, setContacts] = useState<DbContact[]>([])
   const [csmUsers, setCsmUsers] = useState<DbUser[]>([])
@@ -80,15 +82,15 @@ export default function CsmEventsPage() {
   const load = async () => {
     const supabase = createClient()
     const [eRes, uRes] = await Promise.all([
-      supabase.from('csm_events').select('*, contacts(full_name), csm:csm_id(full_name)').order('event_datetime', { ascending: false }),
+      supabase.from('csm_events').select('*, contacts(full_name), csm:csm_id(full_name)').eq('tenant_id', tenantId).order('event_datetime', { ascending: false }),
       supabase.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
     ])
     setItems((eRes.data as CsmEventRow[]) || [])
     setCsmUsers((uRes.data as DbUser[]) || [])
 
-    let { data: cData } = await supabase.from('contacts').select('id, full_name').eq('lead_status', 'cliente').order('full_name')
+    let { data: cData } = await supabase.from('contacts').select('id, full_name').eq('tenant_id', tenantId).eq('lead_status', 'cliente').order('full_name')
     if (!cData || cData.length === 0) {
-      const fallback = await supabase.from('contacts').select('id, full_name').order('full_name').limit(200)
+      const fallback = await supabase.from('contacts').select('id, full_name').eq('tenant_id', tenantId).order('full_name').limit(200)
       cData = fallback.data
     }
     setContacts((cData as DbContact[]) || [])
@@ -100,7 +102,7 @@ export default function CsmEventsPage() {
   const move = async (id: string, status: string) => {
     setItems((prev) => prev.map((e) => (e.id === id ? { ...e, status } : e)))
     const supabase = createClient()
-    const { error } = await supabase.from('csm_events').update({ status }).eq('id', id)
+    const { error } = await supabase.from('csm_events').update({ status }).eq('id', id).eq('tenant_id', tenantId)
     if (error) toast.error('No se pudo mover')
   }
 
@@ -110,6 +112,7 @@ export default function CsmEventsPage() {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     const { error } = await supabase.from('csm_events').insert({
+      tenant_id: tenantId,
       contact_id: ne.contact_id,
       csm_id: ne.csm_id || null,
       type: ne.type,

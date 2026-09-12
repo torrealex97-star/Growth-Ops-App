@@ -6,7 +6,6 @@ import { youtubeId, type TestimonioPatch } from "./testimonios-shared"
 const TEXT_FIELDS = ["avatar", "sector", "hook", "puntoA", "puntoB", "vehiculo", "cifra"] as const
 const BOOL_FIELDS = ["hasRevenue", "consent", "active"] as const
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 export function parseTestimonioBody(
   body: any
 ): { patch: TestimonioPatch } | { error: string } {

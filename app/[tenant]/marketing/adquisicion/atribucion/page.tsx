@@ -10,7 +10,7 @@ import { getPeriodRange, type PeriodPreset } from '@/lib/filters/period'
 import { isPaidSource } from '@/lib/ads/funnel'
 import { QUALIFICATION_KEYS, labelFor, type QualificationAnswer } from '@/lib/qualification'
 import { countryISOForPhone, countryNameForISO } from '@/lib/phone'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { normalizeText } from '@/components/ui/search-box'
 
 type FunnelRow = { source: string; leads: number; appointments: number; sales: number; gross: number }
@@ -132,6 +132,7 @@ function BarList({
 
 export default function AttributionPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<FunnelRow[]>([])
   const [loadingTouch, setLoadingTouch] = useState(true)
@@ -169,6 +170,7 @@ export default function AttributionPage() {
           .select(
             'contact_id, source, first_utm_source, first_utm_campaign, last_utm_source, last_utm_campaign, first_touch_at, last_touch_at, contacts(full_name, phone)'
           )
+          .eq('tenant_id', tenantId)
           .order('last_touch_at', { ascending: false })
           .limit(300),
       ])
@@ -215,6 +217,7 @@ export default function AttributionPage() {
       let q = supabase
         .from('appointments')
         .select('id, source, utm_source, utm_campaign, appointment_datetime')
+        .eq('tenant_id', tenantId)
         .order('appointment_datetime', { ascending: false })
       if (rangeFrom) q = q.gte('appointment_datetime', `${rangeFrom}T00:00:00`)
       if (rangeTo) q = q.lte('appointment_datetime', `${rangeTo}T23:59:59`)
@@ -243,6 +246,7 @@ export default function AttributionPage() {
       const { data } = await supabase
         .from('contacts')
         .select('id, full_name, qualification, qualification_updated_at, contact_attributions(source, utm_campaign, is_primary)')
+        .eq('tenant_id', tenantId)
         .not('qualification', 'is', null)
         .order('qualification_updated_at', { ascending: false })
         .limit(500)

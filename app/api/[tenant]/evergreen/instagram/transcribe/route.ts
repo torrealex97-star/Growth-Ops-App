@@ -15,7 +15,6 @@ const VIDEO_BUCKET = 'ig-competitor-reels'
 // que deje de depender de la URL firmada de Meta (caduca / cae fuera de la
 // ventana de los 50 posts más recientes). Best-effort: si falla, no rompe la
 // transcripción, solo no queda protegido para el futuro.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function persistToStorage(sb: any, table: string, rowId: string, buf: Buffer, mime: string): Promise<string | null> {
   try {
     const ext = mime.includes('mp4') || mime.includes('video') ? 'mp4' : 'bin'

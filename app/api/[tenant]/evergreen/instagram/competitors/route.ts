@@ -11,7 +11,6 @@ const VIDEO_BUCKET = 'ig-competitor-reels'
 // pública. Así este reel concreto (añadido a mano por su enlace) no depende de
 // la URL firmada de Meta ni de seguir estando entre los 50 más recientes.
 // Best-effort: si falla, se sigue usando la media_url de Meta tal cual.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function persistReelVideo(sb: any, mediaUrl: string | null | undefined, competitorMediaExternalId: string): Promise<string | null> {
   if (!mediaUrl) return null
   try {

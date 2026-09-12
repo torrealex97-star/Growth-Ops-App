@@ -13,6 +13,7 @@ import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/perio
 import type { Target } from '@/lib/types/database'
 import { CONTACTED_LEAD_STATUSES } from '@/lib/lead-status'
 import { isAttended } from '@/lib/appointments/status'
+import { useTenantId } from '@/lib/tenant-context'
 
 type ContactRow = {
   id: string
@@ -142,6 +143,7 @@ function KPICardSimple({
 }
 
 export default function PipelinePage() {
+  const tenantId = useTenantId()
   const [loading, setLoading] = useState(true)
   const [contacts, setContacts] = useState<ContactRow[]>([])
   const [appointments, setAppointments] = useState<PipelineAppointmentRow[]>([])
@@ -160,13 +162,13 @@ export default function PipelinePage() {
     async function load() {
       const supabase = createClient()
       const [contactsRes, apptRes, salesRes, collectionsRes, usersRes, usersRolesRes, targetsRes] = await Promise.all([
-        supabase.from('contacts').select('id, created_at, first_contact_at, lead_status'),
-        supabase.from('appointments').select('id, status, result, offered, setter_id, closer_id, triager_id, cold_caller_id, appointment_datetime, contact_id'),
-        supabase.from('sales').select('id, gross_amount, status, sale_date, closer_id, setter_id, contact_id'),
-        supabase.from('collections').select('sale_id, gross_amount, collected_at, status'),
+        supabase.from('contacts').select('id, created_at, first_contact_at, lead_status').eq('tenant_id', tenantId),
+        supabase.from('appointments').select('id, status, result, offered, setter_id, closer_id, triager_id, cold_caller_id, appointment_datetime, contact_id').eq('tenant_id', tenantId),
+        supabase.from('sales').select('id, gross_amount, status, sale_date, closer_id, setter_id, contact_id').eq('tenant_id', tenantId),
+        supabase.from('collections').select('sale_id, gross_amount, collected_at, status').eq('tenant_id', tenantId),
         supabase.from('users').select('id, full_name').eq('is_active', true),
         supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
-        supabase.from('targets').select('*').eq('is_active', true),
+        supabase.from('targets').select('*').eq('tenant_id', tenantId).eq('is_active', true),
       ])
       if (!mounted) return
       setContacts(contactsRes.data || [])

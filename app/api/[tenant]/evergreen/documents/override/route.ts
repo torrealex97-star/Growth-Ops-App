@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
 
-const supabase = createClient(
+const serviceClient = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
 // Helper: obtener el rol del usuario autenticado
-async function getUserRole(userId: string): Promise<string | null> {
+async function getUserRole(supabase: ReturnType<typeof serviceClient>, userId: string): Promise<string | null> {
   const { data } = await supabase
     .from('users')
     .select('role_id')
@@ -36,6 +36,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const { tenant } = await params
     const t = await requireTenant(tenant)
     if ('error' in t) return t.error
+    const supabase = serviceClient()
 
     const data = await req.json()
     const { saleId, reason } = data
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
 
     // Validar permisos: solo admin, director, closer
-    const userRole = await getUserRole(userId)
+    const userRole = await getUserRole(supabase, userId)
     const allowedRoles = ['admin', 'director', 'closer']
 
     if (!userRole || !allowedRoles.includes(userRole)) {

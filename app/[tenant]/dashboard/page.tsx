@@ -26,7 +26,7 @@ import {
 } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
 import type { SavedDashboardView } from '@/lib/types/database'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 const SalesChart = dynamic(
   () => import('@/components/os/SalesChart').then(m => ({ default: m.SalesChart })),
@@ -71,6 +71,7 @@ const FILTER_ROLES = [
 
 export default function DashboardPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [loading, setLoading] = useState(true)
   const [userName, setUserName] = useState('')
   const [userId, setUserId] = useState<string | null>(null)
@@ -143,17 +144,17 @@ export default function DashboardPage() {
       }
 
       const [salesRes, collRes, usersRes, roleUsersRes, contactsRes, attrRes, apptRes, targetsRes, viewsRes, commRes] = await Promise.all([
-        supabase.from('sales').select('id, gross_amount, status, sale_date, closer_id, setter_id, affiliate_id, contact_id'),
-        supabase.from('collections').select('sale_id, gross_amount, collected_at, status'),
+        supabase.from('sales').select('id, gross_amount, status, sale_date, closer_id, setter_id, affiliate_id, contact_id').eq('tenant_id', tenantId),
+        supabase.from('collections').select('sale_id, gross_amount, collected_at, status').eq('tenant_id', tenantId),
         supabase.from('users').select('id, full_name'),
         supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
-        supabase.from('contacts').select('id'),
-        supabase.from('contact_attributions').select('contact_id, source, utm_source, utm_campaign, utm_content, is_primary'),
-        supabase.from('appointments').select('appointment_datetime, status, setter_id, closer_id, cold_caller_id, affiliate_id'),
+        supabase.from('contacts').select('id').eq('tenant_id', tenantId),
+        supabase.from('contact_attributions').select('contact_id, source, utm_source, utm_campaign, utm_content, is_primary').eq('tenant_id', tenantId),
+        supabase.from('appointments').select('appointment_datetime, status, setter_id, closer_id, cold_caller_id, affiliate_id').eq('tenant_id', tenantId),
         supabase.from('targets').select('id, name, metric_key, scope_type, scope_user_id, period_type, period_start, period_end, target_value')
-          .eq('is_active', true).eq('scope_type', 'company'),
-        supabase.from('saved_dashboard_views').select('*').or(`user_id.eq.${user.id},scope.eq.shared`),
-        supabase.from('commissions').select('user_id, sale_id, commission_amount, direction, status'),
+          .eq('tenant_id', tenantId).eq('is_active', true).eq('scope_type', 'company'),
+        supabase.from('saved_dashboard_views').select('*').eq('tenant_id', tenantId).or(`user_id.eq.${user.id},scope.eq.shared`),
+        supabase.from('commissions').select('user_id, sale_id, commission_amount, direction, status').eq('tenant_id', tenantId),
       ])
 
       if (!mounted) return
@@ -324,7 +325,7 @@ export default function DashboardPage() {
       const supabase = createClient()
       const { data, error } = await supabase
         .from('saved_dashboard_views')
-        .insert({ user_id: userId, name: name.trim(), scope: 'private', filters: currentFilters, widgets: {} })
+        .insert({ tenant_id: tenantId, user_id: userId, name: name.trim(), scope: 'private', filters: currentFilters, widgets: {} })
         .select()
         .single()
       if (!error && data) {
@@ -342,7 +343,7 @@ export default function DashboardPage() {
     if (!view || view.user_id !== userId) return
     if (!window.confirm(`¿Borrar la vista "${view.name}"?`)) return
     const supabase = createClient()
-    const { error } = await supabase.from('saved_dashboard_views').delete().eq('id', selectedViewId)
+    const { error } = await supabase.from('saved_dashboard_views').delete().eq('id', selectedViewId).eq('tenant_id', tenantId)
     if (!error) {
       setSavedViews((prev) => prev.filter((v) => v.id !== selectedViewId))
       setSelectedViewId('')

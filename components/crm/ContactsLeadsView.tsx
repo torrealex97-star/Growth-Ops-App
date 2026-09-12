@@ -9,7 +9,7 @@ import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-b
 import { ContactForm, type ContactFormData } from '@/components/contacts/ContactForm'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { LEAD_STATUSES, leadStatusMeta, type LeadStatus } from '@/lib/lead-status'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 type Channel = 'whatsapp' | 'llamada' | 'email' | 'otro' | ''
 type SetSource = 'closer' | 'setter' | 'cold_caller' | 'affiliate' | null
@@ -135,6 +135,7 @@ const COLS_STORAGE_KEY = 'leads_cols'
 
 export function ContactsLeadsView() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [leads, setLeads] = useState<LeadRow[]>([])
   const [appts, setAppts] = useState<ApptLite[]>([])
   const [loading, setLoading] = useState(true)
@@ -180,8 +181,9 @@ export function ContactsLeadsView() {
           contact_attributions(source, utm_source, utm_medium, utm_campaign, utm_content, utm_term, is_primary, first_utm_source, first_utm_medium, first_utm_campaign, first_utm_content, first_utm_term, last_utm_source, last_utm_medium, last_utm_campaign, last_utm_content, last_utm_term),
           contact_notes(note, created_at)
         `)
+        .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false }),
-      supabase.from('appointments').select('contact_id, appointment_datetime, created_at, status'),
+      supabase.from('appointments').select('contact_id, appointment_datetime, created_at, status').eq('tenant_id', tenantId),
     ])
     // Sin esto, un fallo de RLS en contacts/appointments dejaba el tablón de Leads vacío en
     // silencio, indistinguible de "no hay leads todavía".
@@ -248,6 +250,7 @@ export function ContactsLeadsView() {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     const { error } = await supabase.from('contact_notes').insert({
+      tenant_id: tenantId,
       contact_id: id,
       author_id: user?.id ?? null,
       note,

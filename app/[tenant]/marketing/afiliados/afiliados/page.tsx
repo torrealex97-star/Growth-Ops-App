@@ -9,6 +9,7 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { getPeriodRange, inPeriod, PERIOD_LABELS, type PeriodPreset } from '@/lib/filters/period'
+import { useTenantId } from '@/lib/tenant-context'
 
 // --- Tipos ---
 type UserRow = {
@@ -65,6 +66,7 @@ function saleStatusBadge(status: string) {
 }
 
 export default function AfiliadosPage() {
+  const tenantId = useTenantId()
   const [loading, setLoading] = useState(true)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [currentRole, setCurrentRole] = useState<AppRole | ''>('')
@@ -113,20 +115,30 @@ export default function AfiliadosPage() {
       setCurrentRole(role)
       setCurrentAffiliateCode(meRow?.affiliate_code ?? null)
 
+      const { data: memberships } = await supabase
+        .from('tenant_members')
+        .select('user_id')
+        .eq('tenant_id', tenantId)
+      const memberIds = (memberships || []).map((membership) => membership.user_id)
+
       const [affRes, attrRes, salesRes, collRes] = await Promise.all([
         supabase
           .from('users')
           .select('id, full_name, affiliate_code, default_affiliate_commission_percent, roles!inner(key)')
+          .in('id', memberIds.length > 0 ? memberIds : ['00000000-0000-0000-0000-000000000000'])
           .eq('roles.key', 'affiliate'),
         supabase
           .from('contact_attributions')
-          .select('contact_id, utm_content_first, utm_content_last'),
+          .select('contact_id, utm_content_first, utm_content_last')
+          .eq('tenant_id', tenantId),
         supabase
           .from('sales')
-          .select('id, contact_id, gross_amount, status, sale_date'),
+          .select('id, contact_id, gross_amount, status, sale_date')
+          .eq('tenant_id', tenantId),
         supabase
           .from('collections')
-          .select('sale_id, gross_amount, status, collected_at'),
+          .select('sale_id, gross_amount, status, collected_at')
+          .eq('tenant_id', tenantId),
       ])
 
       if (!mounted) return

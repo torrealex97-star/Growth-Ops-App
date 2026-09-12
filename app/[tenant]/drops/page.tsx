@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { getCustomDateRange } from '@/lib/filters/period'
+import { useTenantId } from '@/lib/tenant-context'
 
 type PeriodPreset = 'all' | 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom'
 
@@ -157,6 +158,7 @@ type DropRow = {
 }
 
 export default function DropsPage() {
+  const tenantId = useTenantId()
   const [items, setItems] = useState<DropRow[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [users, setUsers] = useState<DbUser[]>([])
@@ -182,8 +184,8 @@ export default function DropsPage() {
   const load = async () => {
     const supabase = createClient()
     const [dRes, cRes, uRes] = await Promise.all([
-      supabase.from('drops').select('*, contacts(full_name), handler:handled_by(full_name)').order('created_at', { ascending: false }),
-      supabase.from('contacts').select('id, full_name').order('full_name').limit(300),
+      supabase.from('drops').select('*, contacts(full_name), handler:handled_by(full_name)').eq('tenant_id', tenantId).order('created_at', { ascending: false }),
+      supabase.from('contacts').select('id, full_name').eq('tenant_id', tenantId).order('full_name').limit(300),
       supabase.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
     ])
     setItems((dRes.data as DropRow[]) || [])
@@ -265,7 +267,7 @@ export default function DropsPage() {
   const updateResult = async (id: string, result: string) => {
     setItems((prev) => prev.map((d) => (d.id === id ? { ...d, result } : d)))
     const supabase = createClient()
-    const { error } = await supabase.from('drops').update({ result }).eq('id', id)
+    const { error } = await supabase.from('drops').update({ result }).eq('id', id).eq('tenant_id', tenantId)
     if (error) toast.error('No se pudo actualizar el resultado')
   }
 
@@ -274,6 +276,7 @@ export default function DropsPage() {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     const { error } = await supabase.from('drops').insert({
+      tenant_id: tenantId,
       contact_id: nd.contact_id,
       reason: nd.reason,
       type: nd.type,

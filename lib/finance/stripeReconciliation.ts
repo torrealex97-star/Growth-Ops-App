@@ -60,6 +60,7 @@ export async function reconcileStripePayments(
       ...(stripeAccountId ? { 'Stripe-Account': stripeAccountId } : {}),
     },
     cache: 'no-store',
+    signal: AbortSignal.timeout(15_000),
   })
   const stripeJson = (await stripeRes.json().catch(() => ({}))) as { data?: StripeIntent[]; error?: { message?: string } }
   if (!stripeRes.ok) {

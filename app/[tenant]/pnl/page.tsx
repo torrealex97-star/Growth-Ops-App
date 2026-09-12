@@ -14,6 +14,7 @@ import {
 import { lastNMonths, monthLabel } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
 import { computeMonthlyPnl } from '@/lib/finance/pnl'
+import { useTenantId } from '@/lib/tenant-context'
 
 type SaleRow = { gross_amount: number | string; discount: number | string | null; status: string; sale_date: string | null }
 type CollectionRow = { id: string; gross_amount: number | string; processing_fee: number | string | null; collected_at: string | null; status: string }
@@ -78,6 +79,7 @@ function PctLine({ label, value }: { label: string; value: string }) {
 // - Pre-Tax Profit = Net Revenue − COGS − Total OpEx (ya parte de un revenue neto de devoluciones,
 //   por lo que Refunds NO vuelve a restarse en OpEx ni en ningún otro punto de este cálculo).
 export default function PnlPage() {
+  const tenantId = useTenantId()
   const [loading, setLoading] = useState(true)
   const [ym, setYm] = useState(nowYm())
   const [sales, setSales] = useState<SaleRow[]>([])
@@ -95,12 +97,12 @@ export default function PnlPage() {
       setLoading(true)
       const supabase = createClient()
       const [salesRes, collRes, refundsRes, expensesRes, commissionsRes, partnersRes] = await Promise.all([
-        supabase.from('sales').select('gross_amount, discount, status, sale_date'),
-        supabase.from('collections').select('id, gross_amount, processing_fee, collected_at, status'),
-        supabase.from('refunds').select('gross_refund_amount, refund_date, status'),
-        supabase.from('expenses').select('amount, category, expense_date, status'),
-        supabase.from('commissions').select('commission_amount, direction, collection_id, liquidation_month, status'),
-        supabase.from('partners').select('*').eq('is_active', true),
+        supabase.from('sales').select('gross_amount, discount, status, sale_date').eq('tenant_id', tenantId),
+        supabase.from('collections').select('id, gross_amount, processing_fee, collected_at, status').eq('tenant_id', tenantId),
+        supabase.from('refunds').select('gross_refund_amount, refund_date, status').eq('tenant_id', tenantId),
+        supabase.from('expenses').select('amount, category, expense_date, status').eq('tenant_id', tenantId),
+        supabase.from('commissions').select('commission_amount, direction, collection_id, liquidation_month, status').eq('tenant_id', tenantId),
+        supabase.from('partners').select('*').eq('tenant_id', tenantId).eq('is_active', true),
       ])
       if (!mounted) return
       setSales(salesRes.data || [])

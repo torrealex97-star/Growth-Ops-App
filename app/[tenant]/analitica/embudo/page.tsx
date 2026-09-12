@@ -14,6 +14,7 @@ import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/perio
 import { originLabel } from '@/lib/ads/funnel'
 import { isAttended } from '@/lib/appointments/status'
 import { countryISOForPhone, regionForISO } from '@/lib/phone'
+import { useTenantId } from '@/lib/tenant-context'
 
 type MetricsAppointmentRow = {
   id: string
@@ -128,6 +129,7 @@ function FunnelStep({
 }
 
 export default function VentasMetricasPage() {
+  const tenantId = useTenantId()
   const [loading, setLoading] = useState(true)
   const [appointments, setAppointments] = useState<MetricsAppointmentRow[]>([])
   const [sales, setSales] = useState<MetricsSaleRow[]>([])
@@ -150,11 +152,11 @@ export default function VentasMetricasPage() {
       const [apptRes, salesRes, collRes, usersRes, contactsRes, authRes] = await Promise.all([
         supabase.from('appointments').select(
           'id, status, event_type, offered, result, pipe_value, appointment_datetime, setter_id, closer_id, needs_followup, utm_source, utm_term, contact_id'
-        ),
-        supabase.from('sales').select('id, gross_amount, status, sale_date, closer_id, setter_id, appointment_id'),
-        supabase.from('collections').select('gross_amount, commissionable_amount, collected_at'),
+        ).eq('tenant_id', tenantId),
+        supabase.from('sales').select('id, gross_amount, status, sale_date, closer_id, setter_id, appointment_id').eq('tenant_id', tenantId),
+        supabase.from('collections').select('gross_amount, commissionable_amount, collected_at').eq('tenant_id', tenantId),
         supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
-        supabase.from('contacts').select('id, phone'),
+        supabase.from('contacts').select('id, phone').eq('tenant_id', tenantId),
         supabase.auth.getUser(),
       ])
       if (!mounted) return

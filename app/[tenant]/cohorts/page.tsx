@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { CalendarRange } from 'lucide-react'
 import { monthLabel } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
+import { useTenantId } from '@/lib/tenant-context'
 
 type SaleRow = { id: string; sale_date: string | null; gross_amount: number | string; status: string }
 type CollectionRow = { sale_id: string; gross_amount: number | string; collected_at: string | null; status: string }
@@ -70,6 +71,7 @@ function pctColor(pct: number): string {
 }
 
 export default function CohortsPage() {
+  const tenantId = useTenantId()
   const [loading, setLoading] = useState(true)
   const [sales, setSales] = useState<SaleRow[]>([])
   const [collections, setCollections] = useState<CollectionRow[]>([])
@@ -79,8 +81,8 @@ export default function CohortsPage() {
     async function load() {
       const supabase = createClient()
       const [salesRes, collRes] = await Promise.all([
-        supabase.from('sales').select('id, sale_date, gross_amount, status'),
-        supabase.from('collections').select('sale_id, gross_amount, collected_at, status'),
+        supabase.from('sales').select('id, sale_date, gross_amount, status').eq('tenant_id', tenantId),
+        supabase.from('collections').select('sale_id, gross_amount, collected_at, status').eq('tenant_id', tenantId),
       ])
       if (!mounted) return
       setSales(salesRes.data || [])

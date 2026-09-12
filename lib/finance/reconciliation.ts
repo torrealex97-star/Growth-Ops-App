@@ -5,6 +5,8 @@
 // en una sola vista.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { reconcileStripePayments } from './stripeReconciliation'
+import { amountsDiffer } from './amounts'
+export { amountsDiffer } from './amounts'
 
 export type ConciliacionPlatform = 'stripe' | 'sequra' | 'transferencia' | 'bizum' | 'paypal' | 'otro'
 export type ConciliacionStatus = 'conciliado' | 'descuadre' | 'pendiente'
@@ -98,7 +100,7 @@ export async function buildConciliacion(
         // Devolución en Stripe sin reflejar en Devoluciones internas.
         if (r.providerStatus === 'refunded') {
           const saleRefunds = r.saleId ? refundsBySale.get(r.saleId) || [] : []
-          const hasRefund = saleRefunds.some((rf) => Math.abs(num(rf.gross_refund_amount) - r.refundedAmount) < 0.5)
+          const hasRefund = saleRefunds.some((rf) => !amountsDiffer(num(rf.gross_refund_amount), r.refundedAmount))
           if (!hasRefund) {
             status = 'descuadre'
             detail = 'Devolución en Stripe no reflejada en Devoluciones'
@@ -109,9 +111,9 @@ export async function buildConciliacion(
         // descuadres por redondeo entre céntimos de Stripe y el processing_fee introducido a mano.
         if (status === 'conciliado' && r.platformFee != null && r.platformFee > 0.01) {
           const registered = r.internalProcessingFee ?? 0
-          if (registered < r.platformFee - 0.05) {
+          if (amountsDiffer(registered, r.platformFee)) {
             status = 'descuadre'
-            detail = `Comisión de pasarela no registrada (Stripe: ${r.platformFee.toFixed(2)} € · interno: ${registered.toFixed(2)} €)`
+            detail = `Comisión de pasarela distinta (Stripe: ${r.platformFee.toFixed(2)} € · interno: ${registered.toFixed(2)} €)`
           }
         }
         rows.push({
@@ -174,10 +176,10 @@ export async function buildConciliacion(
         saleId: c.sale_id,
         collectionId: c.id,
         internalAmount: num(c.gross_amount),
-        status: hasOpenDebt ? 'descuadre' : 'conciliado',
+        status: hasOpenDebt ? 'descuadre' : 'pendiente',
         detail: hasOpenDebt
           ? `seQura reporta deuda pendiente (${delinquent!.debt.toFixed(2)} €) para este cliente`
-          : 'Sin deuda vencida reportada por seQura',
+          : 'Sin deuda vencida; falta una transacción de seQura para cotejar el pago',
       })
     }
   }
@@ -194,12 +196,13 @@ export async function buildConciliacion(
   for (const [method, cols] of Array.from(manualCollectionsByMethod.entries())) {
     const candidates = (manualRecords || []).filter((m) => m.platform === method)
     for (const c of cols) {
-      const match = candidates.find(
-        (m) =>
-          !usedRecordIds.has(m.id) &&
-          Math.abs(num(m.amount) - num(c.gross_amount)) < 0.01 &&
-          (!c.collected_at || daysBetween(m.transacted_at, c.collected_at) <= 3)
-      )
+      const match = candidates.find((m) => !usedRecordIds.has(m.id) && m.matched_collection_id === c.id)
+        ?? candidates.find(
+          (m) =>
+            !usedRecordIds.has(m.id) &&
+            Math.abs(num(m.amount) - num(c.gross_amount)) < 0.01 &&
+            (!c.collected_at || daysBetween(m.transacted_at, c.collected_at) <= 3)
+        )
       if (match) usedRecordIds.add(match.id)
       rows.push({
         id: `manual_${c.id}`,

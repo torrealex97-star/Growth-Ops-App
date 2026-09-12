@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Activity, CalendarCheck, Trophy, StickyNote, PhoneCall } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 // Timeline unificado de actividad por comercial. La tabla `activities` (llamadas registradas
 // manualmente) casi no se usa todavía, así que el feed se construye también con eventos reales que
@@ -34,6 +34,7 @@ type PersonRow = { id: string; full_name: string }
 
 export default function ActividadPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [loading, setLoading] = useState(true)
   const [people, setPeople] = useState<PersonRow[]>([])
   const [personId, setPersonId] = useState<string>('all')
@@ -48,21 +49,25 @@ export default function ActividadPage() {
         supabase
           .from('appointments')
           .select('id, appointment_datetime, status, setter_id, closer_id, contact_id, contacts(full_name)')
+          .eq('tenant_id', tenantId)
           .order('appointment_datetime', { ascending: false })
           .limit(500),
         supabase
           .from('sales')
           .select('id, sale_date, gross_amount, closer_id, setter_id, contact_id, status, contacts(full_name)')
+          .eq('tenant_id', tenantId)
           .order('sale_date', { ascending: false })
           .limit(500),
         supabase
           .from('contact_notes')
           .select('id, created_at, note, author_id, contact_id, contacts(full_name)')
+          .eq('tenant_id', tenantId)
           .order('created_at', { ascending: false })
           .limit(500),
         supabase
           .from('activities')
           .select('id, activity_datetime, type, result, notes, person_id, contact_id, contacts(full_name)')
+          .eq('tenant_id', tenantId)
           .order('activity_datetime', { ascending: false })
           .limit(500),
       ])

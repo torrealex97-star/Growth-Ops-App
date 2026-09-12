@@ -8,7 +8,7 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 type EngagementScore = 'bajo' | 'medio' | 'alto'
 type PromiseFulfilled = 'si' | 'no' | 'en_proceso'
@@ -174,6 +174,7 @@ function TrackDot({ on, label }: { on: boolean; label: string }) {
 
 export default function StudentsPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [rows, setRows] = useState<StudentRow[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<EngagementScore | 'all'>('all')
@@ -198,10 +199,12 @@ export default function StudentsPage() {
         supabase
           .from('sales')
           .select('id, sale_date, gross_amount, onboarding_date, onboarding_scheduled_at, onboarding_session_at, first_coaching_date, graduation_date, status, course_access_granted_at, course_access_revoked_at, contacts(id, full_name, email, engagement_score, ttfv_date, nps, promise_fulfilled), products(name, duration_months), payment_plans(method, name)')
+          .eq('tenant_id', tenantId)
           .order('sale_date', { ascending: false }),
         supabase
           .from('contracts')
           .select('sale_id, contact_id, accesos_enviados_at, accesos_abiertos_at, signed_at, signed_pdf_url')
+          .eq('tenant_id', tenantId)
           .eq('kind', 'venta')
           .neq('contract_party', 'tomador')
           .eq('is_reservation', false),

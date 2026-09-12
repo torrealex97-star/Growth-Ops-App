@@ -6,7 +6,7 @@ import { Clapperboard, Plus, X, ExternalLink, LayoutGrid, Table2, Maximize2, Sli
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { testimonioPitch, type Testimonio } from '@/lib/testimonios-shared'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 const STATUSES = [
   { value: 'idea', label: 'Idea' },
@@ -86,6 +86,7 @@ const statusIndex = (s: string) => {
 
 export default function ContentPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [items, setItems] = useState<Content[]>([])
   const [users, setUsers] = useState<DbUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -109,7 +110,7 @@ export default function ContentPage() {
   const load = async () => {
     const supabase = createClient()
     const [cRes, uRes, authRes] = await Promise.all([
-      supabase.from('content_items').select('*, assignee:assigned_to(full_name)').order('created_at', { ascending: false }),
+      supabase.from('content_items').select('*, assignee:assigned_to(full_name)').eq('tenant_id', tenantId).order('created_at', { ascending: false }),
       supabase.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
       supabase.auth.getUser(),
     ])
@@ -196,7 +197,7 @@ export default function ContentPage() {
   }
   const persist = async (id: string, field: keyof Content, value: string | number | null) => {
     const supabase = createClient()
-    const { error } = await supabase.from('content_items').update({ [field]: value }).eq('id', id)
+    const { error } = await supabase.from('content_items').update({ [field]: value }).eq('id', id).eq('tenant_id', tenantId)
     if (error) toast.error('No se pudo guardar', { description: error.message })
   }
 
@@ -215,8 +216,8 @@ export default function ContentPage() {
     }))
     const supabase = createClient()
     const [r1, r2] = await Promise.all([
-      supabase.from('content_items').update({ sort_order: bOrder }).eq('id', a.id),
-      supabase.from('content_items').update({ sort_order: aOrder }).eq('id', b.id),
+      supabase.from('content_items').update({ sort_order: bOrder }).eq('id', a.id).eq('tenant_id', tenantId),
+      supabase.from('content_items').update({ sort_order: aOrder }).eq('id', b.id).eq('tenant_id', tenantId),
     ])
     if (r1.error || r2.error) toast.error('No se pudo reordenar', { description: r1.error?.message || r2.error?.message })
   }
@@ -230,6 +231,7 @@ export default function ContentPage() {
     // base de datos y la pieza no llegaba a la tabla.
     const assignedTo = myRole === 'editor' ? myId : nc.assigned_to || null
     const { error } = await supabase.from('content_items').insert({
+      tenant_id: tenantId,
       title: nc.title.trim(), content_type: nc.content_type, link_url: nc.link_url || null,
       publish_date: nc.publish_date || null, assigned_to: assignedTo, notes: nc.notes || null,
       status: 'idea', created_by: user?.id,

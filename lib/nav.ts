@@ -40,6 +40,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Cohortes', href: '/cohorts', icon: CalendarRange, roles: LEAD },
       { label: 'I&G (P&L)', href: '/pnl', icon: Receipt, roles: [...LEAD, 'gestoria'] },
+      { label: 'Contratos de equipo', href: '/direccion/contratos-equipo', icon: Shield, roles: LEAD },
     ],
   },
   {
@@ -123,11 +124,16 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     dept: 'producto',
     items: [
-      { label: 'Alumnos', href: '/students', icon: GraduationCap, roles: [...LEAD, 'csm'] },
-      { label: 'Eventos CSM', href: '/csm-events', icon: CalendarCheck, roles: [...LEAD, 'csm'] },
-      { label: 'Cancelaciones', href: '/drops', icon: UserMinus, roles: [...LEAD, 'csm'] },
-      { label: 'Contratos de alumnos', href: '/contratos', icon: FileText, roles: [...LEAD, 'csm', 'gestoria'] },
-      { label: 'Contratos de equipo', href: '/contratos/equipo', icon: Shield, roles: LEAD },
+      {
+        label: 'Alumnos', href: '/alumnos', icon: GraduationCap,
+        roles: [...LEAD, 'csm', 'gestoria'],
+        children: [
+          { label: 'Journey', href: '/alumnos/journey', icon: GraduationCap, roles: [...LEAD, 'csm'] },
+          { label: 'Soporte', href: '/alumnos/soporte', icon: CalendarCheck, roles: [...LEAD, 'csm'] },
+          { label: 'Cancelaciones', href: '/alumnos/cancelaciones', icon: UserMinus, roles: [...LEAD, 'csm'] },
+          { label: 'Contratos', href: '/alumnos/contratos', icon: FileText, roles: [...LEAD, 'csm', 'gestoria'] },
+        ],
+      },
     ],
   },
   {
