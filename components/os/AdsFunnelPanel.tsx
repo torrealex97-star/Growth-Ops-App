@@ -24,14 +24,35 @@ const fmtPct = (n: number | null) => (n === null ? '—' : `${n.toFixed(1)}%`)
 // Nombre corto de campaña para los ejes de los gráficos.
 const short = (name: string) => (name.length > 18 ? `${name.slice(0, 17)}…` : name)
 
-type Cell = { label: string; value: string; hint?: string; strong?: boolean }
+type AlertState = 'ok' | 'warn' | 'bad' | null
+type Cell = { label: string; value: string; hint?: string; strong?: boolean; alert?: AlertState }
+
+// Borde/punto de color según si el KPI cumple el objetivo configurado (Settings → Campañas).
+// Sin objetivo fijado, `alert` viene null y la tarjeta no cambia de aspecto — nunca inventamos
+// un umbral por defecto, porque "sin objetivo" y "objetivo cumplido" no son lo mismo.
+const alertRing: Record<'ok' | 'warn' | 'bad', string> = {
+  ok: 'border-emerald-500/40',
+  warn: 'border-amber-500/40',
+  bad: 'border-red-500/40',
+}
+const alertDot: Record<'ok' | 'warn' | 'bad', string> = {
+  ok: 'bg-emerald-500',
+  warn: 'bg-amber-500',
+  bad: 'bg-red-500',
+}
 
 function MetricGrid({ cells }: { cells: Cell[] }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
       {cells.map((c) => (
-        <div key={c.label} className="bg-card/50 border border-border rounded-lg p-3">
-          <p className="text-[11px] text-muted-foreground leading-tight">{c.label}</p>
+        <div
+          key={c.label}
+          className={`bg-card/50 border rounded-lg p-3 ${c.alert ? alertRing[c.alert] : 'border-border'}`}
+        >
+          <div className="flex items-center gap-1.5">
+            <p className="text-[11px] text-muted-foreground leading-tight">{c.label}</p>
+            {c.alert && <span className={`w-1.5 h-1.5 rounded-full ${alertDot[c.alert]}`} />}
+          </div>
           <p className={`mt-1 font-bold text-foreground ${c.strong ? 'text-lg' : 'text-base'}`}>{c.value}</p>
           {c.hint && <p className="text-[10px] text-muted-foreground mt-0.5">{c.hint}</p>}
         </div>
@@ -69,7 +90,22 @@ const ChartTooltip = ({
   )
 }
 
-export function AdsFunnelPanel({ campaigns }: { campaigns: Campaign[] }) {
+export type CampaignTargets = {
+  target_roas: number | null
+  target_cac: number | null
+  target_cpl: number | null
+}
+
+// bad si se aleja del objetivo por más de un 20%, warn si lo incumple pero por poco.
+function targetAlert(value: number | null, target: number | null, direction: 'min' | 'max'): AlertState {
+  if (value === null || target === null || target <= 0) return null
+  const ok = direction === 'min' ? value >= target : value <= target
+  if (ok) return 'ok'
+  const deviation = direction === 'min' ? (target - value) / target : (value - target) / target
+  return deviation > 0.2 ? 'bad' : 'warn'
+}
+
+export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; targets?: CampaignTargets | null }) {
   const f = useMemo(() => computeAdFunnel(campaigns), [campaigns])
   // Solo campañas con algo de dato para los gráficos (evita ruido de vacías).
   const points = useMemo(
@@ -92,7 +128,12 @@ export function AdsFunnelPanel({ campaigns }: { campaigns: Campaign[] }) {
     { label: 'Coste por visita', value: fmtEur(f.costeVisita) },
     { label: '% de carga', value: fmtPct(f.pctCarga), hint: 'Visitas vs clics' },
     { label: 'Leads', value: fmtNum(f.leads), strong: true },
-    { label: 'Coste por lead', value: fmtEur(f.cpl) },
+    {
+      label: 'Coste por lead',
+      value: fmtEur(f.cpl),
+      alert: targetAlert(f.cpl, targets?.target_cpl ?? null, 'max'),
+      hint: targets?.target_cpl ? `Objetivo: ≤ ${fmtEur(targets.target_cpl)}` : undefined,
+    },
     { label: '% de registro', value: fmtPct(f.pctRegistro), hint: 'Leads vs visitas' },
     { label: 'Agendas', value: fmtNum(f.agendas), strong: true },
     { label: 'Coste por agenda', value: fmtEur(f.costeAgenda) },
@@ -101,11 +142,21 @@ export function AdsFunnelPanel({ campaigns }: { campaigns: Campaign[] }) {
     { label: '% de show up', value: fmtPct(f.pctShowUp), hint: 'Llamadas vs agendas' },
     { label: 'Cierres', value: fmtNum(f.cierres), strong: true },
     { label: '% de cierre', value: fmtPct(f.pctCierre), hint: 'Cierres vs llamadas' },
-    { label: 'CPA', value: fmtEur(f.cpa), strong: true, hint: 'Coste por adquisición' },
+    {
+      label: 'CPA',
+      value: fmtEur(f.cpa),
+      strong: true,
+      alert: targetAlert(f.cpa, targets?.target_cac ?? null, 'max'),
+      hint: targets?.target_cac ? `Objetivo (CAC): ≤ ${fmtEur(targets.target_cac)}` : 'Coste por adquisición',
+    },
     {
       label: 'Facturación',
       value: fmtEur(f.facturacion),
-      hint: f.roas !== null ? `ROAS ${f.roas.toFixed(2)}x` : undefined,
+      alert: targetAlert(f.roas, targets?.target_roas ?? null, 'min'),
+      hint:
+        f.roas !== null
+          ? `ROAS ${f.roas.toFixed(2)}x${targets?.target_roas ? ` (objetivo ≥ ${targets.target_roas.toFixed(2)}x)` : ''}`
+          : undefined,
     },
     { label: 'Seguidores', value: fmtNum(f.seguidores), strong: true, hint: 'Conseguidos por los ads' },
     { label: 'Coste/seguidor', value: fmtEur(f.costeSeguidor) },

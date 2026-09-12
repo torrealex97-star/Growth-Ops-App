@@ -8,7 +8,7 @@ import { formatCurrency } from '@/lib/utils'
 import type { Campaign } from '@/lib/types/database'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
-import { AdsFunnelPanel } from '@/components/os/AdsFunnelPanel'
+import { AdsFunnelPanel, type CampaignTargets } from '@/components/os/AdsFunnelPanel'
 import { DailyMetricsPanel } from '@/components/os/DailyMetricsPanel'
 import { AdsTable } from '@/components/os/AdsTable'
 import { MultiSelect } from '@/components/ui/multi-select'
@@ -128,6 +128,10 @@ export default function CampaignsPage() {
   const [view, setView] = useState<'campaigns' | 'ads'>('campaigns')
   const [syncingAds, setSyncingAds] = useState(false)
   const [adsVersion, setAdsVersion] = useState(0)
+  const [targets, setTargets] = useState<CampaignTargets | null>(null)
+  const [showTargets, setShowTargets] = useState(false)
+  const [targetsForm, setTargetsForm] = useState({ target_roas: '', target_cac: '', target_cpl: '' })
+  const [savingTargets, setSavingTargets] = useState(false)
 
   const period = useMemo(() => currentPeriod(), [])
 
@@ -260,6 +264,49 @@ export default function CampaignsPage() {
   useEffect(() => {
     load()
   }, [])
+
+  const loadTargets = async () => {
+    try {
+      const res = await fetch(`/api/${tenant}/evergreen/settings/campaign-targets`)
+      if (!res.ok) return
+      const json = (await res.json()) as CampaignTargets
+      setTargets(json)
+      setTargetsForm({
+        target_roas: json.target_roas?.toString() ?? '',
+        target_cac: json.target_cac?.toString() ?? '',
+        target_cpl: json.target_cpl?.toString() ?? '',
+      })
+    } catch {
+      // Sin objetivos configurados: los KPIs se muestran sin alerta, no es un error.
+    }
+  }
+  useEffect(() => {
+    loadTargets()
+  }, [tenant])
+
+  const saveTargets = async () => {
+    setSavingTargets(true)
+    try {
+      const res = await fetch(`/api/${tenant}/evergreen/settings/campaign-targets`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          target_roas: targetsForm.target_roas || null,
+          target_cac: targetsForm.target_cac || null,
+          target_cpl: targetsForm.target_cpl || null,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Error al guardar objetivos')
+      toast.success('Objetivos actualizados')
+      setShowTargets(false)
+      loadTargets()
+    } catch (e) {
+      toast.error('No se pudieron guardar los objetivos', { description: e instanceof Error ? e.message : undefined })
+    } finally {
+      setSavingTargets(false)
+    }
+  }
 
   useEffect(() => {
     const supabase = createClient()
@@ -557,6 +604,13 @@ export default function CampaignsPage() {
                 <RefreshCw className={`w-4 h-4 ${syncingDaily ? 'animate-spin' : ''}`} />{' '}
                 {syncingDaily ? 'Gasto diario…' : 'Sincronizar gasto diario'}
               </button>
+              <button
+                onClick={() => setShowTargets(true)}
+                title="Fijar objetivos de ROAS/CAC/CPL para las alertas del embudo"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-muted text-foreground hover:bg-muted"
+              >
+                <AlertTriangle className="w-4 h-4" /> Objetivos
+              </button>
             </>
           )}
           <button
@@ -674,7 +728,7 @@ export default function CampaignsPage() {
               </div>
             </div>
 
-            <AdsFunnelPanel campaigns={displayItems} />
+            <AdsFunnelPanel campaigns={displayItems} targets={targets} />
 
             <DailyMetricsPanel from={rangeFrom} to={rangeTo} />
 
@@ -845,6 +899,73 @@ export default function CampaignsPage() {
             </p>
           </>
         ))}
+
+      {showTargets && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setShowTargets(false)}
+        >
+          <div
+            className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-foreground font-semibold">Objetivos de rendimiento</h3>
+              <button onClick={() => setShowTargets(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Se usan para pintar en verde/ámbar/rojo los KPIs del embudo de ads. Deja vacío el que no quieras vigilar.
+            </p>
+            <div>
+              <label className="text-xs text-muted-foreground">ROAS objetivo (mínimo, ej. 3 = 3x)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={targetsForm.target_roas}
+                onChange={(e) => setTargetsForm({ ...targetsForm, target_roas: e.target.value })}
+                placeholder="Sin objetivo"
+                className={cls}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">CAC objetivo (máximo, €)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={targetsForm.target_cac}
+                onChange={(e) => setTargetsForm({ ...targetsForm, target_cac: e.target.value })}
+                placeholder="Sin objetivo"
+                className={cls}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">CPL objetivo (máximo, €)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={targetsForm.target_cpl}
+                onChange={(e) => setTargetsForm({ ...targetsForm, target_cpl: e.target.value })}
+                placeholder="Sin objetivo"
+                className={cls}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setShowTargets(false)} className="px-3 py-2 text-sm text-muted-foreground">
+                Cancelar
+              </button>
+              <button
+                onClick={saveTargets}
+                disabled={savingTargets}
+                className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg disabled:opacity-50"
+              >
+                {savingTargets ? 'Guardando…' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editing && (
         <div
