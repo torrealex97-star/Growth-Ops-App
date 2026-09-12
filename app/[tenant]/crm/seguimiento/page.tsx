@@ -644,7 +644,7 @@ export default function SeguimientoPage() {
                           disabled={savingNotesId === a.id}
                           rows={2}
                           placeholder="Añadir nota…"
-                          className="w-full bg-muted border border-border rounded-lg p-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500 resize-y"
+                          className="w-full bg-muted border border-border rounded-lg p-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500 resize-y"
                         />
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">{timeAgo(a.last_contacted_at)}</TableCell>

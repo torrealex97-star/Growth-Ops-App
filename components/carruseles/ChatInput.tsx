@@ -44,6 +44,7 @@ export function ChatInput({ onSend, isStreaming, onStop, textareaRef }: Props) {
             onClick={onStop}
             className="absolute right-2 bottom-2 h-7 w-7 rounded-md bg-destructive/90 hover:bg-destructive text-white flex items-center justify-center"
             title="Detener"
+            aria-label="Detener"
           >
             <Square className="h-3.5 w-3.5" fill="currentColor" />
           </button>
@@ -53,6 +54,7 @@ export function ChatInput({ onSend, isStreaming, onStop, textareaRef }: Props) {
             disabled={!value.trim()}
             className="absolute right-2 bottom-2 h-7 w-7 rounded-md bg-brand-600 hover:bg-brand-500 disabled:opacity-40 text-white flex items-center justify-center"
             title="Enviar"
+            aria-label="Enviar"
           >
             <Send className="h-3.5 w-3.5" />
           </button>
