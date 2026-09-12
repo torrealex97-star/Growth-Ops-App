@@ -44,16 +44,22 @@ async function fetchStripePayments(
   const invQuery = new URLSearchParams({ customer: stripeCustomerId, status: 'paid', limit: '100' })
   const invRes = await fetch(`https://api.stripe.com/v1/invoices?${invQuery}`, fetchOpts)
   const invJson = (await invRes.json().catch(() => ({}))) as {
-    data?: Array<{ id: string; amount_paid: number; status_transitions?: { paid_at?: number | null } }>
+    data?: Array<{ id: string; amount_paid: number; created: number; status_transitions?: { paid_at?: number | null } }>
     error?: { message?: string }
   }
   if (!invRes.ok) throw new Error(invJson.error?.message || 'Stripe no respondió al listar facturas.')
   if ((invJson.data ?? []).length > 0) {
-    return (invJson.data ?? []).map((inv) => ({
-      reference: `stripe_invoice_${inv.id}`,
-      amount: inv.amount_paid / 100,
-      paidAt: new Date((inv.status_transitions?.paid_at ?? 0) * 1000).toISOString(),
-    }))
+    return (invJson.data ?? []).map((inv) => {
+      // status_transitions.paid_at puede faltar en facturas antiguas marcadas 'paid' sin ese
+      // campo — sin este respaldo, (paid_at ?? 0) * 1000 daba 1970-01-01 y fijaba mal tanto la
+      // fecha de venta como el precio (1497€ en vez de 1997€ por caer "antes" del corte de agosto).
+      const epochSeconds = inv.status_transitions?.paid_at ?? inv.created
+      return {
+        reference: `stripe_invoice_${inv.id}`,
+        amount: inv.amount_paid / 100,
+        paidAt: new Date(epochSeconds * 1000).toISOString(),
+      }
+    })
   }
 
   // Sin facturas (pago único sin suscripción): cargos directos.
