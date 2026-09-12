@@ -38,6 +38,7 @@ import {
   attributionBySource,
   targetCurrentValue,
   setterAgendaStats,
+  isActiveSale,
   type SaleRow,
   type CollectionRow,
   type AttributionRow,
@@ -357,12 +358,12 @@ export default function DashboardPage() {
     if (!userId || myBaseSalary <= 0) return null
     // Ventas del usuario en el mes. OJO: completar una reserva actualiza la MISMA fila de venta,
     // así que contar filas ya cuenta 1 (no se duplica reserva + pago completado). Igual la facturación.
+    // Canónico (Fase 5): isActiveSale (excluye cancelled/refunded/chargeback) — el filtro ad-hoc
+    // anterior solo excluía cancelled/refunded y dejaba pasar chargeback, contando dinero que
+    // salió de vuelta como si desbloqueara el fijo o generase comisión real.
     const mySalesMonth = sales.filter(
       (s) =>
-        (s.closer_id === userId || s.setter_id === userId) &&
-        (s.sale_date || '').slice(0, 7) === ym &&
-        s.status !== 'cancelled' &&
-        s.status !== 'refunded'
+        (s.closer_id === userId || s.setter_id === userId) && (s.sale_date || '').slice(0, 7) === ym && isActiveSale(s)
     )
     const salesCount = mySalesMonth.length
     const revenue = mySalesMonth.reduce((acc, s) => acc + Number(s.gross_amount || 0), 0)

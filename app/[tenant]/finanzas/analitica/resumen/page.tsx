@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { PieChart, Wallet, ShoppingCart, Receipt, TrendingDown, Scale, Users, CreditCard } from 'lucide-react'
-import { lastNMonths, prevMonth, monthLabel, pctDelta } from '@/lib/analytics'
+import { isActiveSale, lastNMonths, prevMonth, monthLabel, pctDelta } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
 import { computeMonthlyPnl, FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 
@@ -114,7 +114,10 @@ export default function FinanzasPage() {
   // --- Cálculo de resumen financiero para un mes concreto ---
   const summaryFor = useMemo(() => {
     return (targetYm: string) => {
-      const monthSales = sales.filter((s) => ymOf(s.sale_date) === targetYm)
+      // Canónico (Fase 5): igual filtro que Dashboard/PNL — solo ventas activas cuentan como
+      // "ventas del mes". Antes esta pantalla sumaba TODAS las ventas (incl. canceladas/
+      // reembolsadas), dando una cifra distinta a la del Dashboard para el mismo periodo.
+      const monthSales = sales.filter((s) => isActiveSale(s) && ymOf(s.sale_date) === targetYm)
       const monthCollections = collections.filter((c) => c.status === 'collected' && ymOf(c.collected_at) === targetYm)
       const monthExpenses = expenses.filter((e) => ymOf(e.expense_date) === targetYm)
       const monthRefunds = refunds.filter((r) => ymOf(r.refund_date) === targetYm)
@@ -191,7 +194,7 @@ export default function FinanzasPage() {
   const paymentsSummary = useMemo(() => {
     const targetYm = ym
     const monthCollections = collections.filter((c) => c.status === 'collected' && ymOf(c.collected_at) === targetYm)
-    const monthSales = sales.filter((s) => ymOf(s.sale_date) === targetYm)
+    const monthSales = sales.filter((s) => isActiveSale(s) && ymOf(s.sale_date) === targetYm)
     const monthExpenses = expenses.filter((e) => ymOf(e.expense_date) === targetYm)
     const monthRefunds = refunds.filter((r) => ymOf(r.refund_date) === targetYm)
 

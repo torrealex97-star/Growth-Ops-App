@@ -116,7 +116,7 @@ export default function GestoriaPage() {
           .select('id, concept, category, amount, expense_date, counterparty, invoice_url')
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase.from('refunds').select('gross_refund_amount, refund_date').range(0, FINANCE_QUERY_ROW_CAP),
-        supabase.from('sales').select('gross_amount, discount, sale_date').range(0, FINANCE_QUERY_ROW_CAP),
+        supabase.from('sales').select('gross_amount, discount, sale_date, status').range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('commissions')
           .select('commission_amount, direction, collection_id, liquidation_month')

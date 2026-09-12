@@ -286,6 +286,13 @@ export default function VentasMetricasPage() {
     const closes = closedSales.length > 0 ? closedSales.length : closedByResult
     const closedValue = closedSales.reduce((acc, s) => acc + num(s.gross_amount), 0)
 
+    // Renombrado a "Cobros comisionables" en la UI (Fase 5): esto NO es lo mismo que "Net Revenue"
+    // de Finanzas/P&L (lib/finance/pnl.ts: Gross Revenue − Refunds − Discounts). Aquí es cash
+    // collected del periodo sobre base comisionable (neto de fees/impuestos de la pasarela, no de
+    // devoluciones — Refunds se muestra aparte como conteo, no se resta de esta cifra). Dos
+    // pantallas llamando "Net Revenue" a números distintos era exactamente la confusión que esta
+    // fase corrige — se mantiene el cálculo (es un dato de calidad de lead válido), se corrige el
+    // nombre. Ver docs/METRICS.md.
     const netRevenue = monthCollections.reduce((acc, c) => acc + num(c.commissionable_amount || c.gross_amount), 0)
 
     const refunds = personSales.filter(
@@ -533,10 +540,10 @@ export default function VentasMetricasPage() {
               <KPICard title="Deposits" value={String(metrics.deposits)} icon={Wallet} description="result = deposit" />
               <KPICard title="Closes" value={String(metrics.closes)} icon={Trophy} description="ventas del periodo" />
               <KPICard
-                title="Net Revenue"
+                title="Cobros comisionables"
                 value={formatCurrency(metrics.netRevenue)}
                 icon={Banknote}
-                description="cobros del periodo"
+                description="cobros del periodo, base comisionable (no es el Net Revenue de Finanzas)"
               />
               <KPICard title="Refunds" value={String(metrics.refunds)} icon={Undo2} />
             </div>
@@ -601,16 +608,16 @@ export default function VentasMetricasPage() {
                 description="valor cerrado / Pipe Value"
               />
               <KPICard
-                title="Net_rev/LSC"
+                title="Cobros/LSC"
                 value={ratio(metrics.netRevenue, metrics.liveSalesCalls)}
                 icon={Banknote}
-                description="Net Revenue / Live Sales Calls"
+                description="Cobros comisionables / Live Sales Calls"
               />
               <KPICard
-                title="Net_rev/BSC"
+                title="Cobros/BSC"
                 value={ratio(metrics.netRevenue, metrics.bookedSalesCalls)}
                 icon={Banknote}
-                description="Net Revenue / Booked Sales Calls"
+                description="Cobros comisionables / Booked Sales Calls"
               />
             </div>
           </div>

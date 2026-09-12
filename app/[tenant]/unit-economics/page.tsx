@@ -7,30 +7,12 @@ import { PieChart, Target, Users, TrendingUp, Wallet, Filter, MousePointerClick,
 import { ACTIVE_SALE_STATUSES } from '@/lib/analytics'
 import { formatCurrency, formatPercent } from '@/lib/utils'
 import { FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
+import { buildChannelRows, type CampaignRow, type SaleRow, type ContactRow } from '@/lib/unit-economics'
 
-type CampaignRow = {
-  id: string
-  channel: string
-  adspend: number | string | null
-  leads_generated: number | string | null
-  impressions: number | string | null
-  clicks: number | string | null
-}
-type SaleRow = {
-  id: string
-  gross_amount: number | string | null
-  status: string
-  contact_id: string | null
-  sale_date: string | null
-}
 type CollectionRow = {
   gross_amount: number | string | null
   collected_at: string | null
   status: string
-}
-type ContactRow = {
-  id: string
-  campaign_id: string | null
 }
 type AppointmentRow = {
   id: string
@@ -60,62 +42,6 @@ const CHANNEL_LABELS: Record<string, string> = {
   other: 'Otro',
 }
 const labelChannel = (ch: string) => CHANNEL_LABELS[ch?.toLowerCase()] || ch || 'Sin canal'
-
-type ChannelRow = {
-  channel: string
-  adspend: number
-  leads: number
-  cpl: number | null
-  customers: number
-  cac: number | null
-  revenue: number
-  roas: number | null
-}
-
-function buildChannelRows(campaigns: CampaignRow[], sales: SaleRow[], contacts: ContactRow[]): ChannelRow[] {
-  // campaign id -> channel
-  const campaignChannel = new Map<string, string>()
-  for (const c of campaigns) campaignChannel.set(c.id, c.channel || 'Sin canal')
-
-  // contact id -> channel (via contacts.campaign_id -> campaign.channel)
-  const contactChannel = new Map<string, string>()
-  for (const ct of contacts) {
-    if (ct.campaign_id) {
-      const ch = campaignChannel.get(ct.campaign_id)
-      if (ch) contactChannel.set(ct.id, ch)
-    }
-  }
-
-  const agg = new Map<string, ChannelRow>()
-  const ensure = (channel: string) =>
-    agg.get(channel) ??
-    agg
-      .set(channel, { channel, adspend: 0, leads: 0, cpl: null, customers: 0, cac: null, revenue: 0, roas: null })
-      .get(channel)!
-
-  for (const c of campaigns) {
-    const row = ensure(c.channel || 'Sin canal')
-    row.adspend += num(c.adspend)
-    row.leads += num(c.leads_generated)
-  }
-
-  for (const s of sales) {
-    if (!ACTIVE_SALE_STATUSES.includes(s.status) || !s.contact_id) continue
-    const channel = contactChannel.get(s.contact_id)
-    if (!channel) continue
-    const row = ensure(channel)
-    row.customers += 1
-    row.revenue += num(s.gross_amount)
-  }
-
-  agg.forEach((row) => {
-    row.cpl = row.leads ? row.adspend / row.leads : null
-    row.cac = row.customers ? row.adspend / row.customers : null
-    row.roas = row.adspend ? row.revenue / row.adspend : null
-  })
-
-  return Array.from(agg.values()).sort((a, b) => b.adspend - a.adspend)
-}
 
 // Guard div/0 → null (se pinta como "—")
 const safeDiv = (a: number, b: number): number | null => (b ? a / b : null)
@@ -247,7 +173,11 @@ export default function UnitEconomicsPage() {
       .filter((c) => c.status === 'collected')
       .reduce((a, c) => a + num(c.gross_amount), 0)
     const activeSales = sales.filter((s) => ACTIVE_SALE_STATUSES.includes(s.status))
-    const totalCustomers = activeSales.length
+    // Clientes ÚNICOS, no nº de ventas — mismo fix que buildChannelRows. Antes dividía por
+    // nº de ventas: un cliente que compra 2 veces contaba como "2 clientes", lo que infla el
+    // denominador y hace que tanto CAC como "LTV medio" salgan sistemáticamente por debajo de
+    // lo real.
+    const totalCustomers = new Set(activeSales.map((s) => s.contact_id).filter((id): id is string => !!id)).size
     const totalGross = activeSales.reduce((a, s) => a + num(s.gross_amount), 0)
 
     const mer = totalAdspend ? totalCashCollected / totalAdspend : null
@@ -276,6 +206,11 @@ export default function UnitEconomicsPage() {
         <p className="text-muted-foreground text-sm mt-1">
           Pasa el ratón por las gráficas para ver el rendimiento mes a mes.
         </p>
+        <p className="text-xs text-amber-400/90 mt-2">
+          Acumulado histórico total desde el origen de los datos — a diferencia de Dashboard/Finanzas, esta pantalla no
+          filtra por mes/periodo (el adspend de campañas se guarda como total acumulado, no por día). No compares estos
+          números directamente contra un mes concreto de otra pantalla.
+        </p>
       </div>
 
       {/* Top cards */}
@@ -292,14 +227,14 @@ export default function UnitEconomicsPage() {
           value={loading ? '—' : totals.cacGlobal !== null ? formatCurrency(totals.cacGlobal) : '—'}
           icon={Target}
           loading={loading}
-          description="Ad spend / clientes nuevos"
+          description="Ad spend / clientes únicos (no por venta)"
         />
         <KPICard
           title="LTV medio"
           value={loading ? '—' : totals.ltvMedio !== null ? formatCurrency(totals.ltvMedio) : '—'}
           icon={Wallet}
           loading={loading}
-          description="Facturación media por venta activa"
+          description="Facturación activa / clientes únicos"
         />
         <div className="rounded-2xl border border-[#26262A] bg-[#141416] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_8px_24px_rgba(0,0,0,0.3)]">
           <div className="flex items-start justify-between mb-4">
