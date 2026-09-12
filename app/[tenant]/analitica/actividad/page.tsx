@@ -4,8 +4,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import {
-  PhoneCall, Clock, Users, CheckCircle2, Target, MessageSquare,
-  Handshake, CalendarCheck, Wallet, TrendingUp,
+  PhoneCall,
+  Clock,
+  Users,
+  CheckCircle2,
+  Target,
+  MessageSquare,
+  Handshake,
+  CalendarCheck,
+  Wallet,
+  TrendingUp,
 } from 'lucide-react'
 import { lastNMonths, monthLabel, ACTIVE_SALE_STATUSES } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
@@ -82,8 +90,15 @@ type Aggregates = {
 
 function emptyAggregates(): Aggregates {
   return {
-    horas: 0, leadsAsignados: 0, leadsValidos: 0, intentos: 0,
-    respuestas: 0, conversaciones: 0, ofertas: 0, citas: 0, depositos: 0,
+    horas: 0,
+    leadsAsignados: 0,
+    leadsValidos: 0,
+    intentos: 0,
+    respuestas: 0,
+    conversaciones: 0,
+    ofertas: 0,
+    citas: 0,
+    depositos: 0,
   }
 }
 
@@ -153,7 +168,9 @@ export default function ProspectingPage() {
       setLoading(false)
     }
     load()
-    return () => { mounted = false }
+    return () => {
+      mounted = false
+    }
   }, [])
 
   // Reportes del mes seleccionado — cargados por rango de fechas
@@ -176,7 +193,9 @@ export default function ProspectingPage() {
       setReports((data as KpiReportRow[] | null) || [])
     }
     loadReports()
-    return () => { mounted = false }
+    return () => {
+      mounted = false
+    }
   }, [ym])
 
   const prospectingUserIds = useMemo(
@@ -215,9 +234,7 @@ export default function ProspectingPage() {
 
   // Reportes filtrados además por la persona seleccionada (KPIs agregados)
   const filteredReports = useMemo(
-    () => personId === 'all'
-      ? prospectingReports
-      : prospectingReports.filter((r) => r.user_id === personId),
+    () => (personId === 'all' ? prospectingReports : prospectingReports.filter((r) => r.user_id === personId)),
     [prospectingReports, personId]
   )
 
@@ -229,9 +246,7 @@ export default function ProspectingPage() {
 
   // Ventas atribuidas, filtradas también por la persona seleccionada (como setter)
   const personAttributedSales = useMemo(
-    () => personId === 'all'
-      ? attributedSales
-      : attributedSales.filter((s) => s.setter_id === personId),
+    () => (personId === 'all' ? attributedSales : attributedSales.filter((s) => s.setter_id === personId)),
     [attributedSales, personId]
   )
 
@@ -330,7 +345,9 @@ export default function ProspectingPage() {
             <PhoneCall className="w-6 h-6 text-brand-400" />
             <h1 className="text-2xl font-bold text-foreground">Prospección</h1>
           </div>
-          <p className="text-muted-foreground text-sm mt-1">Outreach y actividad diaria de setters, cold callers y triagers</p>
+          <p className="text-muted-foreground text-sm mt-1">
+            Outreach y actividad diaria de setters, cold callers y triagers
+          </p>
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
@@ -347,7 +364,9 @@ export default function ProspectingPage() {
             >
               <option value="all">Toda la empresa</option>
               {selectablePeople.map((u) => (
-                <option key={u.id} value={u.id}>{u.full_name}</option>
+                <option key={u.id} value={u.id}>
+                  {u.full_name}
+                </option>
               ))}
             </select>
           </label>
@@ -359,7 +378,9 @@ export default function ProspectingPage() {
               className="bg-background border border-border rounded-lg px-3 py-1.5 text-foreground focus:outline-none focus:border-brand-500"
             >
               {monthOptions.map((m) => (
-                <option key={m} value={m}>{monthLabel(m)}</option>
+                <option key={m} value={m}>
+                  {monthLabel(m)}
+                </option>
               ))}
             </select>
           </label>
@@ -385,7 +406,9 @@ export default function ProspectingPage() {
         <>
           {/* KPIs globales */}
           <div>
-            <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Actividad de {monthLabel(ym)}</h2>
+            <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
+              Actividad de {monthLabel(ym)}
+            </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <KPICard title="Horas" value={fmtNum(kpis.horas)} icon={Clock} />
               <KPICard
@@ -481,7 +504,9 @@ export default function ProspectingPage() {
                         }`}
                       >
                         <td className="py-2.5 pr-4 font-medium text-foreground">{row.name}</td>
-                        <td className="py-2.5 pr-4 text-muted-foreground capitalize">{row.roleKey.replace('_', ' ')}</td>
+                        <td className="py-2.5 pr-4 text-muted-foreground capitalize">
+                          {row.roleKey.replace('_', ' ')}
+                        </td>
                         <td className="py-2.5 pr-4">{fmtNum(row.horas)}</td>
                         <td className="py-2.5 pr-4">{fmtNum(row.intentos)}</td>
                         <td className="py-2.5 pr-4">{fmtNum(row.respuestas)}</td>
@@ -496,9 +521,7 @@ export default function ProspectingPage() {
                         <td className={`py-2.5 pr-4 font-medium ${ratioColor(row.pctBooked, 0.3, 0.15)}`}>
                           {fmtPct(row.pctBooked)}
                         </td>
-                        <td className="py-2.5 pr-4">
-                          {row.nrPerHr !== null ? formatCurrency(row.nrPerHr) : '—'}
-                        </td>
+                        <td className="py-2.5 pr-4">{row.nrPerHr !== null ? formatCurrency(row.nrPerHr) : '—'}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -8,10 +8,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { TrendingUp, Loader2, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantBranding } from '@/lib/tenant-context'
 
 export default function RecoverPage() {
   const tenant = useTenant()
+  const branding = useTenantBranding()
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
@@ -33,7 +34,9 @@ export default function RecoverPage() {
         setLoading(false)
         return
       }
-    } catch { /* si el endpoint falla, usamos el fallback de Supabase */ }
+    } catch {
+      /* si el endpoint falla, usamos el fallback de Supabase */
+    }
 
     // 2) Fallback: flujo estándar de Supabase (mismo dispositivo).
     const supabase = createClient()
@@ -59,7 +62,7 @@ export default function RecoverPage() {
           <div className="w-12 h-12 rounded-xl bg-brand-600 flex items-center justify-center mb-4">
             <TrendingUp className="w-6 h-6 text-foreground" />
           </div>
-          <h1 className="text-2xl font-semibold text-foreground">Scalix Systems</h1>
+          <h1 className="text-2xl font-semibold text-foreground">{branding.name}</h1>
           <p className="text-muted-foreground text-sm mt-1">Panel Comercial Interno</p>
         </div>
 
@@ -70,12 +73,10 @@ export default function RecoverPage() {
               <CheckCircle2 className="w-12 h-12 text-emerald-400 mb-4" />
               <h2 className="text-lg font-semibold text-foreground mb-2">Correo enviado</h2>
               <p className="text-muted-foreground text-sm mb-6">
-                Hemos enviado un enlace de recuperación a <span className="text-foreground">{email}</span>. Revisa tu bandeja de entrada.
+                Hemos enviado un enlace de recuperación a <span className="text-foreground">{email}</span>. Revisa tu
+                bandeja de entrada.
               </p>
-              <Link
-                href={`/${tenant}/login`}
-                className="text-sm text-brand-400 hover:text-brand-300 transition-colors"
-              >
+              <Link href={`/${tenant}/login`} className="text-sm text-brand-400 hover:text-brand-300 transition-colors">
                 Volver al inicio de sesión
               </Link>
             </div>

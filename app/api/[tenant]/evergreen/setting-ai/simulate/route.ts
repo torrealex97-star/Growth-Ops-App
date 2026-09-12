@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { callText, modelFrom, leadSystem, toLeadMessages, ensureStartsUser, type ConvMsg, type Persona } from '@/lib/setting-ai/core'
+import {
+  callText,
+  modelFrom,
+  leadSystem,
+  toLeadMessages,
+  ensureStartsUser,
+  type ConvMsg,
+  type Persona,
+} from '@/lib/setting-ai/core'
 import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
@@ -10,7 +18,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const { tenant } = await params
   const t = await requireTenant(tenant)
   if ('error' in t) return t.error
-  if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada' }, { status: 503 })
+  if (!process.env.ANTHROPIC_API_KEY)
+    return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada' }, { status: 503 })
 
   const b = await req.json().catch(() => ({}))
   const conv: ConvMsg[] = Array.isArray(b.conversation) ? b.conversation : []

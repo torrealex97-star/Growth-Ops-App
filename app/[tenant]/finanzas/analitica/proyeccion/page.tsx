@@ -19,7 +19,12 @@ type InstallmentRow = {
   status: string
   sales: SaleEmbed
 }
-type CommissionRow = { commission_amount: number | string; direction: string; status: string; liquidation_month: string | null }
+type CommissionRow = {
+  commission_amount: number | string
+  direction: string
+  status: string
+  liquidation_month: string | null
+}
 
 const WINDOWS = [30, 60, 90] as const
 const num = (x: number | string | null | undefined) => Number(x ?? 0)
@@ -50,7 +55,9 @@ export default function ProyeccionPage() {
       setLoading(false)
     }
     load()
-    return () => { mounted = false }
+    return () => {
+      mounted = false
+    }
   }, [])
 
   const proj = useMemo(() => {
@@ -77,7 +84,10 @@ export default function ProyeccionPage() {
     })
 
     const overdue = installments
-      .filter((i) => { const dd = daysFromNow(i.due_date); return dd !== null && dd < 0 })
+      .filter((i) => {
+        const dd = daysFromNow(i.due_date)
+        return dd !== null && dd < 0
+      })
       .reduce((a, i) => a + num(i.expected_gross_amount), 0)
 
     return { buckets, overdue }
@@ -90,9 +100,13 @@ export default function ProyeccionPage() {
   }
 
   const handleExport = () => {
-    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
     const rows = installments.map((i) => [
-      i.due_date ?? '', nameOf(i.sales), num(i.expected_gross_amount).toFixed(2), i.status,
+      i.due_date ?? '',
+      nameOf(i.sales),
+      num(i.expected_gross_amount).toFixed(2),
+      i.status,
     ])
     downloadCSV('proyeccion_cuotas.csv', ['Vencimiento', 'Alumno', 'Importe', 'Estado'], rows)
   }
@@ -106,23 +120,31 @@ export default function ProyeccionPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Proyección de caja</h1>
-            <p className="text-muted-foreground text-sm mt-1">Cobros previstos a 30/60/90 días desde cuotas pendientes</p>
+            <p className="text-muted-foreground text-sm mt-1">
+              Cobros previstos a 30/60/90 días desde cuotas pendientes
+            </p>
           </div>
         </div>
-        <button onClick={handleExport} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-card text-foreground border-border hover:border-border">
+        <button
+          onClick={handleExport}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-card text-foreground border-border hover:border-border"
+        >
           <Download className="w-3.5 h-3.5" /> Exportar CSV
         </button>
       </div>
 
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-28 bg-card border border-border rounded-lg animate-pulse" />)}
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-28 bg-card border border-border rounded-lg animate-pulse" />
+          ))}
         </div>
       ) : (
         <>
           {proj.overdue > 0 && (
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-200">
-              Cuotas ya vencidas pendientes de cobro: <strong>{formatCurrency(proj.overdue)}</strong> (incluidas en todas las ventanas)
+              Cuotas ya vencidas pendientes de cobro: <strong>{formatCurrency(proj.overdue)}</strong> (incluidas en
+              todas las ventanas)
             </div>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -132,8 +154,14 @@ export default function ProyeccionPage() {
                 <p className="text-2xl font-bold text-emerald-400 mt-2">{formatCurrency(b.cobros)}</p>
                 <p className="text-xs text-muted-foreground mt-1">Cobros previstos</p>
                 <div className="mt-3 pt-3 border-t border-border space-y-1 text-xs">
-                  <div className="flex justify-between text-muted-foreground"><span>− Comisiones a liquidar</span><span>{formatCurrency(b.comisiones)}</span></div>
-                  <div className="flex justify-between text-foreground font-medium"><span>Neto proyectado</span><span>{formatCurrency(b.neto)}</span></div>
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>− Comisiones a liquidar</span>
+                    <span>{formatCurrency(b.comisiones)}</span>
+                  </div>
+                  <div className="flex justify-between text-foreground font-medium">
+                    <span>Neto proyectado</span>
+                    <span>{formatCurrency(b.neto)}</span>
+                  </div>
                 </div>
               </div>
             ))}
@@ -143,7 +171,9 @@ export default function ProyeccionPage() {
             <div className="bg-card border border-border rounded-lg p-10 text-center">
               <TrendingUp className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
               <p className="text-muted-foreground">No hay cuotas pendientes registradas.</p>
-              <p className="text-muted-foreground text-sm mt-1">Las ventas a plazos generan cuotas esperadas que alimentan esta proyección.</p>
+              <p className="text-muted-foreground text-sm mt-1">
+                Las ventas a plazos generan cuotas esperadas que alimentan esta proyección.
+              </p>
             </div>
           )}
         </>

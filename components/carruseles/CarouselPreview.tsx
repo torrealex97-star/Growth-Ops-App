@@ -1,9 +1,9 @@
-"use client"
+'use client'
 
-import { ChevronLeft, ChevronRight, ImageIcon } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { SlideRenderer } from "./SlideRenderer"
-import type { Slide, AspectRatio } from "@/lib/carruseles/types"
+import { ChevronLeft, ChevronRight, ImageIcon } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { SlideRenderer } from './SlideRenderer'
+import type { Slide, AspectRatio } from '@/lib/carruseles/types'
 
 interface Props {
   slides: Slide[]
@@ -23,9 +23,7 @@ export function CarouselPreview({ slides, aspectRatio, activeIndex, onActiveChan
             <ImageIcon className="w-6 h-6 opacity-40" />
           </div>
           <p className="text-sm font-medium">Todavía no hay slides</p>
-          <p className="text-xs mt-1 max-w-[220px]">
-            Usa el asistente IA de la izquierda para crear tu primer diseño.
-          </p>
+          <p className="text-xs mt-1 max-w-[220px]">Usa el asistente IA de la izquierda para crear tu primer diseño.</p>
         </div>
       </div>
     )
@@ -46,7 +44,7 @@ export function CarouselPreview({ slides, aspectRatio, activeIndex, onActiveChan
         </Button>
 
         <div key={slide.id} className="relative w-full h-full">
-          <SlideRenderer html={slide.html} aspectRatio={aspectRatio} style={{ width: "100%", height: "100%" }} />
+          <SlideRenderer html={slide.html} aspectRatio={aspectRatio} style={{ width: '100%', height: '100%' }} />
         </div>
 
         <Button
@@ -68,7 +66,7 @@ export function CarouselPreview({ slides, aspectRatio, activeIndex, onActiveChan
               key={i}
               onClick={() => onActiveChange(i)}
               className={`h-2 rounded-full transition-all duration-200 ${
-                i === activeIndex ? "w-6 bg-brand-400" : "w-2 bg-foreground/20 hover:bg-foreground/40"
+                i === activeIndex ? 'w-6 bg-brand-400' : 'w-2 bg-foreground/20 hover:bg-foreground/40'
               }`}
               aria-label={`Ir a slide ${i + 1}`}
             />

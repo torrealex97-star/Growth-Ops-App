@@ -20,11 +20,7 @@ export async function POST(req: Request) {
 
     // Sanea: enteros >= 0 y acotados a una duración razonable (evita basura).
     const clean = Array.from(
-      new Set(
-        seconds
-          .map((s) => Math.floor(Number(s)))
-          .filter((s) => Number.isFinite(s) && s >= 0 && s < 86_400)
-      )
+      new Set(seconds.map((s) => Math.floor(Number(s))).filter((s) => Number.isFinite(s) && s >= 0 && s < 86_400))
     )
 
     const reachedEnd = event === 'ended' || (duration > 0 && position >= duration - 1.5)

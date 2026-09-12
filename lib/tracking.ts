@@ -21,10 +21,7 @@ export function normalizeTrackingCode(code: string | null | undefined): string {
 
 // Genera un código único comprobando colisiones contra users.tracking_code. Sirve tanto en cliente
 // (browser client, admin) como en servidor (service role).
-export async function generateUniqueTrackingCode(
-  sb: SupabaseClient,
-  excludeUserId?: string
-): Promise<string> {
+export async function generateUniqueTrackingCode(sb: SupabaseClient, excludeUserId?: string): Promise<string> {
   for (let attempt = 0; attempt < 25; attempt++) {
     const candidate = generateTrackingCode(8)
     let q = sb.from('users').select('id').eq('tracking_code', candidate)

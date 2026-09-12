@@ -25,8 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if ('error' in t) return t.error
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-    const role = (urow?.roles as { key?: string } | null)?.key || ''
+    const role = t.role || ''
     if (!['admin', 'director', 'manager'].includes(role)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
@@ -48,7 +47,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       }))
     if (!clean.length) return NextResponse.json({ error: 'Ninguna tarea válida' }, { status: 400 })
 
-    const { data: created, error } = await sb.from('tasks').insert(clean).select('id, title, description, assignee_id, priority, due_date')
+    const { data: created, error } = await sb
+      .from('tasks')
+      .insert(clean)
+      .select('id, title, description, assignee_id, priority, due_date')
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     // Aviso por email a cada responsable (correo de empresa). No bloquea la creación.

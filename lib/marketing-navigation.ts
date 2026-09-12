@@ -4,7 +4,8 @@ export const LEGACY_MARKETING_ROUTES: Record<string, string> = {
   '/attribution': '/marketing/adquisicion/atribucion',
   '/vsl': '/marketing/adquisicion/vsl',
   '/content/reels': '/instagram/reels',
-  '/content': '/instagram/contenido',
+  '/content': '/marketing/contenido',
+  '/instagram/contenido': '/marketing/contenido', // Contenido se independizó de Instagram (ahora vive junto a Setting AI)
   '/carruseles': '/instagram/carruseles',
   '/data-health': '/settings?tab=data-health',
 }
@@ -18,9 +19,7 @@ export function marketingDestinationFor(rest: string): string | null {
 }
 
 export function permissionLocationFor(relPathname: string, dataHealthTab: boolean): string {
-  return relPathname === '/settings' && dataHealthTab
-    ? '/settings?tab=data-health'
-    : relPathname
+  return relPathname === '/settings' && dataHealthTab ? '/settings?tab=data-health' : relPathname
 }
 
 export function isAllowedLocation(zones: string[], relLocation: string): boolean {

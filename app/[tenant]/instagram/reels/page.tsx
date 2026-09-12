@@ -3,8 +3,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import {
-  Clapperboard, RefreshCw, ExternalLink, Copy, Check, X, ChevronDown, ChevronUp,
-  Images, AlertTriangle, Play, Award, PlayCircle,
+  Clapperboard,
+  RefreshCw,
+  ExternalLink,
+  Copy,
+  Check,
+  X,
+  ChevronDown,
+  ChevronUp,
+  Images,
+  AlertTriangle,
+  Play,
+  Award,
+  PlayCircle,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -61,7 +72,9 @@ export default function ReelsDelDiaPage() {
       setLoading(false)
     }
   }
-  useEffect(() => { load() }, [day, status])
+  useEffect(() => {
+    load()
+  }, [day, status])
   // Catálogo de testimonios para poder marcar cuál lleva cada reel.
   useEffect(() => {
     fetch(`/api/${tenant}/evergreen/testimonios`)
@@ -76,7 +89,9 @@ export default function ReelsDelDiaPage() {
     setBusyFor(id, true)
     try {
       const res = await fetch(`/api/${tenant}/evergreen/reels/${id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
@@ -105,7 +120,9 @@ export default function ReelsDelDiaPage() {
     setBusyFor(id, true)
     try {
       const res = await fetch(`/api/${tenant}/evergreen/reels/${id}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'regenerate' }),
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'regenerate' }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error)
@@ -149,11 +166,14 @@ export default function ReelsDelDiaPage() {
             <Clapperboard className="w-6 h-6 text-pink-400" /> Reels del día
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Cada día minamos ~5 reels de las cuentas de Competencia y te dejamos aquí el guión adaptado
-            (hook + CTA SCALIX SYSTEMS), la transcripción original y una idea de carrusel. Tú decides qué aprobar.
+            Cada día minamos ~5 reels de las cuentas de Competencia y te dejamos aquí el guión adaptado (hook + CTA
+            SCALIX SYSTEMS), la transcripción original y una idea de carrusel. Tú decides qué aprobar.
           </p>
         </div>
-        <button onClick={load} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-muted text-foreground hover:bg-muted">
+        <button
+          onClick={load}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-muted text-foreground hover:bg-muted"
+        >
           <RefreshCw className="w-4 h-4" /> Actualizar
         </button>
       </div>
@@ -186,7 +206,8 @@ export default function ReelsDelDiaPage() {
         <div className="h-64 bg-card rounded-lg animate-pulse" />
       ) : sorted.length === 0 ? (
         <div className="rounded-xl border border-border bg-card/50 p-6 text-sm text-muted-foreground">
-          No hay reels para este filtro. El cron corre una vez al día; si aún no ha corrido hoy, prueba a cambiar el filtro de día o vuelve más tarde.
+          No hay reels para este filtro. El cron corre una vez al día; si aún no ha corrido hoy, prueba a cambiar el
+          filtro de día o vuelve más tarde.
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -197,19 +218,27 @@ export default function ReelsDelDiaPage() {
             return (
               <div key={d.id} className="rounded-xl border border-border bg-card/50 flex flex-col overflow-hidden">
                 <div className="flex gap-3 p-4 border-b border-border">
-                  {d.thumbnail_url
-                    ? <img src={d.thumbnail_url} alt="" className="w-16 h-20 object-cover rounded-lg bg-muted shrink-0" />
-                    : <div className="w-16 h-20 rounded-lg bg-muted flex items-center justify-center shrink-0"><Play className="w-5 h-5 text-muted-foreground" /></div>}
+                  {d.thumbnail_url ? (
+                    <img src={d.thumbnail_url} alt="" className="w-16 h-20 object-cover rounded-lg bg-muted shrink-0" />
+                  ) : (
+                    <div className="w-16 h-20 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                      <Play className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-medium text-foreground truncate">
                         {d.source_account ? `@${d.source_account}` : 'Cuenta desconocida'}
                       </p>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${
-                        d.status === 'aprobado' ? 'bg-emerald-950/50 text-emerald-300'
-                        : d.status === 'descartado' ? 'bg-red-950/50 text-red-300'
-                        : 'bg-muted text-muted-foreground'
-                      }`}>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${
+                          d.status === 'aprobado'
+                            ? 'bg-emerald-950/50 text-emerald-300'
+                            : d.status === 'descartado'
+                              ? 'bg-red-950/50 text-red-300'
+                              : 'bg-muted text-muted-foreground'
+                        }`}
+                      >
                         {d.status}
                       </span>
                     </div>
@@ -220,7 +249,12 @@ export default function ReelsDelDiaPage() {
                     )}
                     <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{d.caption || 'Sin descripción'}</p>
                     {d.source_permalink && (
-                      <a href={d.source_permalink} target="_blank" rel="noreferrer" className="text-xs text-sky-400 hover:underline flex items-center gap-1 mt-1">
+                      <a
+                        href={d.source_permalink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs text-sky-400 hover:underline flex items-center gap-1 mt-1"
+                      >
                         <ExternalLink className="w-3 h-3" /> Ver reel original
                       </a>
                     )}
@@ -236,7 +270,8 @@ export default function ReelsDelDiaPage() {
                       disabled={isBusy}
                       className="shrink-0 flex items-center gap-1 text-amber-200 hover:text-foreground disabled:opacity-50"
                     >
-                      {isBusy ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />} Regenerar
+                      {isBusy ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}{' '}
+                      Regenerar
                     </button>
                   </div>
                 )}
@@ -249,7 +284,11 @@ export default function ReelsDelDiaPage() {
                         onClick={() => setExpandedTranscript((p) => ({ ...p, [d.id]: !p[d.id] }))}
                         className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                       >
-                        {transcriptOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        {transcriptOpen ? (
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        )}
                         Transcripción original
                       </button>
                       {transcriptOpen && (
@@ -263,8 +302,13 @@ export default function ReelsDelDiaPage() {
                   {/* Guión adaptado (editable) */}
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs text-muted-foreground">Guión adaptado (hook + CTA SCALIX SYSTEMS)</label>
-                      <button onClick={() => copyScript(d.id)} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+                      <label className="text-xs text-muted-foreground">
+                        Guión adaptado (hook + CTA SCALIX SYSTEMS)
+                      </label>
+                      <button
+                        onClick={() => copyScript(d.id)}
+                        className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                      >
                         <Copy className="w-3 h-3" /> Copiar guion
                       </button>
                     </div>
@@ -291,7 +335,8 @@ export default function ReelsDelDiaPage() {
                       <option value="">Sin testimonio</option>
                       {testimonios.map((t) => (
                         <option key={t.id} value={t.id}>
-                          {t.name}{t.sector ? ` — ${t.sector}` : ''}
+                          {t.name}
+                          {t.sector ? ` — ${t.sector}` : ''}
                         </option>
                       ))}
                     </select>
@@ -314,7 +359,9 @@ export default function ReelsDelDiaPage() {
                                 <span className="ml-1.5 text-[10px] font-normal text-amber-300">sin cifras</span>
                               )}
                               {testimonio.kind === 'cliente' && (
-                                <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">cliente, no alumno</span>
+                                <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
+                                  cliente, no alumno
+                                </span>
                               )}
                             </p>
                             {testimonio.cifra && testimonio.hasRevenue && (
@@ -326,8 +373,16 @@ export default function ReelsDelDiaPage() {
                           </div>
                         </div>
                         <div className="text-[11px] text-muted-foreground space-y-1 mt-2 leading-relaxed">
-                          {testimonio.puntoA && <p><span className="text-foreground/70 font-medium">Antes:</span> {testimonio.puntoA}</p>}
-                          {testimonio.puntoB && <p><span className="text-foreground/70 font-medium">Ahora:</span> {testimonio.puntoB}</p>}
+                          {testimonio.puntoA && (
+                            <p>
+                              <span className="text-foreground/70 font-medium">Antes:</span> {testimonio.puntoA}
+                            </p>
+                          )}
+                          {testimonio.puntoB && (
+                            <p>
+                              <span className="text-foreground/70 font-medium">Ahora:</span> {testimonio.puntoB}
+                            </p>
+                          )}
                         </div>
                         <div className="flex flex-wrap items-center gap-2 mt-2.5">
                           <Link
@@ -347,7 +402,10 @@ export default function ReelsDelDiaPage() {
                             </a>
                           )}
                           <button
-                            onClick={() => { navigator.clipboard.writeText(testimonioPitch(testimonio)); toast.success('Testimonio copiado') }}
+                            onClick={() => {
+                              navigator.clipboard.writeText(testimonioPitch(testimonio))
+                              toast.success('Testimonio copiado')
+                            }}
                             className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 ml-auto"
                           >
                             <Copy className="w-3 h-3" /> Copiar historia
@@ -366,7 +424,9 @@ export default function ReelsDelDiaPage() {
                   {d.carousel_idea && (
                     <div>
                       <label className="text-xs text-muted-foreground">Idea de carrusel/flyer</label>
-                      <p className="mt-1 text-xs text-foreground bg-background/50 rounded-lg p-3 whitespace-pre-wrap">{d.carousel_idea}</p>
+                      <p className="mt-1 text-xs text-foreground bg-background/50 rounded-lg p-3 whitespace-pre-wrap">
+                        {d.carousel_idea}
+                      </p>
                       <button
                         onClick={() => goToCarousel(d)}
                         className="mt-2 flex items-center gap-1 text-xs text-pink-300 bg-pink-950/40 hover:bg-pink-900/40 px-2 py-1 rounded"
@@ -397,7 +457,8 @@ export default function ReelsDelDiaPage() {
                     disabled={isBusy}
                     className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 ml-auto"
                   >
-                    {isBusy ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Regenerar
+                    {isBusy ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}{' '}
+                    Regenerar
                   </button>
                 </div>
               </div>

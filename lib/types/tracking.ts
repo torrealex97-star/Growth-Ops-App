@@ -40,4 +40,3 @@ export interface DataHealthSummary {
   failed: number
   lastReceivedAt: string | null
 }
-

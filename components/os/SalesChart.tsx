@@ -1,14 +1,6 @@
-"use client"
+'use client'
 
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
 
 interface SalesChartProps {
@@ -16,7 +8,11 @@ interface SalesChartProps {
   title?: string
 }
 
-const CustomTooltip = ({ active, payload, label }: {
+const CustomTooltip = ({
+  active,
+  payload,
+  label,
+}: {
   active?: boolean
   payload?: Array<{ value: number }>
   label?: string
@@ -25,9 +21,7 @@ const CustomTooltip = ({ active, payload, label }: {
     return (
       <div className="rounded-lg border border-border bg-card p-3 shadow-lg">
         <p className="text-xs text-muted-foreground mb-1">{label}</p>
-        <p className="text-sm font-semibold text-foreground">
-          {formatCurrency(payload[0].value)}
-        </p>
+        <p className="text-sm font-semibold text-foreground">{formatCurrency(payload[0].value)}</p>
       </div>
     )
   }
@@ -42,12 +36,7 @@ export function SalesChart({ data, title = 'Cash Cobrado por Día' }: SalesChart
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-            <XAxis
-              dataKey="date"
-              tick={{ fontSize: 11, fill: '#71717a' }}
-              axisLine={false}
-              tickLine={false}
-            />
+            <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#71717a' }} axisLine={false} tickLine={false} />
             <YAxis
               tick={{ fontSize: 11, fill: '#71717a' }}
               axisLine={false}

@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
@@ -11,14 +11,7 @@ import {
   createColumnHelper,
   type SortingState,
 } from '@tanstack/react-table'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { ArrowUpDown, ExternalLink } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
@@ -41,72 +34,63 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
   const [globalFilter, setGlobalFilter] = useState('')
   const [sorting, setSorting] = useState<SortingState>([])
 
-  const columns = useMemo(() => [
-    columnHelper.accessor('full_name', {
-      header: ({ column }) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="-ml-3 h-8"
-          onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        >
-          Nombre completo
-          <ArrowUpDown className="ml-2 h-3 w-3" />
-        </Button>
-      ),
-      cell: ({ getValue }) => (
-        <span className="font-medium text-foreground">{getValue() || '—'}</span>
-      ),
-    }),
-    columnHelper.accessor('email', {
-      header: 'Email',
-      cell: ({ getValue }) => (
-        <span className="text-foreground">{getValue() || '—'}</span>
-      ),
-    }),
-    columnHelper.accessor('phone', {
-      header: 'Teléfono',
-      cell: ({ getValue }) => (
-        <span className="text-muted-foreground">{getValue() || '—'}</span>
-      ),
-    }),
-    columnHelper.accessor('country', {
-      header: 'País',
-      cell: ({ getValue }) => (
-        <span className="text-muted-foreground">{getValue() || '—'}</span>
-      ),
-    }),
-    columnHelper.accessor('first_seen_at', {
-      header: 'Primera vez visto',
-      cell: ({ getValue }) => (
-        <span className="text-muted-foreground text-sm">{formatDate(getValue())}</span>
-      ),
-    }),
-    columnHelper.accessor('last_seen_at', {
-      header: 'Última vez visto',
-      cell: ({ getValue }) => (
-        <span className="text-muted-foreground text-sm">{formatDate(getValue())}</span>
-      ),
-    }),
-    columnHelper.accessor('id', {
-      header: 'Acciones',
-      cell: ({ getValue }) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 text-brand-400 hover:text-brand-300"
-          onClick={(e) => {
-            e.stopPropagation()
-            router.push(`/${tenant}/crm/contactos/${getValue()}`)
-          }}
-        >
-          <ExternalLink className="w-3 h-3 mr-1" />
-          Ver
-        </Button>
-      ),
-    }),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [])
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor('full_name', {
+        header: ({ column }) => (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-3 h-8"
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          >
+            Nombre completo
+            <ArrowUpDown className="ml-2 h-3 w-3" />
+          </Button>
+        ),
+        cell: ({ getValue }) => <span className="font-medium text-foreground">{getValue() || '—'}</span>,
+      }),
+      columnHelper.accessor('email', {
+        header: 'Email',
+        cell: ({ getValue }) => <span className="text-foreground">{getValue() || '—'}</span>,
+      }),
+      columnHelper.accessor('phone', {
+        header: 'Teléfono',
+        cell: ({ getValue }) => <span className="text-muted-foreground">{getValue() || '—'}</span>,
+      }),
+      columnHelper.accessor('country', {
+        header: 'País',
+        cell: ({ getValue }) => <span className="text-muted-foreground">{getValue() || '—'}</span>,
+      }),
+      columnHelper.accessor('first_seen_at', {
+        header: 'Primera vez visto',
+        cell: ({ getValue }) => <span className="text-muted-foreground text-sm">{formatDate(getValue())}</span>,
+      }),
+      columnHelper.accessor('last_seen_at', {
+        header: 'Última vez visto',
+        cell: ({ getValue }) => <span className="text-muted-foreground text-sm">{formatDate(getValue())}</span>,
+      }),
+      columnHelper.accessor('id', {
+        header: 'Acciones',
+        cell: ({ getValue }) => (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-brand-400 hover:text-brand-300"
+            onClick={(e) => {
+              e.stopPropagation()
+              router.push(`/${tenant}/crm/contactos/${getValue()}`)
+            }}
+          >
+            <ExternalLink className="w-3 h-3 mr-1" />
+            Ver
+          </Button>
+        ),
+      }),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    ],
+    []
+  )
 
   const filteredContacts = useMemo(() => {
     if (!globalFilter) return contacts
@@ -131,7 +115,12 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
 
   return (
     <div className="space-y-4">
-      <SearchBox value={globalFilter} onChange={setGlobalFilter} placeholder="Buscar por nombre, email o teléfono..." className="w-full" />
+      <SearchBox
+        value={globalFilter}
+        onChange={setGlobalFilter}
+        placeholder="Buscar por nombre, email o teléfono..."
+        className="w-full"
+      />
 
       <div className="rounded-lg border border-border overflow-hidden">
         <Table>
@@ -161,9 +150,7 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
                   onClick={() => router.push(`/${tenant}/crm/contactos/${row.original.id}`)}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
+                    <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
                   ))}
                 </TableRow>
               ))

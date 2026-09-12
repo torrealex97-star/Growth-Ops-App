@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -7,15 +7,24 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Link2, Copy, Check, Plus, Pencil, Trash2, Loader2, AlertTriangle, ExternalLink, FolderOpen, FolderPlus, Database, X } from 'lucide-react'
+import {
+  Link2,
+  Copy,
+  Check,
+  Plus,
+  Pencil,
+  Trash2,
+  Loader2,
+  AlertTriangle,
+  ExternalLink,
+  FolderOpen,
+  FolderPlus,
+  Database,
+  X,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { PERMISSIONS, ROLE_LABELS, type AppRole } from '@/lib/auth/permissions'
 import type { LinkTemplate, ResourceLink, ResourceLinkDivision } from '@/lib/types/database'
@@ -97,7 +106,9 @@ export default function EnlacesPage() {
 
   const fetchAll = useCallback(async () => {
     const supabase = createClient()
-    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
     if (!authUser) {
       setLoading(false)
       return
@@ -180,7 +191,11 @@ export default function EnlacesPage() {
       if (campErr) {
         toast.error('Error al cargar tus campañas')
       } else {
-        const camps = ((memberRows as unknown as { affiliate_campaigns: { id: string; name: string; base_url: string; is_active: boolean } | null }[]) ?? [])
+        const camps = (
+          (memberRows as unknown as {
+            affiliate_campaigns: { id: string; name: string; base_url: string; is_active: boolean } | null
+          }[]) ?? []
+        )
           .map((r) => r.affiliate_campaigns)
           .filter((c): c is { id: string; name: string; base_url: string; is_active: boolean } => !!c && c.is_active)
           .sort((a, b) => a.name.localeCompare(b.name))
@@ -207,7 +222,9 @@ export default function EnlacesPage() {
     setLoading(false)
   }, [tenantId])
 
-  useEffect(() => { fetchAll() }, [fetchAll])
+  useEffect(() => {
+    fetchAll()
+  }, [fetchAll])
 
   const userCode = useMemo(() => {
     if (!user) return null
@@ -324,7 +341,9 @@ export default function EnlacesPage() {
 
     setSubmitting(true)
     const supabase = createClient()
-    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
 
     const payload = {
       name,
@@ -384,7 +403,9 @@ export default function EnlacesPage() {
     if (!nm) return
     setSavingDivision(true)
     const supabase = createClient()
-    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
     const { error } = await supabase.from('resource_link_divisions').insert({
       name: nm,
       sort_order: divisions.length,
@@ -416,9 +437,10 @@ export default function EnlacesPage() {
 
   const deleteDivision = async (d: ResourceLinkDivision) => {
     const count = resources.filter((r) => r.division_id === d.id).length
-    const msg = count > 0
-      ? `¿Eliminar la división "${d.name}"? Sus ${count} enlace(s) quedarán como "Sin división" (no se borran).`
-      : `¿Eliminar la división "${d.name}"?`
+    const msg =
+      count > 0
+        ? `¿Eliminar la división "${d.name}"? Sus ${count} enlace(s) quedarán como "Sin división" (no se borran).`
+        : `¿Eliminar la división "${d.name}"?`
     if (!confirm(msg)) return
     const supabase = createClient()
     const { error } = await supabase.from('resource_link_divisions').delete().eq('id', d.id)
@@ -476,7 +498,9 @@ export default function EnlacesPage() {
 
     setResSubmitting(true)
     const supabase = createClient()
-    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
 
     const payload = {
       division_id: divId,
@@ -565,51 +589,58 @@ export default function EnlacesPage() {
       </div>
 
       {/* ============ ENLACES CON UTM (tracking por usuario) ============ */}
-      {isTrackedRole && (!userCode ? (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-400 flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 shrink-0" />
-          Tu código de tracking aún no está generado, contacta con un administrador.
-        </div>
-      ) : generatedLinks.length === 0 ? (
-        <div className="rounded-lg border border-border bg-card/40 p-6 text-center">
-          <Link2 className="w-8 h-8 text-muted-foreground mb-3 mx-auto" />
-          <h3 className="text-sm font-medium text-foreground mb-1">
-            {user?.role === 'affiliate' ? 'Aún no tienes campañas asignadas' : 'No hay plantillas de enlaces disponibles'}
-          </h3>
-          <p className="text-muted-foreground text-xs">
-            {user?.role === 'affiliate'
-              ? 'Cuando te asignen a una campaña, tus enlaces aparecerán aquí.'
-              : 'Contacta con un administrador para configurar plantillas de enlaces.'}
-          </p>
-        </div>
-      ) : (
-        <div>
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Tus enlaces con tracking</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {generatedLinks.map(({ id, name, url }) => (
-              <div key={id} className="rounded-lg border border-border bg-card p-4 space-y-3">
-                <p className="text-foreground font-medium">{name}</p>
-                <div className="flex items-center gap-2">
-                  <input
-                    readOnly
-                    value={url}
-                    onFocus={(e) => e.currentTarget.select()}
-                    className="flex-1 min-w-0 bg-muted border border-border rounded-md px-3 py-2 text-xs font-mono text-foreground truncate"
-                  />
-                  <Button variant="outline" size="icon" onClick={() => handleCopy(id, url)} title="Copiar">
-                    {copiedId === id ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                  </Button>
-                </div>
-              </div>
-            ))}
+      {isTrackedRole &&
+        (!userCode ? (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-400 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            Tu código de tracking aún no está generado, contacta con un administrador.
           </div>
-        </div>
-      ))}
+        ) : generatedLinks.length === 0 ? (
+          <div className="rounded-lg border border-border bg-card/40 p-6 text-center">
+            <Link2 className="w-8 h-8 text-muted-foreground mb-3 mx-auto" />
+            <h3 className="text-sm font-medium text-foreground mb-1">
+              {user?.role === 'affiliate'
+                ? 'Aún no tienes campañas asignadas'
+                : 'No hay plantillas de enlaces disponibles'}
+            </h3>
+            <p className="text-muted-foreground text-xs">
+              {user?.role === 'affiliate'
+                ? 'Cuando te asignen a una campaña, tus enlaces aparecerán aquí.'
+                : 'Contacta con un administrador para configurar plantillas de enlaces.'}
+            </p>
+          </div>
+        ) : (
+          <div>
+            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+              Tus enlaces con tracking
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {generatedLinks.map(({ id, name, url }) => (
+                <div key={id} className="rounded-lg border border-border bg-card p-4 space-y-3">
+                  <p className="text-foreground font-medium">{name}</p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      readOnly
+                      value={url}
+                      onFocus={(e) => e.currentTarget.select()}
+                      className="flex-1 min-w-0 bg-muted border border-border rounded-md px-3 py-2 text-xs font-mono text-foreground truncate"
+                    />
+                    <Button variant="outline" size="icon" onClick={() => handleCopy(id, url)} title="Copiar">
+                      {copiedId === id ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
 
       {/* ============ RECURSOS VARIOS (sin UTM, por división) ============ */}
       {activeGrouped.length > 0 && (
         <div className="pt-2">
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Recursos y enlaces varios</h2>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+            Recursos y enlaces varios
+          </h2>
           <div className="space-y-5">
             {activeGrouped.map((group) => (
               <div key={group.id ?? '__none__'}>
@@ -636,7 +667,11 @@ export default function EnlacesPage() {
                           className="flex-1 min-w-0 bg-muted border border-border rounded-md px-3 py-1.5 text-xs font-mono text-foreground truncate"
                         />
                         <Button variant="outline" size="icon" onClick={() => handleCopy(r.id, r.url)} title="Copiar">
-                          {copiedId === r.id ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                          {copiedId === r.id ? (
+                            <Check className="w-4 h-4 text-emerald-400" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -654,7 +689,9 @@ export default function EnlacesPage() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-foreground">Plantillas de enlaces (UTM)</h2>
-              <p className="text-muted-foreground text-sm">Plantillas base a partir de las cuales se generan los enlaces con tracking por usuario</p>
+              <p className="text-muted-foreground text-sm">
+                Plantillas base a partir de las cuales se generan los enlaces con tracking por usuario
+              </p>
             </div>
             <Button onClick={openCreate}>
               <Plus className="w-4 h-4 mr-2" />
@@ -724,7 +761,9 @@ export default function EnlacesPage() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-foreground">Recursos y enlaces varios</h2>
-              <p className="text-muted-foreground text-sm">Organiza los enlaces (sin UTM) en divisiones: pagos de productos, playbook, accesos a plataformas…</p>
+              <p className="text-muted-foreground text-sm">
+                Organiza los enlaces (sin UTM) en divisiones: pagos de productos, playbook, accesos a plataformas…
+              </p>
             </div>
             {!resourceTableMissing && (
               <Button onClick={() => openResCreate()}>
@@ -758,19 +797,28 @@ export default function EnlacesPage() {
                   <Input
                     value={newDivisionName}
                     onChange={(e) => setNewDivisionName(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') createDivision() }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') createDivision()
+                    }}
                     className="bg-muted border-border h-9"
                     placeholder="Nombre de la división (ej: Enlaces de ventas)"
                   />
                   <Button onClick={createDivision} disabled={savingDivision || !newDivisionName.trim()}>
-                    {savingDivision ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+                    {savingDivision ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Plus className="w-4 h-4 mr-2" />
+                    )}
                     Crear división
                   </Button>
                 </div>
                 {divisions.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {divisions.map((d) => (
-                      <div key={d.id} className="flex items-center gap-1 bg-muted border border-border rounded-md pl-3 pr-1 py-1">
+                      <div
+                        key={d.id}
+                        className="flex items-center gap-1 bg-muted border border-border rounded-md pl-3 pr-1 py-1"
+                      >
                         {editingDivisionId === d.id ? (
                           <>
                             <input
@@ -778,15 +826,31 @@ export default function EnlacesPage() {
                               onChange={(e) => setEditingDivisionName(e.target.value)}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') saveDivisionName(d.id)
-                                if (e.key === 'Escape') { setEditingDivisionId(null); setEditingDivisionName('') }
+                                if (e.key === 'Escape') {
+                                  setEditingDivisionId(null)
+                                  setEditingDivisionName('')
+                                }
                               }}
                               autoFocus
                               className="bg-card border border-border rounded px-2 py-0.5 text-sm text-foreground w-40"
                             />
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-emerald-400" onClick={() => saveDivisionName(d.id)}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-emerald-400"
+                              onClick={() => saveDivisionName(d.id)}
+                            >
                               <Check className="w-3.5 h-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground" onClick={() => { setEditingDivisionId(null); setEditingDivisionName('') }}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-muted-foreground"
+                              onClick={() => {
+                                setEditingDivisionId(null)
+                                setEditingDivisionName('')
+                              }}
+                            >
                               <X className="w-3.5 h-3.5" />
                             </Button>
                           </>
@@ -797,10 +861,23 @@ export default function EnlacesPage() {
                             <span className="text-[10px] text-muted-foreground">
                               {resources.filter((r) => r.division_id === d.id).length}
                             </span>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => { setEditingDivisionId(d.id); setEditingDivisionName(d.name) }}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                              onClick={() => {
+                                setEditingDivisionId(d.id)
+                                setEditingDivisionName(d.name)
+                              }}
+                            >
                               <Pencil className="w-3 h-3" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-red-400" onClick={() => deleteDivision(d)}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-muted-foreground hover:text-red-400"
+                              onClick={() => deleteDivision(d)}
+                            >
                               <Trash2 className="w-3 h-3" />
                             </Button>
                           </>
@@ -831,13 +908,20 @@ export default function EnlacesPage() {
                           <span className="text-sm font-semibold text-foreground">{group.name}</span>
                           <span className="text-xs text-muted-foreground">({group.items.length})</span>
                         </div>
-                        <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={() => openResCreate(group.id)}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                          onClick={() => openResCreate(group.id)}
+                        >
                           <Plus className="w-3.5 h-3.5 mr-1" />
                           Añadir aquí
                         </Button>
                       </div>
                       {group.items.length === 0 ? (
-                        <p className="px-4 py-3 text-xs text-muted-foreground">División vacía. Usa &quot;Añadir aquí&quot; para meter enlaces.</p>
+                        <p className="px-4 py-3 text-xs text-muted-foreground">
+                          División vacía. Usa &quot;Añadir aquí&quot; para meter enlaces.
+                        </p>
                       ) : (
                         <div className="divide-y divide-border">
                           {group.items.map((r) => (
@@ -853,7 +937,9 @@ export default function EnlacesPage() {
                                     {r.is_active ? 'Activo' : 'Inactivo'}
                                   </Badge>
                                   {(r.applies_to ?? []).length === 0 ? (
-                                    <Badge variant="outline" className="text-xs">Todos</Badge>
+                                    <Badge variant="outline" className="text-xs">
+                                      Todos
+                                    </Badge>
                                   ) : (
                                     r.applies_to.map((role) => (
                                       <Badge key={role} variant="outline" className="text-xs">
@@ -862,14 +948,26 @@ export default function EnlacesPage() {
                                     ))
                                   )}
                                 </div>
-                                {r.description && <p className="text-muted-foreground text-xs mt-0.5">{r.description}</p>}
+                                {r.description && (
+                                  <p className="text-muted-foreground text-xs mt-0.5">{r.description}</p>
+                                )}
                                 <p className="text-muted-foreground text-xs font-mono mt-1 truncate">{r.url}</p>
                               </div>
                               <div className="flex items-center gap-1 shrink-0">
-                                <Button variant="ghost" size="sm" className="h-7 text-muted-foreground hover:text-foreground" onClick={() => openResEdit(r)}>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 text-muted-foreground hover:text-foreground"
+                                  onClick={() => openResEdit(r)}
+                                >
                                   <Pencil className="w-3.5 h-3.5" />
                                 </Button>
-                                <Button variant="ghost" size="sm" className="h-7 text-muted-foreground hover:text-red-400" onClick={() => handleResDelete(r)}>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 text-muted-foreground hover:text-red-400"
+                                  onClick={() => handleResDelete(r)}
+                                >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </Button>
                               </div>
@@ -918,7 +1016,8 @@ export default function EnlacesPage() {
                 placeholder="https://tudominio.com/landing"
               />
               <p className="text-xs text-muted-foreground">
-                Se añadirá automáticamente utm_term (setter/cold caller) o utm_content (afiliado) con el código de cada usuario.
+                Se añadirá automáticamente utm_term (setter/cold caller) o utm_content (afiliado) con el código de cada
+                usuario.
               </p>
             </div>
 
@@ -930,10 +1029,7 @@ export default function EnlacesPage() {
                     key={role}
                     className="flex items-center gap-2 text-sm text-foreground bg-muted/60 border border-border rounded-md px-3 py-2 cursor-pointer hover:bg-muted"
                   >
-                    <Checkbox
-                      checked={appliesTo.includes(role)}
-                      onCheckedChange={() => toggleAppliesTo(role)}
-                    />
+                    <Checkbox checked={appliesTo.includes(role)} onCheckedChange={() => toggleAppliesTo(role)} />
                     {ROLE_LABELS[role]}
                   </label>
                 ))}
@@ -946,7 +1042,9 @@ export default function EnlacesPage() {
                 checked={isActive}
                 onCheckedChange={(checked) => setIsActive(checked === true)}
               />
-              <Label htmlFor="template-active" className="cursor-pointer">Plantilla activa</Label>
+              <Label htmlFor="template-active" className="cursor-pointer">
+                Plantilla activa
+              </Label>
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
@@ -992,12 +1090,16 @@ export default function EnlacesPage() {
                 <SelectContent>
                   <SelectItem value={NO_DIVISION}>Sin división</SelectItem>
                   {divisions.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {divisions.length === 0 && (
-                <p className="text-xs text-amber-400/80">Aún no hay divisiones. Créalas arriba para organizar los enlaces.</p>
+                <p className="text-xs text-amber-400/80">
+                  Aún no hay divisiones. Créalas arriba para organizar los enlaces.
+                </p>
               )}
             </div>
 
@@ -1034,17 +1136,16 @@ export default function EnlacesPage() {
 
             <div className="space-y-2">
               <Label>Visible para</Label>
-              <p className="text-xs text-muted-foreground -mt-1">Si no marcas ninguno, lo verán todos los que acceden a Enlaces.</p>
+              <p className="text-xs text-muted-foreground -mt-1">
+                Si no marcas ninguno, lo verán todos los que acceden a Enlaces.
+              </p>
               <div className="grid grid-cols-2 gap-2">
                 {RESOURCE_ROLES.map((role) => (
                   <label
                     key={role}
                     className="flex items-center gap-2 text-sm text-foreground bg-muted/60 border border-border rounded-md px-3 py-2 cursor-pointer hover:bg-muted"
                   >
-                    <Checkbox
-                      checked={resAppliesTo.includes(role)}
-                      onCheckedChange={() => toggleResAppliesTo(role)}
-                    />
+                    <Checkbox checked={resAppliesTo.includes(role)} onCheckedChange={() => toggleResAppliesTo(role)} />
                     {ROLE_LABELS[role]}
                   </label>
                 ))}
@@ -1057,7 +1158,9 @@ export default function EnlacesPage() {
                 checked={resActive}
                 onCheckedChange={(checked) => setResActive(checked === true)}
               />
-              <Label htmlFor="resource-active" className="cursor-pointer">Enlace activo</Label>
+              <Label htmlFor="resource-active" className="cursor-pointer">
+                Enlace activo
+              </Label>
             </div>
 
             <div className="flex justify-end gap-3 pt-2">

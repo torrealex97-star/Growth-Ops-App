@@ -6,14 +6,14 @@ export const dynamic = 'force-dynamic'
 // Origen (protocolo + host) de una URL, para poder abrir la conexión (preconnect) cuanto antes.
 function originOf(u: string | null | undefined): string | null {
   if (!u) return null
-  try { return new URL(u).origin } catch { return null }
+  try {
+    return new URL(u).origin
+  } catch {
+    return null
+  }
 }
 
-export default async function VslEmbedPage({
-  params,
-}: {
-  params: { slug: string }
-}) {
+export default async function VslEmbedPage({ params }: { params: { slug: string } }) {
   const { slug } = params
   const [video] = await sql`
     SELECT slug, name, source_url, poster_url, duration_seconds, config

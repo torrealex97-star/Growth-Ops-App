@@ -36,10 +36,16 @@ export type InstagramSyncResult = {
 // (/api/${tenant}/evergreen/instagram/sync) y el cron diario (/api/${tenant}/evergreen/cron/instagram).
 // Requiere Supabase con service-role (salta RLS). No toca transcript/ai_analysis:
 // esos los rellena la transcripción bajo demanda, así que re-sincronizar NO los borra.
-export async function runInstagramSync(sb: SupabaseClient, tenantId: string, opts?: { mediaLimit?: number; light?: boolean }): Promise<InstagramSyncResult> {
+export async function runInstagramSync(
+  sb: SupabaseClient,
+  tenantId: string,
+  opts?: { mediaLimit?: number; light?: boolean }
+): Promise<InstagramSyncResult> {
   const cfg = getInstagramConfig()
   if (!cfg) {
-    throw new Error('Faltan credenciales de Instagram. Configura INSTAGRAM_ACCESS_TOKEN (o META_ACCESS_TOKEN) en Vercel.')
+    throw new Error(
+      'Faltan credenciales de Instagram. Configura INSTAGRAM_ACCESS_TOKEN (o META_ACCESS_TOKEN) en Vercel.'
+    )
   }
 
   const { id: igUserId } = await resolveIgUserId(cfg)
@@ -47,10 +53,7 @@ export async function runInstagramSync(sb: SupabaseClient, tenantId: string, opt
   const mediaLimit = opts?.mediaLimit ?? 100
 
   // 1) Perfil + insights de cuenta → snapshot diario (crecimiento)
-  const [profile, acc] = await Promise.all([
-    fetchIgProfile(cfg, igUserId),
-    fetchAccountInsights(cfg, igUserId),
-  ])
+  const [profile, acc] = await Promise.all([fetchIgProfile(cfg, igUserId), fetchAccountInsights(cfg, igUserId)])
 
   await sb.from('ig_account_daily').upsert(
     {
@@ -78,13 +81,21 @@ export async function runInstagramSync(sb: SupabaseClient, tenantId: string, opt
   try {
     const demo = await fetchFollowerDemographics(cfg, igUserId)
     if (demo.length) {
-      const rows = demo.map((d) => ({ tenant_id: tenantId, dimension: d.dimension, bucket: d.bucket, value: d.value, captured_at: at }))
+      const rows = demo.map((d) => ({
+        tenant_id: tenantId,
+        dimension: d.dimension,
+        bucket: d.bucket,
+        value: d.value,
+        captured_at: at,
+      }))
       // NOTA: mismo caso que ig_account_daily — el índice único original era (dimension, bucket)
       // global; ver la migración pendiente que lo cambia a (tenant_id, dimension, bucket).
       await sb.from('ig_audience').upsert(rows, { onConflict: 'tenant_id,dimension,bucket', ignoreDuplicates: false })
       demographicsRows = rows.length
     }
-  } catch { /* demografía requiere >=100 seguidores; si falla, seguimos */ }
+  } catch {
+    /* demografía requiere >=100 seguidores; si falla, seguimos */
+  }
 
   // 3) Medias (reels + posts) con sus insights. Upsert por external_id SIN tocar
   //    las columnas de transcripción/IA (no van en el payload → se conservan).
@@ -150,36 +161,48 @@ export async function runInstagramSync(sb: SupabaseClient, tenantId: string, opt
               views: r.views,
               synced_at: at,
             }
-            if (!opts?.light) { row.likes = r.likes; row.comments = r.comments }
-            const { error } = await sb.from('fb_media').upsert(row, { onConflict: 'external_id', ignoreDuplicates: false })
+            if (!opts?.light) {
+              row.likes = r.likes
+              row.comments = r.comments
+            }
+            const { error } = await sb
+              .from('fb_media')
+              .upsert(row, { onConflict: 'external_id', ignoreDuplicates: false })
             if (!error) fbReelsSynced++
           }
-        } catch { /* reels de FB no disponibles */ }
+        } catch {
+          /* reels de FB no disponibles */
+        }
 
         // Conversaciones (DMs) — snapshot del día. Requiere ACCESO AVANZADO a
         // instagram_manage_messages (App Review): con acceso estándar, una cuenta
         // con muchos DMs da timeout/error #1. Gate por env hasta tener el permiso.
-        if (process.env.IG_ENABLE_DM_SYNC === '1') try {
-          const stats = await fetchConversationStats(cfg, pageId, pat)
-          await sb.from('ig_conversations_daily').upsert(
-            {
-              tenant_id: tenantId,
-              snapshot_date: today(),
-              total_conversations: stats.total_conversations,
-              unread_conversations: stats.unread_conversations,
-              total_messages: stats.total_messages,
-              unique_people: stats.unique_people,
-              synced_at: at,
-            },
-            // NOTA: mismo caso que ig_account_daily — ver migración pendiente que cambia el
-            // índice único de (snapshot_date) a (tenant_id, snapshot_date).
-            { onConflict: 'tenant_id,snapshot_date', ignoreDuplicates: false }
-          )
-          conversations = stats.total_conversations
-        } catch { /* conversaciones no disponibles */ }
+        if (process.env.IG_ENABLE_DM_SYNC === '1')
+          try {
+            const stats = await fetchConversationStats(cfg, pageId, pat)
+            await sb.from('ig_conversations_daily').upsert(
+              {
+                tenant_id: tenantId,
+                snapshot_date: today(),
+                total_conversations: stats.total_conversations,
+                unread_conversations: stats.unread_conversations,
+                total_messages: stats.total_messages,
+                unique_people: stats.unique_people,
+                synced_at: at,
+              },
+              // NOTA: mismo caso que ig_account_daily — ver migración pendiente que cambia el
+              // índice único de (snapshot_date) a (tenant_id, snapshot_date).
+              { onConflict: 'tenant_id,snapshot_date', ignoreDuplicates: false }
+            )
+            conversations = stats.total_conversations
+          } catch {
+            /* conversaciones no disponibles */
+          }
       }
     }
-  } catch { /* FB/conversaciones opcional */ }
+  } catch {
+    /* FB/conversaciones opcional */
+  }
 
   // 5) Espejo a YouTube de los reels propios nuevos (opcional, solo si hay credenciales configuradas).
   let youtubeUploaded = 0
@@ -187,7 +210,9 @@ export async function runInstagramSync(sb: SupabaseClient, tenantId: string, opt
     // Solo reels nuevos aquí (backfillLimit 0): el backfill de reels antiguos va por su propio
     // cron 3 veces al día (mañana/mediodía/noche), ver /api/${tenant}/evergreen/cron/youtube-backfill.
     youtubeUploaded = await runYoutubeSync(sb, cfg, tenantId, { backfillLimit: 0 })
-  } catch { /* YouTube opcional: un fallo aquí no debe romper el sync de Instagram */ }
+  } catch {
+    /* YouTube opcional: un fallo aquí no debe romper el sync de Instagram */
+  }
 
   return {
     ok: true,

@@ -12,14 +12,17 @@ export type StripeIntent = {
   status: string
   receipt_email?: string | null
   metadata?: Record<string, string>
-  latest_charge?: string | {
-    id: string
-    amount_refunded?: number
-    refunded?: boolean
-    disputed?: boolean
-    billing_details?: { email?: string | null; name?: string | null }
-    balance_transaction?: string | { fee?: number } | null
-  } | null
+  latest_charge?:
+    | string
+    | {
+        id: string
+        amount_refunded?: number
+        refunded?: boolean
+        disputed?: boolean
+        billing_details?: { email?: string | null; name?: string | null }
+        balance_transaction?: string | { fee?: number } | null
+      }
+    | null
 }
 
 export type StripeReconciliationRow = {
@@ -61,7 +64,10 @@ export async function reconcileStripePayments(
     },
     cache: 'no-store',
   })
-  const stripeJson = (await stripeRes.json().catch(() => ({}))) as { data?: StripeIntent[]; error?: { message?: string } }
+  const stripeJson = (await stripeRes.json().catch(() => ({}))) as {
+    data?: StripeIntent[]
+    error?: { message?: string }
+  }
   if (!stripeRes.ok) {
     throw new Error(stripeJson.error?.message || 'Stripe no respondió correctamente.')
   }
@@ -69,7 +75,9 @@ export async function reconcileStripePayments(
   const intents = stripeJson.data ?? []
   const { data: collections, error } = await sb
     .from('collections')
-    .select('id,sale_id,gross_amount,processing_fee,status,payment_reference,payment_provider,payment_method,collected_at,sales(contacts(full_name,email))')
+    .select(
+      'id,sale_id,gross_amount,processing_fee,status,payment_reference,payment_provider,payment_method,collected_at,sales(contacts(full_name,email))'
+    )
     .eq('tenant_id', tenantId)
     .order('collected_at', { ascending: false })
     .limit(1000)
@@ -82,13 +90,16 @@ export async function reconcileStripePayments(
     })
     .map((intent) => {
       const charge = typeof intent.latest_charge === 'object' ? intent.latest_charge : null
-      const refs = [intent.id, typeof intent.latest_charge === 'string' ? intent.latest_charge : charge?.id].filter(Boolean)
+      const refs = [intent.id, typeof intent.latest_charge === 'string' ? intent.latest_charge : charge?.id].filter(
+        Boolean
+      )
       const byReference = collections?.find((c) => c.payment_reference && refs.includes(c.payment_reference))
       const saleId = intent.metadata?.sale_id || intent.metadata?.saleId || null
       const amount = intent.amount_received / 100
-      const bySaleAndAmount = !byReference && saleId
-        ? collections?.find((c) => c.sale_id === saleId && Math.abs(Number(c.gross_amount) - amount) < 0.01)
-        : null
+      const bySaleAndAmount =
+        !byReference && saleId
+          ? collections?.find((c) => c.sale_id === saleId && Math.abs(Number(c.gross_amount) - amount) < 0.01)
+          : null
       const collection = byReference || bySaleAndAmount || null
       const amountMatches = !collection || Math.abs(Number(collection.gross_amount) - amount) < 0.01
       const providerStatus = charge?.disputed ? 'disputed' : charge?.refunded ? 'refunded' : intent.status
@@ -96,8 +107,12 @@ export async function reconcileStripePayments(
         ? 'missing'
         : !amountMatches || (providerStatus === 'succeeded' && collection.status !== 'collected')
           ? 'mismatch'
-          : byReference ? 'matched' : 'probable'
-      const relation = collection?.sales as unknown as { contacts?: { full_name?: string; email?: string } | null } | null
+          : byReference
+            ? 'matched'
+            : 'probable'
+      const relation = collection?.sales as unknown as {
+        contacts?: { full_name?: string; email?: string } | null
+      } | null
       const balanceTx = charge && typeof charge.balance_transaction === 'object' ? charge.balance_transaction : null
       return {
         paymentId: intent.id,

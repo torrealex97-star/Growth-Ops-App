@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -31,15 +31,23 @@ export function ProductExtrasManager() {
       .eq('tenant_id', tenantId)
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true })
-    if (error) { setAvailable(false); return }
+    if (error) {
+      setAvailable(false)
+      return
+    }
     setAvailable(true)
     setExtras((data as ProductExtra[]) ?? [])
   }
 
-  useEffect(() => { fetchExtras() }, [])
+  useEffect(() => {
+    fetchExtras()
+  }, [])
 
   const addExtra = async () => {
-    if (!name.trim()) { toast.error('Pon un nombre al extra'); return }
+    if (!name.trim()) {
+      toast.error('Pon un nombre al extra')
+      return
+    }
     setSaving(true)
     const supabase = createClient()
     const { error } = await supabase.from('product_extras').insert({
@@ -49,8 +57,12 @@ export function ProductExtrasManager() {
       tenant_id: tenantId,
     })
     setSaving(false)
-    if (error) { toast.error('No se pudo crear', { description: error.message }); return }
-    setName(''); setDescription('')
+    if (error) {
+      toast.error('No se pudo crear', { description: error.message })
+      return
+    }
+    setName('')
+    setDescription('')
     toast.success('Extra creado')
     fetchExtras()
   }
@@ -64,7 +76,10 @@ export function ProductExtrasManager() {
   const removeExtra = async (e: ProductExtra) => {
     const supabase = createClient()
     const { error } = await supabase.from('product_extras').delete().eq('id', e.id).eq('tenant_id', tenantId)
-    if (error) { toast.error('No se pudo borrar', { description: error.message }); return }
+    if (error) {
+      toast.error('No se pudo borrar', { description: error.message })
+      return
+    }
     fetchExtras()
   }
 
@@ -77,14 +92,32 @@ export function ProductExtrasManager() {
         <h3 className="text-sm font-semibold text-foreground">Extras / bonus</h3>
       </div>
       <p className="text-xs text-muted-foreground">
-        Extras que se pueden incluir en una venta (llamada 1-1, Honey, +1 mes de formación…). Aparecen en la venta y en el export de alumnos.
+        Extras que se pueden incluir en una venta (llamada 1-1, Honey, +1 mes de formación…). Aparecen en la venta y en
+        el export de alumnos.
       </p>
 
       <div className="flex flex-col sm:flex-row gap-2">
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre (ej. Llamada 1-1)" className="bg-muted border-border" />
-        <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descripción (opcional)" className="bg-muted border-border" />
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Nombre (ej. Llamada 1-1)"
+          className="bg-muted border-border"
+        />
+        <Input
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Descripción (opcional)"
+          className="bg-muted border-border"
+        />
         <Button onClick={addExtra} disabled={saving} className="shrink-0">
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Plus className="w-4 h-4 mr-1" />Añadir</>}
+          {saving ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <>
+              <Plus className="w-4 h-4 mr-1" />
+              Añadir
+            </>
+          )}
         </Button>
       </div>
 
@@ -102,7 +135,12 @@ export function ProductExtrasManager() {
                 <Button size="sm" variant="outline" onClick={() => toggleActive(e)}>
                   {e.is_active ? 'Desactivar' : 'Activar'}
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => removeExtra(e)} className="text-red-400 hover:text-red-300">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => removeExtra(e)}
+                  className="text-red-400 hover:text-red-300"
+                >
                   <Trash2 className="w-4 h-4" />
                 </Button>
               </div>

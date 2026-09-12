@@ -4,9 +4,11 @@ import { sql } from '@/lib/vsl/db'
 // para que el cold caller vea en Leads el porcentaje exacto que vio cada lead.
 // Guarda siempre el MÁXIMO alcanzado (no baja) y marca vsl_watched_at. Nunca lanza:
 // si faltan las columnas vsl_* en algún entorno, se ignora y el tracking sigue.
-export async function syncContactWatchPct(
-  sess?: { lead_email?: string | null; max_position?: number | string; duration?: number | string }
-): Promise<void> {
+export async function syncContactWatchPct(sess?: {
+  lead_email?: string | null
+  max_position?: number | string
+  duration?: number | string
+}): Promise<void> {
   if (!sess?.lead_email) return
   const dur = Number(sess.duration) || 0
   const pos = Number(sess.max_position) || 0

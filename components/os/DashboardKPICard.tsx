@@ -52,21 +52,22 @@ export function KPICard({
           {(delta !== undefined || description) && (
             <div className="mt-2 flex items-center gap-2">
               {delta !== undefined && deltaType && (
-                <span className={cn(
-                  'inline-flex items-center gap-1 text-xs font-medium',
-                  deltaType === 'up' && 'text-emerald-400',
-                  deltaType === 'down' && 'text-red-400',
-                  deltaType === 'neutral' && 'text-muted-foreground',
-                )}>
+                <span
+                  className={cn(
+                    'inline-flex items-center gap-1 text-xs font-medium',
+                    deltaType === 'up' && 'text-emerald-400',
+                    deltaType === 'down' && 'text-red-400',
+                    deltaType === 'neutral' && 'text-muted-foreground'
+                  )}
+                >
                   {deltaType === 'up' && <TrendingUp className="w-3 h-3" />}
                   {deltaType === 'down' && <TrendingDown className="w-3 h-3" />}
                   {deltaType === 'neutral' && <Minus className="w-3 h-3" />}
-                  {delta > 0 ? '+' : ''}{delta}%
+                  {delta > 0 ? '+' : ''}
+                  {delta}%
                 </span>
               )}
-              {description && (
-                <span className="text-xs text-muted-foreground">{description}</span>
-              )}
+              {description && <span className="text-xs text-muted-foreground">{description}</span>}
             </div>
           )}
         </>

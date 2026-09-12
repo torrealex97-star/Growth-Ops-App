@@ -16,7 +16,13 @@ const VIDEO_BUCKET = 'ig-competitor-reels'
 // ventana de los 50 posts más recientes). Best-effort: si falla, no rompe la
 // transcripción, solo no queda protegido para el futuro.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function persistToStorage(sb: any, table: string, rowId: string, buf: Buffer, mime: string): Promise<string | null> {
+async function persistToStorage(
+  sb: any,
+  table: string,
+  rowId: string,
+  buf: Buffer,
+  mime: string
+): Promise<string | null> {
   try {
     const ext = mime.includes('mp4') || mime.includes('video') ? 'mp4' : 'bin'
     const path = `${table}/${rowId}.${ext}`
@@ -25,7 +31,10 @@ async function persistToStorage(sb: any, table: string, rowId: string, buf: Buff
       await sb.storage.createBucket(VIDEO_BUCKET, { public: true })
       up = await sb.storage.from(VIDEO_BUCKET).upload(path, buf, { contentType: mime || 'video/mp4', upsert: true })
     }
-    if (up.error) { console.error('[transcribe] persistToStorage:', up.error.message); return null }
+    if (up.error) {
+      console.error('[transcribe] persistToStorage:', up.error.message)
+      return null
+    }
     return sb.storage.from(VIDEO_BUCKET).getPublicUrl(path).data.publicUrl
   } catch (e) {
     console.error('[transcribe] persistToStorage falló:', e instanceof Error ? e.message : e)
@@ -64,15 +73,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     const body = await req.json()
     const { mediaId, competitorMediaId, mediaUrl, caption } = body as {
-      mediaId?: string; competitorMediaId?: string; mediaUrl?: string; caption?: string
+      mediaId?: string
+      competitorMediaId?: string
+      mediaUrl?: string
+      caption?: string
     }
     if (!mediaId && !competitorMediaId && !mediaUrl) {
       return NextResponse.json({ error: 'Falta mediaId, competitorMediaId o mediaUrl' }, { status: 400 })
     }
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-    const role = (urow?.roles as { key?: string } | null)?.key
+    const role = t.role
     if (!role || !ALLOWED_ROLES.includes(role)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
     // Resuelve el origen: tabla, url del vídeo, transcript ya existente y contexto.
@@ -86,16 +97,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     let competitorPermalink = ''
 
     if (mediaId) {
-      table = 'ig_media'; rowId = mediaId
-      const { data, error } = await sb.from('ig_media').select('id, external_id, media_url, caption, transcript, views, saved, engagement_rate').eq('id', mediaId).eq('tenant_id', t.tenantId).single()
+      table = 'ig_media'
+      rowId = mediaId
+      const { data, error } = await sb
+        .from('ig_media')
+        .select('id, external_id, media_url, caption, transcript, views, saved, engagement_rate')
+        .eq('id', mediaId)
+        .eq('tenant_id', t.tenantId)
+        .single()
       if (error || !data) return NextResponse.json({ error: 'Reel no encontrado' }, { status: 404 })
       url = data.media_url || ''
       externalId = data.external_id || ''
       existingTranscript = data.transcript || ''
-      ctx = { caption: data.caption || undefined, views: data.views ?? undefined, saves: data.saved ?? undefined, engagement: data.engagement_rate ?? undefined }
+      ctx = {
+        caption: data.caption || undefined,
+        views: data.views ?? undefined,
+        saves: data.saved ?? undefined,
+        engagement: data.engagement_rate ?? undefined,
+      }
     } else if (competitorMediaId) {
-      table = 'ig_competitor_media'; rowId = competitorMediaId
-      const { data, error } = await sb.from('ig_competitor_media').select('id, external_id, media_url, permalink, caption, transcript, like_count, comments_count, ig_competitors(username)').eq('id', competitorMediaId).eq('tenant_id', t.tenantId).single()
+      table = 'ig_competitor_media'
+      rowId = competitorMediaId
+      const { data, error } = await sb
+        .from('ig_competitor_media')
+        .select(
+          'id, external_id, media_url, permalink, caption, transcript, like_count, comments_count, ig_competitors(username)'
+        )
+        .eq('id', competitorMediaId)
+        .eq('tenant_id', t.tenantId)
+        .single()
       if (error || !data) return NextResponse.json({ error: 'Reel de competencia no encontrado' }, { status: 404 })
       url = data.media_url || ''
       externalId = data.external_id || ''
@@ -105,7 +135,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       ctx = { caption: data.caption || undefined }
     }
 
-    const setStatus = async (status: string) => { if (table === 'ig_media') await sb.from('ig_media').update({ transcript_status: status }).eq('id', rowId).eq('tenant_id', t.tenantId) }
+    const setStatus = async (status: string) => {
+      if (table === 'ig_media')
+        await sb.from('ig_media').update({ transcript_status: status }).eq('id', rowId).eq('tenant_id', t.tenantId)
+    }
 
     // Pide a Meta una media_url fresca (las URLs firmadas de la CDN caducan a las
     // pocas horas, y si el sync guardó null en su momento la BD nunca la tuvo).
@@ -141,22 +174,34 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           // external_id probamos por el shortcode del permalink (más fiable; es lo
           // que ya usa el endpoint de sync de competidores para el modo "por enlace").
           const shortcode = competitorPermalink.match(/\/(?:reel|p|reels|tv)\/([^/]+)/)?.[1]
-          const hit = recent.find((m) => m.external_id === externalId)
-            || (shortcode ? recent.find((m) => (m.permalink || '').includes(`/${shortcode}`)) : undefined)
+          const hit =
+            recent.find((m) => m.external_id === externalId) ||
+            (shortcode ? recent.find((m) => (m.permalink || '').includes(`/${shortcode}`)) : undefined)
           if (hit?.media_url) {
             // Si el id cambió respecto al guardado, actualizamos external_id también
             // para que futuras comparaciones directas ya no dependan del permalink.
-            await sb.from(table).update({ media_url: hit.media_url, external_id: hit.external_id }).eq('id', rowId).eq('tenant_id', t.tenantId)
+            await sb
+              .from(table)
+              .update({ media_url: hit.media_url, external_id: hit.external_id })
+              .eq('id', rowId)
+              .eq('tenant_id', t.tenantId)
             return { url: hit.media_url, reason: null }
           }
           console.error('[transcribe] refresh: sin media_url para este reel de competencia', {
-            externalId, competitorUsername, competitorPermalink, recentCount: recent.length,
+            externalId,
+            competitorUsername,
+            competitorPermalink,
+            recentCount: recent.length,
             foundAmongRecent: !!hit,
             recentIds: recent.map((m) => ({ id: m.external_id, ts: m.timestamp, permalink: m.permalink })),
           })
           return { url: null, reason: hit ? 'no_media_url' : 'not_in_recent' }
         }
-        console.error('[transcribe] refresh: sin competitorUsername o tabla no soportada', { table, competitorUsername, externalId })
+        console.error('[transcribe] refresh: sin competitorUsername o tabla no soportada', {
+          table,
+          competitorUsername,
+          externalId,
+        })
         return { url: null, reason: null }
       } catch (e) {
         console.error('[transcribe] refresh media_url falló:', e instanceof Error ? e.message : e)
@@ -183,7 +228,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           return NextResponse.json({ error: refreshFailMessage(refreshed.reason) }, { status: 410 })
         } else {
           await setStatus('no_aplica')
-          return NextResponse.json({ error: 'Este contenido no tiene vídeo descargable (¿carrusel/imagen?).' }, { status: 400 })
+          return NextResponse.json(
+            { error: 'Este contenido no tiene vídeo descargable (¿carrusel/imagen?).' },
+            { status: 400 }
+          )
         }
       }
       await setStatus('procesando')
@@ -208,9 +256,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       const mime = r.headers.get('content-type') || 'video/mp4'
       if (buf.byteLength > GROQ_LIMIT_BYTES) {
         await setStatus('error')
-        return NextResponse.json({
-          error: `El vídeo pesa ${(buf.byteLength / 1024 / 1024).toFixed(1)}MB y supera el límite de 25MB de la transcripción gratuita.`,
-        }, { status: 413 })
+        return NextResponse.json(
+          {
+            error: `El vídeo pesa ${(buf.byteLength / 1024 / 1024).toFixed(1)}MB y supera el límite de 25MB de la transcripción gratuita.`,
+          },
+          { status: 413 }
+        )
       }
       // Ya lo tenemos descargado: lo guardamos en Storage propio para que este
       // reel no vuelva a depender de la URL de Meta (evita el error "ya no está
@@ -237,25 +288,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       analysis = await analyzeReel(transcript, ctx)
     } catch (e) {
       if (table === 'ig_media') {
-        await sb.from('ig_media').update({ transcript, transcript_status: 'listo' }).eq('id', rowId).eq('tenant_id', t.tenantId)
+        await sb
+          .from('ig_media')
+          .update({ transcript, transcript_status: 'listo' })
+          .eq('id', rowId)
+          .eq('tenant_id', t.tenantId)
       } else if (table === 'ig_competitor_media') {
         await sb.from('ig_competitor_media').update({ transcript }).eq('id', rowId).eq('tenant_id', t.tenantId)
       }
       const raw = e instanceof Error ? e.message : String(e)
       const overloaded = /overloaded/i.test(raw)
-      return NextResponse.json({
-        error: overloaded
-          ? 'Claude está saturado en este momento (alta demanda). La transcripción se ha guardado; vuelve a intentarlo en 1-2 minutos para generar el análisis.'
-          : `La transcripción se ha guardado, pero el análisis con IA falló: ${raw}`,
-        transcript,
-      }, { status: 503 })
+      return NextResponse.json(
+        {
+          error: overloaded
+            ? 'Claude está saturado en este momento (alta demanda). La transcripción se ha guardado; vuelve a intentarlo en 1-2 minutos para generar el análisis.'
+            : `La transcripción se ha guardado, pero el análisis con IA falló: ${raw}`,
+          transcript,
+        },
+        { status: 503 }
+      )
     }
     const analyzedAt = new Date().toISOString()
 
     if (table === 'ig_media') {
-      await sb.from('ig_media').update({ transcript, transcript_status: 'listo', ai_analysis: analysis, ai_analyzed_at: analyzedAt }).eq('id', rowId).eq('tenant_id', t.tenantId)
+      await sb
+        .from('ig_media')
+        .update({ transcript, transcript_status: 'listo', ai_analysis: analysis, ai_analyzed_at: analyzedAt })
+        .eq('id', rowId)
+        .eq('tenant_id', t.tenantId)
     } else if (table === 'ig_competitor_media') {
-      await sb.from('ig_competitor_media').update({ transcript, ai_analysis: analysis }).eq('id', rowId).eq('tenant_id', t.tenantId)
+      await sb
+        .from('ig_competitor_media')
+        .update({ transcript, ai_analysis: analysis })
+        .eq('id', rowId)
+        .eq('tenant_id', t.tenantId)
     }
 
     return NextResponse.json({ ok: true, transcript, analysis })

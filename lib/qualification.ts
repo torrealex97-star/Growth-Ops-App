@@ -6,7 +6,10 @@ export function norm(s: string): string {
 }
 
 export function slugify(s: string): string {
-  return norm(s).replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40)
+  return norm(s)
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 40)
 }
 
 // Mapea el texto de una pregunta de formulario a una clave de cualificación conocida (o null).
@@ -60,10 +63,7 @@ export const QUALIFICATION_LABELS: Record<string, string> = {
 }
 
 export function labelFor(key: string): string {
-  return (
-    QUALIFICATION_LABELS[key] ||
-    key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-  )
+  return QUALIFICATION_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 // Devuelve el valor de una clave, cayendo al array `respuestas` si no está mapeada.

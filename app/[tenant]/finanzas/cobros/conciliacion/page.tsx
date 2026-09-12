@@ -102,7 +102,9 @@ export default function ConciliacionPage() {
     }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+  }, [])
 
   const filteredRows = useMemo(() => {
     return rows.filter((r) => {
@@ -199,7 +201,8 @@ export default function ConciliacionPage() {
             disabled={reloading}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm bg-brand-600/20 text-brand-400 border border-brand-600/30 hover:bg-brand-600/30 disabled:opacity-50"
           >
-            <RefreshCw className={cn('w-4 h-4', reloading && 'animate-spin')} /> {reloading ? 'Cotejando…' : 'Cotejar ahora'}
+            <RefreshCw className={cn('w-4 h-4', reloading && 'animate-spin')} />{' '}
+            {reloading ? 'Cotejando…' : 'Cotejar ahora'}
           </button>
         </div>
       </div>
@@ -219,27 +222,37 @@ export default function ConciliacionPage() {
               className="bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground"
             >
               {MANUAL_PLATFORMS.map((p) => (
-                <option key={p.value} value={p.value}>{p.label}</option>
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
               ))}
             </select>
             <input
-              type="number" step="0.01" placeholder="Importe"
-              value={formAmount} onChange={(e) => setFormAmount(e.target.value)}
+              type="number"
+              step="0.01"
+              placeholder="Importe"
+              value={formAmount}
+              onChange={(e) => setFormAmount(e.target.value)}
               className="bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground"
             />
             <input
               type="date"
-              value={formDate} onChange={(e) => setFormDate(e.target.value)}
+              value={formDate}
+              onChange={(e) => setFormDate(e.target.value)}
               className="bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground"
             />
             <input
-              type="text" placeholder="Referencia (opcional)"
-              value={formReference} onChange={(e) => setFormReference(e.target.value)}
+              type="text"
+              placeholder="Referencia (opcional)"
+              value={formReference}
+              onChange={(e) => setFormReference(e.target.value)}
               className="bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground"
             />
             <input
-              type="text" placeholder="Notas (opcional)"
-              value={formNotes} onChange={(e) => setFormNotes(e.target.value)}
+              type="text"
+              placeholder="Notas (opcional)"
+              value={formNotes}
+              onChange={(e) => setFormNotes(e.target.value)}
               className="bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground"
             />
           </div>
@@ -256,7 +269,9 @@ export default function ConciliacionPage() {
       )}
 
       {loading ? (
-        <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="w-4 h-4 animate-spin" /> Cargando conciliación…</div>
+        <div className="flex items-center gap-2 text-muted-foreground text-sm">
+          <Loader2 className="w-4 h-4 animate-spin" /> Cargando conciliación…
+        </div>
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -286,7 +301,9 @@ export default function ConciliacionPage() {
             >
               <option value="todas">Todas las plataformas</option>
               {(Object.keys(PLATFORM_LABELS) as Platform[]).map((p) => (
-                <option key={p} value={p}>{PLATFORM_LABELS[p]}</option>
+                <option key={p} value={p}>
+                  {PLATFORM_LABELS[p]}
+                </option>
               ))}
             </select>
             <select
@@ -296,7 +313,9 @@ export default function ConciliacionPage() {
             >
               <option value="todos">Todos los estados</option>
               {(Object.keys(STATUS_LABELS) as Status[]).map((s) => (
-                <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+                <option key={s} value={s}>
+                  {STATUS_LABELS[s]}
+                </option>
               ))}
             </select>
             <button
@@ -322,18 +341,30 @@ export default function ConciliacionPage() {
               </thead>
               <tbody>
                 {filteredRows.length === 0 ? (
-                  <tr><td colSpan={7} className="px-4 py-10 text-center text-muted-foreground text-sm">Sin resultados para este filtro</td></tr>
-                ) : filteredRows.map((r) => (
-                  <tr key={r.id} className="border-b border-border/50 hover:bg-card/50">
-                    <td className="px-4 py-3 text-foreground whitespace-nowrap">{PLATFORM_LABELS[r.platform]}</td>
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{r.date ? formatDate(r.date) : '—'}</td>
-                    <td className="px-4 py-3 text-foreground font-medium whitespace-nowrap">{fmt(r.amount)}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{r.customer || r.email || '—'}</td>
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{r.internalAmount == null ? '—' : fmt(r.internalAmount)}</td>
-                    <td className={cn('px-4 py-3 font-medium', STATUS_STYLES[r.status])}>{STATUS_LABELS[r.status]}</td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs">{r.detail}</td>
+                  <tr>
+                    <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground text-sm">
+                      Sin resultados para este filtro
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredRows.map((r) => (
+                    <tr key={r.id} className="border-b border-border/50 hover:bg-card/50">
+                      <td className="px-4 py-3 text-foreground whitespace-nowrap">{PLATFORM_LABELS[r.platform]}</td>
+                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                        {r.date ? formatDate(r.date) : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-foreground font-medium whitespace-nowrap">{fmt(r.amount)}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{r.customer || r.email || '—'}</td>
+                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                        {r.internalAmount == null ? '—' : fmt(r.internalAmount)}
+                      </td>
+                      <td className={cn('px-4 py-3 font-medium', STATUS_STYLES[r.status])}>
+                        {STATUS_LABELS[r.status]}
+                      </td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">{r.detail}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

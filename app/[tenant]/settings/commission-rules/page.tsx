@@ -1,32 +1,14 @@
-"use client"
+'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -67,8 +49,7 @@ type SimpleTramo = {
   emoji: string | null
 }
 
-const formatMoney = (n: number) =>
-  n.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+const formatMoney = (n: number) => n.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 
 export default function CommissionRulesPage() {
   const tenantId = useTenantId()
@@ -145,14 +126,12 @@ export default function CommissionRulesPage() {
 
   const fetchCurrentUserRole = async () => {
     const supabase = createClient()
-    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
     if (!authUser) return
 
-    const { data: userData } = await supabase
-      .from('users')
-      .select('*, roles(key)')
-      .eq('id', authUser.id)
-      .single()
+    const { data: userData } = await supabase.from('users').select('*, roles(key)').eq('id', authUser.id).single()
 
     const role = (userData as { roles?: { key?: string } })?.roles?.key ?? ''
     setCurrentUserRole(role)
@@ -171,10 +150,7 @@ export default function CommissionRulesPage() {
     return u.roles.key ?? null
   }
 
-  const usersForType = useMemo(
-    () => users.filter((u) => getRoleKey(u) === participantType),
-    [users, participantType]
-  )
+  const usersForType = useMemo(() => users.filter((u) => getRoleKey(u) === participantType), [users, participantType])
 
   const userNameById = useMemo(() => {
     const map = new Map<string, string>()
@@ -266,7 +242,9 @@ export default function CommissionRulesPage() {
 
     setSubmitting(false)
     if (error) {
-      toast.error(isEditing ? 'Error al actualizar la regla' : 'Error al crear la regla', { description: error.message })
+      toast.error(isEditing ? 'Error al actualizar la regla' : 'Error al crear la regla', {
+        description: error.message,
+      })
       return
     }
 
@@ -327,8 +305,8 @@ export default function CommissionRulesPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Reglas de Comision</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Configura porcentajes por tipo de participante, tramos de cash collected y reps concretos.
-            Deja "Activa hasta" vacio para que la regla sea indefinida (de siempre).
+            Configura porcentajes por tipo de participante, tramos de cash collected y reps concretos. Deja &quot;Activa
+            hasta&quot; vacio para que la regla sea indefinida (de siempre).
           </p>
         </div>
         {canManageRules && (
@@ -377,7 +355,9 @@ export default function CommissionRulesPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-foreground text-sm">
-                    {rule.user_id ? (userNameById.get(rule.user_id) ?? 'Rep desconocido') : (
+                    {rule.user_id ? (
+                      (userNameById.get(rule.user_id) ?? 'Rep desconocido')
+                    ) : (
                       <span className="text-muted-foreground">Todos</span>
                     )}
                   </TableCell>
@@ -490,7 +470,8 @@ export default function CommissionRulesPage() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                "Todos" aplica a cualquier {PARTICIPANT_LABELS[participantType].toLowerCase()} sin regla especifica propia.
+                &quot;Todos&quot; aplica a cualquier {PARTICIPANT_LABELS[participantType].toLowerCase()} sin regla
+                especifica propia.
               </p>
             </div>
 
@@ -531,7 +512,8 @@ export default function CommissionRulesPage() {
                   <SelectItem value="none">Sin tramo (regla general)</SelectItem>
                   {tramos.map((t) => (
                     <SelectItem key={t.id} value={t.id}>
-                      {t.emoji ? `${t.emoji} ` : ''}{t.name}
+                      {t.emoji ? `${t.emoji} ` : ''}
+                      {t.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -587,16 +569,24 @@ export default function CommissionRulesPage() {
               </div>
             </div>
             <p className="text-xs text-muted-foreground -mt-2">
-              Vacio en "Activa hasta" significa que la regla es <strong>indefinida (de siempre)</strong>, sin fecha de caducidad.
+              Vacio en &quot;Activa hasta&quot; significa que la regla es <strong>indefinida (de siempre)</strong>, sin
+              fecha de caducidad.
             </p>
 
             <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>Cancelar</Button>
+              <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>
+                Cancelar
+              </Button>
               <Button onClick={handleSubmit} disabled={submitting || !percent || !activeFrom}>
                 {submitting ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{isEditing ? 'Guardando...' : 'Creando...'}</>
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    {isEditing ? 'Guardando...' : 'Creando...'}
+                  </>
+                ) : isEditing ? (
+                  'Guardar Cambios'
                 ) : (
-                  isEditing ? 'Guardar Cambios' : 'Crear Regla'
+                  'Crear Regla'
                 )}
               </Button>
             </div>
@@ -621,7 +611,14 @@ export default function CommissionRulesPage() {
               disabled={deleting}
               className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
             >
-              {deleting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Eliminando...</> : 'Eliminar'}
+              {deleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Eliminando...
+                </>
+              ) : (
+                'Eliminar'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

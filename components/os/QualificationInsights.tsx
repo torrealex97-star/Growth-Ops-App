@@ -46,7 +46,9 @@ export function QualificationInsights() {
       setLoading(false)
     }
     load()
-    return () => { mounted = false }
+    return () => {
+      mounted = false
+    }
   }, [])
 
   // Distribución de respuestas por pregunta clave.
@@ -106,8 +108,12 @@ export function QualificationInsights() {
                   return (
                     <div key={b.label}>
                       <div className="flex justify-between text-xs mb-0.5">
-                        <span className="text-foreground truncate pr-2" title={b.label}>{b.label}</span>
-                        <span className="text-muted-foreground shrink-0">{b.count} · {pct}%</span>
+                        <span className="text-foreground truncate pr-2" title={b.label}>
+                          {b.label}
+                        </span>
+                        <span className="text-muted-foreground shrink-0">
+                          {b.count} · {pct}%
+                        </span>
                       </div>
                       <div className="h-2 bg-muted rounded-full overflow-hidden">
                         <div className="h-full rounded-full bg-brand-500" style={{ width: `${pct}%` }} />
@@ -122,7 +128,8 @@ export function QualificationInsights() {
           {motivos.length > 0 && (
             <div className="bg-card border border-border rounded-lg p-4 lg:col-span-2">
               <h3 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
-                <MessageSquareQuote className="w-4 h-4 text-muted-foreground" /> Últimos motivos (por qué quieren la llamada)
+                <MessageSquareQuote className="w-4 h-4 text-muted-foreground" /> Últimos motivos (por qué quieren la
+                llamada)
               </h3>
               <ul className="space-y-2.5">
                 {motivos.map((m, i) => (

@@ -1,12 +1,14 @@
-"use client"
+'use client'
 
 import { useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { useTenantBranding } from '@/lib/tenant-context'
 import { Loader2, Mail, Lock } from 'lucide-react'
 
 export default function LoginPage({ params }: { params: { tenant: string } }) {
   const tenant = params.tenant
+  const branding = useTenantBranding()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -30,11 +32,7 @@ export default function LoginPage({ params }: { params: { tenant: string } }) {
       // Verificación de membresía: RLS en `tenants` solo devuelve la fila si el
       // usuario es miembro de esta subcuenta o es super_admin de plataforma.
       // Credenciales válidas para OTRA subcuenta no bastan — sin fila, no entra.
-      const { data: tenantRow } = await supabase
-        .from('tenants')
-        .select('id, status')
-        .eq('slug', tenant)
-        .maybeSingle()
+      const { data: tenantRow } = await supabase.from('tenants').select('id, status').eq('slug', tenant).maybeSingle()
 
       if (!tenantRow || tenantRow.status !== 'active') {
         await supabase.auth.signOut()
@@ -51,7 +49,10 @@ export default function LoginPage({ params }: { params: { tenant: string } }) {
   }
 
   return (
-    <div className="dark relative min-h-screen bg-background flex items-center justify-center p-4 overflow-hidden" data-theme="os">
+    <div
+      className="dark relative min-h-screen bg-background flex items-center justify-center p-4 overflow-hidden"
+      data-theme="os"
+    >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_-10%,rgba(255,255,255,0.06),transparent_70%)]" />
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.04]"
@@ -67,7 +68,7 @@ export default function LoginPage({ params }: { params: { tenant: string } }) {
         <div className="flex flex-col items-center mb-8">
           <div className="mb-3 flex items-center gap-3">
             <span className="text-5xl font-semibold leading-none tracking-[-0.16em] text-white">S</span>
-            <span className="text-2xl font-semibold tracking-tight text-white">Scalix Systems</span>
+            <span className="text-2xl font-semibold tracking-tight text-white">{branding.name}</span>
           </div>
           <p className="text-muted-foreground text-sm mt-1 font-display">{tenant}</p>
         </div>
@@ -78,7 +79,9 @@ export default function LoginPage({ params }: { params: { tenant: string } }) {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <label htmlFor="email" className="block text-sm font-medium text-foreground">Email</label>
+              <label htmlFor="email" className="block text-sm font-medium text-foreground">
+                Email
+              </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
@@ -95,7 +98,9 @@ export default function LoginPage({ params }: { params: { tenant: string } }) {
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="password" className="block text-sm font-medium text-foreground">Contraseña</label>
+              <label htmlFor="password" className="block text-sm font-medium text-foreground">
+                Contraseña
+              </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
@@ -143,7 +148,7 @@ export default function LoginPage({ params }: { params: { tenant: string } }) {
           </div>
         </div>
 
-        <p className="text-center text-xs text-muted-foreground mt-6">Scalix Systems · Acceso privado del equipo</p>
+        <p className="text-center text-xs text-muted-foreground mt-6">{branding.name} · Acceso privado del equipo</p>
       </div>
     </div>
   )

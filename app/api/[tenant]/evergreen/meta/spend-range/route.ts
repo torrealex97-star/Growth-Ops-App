@@ -16,8 +16,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     if ('error' in t) return t.error
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { data: row } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-    const role = (row?.roles as { key?: string } | null)?.key
+    const role = t.role
     if (!role || !ALLOWED_ROLES.includes(role)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
@@ -30,7 +29,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     // Nota: además del gasto, agregamos alcance, clics en el enlace y visitas a la página
     // (reach / link_clicks / landing_views) para que TODAS las métricas del embudo respondan al
     // filtro de periodo, no solo la inversión. Estas columnas existen en campaign_daily (v33).
-    type RangeAgg = { spend: number; impressions: number; clicks: number; leads: number; reach: number; link_clicks: number; landing_views: number }
+    type RangeAgg = {
+      spend: number
+      impressions: number
+      clicks: number
+      leads: number
+      reach: number
+      link_clicks: number
+      landing_views: number
+    }
     const byCampaign: Record<string, RangeAgg> = {}
     const PAGE = 1000
     let offset = 0
@@ -45,7 +52,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
       for (const r of rows) {
         const cid = String(r.campaign_id ?? '')
         if (!cid) continue
-        const acc = byCampaign[cid] || { spend: 0, impressions: 0, clicks: 0, leads: 0, reach: 0, link_clicks: 0, landing_views: 0 }
+        const acc = byCampaign[cid] || {
+          spend: 0,
+          impressions: 0,
+          clicks: 0,
+          leads: 0,
+          reach: 0,
+          link_clicks: 0,
+          landing_views: 0,
+        }
         acc.spend += Number(r.spend) || 0
         acc.impressions += Number(r.impressions) || 0
         acc.clicks += Number(r.clicks) || 0

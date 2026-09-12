@@ -1,8 +1,8 @@
-"use client"
+'use client'
 import { useTenant } from '@/lib/tenant-context'
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Dialog,
   DialogContent,
@@ -10,17 +10,11 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Award } from "lucide-react"
-import { toast } from "sonner"
-import {
-  TestimonioForm,
-  SaveButton,
-  emptyValues,
-  validateValues,
-  type TestimonioFormValues,
-} from "./TestimonioForm"
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Award } from 'lucide-react'
+import { toast } from 'sonner'
+import { TestimonioForm, SaveButton, emptyValues, validateValues, type TestimonioFormValues } from './TestimonioForm'
 
 interface Props {
   open: boolean
@@ -41,12 +35,12 @@ export function NuevoTestimonioDialog({ open, onOpenChange, onCreated }: Props) 
     setSaving(true)
     try {
       const res = await fetch(`/api/${tenant}/evergreen/testimonios`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || "Error al crear")
+      if (!res.ok) throw new Error(data.error || 'Error al crear')
       toast.success(`${data.testimonio.name} añadido`)
       setValues(emptyValues())
       onOpenChange(false)
@@ -68,8 +62,7 @@ export function NuevoTestimonioDialog({ open, onOpenChange, onCreated }: Props) 
             Nuevo testimonio
           </DialogTitle>
           <DialogDescription>
-            Solo el nombre es obligatorio: puedes guardarlo ahora y completar la historia, la foto y
-            el vídeo después.
+            Solo el nombre es obligatorio: puedes guardarlo ahora y completar la historia, la foto y el vídeo después.
           </DialogDescription>
         </DialogHeader>
 

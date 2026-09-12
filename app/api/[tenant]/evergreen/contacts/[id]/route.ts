@@ -19,8 +19,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
-    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-    const role = (urow?.roles as { key?: string } | null)?.key
+    const role = t.role
     if (!role) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
     const clean = (v: unknown) => {
@@ -32,15 +31,28 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
     // puntual (p.ej. lead_status desde el tablero de Leads) no pisa a null el resto de campos
     // del contacto (nombre, email...) que no se enviaron en esta llamada.
     const EDITABLE_FIELDS = [
-      'first_name', 'last_name', 'email', 'phone', 'country',
-      'company_name', 'instagram', 'notes', 'lead_status', 'lead_channel',
+      'first_name',
+      'last_name',
+      'email',
+      'phone',
+      'country',
+      'company_name',
+      'instagram',
+      'notes',
+      'lead_status',
+      'lead_channel',
     ] as const
     const patch: Record<string, unknown> = {}
     for (const field of EDITABLE_FIELDS) {
       if (Object.prototype.hasOwnProperty.call(body, field)) patch[field] = clean(body[field])
     }
     if ('first_name' in patch || 'last_name' in patch) {
-      const { data: current } = await sb.from('contacts').select('first_name, last_name').eq('id', id).eq('tenant_id', t.tenantId).single()
+      const { data: current } = await sb
+        .from('contacts')
+        .select('first_name, last_name')
+        .eq('id', id)
+        .eq('tenant_id', t.tenantId)
+        .single()
       const firstName = ('first_name' in patch ? patch.first_name : current?.first_name) as string | null
       const lastName = ('last_name' in patch ? patch.last_name : current?.last_name) as string | null
       patch.full_name = [firstName, lastName].filter(Boolean).join(' ') || null

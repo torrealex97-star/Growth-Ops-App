@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -47,16 +47,13 @@ export default function ReservasPage() {
       let canViewAll = false
       if (authData.user) {
         myId = authData.user.id
-        const { data: userData } = await supabase
-          .from('users')
-          .select('roles(key)')
-          .eq('id', authData.user.id)
-          .single()
+        const { data: userData } = await supabase.from('users').select('roles(key)').eq('id', authData.user.id).single()
         const roleKey = (userData as { roles?: { key?: string } } | null)?.roles?.key as AppRole | undefined
         canViewAll = roleKey ? isLeadership(roleKey) : false
       }
 
-      const cols = 'id, contact_id, product_id, payment_plan_id, gross_amount, sale_date, reservation_amount, reservation_completed_at, closer_id, setter_id, contacts(full_name,email), products(id,name), payment_plans(method,name)'
+      const cols =
+        'id, contact_id, product_id, payment_plan_id, gross_amount, sale_date, reservation_amount, reservation_completed_at, closer_id, setter_id, contacts(full_name,email), products(id,name), payment_plans(method,name)'
 
       let openQuery = supabase
         .from('sales')
@@ -104,9 +101,7 @@ export default function ReservasPage() {
 
           let refPlan = nonReserva.find((p) => p.method === 'stripe' || p.number_of_payments === 1)
           if (!refPlan && nonReserva.length > 0) {
-            refPlan = nonReserva.reduce((min, p) =>
-              p.gross_price < min.gross_price ? p : min
-            , nonReserva[0])
+            refPlan = nonReserva.reduce((min, p) => (p.gross_price < min.gross_price ? p : min), nonReserva[0])
           }
 
           if (refPlan) {
@@ -133,7 +128,7 @@ export default function ReservasPage() {
   const completedReservations = completed.filter(matchesQ)
 
   const getReferencePrice = (row: ReservationRow) =>
-    row.product_id ? referencePriceByProduct[row.product_id] ?? null : null
+    row.product_id ? (referencePriceByProduct[row.product_id] ?? null) : null
 
   const getPending = (row: ReservationRow) => {
     const ref = getReferencePrice(row)
@@ -230,9 +225,9 @@ export default function ReservasPage() {
                     {nombrePersona} pagó {formatCurrency(row.gross_amount)} de reserva
                     {pendiente != null && (
                       <>
-                        {' '}· falta{' '}
-                        <span className="text-amber-400 font-semibold">{formatCurrency(pendiente)}</span>
-                        {' '}por pagar
+                        {' '}
+                        · falta <span className="text-amber-400 font-semibold">{formatCurrency(pendiente)}</span> por
+                        pagar
                       </>
                     )}
                   </p>
@@ -268,7 +263,8 @@ export default function ReservasPage() {
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-muted-foreground text-sm truncate">
-                    {row.contacts?.full_name || 'Sin nombre'} · {row.products?.name || 'Producto desconocido'} · {formatCurrency(row.gross_amount)}
+                    {row.contacts?.full_name || 'Sin nombre'} · {row.products?.name || 'Producto desconocido'} ·{' '}
+                    {formatCurrency(row.gross_amount)}
                   </p>
                 </div>
                 <span className="text-xs text-muted-foreground">{formatDate(row.sale_date)}</span>

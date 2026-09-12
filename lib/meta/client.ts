@@ -101,14 +101,8 @@ export function getMetaConfig(): MetaConfig | null {
 // nombre legible. Se usa para (a) autodescubrir cuentas cuando no se listan a mano
 // y (b) mostrar el nombre en los filtros de la UI. Best-effort: puede fallar si el
 // token no tiene permiso `ads_read` sobre el Business.
-export async function fetchAdAccounts(
-  token: string,
-  version = 'v21.0',
-  appSecret?: string
-): Promise<AdAccount[]> {
-  const proof = appSecret
-    ? `&appsecret_proof=${createHmac('sha256', appSecret).update(token).digest('hex')}`
-    : ''
+export async function fetchAdAccounts(token: string, version = 'v21.0', appSecret?: string): Promise<AdAccount[]> {
+  const proof = appSecret ? `&appsecret_proof=${createHmac('sha256', appSecret).update(token).digest('hex')}` : ''
   const url =
     `${GRAPH}/${version}/me/adaccounts` +
     `?fields=name,account_status&limit=500&access_token=${encodeURIComponent(token)}${proof}`
@@ -135,8 +129,7 @@ export async function resolveMetaConfigs(): Promise<MetaConfig[]> {
   const appSecret = process.env.META_APP_SECRET || undefined
   const explicit = parseAccountIds(process.env.META_AD_ACCOUNT_ID)
   const wantAll =
-    explicit.length === 0 ||
-    /^(1|true|all|todas|todos)$/i.test((process.env.META_AD_ACCOUNTS_ALL || '').trim())
+    explicit.length === 0 || /^(1|true|all|todas|todos)$/i.test((process.env.META_AD_ACCOUNTS_ALL || '').trim())
 
   let discovered: AdAccount[] = []
   try {
@@ -146,8 +139,7 @@ export async function resolveMetaConfigs(): Promise<MetaConfig[]> {
   }
   const nameById = new Map(discovered.map((a) => [a.id, a.name]))
 
-  const ids =
-    wantAll && discovered.length > 0 ? discovered.map((a) => a.id) : explicit
+  const ids = wantAll && discovered.length > 0 ? discovered.map((a) => a.id) : explicit
   const uniq = Array.from(new Set(ids))
   return uniq.map((accountId) => ({
     token,
@@ -179,7 +171,22 @@ function proofParam(cfg: MetaConfig): string {
 }
 
 async function graphGet(url: string): Promise<any> {
-  const res = await fetch(url, { cache: 'no-store' })
+  // Timeout duro: sin esto, si la Graph API de Meta se cuelga, el cron consume toda su ventana
+  // (maxDuration) en esta única llamada — mismo patrón que lib/calendly.ts. graphGetAll pagina
+  // llamando a esta función en bucle, así que sin timeout un solo hueco cuelga toda la sync.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 15000)
+  let res: Response
+  try {
+    res = await fetch(url, { cache: 'no-store', signal: controller.signal })
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('Meta API tardó demasiado en responder (timeout)')
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
   const json = await res.json()
   if (!res.ok || json?.error) {
     const err = json?.error
@@ -303,10 +310,7 @@ function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export async function fetchMetaDailyInsights(
-  cfg: MetaConfig,
-  sinceDays = 180
-): Promise<MetaDailyInsight[]> {
+export async function fetchMetaDailyInsights(cfg: MetaConfig, sinceDays = 180): Promise<MetaDailyInsight[]> {
   const until = new Date()
   const since = new Date()
   since.setDate(since.getDate() - Math.max(1, sinceDays))

@@ -9,10 +9,7 @@ export const dynamic = 'force-dynamic'
 // NOTA: este módulo usa el cliente `postgres` directo (POSTGRES_URL), que bypassa RLS igual
 // que el service-role de Supabase, así que el filtro `tenant_id` explícito en cada consulta
 // es la única protección contra fugas cruzadas de tenant.
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ tenant: string; slug: string }> }
-) {
+export async function GET(_req: Request, { params }: { params: Promise<{ tenant: string; slug: string }> }) {
   try {
     const { tenant, slug } = await params
     const t = await requireTenant(tenant)

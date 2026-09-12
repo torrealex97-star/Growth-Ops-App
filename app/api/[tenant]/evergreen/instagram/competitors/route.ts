@@ -12,7 +12,11 @@ const VIDEO_BUCKET = 'ig-competitor-reels'
 // la URL firmada de Meta ni de seguir estando entre los 50 más recientes.
 // Best-effort: si falla, se sigue usando la media_url de Meta tal cual.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function persistReelVideo(sb: any, mediaUrl: string | null | undefined, competitorMediaExternalId: string): Promise<string | null> {
+async function persistReelVideo(
+  sb: any,
+  mediaUrl: string | null | undefined,
+  competitorMediaExternalId: string
+): Promise<string | null> {
   if (!mediaUrl) return null
   try {
     const res = await fetch(mediaUrl)
@@ -42,8 +46,7 @@ function svc() {
 async function requireRole(tenantSlug: string) {
   const t = await requireTenant(tenantSlug)
   if ('error' in t) return { error: t.error }
-  const { data: row } = await svc().from('users').select('roles(key)').eq('id', t.userId).single()
-  const role = (row?.roles as { key?: string } | null)?.key
+  const role = t.role
   if (!role || !ALLOWED_ROLES.includes(role)) {
     return { error: NextResponse.json({ error: 'No autorizado' }, { status: 403 }) }
   }
@@ -80,7 +83,9 @@ function parseReelUrl(url: string): { username?: string; shortcode?: string } {
     const i = parts.findIndex((p) => p === 'reel' || p === 'p' || p === 'reels' || p === 'tv')
     if (i === -1) return {}
     return { username: i > 0 ? parts[i - 1] : undefined, shortcode: parts[i + 1] }
-  } catch { return {} }
+  } catch {
+    return {}
+  }
 }
 
 // `existingMediaUrl` preserva la media_url ya guardada (a menudo persistida en
@@ -122,7 +127,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     shortcode = parsed.shortcode
     username = username || parsed.username
     if (!shortcode) return NextResponse.json({ error: 'Enlace de reel no válido' }, { status: 400 })
-    if (!username) return NextResponse.json({ error: 'El enlace no incluye el usuario. Añade el @usuario del reel.' }, { status: 400 })
+    if (!username)
+      return NextResponse.json(
+        { error: 'El enlace no incluye el usuario. Añade el @usuario del reel.' },
+        { status: 400 }
+      )
   }
   if (!username || !String(username).trim()) return NextResponse.json({ error: 'Falta el usuario' }, { status: 400 })
 
@@ -136,40 +145,86 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const sb = svc()
 
     // competidor: select → insert/update (el único es funcional lower(username)), acotado al tenant
-    const { data: existing } = await sb.from('ig_competitors').select('id').eq('tenant_id', auth.tenantId).ilike('username', profile.username).maybeSingle()
+    const { data: existing } = await sb
+      .from('ig_competitors')
+      .select('id')
+      .eq('tenant_id', auth.tenantId)
+      .ilike('username', profile.username)
+      .maybeSingle()
     let competitorId = existing?.id as string | undefined
     if (competitorId) {
-      await sb.from('ig_competitors').update({ followers_count: profile.followers_count, media_count: profile.media_count, last_synced_at: at }).eq('id', competitorId).eq('tenant_id', auth.tenantId)
+      await sb
+        .from('ig_competitors')
+        .update({ followers_count: profile.followers_count, media_count: profile.media_count, last_synced_at: at })
+        .eq('id', competitorId)
+        .eq('tenant_id', auth.tenantId)
     } else {
       const { data: inserted, error: insErr } = await sb
         .from('ig_competitors')
-        .insert({ tenant_id: auth.tenantId, username: profile.username, followers_count: profile.followers_count, media_count: profile.media_count, last_synced_at: at, created_by: auth.userId })
+        .insert({
+          tenant_id: auth.tenantId,
+          username: profile.username,
+          followers_count: profile.followers_count,
+          media_count: profile.media_count,
+          last_synced_at: at,
+          created_by: auth.userId,
+        })
         .select('id')
         .single()
-      if (insErr || !inserted) return NextResponse.json({ error: insErr?.message || 'No se pudo guardar el competidor' }, { status: 500 })
+      if (insErr || !inserted)
+        return NextResponse.json({ error: insErr?.message || 'No se pudo guardar el competidor' }, { status: 500 })
       competitorId = inserted.id
     }
 
     // Modo "reel por enlace": localiza ese reel entre los recientes por shortcode.
     if (shortcode) {
       const hit = media.find((m) => (m.permalink || '').includes(`/${shortcode}`))
-      if (!hit) return NextResponse.json({ error: `No encontré ese reel entre los 50 más recientes de @${profile.username}. Debe ser reciente y público.` }, { status: 404 })
-      const { data: prev } = await sb.from('ig_competitor_media').select('media_url').eq('external_id', hit.external_id).eq('tenant_id', auth.tenantId).maybeSingle()
+      if (!hit)
+        return NextResponse.json(
+          {
+            error: `No encontré ese reel entre los 50 más recientes de @${profile.username}. Debe ser reciente y público.`,
+          },
+          { status: 404 }
+        )
+      const { data: prev } = await sb
+        .from('ig_competitor_media')
+        .select('media_url')
+        .eq('external_id', hit.external_id)
+        .eq('tenant_id', auth.tenantId)
+        .maybeSingle()
       const persistedUrl = await persistReelVideo(sb, hit.media_url, hit.external_id)
       const row_ = mapRow(competitorId!, hit, at, auth.tenantId, prev?.media_url)
       if (persistedUrl) row_.media_url = persistedUrl
-      const { data: row, error } = await sb.from('ig_competitor_media').upsert(row_, { onConflict: 'external_id', ignoreDuplicates: false }).select('id').single()
+      const { data: row, error } = await sb
+        .from('ig_competitor_media')
+        .upsert(row_, { onConflict: 'external_id', ignoreDuplicates: false })
+        .select('id')
+        .single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      return NextResponse.json({ ok: true, competitorId, username: profile.username, competitorMediaId: row?.id, single: true })
+      return NextResponse.json({
+        ok: true,
+        competitorId,
+        username: profile.username,
+        competitorMediaId: row?.id,
+        single: true,
+      })
     }
 
     // Modo perfil: upsert de todos los reels recientes.
     let synced = 0
-    const { data: prevRows } = await sb.from('ig_competitor_media').select('external_id, media_url').eq('competitor_id', competitorId!).eq('tenant_id', auth.tenantId)
+    const { data: prevRows } = await sb
+      .from('ig_competitor_media')
+      .select('external_id, media_url')
+      .eq('competitor_id', competitorId!)
+      .eq('tenant_id', auth.tenantId)
     const prevMediaUrl = new Map((prevRows || []).map((r) => [r.external_id, r.media_url]))
-    const rows = media.filter((m) => (m.media_product_type || m.media_type || '').toString().length > 0).map((m) => mapRow(competitorId!, m, at, auth.tenantId, prevMediaUrl.get(m.external_id)))
+    const rows = media
+      .filter((m) => (m.media_product_type || m.media_type || '').toString().length > 0)
+      .map((m) => mapRow(competitorId!, m, at, auth.tenantId, prevMediaUrl.get(m.external_id)))
     if (rows.length) {
-      const { error } = await sb.from('ig_competitor_media').upsert(rows, { onConflict: 'external_id', ignoreDuplicates: false })
+      const { error } = await sb
+        .from('ig_competitor_media')
+        .upsert(rows, { onConflict: 'external_id', ignoreDuplicates: false })
       if (!error) synced = rows.length
     }
 
@@ -178,9 +233,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // API). Los borramos si aún no tienen transcripción, para que no se acumulen
     // dando error "no recuperable" en la parrilla.
     const freshIds = rows.map((r) => r.external_id)
-    await sb.from('ig_competitor_media').delete().eq('competitor_id', competitorId!).eq('tenant_id', auth.tenantId).is('transcript', null).not('external_id', 'in', `(${freshIds.map((id) => `"${id}"`).join(',') || '""'})`)
+    await sb
+      .from('ig_competitor_media')
+      .delete()
+      .eq('competitor_id', competitorId!)
+      .eq('tenant_id', auth.tenantId)
+      .is('transcript', null)
+      .not('external_id', 'in', `(${freshIds.map((id) => `"${id}"`).join(',') || '""'})`)
 
-    return NextResponse.json({ ok: true, competitorId, username: profile.username, followers: profile.followers_count, reelsSynced: synced })
+    return NextResponse.json({
+      ok: true,
+      competitorId,
+      username: profile.username,
+      followers: profile.followers_count,
+      reelsSynced: synced,
+    })
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error al analizar el perfil' }, { status: 500 })
   }

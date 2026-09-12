@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -25,8 +25,17 @@ type Company = {
 }
 
 const EMPTY: Company = {
-  name: '', legal_name: '', cif: '', address: '', postal_code: '', city: '',
-  country: 'España', representative: '', email: '', phone: '', email_signature: '',
+  name: '',
+  legal_name: '',
+  cif: '',
+  address: '',
+  postal_code: '',
+  city: '',
+  country: 'España',
+  representative: '',
+  email: '',
+  phone: '',
+  email_signature: '',
 }
 
 export default function EmpresaSettingsPage() {
@@ -37,22 +46,36 @@ export default function EmpresaSettingsPage() {
 
   useEffect(() => {
     const sb = createClient()
-    sb.from('company_profile').select('*').eq('id', 1).eq('tenant_id', tenantId).maybeSingle().then(({ data }) => {
-      if (data) setC({ ...EMPTY, ...Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v ?? ''])) } as Company)
-      setLoading(false)
-    })
+    sb.from('company_profile')
+      .select('*')
+      .eq('id', 1)
+      .eq('tenant_id', tenantId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data)
+          setC({ ...EMPTY, ...Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v ?? ''])) } as Company)
+        setLoading(false)
+      })
   }, [])
 
   const set = (k: keyof Company) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setC((prev) => ({ ...prev, [k]: e.target.value }))
 
   const save = async () => {
-    if (!c.name.trim()) { toast.error('El nombre de la empresa es obligatorio'); return }
+    if (!c.name.trim()) {
+      toast.error('El nombre de la empresa es obligatorio')
+      return
+    }
     setSaving(true)
     const sb = createClient()
-    const { error } = await sb.from('company_profile').upsert({ id: 1, tenant_id: tenantId, ...c }, { onConflict: 'tenant_id' })
+    const { error } = await sb
+      .from('company_profile')
+      .upsert({ id: 1, tenant_id: tenantId, ...c }, { onConflict: 'tenant_id' })
     setSaving(false)
-    if (error) { toast.error('Error al guardar', { description: error.message }); return }
+    if (error) {
+      toast.error('Error al guardar', { description: error.message })
+      return
+    }
     toast.success('Datos de empresa guardados', { description: 'Se usarán en los próximos contratos y emails.' })
   }
 
@@ -68,10 +91,15 @@ export default function EmpresaSettingsPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center"><Building2 className="w-5 h-5 text-indigo-400" /></div>
+        <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+          <Building2 className="w-5 h-5 text-indigo-400" />
+        </div>
         <div>
           <h1 className="text-2xl font-bold text-foreground">Datos de empresa</h1>
-          <p className="text-muted-foreground text-sm">Se mapean automáticamente en los contratos ({'{{empresa}}'}, {'{{cif}}'}, {'{{empresa_direccion}}'}, {'{{representante}}'}) y en los emails.</p>
+          <p className="text-muted-foreground text-sm">
+            Se mapean automáticamente en los contratos ({'{{empresa}}'}, {'{{cif}}'}, {'{{empresa_direccion}}'},{' '}
+            {'{{representante}}'}) y en los emails.
+          </p>
         </div>
       </div>
 
@@ -94,11 +122,28 @@ export default function EmpresaSettingsPage() {
         </div>
         <div className="space-y-1.5">
           <Label>Firma del email (opcional)</Label>
-          <Textarea value={c.email_signature} onChange={set('email_signature')} className="bg-muted border-border min-h-[80px]" placeholder={'Un saludo,\nEl equipo de Scalix Systems'} />
+          <Textarea
+            value={c.email_signature}
+            onChange={set('email_signature')}
+            className="bg-muted border-border min-h-[80px]"
+            placeholder={'Un saludo,\nEl equipo de Scalix Systems'}
+          />
           <p className="text-xs text-muted-foreground">Aparece al final del email de envío del contrato.</p>
         </div>
         <div className="flex justify-end pt-2">
-          <Button onClick={save} disabled={saving}>{saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Guardando…</> : <><Save className="w-4 h-4 mr-2" />Guardar</>}</Button>
+          <Button onClick={save} disabled={saving}>
+            {saving ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Guardando…
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 mr-2" />
+                Guardar
+              </>
+            )}
+          </Button>
         </div>
       </div>
     </div>

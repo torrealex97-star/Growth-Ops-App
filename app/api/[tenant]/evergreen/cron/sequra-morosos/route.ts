@@ -24,17 +24,24 @@ async function isCronAuthorized(req: NextRequest): Promise<boolean> {
 async function isSessionAuthorized(): Promise<boolean> {
   try {
     const cookieStore = await cookies()
-    const sb = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-    )
-    const { data: { user } } = await sb.auth.getUser()
+    const sb = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll() {},
+      },
+    })
+    const {
+      data: { user },
+    } = await sb.auth.getUser()
     if (!user) return false
     const { data } = await sb.from('users').select('roles(key)').eq('id', user.id).single()
     const role = (data?.roles as { key?: string } | null)?.key
     return role === 'admin' || role === 'director' || role === 'cobros'
-  } catch { return false }
+  } catch {
+    return false
+  }
 }
 
 async function handle(req: NextRequest, tenantSlug: string) {

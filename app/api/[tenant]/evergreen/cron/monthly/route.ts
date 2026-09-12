@@ -14,17 +14,24 @@ async function isAuthorized(req: NextRequest): Promise<boolean> {
   if (process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`) return true
   try {
     const cookieStore = await cookies()
-    const sb = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-    )
-    const { data: { user } } = await sb.auth.getUser()
+    const sb = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll() {},
+      },
+    })
+    const {
+      data: { user },
+    } = await sb.auth.getUser()
     if (!user) return false
     const { data } = await sb.from('users').select('roles(key)').eq('id', user.id).single()
     const role = (data?.roles as { key?: string } | null)?.key
     return role === 'admin' || role === 'director'
-  } catch { return false }
+  } catch {
+    return false
+  }
 }
 
 // Corre la generación de gastos mensuales para UNA subcuenta (todas las lecturas/escrituras
@@ -76,27 +83,47 @@ async function runForTenant(sb: SupabaseClient, tenantId: string) {
       const fields = { concept, amount: total }
       rows.push({
         tenant_id: tenantId,
-        ...fields, category: 'sueldos',
-        expense_date: firstOfMonth, recurring: true, frequency: 'mensual', status: 'pendiente',
-        person_id: u.id, auto_source, period,
+        ...fields,
+        category: 'sueldos',
+        expense_date: firstOfMonth,
+        recurring: true,
+        frequency: 'mensual',
+        status: 'pendiente',
+        person_id: u.id,
+        auto_source,
+        period,
       })
       syncs.push({ auto_source, fields })
     }
   }
 
   // 2) Gastos recurrentes mensuales (plantillas creadas a mano: recurring=true, frequency='mensual', sin auto_source)
-  const { data: templates } = await sb.from('expenses')
+  const { data: templates } = await sb
+    .from('expenses')
     .select('id, concept, category, subcategory, amount, counterparty, person_id')
     .eq('tenant_id', tenantId)
-    .eq('recurring', true).eq('frequency', 'mensual').is('auto_source', null)
+    .eq('recurring', true)
+    .eq('frequency', 'mensual')
+    .is('auto_source', null)
   for (const t of templates || []) {
     const auto_source = `recurring:${t.id}`
-    const fields = { concept: t.concept, category: t.category, subcategory: t.subcategory, amount: t.amount, counterparty: t.counterparty, person_id: t.person_id }
+    const fields = {
+      concept: t.concept,
+      category: t.category,
+      subcategory: t.subcategory,
+      amount: t.amount,
+      counterparty: t.counterparty,
+      person_id: t.person_id,
+    }
     rows.push({
       tenant_id: tenantId,
-      ...fields, expense_date: firstOfMonth,
-      recurring: true, frequency: 'mensual', status: 'pendiente',
-      auto_source, period,
+      ...fields,
+      expense_date: firstOfMonth,
+      recurring: true,
+      frequency: 'mensual',
+      status: 'pendiente',
+      auto_source,
+      period,
     })
     syncs.push({ auto_source, fields })
   }
@@ -104,7 +131,8 @@ async function runForTenant(sb: SupabaseClient, tenantId: string) {
   let inserted = 0
   if (rows.length) {
     // upsert con ignoreDuplicates para respetar el índice único (auto_source, period)
-    const { data, error } = await sb.from('expenses')
+    const { data, error } = await sb
+      .from('expenses')
       .upsert(rows, { onConflict: 'auto_source,period', ignoreDuplicates: true })
       .select('id')
     if (error) throw new Error(error.message)
@@ -116,9 +144,12 @@ async function runForTenant(sb: SupabaseClient, tenantId: string) {
   // No se toca `status`, así que un gasto ya marcado como pagado conserva su estado.
   let synced = 0
   for (const s of syncs) {
-    const { data, error } = await sb.from('expenses')
+    const { data, error } = await sb
+      .from('expenses')
       .update(s.fields)
-      .eq('auto_source', s.auto_source).eq('period', period).eq('tenant_id', tenantId)
+      .eq('auto_source', s.auto_source)
+      .eq('period', period)
+      .eq('tenant_id', tenantId)
       .select('id')
     if (error) throw new Error(error.message)
     synced += data?.length ?? 0

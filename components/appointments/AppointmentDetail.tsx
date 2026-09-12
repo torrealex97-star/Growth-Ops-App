@@ -1,15 +1,9 @@
-"use client"
+'use client'
 
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { CalendarPopover } from '@/components/ui/calendar-popover'
 import { Loader2, Trash2, Phone } from 'lucide-react'
@@ -41,7 +35,8 @@ type AppointmentWithAi = AppointmentWithRelations & {
   ai_analyzed_at?: string | null
 }
 
-const cls = 'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500'
+const cls =
+  'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500'
 
 const CANCELLED_STATUSES: AppointmentStatus[] = ['cancelled', 'cancelled_admin', 'cancelled_lead']
 
@@ -195,7 +190,9 @@ export function AppointmentDetail({
         if (!cancelled) setLoadingActivities(false)
       }
     })()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [appointment.contact_id])
 
   const submitActivity = async () => {
@@ -205,14 +202,15 @@ export function AppointmentDetail({
       const res = await fetch(`/api/${tenant}/evergreen/contacts/${appointment.contact_id}/activities`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'llamada', result: newActivityResult, notes: newActivityNotes.trim() || undefined }),
+        body: JSON.stringify({
+          type: 'llamada',
+          result: newActivityResult,
+          notes: newActivityNotes.trim() || undefined,
+        }),
       })
       const data = await res.json()
       if (!res.ok || data?.error) throw new Error(data?.error || 'No se pudo registrar la llamada')
-      setActivities((prev) => [
-        { ...data.activity, author: currentUserName || 'Tú' },
-        ...prev,
-      ])
+      setActivities((prev) => [{ ...data.activity, author: currentUserName || 'Tú' }, ...prev])
       setNewActivityNotes('')
       toast.success('Llamada registrada')
     } catch (err) {
@@ -234,7 +232,9 @@ export function AppointmentDetail({
     setRsMsg('')
     ;(async () => {
       try {
-        const res = await fetch(`/api/${tenant}/evergreen/calendly/availability?closerId=${appointment.closer_id}&date=${rsDate}`)
+        const res = await fetch(
+          `/api/${tenant}/evergreen/calendly/availability?closerId=${appointment.closer_id}&date=${rsDate}`
+        )
         const json = await res.json()
         if (cancelled) return
         if (!res.ok) {
@@ -250,12 +250,17 @@ export function AppointmentDetail({
           setRsSlots(json.slots || [])
         }
       } catch {
-        if (!cancelled) { setRsMsg('Error de red al cargar huecos'); setRsSlots([]) }
+        if (!cancelled) {
+          setRsMsg('Error de red al cargar huecos')
+          setRsSlots([])
+        }
       } finally {
         if (!cancelled) setRsSlotsLoading(false)
       }
     })()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [showReschedule, rsDate, appointment.closer_id])
 
   const resetRescheduleForm = () => {
@@ -275,7 +280,9 @@ export function AppointmentDetail({
   // Con Calendly exigimos un hueco real de la grilla; en manual, la fecha/hora escrita.
   const usesManualDatetime = rsManualMode || !appointment.closer_id || rsHasCalendly === false
   const startTimeToSend = usesManualDatetime
-    ? (rsManualDatetime ? new Date(rsManualDatetime).toISOString() : '')
+    ? rsManualDatetime
+      ? new Date(rsManualDatetime).toISOString()
+      : ''
     : rsSelectedSlot
   const canSubmitReschedule = !rescheduling && Boolean(startTimeToSend)
 
@@ -289,18 +296,28 @@ export function AppointmentDetail({
       const res = await fetch(`/api/${tenant}/evergreen/appointments/reschedule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appointmentId: appointment.id, startTime: startTimeToSend, durationMinutes: appointment.duration_minutes || undefined, timezone: rsContactTimezone, manualOnly: usesManualDatetime }),
+        body: JSON.stringify({
+          appointmentId: appointment.id,
+          startTime: startTimeToSend,
+          durationMinutes: appointment.duration_minutes || undefined,
+          timezone: rsContactTimezone,
+          manualOnly: usesManualDatetime,
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok || data?.error) throw new Error(data?.error || 'No se pudo reprogramar')
       if (data?.calendlyCanceled === false) {
         toast.warning('Agenda reprogramada, pero el evento antiguo sigue en Calendly/Google Calendar', {
-          description: 'No se pudo cancelar el evento anterior automáticamente. Bórralo a mano para evitar un duplicado.',
+          description:
+            'No se pudo cancelar el evento anterior automáticamente. Bórralo a mano para evitar un duplicado.',
         })
       } else {
         toast.success('Agenda reprogramada')
       }
-      onRescheduled?.(appointment.id, { appointment_datetime: startTimeToSend, duration_minutes: appointment.duration_minutes || 30 })
+      onRescheduled?.(appointment.id, {
+        appointment_datetime: startTimeToSend,
+        duration_minutes: appointment.duration_minutes || 30,
+      })
       onStatusChange?.(appointment.id, 'scheduled')
       setShowReschedule(false)
       resetRescheduleForm()
@@ -317,7 +334,10 @@ export function AppointmentDetail({
       const res = await fetch(`/api/${tenant}/evergreen/appointments/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appointmentId: appointment.id, patch: { notes: notes.trim(), recording_url: recordingUrl.trim() } }),
+        body: JSON.stringify({
+          appointmentId: appointment.id,
+          patch: { notes: notes.trim(), recording_url: recordingUrl.trim() },
+        }),
       })
       const data = await res.json()
       if (!res.ok || data?.error) throw new Error(data?.error || 'No se pudo guardar')
@@ -372,7 +392,7 @@ export function AppointmentDetail({
       })
       const data = await res.json()
       if (!res.ok || data?.error) throw new Error(data?.error || 'No se pudo reasignar el closer')
-      const newCloser = newCloserId ? closers?.find((c) => c.id === newCloserId) ?? null : null
+      const newCloser = newCloserId ? (closers?.find((c) => c.id === newCloserId) ?? null) : null
       toast.success('Closer reasignado')
       onCloserChanged?.(appointment.id, newCloser)
     } catch (err) {
@@ -398,7 +418,7 @@ export function AppointmentDetail({
       })
       const data = await res.json()
       if (!res.ok || data?.error) throw new Error(data?.error || 'No se pudo reasignar el setter')
-      const newSetter = newSetterId ? setters?.find((s) => s.id === newSetterId) ?? null : null
+      const newSetter = newSetterId ? (setters?.find((s) => s.id === newSetterId) ?? null) : null
       toast.success('Setter reasignado')
       onSetterChanged?.(appointment.id, newSetter)
     } catch (err) {
@@ -490,7 +510,10 @@ export function AppointmentDetail({
       const res = await fetch(`/api/${tenant}/evergreen/appointments/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appointmentId: appointment.id, patch: { transcript_drive_url: driveUrl.trim(), transcript: transcriptText.trim() } }),
+        body: JSON.stringify({
+          appointmentId: appointment.id,
+          patch: { transcript_drive_url: driveUrl.trim(), transcript: transcriptText.trim() },
+        }),
       })
       const data = await res.json()
       if (!res.ok || data?.error) throw new Error(data?.error || 'No se pudo guardar')
@@ -527,10 +550,13 @@ export function AppointmentDetail({
   // Borrado de duplicados (solo admin). Doble confirmación: es la acción que altera KPIs.
   const handleDeleteAppointment = async () => {
     const who = appointment.contacts?.full_name || 'este contacto'
-    if (!window.confirm(
-      `Vas a BORRAR la agenda de ${who} (${formatDateTime(appointment.appointment_datetime)}).\n\n` +
-      'Úsalo solo si está duplicada: dejará de contar en los KPIs. Se guarda una copia por si hay que recuperarla.\n\n¿Continuar?'
-    )) return
+    if (
+      !window.confirm(
+        `Vas a BORRAR la agenda de ${who} (${formatDateTime(appointment.appointment_datetime)}).\n\n` +
+          'Úsalo solo si está duplicada: dejará de contar en los KPIs. Se guarda una copia por si hay que recuperarla.\n\n¿Continuar?'
+      )
+    )
+      return
     const reason = window.prompt('Motivo (opcional, queda en el registro):') ?? ''
     setDeleting(true)
     try {
@@ -583,18 +609,18 @@ export function AppointmentDetail({
           {STATUS_LABELS[appointment.status]}
         </Badge>
         {appointment.rescheduled_from_status === 'no_show' && (
-          <Badge className="border text-sm px-3 py-1 bg-red-500/10 text-red-400 border-red-500/30">Reagenda / No show</Badge>
+          <Badge className="border text-sm px-3 py-1 bg-red-500/10 text-red-400 border-red-500/30">
+            Reagenda / No show
+          </Badge>
         )}
         {appointment.rescheduled_from_status === 'show' && (
-          <Badge className="border text-sm px-3 py-1 bg-emerald-500/10 text-emerald-400 border-emerald-500/30">Reagenda / Show</Badge>
+          <Badge className="border text-sm px-3 py-1 bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+            Reagenda / Show
+          </Badge>
         )}
 
         {canChangeStatus && (
-          <Select
-            defaultValue={appointment.status}
-            onValueChange={handleStatusChange}
-            disabled={updating}
-          >
+          <Select defaultValue={appointment.status} onValueChange={handleStatusChange} disabled={updating}>
             <SelectTrigger className="w-48 h-8 bg-muted border-border text-xs">
               <SelectValue placeholder="Cambiar estado" />
             </SelectTrigger>
@@ -612,9 +638,11 @@ export function AppointmentDetail({
           <Button
             size="sm"
             variant="outline"
-            className={appointment.needs_followup
-              ? 'h-8 text-xs bg-indigo-500/20 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/30'
-              : 'h-8 text-xs'}
+            className={
+              appointment.needs_followup
+                ? 'h-8 text-xs bg-indigo-500/20 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/30'
+                : 'h-8 text-xs'
+            }
             disabled={updatingFollowUp}
             onClick={handleFollowUpToggle}
           >
@@ -680,8 +708,8 @@ export function AppointmentDetail({
       {/* Aviso discreto: sin meeting_url pero enlazada a Calendly */}
       {!appointment.meeting_url && appointment.external_source === 'calendly' && !isCancelled && (
         <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
-          Falta conectar Calendly/ubicación Meet del closer. En cuanto Calendly confirme la reunión, el
-          enlace aparecerá aquí automáticamente.
+          Falta conectar Calendly/ubicación Meet del closer. En cuanto Calendly confirme la reunión, el enlace aparecerá
+          aquí automáticamente.
         </p>
       )}
 
@@ -694,16 +722,14 @@ export function AppointmentDetail({
             <p className="text-xs text-muted-foreground">
               Zona horaria del contacto (esta es la que verá el lead en la confirmación de Calendly, no la tuya)
             </p>
-            <select
-              value={rsContactTimezone}
-              onChange={(e) => setRsContactTimezone(e.target.value)}
-              className={cls}
-            >
+            <select value={rsContactTimezone} onChange={(e) => setRsContactTimezone(e.target.value)} className={cls}>
               {!TIMEZONE_OPTIONS.some((o) => o.value === rsContactTimezone) && (
                 <option value={rsContactTimezone}>{rsContactTimezone}</option>
               )}
               {TIMEZONE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
               ))}
             </select>
           </div>
@@ -715,14 +741,17 @@ export function AppointmentDetail({
               <input
                 type="checkbox"
                 checked={rsManualMode}
-                onChange={(e) => { setRsManualMode(e.target.checked); setRsSelectedSlot('') }}
+                onChange={(e) => {
+                  setRsManualMode(e.target.checked)
+                  setRsSelectedSlot('')
+                }}
                 className="accent-brand-500"
               />
               Reprogramar solo en la plataforma (sin crear evento en Calendly)
             </label>
           )}
 
-          {(!appointment.closer_id || rsManualMode) ? (
+          {!appointment.closer_id || rsManualMode ? (
             <div className="space-y-2">
               <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
                 {rsManualMode
@@ -740,7 +769,9 @@ export function AppointmentDetail({
             <>
               <CalendarPopover value={rsDate} onChange={setRsDate} placeholder="Elige un día" />
               {!rsDate && (
-                <p className="text-xs text-muted-foreground">Elige un día para ver los huecos disponibles del closer.</p>
+                <p className="text-xs text-muted-foreground">
+                  Elige un día para ver los huecos disponibles del closer.
+                </p>
               )}
               {rsDate && rsSlotsLoading && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -749,7 +780,9 @@ export function AppointmentDetail({
               )}
               {rsDate && !rsSlotsLoading && rsHasCalendly === false && (
                 <div className="space-y-2">
-                  <p className="text-xs text-amber-400">{rsMsg || 'Este closer no tiene Calendly.'} Elige la hora manualmente.</p>
+                  <p className="text-xs text-amber-400">
+                    {rsMsg || 'Este closer no tiene Calendly.'} Elige la hora manualmente.
+                  </p>
                   <input
                     type="datetime-local"
                     value={rsManualDatetime}
@@ -761,13 +794,19 @@ export function AppointmentDetail({
               {rsDate && !rsSlotsLoading && rsMsg && rsHasCalendly === null && (
                 <p className="text-xs text-red-400">{rsMsg}</p>
               )}
-              {rsDate && !rsSlotsLoading && rsHasCalendly === true && (
-                rsSlots.length === 0 ? (
+              {rsDate &&
+                !rsSlotsLoading &&
+                rsHasCalendly === true &&
+                (rsSlots.length === 0 ? (
                   <p className="text-xs text-muted-foreground">No hay huecos disponibles ese día. Prueba otra fecha.</p>
                 ) : (
                   <div className="grid grid-cols-4 gap-2 max-h-40 overflow-y-auto">
                     {rsSlots.map((s) => {
-                      const label = new Date(s.start_time).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: userTimezone })
+                      const label = new Date(s.start_time).toLocaleTimeString('es-ES', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        timeZone: userTimezone,
+                      })
                       const active = rsSelectedSlot === s.start_time
                       return (
                         <button
@@ -781,20 +820,27 @@ export function AppointmentDetail({
                       )
                     })}
                   </div>
-                )
-              )}
+                ))}
             </>
           )}
           <div className="flex justify-end gap-2">
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => { setShowReschedule(false); resetRescheduleForm() }}
+              onClick={() => {
+                setShowReschedule(false)
+                resetRescheduleForm()
+              }}
               disabled={rescheduling}
             >
               Cancelar
             </Button>
-            <Button size="sm" onClick={submitReschedule} disabled={!canSubmitReschedule} className="bg-brand-600 hover:bg-brand-500">
+            <Button
+              size="sm"
+              onClick={submitReschedule}
+              disabled={!canSubmitReschedule}
+              className="bg-brand-600 hover:bg-brand-500"
+            >
               {rescheduling ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -820,15 +866,21 @@ export function AppointmentDetail({
                 defaultValue={appointment.closer_id ?? '__none__'}
                 onValueChange={handleCloserChange}
                 disabled={closerSaving}
-                onOpenChange={(open) => { if (!open) setEditingCloser(false) }}
+                onOpenChange={(open) => {
+                  if (!open) setEditingCloser(false)
+                }}
               >
                 <SelectTrigger className="w-44 h-8 bg-muted border-border text-xs ml-auto">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-card border-border">
-                  <SelectItem value="__none__" className="text-foreground">— sin closer —</SelectItem>
+                  <SelectItem value="__none__" className="text-foreground">
+                    — sin closer —
+                  </SelectItem>
                   {(closers ?? []).map((c) => (
-                    <SelectItem key={c.id} value={c.id} className="text-foreground">{c.full_name}</SelectItem>
+                    <SelectItem key={c.id} value={c.id} className="text-foreground">
+                      {c.full_name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -840,10 +892,14 @@ export function AppointmentDetail({
                 className="hover:underline hover:text-brand-400 disabled:opacity-60"
                 title="Cambiar closer"
               >
-                {closerSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" /> : (appointment.closer?.full_name ?? '—')}
+                {closerSaving ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
+                ) : (
+                  (appointment.closer?.full_name ?? '—')
+                )}
               </button>
             ) : (
-              appointment.closer?.full_name ?? '—'
+              (appointment.closer?.full_name ?? '—')
             )}
           </dd>
         </div>
@@ -855,15 +911,21 @@ export function AppointmentDetail({
                 defaultValue={appointment.setter_id ?? '__none__'}
                 onValueChange={handleSetterChange}
                 disabled={setterSaving}
-                onOpenChange={(open) => { if (!open) setEditingSetter(false) }}
+                onOpenChange={(open) => {
+                  if (!open) setEditingSetter(false)
+                }}
               >
                 <SelectTrigger className="w-44 h-8 bg-muted border-border text-xs ml-auto">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-card border-border">
-                  <SelectItem value="__none__" className="text-foreground">— sin setter —</SelectItem>
+                  <SelectItem value="__none__" className="text-foreground">
+                    — sin setter —
+                  </SelectItem>
                   {(setters ?? []).map((s) => (
-                    <SelectItem key={s.id} value={s.id} className="text-foreground">{s.full_name}</SelectItem>
+                    <SelectItem key={s.id} value={s.id} className="text-foreground">
+                      {s.full_name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -875,10 +937,14 @@ export function AppointmentDetail({
                 className="hover:underline hover:text-brand-400 disabled:opacity-60"
                 title="Cambiar setter"
               >
-                {setterSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin inline" /> : (appointment.setter?.full_name ?? '—')}
+                {setterSaving ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
+                ) : (
+                  (appointment.setter?.full_name ?? '—')
+                )}
               </button>
             ) : (
-              appointment.setter?.full_name ?? '—'
+              (appointment.setter?.full_name ?? '—')
             )}
           </dd>
         </div>
@@ -939,7 +1005,9 @@ export function AppointmentDetail({
                 </SelectTrigger>
                 <SelectContent className="bg-card border-border">
                   {ACTIVITY_RESULT_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value} className="text-foreground">{o.label}</SelectItem>
+                    <SelectItem key={o.value} value={o.value} className="text-foreground">
+                      {o.label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -972,7 +1040,9 @@ export function AppointmentDetail({
                     <Badge className="border text-xs bg-brand-500/20 text-brand-400 border-brand-500/30">
                       {a.result ? ACTIVITY_RESULT_LABELS[a.result] || a.result : a.type}
                     </Badge>
-                    <span className="text-xs text-muted-foreground">{formatDateTime(a.created_at)} · {a.author}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDateTime(a.created_at)} · {a.author}
+                    </span>
                   </div>
                   {a.notes && <p className="text-sm text-foreground mt-1.5">{a.notes}</p>}
                 </div>
@@ -1008,7 +1078,12 @@ export function AppointmentDetail({
             className="w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500"
           />
           {appointment.recording_url && (
-            <a href={appointment.recording_url} target="_blank" rel="noreferrer" className="text-xs text-brand-400 hover:text-brand-300 mt-1 inline-block">
+            <a
+              href={appointment.recording_url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-brand-400 hover:text-brand-300 mt-1 inline-block"
+            >
               Abrir grabación ↗
             </a>
           )}
@@ -1048,7 +1123,9 @@ export function AppointmentDetail({
         </div>
 
         <div>
-          <h5 className="text-xs font-medium text-muted-foreground mb-2">Transcripción (pegar manualmente, opcional)</h5>
+          <h5 className="text-xs font-medium text-muted-foreground mb-2">
+            Transcripción (pegar manualmente, opcional)
+          </h5>
           <textarea
             value={transcriptText}
             onChange={(e) => setTranscriptText(e.target.value)}
@@ -1103,7 +1180,9 @@ export function AppointmentDetail({
                 <p className="text-xs text-muted-foreground mb-1">Objeciones</p>
                 <ul className="list-disc list-inside space-y-0.5">
                   {aiResult.objections.map((o, i) => (
-                    <li key={i} className="text-sm text-foreground">{o}</li>
+                    <li key={i} className="text-sm text-foreground">
+                      {o}
+                    </li>
                   ))}
                 </ul>
               </div>
@@ -1114,7 +1193,9 @@ export function AppointmentDetail({
                 <p className="text-xs text-muted-foreground mb-1">Próximos pasos</p>
                 <ul className="list-disc list-inside space-y-0.5">
                   {aiResult.next_steps.map((s, i) => (
-                    <li key={i} className="text-sm text-foreground">{s}</li>
+                    <li key={i} className="text-sm text-foreground">
+                      {s}
+                    </li>
                   ))}
                 </ul>
               </div>

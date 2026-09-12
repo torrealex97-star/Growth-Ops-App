@@ -43,7 +43,12 @@ function contractEmailHtml(opts: {
 </body></html>`
 }
 
-function inviteEmailHtml(opts: { fullName: string; companyName: string; url: string; signature: string | null }): string {
+function inviteEmailHtml(opts: {
+  fullName: string
+  companyName: string
+  url: string
+  signature: string | null
+}): string {
   const { fullName, companyName, url, signature } = opts
   return `<!doctype html>
 <html><body style="margin:0;background:#f4f4f5;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#18181b">
@@ -79,7 +84,12 @@ export async function sendInviteEmail(opts: {
       from: fromAddress(opts.company),
       to: opts.to,
       subject: `${opts.company.name} · Crea tu contraseña para acceder`,
-      html: inviteEmailHtml({ fullName: opts.fullName, companyName: opts.company.name, url: opts.url, signature: opts.company.email_signature }),
+      html: inviteEmailHtml({
+        fullName: opts.fullName,
+        companyName: opts.company.name,
+        url: opts.url,
+        signature: opts.company.email_signature,
+      }),
     })
     if (error) return { ok: false, error: error.message }
     return { ok: true }
@@ -140,9 +150,13 @@ function signedContractEmailHtml(opts: {
       <p style="margin:0 0 24px;font-size:12px;color:#a1a1aa">Contrato firmado — copia</p>
       <p style="font-size:15px;line-height:1.6">Hola ${esc(memberName)},</p>
       <p style="font-size:15px;line-height:1.6">Tu contrato ha quedado <b>firmado correctamente</b>. Adjuntamos una copia en PDF para tus registros.</p>
-      ${pdfUrl ? `<div style="text-align:center;margin:28px 0">
+      ${
+        pdfUrl
+          ? `<div style="text-align:center;margin:28px 0">
         <a href="${esc(pdfUrl)}" style="display:inline-block;background:#18181b;color:#fff;text-decoration:none;padding:13px 28px;border-radius:10px;font-size:15px;font-weight:600">Descargar contrato firmado</a>
-      </div>` : ''}
+      </div>`
+          : ''
+      }
       <hr style="border:none;border-top:1px solid #e4e4e7;margin:24px 0">
       <p style="font-size:13px;color:#52525b;line-height:1.6;white-space:pre-line">${esc(signature || `Un saludo,\n${companyName}`)}</p>
     </div>
@@ -212,7 +226,9 @@ export async function sendTaskAssignedEmail(opts: {
     const meta = [
       opts.priority ? `Prioridad: ${esc(opts.priority)}` : '',
       opts.dueDate ? `Vence: ${esc(opts.dueDate)}` : '',
-    ].filter(Boolean).join(' · ')
+    ]
+      .filter(Boolean)
+      .join(' · ')
     const html = `<!doctype html>
 <html><body style="margin:0;background:#f4f4f5;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#18181b">
   <div style="max-width:560px;margin:0 auto;padding:32px 16px">
@@ -246,7 +262,12 @@ export async function sendTaskAssignedEmail(opts: {
 
 // ==================== ALUMNOS ====================
 
-function studentContractEmailHtml(opts: { studentName: string; companyName: string; signUrl: string; welcome: string }): string {
+function studentContractEmailHtml(opts: {
+  studentName: string
+  companyName: string
+  signUrl: string
+  welcome: string
+}): string {
   const { studentName, companyName, signUrl, welcome } = opts
   return `<!doctype html>
 <html><body style="margin:0;background:#f4f4f5;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#18181b">
@@ -281,7 +302,12 @@ export async function sendStudentContractEmail(opts: {
       from: fromAddress(opts.company),
       to: opts.to,
       subject: `${opts.company.name} · ¡Bienvenida! Acepta tus condiciones`,
-      html: studentContractEmailHtml({ studentName: opts.studentName, companyName: opts.company.name, signUrl: opts.signUrl, welcome: opts.welcome }),
+      html: studentContractEmailHtml({
+        studentName: opts.studentName,
+        companyName: opts.company.name,
+        signUrl: opts.signUrl,
+        welcome: opts.welcome,
+      }),
     })
     if (error) return { ok: false, error: error.message }
     return { ok: true }
@@ -291,10 +317,14 @@ export async function sendStudentContractEmail(opts: {
 }
 
 // Landing de onboarding donde el alumno encuentra sus accesos y el paso a paso.
-export const ONBOARDING_LANDING_URL =
-  process.env.ONBOARDING_LANDING_URL || ''
+export const ONBOARDING_LANDING_URL = process.env.ONBOARDING_LANDING_URL || ''
 
-function studentOnboardingEmailHtml(opts: { studentName: string; companyName: string; landingUrl: string; signature: string | null }): string {
+function studentOnboardingEmailHtml(opts: {
+  studentName: string
+  companyName: string
+  landingUrl: string
+  signature: string | null
+}): string {
   const { studentName, companyName, landingUrl, signature } = opts
   return `<!doctype html>
 <html><body style="margin:0;background:#f4f4f5;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#18181b">
@@ -355,12 +385,19 @@ export async function sendStudentSignedEmail(opts: {
   if (!resendConfigured()) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
     const resend = new Resend(process.env.RESEND_API_KEY)
-    const attachments = opts.pdfBytes ? [{ filename: 'contrato-firmado.pdf', content: Buffer.from(opts.pdfBytes) }] : undefined
+    const attachments = opts.pdfBytes
+      ? [{ filename: 'contrato-firmado.pdf', content: Buffer.from(opts.pdfBytes) }]
+      : undefined
     const { error } = await resend.emails.send({
       from: fromAddress(opts.company),
       to: opts.to,
       subject: `${opts.company.name} · Copia de tu contrato firmado`,
-      html: signedContractEmailHtml({ memberName: opts.studentName, companyName: opts.company.name, signature: opts.company.email_signature, pdfUrl: opts.pdfUrl }),
+      html: signedContractEmailHtml({
+        memberName: opts.studentName,
+        companyName: opts.company.name,
+        signature: opts.company.email_signature,
+        pdfUrl: opts.pdfUrl,
+      }),
       ...(attachments ? { attachments } : {}),
     })
     if (error) return { ok: false, error: error.message }

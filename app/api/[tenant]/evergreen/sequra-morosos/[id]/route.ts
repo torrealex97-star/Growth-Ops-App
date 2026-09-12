@@ -20,8 +20,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
     }
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { data: row } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-    const role = (row?.roles as { key?: string } | null)?.key
+    const role = t.role
     if (!['admin', 'director', 'cobros'].includes(role || '')) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
@@ -33,7 +32,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 })
     }
 
-    const { error } = await sb.from('sequra_delinquent_customers').update(fields).eq('id', id).eq('tenant_id', t.tenantId)
+    const { error } = await sb
+      .from('sequra_delinquent_customers')
+      .update(fields)
+      .eq('id', id)
+      .eq('tenant_id', t.tenantId)
     if (error) throw new Error(error.message)
 
     return NextResponse.json({ ok: true })

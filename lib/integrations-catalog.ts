@@ -32,11 +32,36 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     test: true,
     required: ['META_ACCESS_TOKEN'],
     fields: [
-      { key: 'META_ACCESS_TOKEN', label: 'Access Token', type: 'password', secret: true, help: 'Token de System User que no caduque.' },
-      { key: 'META_APP_SECRET', label: 'App Secret', type: 'password', secret: true, help: 'Para firmar las llamadas (appsecret_proof).' },
-      { key: 'META_AD_ACCOUNT_ID', label: 'Cuenta(s) publicitaria(s)', type: 'text', secret: false, placeholder: 'Vacío = todas las accesibles', help: 'Déjalo VACÍO para sincronizar TODAS las cuentas a las que el token tiene acceso. O lista cuentas concretas separadas por comas (con o sin prefijo act_).' },
+      {
+        key: 'META_ACCESS_TOKEN',
+        label: 'Access Token',
+        type: 'password',
+        secret: true,
+        help: 'Token de System User que no caduque.',
+      },
+      {
+        key: 'META_APP_SECRET',
+        label: 'App Secret',
+        type: 'password',
+        secret: true,
+        help: 'Para firmar las llamadas (appsecret_proof).',
+      },
+      {
+        key: 'META_AD_ACCOUNT_ID',
+        label: 'Cuenta(s) publicitaria(s)',
+        type: 'text',
+        secret: false,
+        placeholder: 'Vacío = todas las accesibles',
+        help: 'Déjalo VACÍO para sincronizar TODAS las cuentas a las que el token tiene acceso. O lista cuentas concretas separadas por comas (con o sin prefijo act_).',
+      },
       { key: 'META_API_VERSION', label: 'Versión API', type: 'text', secret: false, placeholder: 'v21.0' },
-      { key: 'META_AD_ACCOUNTS_ALL', label: 'Sincronizar todas las cuentas accesibles', type: 'boolean', secret: false, help: 'Actívalo para descubrir automáticamente todas las cuentas publicitarias del token.' },
+      {
+        key: 'META_AD_ACCOUNTS_ALL',
+        label: 'Sincronizar todas las cuentas accesibles',
+        type: 'boolean',
+        secret: false,
+        help: 'Actívalo para descubrir automáticamente todas las cuentas publicitarias del token.',
+      },
     ],
   },
   {
@@ -46,8 +71,20 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     test: true,
     required: ['IG_USER_ID'],
     fields: [
-      { key: 'INSTAGRAM_ACCESS_TOKEN', label: 'Access Token', type: 'password', secret: true, help: 'Si se deja vacío, usa el token de Meta.' },
-      { key: 'IG_USER_ID', label: 'IG User ID (business)', type: 'text', secret: false, placeholder: '17841400000000000' },
+      {
+        key: 'INSTAGRAM_ACCESS_TOKEN',
+        label: 'Access Token',
+        type: 'password',
+        secret: true,
+        help: 'Si se deja vacío, usa el token de Meta.',
+      },
+      {
+        key: 'IG_USER_ID',
+        label: 'IG User ID (business)',
+        type: 'text',
+        secret: false,
+        placeholder: '17841400000000000',
+      },
       { key: 'IG_PAGE_ID', label: 'Page ID (Facebook vinculada)', type: 'text', secret: false },
       { key: 'IG_HANDLE', label: 'Handle de Instagram', type: 'text', secret: false, placeholder: '@tucuenta' },
       { key: 'IG_ENABLE_DM_SYNC', label: 'Sincronizar DMs (1 = sí)', type: 'text', secret: false, placeholder: '0' },
@@ -72,7 +109,13 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     required: ['RESEND_API_KEY', 'RESEND_FROM'],
     fields: [
       { key: 'RESEND_API_KEY', label: 'API Key', type: 'password', secret: true, placeholder: 're_…' },
-      { key: 'RESEND_FROM', label: 'Remitente', type: 'text', secret: false, placeholder: 'Tu Empresa <app@tudominio.com>' },
+      {
+        key: 'RESEND_FROM',
+        label: 'Remitente',
+        type: 'text',
+        secret: false,
+        placeholder: 'Tu Empresa <app@tudominio.com>',
+      },
     ],
   },
   {
@@ -82,8 +125,22 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     test: true,
     required: ['STRIPE_SECRET_KEY'],
     fields: [
-      { key: 'STRIPE_SECRET_KEY', label: 'Secret Key', type: 'password', secret: true, placeholder: 'sk_live_…', help: 'Clave secreta restringida o estándar con permiso de lectura de PaymentIntents.' },
-      { key: 'STRIPE_ACCOUNT_ID', label: 'Connected Account ID (opcional)', type: 'text', secret: false, placeholder: 'acct_…', help: 'Solo para Stripe Connect. Déjalo vacío si los pagos están en la cuenta principal.' },
+      {
+        key: 'STRIPE_SECRET_KEY',
+        label: 'Secret Key',
+        type: 'password',
+        secret: true,
+        placeholder: 'sk_live_…',
+        help: 'Clave secreta restringida o estándar con permiso de lectura de PaymentIntents.',
+      },
+      {
+        key: 'STRIPE_ACCOUNT_ID',
+        label: 'Connected Account ID (opcional)',
+        type: 'text',
+        secret: false,
+        placeholder: 'acct_…',
+        help: 'Solo para Stripe Connect. Déjalo vacío si los pagos están en la cuenta principal.',
+      },
     ],
   },
   {
@@ -93,13 +150,51 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     test: true,
     required: ['GHL_API_TOKEN', 'GHL_LOCATION_ID', 'GHL_WEBHOOK_SECRET'],
     fields: [
-      { key: 'GHL_API_TOKEN', label: 'Private Integration Token', type: 'password', secret: true, placeholder: 'pit-…', help: 'Token de Integración Privada de la subcuenta.' },
-      { key: 'GHL_LOCATION_ID', label: 'Location ID', type: 'text', secret: false, placeholder: 've9EPM428h8vShlRW1KT', help: 'ID de la subcuenta (en la URL /location/<ID>/).' },
-      { key: 'GHL_WEBHOOK_SECRET', label: 'Webhook Secret (entrante)', type: 'password', secret: true, help: 'Cabecera x-ghl-secret que validan los webhooks de GHL.' },
-      { key: 'GHL_ONBOARDING_WEBHOOK_URL', label: 'Webhook de altas/bajas de alumnos', type: 'text', secret: false, placeholder: 'https://…', help: 'Automatización que concede o revoca acceso al curso.' },
-      { key: 'GHL_ONBOARDING_WEBHOOK_SECRET', label: 'Secreto del webhook de altas/bajas', type: 'password', secret: true },
+      {
+        key: 'GHL_API_TOKEN',
+        label: 'Private Integration Token',
+        type: 'password',
+        secret: true,
+        placeholder: 'pit-…',
+        help: 'Token de Integración Privada de la subcuenta.',
+      },
+      {
+        key: 'GHL_LOCATION_ID',
+        label: 'Location ID',
+        type: 'text',
+        secret: false,
+        placeholder: 've9EPM428h8vShlRW1KT',
+        help: 'ID de la subcuenta (en la URL /location/<ID>/).',
+      },
+      {
+        key: 'GHL_WEBHOOK_SECRET',
+        label: 'Webhook Secret (entrante)',
+        type: 'password',
+        secret: true,
+        help: 'Cabecera x-ghl-secret que validan los webhooks de GHL.',
+      },
+      {
+        key: 'GHL_ONBOARDING_WEBHOOK_URL',
+        label: 'Webhook de altas/bajas de alumnos',
+        type: 'text',
+        secret: false,
+        placeholder: 'https://…',
+        help: 'Automatización que concede o revoca acceso al curso.',
+      },
+      {
+        key: 'GHL_ONBOARDING_WEBHOOK_SECRET',
+        label: 'Secreto del webhook de altas/bajas',
+        type: 'password',
+        secret: true,
+      },
       { key: 'ONBOARDING_INBOUND_SECRET', label: 'Secreto de onboarding entrante', type: 'password', secret: true },
-      { key: 'ONBOARDING_LANDING_URL', label: 'URL de onboarding', type: 'text', secret: false, placeholder: 'https://…' },
+      {
+        key: 'ONBOARDING_LANDING_URL',
+        label: 'URL de onboarding',
+        type: 'text',
+        secret: false,
+        placeholder: 'https://…',
+      },
     ],
   },
   {
@@ -109,9 +204,29 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     test: true,
     required: ['ANTHROPIC_API_KEY', 'GROQ_API_KEY'],
     fields: [
-      { key: 'ANTHROPIC_API_KEY', label: 'Anthropic API Key', type: 'password', secret: true, placeholder: 'sk-ant-…', help: 'Necesaria para asistentes, contenido, tareas y análisis.' },
-      { key: 'GROQ_API_KEY', label: 'Groq API Key', type: 'password', secret: true, placeholder: 'gsk_…', help: 'Necesaria para transcribir llamadas y reels.' },
-      { key: 'GOOGLE_API_KEY', label: 'Google API Key (Drive)', type: 'password', secret: true, help: 'Opcional; permite descargar grabaciones públicas de Google Drive por ID.' },
+      {
+        key: 'ANTHROPIC_API_KEY',
+        label: 'Anthropic API Key',
+        type: 'password',
+        secret: true,
+        placeholder: 'sk-ant-…',
+        help: 'Necesaria para asistentes, contenido, tareas y análisis.',
+      },
+      {
+        key: 'GROQ_API_KEY',
+        label: 'Groq API Key',
+        type: 'password',
+        secret: true,
+        placeholder: 'gsk_…',
+        help: 'Necesaria para transcribir llamadas y reels.',
+      },
+      {
+        key: 'GOOGLE_API_KEY',
+        label: 'Google API Key (Drive)',
+        type: 'password',
+        secret: true,
+        help: 'Opcional; permite descargar grabaciones públicas de Google Drive por ID.',
+      },
     ],
   },
   {
@@ -133,7 +248,13 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     test: true,
     required: ['SEQURA_MCP_TOKEN'],
     fields: [
-      { key: 'SEQURA_MCP_TOKEN', label: 'Token MCP', type: 'password', secret: true, help: 'Token de acceso a SeQura. Puede caducar y debe renovarse cuando la prueba devuelva 401.' },
+      {
+        key: 'SEQURA_MCP_TOKEN',
+        label: 'Token MCP',
+        type: 'password',
+        secret: true,
+        help: 'Token de acceso a SeQura. Puede caducar y debe renovarse cuando la prueba devuelva 401.',
+      },
     ],
   },
   {
@@ -153,7 +274,13 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     description: 'Protege la entrada de eventos del píxel, VSL y atribución del funnel.',
     required: ['TRACKING_INGEST_KEY'],
     fields: [
-      { key: 'TRACKING_INGEST_KEY', label: 'Ingest Key', type: 'password', secret: true, help: 'Secreto compartido por las fuentes que envían eventos al endpoint de tracking.' },
+      {
+        key: 'TRACKING_INGEST_KEY',
+        label: 'Ingest Key',
+        type: 'password',
+        secret: true,
+        help: 'Secreto compartido por las fuentes que envían eventos al endpoint de tracking.',
+      },
     ],
   },
   {
@@ -161,12 +288,27 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     title: 'Negocio',
     description: 'Contexto que usa la IA para generar guiones a tu estilo.',
     fields: [
-      { key: 'IG_BUSINESS_CONTEXT', label: 'Contexto de negocio', type: 'textarea', secret: false, help: 'Modelo de negocio, avatares y funnel. Lo usa la IA al generar guiones y los carruseles/flyers.' },
-      { key: 'IG_BRAND_ASSETS', label: 'Assets de marca (JSON interno)', type: 'text', secret: false, hidden: true, help: 'Array JSON {url,name} de logos/fotos de marca. Gestionado desde la sección "Assets de marca" de abajo.' },
+      {
+        key: 'IG_BUSINESS_CONTEXT',
+        label: 'Contexto de negocio',
+        type: 'textarea',
+        secret: false,
+        help: 'Modelo de negocio, avatares y funnel. Lo usa la IA al generar guiones y los carruseles/flyers.',
+      },
+      {
+        key: 'IG_BRAND_ASSETS',
+        label: 'Assets de marca (JSON interno)',
+        type: 'text',
+        secret: false,
+        hidden: true,
+        help: 'Array JSON {url,name} de logos/fotos de marca. Gestionado desde la sección "Assets de marca" de abajo.',
+      },
     ],
   },
 ]
 
 export const ALL_FIELDS: IntegrationField[] = INTEGRATION_GROUPS.flatMap((g) => g.fields)
 export const SECRET_KEYS = new Set(ALL_FIELDS.filter((f) => f.secret).map((f) => f.key))
-export function isKnownKey(k: string): boolean { return ALL_FIELDS.some((f) => f.key === k) }
+export function isKnownKey(k: string): boolean {
+  return ALL_FIELDS.some((f) => f.key === k)
+}

@@ -1,9 +1,9 @@
-"use client"
+'use client'
 
 import { useEffect, useState } from 'react'
 import { TrendingUp, Loader2, CheckCircle2 } from 'lucide-react'
 import type { AffiliateFormField } from '@/lib/types/database'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantBranding } from '@/lib/tenant-context'
 
 type FormConfig = {
   program_name: string
@@ -21,6 +21,7 @@ const inputType = (key: string) => {
 
 export default function RegistroAfiliadoPage() {
   const tenant = useTenant()
+  const branding = useTenantBranding()
   const [config, setConfig] = useState<FormConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const [values, setValues] = useState<Record<string, string>>({})
@@ -34,7 +35,9 @@ export default function RegistroAfiliadoPage() {
     // Enlace por campaña: /${tenant}/afiliados/registro?c=<slug>
     const slug = new URLSearchParams(window.location.search).get('c')?.trim() ?? ''
     setCampaignSlug(slug)
-    const url = slug ? `/api/${tenant}/evergreen/afiliados/form-config?c=${encodeURIComponent(slug)}` : `/api/${tenant}/evergreen/afiliados/form-config`
+    const url = slug
+      ? `/api/${tenant}/evergreen/afiliados/form-config?c=${encodeURIComponent(slug)}`
+      : `/api/${tenant}/evergreen/afiliados/form-config`
     fetch(url)
       .then((r) => r.json())
       .then((data: FormConfig) => setConfig(data))
@@ -75,7 +78,7 @@ export default function RegistroAfiliadoPage() {
           <div className="w-10 h-10 rounded-lg bg-brand-600 flex items-center justify-center">
             <TrendingUp className="w-5 h-5 text-foreground" />
           </div>
-          <span className="text-foreground font-semibold text-lg">Scalix Systems</span>
+          <span className="text-foreground font-semibold text-lg">{branding.name}</span>
         </div>
 
         {loading ? (

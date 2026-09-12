@@ -30,12 +30,12 @@ export const QUALIFICATION_LABELS: Record<string, string> = {
   vio_vsl: '¿Vio VSL?',
 }
 
-export function getQualificationEntries(qualification: Qualification | null | undefined): { label: string; value: string }[] {
+export function getQualificationEntries(
+  qualification: Qualification | null | undefined
+): { label: string; value: string }[] {
   if (!qualification) return []
   if (qualification.respuestas?.length) {
-    return qualification.respuestas
-      .filter((r) => r?.a && String(r.a).trim())
-      .map((r) => ({ label: r.q, value: r.a }))
+    return qualification.respuestas.filter((r) => r?.a && String(r.a).trim()).map((r) => ({ label: r.q, value: r.a }))
   }
   return Object.entries(QUALIFICATION_LABELS)
     .map(([key, label]) => ({ label, value: qualification[key] as string | undefined }))

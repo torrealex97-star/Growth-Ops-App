@@ -1,7 +1,7 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import { Copy, Check } from "lucide-react"
+import { useState } from 'react'
+import { Copy, Check } from 'lucide-react'
 
 interface Props {
   caption: string | null
@@ -12,9 +12,9 @@ export function CaptionPanel({ caption, hashtags }: Props) {
   const [copied, setCopied] = useState(false)
   if (!caption && (!hashtags || hashtags.length === 0)) return null
 
-  const full = [caption || "", (hashtags || []).map((h) => (h.startsWith("#") ? h : `#${h}`)).join(" ")]
+  const full = [caption || '', (hashtags || []).map((h) => (h.startsWith('#') ? h : `#${h}`)).join(' ')]
     .filter(Boolean)
-    .join("\n\n")
+    .join('\n\n')
 
   const copy = async () => {
     try {
@@ -37,13 +37,13 @@ export function CaptionPanel({ caption, hashtags }: Props) {
           className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
         >
           {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-          {copied ? "Copiado" : "Copiar"}
+          {copied ? 'Copiado' : 'Copiar'}
         </button>
       </div>
       {caption && <p className="text-xs text-foreground/90 whitespace-pre-wrap leading-relaxed">{caption}</p>}
       {hashtags && hashtags.length > 0 && (
         <p className="text-xs text-brand-400 mt-1.5">
-          {hashtags.map((h) => (h.startsWith("#") ? h : `#${h}`)).join(" ")}
+          {hashtags.map((h) => (h.startsWith('#') ? h : `#${h}`)).join(' ')}
         </p>
       )}
     </div>

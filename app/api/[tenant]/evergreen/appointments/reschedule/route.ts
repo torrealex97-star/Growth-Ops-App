@@ -45,7 +45,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     const { data: appt } = await sb
       .from('appointments')
-      .select('id, contact_id, closer_id, setter_id, external_source, calendly_event_uuid, appointment_datetime, duration_minutes, status, qualification, utm_source, utm_campaign, utm_term, utm_medium, utm_content, calendar_name')
+      .select(
+        'id, contact_id, closer_id, setter_id, external_source, calendly_event_uuid, appointment_datetime, duration_minutes, status, qualification, utm_source, utm_campaign, utm_term, utm_medium, utm_content, calendar_name'
+      )
       .eq('id', appointmentId)
       .eq('tenant_id', t.tenantId)
       .single()
@@ -56,7 +58,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: 'Solo puedes reprogramar tus propias agendas' }, { status: 403 })
     }
 
-    const parsedDuration = body.durationMinutes && body.durationMinutes > 0 ? body.durationMinutes : appt.duration_minutes || 30
+    const parsedDuration =
+      body.durationMinutes && body.durationMinutes > 0 ? body.durationMinutes : appt.duration_minutes || 30
     const newDatetimeISO = new Date(startTime).toISOString()
 
     const oldValues = {
@@ -67,9 +70,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Etiqueta la reagenda como "no show" o "show" en el historial de llamadas del contacto,
     // según el status que tenía la cita justo antes de reprogramarla (ver migración v61).
     const priorStatusNote =
-      appt.status === 'no_show' ? ' (no había asistido a la anterior)'
-      : appt.status === 'show' ? ' (sí asistió a la anterior)'
-      : ''
+      appt.status === 'no_show'
+        ? ' (no había asistido a la anterior)'
+        : appt.status === 'show'
+          ? ' (sí asistió a la anterior)'
+          : ''
 
     // Caso 1: agenda enlazada a Calendly → crear el nuevo evento y cancelar el antiguo.
     // Se omite si el que reprograma pide modo manual (solo plataforma): p.ej. reprogramar
@@ -83,7 +88,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         .eq('tenant_id', t.tenantId)
         .maybeSingle()
       if (!contact?.email) {
-        return NextResponse.json({ error: 'El contacto necesita un email para reprogramar en Calendly' }, { status: 400 })
+        return NextResponse.json(
+          { error: 'El contacto necesita un email para reprogramar en Calendly' },
+          { status: 400 }
+        )
       }
       if (!appt.closer_id) {
         return NextResponse.json({ error: 'La agenda no tiene closer asignado' }, { status: 400 })
@@ -100,7 +108,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         (Array.isArray(apptQualification?.respuestas) && apptQualification.respuestas.length > 0
           ? apptQualification.respuestas
           : contactQualification?.respuestas) || []
-      const { data: closer } = await sb.from('users').select('email, calendly_email, full_name').eq('id', appt.closer_id).maybeSingle()
+      const { data: closer } = await sb
+        .from('users')
+        .select('email, calendly_email, full_name')
+        .eq('id', appt.closer_id)
+        .maybeSingle()
       if (!closer?.email) return NextResponse.json({ error: 'El closer no tiene email' }, { status: 400 })
 
       const et = await resolveCloserEventType(closer.calendly_email || closer.email)
@@ -187,20 +199,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           try {
             const r = await fetch(`https://api.calendly.com/scheduled_events/${oldEventUuid}/cancellation`, {
               method: 'POST',
-              headers: { Authorization: `Bearer ${process.env.CALENDLY_API_TOKEN}`, 'Content-Type': 'application/json' },
+              headers: {
+                Authorization: `Bearer ${process.env.CALENDLY_API_TOKEN}`,
+                'Content-Type': 'application/json',
+              },
               body: JSON.stringify({ reason: 'Reprogramada desde la app' }),
             })
             calendlyCanceled = r.ok
             if (!r.ok) {
               const detail = await r.text().catch(() => '')
-              console.error(`[reschedule] Calendly no canceló el evento antiguo ${oldEventUuid}: HTTP ${r.status} (intento ${intento}/3) ${detail}`)
+              console.error(
+                `[reschedule] Calendly no canceló el evento antiguo ${oldEventUuid}: HTTP ${r.status} (intento ${intento}/3) ${detail}`
+              )
             }
           } catch (e) {
-            console.error(`[reschedule] Error de red cancelando evento Calendly ${oldEventUuid} (intento ${intento}/3):`, e)
+            console.error(
+              `[reschedule] Error de red cancelando evento Calendly ${oldEventUuid} (intento ${intento}/3):`,
+              e
+            )
           }
         }
         if (!calendlyCanceled) {
-          console.error(`[reschedule] AVISO: el evento antiguo ${oldEventUuid} sigue vivo en Calendly tras la reprogramación de la cita ${appointmentId}. Revisar manualmente para evitar doble reserva.`)
+          console.error(
+            `[reschedule] AVISO: el evento antiguo ${oldEventUuid} sigue vivo en Calendly tras la reprogramación de la cita ${appointmentId}. Revisar manualmente para evitar doble reserva.`
+          )
           // Persistido (no solo logueado): el cron diario de recordatorios reintenta cancelar
           // estos eventos huérfanos para que un fallo transitorio de Calendly no deje un
           // duplicado permanente en Google Calendar sin que nadie se entere.

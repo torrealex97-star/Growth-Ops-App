@@ -14,15 +14,14 @@
 
 /** CTA fijo de la marca: todos los carruseles cierran llevando al recurso principal.
  * Editable — ajusta estos textos a tu propia oferta. */
-export const CTA_TITLE = "Descubre más en el enlace"
-export const CTA_PILL = "🔗 Enlace en la bio"
-export const CTA_CAPTION_LINE =
-  "Tienes más info en el enlace de la bio 🔗"
+export const CTA_TITLE = 'Descubre más en el enlace'
+export const CTA_PILL = '🔗 Enlace en la bio'
+export const CTA_CAPTION_LINE = 'Tienes más info en el enlace de la bio 🔗'
 
 const C = {
-  navy: "#071f3d",
-  accent: "#1e9eff",
-  accent2: "#3ea6ff",
+  navy: '#071f3d',
+  accent: '#1e9eff',
+  accent2: '#3ea6ff',
 }
 const DISPLAY = "'Space Grotesk'"
 const BODY = "'Inter'"
@@ -35,7 +34,7 @@ const GRID_BG = `background:
   ${C.navy};`
 
 const CHROME =
-  "background:linear-gradient(180deg,#ffffff 0%,#dcecff 50%,#7fbaf0 100%);-webkit-background-clip:text;background-clip:text;color:transparent;"
+  'background:linear-gradient(180deg,#ffffff 0%,#dcecff 50%,#7fbaf0 100%);-webkit-background-clip:text;background-clip:text;color:transparent;'
 
 const root = (inner: string) =>
   `<div style="position:relative;width:1080px;height:1350px;overflow:hidden;font-family:${BODY},sans-serif;${GRID_BG}">${inner}</div>`
@@ -55,11 +54,7 @@ const swipe = () =>
 
 /** Escapa el texto del usuario/modelo antes de meterlo en el HTML de la slide. */
 function esc(s: string): string {
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
 /** Portada: foto real en tarjeta (respeta su proporción) + chip + hook. */
@@ -70,7 +65,7 @@ export function coverSlide(opts: { photoUrl: string; name: string; label?: strin
     ${brandRow()}
     <div style="position:absolute;top:150px;left:64px;right:64px;bottom:130px;display:flex;flex-direction:column;justify-content:center;gap:44px;z-index:4;">
       <div>
-        <div style="display:inline-block;font-family:${DISPLAY};font-weight:700;font-size:23px;letter-spacing:.18em;text-transform:uppercase;color:${C.accent2};background:rgba(30,158,255,.14);border:1px solid rgba(30,158,255,.4);padding:10px 20px;border-radius:999px;margin-bottom:26px;">${esc(opts.label || "Caso de éxito")} · ${esc(opts.name)}</div>
+        <div style="display:inline-block;font-family:${DISPLAY};font-weight:700;font-size:23px;letter-spacing:.18em;text-transform:uppercase;color:${C.accent2};background:rgba(30,158,255,.14);border:1px solid rgba(30,158,255,.4);padding:10px 20px;border-radius:999px;margin-bottom:26px;">${esc(opts.label || 'Caso de éxito')} · ${esc(opts.name)}</div>
         <div style="font-family:${DISPLAY};font-weight:800;font-size:${size}px;line-height:1.04;letter-spacing:-.02em;${CHROME}">${hook}</div>
       </div>
       <div style="position:relative;border-radius:28px;overflow:hidden;border:2px solid rgba(30,158,255,.55);box-shadow:0 0 70px rgba(30,158,255,.35), 0 24px 60px rgba(0,0,0,.45);">
@@ -83,19 +78,19 @@ export function coverSlide(opts: { photoUrl: string; name: string; label?: strin
 /** Slide de contenido: kicker + (cifra grande) + titular + cuerpo. */
 export function contentSlide(opts: { kicker?: string; heading: string; body?: string; big?: string }): string {
   const heading = esc(opts.heading)
-  const big = opts.big ? esc(opts.big) : ""
+  const big = opts.big ? esc(opts.big) : ''
   const bigBlock = big
     ? `<div style="font-family:${DISPLAY};font-weight:800;font-size:${big.length > 9 ? 112 : 150}px;line-height:1;${CHROME}margin-bottom:24px;">${big}</div>`
-    : ""
+    : ''
   const kickerBlock = opts.kicker
     ? `<div style="font-family:${DISPLAY};font-weight:700;font-size:26px;letter-spacing:.16em;text-transform:uppercase;color:${C.accent2};margin-bottom:26px;">${esc(opts.kicker)}</div>`
-    : ""
+    : ''
   const hSize = heading.length > 52 ? 56 : heading.length > 34 ? 62 : 74
   return root(`
     <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:0 90px;">
       ${kickerBlock}${bigBlock}
       <div style="font-family:${DISPLAY};font-weight:800;font-size:${hSize}px;line-height:1.05;letter-spacing:-.02em;${CHROME}margin-bottom:${opts.body ? 34 : 0}px;">${heading}</div>
-      ${opts.body ? `<div style="font-family:${BODY};font-weight:400;font-size:38px;line-height:1.42;color:rgba(226,240,255,.9);max-width:860px;">${esc(opts.body)}</div>` : ""}
+      ${opts.body ? `<div style="font-family:${BODY};font-weight:400;font-size:38px;line-height:1.42;color:rgba(226,240,255,.9);max-width:860px;">${esc(opts.body)}</div>` : ''}
     </div>
     <div style="position:absolute;top:0;left:0;width:100%;height:8px;background:linear-gradient(90deg,${C.accent},transparent);"></div>
     ${handle()}`)
@@ -105,7 +100,7 @@ export function contentSlide(opts: { kicker?: string; heading: string; body?: st
 export function ctaSlide(opts: { lead?: string }): string {
   const leadBlock = opts.lead
     ? `<div style="font-family:${DISPLAY};font-weight:700;font-size:34px;line-height:1.25;color:${C.accent2};margin-bottom:28px;">${esc(opts.lead)}</div>`
-    : ""
+    : ''
   return root(`
     ${brandRow()}
     <div style="position:absolute;left:64px;right:64px;top:50%;transform:translateY(-50%);z-index:5;">
@@ -141,7 +136,7 @@ export interface CasoExitoSpec {
 }
 
 /** Prefijo con el que el dashboard agrupa los carruseles de casos de éxito. */
-export const CASO_TITLE_PREFIX = "CASO"
+export const CASO_TITLE_PREFIX = 'CASO'
 
 export function normalizeCasoTitle(title: string, name: string): string {
   const t = title.trim() || `Caso de éxito de ${name.trim()}`
@@ -162,7 +157,7 @@ export function buildCasoExitoSlides(spec: CasoExitoSpec, photoUrl: string): str
 
 /** Añade la línea del CTA de la bio al caption si no la lleva ya. */
 export function buildCaption(caption?: string): string {
-  const base = (caption || "").trim()
-  if (base.toLowerCase().includes("enlace de la bio")) return base
+  const base = (caption || '').trim()
+  if (base.toLowerCase().includes('enlace de la bio')) return base
   return base ? `${base}\n\n${CTA_CAPTION_LINE}` : CTA_CAPTION_LINE
 }

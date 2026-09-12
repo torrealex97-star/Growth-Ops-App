@@ -50,17 +50,16 @@ export default function ContratosPage() {
   const load = async () => {
     const supabase = createClient()
     const [cRes, contactsRes] = await Promise.all([
-      supabase
-        .from('contracts')
-        .select('*, contacts(full_name), sales(id)')
-        .order('created_at', { ascending: false }),
+      supabase.from('contracts').select('*, contacts(full_name), sales(id)').order('created_at', { ascending: false }),
       supabase.from('contacts').select('id, full_name').order('full_name'),
     ])
     setContracts((cRes.data as Contract[]) || [])
     setContacts((contactsRes.data as Contact[]) || [])
     setLoading(false)
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+  }, [])
 
   const updateStatus = async (id: string, status: string) => {
     setContracts((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)))
@@ -86,14 +85,20 @@ export default function ContratosPage() {
       return
     }
     toast.success('Contrato marcado como enviado', {
-      description: 'Recuerda enviarlo desde tu herramienta de firma. Al firmarse, el webhook lo marcará automáticamente como "firmado".',
+      description:
+        'Recuerda enviarlo desde tu herramienta de firma. Al firmarse, el webhook lo marcará automáticamente como "firmado".',
     })
   }
 
   const create = async () => {
-    if (!nc.title.trim()) { toast.error('Pon un título'); return }
+    if (!nc.title.trim()) {
+      toast.error('Pon un título')
+      return
+    }
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
     const { error } = await supabase.from('contracts').insert({
       contact_id: nc.contact_id || null,
       title: nc.title.trim(),
@@ -101,7 +106,10 @@ export default function ContratosPage() {
       status: nc.status,
       created_by: user?.id,
     })
-    if (error) { toast.error('Error al crear', { description: error.message }); return }
+    if (error) {
+      toast.error('Error al crear', { description: error.message })
+      return
+    }
     toast.success('Contrato creado')
     setShowNew(false)
     setNc({ contact_id: '', title: '', url: '', status: 'pendiente' })
@@ -114,10 +122,11 @@ export default function ContratosPage() {
 
   const nq = normalizeText(q.trim())
   const filtered = nq
-    ? contracts.filter((c) =>
-        normalizeText(c.contacts?.full_name || '').includes(nq) ||
-        normalizeText(c.title || '').includes(nq) ||
-        normalizeText(c.status || '').includes(nq)
+    ? contracts.filter(
+        (c) =>
+          normalizeText(c.contacts?.full_name || '').includes(nq) ||
+          normalizeText(c.title || '').includes(nq) ||
+          normalizeText(c.status || '').includes(nq)
       )
     : contracts
 
@@ -132,7 +141,10 @@ export default function ContratosPage() {
         </div>
         <div className="flex items-center gap-3">
           <SearchBox value={q} onChange={setQ} placeholder="Buscar por alumno, título o estado..." />
-          <button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-500 whitespace-nowrap">
+          <button
+            onClick={() => setShowNew(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-500 whitespace-nowrap"
+          >
             <Plus className="w-4 h-4" /> Añadir contrato
           </button>
         </div>
@@ -156,7 +168,9 @@ export default function ContratosPage() {
       <div className="bg-card/60 border border-border rounded-lg p-4 flex items-start gap-3">
         <Webhook className="w-5 h-5 text-brand-400 mt-0.5 shrink-0" />
         <div className="text-xs text-muted-foreground space-y-1">
-          <p className="text-foreground font-medium">Webhook de firma (configúralo en tu herramienta de e-sign / GHL)</p>
+          <p className="text-foreground font-medium">
+            Webhook de firma (configúralo en tu herramienta de e-sign / GHL)
+          </p>
           <p>
             <span className="text-muted-foreground">URL: </span>
             <code className="text-brand-300 bg-muted px-1.5 py-0.5 rounded">
@@ -169,7 +183,9 @@ export default function ContratosPage() {
             <code className="text-foreground">contractId</code> o <code className="text-foreground">saleId</code> o{' '}
             <code className="text-foreground">email</code> + <code className="text-foreground">signedUrl</code>.
           </p>
-          <p className="text-muted-foreground">Cuando la herramienta confirme la firma, el contrato pasará a &quot;Firmado&quot; automáticamente.</p>
+          <p className="text-muted-foreground">
+            Cuando la herramienta confirme la firma, el contrato pasará a &quot;Firmado&quot; automáticamente.
+          </p>
         </div>
       </div>
 
@@ -178,7 +194,9 @@ export default function ContratosPage() {
       ) : filtered.length === 0 ? (
         <div className="bg-card border border-border rounded-lg p-10 text-center">
           <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-          <p className="text-muted-foreground text-sm">{contracts.length === 0 ? 'Todavía no hay contratos.' : 'Ningún contrato coincide con la búsqueda.'}</p>
+          <p className="text-muted-foreground text-sm">
+            {contracts.length === 0 ? 'Todavía no hay contratos.' : 'Ningún contrato coincide con la búsqueda.'}
+          </p>
         </div>
       ) : (
         <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -205,13 +223,22 @@ export default function ContratosPage() {
                       onChange={(e) => updateStatus(c.id, e.target.value)}
                       className={`text-xs rounded border px-2 py-1 bg-card ${STATUS_STYLES[c.status] || 'border-border text-foreground'}`}
                     >
-                      {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                      {STATUSES.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
                     </select>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{c.signed_at ? formatDate(c.signed_at) : '—'}</td>
                   <td className="px-4 py-3">
                     {c.url ? (
-                      <a href={c.url} target="_blank" rel="noreferrer" className="text-brand-400 hover:text-brand-300 inline-flex items-center gap-1">
+                      <a
+                        href={c.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-brand-400 hover:text-brand-300 inline-flex items-center gap-1"
+                      >
                         {c.status === 'firmado' ? 'Ver contrato firmado' : 'Ver'} <ExternalLink className="w-3 h-3" />
                       </a>
                     ) : (
@@ -220,7 +247,10 @@ export default function ContratosPage() {
                   </td>
                   <td className="px-4 py-3">
                     {c.sale_id ? (
-                      <Link href={`/${tenant}/ventas/registro/${c.sale_id}`} className="text-brand-400 hover:text-brand-300 text-xs">
+                      <Link
+                        href={`/${tenant}/ventas/registro/${c.sale_id}`}
+                        className="text-brand-400 hover:text-brand-300 text-xs"
+                      >
                         Ver venta
                       </Link>
                     ) : (
@@ -247,24 +277,58 @@ export default function ContratosPage() {
       )}
 
       {showNew && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowNew(false)}>
-          <div className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setShowNew(false)}
+        >
+          <div
+            className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between">
               <h3 className="text-foreground font-semibold">Nuevo contrato</h3>
-              <button onClick={() => setShowNew(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+              <button onClick={() => setShowNew(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <select value={nc.contact_id} onChange={(e) => setNc({ ...nc, contact_id: e.target.value })} className={cls}>
+            <select
+              value={nc.contact_id}
+              onChange={(e) => setNc({ ...nc, contact_id: e.target.value })}
+              className={cls}
+            >
               <option value="">— sin alumno —</option>
-              {contacts.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+              {contacts.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.full_name}
+                </option>
+              ))}
             </select>
-            <input value={nc.title} onChange={(e) => setNc({ ...nc, title: e.target.value })} placeholder="Título del contrato" className={cls} />
-            <input value={nc.url} onChange={(e) => setNc({ ...nc, url: e.target.value })} placeholder="Enlace (Drive, DocuSign, etc.)" className={cls} />
+            <input
+              value={nc.title}
+              onChange={(e) => setNc({ ...nc, title: e.target.value })}
+              placeholder="Título del contrato"
+              className={cls}
+            />
+            <input
+              value={nc.url}
+              onChange={(e) => setNc({ ...nc, url: e.target.value })}
+              placeholder="Enlace (Drive, DocuSign, etc.)"
+              className={cls}
+            />
             <select value={nc.status} onChange={(e) => setNc({ ...nc, status: e.target.value })} className={cls}>
-              {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              {STATUSES.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
             </select>
             <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setShowNew(false)} className="px-3 py-2 text-sm text-muted-foreground">Cancelar</button>
-              <button onClick={create} className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg">Crear</button>
+              <button onClick={() => setShowNew(false)} className="px-3 py-2 text-sm text-muted-foreground">
+                Cancelar
+              </button>
+              <button onClick={create} className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg">
+                Crear
+              </button>
             </div>
           </div>
         </div>
@@ -273,4 +337,5 @@ export default function ContratosPage() {
   )
 }
 
-const cls = 'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500'
+const cls =
+  'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500'

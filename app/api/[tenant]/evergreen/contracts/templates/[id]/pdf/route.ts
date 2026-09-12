@@ -18,8 +18,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
-    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-    const role = (urow?.roles as { key?: string } | null)?.key
+    const role = t.role
     if (!role) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
     const { data: tpl } = await sb
@@ -39,7 +38,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
       company,
     })
 
-    const filename = `plantilla-${(tpl.name || 'contrato').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}.pdf`
+    const filename = `plantilla-${(tpl.name || 'contrato')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '')}.pdf`
     return new NextResponse(Buffer.from(pdf), {
       status: 200,
       headers: {

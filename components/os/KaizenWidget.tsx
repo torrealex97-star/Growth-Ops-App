@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -40,7 +40,13 @@ export function KaizenWidget({ userId }: { userId: string }) {
       </div>
       <p className="text-sm text-foreground mt-1.5">
         Has aportado <span className="font-semibold">{myCount}</span> sugerencia{myCount === 1 ? '' : 's'} de mejora
-        {ranking.length > 1 && myRank >= 0 && <> · puesto <span className="font-semibold">#{myRank + 1}</span> del equipo</>}.
+        {ranking.length > 1 && myRank >= 0 && (
+          <>
+            {' '}
+            · puesto <span className="font-semibold">#{myRank + 1}</span> del equipo
+          </>
+        )}
+        .
       </p>
       {isTop && (
         <p className="text-xs text-emerald-400 mt-1">🏆 ¡Eres quien más aporta al equipo ahora mismo, sigue así!</p>

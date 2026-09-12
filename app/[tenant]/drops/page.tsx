@@ -2,19 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { activeUserNamesQuery } from '@/lib/users'
 import { UserMinus, Plus, X, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getCustomDateRange } from '@/lib/filters/period'
 
 type PeriodPreset = 'all' | 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom'
@@ -29,7 +24,11 @@ const PERIOD_LABELS: Record<PeriodPreset, string> = {
   custom: 'Personalizado',
 }
 
-function getPeriodRange(preset: PeriodPreset, customFrom: string, customTo: string): { from: Date | null; to: Date | null } {
+function getPeriodRange(
+  preset: PeriodPreset,
+  customFrom: string,
+  customTo: string
+): { from: Date | null; to: Date | null } {
   const now = new Date()
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0)
   const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
@@ -182,18 +181,26 @@ export default function DropsPage() {
   const load = async () => {
     const supabase = createClient()
     const [dRes, cRes, uRes] = await Promise.all([
-      supabase.from('drops').select('*, contacts(full_name), handler:handled_by(full_name)').order('created_at', { ascending: false }),
+      supabase
+        .from('drops')
+        .select('*, contacts(full_name), handler:handled_by(full_name)')
+        .order('created_at', { ascending: false }),
       supabase.from('contacts').select('id, full_name').order('full_name').limit(300),
-      supabase.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
+      activeUserNamesQuery(supabase),
     ])
     setItems((dRes.data as DropRow[]) || [])
     setContacts((cRes.data as Contact[]) || [])
     setUsers((uRes.data as DbUser[]) || [])
     setLoading(false)
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+  }, [])
 
-  const periodRange = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
+  const periodRange = useMemo(
+    () => getPeriodRange(periodPreset, customFrom, customTo),
+    [periodPreset, customFrom, customTo]
+  )
 
   const filteredItems = useMemo(() => {
     return items.filter((d) => {
@@ -211,10 +218,11 @@ export default function DropsPage() {
   const visibleItems = useMemo(() => {
     const nq = normalizeText(q.trim())
     if (!nq) return filteredItems
-    return filteredItems.filter((d) =>
-      normalizeText(d.contacts?.full_name || '').includes(nq) ||
-      normalizeText(d.handler?.full_name || '').includes(nq) ||
-      normalizeText(d.notes || '').includes(nq)
+    return filteredItems.filter(
+      (d) =>
+        normalizeText(d.contacts?.full_name || '').includes(nq) ||
+        normalizeText(d.handler?.full_name || '').includes(nq) ||
+        normalizeText(d.notes || '').includes(nq)
     )
   }, [filteredItems, q])
 
@@ -270,9 +278,14 @@ export default function DropsPage() {
   }
 
   const create = async () => {
-    if (!nd.contact_id) { toast.error('Selecciona un alumno'); return }
+    if (!nd.contact_id) {
+      toast.error('Selecciona un alumno')
+      return
+    }
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
     const { error } = await supabase.from('drops').insert({
       contact_id: nd.contact_id,
       reason: nd.reason,
@@ -284,10 +297,22 @@ export default function DropsPage() {
       notes: nd.notes || null,
       created_by: user?.id,
     })
-    if (error) { toast.error('Error al crear', { description: error.message }); return }
+    if (error) {
+      toast.error('Error al crear', { description: error.message })
+      return
+    }
     toast.success('Cancelación registrada')
     setShowNew(false)
-    setNd({ contact_id: '', reason: 'impago', type: 'voluntaria', request_date: '', retention_action: '', result: 'perdida', refund_amount: '', notes: '' })
+    setNd({
+      contact_id: '',
+      reason: 'impago',
+      type: 'voluntaria',
+      request_date: '',
+      retention_action: '',
+      result: 'perdida',
+      refund_amount: '',
+      notes: '',
+    })
     load()
   }
 
@@ -302,7 +327,10 @@ export default function DropsPage() {
         </div>
         <div className="flex items-center gap-3">
           <SearchBox value={q} onChange={setQ} placeholder="Buscar alumno..." className="w-64" />
-          <button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-500 whitespace-nowrap">
+          <button
+            onClick={() => setShowNew(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-500 whitespace-nowrap"
+          >
             <Plus className="w-4 h-4" /> Nueva cancelación
           </button>
         </div>
@@ -318,7 +346,11 @@ export default function DropsPage() {
                 variant="ghost"
                 size="sm"
                 className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => { setPeriodPreset('all'); setCustomFrom(''); setCustomTo('') }}
+                onClick={() => {
+                  setPeriodPreset('all')
+                  setCustomFrom('')
+                  setCustomTo('')
+                }}
               >
                 <X className="w-3.5 h-3.5 mr-1" />
                 Limpiar filtros
@@ -339,7 +371,9 @@ export default function DropsPage() {
               </SelectTrigger>
               <SelectContent className="bg-card border-border">
                 {(Object.keys(PERIOD_LABELS) as PeriodPreset[]).map((p) => (
-                  <SelectItem key={p} value={p}>{PERIOD_LABELS[p]}</SelectItem>
+                  <SelectItem key={p} value={p}>
+                    {PERIOD_LABELS[p]}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -349,21 +383,11 @@ export default function DropsPage() {
             <>
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Periodo desde</Label>
-                <input
-                  type="date"
-                  value={customFrom}
-                  onChange={(e) => setCustomFrom(e.target.value)}
-                  className={cls}
-                />
+                <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className={cls} />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Periodo hasta</Label>
-                <input
-                  type="date"
-                  value={customTo}
-                  onChange={(e) => setCustomTo(e.target.value)}
-                  className={cls}
-                />
+                <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className={cls} />
               </div>
             </>
           )}
@@ -390,14 +414,14 @@ export default function DropsPage() {
             <div className="bg-card/50 border border-border rounded-lg p-4">
               <p className="text-xs text-muted-foreground mb-1">Desglose por motivo</p>
               <div className="space-y-0.5">
-                {REASONS.map((r) => (
+                {REASONS.map((r) =>
                   kpis.byReason[r.value] ? (
                     <div key={r.value} className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">{r.label}</span>
                       <span className="text-foreground font-medium">{kpis.byReason[r.value]}</span>
                     </div>
                   ) : null
-                ))}
+                )}
                 {Object.keys(kpis.byReason).length === 0 && <p className="text-xs text-muted-foreground">—</p>}
               </div>
             </div>
@@ -420,7 +444,9 @@ export default function DropsPage() {
                   <tr key={d.id} className="border-t border-border hover:bg-card/60">
                     <td className="px-4 py-3 text-foreground">{d.contacts?.full_name || '—'}</td>
                     <td className="px-4 py-3">
-                      <span className="text-xs px-2 py-1 rounded bg-muted text-foreground border border-border">{reasonLabel(d.reason)}</span>
+                      <span className="text-xs px-2 py-1 rounded bg-muted text-foreground border border-border">
+                        {reasonLabel(d.reason)}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{typeLabel(d.type)}</td>
                     <td className="px-4 py-3 text-muted-foreground">{formatDate(d.request_date)}</td>
@@ -430,7 +456,11 @@ export default function DropsPage() {
                         onChange={(e) => updateResult(d.id, e.target.value)}
                         className={`text-xs rounded border px-2 py-1 bg-transparent ${resultBadgeClass(d.result)}`}
                       >
-                        {RESULTS.map((r) => <option key={r.value} value={r.value} className="bg-card text-foreground">{r.label}</option>)}
+                        {RESULTS.map((r) => (
+                          <option key={r.value} value={r.value} className="bg-card text-foreground">
+                            {r.label}
+                          </option>
+                        ))}
                       </select>
                     </td>
                     <td className="px-4 py-3 text-foreground">{formatCurrency(d.refund_amount)}</td>
@@ -438,7 +468,9 @@ export default function DropsPage() {
                 ))}
                 {visibleItems.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground text-sm">No hay cancelaciones registradas.</td>
+                    <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground text-sm">
+                      No hay cancelaciones registradas.
+                    </td>
                   </tr>
                 )}
               </tbody>
@@ -448,36 +480,91 @@ export default function DropsPage() {
       )}
 
       {showNew && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowNew(false)}>
-          <div className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setShowNew(false)}
+        >
+          <div
+            className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between">
               <h3 className="text-foreground font-semibold">Nueva cancelación</h3>
-              <button onClick={() => setShowNew(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+              <button onClick={() => setShowNew(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <select value={nd.contact_id} onChange={(e) => setNd({ ...nd, contact_id: e.target.value })} className={cls}>
+            <select
+              value={nd.contact_id}
+              onChange={(e) => setNd({ ...nd, contact_id: e.target.value })}
+              className={cls}
+            >
               <option value="">— alumno —</option>
-              {contacts.map((c) => <option key={c.id} value={c.id}>{c.full_name}</option>)}
+              {contacts.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.full_name}
+                </option>
+              ))}
             </select>
             <div className="grid grid-cols-2 gap-3">
               <select value={nd.reason} onChange={(e) => setNd({ ...nd, reason: e.target.value })} className={cls}>
-                {REASONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                {REASONS.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
               </select>
               <select value={nd.type} onChange={(e) => setNd({ ...nd, type: e.target.value })} className={cls}>
-                {TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                {TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <input type="date" value={nd.request_date} onChange={(e) => setNd({ ...nd, request_date: e.target.value })} className={cls} />
+              <input
+                type="date"
+                value={nd.request_date}
+                onChange={(e) => setNd({ ...nd, request_date: e.target.value })}
+                className={cls}
+              />
               <select value={nd.result} onChange={(e) => setNd({ ...nd, result: e.target.value })} className={cls}>
-                {RESULTS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                {RESULTS.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
               </select>
             </div>
-            <input value={nd.retention_action} onChange={(e) => setNd({ ...nd, retention_action: e.target.value })} placeholder="Acción de retención" className={cls} />
-            <input type="number" step="0.01" value={nd.refund_amount} onChange={(e) => setNd({ ...nd, refund_amount: e.target.value })} placeholder="Importe refund (€)" className={cls} />
-            <textarea value={nd.notes} onChange={(e) => setNd({ ...nd, notes: e.target.value })} rows={2} placeholder="Notas" className={cls} />
+            <input
+              value={nd.retention_action}
+              onChange={(e) => setNd({ ...nd, retention_action: e.target.value })}
+              placeholder="Acción de retención"
+              className={cls}
+            />
+            <input
+              type="number"
+              step="0.01"
+              value={nd.refund_amount}
+              onChange={(e) => setNd({ ...nd, refund_amount: e.target.value })}
+              placeholder="Importe refund (€)"
+              className={cls}
+            />
+            <textarea
+              value={nd.notes}
+              onChange={(e) => setNd({ ...nd, notes: e.target.value })}
+              rows={2}
+              placeholder="Notas"
+              className={cls}
+            />
             <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setShowNew(false)} className="px-3 py-2 text-sm text-muted-foreground">Cancelar</button>
-              <button onClick={create} className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg">Crear</button>
+              <button onClick={() => setShowNew(false)} className="px-3 py-2 text-sm text-muted-foreground">
+                Cancelar
+              </button>
+              <button onClick={create} className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg">
+                Crear
+              </button>
             </div>
           </div>
         </div>
@@ -486,4 +573,5 @@ export default function DropsPage() {
   )
 }
 
-const cls = 'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500'
+const cls =
+  'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500'

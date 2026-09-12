@@ -114,9 +114,7 @@ export function getPreviousPeriodRange(range: PeriodRange): PeriodRange {
 export function inPeriod(date: string | Date | null | undefined, range: PeriodRange): boolean {
   if (range.from == null && range.to == null) return true
   if (!date) return false
-  const d = typeof date === 'string'
-    ? (parseDateInput(date) ?? new Date(date))
-    : date
+  const d = typeof date === 'string' ? (parseDateInput(date) ?? new Date(date)) : date
   if (isNaN(d.getTime())) return false
   if (range.from && d < range.from) return false
   if (range.to && d > range.to) return false

@@ -21,10 +21,15 @@ function verifySignature(raw: string, header: string | null): boolean {
   if (!secret) return false
   if (!header) return false
   const parts = Object.fromEntries(header.split(',').map((p) => p.split('=').map((s) => s.trim())))
-  const t = parts['t']; const v1 = parts['v1']
+  const t = parts['t']
+  const v1 = parts['v1']
   if (!t || !v1) return false
   const expected = crypto.createHmac('sha256', secret).update(`${t}.${raw}`).digest('hex')
-  try { return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(v1)) } catch { return false }
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(v1))
+  } catch {
+    return false
+  }
 }
 
 const digits = (s: unknown) => (typeof s === 'string' ? s.replace(/[^\d+]/g, '') : null)
@@ -34,9 +39,13 @@ const digits = (s: unknown) => (typeof s === 'string' ? s.replace(/[^\d+]/g, '')
 // - email: si además hay email, identifica retroactivamente esas sesiones anónimas.
 // Toma el MAYOR % entre las sesiones del lead (por anon y/o email). Nunca rompe el webhook.
 // Usa el cliente postgres (sql) directo, igual que el resto del módulo VSL.
-async function attachVslWatch(
-  opts: { anon: string | null; email: string | null; contactId: string; now: string; tenantId: string }
-) {
+async function attachVslWatch(opts: {
+  anon: string | null
+  email: string | null
+  contactId: string
+  now: string
+  tenantId: string
+}) {
   const { anon, email, contactId, now, tenantId } = opts
   if (!anon && !email) return
   const a = anon || '__no_anon__'
@@ -85,7 +94,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // él porque las URLs de webhook por subcuenta se registran una vez en Calendly
     // por su propio slug (`/api/{tenant}/evergreen/webhooks/calendly`).
     const { tenant } = await params
-    const { data: tenantRow } = await sb.from('tenants').select('id, status').eq('slug', tenant).eq('status', 'active').single()
+    const { data: tenantRow } = await sb
+      .from('tenants')
+      .select('id, status')
+      .eq('slug', tenant)
+      .eq('status', 'active')
+      .single()
     if (!tenantRow) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
     const tenantId = tenantRow.id
 
@@ -106,13 +120,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const rescheduleUrl = (p.reschedule_url as string | null) || null
     const tr = p.tracking || {}
     const utm = {
-      utm_source: tr.utm_source || null, utm_medium: tr.utm_medium || null,
-      utm_campaign: tr.utm_campaign || null, utm_content: tr.utm_content || null, utm_term: tr.utm_term || null,
+      utm_source: tr.utm_source || null,
+      utm_medium: tr.utm_medium || null,
+      utm_campaign: tr.utm_campaign || null,
+      utm_content: tr.utm_content || null,
+      utm_term: tr.utm_term || null,
     }
     const hasUtm = Object.values(utm).some(Boolean)
 
     // --- Respuestas del formulario ---
-    const qa: Array<{ question: string; answer: string; position?: number }> = Array.isArray(p.questions_and_answers) ? p.questions_and_answers : []
+    const qa: Array<{ question: string; answer: string; position?: number }> = Array.isArray(p.questions_and_answers)
+      ? p.questions_and_answers
+      : []
     const qualification: Record<string, unknown> = {}
     const respuestas: Array<{ q: string; a: string }> = []
     let ageFromForm: number | null = null
@@ -126,30 +145,60 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       qualification[key || slugify(q)] = a
       if (key === 'telefono' && !phone) phone = digits(a)
       if (key === 'instagram') instagramFromForm = String(a).replace(/^@/, '').trim() || null
-      if (key === 'edad') { const m = String(a).match(/\d{1,3}/); if (m) ageFromForm = parseInt(m[0], 10) }
+      if (key === 'edad') {
+        const m = String(a).match(/\d{1,3}/)
+        if (m) ageFromForm = parseInt(m[0], 10)
+      }
       // Auto-registro de la pregunta (idempotente por slug)
-      await sb.from('qualification_questions').upsert({ slug: slugify(q), question_text: q, field_key: key }, { onConflict: 'slug', ignoreDuplicates: true })
+      await sb
+        .from('qualification_questions')
+        .upsert({ slug: slugify(q), question_text: q, field_key: key }, { onConflict: 'slug', ignoreDuplicates: true })
     }
     qualification.respuestas = respuestas
 
     // --- Resolver / crear contacto ---
     let contact: { id: string } | null = null
-    if (email) { const { data } = await sb.from('contacts').select('id').eq('email', email).eq('tenant_id', tenantId).maybeSingle(); contact = data }
-    if (!contact && phone) { const { data } = await sb.from('contacts').select('id').eq('phone', phone).eq('tenant_id', tenantId).maybeSingle(); contact = data }
+    if (email) {
+      const { data } = await sb.from('contacts').select('id').eq('email', email).eq('tenant_id', tenantId).maybeSingle()
+      contact = data
+    }
+    if (!contact && phone) {
+      const { data } = await sb.from('contacts').select('id').eq('phone', phone).eq('tenant_id', tenantId).maybeSingle()
+      contact = data
+    }
     if (!contact) {
       if (!email && !phone) return NextResponse.json({ error: 'Sin email ni teléfono' }, { status: 400 })
       const parts = (fullName || '').split(' ')
-      const { data, error } = await sb.from('contacts').insert({
-        tenant_id: tenantId,
-        full_name: fullName || 'Sin nombre', first_name: parts[0] || null, last_name: parts.slice(1).join(' ') || null,
-        email, phone, instagram: instagramFromForm, age: ageFromForm, lead_status: 'agendado', first_seen_at: now, last_seen_at: now,
-      }).select('id').single()
+      const { data, error } = await sb
+        .from('contacts')
+        .insert({
+          tenant_id: tenantId,
+          full_name: fullName || 'Sin nombre',
+          first_name: parts[0] || null,
+          last_name: parts.slice(1).join(' ') || null,
+          email,
+          phone,
+          instagram: instagramFromForm,
+          age: ageFromForm,
+          lead_status: 'agendado',
+          first_seen_at: now,
+          last_seen_at: now,
+        })
+        .select('id')
+        .single()
       if (error) return NextResponse.json({ error: 'Error creando contacto', detail: error.message }, { status: 500 })
       contact = data
     } else {
-      await sb.from('contacts').update({
-        last_seen_at: now, ...(phone ? { phone } : {}), ...(instagramFromForm ? { instagram: instagramFromForm } : {}), ...(ageFromForm != null ? { age: ageFromForm } : {}),
-      }).eq('id', contact.id).eq('tenant_id', tenantId)
+      await sb
+        .from('contacts')
+        .update({
+          last_seen_at: now,
+          ...(phone ? { phone } : {}),
+          ...(instagramFromForm ? { instagram: instagramFromForm } : {}),
+          ...(ageFromForm != null ? { age: ageFromForm } : {}),
+        })
+        .eq('id', contact.id)
+        .eq('tenant_id', tenantId)
     }
 
     // --- Cualificación efectiva (arrastre en reprogramaciones) ---
@@ -159,31 +208,81 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // o snapshot a nivel de contacto).
     let effectiveQualification: Record<string, unknown> = qualification
     if (respuestas.length === 0 && event !== 'invitee.canceled') {
-      const { data: priorAppt } = await sb.from('appointments')
-        .select('qualification').eq('contact_id', contact.id).eq('tenant_id', tenantId).not('qualification', 'is', null)
-        .order('appointment_datetime', { ascending: false }).limit(1)
+      const { data: priorAppt } = await sb
+        .from('appointments')
+        .select('qualification')
+        .eq('contact_id', contact.id)
+        .eq('tenant_id', tenantId)
+        .not('qualification', 'is', null)
+        .order('appointment_datetime', { ascending: false })
+        .limit(1)
       const priorQ = (priorAppt?.[0]?.qualification as Record<string, unknown> | undefined) || null
       if (priorQ && Array.isArray(priorQ.respuestas) && priorQ.respuestas.length > 0) {
         effectiveQualification = priorQ
       } else {
-        const { data: c2 } = await sb.from('contacts').select('qualification').eq('id', contact.id).eq('tenant_id', tenantId).maybeSingle()
+        const { data: c2 } = await sb
+          .from('contacts')
+          .select('qualification')
+          .eq('id', contact.id)
+          .eq('tenant_id', tenantId)
+          .maybeSingle()
         const cq = (c2?.qualification as Record<string, unknown> | undefined) || null
         if (cq && Array.isArray(cq.respuestas) && cq.respuestas.length > 0) effectiveQualification = cq
       }
     }
 
     // Volcamos la cualificación al contacto (snapshot consultable en Atribución/Dashboard).
-    if (Array.isArray(effectiveQualification.respuestas) && (effectiveQualification.respuestas as unknown[]).length > 0) {
-      await sb.from('contacts').update({ qualification: effectiveQualification, qualification_updated_at: now }).eq('id', contact.id).eq('tenant_id', tenantId)
+    if (
+      Array.isArray(effectiveQualification.respuestas) &&
+      (effectiveQualification.respuestas as unknown[]).length > 0
+    ) {
+      await sb
+        .from('contacts')
+        .update({ qualification: effectiveQualification, qualification_updated_at: now })
+        .eq('id', contact.id)
+        .eq('tenant_id', tenantId)
     }
 
     // Atribución (UTMs de Calendly)
     if (hasUtm) {
-      const firstUtm = { first_utm_source: utm.utm_source, first_utm_medium: utm.utm_medium, first_utm_campaign: utm.utm_campaign, first_utm_content: utm.utm_content, first_utm_term: utm.utm_term }
-      const lastUtm = { last_utm_source: utm.utm_source, last_utm_medium: utm.utm_medium, last_utm_campaign: utm.utm_campaign, last_utm_content: utm.utm_content, last_utm_term: utm.utm_term }
-      const { data: attr } = await sb.from('contact_attributions').select('id').eq('contact_id', contact.id).eq('tenant_id', tenantId).eq('is_primary', true).maybeSingle()
-      if (attr) await sb.from('contact_attributions').update({ last_touch_at: now, ...utm, ...lastUtm, source: 'calendly' }).eq('id', attr.id)
-      else await sb.from('contact_attributions').insert({ tenant_id: tenantId, contact_id: contact.id, source: 'calendly', ...utm, ...firstUtm, ...lastUtm, first_touch_at: now, last_touch_at: now, is_primary: true })
+      const firstUtm = {
+        first_utm_source: utm.utm_source,
+        first_utm_medium: utm.utm_medium,
+        first_utm_campaign: utm.utm_campaign,
+        first_utm_content: utm.utm_content,
+        first_utm_term: utm.utm_term,
+      }
+      const lastUtm = {
+        last_utm_source: utm.utm_source,
+        last_utm_medium: utm.utm_medium,
+        last_utm_campaign: utm.utm_campaign,
+        last_utm_content: utm.utm_content,
+        last_utm_term: utm.utm_term,
+      }
+      const { data: attr } = await sb
+        .from('contact_attributions')
+        .select('id')
+        .eq('contact_id', contact.id)
+        .eq('tenant_id', tenantId)
+        .eq('is_primary', true)
+        .maybeSingle()
+      if (attr)
+        await sb
+          .from('contact_attributions')
+          .update({ last_touch_at: now, ...utm, ...lastUtm, source: 'calendly' })
+          .eq('id', attr.id)
+      else
+        await sb.from('contact_attributions').insert({
+          tenant_id: tenantId,
+          contact_id: contact.id,
+          source: 'calendly',
+          ...utm,
+          ...firstUtm,
+          ...lastUtm,
+          first_touch_at: now,
+          last_touch_at: now,
+          is_primary: true,
+        })
     }
 
     // --- VSL: engancha el visionado (incl. anónimo sin optin) y guarda el % visto ---
@@ -197,23 +296,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (event === 'invitee.canceled') {
       if (externalId) {
         const status = p.rescheduled === true ? 'rescheduled' : 'cancelled_lead'
-        const { data: canceledAppt } = await sb.from('appointments').select('id, status').eq('external_id', externalId).eq('tenant_id', tenantId).maybeSingle()
+        const { data: canceledAppt } = await sb
+          .from('appointments')
+          .select('id, status')
+          .eq('external_id', externalId)
+          .eq('tenant_id', tenantId)
+          .maybeSingle()
         await sb.from('appointments').update({ status }).eq('external_id', externalId).eq('tenant_id', tenantId)
         if (canceledAppt) {
           await sb.from('audit_logs').insert({
             tenant_id: tenantId,
-            entity_type: 'appointment', entity_id: canceledAppt.id,
+            entity_type: 'appointment',
+            entity_id: canceledAppt.id,
             action: p.rescheduled === true ? 'reschedule_out' : 'cancel',
-            old_values: { status: canceledAppt.status }, new_values: { status },
+            old_values: { status: canceledAppt.status },
+            new_values: { status },
           })
           // Cancelación real (no reprogramación: esa se notifica como cita.reprogramada
           // en el lado del invitee.created nuevo, donde sí conocemos la hora nueva).
           if (p.rescheduled !== true && eventUuid) {
-            await notifyCreatuagente('cita.cancelada', utm.utm_content, { idExternoEvento: eventUuid, origen: 'calendly' })
+            await notifyCreatuagente('cita.cancelada', utm.utm_content, {
+              idExternoEvento: eventUuid,
+              origen: 'calendly',
+            })
           }
         }
       }
-      return NextResponse.json({ ok: true, kind: p.rescheduled ? 'appointment.rescheduled_out' : 'appointment.canceled', contactId: contact.id })
+      return NextResponse.json({
+        ok: true,
+        kind: p.rescheduled ? 'appointment.rescheduled_out' : 'appointment.canceled',
+        contactId: contact.id,
+      })
     }
 
     // --- Asignar closer (dueño del calendario) y setter (utm_term) ---
@@ -223,21 +336,45 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // El dueño del calendario en Calendly puede tener un email distinto al de login en la app
     // (ej: cuenta de trabajo vs gmail personal) → se busca también por calendly_email.
     if (ownerEmail) {
-      const { data } = await sb.from('users').select('id').or(`email.eq.${ownerEmail},calendly_email.eq.${ownerEmail}`).maybeSingle()
+      const { data } = await sb
+        .from('users')
+        .select('id')
+        .or(`email.eq.${ownerEmail},calendly_email.eq.${ownerEmail}`)
+        .maybeSingle()
       closerId = data?.id ?? null
     }
-    if (utm.utm_term) { setterId = await resolveUserIdByTrackingCode(sb, utm.utm_term) }
+    if (utm.utm_term) {
+      setterId = await resolveUserIdByTrackingCode(sb, utm.utm_term)
+    }
 
     const apptFields = {
       appointment_datetime: startTime ? new Date(startTime).toISOString() : now,
-      duration_minutes: durationMin, calendar_name: (sched.name as string | null) || 'Calendly',
-      source: 'calendly', meeting_url: meetingUrl, reschedule_url: rescheduleUrl, calendly_event_uuid: eventUuid,
-      qualification: effectiveQualification, ...utm, ...(closerId ? { closer_id: closerId } : {}), ...(setterId ? { setter_id: setterId } : {}),
+      duration_minutes: durationMin,
+      calendar_name: (sched.name as string | null) || 'Calendly',
+      source: 'calendly',
+      meeting_url: meetingUrl,
+      reschedule_url: rescheduleUrl,
+      calendly_event_uuid: eventUuid,
+      qualification: effectiveQualification,
+      ...utm,
+      ...(closerId ? { closer_id: closerId } : {}),
+      ...(setterId ? { setter_id: setterId } : {}),
     }
 
-    let appt: { id: string; status?: string; qualification?: unknown; closer_id?: string | null; setter_id?: string | null } | null = null
+    let appt: {
+      id: string
+      status?: string
+      qualification?: unknown
+      closer_id?: string | null
+      setter_id?: string | null
+    } | null = null
     if (externalId) {
-      const { data } = await sb.from('appointments').select('id, status, qualification, closer_id, setter_id').eq('external_id', externalId).eq('tenant_id', tenantId).maybeSingle()
+      const { data } = await sb
+        .from('appointments')
+        .select('id, status, qualification, closer_id, setter_id')
+        .eq('external_id', externalId)
+        .eq('tenant_id', tenantId)
+        .maybeSingle()
       appt = data
     }
 
@@ -251,8 +388,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (!appt && typeof p.old_invitee === 'string' && p.old_invitee) {
       const oldEventUri = p.old_invitee.split('/invitees/')[0] || null
       if (oldEventUri && oldEventUri !== externalId) {
-        const { data } = await sb.from('appointments').select('id, status, qualification, closer_id, setter_id').eq('external_id', oldEventUri).eq('tenant_id', tenantId).maybeSingle()
-        if (data) { appt = data; migratedReschedule = true }
+        const { data } = await sb
+          .from('appointments')
+          .select('id, status, qualification, closer_id, setter_id')
+          .eq('external_id', oldEventUri)
+          .eq('tenant_id', tenantId)
+          .maybeSingle()
+        if (data) {
+          appt = data
+          migratedReschedule = true
+        }
       }
     }
 
@@ -263,12 +408,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       // se creaba bajo un calendario distinto (bug: "el crm al reagendar cambia la
       // propiedad del lead", antes no pasaba porque cada reagenda creaba fila nueva).
       const { closer_id: _closerField, setter_id: _setterField, ...apptFieldsNoAssignment } = apptFields
-      await sb.from('appointments').update({
-        ...apptFieldsNoAssignment,
-        ...(appt.closer_id ? {} : _closerField != null ? { closer_id: _closerField } : {}),
-        ...(appt.setter_id ? {} : _setterField != null ? { setter_id: _setterField } : {}),
-        ...(migratedReschedule ? { external_id: externalId, status: 'scheduled' } : {}),
-      }).eq('id', appt.id).eq('tenant_id', tenantId)
+      await sb
+        .from('appointments')
+        .update({
+          ...apptFieldsNoAssignment,
+          ...(appt.closer_id ? {} : _closerField != null ? { closer_id: _closerField } : {}),
+          ...(appt.setter_id ? {} : _setterField != null ? { setter_id: _setterField } : {}),
+          ...(migratedReschedule ? { external_id: externalId, status: 'scheduled' } : {}),
+        })
+        .eq('id', appt.id)
+        .eq('tenant_id', tenantId)
       await sb.from('contacts').update({ lead_status: 'agendado' }).eq('id', contact.id).eq('tenant_id', tenantId)
       // Log siempre que la cualificación cambie (además de en cada reprogramación entrante),
       // para poder detectar si un evento sobreescribe respuestas reales del formulario
@@ -277,40 +426,83 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       if (migratedReschedule || qualificationChanged) {
         await sb.from('audit_logs').insert({
           tenant_id: tenantId,
-          entity_type: 'appointment', entity_id: appt.id,
+          entity_type: 'appointment',
+          entity_id: appt.id,
           action: migratedReschedule ? 'reschedule_in' : 'update',
           old_values: { status: appt.status, qualification: appt.qualification },
-          new_values: { status: migratedReschedule ? 'scheduled' : appt.status, qualification: effectiveQualification, appointment_datetime: apptFields.appointment_datetime },
+          new_values: {
+            status: migratedReschedule ? 'scheduled' : appt.status,
+            qualification: effectiveQualification,
+            appointment_datetime: apptFields.appointment_datetime,
+          },
         })
       }
       if (migratedReschedule && eventUuid && startTime) {
         await notifyCreatuagente('cita.reprogramada', utm.utm_content, {
-          idExternoEvento: eventUuid, origen: 'calendly',
-          inicio: toZonedISO(startTime), fin: addMinutesISO(startTime, durationMin || 30),
+          idExternoEvento: eventUuid,
+          origen: 'calendly',
+          inicio: toZonedISO(startTime),
+          fin: addMinutesISO(startTime, durationMin || 30),
           titulo: (sched.name as string | null) || 'Llamada',
         })
       }
-      return NextResponse.json({ ok: true, kind: migratedReschedule ? 'appointment.rescheduled_in' : 'appointment.updated', contactId: contact.id, appointmentId: appt.id })
+      return NextResponse.json({
+        ok: true,
+        kind: migratedReschedule ? 'appointment.rescheduled_in' : 'appointment.updated',
+        contactId: contact.id,
+        appointmentId: appt.id,
+      })
     }
-    const { data: created, error: aptErr } = await sb.from('appointments').upsert({
-      tenant_id: tenantId,
-      contact_id: contact.id, external_source: 'calendly', external_id: externalId, status: 'scheduled', raw_payload: body, ...apptFields,
-    }, { onConflict: 'external_id' }).select('id').single()
+    const { data: created, error: aptErr } = await sb
+      .from('appointments')
+      .upsert(
+        {
+          tenant_id: tenantId,
+          contact_id: contact.id,
+          external_source: 'calendly',
+          external_id: externalId,
+          status: 'scheduled',
+          raw_payload: body,
+          ...apptFields,
+        },
+        // El UNIQUE de appointments pasó de (external_id) global a (tenant_id, external_id)
+        // por tenant (ver 20260911200000_financial_integrity_constraints.sql) — el onConflict
+        // tiene que apuntar exactamente a las columnas del índice compuesto.
+        { onConflict: 'tenant_id,external_id' }
+      )
+      .select('id')
+      .single()
     if (aptErr) return NextResponse.json({ error: 'Error creando agenda', detail: aptErr.message }, { status: 500 })
     await sb.from('contacts').update({ lead_status: 'agendado' }).eq('id', contact.id).eq('tenant_id', tenantId)
     await sb.from('audit_logs').insert({
       tenant_id: tenantId,
-      entity_type: 'appointment', entity_id: created.id, action: 'create',
-      new_values: { contact_id: contact.id, source: 'calendly', qualification: effectiveQualification, appointment_datetime: apptFields.appointment_datetime },
+      entity_type: 'appointment',
+      entity_id: created.id,
+      action: 'create',
+      new_values: {
+        contact_id: contact.id,
+        source: 'calendly',
+        qualification: effectiveQualification,
+        appointment_datetime: apptFields.appointment_datetime,
+      },
     })
     if (eventUuid && startTime) {
       await notifyCreatuagente('cita.agendada', utm.utm_content, {
-        idExternoEvento: eventUuid, origen: 'calendly',
-        inicio: toZonedISO(startTime), fin: addMinutesISO(startTime, durationMin || 30),
+        idExternoEvento: eventUuid,
+        origen: 'calendly',
+        inicio: toZonedISO(startTime),
+        fin: addMinutesISO(startTime, durationMin || 30),
         titulo: (sched.name as string | null) || 'Llamada',
       })
     }
-    return NextResponse.json({ ok: true, kind: 'appointment.created', contactId: contact.id, appointmentId: created.id, closer: !!closerId, setter: !!setterId })
+    return NextResponse.json({
+      ok: true,
+      kind: 'appointment.created',
+      contactId: contact.id,
+      appointmentId: created.id,
+      closer: !!closerId,
+      setter: !!setterId,
+    })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }

@@ -35,8 +35,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-    const role = (urow?.roles as { key?: string } | null)?.key || ''
+    const role = t.role || ''
     if (!ALLOWED_ROLES.includes(role)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
@@ -80,7 +79,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: 'El contacto necesita un email para agendar en Calendly' }, { status: 400 })
     }
 
-    const { data: closer } = await sb.from('users').select('email, calendly_email, full_name').eq('id', closerId).maybeSingle()
+    const { data: closer } = await sb
+      .from('users')
+      .select('email, calendly_email, full_name')
+      .eq('id', closerId)
+      .maybeSingle()
     if (!closer?.email) return NextResponse.json({ error: 'El closer no tiene email' }, { status: 400 })
 
     let setterTrackingCode: string | null = null
@@ -126,17 +129,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       ...(setterId ? { setter_id: setterId } : {}),
     }
 
-    // Upsert por external_id: si el webhook invitee.created llegó antes, actualiza
-    // esa fila en vez de duplicarla (y viceversa).
+    // Upsert por (tenant_id, external_id): si el webhook invitee.created llegó antes, actualiza
+    // esa fila en vez de duplicarla (y viceversa). El UNIQUE es compuesto por tenant desde
+    // 20260911200000_financial_integrity_constraints.sql — el onConflict debe apuntar a ambas.
     const { data: saved, error: aptErr } = await sb
       .from('appointments')
-      .upsert(apptFields, { onConflict: 'external_id' })
+      .upsert(apptFields, { onConflict: 'tenant_id,external_id' })
       .select('id')
       .single()
     if (aptErr) {
       // La cita SÍ existe ya en Calendly; devolvemos aviso pero no es un fallo total.
       return NextResponse.json(
-        { ok: true, calendlyCreated: true, dbSaved: false, warning: 'Creada en Calendly, pero no se pudo guardar en la app', detail: aptErr.message },
+        {
+          ok: true,
+          calendlyCreated: true,
+          dbSaved: false,
+          warning: 'Creada en Calendly, pero no se pudo guardar en la app',
+          detail: aptErr.message,
+        },
         { status: 207 }
       )
     }
@@ -148,7 +158,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   } catch (err) {
     if (err instanceof CalendlyError) {
       // 409/400 típicos: el hueco ya no está disponible o datos inválidos.
-      return NextResponse.json({ error: 'Calendly: ' + err.message, status: err.status, detail: err.body }, { status: 502 })
+      return NextResponse.json(
+        { error: 'Calendly: ' + err.message, status: err.status, detail: err.body },
+        { status: 502 }
+      )
     }
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }

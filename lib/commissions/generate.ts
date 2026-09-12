@@ -65,6 +65,12 @@ export async function recomputeRepCommissionTiers(
   const now = new Date()
   const seen = new Set<string>()
 
+  // Tramo batcheado una sola vez para todos los reps de `pairs` (antes se llamaba
+  // tramoIdByReps(sb, [repId]) dentro del loop, recargando la config de tramos —
+  // sales_tramos + sales_tramos_config — en cada iteración en vez de una sola vez).
+  const uniqueRepIds = Array.from(new Set(pairs.map((p) => p.repId).filter((x): x is string => !!x)))
+  const tramoMap = await tramoIdByReps(sb, uniqueRepIds)
+
   for (const { repId, role } of pairs) {
     if (!repId) continue
     const key = `${repId}|${role}`
@@ -72,7 +78,6 @@ export async function recomputeRepCommissionTiers(
     seen.add(key)
 
     const total = await repNetCash(sb, repId, role)
-    const tramoMap = await tramoIdByReps(sb, [repId])
     const rule = pickCommissionRule(rules, role, repId, now, total, tramoMap[repId] ?? null)
     const percent = rule?.percent ?? (role === 'setter' ? 5 : 10)
 
@@ -84,10 +89,14 @@ export async function recomputeRepCommissionTiers(
       .eq('direction', 'positive')
       .neq('status', 'liquidated')
 
-    for (const cm of comms ?? []) {
-      if (Number(cm.percent) === percent) continue
-      const newAmount = Math.round(Number(cm.base_amount) * percent) / 100
-      await sb.from('commissions').update({ percent, commission_amount: newAmount }).eq('id', cm.id)
+    // Batcheado en un solo upsert por PK en vez de un UPDATE individual por comisión —
+    // esto corre en el hot path de "registrar cobro" (generateCommissionsForCollection),
+    // así que un rep con decenas de comisiones no liquidadas generaba decenas de round-trips.
+    const toUpdate = (comms ?? [])
+      .filter((cm) => Number(cm.percent) !== percent)
+      .map((cm) => ({ id: cm.id, percent, commission_amount: Math.round(Number(cm.base_amount) * percent) / 100 }))
+    if (toUpdate.length) {
+      await sb.from('commissions').upsert(toUpdate)
     }
   }
 }
@@ -145,7 +154,8 @@ export async function generateCommissionsForCollection(
 export async function reconcileSaleCommissions(
   sb: SupabaseClient,
   saleId: string,
-  alsoRecompute: { repId: string | null | undefined; role: Role }[] = []
+  alsoRecompute: { repId: string | null | undefined; role: Role }[] = [],
+  opts: { skipTierRecompute?: boolean } = {}
 ): Promise<{ created: number; deleted: number; keptLiquidated: number }> {
   const { data: sale } = await sb.from('sales').select('*').eq('id', saleId).single()
   if (!sale) return { created: 0, deleted: 0, keptLiquidated: 0 }
@@ -166,8 +176,12 @@ export async function reconcileSaleCommissions(
 
   const { data: existingData } = await sb.from('commissions').select('*').eq('sale_id', saleId)
   const existing = (existingData ?? []) as {
-    id: string; collection_id: string | null; user_id: string
-    participant_type: string; direction: string; status: string
+    id: string
+    collection_id: string | null
+    user_id: string
+    participant_type: string
+    direction: string
+    status: string
   }[]
 
   // Claves de comisiones ya LIQUIDADAS (pagadas) → no se recrean ni se borran
@@ -179,11 +193,15 @@ export async function reconcileSaleCommissions(
 
   // Borra las positivas ligadas a cobro que NO estén liquidadas (se reconstruyen abajo).
   // Las negativas (devoluciones) y las liquidadas quedan fuera.
-  const toDelete = existing.filter(
-    (c) => c.direction === 'positive' && c.status !== 'liquidated' && c.collection_id
-  )
+  const toDelete = existing.filter((c) => c.direction === 'positive' && c.status !== 'liquidated' && c.collection_id)
   if (toDelete.length) {
-    await sb.from('commissions').delete().in('id', toDelete.map((c) => c.id))
+    await sb
+      .from('commissions')
+      .delete()
+      .in(
+        'id',
+        toDelete.map((c) => c.id)
+      )
   }
 
   const { data: rulesData } = await sb.from('commission_rules').select('*').eq('is_active', true)
@@ -210,12 +228,18 @@ export async function reconcileSaleCommissions(
     await sb.from('commissions').insert(toInsert)
   }
 
-  // Recalcula tramos: reps actuales de la venta + los que se indiquen (p.ej. reps anteriores al cambio)
-  await recomputeRepCommissionTiers(sb, [
-    { repId: s.setter_id, role: 'setter' },
-    { repId: s.closer_id, role: 'closer' },
-    ...alsoRecompute,
-  ])
+  // Recalcula tramos: reps actuales de la venta + los que se indiquen (p.ej. reps anteriores al cambio).
+  // skipTierRecompute lo usa la reparación masiva (reconcile-all): recalcular el tramo de un rep
+  // DESPUÉS de cada una de sus N ventas (en vez de una vez al final, con el cash ya consolidado)
+  // es trabajo repetido — recomputeRepCommissionTiers es idempotente, así que el resultado final
+  // es el mismo, pero recalculándolo N veces por rep en vez de 1 es el N+1 real de ese endpoint.
+  if (!opts.skipTierRecompute) {
+    await recomputeRepCommissionTiers(sb, [
+      { repId: s.setter_id, role: 'setter' },
+      { repId: s.closer_id, role: 'closer' },
+      ...alsoRecompute,
+    ])
+  }
 
   return { created: toInsert.length, deleted: toDelete.length, keptLiquidated: liqKeys.size }
 }

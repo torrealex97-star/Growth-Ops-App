@@ -1,16 +1,43 @@
-"use client"
+'use client'
 
 import { createContext, useContext } from 'react'
+import { resolveTenantBranding, type TenantBranding } from '@/lib/tenant-branding'
 
 interface TenantContextValue {
   slug: string
   id: string | null
+  branding: TenantBranding
 }
 
 const TenantContext = createContext<TenantContextValue | null>(null)
 
-export function TenantProvider({ tenant, tenantId, children }: { tenant: string; tenantId?: string | null; children: React.ReactNode }) {
-  return <TenantContext.Provider value={{ slug: tenant, id: tenantId ?? null }}>{children}</TenantContext.Provider>
+export function TenantProvider({
+  tenant,
+  tenantId,
+  branding,
+  children,
+}: {
+  tenant: string
+  tenantId?: string | null
+  branding?: TenantBranding
+  children: React.ReactNode
+}) {
+  return (
+    <TenantContext.Provider
+      value={{ slug: tenant, id: tenantId ?? null, branding: branding ?? resolveTenantBranding(null) }}
+    >
+      {children}
+    </TenantContext.Provider>
+  )
+}
+
+// Nombre de marca + acento de color de la subcuenta activa (Fase 10), resuelto en
+// app/[tenant]/layout.tsx desde tenants.settings.branding. Úsalo en vez de hardcodear
+// "Scalix Systems" en cualquier pantalla dentro de app/[tenant]/**.
+export function useTenantBranding(): TenantBranding {
+  const ctx = useContext(TenantContext)
+  if (!ctx) throw new Error('useTenantBranding() called outside <TenantProvider> (app/[tenant]/layout.tsx)')
+  return ctx.branding
 }
 
 // Slug de la subcuenta activa, resuelto del segmento [tenant] de la URL por
@@ -29,6 +56,7 @@ export function useTenant(): string {
 export function useTenantId(): string {
   const ctx = useContext(TenantContext)
   if (!ctx) throw new Error('useTenantId() called outside <TenantProvider> (app/[tenant]/layout.tsx)')
-  if (!ctx.id) throw new Error('tenantId aún no resuelto (llamado antes de que app/[tenant]/layout.tsx termine de cargar)')
+  if (!ctx.id)
+    throw new Error('tenantId aún no resuelto (llamado antes de que app/[tenant]/layout.tsx termine de cargar)')
   return ctx.id
 }

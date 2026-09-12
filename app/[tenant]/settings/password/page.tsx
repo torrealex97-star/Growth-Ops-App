@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { TrendingUp, Loader2, CheckCircle2, KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantBranding } from '@/lib/tenant-context'
 
 // Modos:
 //  - 'token'   → llegó por enlace de invitación/recuperación (?token_hash&type).
@@ -21,6 +21,7 @@ type Mode = 'loading' | 'token' | 'session' | 'invalid'
 
 export default function SetPasswordPage() {
   const tenant = useTenant()
+  const branding = useTenantBranding()
   const router = useRouter()
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -44,7 +45,9 @@ export default function SetPasswordPage() {
       }
       // 2) Si no, ¿hay sesión activa? (flujo antiguo por callback)
       const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
       setMode(session ? 'session' : 'invalid')
     }
     init()
@@ -108,7 +111,7 @@ export default function SetPasswordPage() {
           <div className="w-12 h-12 rounded-xl bg-brand-600 flex items-center justify-center mb-4">
             <TrendingUp className="w-6 h-6 text-foreground" />
           </div>
-          <h1 className="text-2xl font-semibold text-foreground">Scalix Systems</h1>
+          <h1 className="text-2xl font-semibold text-foreground">{branding.name}</h1>
           <p className="text-muted-foreground text-sm mt-1">Nueva contraseña</p>
         </div>
 
@@ -128,7 +131,10 @@ export default function SetPasswordPage() {
               <p className="text-muted-foreground text-sm mb-6">
                 El enlace de acceso ha expirado o no es válido. Pide uno nuevo.
               </p>
-              <Link href={`/${tenant}/recover`} className="text-sm text-brand-400 hover:text-brand-300 transition-colors">
+              <Link
+                href={`/${tenant}/recover`}
+                className="text-sm text-brand-400 hover:text-brand-300 transition-colors"
+              >
                 Solicitar nuevo enlace
               </Link>
             </div>

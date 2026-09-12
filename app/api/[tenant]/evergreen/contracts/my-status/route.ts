@@ -14,11 +14,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
     const t = await requireTenant(tenant)
     if ('error' in t) return t.error
 
-    const sb = createServiceClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
+    const sb = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
 
     const { data } = await sb
       .from('contracts')

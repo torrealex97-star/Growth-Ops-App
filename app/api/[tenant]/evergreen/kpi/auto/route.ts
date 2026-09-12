@@ -28,8 +28,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     let targetId = t.userId
     const asked = req.nextUrl.searchParams.get('userId')
     if (asked && asked !== t.userId) {
-      const { data: row } = await sb.from('users').select('roles(key)').eq('id', t.userId).maybeSingle()
-      const role = (row?.roles as { key?: string } | null)?.key
+      const role = t.role
       if (['admin', 'director', 'manager'].includes(role || '')) targetId = asked
     }
 
@@ -41,10 +40,28 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     const SHOW = ['show', 'completed']
 
     const [setterAll, closerAll, salesRes, collRes] = await Promise.all([
-      sb.from('appointments').select('status').eq('setter_id', targetId).eq('tenant_id', t.tenantId).gte('appointment_datetime', start).lt('appointment_datetime', end),
-      sb.from('appointments').select('status').eq('closer_id', targetId).eq('tenant_id', t.tenantId).gte('appointment_datetime', start).lt('appointment_datetime', end),
+      sb
+        .from('appointments')
+        .select('status')
+        .eq('setter_id', targetId)
+        .eq('tenant_id', t.tenantId)
+        .gte('appointment_datetime', start)
+        .lt('appointment_datetime', end),
+      sb
+        .from('appointments')
+        .select('status')
+        .eq('closer_id', targetId)
+        .eq('tenant_id', t.tenantId)
+        .gte('appointment_datetime', start)
+        .lt('appointment_datetime', end),
       sb.from('sales').select('id').eq('closer_id', targetId).eq('tenant_id', t.tenantId).eq('sale_date', date),
-      sb.from('collections').select('gross_amount, sales!inner(closer_id)').eq('sales.closer_id', targetId).eq('tenant_id', t.tenantId).gte('collected_at', start).lt('collected_at', end),
+      sb
+        .from('collections')
+        .select('gross_amount, sales!inner(closer_id)')
+        .eq('sales.closer_id', targetId)
+        .eq('tenant_id', t.tenantId)
+        .gte('collected_at', start)
+        .lt('collected_at', end),
     ])
 
     const setterAppts = setterAll.data ?? []
@@ -55,7 +72,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
       closer_appointments: closerAppts.length,
       closer_shows: closerAppts.filter((a) => SHOW.includes(String(a.status))).length,
       closer_sales: (salesRes.data ?? []).length,
-      closer_cash: (collRes.data ?? []).reduce((s, c) => s + (Number((c as { gross_amount: number }).gross_amount) || 0), 0),
+      closer_cash: (collRes.data ?? []).reduce(
+        (s, c) => s + (Number((c as { gross_amount: number }).gross_amount) || 0),
+        0
+      ),
     }
 
     return NextResponse.json({ ok: true, date, userId: targetId, metrics })

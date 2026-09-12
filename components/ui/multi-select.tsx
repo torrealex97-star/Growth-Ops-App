@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { Check, ChevronDown, Search, X } from 'lucide-react'
@@ -51,7 +51,7 @@ export function MultiSelect({
     value.length === 0
       ? allLabel
       : value.length === 1
-        ? options.find((o) => o.value === value[0])?.label ?? '1 seleccionada'
+        ? (options.find((o) => o.value === value[0])?.label ?? '1 seleccionada')
         : `${value.length} seleccionadas`
 
   return (
@@ -74,7 +74,10 @@ export function MultiSelect({
                 tabIndex={0}
                 aria-label="Limpiar selección"
                 className="w-3.5 h-3.5 text-muted-foreground hover:text-foreground"
-                onClick={(e) => { e.stopPropagation(); onChange([]) }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onChange([])
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault()
@@ -82,7 +85,9 @@ export function MultiSelect({
                     onChange([])
                   }
                 }}
-              ><X className="w-3.5 h-3.5" /></span>
+              >
+                <X className="w-3.5 h-3.5" />
+              </span>
             )}
             <ChevronDown className="w-4 h-4 text-muted-foreground" />
           </div>
@@ -95,14 +100,23 @@ export function MultiSelect({
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Escape' && query) { e.stopPropagation(); setQuery('') } }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && query) {
+                e.stopPropagation()
+                setQuery('')
+              }
+            }}
             placeholder={searchPlaceholder}
             aria-label={searchPlaceholder}
             className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
           />
         </div>
         <div className="flex items-center justify-between px-3 py-1.5 text-xs text-muted-foreground border-b border-border">
-          <button type="button" className="hover:text-foreground" onClick={() => onChange(Array.from(new Set([...value, ...filtered.map((o) => o.value)])))}>
+          <button
+            type="button"
+            className="hover:text-foreground"
+            onClick={() => onChange(Array.from(new Set([...value, ...filtered.map((o) => o.value)])))}
+          >
             Seleccionar todo
           </button>
           <button type="button" className="hover:text-foreground" onClick={() => onChange([])}>

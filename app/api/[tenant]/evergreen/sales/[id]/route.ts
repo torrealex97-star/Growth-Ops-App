@@ -24,8 +24,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
-    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-    const role = (urow?.roles as { key?: string } | null)?.key || ''
+    const role = t.role || ''
     if (!ALLOWED_ROLES.includes(role)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
     const EDITABLE_FIELDS = ['onboarding_date', 'first_coaching_date', 'graduation_date', 'status'] as const
@@ -37,7 +36,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 })
     }
 
-    const { data: updated, error } = await sb.from('sales').update(patch).eq('id', id).eq('tenant_id', t.tenantId).select().single()
+    const { data: updated, error } = await sb
+      .from('sales')
+      .update(patch)
+      .eq('id', id)
+      .eq('tenant_id', t.tenantId)
+      .select()
+      .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     await sb.from('audit_logs').insert({

@@ -39,17 +39,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       messages: [{ role: 'user', content: `Transcripción:\n\n${transcript.slice(0, 50000)}` }],
     })
 
-    const text = msg.content.find((c) => c.type === 'text')?.type === 'text'
-      ? (msg.content.find((c) => c.type === 'text') as { text: string }).text
-      : ''
+    const text =
+      msg.content.find((c) => c.type === 'text')?.type === 'text'
+        ? (msg.content.find((c) => c.type === 'text') as { text: string }).text
+        : ''
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (!jsonMatch) return NextResponse.json({ error: 'La IA no devolvió tareas válidas' }, { status: 502 })
-    const parsed = JSON.parse(jsonMatch[0]) as { summary?: string; tasks?: { title: string; description?: string; assignee_name?: string | null; stage?: string | null }[] }
+    const parsed = JSON.parse(jsonMatch[0]) as {
+      summary?: string
+      tasks?: { title: string; description?: string; assignee_name?: string | null; stage?: string | null }[]
+    }
 
     const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
     const proposals = (parsed.tasks || []).map((t) => {
       const match = t.assignee_name
-        ? (users || []).find((u) => norm(u.full_name) === norm(t.assignee_name!) || norm(u.full_name).startsWith(norm(t.assignee_name!.split(' ')[0])))
+        ? (users || []).find(
+            (u) =>
+              norm(u.full_name) === norm(t.assignee_name!) ||
+              norm(u.full_name).startsWith(norm(t.assignee_name!.split(' ')[0]))
+          )
         : null
       return {
         title: t.title,

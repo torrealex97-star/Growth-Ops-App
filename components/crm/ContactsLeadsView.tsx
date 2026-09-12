@@ -3,7 +3,17 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { PlayCircle, AtSign, ExternalLink, Columns3, MessageSquarePlus, StickyNote, Ban, UserCheck, UserPlus } from 'lucide-react'
+import {
+  PlayCircle,
+  AtSign,
+  ExternalLink,
+  Columns3,
+  MessageSquarePlus,
+  StickyNote,
+  Ban,
+  UserCheck,
+  UserPlus,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 import { ContactForm, type ContactFormData } from '@/components/contacts/ContactForm'
@@ -22,9 +32,24 @@ const HOT_PCT = 75
 
 // Cadencia de seguimiento (estilo CRM): agrupa los leads por días desde el último contacto para
 // trabajar el "día 1 / día 2 / día 3" y detectar los que llevan sin tocarse o sin contactar nunca.
-const FOLLOWUP: { value: 'sin_contacto' | 'hoy' | 'd1' | 'd2' | 'd3' | 'd4plus'; label: string; color: string; dot: string }[] = [
-  { value: 'sin_contacto', label: 'Sin contactar', color: 'bg-red-500/20 text-red-300 border-red-500/40', dot: 'bg-red-500' },
-  { value: 'hoy', label: 'Contactado hoy', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40', dot: 'bg-emerald-500' },
+const FOLLOWUP: {
+  value: 'sin_contacto' | 'hoy' | 'd1' | 'd2' | 'd3' | 'd4plus'
+  label: string
+  color: string
+  dot: string
+}[] = [
+  {
+    value: 'sin_contacto',
+    label: 'Sin contactar',
+    color: 'bg-red-500/20 text-red-300 border-red-500/40',
+    dot: 'bg-red-500',
+  },
+  {
+    value: 'hoy',
+    label: 'Contactado hoy',
+    color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+    dot: 'bg-emerald-500',
+  },
   { value: 'd1', label: 'Día 1', color: 'bg-lime-500/20 text-lime-300 border-lime-500/40', dot: 'bg-lime-500' },
   { value: 'd2', label: 'Día 2', color: 'bg-amber-500/20 text-amber-300 border-amber-500/40', dot: 'bg-amber-500' },
   { value: 'd3', label: 'Día 3', color: 'bg-orange-500/20 text-orange-300 border-orange-500/40', dot: 'bg-orange-500' },
@@ -55,10 +80,18 @@ type Attribution = {
 type Note = { note: string; created_at: string }
 
 type LeadRow = {
-  id: string; full_name: string; email: string | null; phone: string | null
-  instagram: string | null; lead_status: LeadStatus; lead_channel: Channel
-  vsl_watch_pct: number | null; created_at: string; set_source: SetSource
-  first_contact_at: string | null; contact_attempts: number | null
+  id: string
+  full_name: string
+  email: string | null
+  phone: string | null
+  instagram: string | null
+  lead_status: LeadStatus
+  lead_channel: Channel
+  vsl_watch_pct: number | null
+  created_at: string
+  set_source: SetSource
+  first_contact_at: string | null
+  contact_attempts: number | null
   contact_attributions: Attribution[]
   contact_notes: Note[]
 }
@@ -71,14 +104,20 @@ const DAY_MS = 1000 * 60 * 60 * 24
 // (fecha de la cita o, si es futura/nula, cuándo se creó) y el primer contacto registrado.
 function lastActivityAt(l: LeadRow, appts: ApptLite[]): number | null {
   const times: number[] = []
-  for (const n of l.contact_notes || []) { const t = new Date(n.created_at).getTime(); if (!isNaN(t)) times.push(t) }
+  for (const n of l.contact_notes || []) {
+    const t = new Date(n.created_at).getTime()
+    if (!isNaN(t)) times.push(t)
+  }
   for (const a of appts) {
     const t1 = a.appointment_datetime ? new Date(a.appointment_datetime).getTime() : NaN
     const t2 = a.created_at ? new Date(a.created_at).getTime() : NaN
     if (!isNaN(t1)) times.push(t1)
     if (!isNaN(t2)) times.push(t2)
   }
-  if (l.first_contact_at) { const t = new Date(l.first_contact_at).getTime(); if (!isNaN(t)) times.push(t) }
+  if (l.first_contact_at) {
+    const t = new Date(l.first_contact_at).getTime()
+    if (!isNaN(t)) times.push(t)
+  }
   return times.length ? Math.max(...times) : null
 }
 
@@ -104,7 +143,28 @@ function relativeDays(days: number | null): string {
   return `Hace ${days} días`
 }
 
-type ColumnKey = 'nombre' | 'telefono' | 'email' | 'instagram' | 'fuente' | 'utm_source' | 'utm_medium' | 'utm_campaign' | 'utm_content' | 'utm_term' | 'first_source' | 'first_campaign' | 'last_source' | 'last_campaign' | 'vsl' | 'estado' | 'canal' | 'ult_contacto' | 'seguimiento' | 'notas' | 'creado'
+type ColumnKey =
+  | 'nombre'
+  | 'telefono'
+  | 'email'
+  | 'instagram'
+  | 'fuente'
+  | 'utm_source'
+  | 'utm_medium'
+  | 'utm_campaign'
+  | 'utm_content'
+  | 'utm_term'
+  | 'first_source'
+  | 'first_campaign'
+  | 'last_source'
+  | 'last_campaign'
+  | 'vsl'
+  | 'estado'
+  | 'canal'
+  | 'ult_contacto'
+  | 'seguimiento'
+  | 'notas'
+  | 'creado'
 
 const COLUMNS: { key: ColumnKey; label: string }[] = [
   { key: 'nombre', label: 'Nombre' },
@@ -141,7 +201,7 @@ export function ContactsLeadsView() {
   const [filter, setFilter] = useState<LeadStatus | 'all'>('all')
   const [followup, setFollowup] = useState<FollowupBucket | 'all'>('all')
   const [q, setQ] = useState('')
-  const [hotOnly, setHotOnly] = useState(false)   // solo leads calientes (VSL ≥ 75%)
+  const [hotOnly, setHotOnly] = useState(false) // solo leads calientes (VSL ≥ 75%)
   const [sortByVsl, setSortByVsl] = useState(false) // priorizar la cola por % visto
   const [visibleCols, setVisibleCols] = useState<ColumnKey[]>(DEFAULT_COLS)
   const [colsMenuOpen, setColsMenuOpen] = useState(false)
@@ -165,7 +225,11 @@ export function ContactsLeadsView() {
   const toggleCol = (key: ColumnKey) => {
     setVisibleCols((prev) => {
       const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-      try { localStorage.setItem(COLS_STORAGE_KEY, JSON.stringify(next)) } catch { /* ignore */ }
+      try {
+        localStorage.setItem(COLS_STORAGE_KEY, JSON.stringify(next))
+      } catch {
+        /* ignore */
+      }
       return next
     })
   }
@@ -175,11 +239,13 @@ export function ContactsLeadsView() {
     const [contactsRes, apptRes] = await Promise.all([
       supabase
         .from('contacts')
-        .select(`
+        .select(
+          `
           id, full_name, email, phone, instagram, lead_status, lead_channel, vsl_watch_pct, created_at, set_source, first_contact_at, contact_attempts,
           contact_attributions(source, utm_source, utm_medium, utm_campaign, utm_content, utm_term, is_primary, first_utm_source, first_utm_medium, first_utm_campaign, first_utm_content, first_utm_term, last_utm_source, last_utm_medium, last_utm_campaign, last_utm_content, last_utm_term),
           contact_notes(note, created_at)
-        `)
+        `
+        )
         .order('created_at', { ascending: false }),
       supabase.from('appointments').select('contact_id, appointment_datetime, created_at, status'),
     ])
@@ -187,9 +253,9 @@ export function ContactsLeadsView() {
     // silencio, indistinguible de "no hay leads todavía".
     if (contactsRes.error) toast.error('Error al cargar los leads', { description: contactsRes.error.message })
     if (apptRes.error) toast.error('Error al cargar las agendas', { description: apptRes.error.message })
-    const sorted = ((contactsRes.data as LeadRow[]) || []).slice().sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    )
+    const sorted = ((contactsRes.data as LeadRow[]) || [])
+      .slice()
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     setLeads(sorted)
     setAppts((apptRes.data as ApptLite[]) || [])
     setLoading(false)
@@ -199,7 +265,8 @@ export function ContactsLeadsView() {
     load()
   }, [])
 
-  const primaryAttribution = (l: LeadRow) => l.contact_attributions?.find((x) => x.is_primary) ?? l.contact_attributions?.[0]
+  const primaryAttribution = (l: LeadRow) =>
+    l.contact_attributions?.find((x) => x.is_primary) ?? l.contact_attributions?.[0]
   const sourceOf = (l: LeadRow) => primaryAttribution(l)?.source || primaryAttribution(l)?.utm_source || '—'
   const utmOf = (l: LeadRow, field: keyof Attribution) => (primaryAttribution(l)?.[field] as string | null) || '—'
 
@@ -246,7 +313,9 @@ export function ContactsLeadsView() {
     if (!note) return
     setSavingNote(true)
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
     const { error } = await supabase.from('contact_notes').insert({
       contact_id: id,
       author_id: user?.id ?? null,
@@ -291,11 +360,13 @@ export function ContactsLeadsView() {
     if (hotOnly) base = base.filter((l) => Number(l.vsl_watch_pct ?? 0) >= HOT_PCT)
     const nq = normalizeText(q.trim())
     const searched = nq
-      ? base.filter((l) =>
-          normalizeText(l.full_name || '').includes(nq) ||
-          normalizeText(l.email || '').includes(nq) ||
-          normalizeText(l.instagram || '').includes(nq) ||
-          phoneMatches(l.phone, q))
+      ? base.filter(
+          (l) =>
+            normalizeText(l.full_name || '').includes(nq) ||
+            normalizeText(l.email || '').includes(nq) ||
+            normalizeText(l.instagram || '').includes(nq) ||
+            phoneMatches(l.phone, q)
+        )
       : base
     return [...searched].sort((a, b) => {
       // Prioridad por % de VSL visto (cola de llamadas: el que más vio, primero); si no, por fecha.
@@ -308,12 +379,17 @@ export function ContactsLeadsView() {
   }, [leads, filter, followup, followupByLead, q, hotOnly, sortByVsl])
   const counts = useMemo(() => {
     const c: Record<string, number> = {}
-    leads.forEach((l) => { c[l.lead_status] = (c[l.lead_status] || 0) + 1 })
+    leads.forEach((l) => {
+      c[l.lead_status] = (c[l.lead_status] || 0) + 1
+    })
     return c
   }, [leads])
   const followupCounts = useMemo(() => {
     const c: Record<string, number> = {}
-    leads.forEach((l) => { const b = followupByLead.get(l.id)?.bucket; if (b) c[b] = (c[b] || 0) + 1 })
+    leads.forEach((l) => {
+      const b = followupByLead.get(l.id)?.bucket
+      if (b) c[b] = (c[b] || 0) + 1
+    })
     return c
   }, [leads, followupByLead])
 
@@ -324,47 +400,64 @@ export function ContactsLeadsView() {
     <div className="space-y-6">
       <div className="flex items-start justify-end">
         <div className="flex items-center gap-2">
-        <button
-          onClick={() => setNewOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white hover:bg-brand-500"
-        >
-          <UserPlus className="w-3.5 h-3.5" /> Nuevo contacto
-        </button>
-        <div className="relative">
           <button
-            onClick={() => setColsMenuOpen((v) => !v)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-card text-foreground border-border hover:border-border"
+            onClick={() => setNewOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white hover:bg-brand-500"
           >
-            <Columns3 className="w-3.5 h-3.5" /> Columnas
+            <UserPlus className="w-3.5 h-3.5" /> Nuevo contacto
           </button>
-          {colsMenuOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setColsMenuOpen(false)} />
-              <div className="absolute right-0 mt-2 w-56 rounded-lg border border-border bg-card shadow-xl z-20 p-2 max-h-80 overflow-y-auto">
-                {COLUMNS.map((c) => (
-                  <label key={c.key} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted cursor-pointer text-xs text-foreground">
-                    <input
-                      type="checkbox"
-                      checked={isVisible(c.key)}
-                      onChange={() => toggleCol(c.key)}
-                      className="accent-brand-500"
-                    />
-                    {c.label}
-                  </label>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+          <div className="relative">
+            <button
+              onClick={() => setColsMenuOpen((v) => !v)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-card text-foreground border-border hover:border-border"
+            >
+              <Columns3 className="w-3.5 h-3.5" /> Columnas
+            </button>
+            {colsMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setColsMenuOpen(false)} />
+                <div className="absolute right-0 mt-2 w-56 rounded-lg border border-border bg-card shadow-xl z-20 p-2 max-h-80 overflow-y-auto">
+                  {COLUMNS.map((c) => (
+                    <label
+                      key={c.key}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted cursor-pointer text-xs text-foreground"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isVisible(c.key)}
+                        onChange={() => toggleCol(c.key)}
+                        className="accent-brand-500"
+                      />
+                      {c.label}
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      <SearchBox value={q} onChange={setQ} placeholder="Buscar por nombre, email, teléfono o Instagram..." className="w-full sm:w-96" />
+      <SearchBox
+        value={q}
+        onChange={setQ}
+        placeholder="Buscar por nombre, email, teléfono o Instagram..."
+        className="w-full sm:w-96"
+      />
 
       <div className="flex flex-wrap gap-2">
-        <button onClick={() => setFilter('all')} className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${filter === 'all' ? 'bg-brand-600 text-white border-brand-600' : 'bg-card text-muted-foreground border-border'}`}>Todos ({leads.length})</button>
+        <button
+          onClick={() => setFilter('all')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${filter === 'all' ? 'bg-brand-600 text-white border-brand-600' : 'bg-card text-muted-foreground border-border'}`}
+        >
+          Todos ({leads.length})
+        </button>
         {STATUS.map((s) => (
-          <button key={s.value} onClick={() => setFilter(s.value)} className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${filter === s.value ? 'bg-brand-600 text-white border-brand-600' : 'bg-card text-muted-foreground border-border'}`}>
+          <button
+            key={s.value}
+            onClick={() => setFilter(s.value)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${filter === s.value ? 'bg-brand-600 text-white border-brand-600' : 'bg-card text-muted-foreground border-border'}`}
+          >
             {s.label} ({counts[s.value] || 0})
           </button>
         ))}
@@ -388,7 +481,9 @@ export function ContactsLeadsView() {
 
       {/* Seguimiento (cadencia CRM): filtra los leads por días desde el último contacto */}
       <div>
-        <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">Seguimiento — días desde el último contacto</p>
+        <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2">
+          Seguimiento — días desde el último contacto
+        </p>
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setFollowup('all')}
@@ -439,166 +534,241 @@ export function ContactsLeadsView() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={colCount} className="p-8 text-center text-muted-foreground">Cargando…</td></tr>
+              <tr>
+                <td colSpan={colCount} className="p-8 text-center text-muted-foreground">
+                  Cargando…
+                </td>
+              </tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={colCount} className="p-8 text-center text-muted-foreground">Sin leads.</td></tr>
-            ) : filtered.map((l) => {
-              const lNote = latestNote(l)
-              const fu = followupByLead.get(l.id) ?? { bucket: 'sin_contacto' as FollowupBucket, days: null }
-              const fuMeta = followupMeta(fu.bucket)
-              return (
-              <Fragment key={l.id}>
-                <tr className="border-b border-border/50 last:border-0 hover:bg-card/50 align-top">
-                  {isVisible('nombre') && (
-                    <td className="p-3 text-foreground">
-                      <div className="flex flex-col gap-1">
-                        <span>{l.full_name}</span>
-                        {l.set_source === 'setter' && (
-                          <span className="inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-md text-[10px] font-semibold bg-brand-500/20 text-brand-300 border border-brand-500/40">
-                            <UserCheck className="w-3 h-3" /> De setter
-                          </span>
-                        )}
-                        {isNoCall(l) && (
-                          <span className="inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-md text-[10px] font-semibold bg-red-500/20 text-red-400 border border-red-500/40">
-                            <Ban className="w-3 h-3" /> No llamar (agendado por setter)
-                          </span>
-                        )}
-                        {Number(l.vsl_watch_pct ?? 0) >= HOT_PCT && (
-                          <span className="inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-md text-[10px] font-semibold bg-orange-500/20 text-orange-300 border border-orange-500/40">
-                            🔥 Lead caliente · {Number(l.vsl_watch_pct)}% VSL
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                  )}
-                  {isVisible('telefono') && <td className="p-3 text-muted-foreground">{l.phone || '—'}</td>}
-                  {isVisible('email') && <td className="p-3 text-muted-foreground">{l.email || '—'}</td>}
-                  {isVisible('instagram') && (
-                    <td className="p-3">
-                      {l.instagram ? (
-                        <a href={l.instagram.startsWith('http') ? l.instagram : `https://instagram.com/${l.instagram.replace('@', '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-0.5 text-pink-400 text-xs">
-                          <AtSign className="w-3 h-3" />{l.instagram}
-                        </a>
-                      ) : <span className="text-muted-foreground">—</span>}
-                    </td>
-                  )}
-                  {isVisible('ult_contacto') && (
-                    <td className="p-3">
-                      <span className={`inline-flex items-center gap-1.5 text-xs ${fu.days == null ? 'text-red-400' : fu.days <= 0 ? 'text-emerald-400' : fu.days <= 3 ? 'text-amber-400' : 'text-red-400'}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${fuMeta.dot}`} />
-                        {relativeDays(fu.days)}
-                      </span>
-                      {(l.contact_attempts ?? 0) > 0 && (
-                        <span className="block text-[10px] text-muted-foreground mt-0.5">{l.contact_attempts} intento{(l.contact_attempts ?? 0) > 1 ? 's' : ''}</span>
+              <tr>
+                <td colSpan={colCount} className="p-8 text-center text-muted-foreground">
+                  Sin leads.
+                </td>
+              </tr>
+            ) : (
+              filtered.map((l) => {
+                const lNote = latestNote(l)
+                const fu = followupByLead.get(l.id) ?? { bucket: 'sin_contacto' as FollowupBucket, days: null }
+                const fuMeta = followupMeta(fu.bucket)
+                return (
+                  <Fragment key={l.id}>
+                    <tr className="border-b border-border/50 last:border-0 hover:bg-card/50 align-top">
+                      {isVisible('nombre') && (
+                        <td className="p-3 text-foreground">
+                          <div className="flex flex-col gap-1">
+                            <span>{l.full_name}</span>
+                            {l.set_source === 'setter' && (
+                              <span className="inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-md text-[10px] font-semibold bg-brand-500/20 text-brand-300 border border-brand-500/40">
+                                <UserCheck className="w-3 h-3" /> De setter
+                              </span>
+                            )}
+                            {isNoCall(l) && (
+                              <span className="inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-md text-[10px] font-semibold bg-red-500/20 text-red-400 border border-red-500/40">
+                                <Ban className="w-3 h-3" /> No llamar (agendado por setter)
+                              </span>
+                            )}
+                            {Number(l.vsl_watch_pct ?? 0) >= HOT_PCT && (
+                              <span className="inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-md text-[10px] font-semibold bg-orange-500/20 text-orange-300 border border-orange-500/40">
+                                🔥 Lead caliente · {Number(l.vsl_watch_pct)}% VSL
+                              </span>
+                            )}
+                          </div>
+                        </td>
                       )}
-                    </td>
-                  )}
-                  {isVisible('seguimiento') && (
-                    <td className="p-3">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${fuMeta.color}`}>
-                        {fuMeta.label}
-                      </span>
-                    </td>
-                  )}
-                  {isVisible('fuente') && <td className="p-3 text-muted-foreground">{sourceOf(l)}</td>}
-                  {isVisible('utm_source') && <td className="p-3 text-muted-foreground">{utmOf(l, 'utm_source')}</td>}
-                  {isVisible('utm_medium') && <td className="p-3 text-muted-foreground">{utmOf(l, 'utm_medium')}</td>}
-                  {isVisible('utm_campaign') && <td className="p-3 text-muted-foreground">{utmOf(l, 'utm_campaign')}</td>}
-                  {isVisible('utm_content') && <td className="p-3 text-muted-foreground">{utmOf(l, 'utm_content')}</td>}
-                  {isVisible('utm_term') && <td className="p-3 text-muted-foreground">{utmOf(l, 'utm_term')}</td>}
-                  {isVisible('first_source') && <td className="p-3 text-muted-foreground">{utmOf(l, 'first_utm_source')}</td>}
-                  {isVisible('first_campaign') && <td className="p-3 text-muted-foreground">{utmOf(l, 'first_utm_campaign')}</td>}
-                  {isVisible('last_source') && <td className="p-3 text-muted-foreground">{utmOf(l, 'last_utm_source')}</td>}
-                  {isVisible('last_campaign') && <td className="p-3 text-muted-foreground">{utmOf(l, 'last_utm_campaign')}</td>}
-                  {isVisible('vsl') && (
-                    <td className="p-3 text-center">
-                      {l.vsl_watch_pct != null ? (
-                        <span className={`inline-flex items-center gap-1 ${Number(l.vsl_watch_pct) >= 75 ? 'text-emerald-400' : 'text-foreground'}`}>
-                          <PlayCircle className="w-3 h-3" />{Number(l.vsl_watch_pct)}%
-                        </span>
-                      ) : <span className="text-muted-foreground">—</span>}
-                    </td>
-                  )}
-                  {isVisible('estado') && (
-                    <td className="p-3">
-                      <select value={l.lead_status} onChange={(e) => update(l.id, { lead_status: e.target.value as LeadStatus })}
-                        className={`text-xs rounded-md border px-2 py-1 bg-transparent ${statusMeta(l.lead_status).color}`}>
-                        {STATUS.map((s) => <option key={s.value} value={s.value} className="bg-card text-foreground">{s.label}</option>)}
-                      </select>
-                    </td>
-                  )}
-                  {isVisible('canal') && (
-                    <td className="p-3">
-                      <select value={l.lead_channel || ''} onChange={(e) => update(l.id, { lead_channel: e.target.value as Channel })}
-                        className="text-xs rounded-md border border-border bg-muted text-foreground px-2 py-1">
-                        <option value="">—</option>
-                        <option value="whatsapp">WhatsApp</option>
-                        <option value="llamada">Llamada</option>
-                        <option value="email">Email</option>
-                        <option value="otro">Otro</option>
-                      </select>
-                    </td>
-                  )}
-                  {isVisible('notas') && (
-                    <td className="p-3 max-w-[220px]">
-                      <div className="flex items-start gap-1.5">
-                        <button onClick={() => openNoteFor(l.id)} className="text-muted-foreground hover:text-brand-400 shrink-0" title="Añadir nota">
-                          <MessageSquarePlus className="w-3.5 h-3.5" />
-                        </button>
-                        <div className="min-w-0">
-                          {lNote ? (
-                            <div className="text-xs text-muted-foreground truncate" title={lNote.note}>
-                              <StickyNote className="w-3 h-3 inline mr-1 text-muted-foreground" />{lNote.note}
-                            </div>
+                      {isVisible('telefono') && <td className="p-3 text-muted-foreground">{l.phone || '—'}</td>}
+                      {isVisible('email') && <td className="p-3 text-muted-foreground">{l.email || '—'}</td>}
+                      {isVisible('instagram') && (
+                        <td className="p-3">
+                          {l.instagram ? (
+                            <a
+                              href={
+                                l.instagram.startsWith('http')
+                                  ? l.instagram
+                                  : `https://instagram.com/${l.instagram.replace('@', '')}`
+                              }
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-0.5 text-pink-400 text-xs"
+                            >
+                              <AtSign className="w-3 h-3" />
+                              {l.instagram}
+                            </a>
                           ) : (
-                            <span className="text-xs text-muted-foreground">Sin notas</span>
+                            <span className="text-muted-foreground">—</span>
                           )}
-                          {l.contact_notes?.length > 0 && (
-                            <div className="text-[10px] text-muted-foreground mt-0.5">{l.contact_notes.length} nota{l.contact_notes.length > 1 ? 's' : ''}</div>
+                        </td>
+                      )}
+                      {isVisible('ult_contacto') && (
+                        <td className="p-3">
+                          <span
+                            className={`inline-flex items-center gap-1.5 text-xs ${fu.days == null ? 'text-red-400' : fu.days <= 0 ? 'text-emerald-400' : fu.days <= 3 ? 'text-amber-400' : 'text-red-400'}`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${fuMeta.dot}`} />
+                            {relativeDays(fu.days)}
+                          </span>
+                          {(l.contact_attempts ?? 0) > 0 && (
+                            <span className="block text-[10px] text-muted-foreground mt-0.5">
+                              {l.contact_attempts} intento{(l.contact_attempts ?? 0) > 1 ? 's' : ''}
+                            </span>
                           )}
-                        </div>
-                      </div>
-                    </td>
-                  )}
-                  {isVisible('creado') && <td className="p-3 text-muted-foreground text-xs">{new Date(l.created_at).toLocaleDateString('es-ES')}</td>}
-                  <td className="p-3 text-right whitespace-nowrap">
-                    <Link href={`/${tenant}/crm/contactos/${l.id}`} className="text-brand-400 hover:text-brand-300 inline-flex items-center gap-1 text-xs">
-                      Ficha <ExternalLink className="w-3 h-3" />
-                    </Link>
-                  </td>
-                </tr>
-                {noteOpenFor === l.id && (
-                  <tr className="border-b border-border/50 bg-card/40">
-                    <td colSpan={colCount} className="p-3">
-                      <div className="flex items-center gap-2">
-                        <input
-                          autoFocus
-                          value={noteDraft}
-                          onChange={(e) => setNoteDraft(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') submitNote(l.id) }}
-                          placeholder={`Nota rápida sobre ${l.full_name}…`}
-                          className="flex-1 bg-muted border border-border rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500"
-                        />
-                        <button
-                          onClick={() => submitNote(l.id)}
-                          disabled={savingNote || !noteDraft.trim()}
-                          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white disabled:opacity-50"
+                        </td>
+                      )}
+                      {isVisible('seguimiento') && (
+                        <td className="p-3">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${fuMeta.color}`}
+                          >
+                            {fuMeta.label}
+                          </span>
+                        </td>
+                      )}
+                      {isVisible('fuente') && <td className="p-3 text-muted-foreground">{sourceOf(l)}</td>}
+                      {isVisible('utm_source') && (
+                        <td className="p-3 text-muted-foreground">{utmOf(l, 'utm_source')}</td>
+                      )}
+                      {isVisible('utm_medium') && (
+                        <td className="p-3 text-muted-foreground">{utmOf(l, 'utm_medium')}</td>
+                      )}
+                      {isVisible('utm_campaign') && (
+                        <td className="p-3 text-muted-foreground">{utmOf(l, 'utm_campaign')}</td>
+                      )}
+                      {isVisible('utm_content') && (
+                        <td className="p-3 text-muted-foreground">{utmOf(l, 'utm_content')}</td>
+                      )}
+                      {isVisible('utm_term') && <td className="p-3 text-muted-foreground">{utmOf(l, 'utm_term')}</td>}
+                      {isVisible('first_source') && (
+                        <td className="p-3 text-muted-foreground">{utmOf(l, 'first_utm_source')}</td>
+                      )}
+                      {isVisible('first_campaign') && (
+                        <td className="p-3 text-muted-foreground">{utmOf(l, 'first_utm_campaign')}</td>
+                      )}
+                      {isVisible('last_source') && (
+                        <td className="p-3 text-muted-foreground">{utmOf(l, 'last_utm_source')}</td>
+                      )}
+                      {isVisible('last_campaign') && (
+                        <td className="p-3 text-muted-foreground">{utmOf(l, 'last_utm_campaign')}</td>
+                      )}
+                      {isVisible('vsl') && (
+                        <td className="p-3 text-center">
+                          {l.vsl_watch_pct != null ? (
+                            <span
+                              className={`inline-flex items-center gap-1 ${Number(l.vsl_watch_pct) >= 75 ? 'text-emerald-400' : 'text-foreground'}`}
+                            >
+                              <PlayCircle className="w-3 h-3" />
+                              {Number(l.vsl_watch_pct)}%
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                      )}
+                      {isVisible('estado') && (
+                        <td className="p-3">
+                          <select
+                            value={l.lead_status}
+                            onChange={(e) => update(l.id, { lead_status: e.target.value as LeadStatus })}
+                            className={`text-xs rounded-md border px-2 py-1 bg-transparent ${statusMeta(l.lead_status).color}`}
+                          >
+                            {STATUS.map((s) => (
+                              <option key={s.value} value={s.value} className="bg-card text-foreground">
+                                {s.label}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      )}
+                      {isVisible('canal') && (
+                        <td className="p-3">
+                          <select
+                            value={l.lead_channel || ''}
+                            onChange={(e) => update(l.id, { lead_channel: e.target.value as Channel })}
+                            className="text-xs rounded-md border border-border bg-muted text-foreground px-2 py-1"
+                          >
+                            <option value="">—</option>
+                            <option value="whatsapp">WhatsApp</option>
+                            <option value="llamada">Llamada</option>
+                            <option value="email">Email</option>
+                            <option value="otro">Otro</option>
+                          </select>
+                        </td>
+                      )}
+                      {isVisible('notas') && (
+                        <td className="p-3 max-w-[220px]">
+                          <div className="flex items-start gap-1.5">
+                            <button
+                              onClick={() => openNoteFor(l.id)}
+                              className="text-muted-foreground hover:text-brand-400 shrink-0"
+                              title="Añadir nota"
+                            >
+                              <MessageSquarePlus className="w-3.5 h-3.5" />
+                            </button>
+                            <div className="min-w-0">
+                              {lNote ? (
+                                <div className="text-xs text-muted-foreground truncate" title={lNote.note}>
+                                  <StickyNote className="w-3 h-3 inline mr-1 text-muted-foreground" />
+                                  {lNote.note}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Sin notas</span>
+                              )}
+                              {l.contact_notes?.length > 0 && (
+                                <div className="text-[10px] text-muted-foreground mt-0.5">
+                                  {l.contact_notes.length} nota{l.contact_notes.length > 1 ? 's' : ''}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      )}
+                      {isVisible('creado') && (
+                        <td className="p-3 text-muted-foreground text-xs">
+                          {new Date(l.created_at).toLocaleDateString('es-ES')}
+                        </td>
+                      )}
+                      <td className="p-3 text-right whitespace-nowrap">
+                        <Link
+                          href={`/${tenant}/crm/contactos/${l.id}`}
+                          className="text-brand-400 hover:text-brand-300 inline-flex items-center gap-1 text-xs"
                         >
-                          Guardar
-                        </button>
-                        <button
-                          onClick={() => setNoteOpenFor(null)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-muted text-muted-foreground border border-border"
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-              )
-            })}
+                          Ficha <ExternalLink className="w-3 h-3" />
+                        </Link>
+                      </td>
+                    </tr>
+                    {noteOpenFor === l.id && (
+                      <tr className="border-b border-border/50 bg-card/40">
+                        <td colSpan={colCount} className="p-3">
+                          <div className="flex items-center gap-2">
+                            <input
+                              autoFocus
+                              value={noteDraft}
+                              onChange={(e) => setNoteDraft(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') submitNote(l.id)
+                              }}
+                              placeholder={`Nota rápida sobre ${l.full_name}…`}
+                              className="flex-1 bg-muted border border-border rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500"
+                            />
+                            <button
+                              onClick={() => submitNote(l.id)}
+                              disabled={savingNote || !noteDraft.trim()}
+                              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white disabled:opacity-50"
+                            >
+                              Guardar
+                            </button>
+                            <button
+                              onClick={() => setNoteOpenFor(null)}
+                              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-muted text-muted-foreground border border-border"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })
+            )}
           </tbody>
         </table>
       </div>
@@ -608,11 +778,7 @@ export function ContactsLeadsView() {
           <DialogHeader>
             <DialogTitle>Nuevo Contacto</DialogTitle>
           </DialogHeader>
-          <ContactForm
-            onSubmit={createContact}
-            onCancel={() => setNewOpen(false)}
-            submitLabel="Crear Contacto"
-          />
+          <ContactForm onSubmit={createContact} onCancel={() => setNewOpen(false)} submitLabel="Crear Contacto" />
         </DialogContent>
       </Dialog>
     </div>

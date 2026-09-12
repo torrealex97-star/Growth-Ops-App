@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -69,25 +69,13 @@ export function ContactForm({
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="first_name">Nombre *</Label>
-          <Input
-            id="first_name"
-            {...register('first_name')}
-            placeholder="Carlos"
-            className="bg-muted border-border"
-          />
-          {errors.first_name && (
-            <p className="text-xs text-red-400">{errors.first_name.message}</p>
-          )}
+          <Input id="first_name" {...register('first_name')} placeholder="Carlos" className="bg-muted border-border" />
+          {errors.first_name && <p className="text-xs text-red-400">{errors.first_name.message}</p>}
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="last_name">Apellidos</Label>
-          <Input
-            id="last_name"
-            {...register('last_name')}
-            placeholder="García"
-            className="bg-muted border-border"
-          />
+          <Input id="last_name" {...register('last_name')} placeholder="García" className="bg-muted border-border" />
         </div>
       </div>
 
@@ -100,9 +88,7 @@ export function ContactForm({
           placeholder="carlos@empresa.com"
           className="bg-muted border-border"
         />
-        {errors.email && (
-          <p className="text-xs text-red-400">{errors.email.message}</p>
-        )}
+        {errors.email && <p className="text-xs text-red-400">{errors.email.message}</p>}
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -115,7 +101,9 @@ export function ContactForm({
               className="w-[7.5rem] shrink-0 rounded-md bg-muted border border-border px-2 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
               {DIAL_CODES.map((d) => (
-                <option key={`${d.iso}-${d.code}`} value={d.code}>{d.label}</option>
+                <option key={`${d.iso}-${d.code}`} value={d.code}>
+                  {d.label}
+                </option>
               ))}
             </select>
             <Input
@@ -130,12 +118,7 @@ export function ContactForm({
 
         <div className="space-y-2">
           <Label htmlFor="country">País</Label>
-          <Input
-            id="country"
-            {...register('country')}
-            placeholder="España"
-            className="bg-muted border-border"
-          />
+          <Input id="country" {...register('country')} placeholder="España" className="bg-muted border-border" />
         </div>
       </div>
 
