@@ -63,4 +63,17 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig
+const { withSentryConfig } = require('@sentry/nextjs')
+
+// Sin SENTRY_AUTH_TOKEN (p.ej. build local o PR previews sin secretos), el plugin de webpack
+// hace dry run: no falla el build, solo no sube source maps legibles a Sentry.
+module.exports = withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  dryRun: !process.env.SENTRY_AUTH_TOKEN,
+  silent: true,
+  disableLogger: true,
+  widenClientFileUpload: false,
+  automaticVercelMonitors: false,
+})

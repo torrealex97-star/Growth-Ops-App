@@ -26,18 +26,23 @@ function service() {
   })
 }
 
-// Ruta PÚBLICA (la abre el alumno/tomador sin sesión, solo con el token de firma):
-// no usamos requireTenant (exige login) — resolvemos el tenant por slug y acotamos
-// la búsqueda del contrato por tenant_id como defensa en profundidad, ya que el
-// token de firma en sí (aleatorio, único) es el mecanismo de seguridad principal.
-async function resolveTenantId(sb: SupabaseClient, tenantSlug: string): Promise<string | null> {
-  const { data } = await sb
-    .from('tenants')
-    .select('id, status')
-    .eq('slug', tenantSlug)
-    .eq('status', 'active')
-    .maybeSingle()
-  return data?.id ?? null
+// Ruta PÚBLICA (la abre el alumno/tomador sin sesión, solo con el token de firma) y NO anidada
+// bajo /api/[tenant]/... porque la página /firmar-alumno/[token] no conoce el tenant (solo el
+// token). El tenant se resuelve leyendo el contrato por `signing_token`, que tiene índice UNIQUE
+// global (20260910110000_restore_original_features.sql) — el token en sí (aleatorio, único) es
+// el mecanismo de seguridad principal, no la subcuenta.
+async function requireActiveTenant(sb: SupabaseClient, tenantId: string): Promise<boolean> {
+  const { data } = await sb.from('tenants').select('id').eq('id', tenantId).eq('status', 'active').maybeSingle()
+  return !!data
+}
+
+// Devuelve una signed URL de 1h para el PDF ya firmado en vez de la URL pública horneada —
+// funciona igual si el bucket `contratos` sigue público hoy, y sigue funcionando el día que se
+// haga privado (ver PROMPT_ARQUITECTURA_PENDIENTE.md punto 4), sin tener que tocar esta ruta.
+async function freshPdfUrl(sb: SupabaseClient, contractId: string, hasSignedPdf: boolean): Promise<string | null> {
+  if (!hasSignedPdf) return null
+  const signed = await sb.storage.from(BUCKET).createSignedUrl(`${contractId}.pdf`, 60 * 60)
+  return signed.data?.signedUrl ?? null
 }
 
 async function uploadSignedPdf(sb: SupabaseClient, contractId: string, bytes: Uint8Array): Promise<string> {
@@ -54,21 +59,21 @@ async function uploadSignedPdf(sb: SupabaseClient, contractId: string, bytes: Ui
 
 // GET — datos del contrato de alumno para la página pública de firma.
 // Además marca la primera apertura (read_at) para el tracking del closer.
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ tenant: string; token: string }> }) {
-  const { tenant, token } = await params
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params
   const sb = service()
-  const tenantId = await resolveTenantId(sb, tenant)
-  if (!tenantId) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
   const { data } = await sb
     .from('contracts')
     .select(
-      'id, title, body_snapshot, terms, status, signer_name, signer_data, signed_at, signed_pdf_url, contact_id, template_id, read_at'
+      'id, tenant_id, title, body_snapshot, terms, status, signer_name, signer_data, signed_at, signed_pdf_url, contact_id, template_id, read_at'
     )
     .eq('signing_token', token)
     .eq('kind', 'venta')
-    .eq('tenant_id', tenantId)
     .maybeSingle()
-  if (!data) return NextResponse.json({ error: 'Contrato no encontrado' }, { status: 404 })
+  if (!data || !(await requireActiveTenant(sb, data.tenant_id))) {
+    return NextResponse.json({ error: 'Contrato no encontrado' }, { status: 404 })
+  }
+  const tenantId = data.tenant_id
 
   const company = await getCompanyProfile(sb, tenantId)
 
@@ -122,15 +127,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
     signerPrefill: prefill,
     signerName: data.signer_name,
     signedAt: data.signed_at,
-    signedPdfUrl: data.signed_pdf_url,
+    signedPdfUrl: await freshPdfUrl(sb, data.id, !!data.signed_pdf_url),
   })
 }
 
 // POST — el alumno acepta las condiciones: genera PDF, marca firmado, envía copia
 // y dispara el webhook de onboarding a GoHighLevel para darle los accesos.
-export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string; token: string }> }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   try {
-    const { tenant, token } = await params
+    const { token } = await params
     const { signerName, consent, signerData } = (await req.json()) as {
       signerName?: string
       consent?: boolean
@@ -146,19 +151,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
 
     const sb = service()
-    const tenantId = await resolveTenantId(sb, tenant)
-    if (!tenantId) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
     const { data: c } = await sb
       .from('contracts')
       .select(
-        'id, title, body_snapshot, terms, status, created_by, contact_id, sale_id, is_reservation, contract_party'
+        'id, tenant_id, title, body_snapshot, terms, status, created_by, contact_id, sale_id, is_reservation, contract_party'
       )
       .eq('signing_token', token)
       .eq('kind', 'venta')
-      .eq('tenant_id', tenantId)
       .maybeSingle()
-    if (!c) return NextResponse.json({ error: 'Contrato no encontrado' }, { status: 404 })
+    if (!c || !(await requireActiveTenant(sb, c.tenant_id))) {
+      return NextResponse.json({ error: 'Contrato no encontrado' }, { status: 404 })
+    }
     if (c.status === 'firmado') return NextResponse.json({ error: 'Este contrato ya está firmado' }, { status: 409 })
+    const tenantId = c.tenant_id
 
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || null
     const ua = req.headers.get('user-agent')
@@ -318,7 +323,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     return NextResponse.json({
       ok: true,
-      signedPdfUrl: url,
+      signedPdfUrl: await freshPdfUrl(sb, c.id, true),
       accesosEnviados: webhook.ok,
       webhookSkipped: !!webhook.skipped,
     })
