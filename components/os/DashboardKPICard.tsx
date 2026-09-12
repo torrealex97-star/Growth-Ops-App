@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -12,6 +13,10 @@ interface KPICardProps {
   icon?: LucideIcon
   loading?: boolean
   description?: string
+  // Comparación explícita (punto 12: nunca mostrar "+23%" sin decir contra qué).
+  compareLabel?: string
+  // Sparkline opcional (recharts) — solo para KPIs donde la tendencia rápida aporta (punto 11).
+  spark?: ReactNode
 }
 
 export function KPICard({
@@ -24,14 +29,16 @@ export function KPICard({
   icon: Icon,
   loading = false,
   description,
+  compareLabel,
+  spark,
 }: KPICardProps) {
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-[#26262A] bg-[#141416] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_8px_24px_rgba(0,0,0,0.3)] transition-colors hover:bg-[#1C1C1F]">
+    <div className="group relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_8px_24px_rgba(0,0,0,0.3)] transition-colors hover:bg-muted/40">
       <div className="flex items-start justify-between mb-4">
         <p className="text-sm font-medium text-muted-foreground">{title}</p>
         {Icon && (
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#26262A] bg-[#0A0A0B]">
-            <Icon className="w-4 h-4 text-[#A1A1AA]" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background">
+            <Icon className="w-4 h-4 text-muted-foreground" />
           </div>
         )}
       </div>
@@ -43,14 +50,17 @@ export function KPICard({
         </div>
       ) : (
         <>
-          <div className="flex items-baseline gap-1">
-            {prefix && <span className="text-lg text-muted-foreground">{prefix}</span>}
-            <span className="text-[30px] font-semibold tracking-tight text-white">{value}</span>
-            {suffix && <span className="text-lg text-muted-foreground">{suffix}</span>}
+          <div className="flex items-end justify-between gap-3">
+            <div className="flex items-baseline gap-1">
+              {prefix && <span className="text-lg text-muted-foreground">{prefix}</span>}
+              <span className="text-[30px] font-semibold tracking-tight text-foreground tabular-nums">{value}</span>
+              {suffix && <span className="text-lg text-muted-foreground">{suffix}</span>}
+            </div>
+            {spark && <div className="h-10 w-20 shrink-0">{spark}</div>}
           </div>
 
           {(delta !== undefined || description) && (
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {delta !== undefined && deltaType && (
                 <span
                   className={cn(
@@ -67,7 +77,9 @@ export function KPICard({
                   {delta}%
                 </span>
               )}
-              {description && <span className="text-xs text-muted-foreground">{description}</span>}
+              {(compareLabel ?? description) && (
+                <span className="text-xs text-muted-foreground">{compareLabel ?? description}</span>
+              )}
             </div>
           )}
         </>
