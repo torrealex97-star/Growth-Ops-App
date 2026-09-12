@@ -17,8 +17,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
     if ('error' in t) return t.error
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-    const role = (urow?.roles as { key?: string } | null)?.key || ''
+    const role = t.role || ''
     if (!ALLOWED.includes(role)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     const lead = LEADERSHIP.includes(role)
 

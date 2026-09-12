@@ -20,8 +20,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
     }
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { data: row } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-    const role = (row?.roles as { key?: string } | null)?.key
+    const role = t.role
     if (!['admin', 'director', 'cobros'].includes(role || '')) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }

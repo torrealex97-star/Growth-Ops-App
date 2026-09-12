@@ -24,8 +24,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
-    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-    const role = (urow?.roles as { key?: string } | null)?.key || ''
+    const role = t.role || ''
     if (!ALLOWED_ROLES.includes(role)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
     const EDITABLE_FIELDS = ['onboarding_date', 'first_coaching_date', 'graduation_date', 'status'] as const

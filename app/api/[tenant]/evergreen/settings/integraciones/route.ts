@@ -14,8 +14,7 @@ async function requireAdmin(
   const t = await requireTenant(tenantSlug)
   if ('error' in t) return { ok: false, res: t.error }
   const sb = svc()
-  const { data: row } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-  const role = (row?.roles as { key?: string } | null)?.key
+  const role = t.role
   if (role !== 'admin' && role !== 'director') {
     return { ok: false, res: NextResponse.json({ error: 'No autorizado' }, { status: 403 }) }
   }

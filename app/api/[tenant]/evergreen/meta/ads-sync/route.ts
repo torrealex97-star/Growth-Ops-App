@@ -38,8 +38,7 @@ async function handle(req: NextRequest, tenantSlug: string) {
   } else {
     const t = await requireTenant(tenantSlug)
     if ('error' in t) return t.error
-    const { data: row } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-    const role = (row?.roles as { key?: string } | null)?.key
+    const role = t.role
     if (!role || !ALLOWED_ROLES.includes(role)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }

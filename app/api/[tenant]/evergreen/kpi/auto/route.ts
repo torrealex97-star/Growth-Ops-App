@@ -28,8 +28,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     let targetId = t.userId
     const asked = req.nextUrl.searchParams.get('userId')
     if (asked && asked !== t.userId) {
-      const { data: row } = await sb.from('users').select('roles(key)').eq('id', t.userId).maybeSingle()
-      const role = (row?.roles as { key?: string } | null)?.key
+      const role = t.role
       if (['admin', 'director', 'manager'].includes(role || '')) targetId = asked
     }
 

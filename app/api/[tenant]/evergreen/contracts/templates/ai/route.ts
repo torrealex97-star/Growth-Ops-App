@@ -17,8 +17,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if ('error' in t) return t.error
 
     const authed = await createClient()
-    const { data: row } = await authed.from('users').select('roles(key)').eq('id', t.userId).maybeSingle()
-    const role = (row?.roles as { key?: string } | null)?.key
+    const role = t.role
     if (!['admin', 'director'].includes(role || '')) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }

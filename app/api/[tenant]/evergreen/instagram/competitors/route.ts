@@ -46,8 +46,7 @@ function svc() {
 async function requireRole(tenantSlug: string) {
   const t = await requireTenant(tenantSlug)
   if ('error' in t) return { error: t.error }
-  const { data: row } = await svc().from('users').select('roles(key)').eq('id', t.userId).single()
-  const role = (row?.roles as { key?: string } | null)?.key
+  const role = t.role
   if (!role || !ALLOWED_ROLES.includes(role)) {
     return { error: NextResponse.json({ error: 'No autorizado' }, { status: 403 }) }
   }

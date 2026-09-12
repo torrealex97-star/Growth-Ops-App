@@ -13,7 +13,7 @@ import { NextResponse } from 'next/server'
  */
 export async function requireTenant(
   tenantSlug: string
-): Promise<{ userId: string; tenantId: string; isSuperAdmin: boolean } | { error: NextResponse }> {
+): Promise<{ userId: string; tenantId: string; isSuperAdmin: boolean; role: string | null } | { error: NextResponse }> {
   const cookieStore = await cookies()
   const authed = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     cookies: {
@@ -50,5 +50,10 @@ export async function requireTenant(
     }
   }
 
-  return { userId: user.id, tenantId: tenant.id, isSuperAdmin }
+  // Resuelto aquí una sola vez para que las ~40 rutas que necesitan el rol del caller
+  // (para decidir admin/director/manager-only) no repitan el mismo lookup a `users` por su cuenta.
+  const { data: callerRow } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
+  const role = (callerRow?.roles as { key?: string } | null)?.key ?? null
+
+  return { userId: user.id, tenantId: tenant.id, isSuperAdmin, role }
 }

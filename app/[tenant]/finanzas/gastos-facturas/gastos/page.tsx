@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { activeUserNamesQuery } from '@/lib/users'
 import {
   Wallet,
   Plus,
@@ -286,7 +287,7 @@ export default function ExpensesPage() {
     const supabase = createClient()
     const [eRes, uRes, authRes] = await Promise.all([
       supabase.from('expenses').select('*').order('expense_date', { ascending: false }),
-      supabase.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
+      activeUserNamesQuery(supabase),
       supabase.auth.getUser(),
     ])
     // Sin esto, un fallo de RLS al cargar gastos dejaba la pantalla vacía en silencio,
