@@ -253,9 +253,9 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
                     tickLine={false}
                     tickFormatter={(v) => `${v}€`}
                   />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(124, 58, 237, 0.08)' }} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--brand-500) / 0.08)' }} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar yAxisId="l" dataKey="leads" name="Leads" fill="#7c3aed" radius={[3, 3, 0, 0]} />
+                  <Bar yAxisId="l" dataKey="leads" name="Leads" fill="hsl(var(--brand-500))" radius={[3, 3, 0, 0]} />
                   <Line
                     yAxisId="r"
                     dataKey="cpl"
