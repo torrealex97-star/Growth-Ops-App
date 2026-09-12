@@ -41,7 +41,7 @@
     "html-to-image": "^1.11.13",
     "jszip": "^3.10.1",
     "lucide-react": "^1.14.0",
-    "next": "^14.2.29",
+    "next": "^16.3.5",
     "pdf-lib": "^1.17.1",
     "postgres": "^3.4.9",
     "react": "^18",
