@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -24,6 +24,11 @@ import {
   MessageSquare,
   GraduationCap,
   Tag,
+  Clock,
+  Link2,
+  ShoppingBag,
+  StickyNote,
+  FileText,
 } from 'lucide-react'
 import { formatDate, formatDateTime, formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -31,6 +36,7 @@ import type { Contact, ContactAttribution, Appointment, Sale, User } from '@/lib
 import type { Qualification, QualificationAnswer } from '@/lib/qualification'
 import { LEAD_STATUS_COLORS, LEAD_STATUS_LABELS } from '@/lib/lead-status'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { buildContactTimeline, type TimelineEventType } from '@/lib/contact-timeline'
 
 type ContactNote = {
   id: string
@@ -85,6 +91,14 @@ type AppointmentWithNames = Appointment & {
   closer?: { full_name: string } | null
 }
 
+const TIMELINE_ICON: Record<TimelineEventType, typeof Clock> = {
+  attribution: Link2,
+  appointment: Calendar,
+  transcript: FileText,
+  sale: ShoppingBag,
+  note: StickyNote,
+}
+
 export default function ContactDetailPage({ params }: { params: { id: string } }) {
   const tenant = useTenant()
   const tenantId = useTenantId()
@@ -101,6 +115,11 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
   const [newNote, setNewNote] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [currentUser, setCurrentUser] = useState<Pick<User, 'id'> | null>(null)
+
+  const timeline = useMemo(
+    () => buildContactTimeline(attributions, appointments, sales, notes),
+    [attributions, appointments, sales, notes]
+  )
 
   const load = async () => {
     const supabase = createClient()
@@ -338,8 +357,9 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="info">
+      <Tabs defaultValue="timeline">
         <TabsList className="bg-card border border-border">
+          <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="info">Información</TabsTrigger>
           <TabsTrigger value="attribution">
             Atribución
@@ -363,6 +383,47 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
             {sales.length > 0 && <span className="ml-1.5 text-xs bg-muted px-1.5 rounded-full">{sales.length}</span>}
           </TabsTrigger>
         </TabsList>
+
+        {/* Timeline unificada: atribución + agendas + transcripciones + ventas + notas, en orden
+            cronológico — una sola historia, sin pestaña por proveedor. */}
+        <TabsContent value="timeline" className="mt-4">
+          <div className="bg-card border border-border rounded-lg p-6">
+            {timeline.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                Sin actividad registrada todavía para este contacto.
+              </p>
+            ) : (
+              <ol className="space-y-4">
+                {timeline.map((event) => {
+                  const Icon = TIMELINE_ICON[event.type]
+                  return (
+                    <li key={event.id} className="flex gap-3">
+                      <div className="flex flex-col items-center">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-muted">
+                          <Icon className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <div className="mt-1 w-px flex-1 bg-border" />
+                      </div>
+                      <div className="pb-4">
+                        <p className="text-xs text-muted-foreground">{formatDateTime(event.occurredAt)}</p>
+                        <p className="text-sm font-medium text-foreground">{event.title}</p>
+                        {event.detail && <p className="text-sm text-muted-foreground">{event.detail}</p>}
+                        {event.source && event.type !== 'note' && (
+                          <p className="text-xs text-muted-foreground/70">{event.source}</p>
+                        )}
+                        {event.transcriptRef && (
+                          <p className="mt-1 text-xs font-medium text-brand-400">
+                            Transcripción completa en la pestaña Agendas
+                          </p>
+                        )}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ol>
+            )}
+          </div>
+        </TabsContent>
 
         {/* Informacion */}
         <TabsContent value="info" className="mt-4 space-y-4">
