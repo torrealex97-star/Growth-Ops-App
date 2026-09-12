@@ -246,6 +246,7 @@ export function ContactsLeadsView() {
           contact_notes(note, created_at)
         `
         )
+        .is('merged_into', null)
         .order('created_at', { ascending: false }),
       supabase.from('appointments').select('contact_id, appointment_datetime, created_at, status'),
     ])
