@@ -304,6 +304,23 @@ async function syncFathom(sb: SupabaseClient, tenantId: string, cfg: Record<stri
     }
     if (!response.ok) throw new Error(body.message || `Fathom respondió ${response.status}`)
     for (const meeting of body.items ?? []) {
+      // ID estable de la llamada (share_url/url son únicos por reunión en Fathom) — sin esto no
+      // hay forma idempotente de saltar una llamada ya importada en un re-sync posterior.
+      const fathomMeetingId = text(meeting.share_url) || text(meeting.url)
+      if (fathomMeetingId) {
+        const already = await sb
+          .from('appointments')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .eq('fathom_meeting_id', fathomMeetingId)
+          .limit(1)
+          .maybeSingle()
+        if (already.data) {
+          matched++ // ya importada en un sync anterior: no reprocesar, no es un fallo
+          continue
+        }
+      }
+
       const invitees = Array.isArray(meeting.calendar_invitees) ? (meeting.calendar_invitees as Json[]) : []
       const external = invitees.find((i) => i.is_external === true) || invitees[0]
       const email = text(external?.email)?.toLowerCase()
@@ -319,7 +336,10 @@ async function syncFathom(sb: SupabaseClient, tenantId: string, cfg: Record<stri
         unmatched++
         continue
       }
-      const appointment = await sb
+      // Todas las reuniones del contacto dentro de la ventana horaria — si hay más de una
+      // candidata no se puede saber con certeza cuál fue la llamada real, así que se vincula
+      // la transcripción a TODAS en vez de arriesgar una asociación incorrecta descartando una.
+      const appointments = await sb
         .from('appointments')
         .select('id')
         .eq('tenant_id', tenantId)
@@ -327,9 +347,7 @@ async function syncFathom(sb: SupabaseClient, tenantId: string, cfg: Record<stri
         .gte('appointment_datetime', from)
         .lte('appointment_datetime', to)
         .order('appointment_datetime', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      if (!appointment.data) {
+      if (!appointments.data || appointments.data.length === 0) {
         unmatched++
         continue
       }
@@ -349,9 +367,13 @@ async function syncFathom(sb: SupabaseClient, tenantId: string, cfg: Record<stri
           ai_summary: text(summary?.markdown_formatted),
           transcript,
           transcript_status: transcript ? 'listo' : 'no_aplica',
+          fathom_meeting_id: fathomMeetingId,
         })
         .eq('tenant_id', tenantId)
-        .eq('id', appointment.data.id)
+        .in(
+          'id',
+          appointments.data.map((a) => a.id as string)
+        )
       if (result.error) throw result.error
       matched++
     }
