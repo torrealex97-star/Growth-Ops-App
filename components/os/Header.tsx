@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Menu, Bell, AlertTriangle, ChevronsUpDown, Check } from 'lucide-react'
+import { Menu, Bell, AlertTriangle, ChevronsUpDown, Check, X, CalendarClock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -14,7 +14,8 @@ import { getInitials, cn, formatDateTime } from '@/lib/utils'
 import { FeedbackDialog } from '@/components/os/FeedbackDialog'
 import { GlobalSearch } from '@/components/os/GlobalSearch'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
-import type { User } from '@/lib/types/database'
+import type { AppointmentStatus, User } from '@/lib/types/database'
+import { toast } from 'sonner'
 
 interface HeaderProps {
   user: User & { roles: { key: string; name: string } }
@@ -24,7 +25,9 @@ interface HeaderProps {
 }
 
 type MissingLinkAppt = { id: string; appointment_datetime: string; contacts: { full_name: string | null } | null }
+type PendingAttendance = MissingLinkAppt
 type TenantOption = { slug: string; name: string }
+const UNRESOLVED_STATUSES: AppointmentStatus[] = ['scheduled', 'confirmed', 'rescheduled']
 
 export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) {
   const role = user.roles.key as AppRole
@@ -32,6 +35,8 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
   const tenantId = useTenantId()
   const router = useRouter()
   const [missing, setMissing] = useState<MissingLinkAppt[]>([])
+  const [pendingAttendance, setPendingAttendance] = useState<PendingAttendance[]>([])
+  const [updatingAttendance, setUpdatingAttendance] = useState<string | null>(null)
   const [tenants, setTenants] = useState<TenantOption[]>([])
 
   // Alerta de obligación: agendas ASISTIDAS (show) SIN enlace de llamada (recording_url). El closer
@@ -57,6 +62,45 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
     }
   }, [role, user.id, tenantId])
 
+  useEffect(() => {
+    let active = true
+    ;(async () => {
+      const sb = createClient()
+      let q = sb
+        .from('appointments')
+        .select('id, appointment_datetime, contacts(full_name)')
+        .eq('tenant_id', tenantId)
+        .in('status', UNRESOLVED_STATUSES)
+        .lt('appointment_datetime', new Date().toISOString())
+        .order('appointment_datetime', { ascending: false })
+        .limit(20)
+      if (!isLeadership(role)) q = q.or(`setter_id.eq.${user.id},closer_id.eq.${user.id}`)
+      const { data } = await q
+      if (active) setPendingAttendance((data as unknown as PendingAttendance[]) ?? [])
+    })()
+    return () => {
+      active = false
+    }
+  }, [role, tenantId, user.id])
+
+  const markAttendance = async (id: string, status: AppointmentStatus) => {
+    setUpdatingAttendance(id)
+    try {
+      const res = await fetch(`/api/${tenant}/evergreen/appointments/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appointmentId: id, status }),
+      })
+      if (!res.ok) throw new Error('No se pudo actualizar la asistencia')
+      setPendingAttendance((current) => current.filter((item) => item.id !== id))
+      toast.success(status === 'show' ? 'Asistencia confirmada' : 'Ausencia registrada')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo actualizar la asistencia')
+    } finally {
+      setUpdatingAttendance(null)
+    }
+  }
+
   // Tenant switcher: solo para super_admin. RLS en `tenants` devuelve todas
   // las subcuentas cuando is_super_admin() es true.
   useEffect(() => {
@@ -72,7 +116,7 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
     }
   }, [isSuperAdmin])
 
-  const count = missing.length
+  const count = missing.length + pendingAttendance.length
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center border-b border-border bg-background/95 backdrop-blur-xl px-4 lg:px-7">
@@ -133,22 +177,66 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
               <p className="px-4 py-6 text-sm text-muted-foreground text-center">Todo al día. Sin pendientes.</p>
             ) : (
               <div className="max-h-80 overflow-y-auto divide-y divide-border">
-                <div className="px-4 py-2 flex items-center gap-2 text-amber-400 text-xs">
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  {count} reunión{count === 1 ? '' : 'es'} asistida{count === 1 ? '' : 's'} sin enlace de llamada
-                </div>
-                {missing.map((a) => (
-                  <Link
-                    key={a.id}
-                    href={`/${tenant}/crm/agendas`}
-                    className="block px-4 py-2.5 hover:bg-muted/60 transition-colors"
-                  >
-                    <p className="text-sm text-foreground truncate">{a.contacts?.full_name || 'Contacto'}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDateTime(a.appointment_datetime)} · Falta enlace de la llamada
-                    </p>
-                  </Link>
-                ))}
+                {pendingAttendance.length > 0 && (
+                  <div>
+                    <div className="px-4 py-2 flex items-center gap-2 text-amber-400 text-xs">
+                      <CalendarClock className="w-3.5 h-3.5" />
+                      {pendingAttendance.length} reunión{pendingAttendance.length === 1 ? '' : 'es'} pendiente
+                      {pendingAttendance.length === 1 ? '' : 's'} de asistencia
+                    </div>
+                    {pendingAttendance.map((appointment) => (
+                      <div key={appointment.id} className="border-t border-border px-4 py-2.5">
+                        <p className="truncate text-sm text-foreground">
+                          {appointment.contacts?.full_name || 'Contacto'}
+                        </p>
+                        <p className="mb-2 text-xs text-muted-foreground">
+                          {formatDateTime(appointment.appointment_datetime)}
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs text-emerald-400"
+                            disabled={updatingAttendance === appointment.id}
+                            onClick={() => void markAttendance(appointment.id, 'show')}
+                          >
+                            <Check className="mr-1 h-3 w-3" /> Asistió
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs text-red-400"
+                            disabled={updatingAttendance === appointment.id}
+                            onClick={() => void markAttendance(appointment.id, 'no_show')}
+                          >
+                            <X className="mr-1 h-3 w-3" /> No asistió
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {missing.length > 0 && (
+                  <div>
+                    <div className="px-4 py-2 flex items-center gap-2 text-amber-400 text-xs">
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      {missing.length} reunión{missing.length === 1 ? '' : 'es'} asistida
+                      {missing.length === 1 ? '' : 's'} sin enlace de llamada
+                    </div>
+                    {missing.map((a) => (
+                      <Link
+                        key={a.id}
+                        href={`/${tenant}/crm/agendas`}
+                        className="block px-4 py-2.5 hover:bg-muted/60 transition-colors"
+                      >
+                        <p className="text-sm text-foreground truncate">{a.contacts?.full_name || 'Contacto'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDateTime(a.appointment_datetime)} · Falta enlace de la llamada
+                        </p>
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </PopoverContent>
