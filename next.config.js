@@ -59,7 +59,7 @@ const nextConfig = {
       { source: '/:tenant/morosos-sequra', destination: '/:tenant/finanzas/morosidad?origen=sequra', permanent: true },
       { source: '/:tenant/afiliados', destination: '/:tenant/marketing/afiliados/afiliados', permanent: true },
       { source: '/:tenant/afiliados/campanas', destination: '/:tenant/marketing/afiliados/campanas', permanent: true },
-    ]
+    ].map(({ source, destination }) => ({ source, destination, statusCode: 301 }))
   },
 }
 

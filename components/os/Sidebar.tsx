@@ -14,7 +14,7 @@ import { performLogout } from '@/lib/auth/logout'
 import { useState, useEffect, useMemo } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { User } from '@/lib/types/database'
-import { NAV_SECTIONS, makeNavFilter, type NavItem } from '@/lib/nav'
+import { NAV_SECTIONS, makeNavFilter, navHrefForRole, type NavItem } from '@/lib/nav'
 import { useTenant, useTenantBranding } from '@/lib/tenant-context'
 
 interface SidebarProps {
@@ -149,55 +149,58 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
                   </button>
                 )}
                 {!isCollapsed &&
-                  visibleItems.map((item) => (
-                    <div key={item.href}>
-                      <Link
-                        href={`/${tenant}${item.href}`}
-                        onClick={() => onClose()}
-                        className={cn(
-                          'relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group',
-                          isActive(item.href)
-                            ? 'bg-[#1C1C1F] text-white border border-[#343438] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
-                            : 'text-[#A1A1AA] hover:text-white hover:bg-[#141416] border border-transparent'
-                        )}
-                      >
-                        {/* Barra de acento del item activo */}
-                        {isActive(item.href) && (
-                          <span className="absolute right-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-white" />
-                        )}
-                        <item.icon
+                  visibleItems.map((item) => {
+                    const itemHref = navHrefForRole(item, role)
+                    return (
+                      <div key={item.href}>
+                        <Link
+                          href={`/${tenant}${itemHref}`}
+                          onClick={() => onClose()}
                           className={cn(
-                            'w-4 h-4 shrink-0 transition-colors',
-                            isActive(item.href) ? 'text-white' : 'text-[#6B6B70] group-hover:text-white'
+                            'relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group',
+                            isActive(itemHref)
+                              ? 'bg-[#1C1C1F] text-white border border-[#343438] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+                              : 'text-[#A1A1AA] hover:text-white hover:bg-[#141416] border border-transparent'
                           )}
-                        />
-                        {item.label}
-                        {item.children && <ChevronRight className="w-3 h-3 ml-auto text-muted-foreground" />}
-                      </Link>
+                        >
+                          {/* Barra de acento del item activo */}
+                          {isActive(itemHref) && (
+                            <span className="absolute right-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full bg-white" />
+                          )}
+                          <item.icon
+                            className={cn(
+                              'w-4 h-4 shrink-0 transition-colors',
+                              isActive(itemHref) ? 'text-white' : 'text-[#6B6B70] group-hover:text-white'
+                            )}
+                          />
+                          {item.label}
+                          {item.children && <ChevronRight className="w-3 h-3 ml-auto text-muted-foreground" />}
+                        </Link>
 
-                      {/* Children (settings submenu) */}
-                      {item.children && isActive(item.href) && (
-                        <div className="ml-4 mt-1 space-y-1 border-l border-border pl-3">
-                          {item.children.filter(isVisible).map((child) => (
-                            <Link
-                              key={child.href}
-                              href={`/${tenant}${child.href}`}
-                              onClick={() => onClose()}
-                              className={cn(
-                                'flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition-colors',
-                                isChildActive(child.href, item.children ?? [])
-                                  ? 'text-brand-400'
-                                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                              )}
-                            >
-                              <child.icon className="w-3 h-3" />
-                              {child.label}
-                            </Link>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                        {/* Children (settings submenu) */}
+                        {item.children && isActive(itemHref) && (
+                          <div className="ml-4 mt-1 space-y-1 border-l border-border pl-3">
+                            {item.children.filter(isVisible).map((child) => (
+                              <Link
+                                key={child.href}
+                                href={`/${tenant}${child.href}`}
+                                onClick={() => onClose()}
+                                className={cn(
+                                  'flex items-center gap-3 px-3 py-1.5 rounded-lg text-sm transition-colors',
+                                  isChildActive(child.href, item.children ?? [])
+                                    ? 'text-brand-400'
+                                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                                )}
+                              >
+                                <child.icon className="w-3 h-3" />
+                                {child.label}
+                              </Link>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
               </div>
             )
           })}

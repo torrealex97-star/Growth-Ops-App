@@ -61,6 +61,12 @@ export async function middleware(request: NextRequest) {
   if (pageMatch) {
     const tenant = pageMatch[1]
     const rest = pageMatch[2] || '/'
+    if (rest === '/settings' && request.nextUrl.searchParams.get('tab') === 'data-health') {
+      const destination = request.nextUrl.clone()
+      destination.pathname = `/${tenant}/settings/data-health`
+      destination.search = ''
+      return NextResponse.redirect(destination, 301)
+    }
     const legacyDestination = marketingDestinationFor(rest)
     if (legacyDestination) {
       const destination = request.nextUrl.clone()
