@@ -30,6 +30,24 @@ type DeliveryRow = {
   next_retry_at: string | null
   created_at: string
 }
+type OperationalHealth = {
+  totals: { contacts: number; appointments: number }
+  sources: Array<{
+    id: string
+    label: string
+    configured: boolean
+    records: number
+    lastSeen: string | null
+    status: 'connected' | 'needs_attention' | 'not_configured'
+  }>
+  integrity: {
+    duplicateEmails: number
+    duplicatePhones: number
+    duplicateExternalAppointments: number
+    duplicateContactTimes: number
+    appointmentsWithoutContact: number
+  }
+}
 
 const EMPTY: DataHealthSummary = {
   events: 0,
@@ -84,11 +102,13 @@ export function DataHealthPanel() {
   const [deliveries, setDeliveries] = useState<DeliveryRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [operational, setOperational] = useState<OperationalHealth | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     const sb = createClient()
+    const operationalRequest = fetch(`/api/${tenant}/evergreen/settings/data-health`)
     const [
       eventCount,
       matchedCount,
@@ -147,6 +167,8 @@ export function DataHealthPanel() {
         .limit(20),
     ])
 
+    const operationalResponse = await operationalRequest
+    const operationalPayload = await operationalResponse.json().catch(() => null)
     const firstError = [
       eventCount,
       matchedCount,
@@ -159,9 +181,10 @@ export function DataHealthPanel() {
       latestEvents,
       latestDeliveries,
     ].find((r) => r.error)?.error
-    if (firstError) {
-      setError(firstError.message)
+    if (firstError || !operationalResponse.ok) {
+      setError(firstError?.message || operationalPayload?.error || 'No se pudo calcular la salud de las fuentes')
     } else {
+      setOperational(operationalPayload as OperationalHealth)
       const recent = (latestEvents.data ?? []) as EventRow[]
       setEvents(recent)
       setDeliveries((latestDeliveries.data ?? []) as DeliveryRow[])
@@ -178,7 +201,7 @@ export function DataHealthPanel() {
       })
     }
     setLoading(false)
-  }, [tenantId])
+  }, [tenant, tenantId])
 
   useEffect(() => {
     void load()
@@ -208,6 +231,93 @@ export function DataHealthPanel() {
           <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Actualizar
         </Button>
       </header>
+
+      {operational && (
+        <>
+          <section className="rounded-xl border border-border bg-card p-5">
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h2 className="font-semibold text-foreground">Fuentes conectadas</h2>
+                <p className="text-sm text-muted-foreground">
+                  Estado basado en credenciales y registros reales de esta subcuenta.
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {operational.totals.contacts} contactos · {operational.totals.appointments} agendas
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {operational.sources.map((source) => (
+                <div key={source.id} className="rounded-lg border border-border p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium">{source.label}</p>
+                    <Badge
+                      variant="outline"
+                      className={
+                        source.status === 'connected'
+                          ? statusStyle.processed
+                          : source.status === 'needs_attention'
+                            ? statusStyle.pending
+                            : statusStyle.deduplicated
+                      }
+                    >
+                      {source.status === 'connected'
+                        ? 'Con datos'
+                        : source.status === 'needs_attention'
+                          ? 'Revisar'
+                          : 'Sin configurar'}
+                    </Badge>
+                  </div>
+                  <p className="mt-3 text-2xl font-semibold">{source.records}</p>
+                  <p className="text-xs text-muted-foreground">
+                    registros vinculados
+                    {source.lastSeen ? ` · último ${new Date(source.lastSeen).toLocaleDateString('es-ES')}` : ''}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-border bg-card p-5">
+            <h2 className="font-semibold text-foreground">Integridad y deduplicación</h2>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Duplicados exactos normalizados; no confunde varias reuniones legítimas del mismo contacto.
+            </p>
+            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
+              <Metric
+                label="Emails duplicados"
+                value={String(operational.integrity.duplicateEmails)}
+                detail="Exceso tras normalizar"
+                tone={operational.integrity.duplicateEmails ? 'warn' : 'good'}
+              />
+              <Metric
+                label="Teléfonos duplicados"
+                value={String(operational.integrity.duplicatePhones)}
+                detail="Exceso tras normalizar"
+                tone={operational.integrity.duplicatePhones ? 'warn' : 'good'}
+              />
+              <Metric
+                label="IDs externos"
+                value={String(operational.integrity.duplicateExternalAppointments)}
+                detail="Agendas repetidas por fuente"
+                tone={operational.integrity.duplicateExternalAppointments ? 'bad' : 'good'}
+              />
+              <Metric
+                label="Coincidencias contacto + hora"
+                value={String(operational.integrity.duplicateContactTimes)}
+                detail="Revisar: puede ser una reprogramación"
+                tone={operational.integrity.duplicateContactTimes ? 'warn' : 'good'}
+              />
+              <Metric
+                label="Sin contacto"
+                value={String(operational.integrity.appointmentsWithoutContact)}
+                detail="Agendas sin relación"
+                tone={operational.integrity.appointmentsWithoutContact ? 'bad' : 'good'}
+              />
+            </div>
+          </section>
+        </>
+      )}
 
       <div className="rounded-xl border border-border bg-card p-5">
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
