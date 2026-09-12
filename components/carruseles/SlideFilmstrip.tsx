@@ -109,6 +109,7 @@ export function SlideFilmstrip({
           className="shrink-0 rounded-lg border-2 border-dashed border-border flex items-center justify-center text-muted-foreground hover:text-brand-400 hover:border-brand-400 transition-colors"
           style={{ width: 76, height: aspectRatio === '9:16' ? 135 : aspectRatio === 'A4' ? 107 : 95 }}
           title="Pedir una slide nueva a la IA"
+          aria-label="Pedir una slide nueva a la IA"
         >
           <Plus className="h-5 w-5" />
         </button>

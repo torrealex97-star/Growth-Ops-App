@@ -2,15 +2,19 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
 
-const serviceClient = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+// Construido dentro del handler: a nivel de módulo rompía el build entero si las env vars de
+// Supabase no estaban disponibles en ese momento (p.ej. Vercel Preview sin esas env vars).
+function serviceClient() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+}
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
   const t = await requireTenant(tenant)
   if ('error' in t) return t.error
+  const supabase = serviceClient()
 
   try {
-    const supabase = serviceClient()
     const data = await req.json()
     const { saleId, contactId, countryCode, documentType, fileBase64, fileName } = data
 

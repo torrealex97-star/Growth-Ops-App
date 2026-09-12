@@ -63,4 +63,24 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig
+// El wrapper de Sentry añade una pasada extra de webpack (instrumentación + generación de
+// source maps) que consume memoria/tiempo de build significativos — de sobra en producción,
+// pero innecesario y potencialmente causa de OOM/timeout en builds (Vercel Preview, local) donde
+// todavía no hay DSN configurado. Si no hay DSN, exporta el config plano tal cual: sentry.*.config.ts
+// ya quedan inertes sin DSN (ver sentry.client/server/edge.config.ts), así que no perder el wrapper
+// de webpack aquí no cambia el comportamiento en runtime, solo evita el coste de build de más.
+if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+  const { withSentryConfig } = require('@sentry/nextjs')
+  module.exports = withSentryConfig(nextConfig, {
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT,
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    dryRun: !process.env.SENTRY_AUTH_TOKEN,
+    silent: true,
+    disableLogger: true,
+    widenClientFileUpload: false,
+    automaticVercelMonitors: false,
+  })
+} else {
+  module.exports = nextConfig
+}

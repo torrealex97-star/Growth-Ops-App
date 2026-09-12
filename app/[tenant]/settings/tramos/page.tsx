@@ -20,7 +20,7 @@ type Metric = 'sales' | 'cash_collected'
 type Period = 'month' | 'all'
 
 const cls =
-  'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500'
+  'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500'
 
 export default function TramosSettingsPage() {
   const tenantId = useTenantId()

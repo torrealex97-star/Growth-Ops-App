@@ -236,11 +236,11 @@ export default function UnitEconomicsPage() {
           loading={loading}
           description="Facturación activa / clientes únicos"
         />
-        <div className="rounded-2xl border border-[#26262A] bg-[#141416] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_8px_24px_rgba(0,0,0,0.3)]">
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_8px_24px_rgba(0,0,0,0.3)]">
           <div className="flex items-start justify-between mb-4">
             <p className="text-sm font-medium text-muted-foreground">LTV:CAC ratio</p>
-            <div className="w-9 h-9 rounded-lg border border-[#26262A] bg-[#0A0A0B] flex items-center justify-center">
-              <Users className="w-4 h-4 text-[#A1A1AA]" />
+            <div className="w-9 h-9 rounded-lg border border-border bg-background flex items-center justify-center">
+              <Users className="w-4 h-4 text-muted-foreground" />
             </div>
           </div>
           {loading ? (
@@ -382,41 +382,48 @@ export default function UnitEconomicsPage() {
         </div>
 
         {/* Mini-embudo visual */}
-        <div className="rounded-2xl border border-[#26262A] bg-[#141416] p-5">
+        <div className="rounded-2xl border border-border bg-card p-5">
           <h3 className="text-sm font-semibold text-foreground mb-4">
             Impresiones → Clicks → Leads → Sales Calls → Closes
           </h3>
           {loading ? (
             <div className="h-24 w-full bg-muted animate-pulse rounded" />
           ) : (
-            <div className="flex flex-col sm:flex-row items-stretch gap-2">
-              {[
-                { label: 'Impresiones', value: marketingFunnel.impressions },
-                { label: 'Clicks', value: marketingFunnel.clicks },
-                { label: 'Leads', value: marketingFunnel.leads },
-                { label: 'Sales Calls', value: marketingFunnel.salesCallsBooked },
-                { label: 'Closes', value: marketingFunnel.dealsClosed },
-              ].map((stage, i, arr) => {
-                const prev = i > 0 ? arr[i - 1].value : null
-                const pct = prev !== null ? safeDiv(stage.value * 100, prev) : null
-                return (
-                  <div key={stage.label} className="flex items-center gap-2 flex-1">
-                    <div className="flex-1 rounded-2xl border border-[#26262A] bg-[#0A0A0B] p-4 text-center">
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">{stage.label}</p>
-                      <p className="text-xl font-bold text-foreground mt-1">{stage.value.toLocaleString('es-ES')}</p>
-                      {pct !== null && <p className="text-xs text-white mt-1">{pct.toFixed(1)}% vs. anterior</p>}
+            // El scroll horizontal queda contenido aquí (no en la página): a ~640-768px, 5 tarjetas
+            // de ancho mínimo real no caben sin overflow-x-auto propio, y sin él el overflow subía
+            // al contenedor de la página y arrastraba la cabecera con él.
+            <div className="overflow-x-auto -mx-1 px-1">
+              <div className="flex flex-col sm:flex-row items-stretch gap-2 sm:min-w-[560px]">
+                {[
+                  { label: 'Impresiones', value: marketingFunnel.impressions },
+                  { label: 'Clicks', value: marketingFunnel.clicks },
+                  { label: 'Leads', value: marketingFunnel.leads },
+                  { label: 'Sales Calls', value: marketingFunnel.salesCallsBooked },
+                  { label: 'Closes', value: marketingFunnel.dealsClosed },
+                ].map((stage, i, arr) => {
+                  const prev = i > 0 ? arr[i - 1].value : null
+                  const pct = prev !== null ? safeDiv(stage.value * 100, prev) : null
+                  return (
+                    <div key={stage.label} className="flex items-center gap-2 flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 rounded-2xl border border-border bg-background p-4 text-center">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">{stage.label}</p>
+                        <p className="text-xl font-bold text-foreground mt-1">{stage.value.toLocaleString('es-ES')}</p>
+                        {pct !== null && <p className="text-xs text-white mt-1">{pct.toFixed(1)}% vs. anterior</p>}
+                      </div>
+                      {i < arr.length - 1 && (
+                        <span className="text-muted-foreground text-lg shrink-0 hidden sm:block">→</span>
+                      )}
                     </div>
-                    {i < arr.length - 1 && <span className="text-muted-foreground text-lg hidden sm:block">→</span>}
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>
       </div>
 
       {/* Tabla por canal */}
-      <div className="rounded-2xl border border-[#26262A] bg-[#141416] p-5">
+      <div className="rounded-2xl border border-border bg-card p-5">
         <h3 className="text-sm font-semibold text-foreground mb-4">Unit economics por canal</h3>
         {loading ? (
           <div className="space-y-2">

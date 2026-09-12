@@ -660,6 +660,7 @@ function EntrenamientoTab() {
               />
               <button
                 onClick={sendLead}
+                aria-label="Enviar mensaje"
                 className="self-end bg-brand-600 hover:bg-brand-700 text-white rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-1.5"
               >
                 <Send className="w-4 h-4" />

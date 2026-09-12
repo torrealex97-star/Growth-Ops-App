@@ -159,7 +159,12 @@ export function DailyMetricsPanel({ from, to }: { from?: string | null; to?: str
               placeholder="Contiene campaña (p. ej. VSL)"
               className="text-sm rounded-lg border border-border bg-muted px-3 py-1.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500 w-52"
             />
-            <button type="submit" className="p-1.5 rounded-md bg-muted text-foreground hover:bg-muted" title="Filtrar">
+            <button
+              type="submit"
+              className="p-1.5 rounded-md bg-muted text-foreground hover:bg-muted"
+              title="Filtrar"
+              aria-label="Filtrar"
+            >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
           </form>
