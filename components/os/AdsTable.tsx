@@ -147,23 +147,28 @@ export function AdsTable({ campaigns, accounts, version }: Props) {
         )}
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-card/50 border border-border rounded-lg p-4">
+      {/* Una superficie con divisores en vez de 4 cards idénticas — mismo patrón que la
+          cabecera de Campañas, para no repetir "grid de KPI cards" en cada pantalla. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border rounded-lg border border-border bg-card/30">
+        <div className="px-4 py-3">
           <p className="text-xs text-muted-foreground">Anuncios</p>
-          <p className="text-xl font-bold text-foreground mt-1">{filtered.length.toLocaleString('es-ES')}</p>
+          <p className="mt-1 text-xl font-semibold text-foreground tabular-nums">
+            {filtered.length.toLocaleString('es-ES')}
+          </p>
         </div>
-        <div className="bg-card/50 border border-border rounded-lg p-4">
+        <div className="px-4 py-3">
           <p className="text-xs text-muted-foreground">Gasto</p>
-          <p className="text-xl font-bold text-foreground mt-1">{formatCurrency(totalSpend)}</p>
+          <p className="mt-1 text-xl font-semibold text-foreground tabular-nums">{formatCurrency(totalSpend)}</p>
         </div>
-        <div className="bg-card/50 border border-border rounded-lg p-4">
+        <div className="px-4 py-3">
           <p className="text-xs text-muted-foreground">Seguidores</p>
-          <p className="text-xl font-bold text-foreground mt-1">{totalFollowers.toLocaleString('es-ES')}</p>
+          <p className="mt-1 text-xl font-semibold text-foreground tabular-nums">
+            {totalFollowers.toLocaleString('es-ES')}
+          </p>
         </div>
-        <div className="bg-card/50 border border-border rounded-lg p-4">
+        <div className="px-4 py-3">
           <p className="text-xs text-muted-foreground">€ / Seguidor</p>
-          <p className="text-xl font-bold text-foreground mt-1">
+          <p className="mt-1 text-xl font-semibold text-foreground tabular-nums">
             {costPerFollower === null ? '—' : formatCurrency(costPerFollower)}
           </p>
         </div>
@@ -182,7 +187,7 @@ export function AdsTable({ campaigns, accounts, version }: Props) {
         <div className="bg-card/50 border border-border rounded-lg overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border text-left text-muted-foreground text-xs uppercase">
+              <tr className="sticky top-0 z-10 bg-card border-b border-border text-left text-muted-foreground text-xs uppercase">
                 <th className="px-4 py-3">Anuncio</th>
                 <th className="px-4 py-3">Campaña</th>
                 {accounts.length > 1 && <th className="px-4 py-3">Cuenta</th>}
@@ -227,18 +232,22 @@ export function AdsTable({ campaigns, accounts, version }: Props) {
                         {a.status || '—'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right text-foreground">{formatCurrency(a.spend || 0)}</td>
-                    <td className="px-4 py-3 text-right text-foreground">{(a.leads || 0).toLocaleString('es-ES')}</td>
-                    <td className="px-4 py-3 text-right text-foreground">
+                    <td className="px-4 py-3 text-right text-foreground tabular-nums">
+                      {formatCurrency(a.spend || 0)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-foreground tabular-nums">
+                      {(a.leads || 0).toLocaleString('es-ES')}
+                    </td>
+                    <td className="px-4 py-3 text-right text-foreground tabular-nums">
                       {(a.followers || 0) > 0 ? (a.followers || 0).toLocaleString('es-ES') : '—'}
                     </td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">
+                    <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">
                       {cpf === null ? '—' : formatCurrency(cpf)}
                     </td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">
+                    <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">
                       {cpc === null ? '—' : formatCurrency(cpc)}
                     </td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">
+                    <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">
                       {ctr === null ? '—' : `${(ctr * 100).toFixed(2)}%`}
                     </td>
                   </tr>
