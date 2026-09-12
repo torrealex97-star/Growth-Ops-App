@@ -7,19 +7,16 @@ export const runtime = 'nodejs'
 const VALID_STATUS = ['nueva', 'en_revision', 'planificada', 'en_progreso', 'resuelta', 'descartada']
 
 function serviceClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
+  return createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
 }
 
 async function requireAdmin(tenantSlug: string) {
   const t = await requireTenant(tenantSlug)
   if ('error' in t) return { error: 'No autenticado', status: 401 as const }
   const sb = serviceClient()
-  const { data } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-  const role = (data?.roles as { key?: string } | null)?.key
+  const role = t.role
   if (role !== 'admin' && role !== 'director') return { error: 'Sin permisos', status: 403 as const }
   return { ok: true as const, tenantId: t.tenantId }
 }
@@ -41,7 +38,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
     }
 
     const sb = serviceClient()
-    const { data, error } = await sb.from('suggestions').update(update).eq('id', id).eq('tenant_id', guard.tenantId).select().single()
+    const { data, error } = await sb
+      .from('suggestions')
+      .update(update)
+      .eq('id', id)
+      .eq('tenant_id', guard.tenantId)
+      .select()
+      .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ suggestion: data })
   } catch (err) {

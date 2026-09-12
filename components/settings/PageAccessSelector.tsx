@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { NAV_PAGES, DEPARTMENT_LABELS, type Department } from '@/lib/auth/permissions'
 
@@ -27,13 +27,26 @@ export function PageAccessSelector({ value, onChange }: { value: string[]; onCha
         return (
           <div key={dept} className="rounded-md border border-border bg-muted/30 p-2">
             <label className="flex items-center gap-2 text-xs font-semibold text-foreground uppercase tracking-wide px-1 pb-1 cursor-pointer">
-              <input type="checkbox" checked={allOn} onChange={(e) => toggleDept(dept, e.target.checked)} className="accent-brand-500" />
+              <input
+                type="checkbox"
+                checked={allOn}
+                onChange={(e) => toggleDept(dept, e.target.checked)}
+                className="accent-brand-500"
+              />
               {DEPARTMENT_LABELS[dept]}
             </label>
             <div className="grid grid-cols-2 gap-1.5 mt-1">
               {pages.map((p) => (
-                <label key={p.href} className="flex items-center gap-2 text-sm text-foreground rounded px-2 py-1 cursor-pointer hover:bg-muted">
-                  <input type="checkbox" checked={set.has(p.href)} onChange={() => toggle(p.href)} className="accent-emerald-500" />
+                <label
+                  key={p.href}
+                  className="flex items-center gap-2 text-sm text-foreground rounded px-2 py-1 cursor-pointer hover:bg-muted"
+                >
+                  <input
+                    type="checkbox"
+                    checked={set.has(p.href)}
+                    onChange={() => toggle(p.href)}
+                    className="accent-emerald-500"
+                  />
                   {p.label}
                 </label>
               ))}

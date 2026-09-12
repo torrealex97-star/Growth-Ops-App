@@ -7,19 +7,13 @@ export const runtime = 'nodejs'
 const VALID_TYPES = ['mejora', 'error', 'comentario']
 
 function serviceClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
+  return createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
 }
 
 async function getRole(sb: ReturnType<typeof serviceClient>, userId: string) {
-  const { data } = await sb
-    .from('users')
-    .select('id, roles(key)')
-    .eq('id', userId)
-    .single()
+  const { data } = await sb.from('users').select('id, roles(key)').eq('id', userId).single()
   return (data?.roles as { key?: string } | null)?.key ?? null
 }
 

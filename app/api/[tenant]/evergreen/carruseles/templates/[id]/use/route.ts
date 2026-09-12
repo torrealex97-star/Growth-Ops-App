@@ -1,19 +1,19 @@
-import { NextRequest, NextResponse } from "next/server"
-import { getCarruselUser } from "@/lib/carruseles/auth"
-import { requireTenant } from "@/lib/auth/requireTenant"
-import { createProjectFromTemplate } from "@/lib/carruseles/store"
+import { NextRequest, NextResponse } from 'next/server'
+import { getCarruselUser } from '@/lib/carruseles/auth'
+import { requireTenant } from '@/lib/auth/requireTenant'
+import { createProjectFromTemplate } from '@/lib/carruseles/store'
 
-export const runtime = "nodejs"
+export const runtime = 'nodejs'
 
 type Ctx = { params: Promise<{ tenant: string; id: string }> }
 
 export async function POST(_req: NextRequest, { params }: Ctx) {
   const { tenant, id } = await params
   const t = await requireTenant(tenant)
-  if ("error" in t) return t.error
+  if ('error' in t) return t.error
   const user = await getCarruselUser()
-  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-  const project = await createProjectFromTemplate(id)
-  if (!project) return NextResponse.json({ error: "Plantilla no encontrada" }, { status: 404 })
+  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  const project = await createProjectFromTemplate(t.tenantId, id)
+  if (!project) return NextResponse.json({ error: 'Plantilla no encontrada' }, { status: 404 })
   return NextResponse.json(project)
 }

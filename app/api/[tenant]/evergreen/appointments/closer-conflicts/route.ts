@@ -50,7 +50,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     }
 
     const ATTENDED = ['show', 'completed', 'seguimiento']
-    const conflicts: Record<string, { owning_closer_id: string; owning_closer_name: string; conflicting_appointment_id: string }> = {}
+    const conflicts: Record<
+      string,
+      { owning_closer_id: string; owning_closer_name: string; conflicting_appointment_id: string }
+    > = {}
     const closerIdsNeeded = new Set<string>()
 
     for (const [contactId, appts] of byContact.entries()) {
@@ -74,10 +77,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     }
 
     if (Object.keys(conflicts).length > 0) {
-      const { data: closerUsers } = await sb
-        .from('users')
-        .select('id, full_name')
-        .in('id', Array.from(closerIdsNeeded))
+      const { data: closerUsers } = await sb.from('users').select('id, full_name').in('id', Array.from(closerIdsNeeded))
       const nameOf = new Map((closerUsers || []).map((u) => [u.id, u.full_name as string]))
       for (const key of Object.keys(conflicts)) {
         conflicts[key].owning_closer_name = nameOf.get(conflicts[key].owning_closer_id) || 'otro closer'

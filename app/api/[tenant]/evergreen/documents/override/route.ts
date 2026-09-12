@@ -2,32 +2,27 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// Cliente construido dentro del handler (no a nivel de módulo): crearlo al importar el módulo
+// rompía el build entero si NEXT_PUBLIC_SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY no estaban
+// disponibles en ese momento (p.ej. Vercel Preview sin esas env vars) — "supabaseUrl is required".
+function serviceClient() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+}
 
 // Helper: obtener el rol del usuario autenticado
-async function getUserRole(userId: string): Promise<string | null> {
-  const { data } = await supabase
-    .from('users')
-    .select('role_id')
-    .eq('id', userId)
-    .single()
+async function getUserRole(supabase: ReturnType<typeof serviceClient>, userId: string): Promise<string | null> {
+  const { data } = await supabase.from('users').select('role_id').eq('id', userId).single()
 
   if (!data?.role_id) return null
 
-  const { data: role } = await supabase
-    .from('roles')
-    .select('key')
-    .eq('id', data.role_id)
-    .single()
+  const { data: role } = await supabase.from('roles').select('key').eq('id', data.role_id).single()
 
   return role?.key || null
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
+    const supabase = serviceClient()
     // El usuario y el tenant se determinan SIEMPRE desde la sesión autenticada
     // (cookies) + la membresía de la subcuenta — nunca desde el body — antes se
     // confiaba en un userId enviado por el cliente (incluso hardcodeado a
@@ -42,21 +37,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const userId = t.userId
 
     if (!saleId || !reason) {
-      return NextResponse.json(
-        { error: 'Missing required fields: saleId, reason' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Missing required fields: saleId, reason' }, { status: 400 })
     }
 
     // Validar permisos: solo admin, director, closer
-    const userRole = await getUserRole(userId)
+    const userRole = await getUserRole(supabase, userId)
     const allowedRoles = ['admin', 'director', 'closer']
 
     if (!userRole || !allowedRoles.includes(userRole)) {
-      return NextResponse.json(
-        { error: 'Unauthorized: insufficient permissions' },
-        { status: 403 }
-      )
+      return NextResponse.json({ error: 'Unauthorized: insufficient permissions' }, { status: 403 })
     }
 
     // Validar que la venta exista (y pertenezca a esta subcuenta)
@@ -68,10 +57,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       .single()
 
     if (!sale) {
-      return NextResponse.json(
-        { error: 'Sale not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Sale not found' }, { status: 404 })
     }
 
     // Aplicar override
@@ -85,34 +71,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         // Marcar como verificado para permitir envío de contrato
         documents_verified: true,
         documents_verified_at: new Date().toISOString(),
-        documents_verified_by: userId
+        documents_verified_by: userId,
       })
       .eq('id', saleId)
       .eq('tenant_id', t.tenantId)
 
     if (updateError) {
       console.error('Override update error:', updateError)
-      return NextResponse.json(
-        { error: 'Failed to apply override' },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: 'Failed to apply override' }, { status: 500 })
     }
 
     // Registrar en audit log (si existe la tabla)
     try {
-      await supabase
-        .from('audit_logs')
-        .insert({
-          tenant_id: t.tenantId,
-          action: 'document_verification_override',
-          target_table: 'sales',
-          target_id: saleId,
-          user_id: userId,
-          details: {
-            reason,
-            timestamp: new Date().toISOString()
-          }
-        })
+      await supabase.from('audit_logs').insert({
+        tenant_id: t.tenantId,
+        action: 'document_verification_override',
+        target_table: 'sales',
+        target_id: saleId,
+        user_id: userId,
+        details: {
+          reason,
+          timestamp: new Date().toISOString(),
+        },
+      })
     } catch {
       // No fallar si no existe la tabla
     }
@@ -120,13 +101,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     return NextResponse.json({
       success: true,
       message: `Document verification overridden by ${userRole}. Sale can now proceed to contract sending.`,
-      sale_id: saleId
+      sale_id: saleId,
     })
   } catch (error) {
     console.error('Document override error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

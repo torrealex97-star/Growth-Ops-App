@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Receipt, ExternalLink, Download } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { lastNMonths, monthLabel } from '@/lib/analytics'
-import { computeMonthlyPnl, type PnlSaleRow, type PnlCommissionRow } from '@/lib/finance/pnl'
+import { computeMonthlyPnl, FINANCE_QUERY_ROW_CAP, type PnlSaleRow, type PnlCommissionRow } from '@/lib/finance/pnl'
 
 type CollectionRow = {
   id: string
@@ -60,8 +60,7 @@ function MetricCard({
   sublabel?: string
   tone?: 'positive' | 'negative' | 'neutral'
 }) {
-  const valueColor =
-    tone === 'positive' ? 'text-emerald-400' : tone === 'negative' ? 'text-red-400' : 'text-foreground'
+  const valueColor = tone === 'positive' ? 'text-emerald-400' : tone === 'negative' ? 'text-red-400' : 'text-foreground'
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <p className="text-xs text-muted-foreground mb-1">{label}</p>
@@ -110,13 +109,18 @@ export default function GestoriaPage() {
       const [collRes, expensesRes, refundsRes, salesRes, commissionsRes] = await Promise.all([
         supabase
           .from('collections')
-          .select('id, sale_id, gross_amount, processing_fee, vat, collected_at, status'),
+          .select('id, sale_id, gross_amount, processing_fee, vat, collected_at, status')
+          .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('expenses')
-          .select('id, concept, category, amount, expense_date, counterparty, invoice_url'),
-        supabase.from('refunds').select('gross_refund_amount, refund_date'),
-        supabase.from('sales').select('gross_amount, discount, sale_date'),
-        supabase.from('commissions').select('commission_amount, direction, collection_id, liquidation_month'),
+          .select('id, concept, category, amount, expense_date, counterparty, invoice_url')
+          .range(0, FINANCE_QUERY_ROW_CAP),
+        supabase.from('refunds').select('gross_refund_amount, refund_date').range(0, FINANCE_QUERY_ROW_CAP),
+        supabase.from('sales').select('gross_amount, discount, sale_date, status').range(0, FINANCE_QUERY_ROW_CAP),
+        supabase
+          .from('commissions')
+          .select('commission_amount, direction, collection_id, liquidation_month')
+          .range(0, FINANCE_QUERY_ROW_CAP),
       ])
       if (!mounted) return
       setCollections(collRes.data || [])
@@ -136,18 +140,9 @@ export default function GestoriaPage() {
     () => collections.filter((c) => c.status === 'collected' && ymOf(c.collected_at) === ym),
     [collections, ym]
   )
-  const monthExpenses = useMemo(
-    () => expenses.filter((e) => ymOf(e.expense_date) === ym),
-    [expenses, ym]
-  )
-  const monthRefunds = useMemo(
-    () => refunds.filter((r) => ymOf(r.refund_date) === ym),
-    [refunds, ym]
-  )
-  const monthInvoices = useMemo(
-    () => monthExpenses.filter((e) => !!e.invoice_url),
-    [monthExpenses]
-  )
+  const monthExpenses = useMemo(() => expenses.filter((e) => ymOf(e.expense_date) === ym), [expenses, ym])
+  const monthRefunds = useMemo(() => refunds.filter((r) => ymOf(r.refund_date) === ym), [refunds, ym])
+  const monthInvoices = useMemo(() => monthExpenses.filter((e) => !!e.invoice_url), [monthExpenses])
 
   // Resultado neto/margen: mismo servicio compartido que Analítica financiera › Resumen y el
   // I&G de Dirección › Métricas (lib/finance/pnl.ts) — no se recalcula aquí, solo se lee.

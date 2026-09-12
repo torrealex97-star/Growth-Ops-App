@@ -19,11 +19,7 @@ export async function resolveSaleToken(
 }
 
 export type CreatuagenteEvento =
-  | 'cita.agendada'
-  | 'cita.reprogramada'
-  | 'cita.cancelada'
-  | 'cita.completada'
-  | 'cita.no_asistio'
+  'cita.agendada' | 'cita.reprogramada' | 'cita.cancelada' | 'cita.completada' | 'cita.no_asistio'
 
 // Mapeo de estado interno de appointments -> evento de creatuagente. `scheduled`/`confirmed`/
 // `reserva` se omiten: ya se notifican como cita.agendada al crear la agenda (webhook Calendly).
@@ -66,12 +62,20 @@ export type CreatuagenteVentaRegistrada = {
 export function toZonedISO(dateISO: string, timeZone = 'Europe/Madrid'): string {
   const d = new Date(dateISO)
   const dtf = new Intl.DateTimeFormat('en-GB', {
-    timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
   })
   const p = Object.fromEntries(dtf.formatToParts(d).map((x) => [x.type, x.value]))
-  const offsetRaw = new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'longOffset' })
-    .formatToParts(d).find((x) => x.type === 'timeZoneName')?.value || 'GMT+00:00'
+  const offsetRaw =
+    new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'longOffset' })
+      .formatToParts(d)
+      .find((x) => x.type === 'timeZoneName')?.value || 'GMT+00:00'
   const offset = offsetRaw.replace('GMT', '') || '+00:00'
   return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}${offset}`
 }
@@ -97,7 +101,7 @@ async function postCreatuagente(body: string, logCtx: string): Promise<void> {
       },
       body,
     })
-    const data = await res.json().catch(() => null) as { aplicada?: boolean; motivo?: string } | null
+    const data = (await res.json().catch(() => null)) as { aplicada?: boolean; motivo?: string } | null
     if (!res.ok) {
       console.error(`[creatuagente] HTTP ${res.status} notificando ${logCtx}`)
     } else if (data && data.aplicada === false) {

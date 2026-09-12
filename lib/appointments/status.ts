@@ -51,7 +51,8 @@ export const STATUS_COLORS: Record<AppointmentStatus, string> = {
 // DISTINTO de estar simplemente agendado. Una cita scheduled/confirmed/rescheduled que
 // todavía no se ha resuelto es "programada" (falta por hacerse). El status "seguimiento"
 // también tiene su propio color (igual que el flag needs_followup), en vez de caer en programada.
-export type AppointmentDisplayCategory = 'compra' | 'reserva' | 'programada' | 'seguimiento' | 'se_presenta' | 'no_show' | 'cancelada'
+export type AppointmentDisplayCategory =
+  'compra' | 'reserva' | 'programada' | 'seguimiento' | 'se_presenta' | 'no_show' | 'cancelada'
 
 const CANCELLED_STATUSES: AppointmentStatus[] = ['cancelled', 'cancelled_admin', 'cancelled_lead']
 

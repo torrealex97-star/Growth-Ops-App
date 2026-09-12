@@ -8,7 +8,11 @@ export const maxDuration = 60
 
 // Convierte un importe a EUR usando tipos de cambio del BCE (vía frankfurter.dev, sin clave).
 // Si la moneda ya es EUR o la conversión falla, devuelve null y el importe se deja tal cual.
-async function convertToEur(amount: number, currency: string, date: string | null): Promise<{ amountEur: number; rate: number } | null> {
+async function convertToEur(
+  amount: number,
+  currency: string,
+  date: string | null
+): Promise<{ amountEur: number; rate: number } | null> {
   const code = currency.trim().toUpperCase()
   if (code === 'EUR') return null
   try {
@@ -38,8 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (!fileBase64 || !mediaType) return NextResponse.json({ error: 'Falta el archivo' }, { status: 400 })
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { data: callerRow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-    const role = (callerRow?.roles as { key?: string } | null)?.key
+    const role = t.role
     if (!['admin', 'director', 'manager'].includes(role || '')) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }

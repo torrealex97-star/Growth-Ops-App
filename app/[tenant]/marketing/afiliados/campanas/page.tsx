@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -7,19 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Megaphone, Plus, Pencil, Trash2, Loader2, Users, Link2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { PERMISSIONS, type AppRole } from '@/lib/auth/permissions'
@@ -68,8 +57,13 @@ export default function CampanasAfiliadosPage() {
 
   const fetchAll = useCallback(async () => {
     const sb = createClient()
-    const { data: { user } } = await sb.auth.getUser()
-    if (!user) { setLoading(false); return }
+    const {
+      data: { user },
+    } = await sb.auth.getUser()
+    if (!user) {
+      setLoading(false)
+      return
+    }
     setCurrentUserId(user.id)
 
     const { data: me } = await sb.from('users').select('roles(key)').eq('id', user.id).single()
@@ -85,27 +79,43 @@ export default function CampanasAfiliadosPage() {
     setAffiliates((affRes.data as Affiliate[]) ?? [])
 
     const c: Record<string, number> = {}
-    for (const m of ((memRes.data as { campaign_id: string }[]) ?? [])) {
+    for (const m of (memRes.data as { campaign_id: string }[]) ?? []) {
       c[m.campaign_id] = (c[m.campaign_id] ?? 0) + 1
     }
     setCounts(c)
     setLoading(false)
   }, [tenantId])
 
-  useEffect(() => { fetchAll() }, [fetchAll])
+  useEffect(() => {
+    fetchAll()
+  }, [fetchAll])
 
   // ---- CRUD campaña ----
   const resetForm = () => {
-    setEditingId(null); setName(''); setType('evento'); setBaseUrl(''); setIsActive(true)
+    setEditingId(null)
+    setName('')
+    setType('evento')
+    setBaseUrl('')
+    setIsActive(true)
   }
-  const openCreate = () => { resetForm(); setDialogOpen(true) }
+  const openCreate = () => {
+    resetForm()
+    setDialogOpen(true)
+  }
   const openEdit = (c: AffiliateCampaign) => {
-    setEditingId(c.id); setName(c.name); setType(c.type); setBaseUrl(c.base_url); setIsActive(c.is_active)
+    setEditingId(c.id)
+    setName(c.name)
+    setType(c.type)
+    setBaseUrl(c.base_url)
+    setIsActive(c.is_active)
     setDialogOpen(true)
   }
 
   const handleSubmit = async () => {
-    if (!name.trim() || !baseUrl.trim()) { toast.error('Completa nombre y URL'); return }
+    if (!name.trim() || !baseUrl.trim()) {
+      toast.error('Completa nombre y URL')
+      return
+    }
     let url = baseUrl.trim()
     if (!/^https?:\/\//i.test(url)) url = `https://${url}`
 
@@ -123,17 +133,26 @@ export default function CampanasAfiliadosPage() {
           registration_slug: generateTrackingCode(10),
         })
     setSubmitting(false)
-    if (error) { toast.error('Error al guardar', { description: error.message }); return }
+    if (error) {
+      toast.error('Error al guardar', { description: error.message })
+      return
+    }
     toast.success(editingId ? 'Campaña actualizada' : 'Campaña creada')
-    setDialogOpen(false); resetForm(); fetchAll()
+    setDialogOpen(false)
+    resetForm()
+    fetchAll()
   }
 
   const handleDelete = async (c: AffiliateCampaign) => {
     if (!confirm(`¿Eliminar la campaña "${c.name}"? Se quitarán todas sus asignaciones.`)) return
     const sb = createClient()
     const { error } = await sb.from('affiliate_campaigns').delete().eq('id', c.id).eq('tenant_id', tenantId)
-    if (error) { toast.error('Error al eliminar', { description: error.message }); return }
-    toast.success('Campaña eliminada'); fetchAll()
+    if (error) {
+      toast.error('Error al eliminar', { description: error.message })
+      return
+    }
+    toast.success('Campaña eliminada')
+    fetchAll()
   }
 
   // Enlace público de registro/alta para la campaña. Quien lo abra:
@@ -143,7 +162,10 @@ export default function CampanasAfiliadosPage() {
 
   const copyLink = async (c: AffiliateCampaign) => {
     const link = registrationLink(c)
-    if (!link) { toast.error('Esta campaña aún no tiene enlace. Vuelve a guardarla.'); return }
+    if (!link) {
+      toast.error('Esta campaña aún no tiene enlace. Vuelve a guardarla.')
+      return
+    }
     try {
       await navigator.clipboard.writeText(link)
       toast.success('Enlace de registro copiado')
@@ -154,16 +176,29 @@ export default function CampanasAfiliadosPage() {
 
   const toggleActive = async (c: AffiliateCampaign) => {
     const sb = createClient()
-    const { error } = await sb.from('affiliate_campaigns').update({ is_active: !c.is_active }).eq('id', c.id).eq('tenant_id', tenantId)
-    if (error) { toast.error('Error al actualizar'); return }
+    const { error } = await sb
+      .from('affiliate_campaigns')
+      .update({ is_active: !c.is_active })
+      .eq('id', c.id)
+      .eq('tenant_id', tenantId)
+    if (error) {
+      toast.error('Error al actualizar')
+      return
+    }
     fetchAll()
   }
 
   // ---- Asignación masiva ----
   const openAssign = async (c: AffiliateCampaign) => {
-    setAssignCampaign(c); setSearch(''); setAssignOpen(true)
+    setAssignCampaign(c)
+    setSearch('')
+    setAssignOpen(true)
     const sb = createClient()
-    const { data } = await sb.from('affiliate_campaign_members').select('affiliate_id').eq('campaign_id', c.id).eq('tenant_id', tenantId)
+    const { data } = await sb
+      .from('affiliate_campaign_members')
+      .select('affiliate_id')
+      .eq('campaign_id', c.id)
+      .eq('tenant_id', tenantId)
     setSelected(new Set(((data as { affiliate_id: string }[]) ?? []).map((m) => m.affiliate_id)))
   }
 
@@ -187,7 +222,8 @@ export default function CampanasAfiliadosPage() {
   const toggleOne = (id: string) =>
     setSelected((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id); else next.add(id)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
 
@@ -214,7 +250,11 @@ export default function CampanasAfiliadosPage() {
           tenant_id: tenantId,
         }))
       )
-      if (error) { setSavingAssign(false); toast.error('Error al asignar', { description: error.message }); return }
+      if (error) {
+        setSavingAssign(false)
+        toast.error('Error al asignar', { description: error.message })
+        return
+      }
     }
     if (toRemove.length) {
       const { error } = await sb
@@ -223,7 +263,11 @@ export default function CampanasAfiliadosPage() {
         .eq('campaign_id', assignCampaign.id)
         .eq('tenant_id', tenantId)
         .in('affiliate_id', toRemove)
-      if (error) { setSavingAssign(false); toast.error('Error al quitar afiliados', { description: error.message }); return }
+      if (error) {
+        setSavingAssign(false)
+        toast.error('Error al quitar afiliados', { description: error.message })
+        return
+      }
     }
 
     setSavingAssign(false)
@@ -252,7 +296,8 @@ export default function CampanasAfiliadosPage() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">Campañas de afiliados</h1>
             <p className="text-muted-foreground text-sm mt-0.5">
-              Enlaces por evento, lanzamiento o VSL. Comparte el enlace de registro para dar de alta y asignar afiliados en masa, o asígnalos a mano.
+              Enlaces por evento, lanzamiento o VSL. Comparte el enlace de registro para dar de alta y asignar afiliados
+              en masa, o asígnalos a mano.
             </p>
           </div>
         </div>
@@ -265,7 +310,9 @@ export default function CampanasAfiliadosPage() {
         <div className="flex flex-col items-center justify-center py-16 text-center border border-border rounded-lg">
           <Megaphone className="w-10 h-10 text-muted-foreground mb-3" />
           <p className="text-muted-foreground text-sm mb-4">Aún no hay campañas de afiliados</p>
-          <Button onClick={openCreate} size="sm"><Plus className="w-4 h-4 mr-2" /> Crear la primera</Button>
+          <Button onClick={openCreate} size="sm">
+            <Plus className="w-4 h-4 mr-2" /> Crear la primera
+          </Button>
         </div>
       ) : (
         <div className="rounded-lg border border-border overflow-hidden divide-y divide-border">
@@ -274,7 +321,9 @@ export default function CampanasAfiliadosPage() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <p className="text-foreground font-medium">{c.name}</p>
-                  <Badge variant="outline" className="text-xs">{TYPE_LABEL[c.type] ?? c.type}</Badge>
+                  <Badge variant="outline" className="text-xs">
+                    {TYPE_LABEL[c.type] ?? c.type}
+                  </Badge>
                   <Badge
                     variant={c.is_active ? 'success' : 'secondary'}
                     className="cursor-pointer"
@@ -286,7 +335,13 @@ export default function CampanasAfiliadosPage() {
                 <p className="text-muted-foreground text-xs font-mono mt-1 truncate">{c.base_url}</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <Button variant="outline" size="sm" className="h-8" onClick={() => copyLink(c)} title="Copiar enlace de registro a la campaña">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                  onClick={() => copyLink(c)}
+                  title="Copiar enlace de registro a la campaña"
+                >
                   <Link2 className="w-3.5 h-3.5 mr-1.5" />
                   Enlace
                 </Button>
@@ -294,10 +349,20 @@ export default function CampanasAfiliadosPage() {
                   <Users className="w-3.5 h-3.5 mr-1.5" />
                   {counts[c.id] ?? 0}
                 </Button>
-                <Button variant="ghost" size="sm" className="h-8 text-muted-foreground hover:text-foreground" onClick={() => openEdit(c)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-muted-foreground hover:text-foreground"
+                  onClick={() => openEdit(c)}
+                >
                   <Pencil className="w-3.5 h-3.5" />
                 </Button>
-                <Button variant="ghost" size="sm" className="h-8 text-muted-foreground hover:text-red-400" onClick={() => handleDelete(c)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-muted-foreground hover:text-red-400"
+                  onClick={() => handleDelete(c)}
+                >
                   <Trash2 className="w-3.5 h-3.5" />
                 </Button>
               </div>
@@ -307,7 +372,13 @@ export default function CampanasAfiliadosPage() {
       )}
 
       {/* Dialog crear/editar */}
-      <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm() }}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(o) => {
+          setDialogOpen(o)
+          if (!o) resetForm()
+        }}
+      >
         <DialogContent className="bg-card border-border text-foreground max-w-md">
           <DialogHeader>
             <DialogTitle>{editingId ? 'Editar campaña' : 'Nueva campaña'}</DialogTitle>
@@ -315,28 +386,50 @@ export default function CampanasAfiliadosPage() {
           <div className="space-y-4 mt-2">
             <div className="space-y-2">
               <Label>Nombre *</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} className="bg-muted border-border" placeholder="Ej: Masterclass Octubre" />
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="bg-muted border-border"
+                placeholder="Ej: Masterclass Octubre"
+              />
             </div>
             <div className="space-y-2">
               <Label>Tipo</Label>
               <Select value={type} onValueChange={(v) => setType(v as AffiliateCampaignType)}>
-                <SelectTrigger className="bg-muted border-border"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="bg-muted border-border">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  {TYPE_OPTIONS.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  {TYPE_OPTIONS.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label>URL base *</Label>
-              <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} className="bg-muted border-border" placeholder="https://tudominio.com/evento" />
-              <p className="text-xs text-muted-foreground">Se añade automáticamente utm_content con el código de cada afiliado.</p>
+              <Input
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                className="bg-muted border-border"
+                placeholder="https://tudominio.com/evento"
+              />
+              <p className="text-xs text-muted-foreground">
+                Se añade automáticamente utm_content con el código de cada afiliado.
+              </p>
             </div>
             <div className="flex items-center gap-2 rounded-lg border border-border px-3 py-2">
               <Checkbox id="camp-active" checked={isActive} onCheckedChange={(c) => setIsActive(c === true)} />
-              <Label htmlFor="camp-active" className="cursor-pointer">Campaña activa</Label>
+              <Label htmlFor="camp-active" className="cursor-pointer">
+                Campaña activa
+              </Label>
             </div>
             <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>Cancelar</Button>
+              <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>
+                Cancelar
+              </Button>
               <Button onClick={handleSubmit} disabled={submitting || !name || !baseUrl}>
                 {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                 {editingId ? 'Guardar' : 'Crear'}
@@ -353,7 +446,12 @@ export default function CampanasAfiliadosPage() {
             <DialogTitle>Afiliados — {assignCampaign?.name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 mt-2 flex-1 min-h-0 flex flex-col">
-            <SearchBox value={search} onChange={setSearch} placeholder="Buscar afiliado o código..." className="w-full" />
+            <SearchBox
+              value={search}
+              onChange={setSearch}
+              placeholder="Buscar afiliado o código..."
+              className="w-full"
+            />
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <button type="button" onClick={toggleAll} className="hover:text-foreground flex items-center gap-2">
                 <Checkbox checked={allFilteredSelected} />
@@ -373,14 +471,18 @@ export default function CampanasAfiliadosPage() {
                     <Checkbox checked={selected.has(a.id)} onCheckedChange={() => toggleOne(a.id)} />
                     <div className="min-w-0">
                       <p className="text-sm text-foreground truncate">{a.full_name}</p>
-                      {a.affiliate_code && <p className="text-[11px] text-muted-foreground font-mono">{a.affiliate_code}</p>}
+                      {a.affiliate_code && (
+                        <p className="text-[11px] text-muted-foreground font-mono">{a.affiliate_code}</p>
+                      )}
                     </div>
                   </label>
                 ))
               )}
             </div>
             <div className="flex justify-end gap-3 pt-1">
-              <Button variant="outline" onClick={() => setAssignOpen(false)} disabled={savingAssign}>Cancelar</Button>
+              <Button variant="outline" onClick={() => setAssignOpen(false)} disabled={savingAssign}>
+                Cancelar
+              </Button>
               <Button onClick={saveAssign} disabled={savingAssign}>
                 {savingAssign ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                 Guardar asignación

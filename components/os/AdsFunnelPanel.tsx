@@ -2,7 +2,16 @@
 
 import { useMemo } from 'react'
 import {
-  ComposedChart, LineChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  ComposedChart,
+  LineChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
 } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
 import type { Campaign } from '@/lib/types/database'
@@ -33,8 +42,14 @@ function MetricGrid({ cells }: { cells: Cell[] }) {
 
 const chartBox = 'bg-card/50 border border-border rounded-lg p-4'
 
-const ChartTooltip = ({ active, payload, label }: {
-  active?: boolean; payload?: Array<{ name: string; value: number; color: string }>; label?: string
+const ChartTooltip = ({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean
+  payload?: Array<{ name: string; value: number; color: string }>
+  label?: string
 }) => {
   if (!active || !payload?.length) return null
   return (
@@ -42,7 +57,12 @@ const ChartTooltip = ({ active, payload, label }: {
       <p className="text-xs text-muted-foreground mb-1">{label}</p>
       {payload.map((p) => (
         <p key={p.name} className="text-xs font-medium" style={{ color: p.color }}>
-          {p.name}: {p.name.includes('%') ? `${(p.value ?? 0).toFixed(1)}%` : p.name.toLowerCase().includes('coste') || p.name.toLowerCase().includes('cpl') ? formatCurrency(p.value ?? 0) : (p.value ?? 0).toLocaleString('es-ES')}
+          {p.name}:{' '}
+          {p.name.includes('%')
+            ? `${(p.value ?? 0).toFixed(1)}%`
+            : p.name.toLowerCase().includes('coste') || p.name.toLowerCase().includes('cpl')
+              ? formatCurrency(p.value ?? 0)
+              : (p.value ?? 0).toLocaleString('es-ES')}
         </p>
       ))}
     </div>
@@ -53,7 +73,10 @@ export function AdsFunnelPanel({ campaigns }: { campaigns: Campaign[] }) {
   const f = useMemo(() => computeAdFunnel(campaigns), [campaigns])
   // Solo campañas con algo de dato para los gráficos (evita ruido de vacías).
   const points = useMemo(
-    () => perCampaign(campaigns).filter((p) => p.leads > 0 || p.agendas > 0).map((p) => ({ ...p, short: short(p.name) })),
+    () =>
+      perCampaign(campaigns)
+        .filter((p) => p.leads > 0 || p.agendas > 0)
+        .map((p) => ({ ...p, short: short(p.name) })),
     [campaigns]
   )
 
@@ -79,7 +102,11 @@ export function AdsFunnelPanel({ campaigns }: { campaigns: Campaign[] }) {
     { label: 'Cierres', value: fmtNum(f.cierres), strong: true },
     { label: '% de cierre', value: fmtPct(f.pctCierre), hint: 'Cierres vs llamadas' },
     { label: 'CPA', value: fmtEur(f.cpa), strong: true, hint: 'Coste por adquisición' },
-    { label: 'Facturación', value: fmtEur(f.facturacion), hint: f.roas !== null ? `ROAS ${f.roas.toFixed(2)}x` : undefined },
+    {
+      label: 'Facturación',
+      value: fmtEur(f.facturacion),
+      hint: f.roas !== null ? `ROAS ${f.roas.toFixed(2)}x` : undefined,
+    },
     { label: 'Seguidores', value: fmtNum(f.seguidores), strong: true, hint: 'Conseguidos por los ads' },
     { label: 'Coste/seguidor', value: fmtEur(f.costeSeguidor) },
   ]
@@ -88,7 +115,9 @@ export function AdsFunnelPanel({ campaigns }: { campaigns: Campaign[] }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-foreground">Embudo de Ads</h2>
-        <span className="text-[11px] text-muted-foreground">Agendas · Llamadas · Cierres se cruzan con el CRM por UTM del contacto</span>
+        <span className="text-[11px] text-muted-foreground">
+          Agendas · Llamadas · Cierres se cruzan con el CRM por UTM del contacto
+        </span>
       </div>
       <MetricGrid cells={cells} />
 
@@ -101,13 +130,37 @@ export function AdsFunnelPanel({ campaigns }: { campaigns: Campaign[] }) {
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={points} margin={{ top: 5, right: 8, bottom: 0, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis dataKey="short" tick={{ fontSize: 10, fill: '#71717a' }} axisLine={false} tickLine={false} interval={0} angle={-15} textAnchor="end" height={50} />
+                  <XAxis
+                    dataKey="short"
+                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval={0}
+                    angle={-15}
+                    textAnchor="end"
+                    height={50}
+                  />
                   <YAxis yAxisId="l" tick={{ fontSize: 10, fill: '#71717a' }} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="r" orientation="right" tick={{ fontSize: 10, fill: '#71717a' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}€`} />
+                  <YAxis
+                    yAxisId="r"
+                    orientation="right"
+                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `${v}€`}
+                  />
                   <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(124, 58, 237, 0.08)' }} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Bar yAxisId="l" dataKey="leads" name="Leads" fill="#7c3aed" radius={[3, 3, 0, 0]} />
-                  <Line yAxisId="r" dataKey="cpl" name="CPL" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                  <Line
+                    yAxisId="r"
+                    dataKey="cpl"
+                    name="CPL"
+                    stroke="#f59e0b"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    connectNulls
+                  />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -120,13 +173,37 @@ export function AdsFunnelPanel({ campaigns }: { campaigns: Campaign[] }) {
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={points} margin={{ top: 5, right: 8, bottom: 0, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis dataKey="short" tick={{ fontSize: 10, fill: '#71717a' }} axisLine={false} tickLine={false} interval={0} angle={-15} textAnchor="end" height={50} />
+                  <XAxis
+                    dataKey="short"
+                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval={0}
+                    angle={-15}
+                    textAnchor="end"
+                    height={50}
+                  />
                   <YAxis yAxisId="l" tick={{ fontSize: 10, fill: '#71717a' }} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="r" orientation="right" tick={{ fontSize: 10, fill: '#71717a' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}€`} />
+                  <YAxis
+                    yAxisId="r"
+                    orientation="right"
+                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `${v}€`}
+                  />
                   <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(16, 185, 129, 0.08)' }} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Bar yAxisId="l" dataKey="agendas" name="Agendas" fill="#10b981" radius={[3, 3, 0, 0]} />
-                  <Line yAxisId="r" dataKey="costeAgenda" name="Coste/Agenda" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                  <Line
+                    yAxisId="r"
+                    dataKey="costeAgenda"
+                    name="Coste/Agenda"
+                    stroke="#f59e0b"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    connectNulls
+                  />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -139,12 +216,40 @@ export function AdsFunnelPanel({ campaigns }: { campaigns: Campaign[] }) {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={points} margin={{ top: 5, right: 8, bottom: 0, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis dataKey="short" tick={{ fontSize: 10, fill: '#71717a' }} axisLine={false} tickLine={false} interval={0} angle={-15} textAnchor="end" height={50} />
-                  <YAxis tick={{ fontSize: 10, fill: '#71717a' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
+                  <XAxis
+                    dataKey="short"
+                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval={0}
+                    angle={-15}
+                    textAnchor="end"
+                    height={50}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `${v}%`}
+                  />
                   <Tooltip content={<ChartTooltip />} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Line dataKey="pctRegistro" name="% Registro" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                  <Line dataKey="pctConversionVSL" name="% Conversión VSL" stroke="#ec4899" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                  <Line
+                    dataKey="pctRegistro"
+                    name="% Registro"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    connectNulls
+                  />
+                  <Line
+                    dataKey="pctConversionVSL"
+                    name="% Conversión VSL"
+                    stroke="#ec4899"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    connectNulls
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>

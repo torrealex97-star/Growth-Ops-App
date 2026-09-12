@@ -1,20 +1,20 @@
-"use client"
+'use client'
 import { useTenant } from '@/lib/tenant-context'
 
-import { useCallback, useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { ArrowLeft, Award, Copy, Loader2, Pencil, PlayCircle, Trash2, AlertTriangle } from "lucide-react"
-import { toast } from "sonner"
-import { testimonioPitch, youtubeId, type Testimonio } from "@/lib/testimonios-shared"
+import { useCallback, useEffect, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+import { ArrowLeft, Award, Copy, Loader2, Pencil, PlayCircle, Trash2, AlertTriangle } from 'lucide-react'
+import { toast } from 'sonner'
+import { testimonioPitch, youtubeId, type Testimonio } from '@/lib/testimonios-shared'
 import {
   TestimonioForm,
   SaveButton,
   valuesFrom,
   validateValues,
   type TestimonioFormValues,
-} from "@/components/testimonios/TestimonioForm"
+} from '@/components/testimonios/TestimonioForm'
 
 export default function TestimonioDetallePage() {
   const tenant = useTenant()
@@ -31,7 +31,7 @@ export default function TestimonioDetallePage() {
     try {
       const res = await fetch(`/api/${tenant}/evergreen/testimonios/${id}`)
       const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json.error || "Error")
+      if (!res.ok) throw new Error(json.error || 'Error')
       setT(json.testimonio)
       setCanWrite(!!json.canWrite)
     } catch (e) {
@@ -58,15 +58,15 @@ export default function TestimonioDetallePage() {
     setSaving(true)
     try {
       const res = await fetch(`/api/${tenant}/evergreen/testimonios/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
       })
       const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json.error || "Error al guardar")
+      if (!res.ok) throw new Error(json.error || 'Error al guardar')
       setT(json.testimonio)
       setEditing(false)
-      toast.success("Testimonio actualizado")
+      toast.success('Testimonio actualizado')
     } catch (e) {
       toast.error((e as Error).message)
     } finally {
@@ -77,9 +77,9 @@ export default function TestimonioDetallePage() {
   const remove = async () => {
     if (!t) return
     if (!confirm(`¿Eliminar el testimonio de ${t.name}? No se puede deshacer.`)) return
-    const res = await fetch(`/api/${tenant}/evergreen/testimonios/${id}`, { method: "DELETE" })
-    if (!res.ok) return toast.error("No se pudo eliminar")
-    toast.success("Testimonio eliminado")
+    const res = await fetch(`/api/${tenant}/evergreen/testimonios/${id}`, { method: 'DELETE' })
+    if (!res.ok) return toast.error('No se pudo eliminar')
+    toast.success('Testimonio eliminado')
     router.push(`/${tenant}/recursos/testimonios`)
   }
 
@@ -95,7 +95,10 @@ export default function TestimonioDetallePage() {
     return (
       <div className="max-w-3xl mx-auto py-16 text-center">
         <p className="text-sm text-muted-foreground">Este testimonio no existe.</p>
-        <Link href={`/${tenant}/recursos/testimonios`} className="text-sm text-brand-300 hover:underline mt-2 inline-block">
+        <Link
+          href={`/${tenant}/recursos/testimonios`}
+          className="text-sm text-brand-300 hover:underline mt-2 inline-block"
+        >
           Volver a Testimonios
         </Link>
       </div>
@@ -147,7 +150,7 @@ export default function TestimonioDetallePage() {
             <div className="flex-1 min-w-[240px]">
               <div className="flex items-center gap-2 flex-wrap mb-1">
                 <h1 className="text-2xl font-bold text-foreground">{t.name}</h1>
-                {t.kind === "cliente" && (
+                {t.kind === 'cliente' && (
                   <span className="px-2 py-0.5 rounded-md border border-border text-[10px] font-medium text-muted-foreground">
                     Cliente de la agencia, no alumno
                   </span>
@@ -164,7 +167,7 @@ export default function TestimonioDetallePage() {
                 )}
               </div>
               <p className="text-sm text-muted-foreground">
-                {[t.avatar, t.sector].filter(Boolean).join(" · ") || "Sin avatar ni sector"}
+                {[t.avatar, t.sector].filter(Boolean).join(' · ') || 'Sin avatar ni sector'}
               </p>
               {t.hook && <p className="text-lg font-semibold text-brand-300 mt-2.5 leading-snug">{t.hook}</p>}
             </div>
@@ -173,7 +176,7 @@ export default function TestimonioDetallePage() {
               size="sm"
               onClick={() => {
                 navigator.clipboard.writeText(testimonioPitch(t))
-                toast.success("Testimonio copiado")
+                toast.success('Testimonio copiado')
               }}
               className="gap-1.5"
             >
@@ -185,8 +188,8 @@ export default function TestimonioDetallePage() {
             <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 mb-5">
               <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
               <p className="text-xs text-amber-500/90">
-                Consentimiento de imagen y nombre sin verificar. Confírmalo antes de usar este
-                testimonio en marketing, y márcalo desde Editar.
+                Consentimiento de imagen y nombre sin verificar. Confírmalo antes de usar este testimonio en marketing,
+                y márcalo desde Editar.
               </p>
             </div>
           )}
@@ -234,7 +237,7 @@ export default function TestimonioDetallePage() {
                     <button
                       onClick={() => {
                         navigator.clipboard.writeText(t.youtubeUrl!)
-                        toast.success("Enlace copiado")
+                        toast.success('Enlace copiado')
                       }}
                       className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 ml-auto"
                     >
@@ -260,21 +263,17 @@ export default function TestimonioDetallePage() {
             <h2 className="text-sm font-semibold text-foreground">Su historia</h2>
             {t.cifra && (
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-400 mb-1">
-                  Cifra ancla
-                </p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-400 mb-1">Cifra ancla</p>
                 <p className="text-sm text-brand-300 font-medium">{t.cifra}</p>
               </div>
             )}
             {[
-              { label: "Punto A — de dónde venía", value: t.puntoA },
-              { label: "Punto B — dónde está ahora", value: t.puntoB },
-              { label: "Vehículo — qué usó", value: t.vehiculo },
+              { label: 'Punto A — de dónde venía', value: t.puntoA },
+              { label: 'Punto B — dónde está ahora', value: t.puntoB },
+              { label: 'Vehículo — qué usó', value: t.vehiculo },
             ].map(({ label, value }) => (
               <div key={label}>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-                  {label}
-                </p>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">{label}</p>
                 <p className="text-sm text-foreground/90 leading-relaxed">
                   {value || <span className="text-muted-foreground">Sin rellenar</span>}
                 </p>

@@ -1,23 +1,12 @@
-"use client"
+'use client'
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Plus, Edit2, Loader2, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
@@ -176,7 +165,7 @@ export function KPITemplateEditor({ roleKey, templates, onUpdate }: KPITemplateE
                 <p className="text-xs text-muted-foreground">{t.field_key}</p>
               </div>
               <Badge variant="secondary" className="text-xs shrink-0">
-                {FIELD_TYPES.find(f => f.value === t.field_type)?.label || t.field_type}
+                {FIELD_TYPES.find((f) => f.value === t.field_type)?.label || t.field_type}
               </Badge>
               {t.is_required && (
                 <Badge variant="outline" className="text-xs shrink-0 border-red-500/30 text-red-400">
@@ -231,8 +220,10 @@ export function KPITemplateEditor({ roleKey, templates, onUpdate }: KPITemplateE
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-card border-border">
-                    {FIELD_TYPES.map(f => (
-                      <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                    {FIELD_TYPES.map((f) => (
+                      <SelectItem key={f.value} value={f.value}>
+                        {f.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -297,9 +288,18 @@ export function KPITemplateEditor({ roleKey, templates, onUpdate }: KPITemplateE
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>Cancelar</Button>
+              <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>
+                Cancelar
+              </Button>
               <Button onClick={handleSubmit} disabled={submitting}>
-                {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Guardando...</> : 'Guardar'}
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  'Guardar'
+                )}
               </Button>
             </div>
           </div>

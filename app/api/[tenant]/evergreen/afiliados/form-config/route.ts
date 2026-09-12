@@ -14,17 +14,11 @@ export const revalidate = 0
 export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
     const { tenant } = await params
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
+    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
 
-    const { data: tenantRow } = await supabase
-      .from('tenants')
-      .select('id, status')
-      .eq('slug', tenant)
-      .maybeSingle()
+    const { data: tenantRow } = await supabase.from('tenants').select('id, status').eq('slug', tenant).maybeSingle()
     if (!tenantRow || tenantRow.status !== 'active') {
       return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
     }

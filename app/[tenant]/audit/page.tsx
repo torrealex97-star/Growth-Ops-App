@@ -1,25 +1,12 @@
-"use client"
+'use client'
 
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ChevronDown, ChevronRight, Shield, X } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -85,10 +72,7 @@ export default function AuditPage() {
   const renderDiff = (log: AuditLog) => {
     if (!log.old_values && !log.new_values) return null
 
-    const keys = new Set([
-      ...Object.keys(log.old_values ?? {}),
-      ...Object.keys(log.new_values ?? {}),
-    ])
+    const keys = new Set([...Object.keys(log.old_values ?? {}), ...Object.keys(log.new_values ?? {})])
 
     const changes: { key: string; old: unknown; new: unknown }[] = []
     keys.forEach((key) => {
@@ -142,8 +126,10 @@ export default function AuditPage() {
           </SelectTrigger>
           <SelectContent className="bg-card border-border">
             <SelectItem value="all">Todas las entidades</SelectItem>
-            {ENTITY_TYPES.map(e => (
-              <SelectItem key={e} value={e} className="capitalize">{e}</SelectItem>
+            {ENTITY_TYPES.map((e) => (
+              <SelectItem key={e} value={e} className="capitalize">
+                {e}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -154,8 +140,10 @@ export default function AuditPage() {
           </SelectTrigger>
           <SelectContent className="bg-card border-border">
             <SelectItem value="all">Todas las acciones</SelectItem>
-            {ACTIONS.map(a => (
-              <SelectItem key={a} value={a} className="capitalize">{a}</SelectItem>
+            {ACTIONS.map((a) => (
+              <SelectItem key={a} value={a} className="capitalize">
+                {a}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -175,7 +163,16 @@ export default function AuditPage() {
           className="w-40 bg-card border-border"
         />
         {hasFilters && (
-          <Button variant="ghost" onClick={() => { setEntityFilter('all'); setActionFilter('all'); setDateFrom(''); setDateTo('') }} className="text-muted-foreground hover:text-foreground">
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setEntityFilter('all')
+              setActionFilter('all')
+              setDateFrom('')
+              setDateTo('')
+            }}
+            className="text-muted-foreground hover:text-foreground"
+          >
             <X className="h-4 w-4 mr-1" /> Limpiar filtros
           </Button>
         )}
@@ -215,19 +212,28 @@ export default function AuditPage() {
                     onClick={() => setExpandedRow(expandedRow === log.id ? null : log.id)}
                   >
                     <TableCell className="text-muted-foreground">
-                      {expandedRow === log.id
-                        ? <ChevronDown className="w-4 h-4" />
-                        : <ChevronRight className="w-4 h-4" />
-                      }
+                      {expandedRow === log.id ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )}
                     </TableCell>
                     <TableCell className="text-foreground text-sm">{formatDateTime(log.created_at)}</TableCell>
-                    <TableCell className="text-muted-foreground text-sm font-mono">{log.actor_user_id?.slice(0, 8) || 'Sistema'}...</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="capitalize">{log.entity_type}</Badge>
+                    <TableCell className="text-muted-foreground text-sm font-mono">
+                      {log.actor_user_id?.slice(0, 8) || 'Sistema'}...
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-xs font-mono">{log.entity_id?.slice(0, 12)}...</TableCell>
                     <TableCell>
-                      <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${ACTION_COLORS[log.action] ?? 'bg-muted text-muted-foreground'}`}>
+                      <Badge variant="secondary" className="capitalize">
+                        {log.entity_type}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-xs font-mono">
+                      {log.entity_id?.slice(0, 12)}...
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full capitalize ${ACTION_COLORS[log.action] ?? 'bg-muted text-muted-foreground'}`}
+                      >
                         {log.action}
                       </span>
                     </TableCell>
@@ -248,7 +254,9 @@ export default function AuditPage() {
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground">{filtered.length} de {logs.length} entradas</p>
+      <p className="text-xs text-muted-foreground">
+        {filtered.length} de {logs.length} entradas
+      </p>
     </div>
   )
 }

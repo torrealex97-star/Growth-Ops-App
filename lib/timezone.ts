@@ -39,7 +39,11 @@ const TIMEZONE_BY_ISO: Record<string, string> = {
 }
 
 function normalize(s: string): string {
-  return s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim()
+  return s
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim()
 }
 
 function isoForCountryName(name: string): string | null {
@@ -55,7 +59,9 @@ export function timezoneForISO(iso: string | null | undefined): string | null {
 
 // Mejor estimación de la zona horaria del contacto: primero por prefijo telefónico, luego por el
 // país en texto libre, y si no hay ninguna señal se cae a España (mercado principal).
-export function guessContactTimezone(contact: { phone?: string | null; country?: string | null } | null | undefined): string {
+export function guessContactTimezone(
+  contact: { phone?: string | null; country?: string | null } | null | undefined
+): string {
   if (!contact) return DEFAULT_TIMEZONE
   const byPhone = timezoneForISO(countryISOForPhone(contact.phone))
   if (byPhone) return byPhone

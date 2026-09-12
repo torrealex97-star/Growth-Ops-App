@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// Cliente construido dentro del handler (no a nivel de módulo): crearlo al importar el módulo
+// rompía el build entero si NEXT_PUBLIC_SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY no estaban
+// disponibles en ese momento (p.ej. Vercel Preview sin esas env vars) — "supabaseUrl is required".
+function serviceClient() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+}
 
-async function getUserRole(userId: string): Promise<string | null> {
+async function getUserRole(supabase: ReturnType<typeof serviceClient>, userId: string): Promise<string | null> {
   const { data } = await supabase.from('users').select('role_id').eq('id', userId).single()
   if (!data?.role_id) return null
   const { data: role } = await supabase.from('roles').select('key').eq('id', data.role_id).single()
@@ -42,6 +44,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const { tenant } = await params
     const t = await requireTenant(tenant)
     if ('error' in t) return t.error
+    const supabase = serviceClient()
 
     const { saleId, documentType, documentNumber } = await req.json()
     if (!saleId || !documentType) {
@@ -51,13 +54,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: 'Tipo de documento no válido' }, { status: 400 })
     }
 
-    const userRole = await getUserRole(t.userId)
+    const userRole = await getUserRole(supabase, t.userId)
     const allowedRoles = ['admin', 'director', 'closer']
     if (!userRole || !allowedRoles.includes(userRole)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
-    const { data: sale } = await supabase.from('sales').select('id').eq('id', saleId).eq('tenant_id', t.tenantId).single()
+    const { data: sale } = await supabase
+      .from('sales')
+      .select('id')
+      .eq('id', saleId)
+      .eq('tenant_id', t.tenantId)
+      .single()
     if (!sale) return NextResponse.json({ error: 'Venta no encontrada' }, { status: 404 })
 
     const number = String(documentNumber ?? '').trim()
@@ -104,6 +112,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 })
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { status: 500 }
+    )
   }
 }

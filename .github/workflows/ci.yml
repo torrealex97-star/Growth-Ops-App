@@ -1,0 +1,56 @@
+name: CI
+
+# Quality gate: nada de esto existía antes (el único workflow era deploy.yml, manual y sin
+# ningún check previo). Corre en cada push y PR. Los checks baratos (format/lint/typecheck)
+# van primero y en paralelo con los tests; build solo arranca si esos pasan, para no gastar
+# minutos de CI compilando código que ya se sabe roto.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Format · Lint · Typecheck · Dead code · Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run format:check
+      - run: npm run lint
+      # El runner ubuntu-latest estándar (7GB) se queda sin memoria en `tsc --noEmit` con la carga
+      # de tipos actual de la app (SIGABRT/exit 134) sin este límite explícito más alto.
+      - run: npm run typecheck
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+      - run: npm run dead-code
+      - run: npm test
+      - run: npm run test:metrics
+
+  build:
+    name: Build
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build (con placeholders de env — no toca Supabase real)
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000

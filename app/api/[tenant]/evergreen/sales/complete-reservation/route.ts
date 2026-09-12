@@ -22,13 +22,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-    const role = (urow?.roles as { key?: string } | null)?.key
+    const role = t.role
     if (!['admin', 'director', 'manager', 'closer', 'setter', 'cobros'].includes(role || '')) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
-    const { data: prevData, error: prevErr } = await sb.from('sales').select('*').eq('id', saleId).eq('tenant_id', t.tenantId).single()
+    const { data: prevData, error: prevErr } = await sb
+      .from('sales')
+      .select('*')
+      .eq('id', saleId)
+      .eq('tenant_id', t.tenantId)
+      .single()
     if (prevErr || !prevData) return NextResponse.json({ error: 'Venta no encontrada' }, { status: 404 })
     const prev = prevData as Sale
 

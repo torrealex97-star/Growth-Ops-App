@@ -1,30 +1,12 @@
-"use client"
+'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { AppointmentDetail } from '@/components/appointments/AppointmentDetail'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ClipboardList, MessageSquare, Table2, LayoutGrid, User as UserIcon, Clock, X } from 'lucide-react'
@@ -62,7 +44,14 @@ const FOLLOWUP_STAGE_DOT: Record<string, string> = {
 }
 // Orden de las columnas del kanban: sin clasificar primero (lo nuevo entra ahí), luego el flujo
 // natural del pipeline, cerrado/descualificado al final.
-const KANBAN_STAGES = ['sin_clasificar', 'pendiente_recontacto', 'en_seguimiento_pago', 'reagendado_pendiente', 'cerrado', 'descualificado'] as const
+const KANBAN_STAGES = [
+  'sin_clasificar',
+  'pendiente_recontacto',
+  'en_seguimiento_pago',
+  'reagendado_pendiente',
+  'cerrado',
+  'descualificado',
+] as const
 type KanbanStage = (typeof KANBAN_STAGES)[number]
 
 // Estados que suelen requerir seguimiento manual del equipo de ventas (además de las agendas
@@ -180,10 +169,7 @@ export default function SeguimientoPage() {
   }, [])
 
   const setters = useMemo(() => users.filter((u) => u.roles?.key === 'setter'), [users])
-  const closers = useMemo(
-    () => users.filter((u) => u.roles?.key === 'closer' || u.roles?.key === 'admin'),
-    [users]
-  )
+  const closers = useMemo(() => users.filter((u) => u.roles?.key === 'closer' || u.roles?.key === 'admin'), [users])
 
   const canChangeStatus = ['admin', 'director', 'manager', 'closer', 'setter', 'cold_caller'].includes(currentUserRole)
   const isAdmin = currentUserRole === 'admin'
@@ -211,11 +197,23 @@ export default function SeguimientoPage() {
     })
   }, [appointments, statusFilter, followupStageFilter, setterFilter, closerFilter, dateFrom, dateTo, dateRange, search])
 
-  const hasFilters = search.trim() !== '' || statusFilter !== 'all' || followupStageFilter !== 'all' || setterFilter !== 'all' || closerFilter !== 'all' || !!dateFrom || !!dateTo
+  const hasFilters =
+    search.trim() !== '' ||
+    statusFilter !== 'all' ||
+    followupStageFilter !== 'all' ||
+    setterFilter !== 'all' ||
+    closerFilter !== 'all' ||
+    !!dateFrom ||
+    !!dateTo
 
   const byStage = useMemo(() => {
     const map: Record<KanbanStage, AppointmentWithRelations[]> = {
-      sin_clasificar: [], pendiente_recontacto: [], en_seguimiento_pago: [], reagendado_pendiente: [], cerrado: [], descualificado: [],
+      sin_clasificar: [],
+      pendiente_recontacto: [],
+      en_seguimiento_pago: [],
+      reagendado_pendiente: [],
+      cerrado: [],
+      descualificado: [],
     }
     for (const a of filtered) {
       const stage = (a.followup_stage ?? 'sin_clasificar') as KanbanStage
@@ -243,9 +241,16 @@ export default function SeguimientoPage() {
     const prevStage = prev?.followup_stage ?? null
     const prevNotes = prev?.notes ?? null
     setAppointments((cur) =>
-      cur.map((a) => (a.id === appointmentId
-        ? { ...a, followup_stage: followupStage, last_contacted_at: new Date().toISOString(), ...(reason ? { notes: reason } : {}) }
-        : a))
+      cur.map((a) =>
+        a.id === appointmentId
+          ? {
+              ...a,
+              followup_stage: followupStage,
+              last_contacted_at: new Date().toISOString(),
+              ...(reason ? { notes: reason } : {}),
+            }
+          : a
+      )
     )
     try {
       const res = await fetch(`/api/${tenant}/evergreen/appointments/followup-stage`, {
@@ -313,19 +318,35 @@ export default function SeguimientoPage() {
 
   const handleCloserChanged = (id: string, closer: { id: string; full_name: string } | null) => {
     setAppointments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, closer_id: closer?.id ?? null, closer: closer as unknown as AppointmentWithRelations['closer'] } : a))
+      prev.map((a) =>
+        a.id === id
+          ? { ...a, closer_id: closer?.id ?? null, closer: closer as unknown as AppointmentWithRelations['closer'] }
+          : a
+      )
     )
     if (selectedAppointment?.id === id) {
-      setSelectedAppointment((prev) => (prev ? { ...prev, closer_id: closer?.id ?? null, closer: closer as unknown as AppointmentWithRelations['closer'] } : prev))
+      setSelectedAppointment((prev) =>
+        prev
+          ? { ...prev, closer_id: closer?.id ?? null, closer: closer as unknown as AppointmentWithRelations['closer'] }
+          : prev
+      )
     }
   }
 
   const handleSetterChanged = (id: string, setter: { id: string; full_name: string } | null) => {
     setAppointments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, setter_id: setter?.id ?? null, setter: setter as unknown as AppointmentWithRelations['setter'] } : a))
+      prev.map((a) =>
+        a.id === id
+          ? { ...a, setter_id: setter?.id ?? null, setter: setter as unknown as AppointmentWithRelations['setter'] }
+          : a
+      )
     )
     if (selectedAppointment?.id === id) {
-      setSelectedAppointment((prev) => (prev ? { ...prev, setter_id: setter?.id ?? null, setter: setter as unknown as AppointmentWithRelations['setter'] } : prev))
+      setSelectedAppointment((prev) =>
+        prev
+          ? { ...prev, setter_id: setter?.id ?? null, setter: setter as unknown as AppointmentWithRelations['setter'] }
+          : prev
+      )
     }
   }
 
@@ -361,7 +382,12 @@ export default function SeguimientoPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
-        <SearchBox value={search} onChange={setSearch} placeholder="Buscar contacto o teléfono..." className="flex-1 min-w-[200px]" />
+        <SearchBox
+          value={search}
+          onChange={setSearch}
+          placeholder="Buscar contacto o teléfono..."
+          className="flex-1 min-w-[200px]"
+        />
 
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-44 bg-card border-border">
@@ -370,7 +396,9 @@ export default function SeguimientoPage() {
           <SelectContent className="bg-card border-border">
             <SelectItem value="all">Todos los estados</SelectItem>
             {Object.entries(STATUS_LABELS_LOCAL).map(([v, l]) => (
-              <SelectItem key={v} value={v}>{l}</SelectItem>
+              <SelectItem key={v} value={v}>
+                {l}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -383,7 +411,9 @@ export default function SeguimientoPage() {
             <SelectItem value="all">Todas las etapas</SelectItem>
             <SelectItem value="sin_clasificar">Sin clasificar</SelectItem>
             {Object.entries(FOLLOWUP_STAGE_LABELS).map(([v, l]) => (
-              <SelectItem key={v} value={v}>{l}</SelectItem>
+              <SelectItem key={v} value={v}>
+                {l}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -395,7 +425,9 @@ export default function SeguimientoPage() {
           <SelectContent className="bg-card border-border">
             <SelectItem value="all">Todos los setters</SelectItem>
             {setters.map((u) => (
-              <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>
+              <SelectItem key={u.id} value={u.id}>
+                {u.full_name}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -407,7 +439,9 @@ export default function SeguimientoPage() {
           <SelectContent className="bg-card border-border">
             <SelectItem value="all">Todos los closers</SelectItem>
             {closers.map((u) => (
-              <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>
+              <SelectItem key={u.id} value={u.id}>
+                {u.full_name}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -429,7 +463,19 @@ export default function SeguimientoPage() {
           placeholder="Hasta"
         />
         {hasFilters && (
-          <Button variant="ghost" onClick={() => { setSearch(''); setStatusFilter('all'); setFollowupStageFilter('all'); setSetterFilter('all'); setCloserFilter('all'); setDateFrom(''); setDateTo('') }} className="text-muted-foreground hover:text-foreground">
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setSearch('')
+              setStatusFilter('all')
+              setFollowupStageFilter('all')
+              setSetterFilter('all')
+              setCloserFilter('all')
+              setDateFrom('')
+              setDateTo('')
+            }}
+            className="text-muted-foreground hover:text-foreground"
+          >
             <X className="h-4 w-4 mr-1" /> Limpiar filtros
           </Button>
         )}
@@ -454,7 +500,9 @@ export default function SeguimientoPage() {
                     <span className={`w-2 h-2 rounded-full shrink-0 ${FOLLOWUP_STAGE_DOT[stage]}`} />
                     <h3 className="text-sm font-semibold text-foreground truncate">{label}</h3>
                   </div>
-                  <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0">{stageAppts.length}</span>
+                  <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0">
+                    {stageAppts.length}
+                  </span>
                 </div>
                 <div className="p-2.5 space-y-2.5 flex-1 overflow-y-auto max-h-[70vh]">
                   {stageAppts.length === 0 ? (
@@ -464,16 +512,25 @@ export default function SeguimientoPage() {
                       <button
                         type="button"
                         key={a.id}
-                        onClick={() => { setSelectedAppointment(a); setSheetOpen(true) }}
+                        onClick={() => {
+                          setSelectedAppointment(a)
+                          setSheetOpen(true)
+                        }}
                         className="w-full text-left rounded-lg border border-border bg-card p-3 hover:border-brand-500/50 transition-colors"
                       >
-                        <p className="text-sm font-medium text-foreground truncate">{a.contacts?.full_name || 'Sin nombre'}</p>
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {a.contacts?.full_name || 'Sin nombre'}
+                        </p>
                         <p className="text-xs text-muted-foreground truncate">{a.contacts?.phone || '—'}</p>
-                        <p className="text-[11px] text-muted-foreground mt-1.5">{STATUS_LABELS_LOCAL[a.status] || a.status}</p>
+                        <p className="text-[11px] text-muted-foreground mt-1.5">
+                          {STATUS_LABELS_LOCAL[a.status] || a.status}
+                        </p>
                         {(a.closer?.full_name || a.setter?.full_name) && (
                           <div className="flex items-center gap-1 mt-1">
                             <UserIcon className="w-3 h-3 text-muted-foreground shrink-0" />
-                            <span className="text-[11px] text-muted-foreground truncate">{a.closer?.full_name || a.setter?.full_name}</span>
+                            <span className="text-[11px] text-muted-foreground truncate">
+                              {a.closer?.full_name || a.setter?.full_name}
+                            </span>
                           </div>
                         )}
                         {a.notes && <p className="text-[11px] text-muted-foreground mt-1.5 line-clamp-2">{a.notes}</p>}
@@ -516,96 +573,94 @@ export default function SeguimientoPage() {
                   const qualificationEntries = getQualificationEntries(a.qualification as Qualification | null)
                   const notesValue = notesDraft[a.id] ?? a.notes ?? ''
                   return (
-                  <TableRow key={a.id} className="border-border hover:bg-card/50">
-                    <TableCell>
-                      <p className="text-foreground font-medium">{a.contacts?.full_name || 'Sin nombre'}</p>
-                      <p className="text-muted-foreground text-xs">{a.contacts?.phone || '—'}</p>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      <p>{a.setter?.full_name || '—'}</p>
-                      <p>{a.closer?.full_name || '—'}</p>
-                    </TableCell>
-                    <TableCell className="text-sm text-foreground">
-                      {STATUS_LABELS_LOCAL[a.status] || a.status}
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={a.followup_stage ?? 'sin_clasificar'}
-                        disabled={savingStageId === a.id}
-                        onValueChange={(v) =>
-                          handleFollowupStageChange(
-                            a.id,
-                            v === 'sin_clasificar' ? null : (v as AppointmentWithRelations['followup_stage'])
-                          )
-                        }
-                      >
-                        <SelectTrigger
-                          className={`w-52 border text-xs ${a.followup_stage ? FOLLOWUP_STAGE_COLORS[a.followup_stage] : 'bg-card border-border text-muted-foreground'}`}
+                    <TableRow key={a.id} className="border-border hover:bg-card/50">
+                      <TableCell>
+                        <p className="text-foreground font-medium">{a.contacts?.full_name || 'Sin nombre'}</p>
+                        <p className="text-muted-foreground text-xs">{a.contacts?.phone || '—'}</p>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        <p>{a.setter?.full_name || '—'}</p>
+                        <p>{a.closer?.full_name || '—'}</p>
+                      </TableCell>
+                      <TableCell className="text-sm text-foreground">
+                        {STATUS_LABELS_LOCAL[a.status] || a.status}
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={a.followup_stage ?? 'sin_clasificar'}
+                          disabled={savingStageId === a.id}
+                          onValueChange={(v) =>
+                            handleFollowupStageChange(
+                              a.id,
+                              v === 'sin_clasificar' ? null : (v as AppointmentWithRelations['followup_stage'])
+                            )
+                          }
                         >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-card border-border">
-                          <SelectItem value="sin_clasificar">Sin clasificar</SelectItem>
-                          {Object.entries(FOLLOWUP_STAGE_LABELS).map(([v, l]) => (
-                            <SelectItem key={v} value={v}>{l}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      {qualificationEntries.length === 0 ? (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      ) : (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <button
-                              type="button"
-                              className="flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 max-w-[220px] text-left"
-                            >
-                              <MessageSquare className="w-3.5 h-3.5 shrink-0" />
-                              <span className="truncate">
-                                {qualificationEntries.map((e) => e.value).join(' · ')}
-                              </span>
-                            </button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-80 max-h-80 overflow-y-auto space-y-2">
-                            {qualificationEntries.map((e, i) => (
-                              <div key={i} className="space-y-0.5">
-                                <p className="text-xs text-muted-foreground">{e.label}</p>
-                                <p className="text-sm text-foreground">{e.value}</p>
-                              </div>
+                          <SelectTrigger
+                            className={`w-52 border text-xs ${a.followup_stage ? FOLLOWUP_STAGE_COLORS[a.followup_stage] : 'bg-card border-border text-muted-foreground'}`}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-border">
+                            <SelectItem value="sin_clasificar">Sin clasificar</SelectItem>
+                            {Object.entries(FOLLOWUP_STAGE_LABELS).map(([v, l]) => (
+                              <SelectItem key={v} value={v}>
+                                {l}
+                              </SelectItem>
                             ))}
-                          </PopoverContent>
-                        </Popover>
-                      )}
-                    </TableCell>
-                    <TableCell className="min-w-[200px]">
-                      <textarea
-                        value={notesValue}
-                        onChange={(e) => setNotesDraft((d) => ({ ...d, [a.id]: e.target.value }))}
-                        onBlur={() => handleSaveNotes(a.id)}
-                        disabled={savingNotesId === a.id}
-                        rows={2}
-                        placeholder="Añadir nota…"
-                        className="w-full bg-muted border border-border rounded-lg p-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500 resize-y"
-                      />
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {timeAgo(a.last_contacted_at)}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedAppointment(a)
-                          setSheetOpen(true)
-                        }}
-                      >
-                        Ver ficha
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        {qualificationEntries.length === 0 ? (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        ) : (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                className="flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 max-w-[220px] text-left"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+                                <span className="truncate">{qualificationEntries.map((e) => e.value).join(' · ')}</span>
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80 max-h-80 overflow-y-auto space-y-2">
+                              {qualificationEntries.map((e, i) => (
+                                <div key={i} className="space-y-0.5">
+                                  <p className="text-xs text-muted-foreground">{e.label}</p>
+                                  <p className="text-sm text-foreground">{e.value}</p>
+                                </div>
+                              ))}
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                      </TableCell>
+                      <TableCell className="min-w-[200px]">
+                        <textarea
+                          value={notesValue}
+                          onChange={(e) => setNotesDraft((d) => ({ ...d, [a.id]: e.target.value }))}
+                          onBlur={() => handleSaveNotes(a.id)}
+                          disabled={savingNotesId === a.id}
+                          rows={2}
+                          placeholder="Añadir nota…"
+                          className="w-full bg-muted border border-border rounded-lg p-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500 resize-y"
+                        />
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{timeAgo(a.last_contacted_at)}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedAppointment(a)
+                            setSheetOpen(true)
+                          }}
+                        >
+                          Ver ficha
+                        </Button>
+                      </TableCell>
+                    </TableRow>
                   )
                 })
               )}

@@ -21,13 +21,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (!saleId) return NextResponse.json({ error: 'Falta saleId' }, { status: 400 })
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-    const role = (urow?.roles as { key?: string } | null)?.key
+    const role = t.role
     if (!['admin', 'director'].includes(role || '')) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
-    const { data: prevData, error: prevErr } = await sb.from('sales').select('*').eq('id', saleId).eq('tenant_id', t.tenantId).single()
+    const { data: prevData, error: prevErr } = await sb
+      .from('sales')
+      .select('*')
+      .eq('id', saleId)
+      .eq('tenant_id', t.tenantId)
+      .single()
     if (prevErr || !prevData) return NextResponse.json({ error: 'Venta no encontrada' }, { status: 404 })
     const prev = prevData as Sale
 
@@ -38,14 +42,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if ('closer_id' in body) payload.closer_id = norm(body.closer_id)
     if ('affiliate_id' in body) payload.affiliate_id = norm(body.affiliate_id)
     if ('affiliate_commission_percent' in body) {
-      payload.affiliate_commission_percent =
-        payload.affiliate_id && body.affiliate_commission_percent
-          ? parseFloat(String(body.affiliate_commission_percent))
-          : null
+      const pct = parseFloat(String(body.affiliate_commission_percent))
+      if (payload.affiliate_id && body.affiliate_commission_percent) {
+        if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+          return NextResponse.json({ error: 'affiliate_commission_percent debe estar entre 0 y 100' }, { status: 400 })
+        }
+        payload.affiliate_commission_percent = pct
+      } else {
+        payload.affiliate_commission_percent = null
+      }
     }
     if ('sale_date' in body && body.sale_date) payload.sale_date = body.sale_date
     if ('gross_amount' in body && body.gross_amount !== '' && body.gross_amount != null) {
-      payload.gross_amount = parseFloat(String(body.gross_amount))
+      const gross = parseFloat(String(body.gross_amount))
+      if (!Number.isFinite(gross) || gross < 0) {
+        return NextResponse.json({ error: 'gross_amount debe ser un número mayor o igual a 0' }, { status: 400 })
+      }
+      payload.gross_amount = gross
     }
     if ('status' in body && body.status) payload.status = body.status
     if ('notes' in body) payload.notes = body.notes || null
@@ -85,8 +98,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       entity_id: saleId,
       action: 'update',
       old_values: {
-        setter_id: prev.setter_id, closer_id: prev.closer_id, affiliate_id: prev.affiliate_id,
-        gross_amount: prev.gross_amount, status: prev.status,
+        setter_id: prev.setter_id,
+        closer_id: prev.closer_id,
+        affiliate_id: prev.affiliate_id,
+        gross_amount: prev.gross_amount,
+        status: prev.status,
       },
       new_values: { ...payload, reconcile: result },
     })

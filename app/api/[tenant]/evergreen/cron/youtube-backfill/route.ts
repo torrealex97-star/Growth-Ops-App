@@ -32,11 +32,17 @@ export async function GET(req: NextRequest) {
     for (const tn of tenants || []) {
       await ensureConfig(tn.id)
       const cfg = getInstagramConfig()
-      if (!cfg) { perTenant[tn.slug] = null; continue }
+      if (!cfg) {
+        perTenant[tn.slug] = null
+        continue
+      }
       perTenant[tn.slug] = await runYoutubeSync(sb, cfg, tn.id, { backfillLimit: 1 })
     }
     return NextResponse.json({ ok: true, uploaded: perTenant, at: new Date().toISOString() })
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Error en backfill de YouTube' }, { status: 500 })
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Error en backfill de YouTube' },
+      { status: 500 }
+    )
   }
 }

@@ -14,11 +14,23 @@ import {
 
 // Fuentes UTM que consideramos "Meta" al cruzar los LEADS FUNNEL de la BBDD.
 const META_SOURCES = new Set([
-  'facebook', 'fb', 'meta', 'meta_ads', 'facebook_ads',
-  'ig', 'instagram', 'instagram_ads', 'an', 'audience_network', 'messenger',
+  'facebook',
+  'fb',
+  'meta',
+  'meta_ads',
+  'facebook_ads',
+  'ig',
+  'instagram',
+  'instagram_ads',
+  'an',
+  'audience_network',
+  'messenger',
 ])
 
-const norm = (s: unknown) => String(s ?? '').trim().toLowerCase()
+const norm = (s: unknown) =>
+  String(s ?? '')
+    .trim()
+    .toLowerCase()
 
 function mapStatus(c: MetaCampaign): 'activa' | 'pausada' | 'finalizada' {
   const s = (c.effective_status || c.status || '').toUpperCase()
@@ -97,19 +109,15 @@ export async function runMetaSync(sb: SupabaseClient, tenantId: string): Promise
   // todas las cuentas), acotadas al tenant.
   const { data: attribs } = await sb
     .from('contact_attributions')
-    .select('contact_id, utm_source, utm_campaign, first_utm_source, first_utm_campaign, last_utm_source, last_utm_campaign')
+    .select(
+      'contact_id, utm_source, utm_campaign, first_utm_source, first_utm_campaign, last_utm_source, last_utm_campaign'
+    )
     .eq('tenant_id', tenantId)
 
   // CRM: agendas y ventas por contacto, para el funnel (Agendas → Llamadas →
   // Cierres). Se atribuyen a la campaña por el mismo contacto que ya casó por UTM.
-  const { data: apptRows } = await sb
-    .from('appointments')
-    .select('contact_id, status')
-    .eq('tenant_id', tenantId)
-  const { data: saleRows } = await sb
-    .from('sales')
-    .select('contact_id, status, gross_amount')
-    .eq('tenant_id', tenantId)
+  const { data: apptRows } = await sb.from('appointments').select('contact_id, status').eq('tenant_id', tenantId)
+  const { data: saleRows } = await sb.from('sales').select('contact_id, status, gross_amount').eq('tenant_id', tenantId)
 
   const crm: CrmIndex = {
     appointmentsByContact: groupBy(apptRows || [], (r) => String(r.contact_id)),
@@ -194,8 +202,7 @@ async function syncOneAccount(
     const reach = life?.reach ?? 0
     const metaLeads = life?.leads ?? 0
     const metaFollowers = life?.followers ?? 0
-    const budget =
-      Number(c.lifetime_budget || 0) / 100 || Number(c.daily_budget || 0) / 100 || 0
+    const budget = Number(c.lifetime_budget || 0) / 100 || Number(c.daily_budget || 0) / 100 || 0
 
     // LEADS FUNNEL: contactos con una atribución Meta cuyo utm_campaign casa con
     // el id o el nombre de esta campaña (comparamos con lo que reporta Meta).
@@ -267,11 +274,7 @@ async function syncOneAccount(
       const { error: updErr } = await sb.from('campaigns').update(row).eq('id', campaignId)
       if (updErr) continue
     } else {
-      const { data: inserted, error: insErr } = await sb
-        .from('campaigns')
-        .insert(row)
-        .select('id')
-        .single()
+      const { data: inserted, error: insErr } = await sb.from('campaigns').insert(row).select('id').single()
       if (insErr || !inserted) continue
       campaignId = inserted.id as string
       existingByExt.set(c.id, campaignId)
@@ -318,7 +321,11 @@ export type MetaDailySyncResult = {
   at: string
 }
 
-export async function runMetaDailySync(sb: SupabaseClient, tenantId: string, sinceDays = 180): Promise<MetaDailySyncResult> {
+export async function runMetaDailySync(
+  sb: SupabaseClient,
+  tenantId: string,
+  sinceDays = 180
+): Promise<MetaDailySyncResult> {
   const configs = await resolveMetaConfigs()
   if (configs.length === 0) {
     throw new Error('Faltan credenciales de Meta o el token no tiene acceso a ninguna cuenta.')
@@ -432,10 +439,7 @@ async function syncAdsOneAccount(
   // monitorizar campañas). `maximum` traería cientos de anuncios históricos y no
   // cabría en los 60s de Vercel Hobby. Solo guardamos anuncios con actividad
   // reciente o actualmente activos, para mantener la vista enfocada.
-  const [ads, adInsights] = await Promise.all([
-    fetchMetaAds(cfg),
-    fetchMetaAdInsights(cfg, 'last_90d'),
-  ])
+  const [ads, adInsights] = await Promise.all([fetchMetaAds(cfg), fetchMetaAdInsights(cfg, 'last_90d')])
   const insByAd = new Map<string, MetaAdInsight>(adInsights.map((i) => [i.ad_id, i]))
   const adRows = ads
     .filter((ad) => {
@@ -443,30 +447,30 @@ async function syncAdsOneAccount(
       return insByAd.has(ad.id) || s === 'ACTIVE'
     })
     .map((ad) => {
-    const ins = insByAd.get(ad.id)
-    const s = (ad.effective_status || ad.status || '').toUpperCase()
-    const status = s === 'ACTIVE' ? 'activa' : s.includes('PAUSED') ? 'pausada' : 'finalizada'
-    return {
-      tenant_id: tenantId,
-      external_id: ad.id,
-      campaign_external_id: ad.campaign_id || null,
-      campaign_id: ad.campaign_id ? campaignByExt.get(ad.campaign_id) || null : null,
-      account_id: cfg.accountId,
-      account_name: cfg.accountName || null,
-      name: ad.name,
-      adset_name: ad.adset_name || null,
-      status,
-      spend: ins?.spend ?? 0,
-      impressions: ins?.impressions ?? 0,
-      clicks: ins?.clicks ?? 0,
-      reach: ins?.reach ?? 0,
-      link_clicks: ins?.linkClicks ?? 0,
-      landing_views: ins?.landingViews ?? 0,
-      leads: ins?.leads ?? 0,
-      followers: ins?.followers ?? 0,
-      synced_at: at,
-    }
-  })
+      const ins = insByAd.get(ad.id)
+      const s = (ad.effective_status || ad.status || '').toUpperCase()
+      const status = s === 'ACTIVE' ? 'activa' : s.includes('PAUSED') ? 'pausada' : 'finalizada'
+      return {
+        tenant_id: tenantId,
+        external_id: ad.id,
+        campaign_external_id: ad.campaign_id || null,
+        campaign_id: ad.campaign_id ? campaignByExt.get(ad.campaign_id) || null : null,
+        account_id: cfg.accountId,
+        account_name: cfg.accountName || null,
+        name: ad.name,
+        adset_name: ad.adset_name || null,
+        status,
+        spend: ins?.spend ?? 0,
+        impressions: ins?.impressions ?? 0,
+        clicks: ins?.clicks ?? 0,
+        reach: ins?.reach ?? 0,
+        link_clicks: ins?.linkClicks ?? 0,
+        landing_views: ins?.landingViews ?? 0,
+        leads: ins?.leads ?? 0,
+        followers: ins?.followers ?? 0,
+        synced_at: at,
+      }
+    })
   let synced = 0
   const CHUNK = 300
   for (let i = 0; i < adRows.length; i += CHUNK) {

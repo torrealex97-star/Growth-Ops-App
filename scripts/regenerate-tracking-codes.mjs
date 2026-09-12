@@ -16,12 +16,16 @@ for (const line of readFileSync(new URL('../.env.local', import.meta.url), 'utf8
 
 const url = env.NEXT_PUBLIC_SUPABASE_URL
 const key = env.SUPABASE_SERVICE_ROLE_KEY
-if (!url || !key) { console.error('Faltan NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY en .env.local'); process.exit(1) }
+if (!url || !key) {
+  console.error('Faltan NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY en .env.local')
+  process.exit(1)
+}
 
 const DRY = process.argv.includes('--dry')
 const ALPHABET = 'abcdefghjkmnpqrstuvwxyz23456789'
 const gen = (n = 8) => {
-  const b = new Uint8Array(n); globalThis.crypto.getRandomValues(b)
+  const b = new Uint8Array(n)
+  globalThis.crypto.getRandomValues(b)
   return Array.from(b, (x) => ALPHABET[x % ALPHABET.length]).join('')
 }
 
@@ -31,7 +35,10 @@ const { data: users, error } = await sb
   .from('users')
   .select('id, full_name, tracking_code')
   .not('tracking_code', 'is', null)
-if (error) { console.error('Error leyendo usuarios:', error.message); process.exit(1) }
+if (error) {
+  console.error('Error leyendo usuarios:', error.message)
+  process.exit(1)
+}
 
 console.log(`Usuarios con tracking_code: ${users.length}${DRY ? '  (DRY RUN)' : ''}\n`)
 
@@ -44,7 +51,10 @@ for (const u of users) {
   console.log(`${(u.full_name || u.id).padEnd(28)} ${String(u.tracking_code).padEnd(16)} → ${code}`)
   if (!DRY) {
     const { error: upErr } = await sb.from('users').update({ tracking_code: code }).eq('id', u.id)
-    if (upErr) { console.error(`  ✗ ${u.id}: ${upErr.message}`); continue }
+    if (upErr) {
+      console.error(`  ✗ ${u.id}: ${upErr.message}`)
+      continue
+    }
   }
   ok++
 }

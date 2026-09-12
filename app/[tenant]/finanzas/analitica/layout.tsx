@@ -11,7 +11,13 @@ export default function AnaliticaFinancieraLayout({ children }: { children: Reac
 
   const TABS: RouteTab[] = [
     { label: 'Resumen', href: `/${tenant}/finanzas/analitica/resumen`, match: '/finanzas/analitica/resumen' },
-    { label: 'Proyección de caja', href: `/${tenant}/finanzas/analitica/proyeccion`, match: '/finanzas/analitica/proyeccion' },
+    {
+      label: 'Proyección de caja',
+      href: `/${tenant}/finanzas/analitica/proyeccion`,
+      match: '/finanzas/analitica/proyeccion',
+    },
+    { label: 'I&G (P&L)', href: `/${tenant}/finanzas/analitica/pnl`, match: '/finanzas/analitica/pnl' },
+    { label: 'Cohortes', href: `/${tenant}/finanzas/analitica/cohortes`, match: '/finanzas/analitica/cohortes' },
   ]
 
   return (

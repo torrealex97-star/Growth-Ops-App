@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { Megaphone } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'

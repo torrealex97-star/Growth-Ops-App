@@ -1,21 +1,15 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { cn } from "@/lib/utils"
-import { Loader2, LayoutGrid, FileImage } from "lucide-react"
-import { toast } from "sonner"
-import type { AspectRatio, ProjectKind } from "@/lib/carruseles/types"
-import { ASPECT_LABELS } from "@/lib/carruseles/types"
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
+import { Loader2, LayoutGrid, FileImage } from 'lucide-react'
+import { toast } from 'sonner'
+import type { AspectRatio, ProjectKind } from '@/lib/carruseles/types'
+import { ASPECT_LABELS } from '@/lib/carruseles/types'
 import { useTenant } from '@/lib/tenant-context'
 
 interface Props {
@@ -24,16 +18,16 @@ interface Props {
 }
 
 const RATIOS_BY_KIND: Record<ProjectKind, AspectRatio[]> = {
-  carousel: ["4:5", "1:1", "9:16"],
-  flyer: ["A4", "3:4", "1:1", "9:16"],
+  carousel: ['4:5', '1:1', '9:16'],
+  flyer: ['A4', '3:4', '1:1', '9:16'],
 }
 
 export function CreateProjectDialog({ open, onOpenChange }: Props) {
   const tenant = useTenant()
   const router = useRouter()
-  const [title, setTitle] = useState("")
-  const [kind, setKind] = useState<ProjectKind>("carousel")
-  const [ratio, setRatio] = useState<AspectRatio>("4:5")
+  const [title, setTitle] = useState('')
+  const [kind, setKind] = useState<ProjectKind>('carousel')
+  const [ratio, setRatio] = useState<AspectRatio>('4:5')
   const [creating, setCreating] = useState(false)
 
   const pickKind = (k: ProjectKind) => {
@@ -45,11 +39,15 @@ export function CreateProjectDialog({ open, onOpenChange }: Props) {
     setCreating(true)
     try {
       const res = await fetch(`/api/${tenant}/evergreen/carruseles`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title.trim() || (kind === "flyer" ? "Nuevo flyer" : "Nuevo carrusel"), kind, aspectRatio: ratio }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title.trim() || (kind === 'flyer' ? 'Nuevo flyer' : 'Nuevo carrusel'),
+          kind,
+          aspectRatio: ratio,
+        }),
       })
-      if (!res.ok) throw new Error("Error al crear")
+      if (!res.ok) throw new Error('Error al crear')
       const project = await res.json()
       router.push(`/${tenant}/instagram/carruseles/${project.id}`)
     } catch (e) {
@@ -66,19 +64,19 @@ export function CreateProjectDialog({ open, onOpenChange }: Props) {
         </DialogHeader>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-2">
-            {([
-              { k: "carousel" as const, label: "Carrusel", desc: "Varias slides", Icon: LayoutGrid },
-              { k: "flyer" as const, label: "Flyer", desc: "Pieza única", Icon: FileImage },
-            ]).map(({ k, label, desc, Icon }) => (
+            {[
+              { k: 'carousel' as const, label: 'Carrusel', desc: 'Varias slides', Icon: LayoutGrid },
+              { k: 'flyer' as const, label: 'Flyer', desc: 'Pieza única', Icon: FileImage },
+            ].map(({ k, label, desc, Icon }) => (
               <button
                 key={k}
                 onClick={() => pickKind(k)}
                 className={cn(
-                  "flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors",
-                  kind === k ? "border-brand-400 bg-brand-600/10" : "border-border hover:border-muted-foreground/40"
+                  'flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors',
+                  kind === k ? 'border-brand-400 bg-brand-600/10' : 'border-border hover:border-muted-foreground/40'
                 )}
               >
-                <Icon className={cn("h-5 w-5", kind === k ? "text-brand-400" : "text-muted-foreground")} />
+                <Icon className={cn('h-5 w-5', kind === k ? 'text-brand-400' : 'text-muted-foreground')} />
                 <span className="text-sm font-medium">{label}</span>
                 <span className="text-[11px] text-muted-foreground">{desc}</span>
               </button>
@@ -87,7 +85,11 @@ export function CreateProjectDialog({ open, onOpenChange }: Props) {
 
           <div>
             <label className="text-xs font-medium text-muted-foreground">Título</label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={kind === "flyer" ? "Nuevo flyer" : "Nuevo carrusel"} />
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={kind === 'flyer' ? 'Nuevo flyer' : 'Nuevo carrusel'}
+            />
           </div>
 
           <div>
@@ -98,8 +100,10 @@ export function CreateProjectDialog({ open, onOpenChange }: Props) {
                   key={r}
                   onClick={() => setRatio(r)}
                   className={cn(
-                    "px-3 py-1.5 rounded-md text-xs font-medium border transition-colors",
-                    ratio === r ? "border-brand-400 bg-brand-600/10 text-brand-300" : "border-border text-muted-foreground hover:text-foreground"
+                    'px-3 py-1.5 rounded-md text-xs font-medium border transition-colors',
+                    ratio === r
+                      ? 'border-brand-400 bg-brand-600/10 text-brand-300'
+                      : 'border-border text-muted-foreground hover:text-foreground'
                   )}
                 >
                   {ASPECT_LABELS[r]}

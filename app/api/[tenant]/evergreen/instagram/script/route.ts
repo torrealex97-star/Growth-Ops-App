@@ -44,10 +44,7 @@ async function resolveTestimonio(testimonio: unknown): Promise<{
 
 // En modo 'auto' la IA devuelve el NOMBRE del caso que usó; lo mapeamos a su id para
 // poder guardarlo en la pieza de contenido.
-function matchTestimonioId(
-  used: string | undefined,
-  candidates: { id: string; name: string }[]
-): string | null {
+function matchTestimonioId(used: string | undefined, candidates: { id: string; name: string }[]): string | null {
   const needle = (used || '').trim().toLowerCase()
   if (!needle) return null
   const exact = candidates.find((c) => c.name.toLowerCase() === needle)
@@ -63,29 +60,51 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const t = await requireTenant(tenant)
     if ('error' in t) return t.error
 
-    const { mediaId, competitorMediaId, instruction, cta, testimonio, saveAsIdea, transcript: transcriptOverride } = await req.json()
-    if (!mediaId && !competitorMediaId) return NextResponse.json({ error: 'Falta mediaId o competitorMediaId' }, { status: 400 })
+    const {
+      mediaId,
+      competitorMediaId,
+      instruction,
+      cta,
+      testimonio,
+      saveAsIdea,
+      transcript: transcriptOverride,
+    } = await req.json()
+    if (!mediaId && !competitorMediaId)
+      return NextResponse.json({ error: 'Falta mediaId o competitorMediaId' }, { status: 400 })
     const forcedCta = cta && CTA_CODES.includes(String(cta).toUpperCase()) ? String(cta).toUpperCase() : undefined
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-    const role = (urow?.roles as { key?: string } | null)?.key
+    const role = t.role
     if (!role || !ALLOWED_ROLES.includes(role)) return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
     // Origen: reel propio (ig_media) o de competencia (ig_competitor_media)
     const source = mediaId
-      ? await sb.from('ig_media').select('caption, transcript, ai_analysis, permalink').eq('id', mediaId).eq('tenant_id', t.tenantId).single()
-      : await sb.from('ig_competitor_media').select('caption, transcript, ai_analysis, permalink').eq('id', competitorMediaId).eq('tenant_id', t.tenantId).single()
+      ? await sb
+          .from('ig_media')
+          .select('caption, transcript, ai_analysis, permalink')
+          .eq('id', mediaId)
+          .eq('tenant_id', t.tenantId)
+          .single()
+      : await sb
+          .from('ig_competitor_media')
+          .select('caption, transcript, ai_analysis, permalink')
+          .eq('id', competitorMediaId)
+          .eq('tenant_id', t.tenantId)
+          .single()
     const media = source.data
     if (source.error || !media) return NextResponse.json({ error: 'Reel no encontrado' }, { status: 404 })
 
     // Transcripción efectiva: la editada por el usuario tiene prioridad sobre la de BBDD.
-    const transcript = (typeof transcriptOverride === 'string' && transcriptOverride.trim())
-      ? transcriptOverride.trim()
-      : (media.transcript || undefined)
+    const transcript =
+      typeof transcriptOverride === 'string' && transcriptOverride.trim()
+        ? transcriptOverride.trim()
+        : media.transcript || undefined
 
     // Estilo + contexto de negocio + CTAs alimentan la generación nichada.
-    const [styleBlock, businessContext] = await Promise.all([readStylePrompt(t.tenantId), readBusinessContext(t.tenantId)])
+    const [styleBlock, businessContext] = await Promise.all([
+      readStylePrompt(t.tenantId),
+      readBusinessContext(t.tenantId),
+    ])
 
     // Prueba social opcional: "auto" deja que la IA elija el caso que mejor encaje con
     // el tema del reel; un id concreto fuerza ese testimonio. Vacío = guión sin testimonio.
@@ -108,8 +127,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     )
 
     // Testimonio que acabó en el guión: el pedido, o el que eligió la IA en modo 'auto'.
-    const testimonioId =
-      testimonioPick.id ?? matchTestimonioId(draft.testimonio_used, testimonioPick.candidates)
+    const testimonioId = testimonioPick.id ?? matchTestimonioId(draft.testimonio_used, testimonioPick.candidates)
 
     let ideaId: string | null = null
     if (saveAsIdea) {
@@ -130,7 +148,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         })
         .select('id')
         .single()
-      if (insErr) return NextResponse.json({ error: `No se pudo guardar en Contenido: ${insErr.message}`, draft }, { status: 500 })
+      if (insErr)
+        return NextResponse.json(
+          { error: `No se pudo guardar en Contenido: ${insErr.message}`, draft },
+          { status: 500 }
+        )
       ideaId = idea?.id ?? null
     }
 

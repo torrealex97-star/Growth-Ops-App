@@ -13,10 +13,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if ('error' in t) return t.error
 
     const { appointmentId, driveUrl } = await req.json()
-    if (!appointmentId || !driveUrl) return NextResponse.json({ error: 'Falta appointmentId o driveUrl' }, { status: 400 })
+    if (!appointmentId || !driveUrl)
+      return NextResponse.json({ error: 'Falta appointmentId o driveUrl' }, { status: 400 })
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { error } = await sb.from('appointments')
+    const { error } = await sb
+      .from('appointments')
       .update({ transcript_drive_url: driveUrl, transcript_status: 'pendiente' })
       .eq('id', appointmentId)
       .eq('tenant_id', t.tenantId)

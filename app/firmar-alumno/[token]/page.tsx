@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
@@ -43,7 +43,7 @@ export default function FirmarAlumnoPage() {
   const [signedUrl, setSignedUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch(`/api/evergreen/contracts/sign-student/${token}`)
+    fetch(`/api/public-contracts/sign-student/${token}`)
       .then((r) => r.json())
       .then((d) => {
         if (d.error) setError(d.error)
@@ -66,19 +66,26 @@ export default function FirmarAlumnoPage() {
   const sign = async () => {
     setSubmitting(true)
     setError(null)
-    const res = await fetch(`/api/evergreen/contracts/sign-student/${token}`, {
+    const res = await fetch(`/api/public-contracts/sign-student/${token}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ signerName: name, consent, signerData: sd }),
     })
     const d = await res.json()
     setSubmitting(false)
-    if (!res.ok) { setError(d.error || 'No se pudo firmar'); return }
+    if (!res.ok) {
+      setError(d.error || 'No se pudo firmar')
+      return
+    }
     setSignedUrl(d.signedPdfUrl)
   }
 
-  if (loading) return <div className="min-h-screen grid place-items-center bg-background text-muted-foreground">Cargando…</div>
-  if (error && !data) return <div className="min-h-screen grid place-items-center bg-background text-red-400 px-6 text-center">{error}</div>
+  if (loading)
+    return <div className="min-h-screen grid place-items-center bg-background text-muted-foreground">Cargando…</div>
+  if (error && !data)
+    return (
+      <div className="min-h-screen grid place-items-center bg-background text-red-400 px-6 text-center">{error}</div>
+    )
   if (!data) return null
 
   const done = !!signedUrl || data.status === 'firmado'
@@ -103,10 +110,17 @@ export default function FirmarAlumnoPage() {
           <div className="bg-gradient-to-b from-brand-600/20 to-zinc-900 border border-brand-500/30 rounded-2xl p-10">
             <div className="text-5xl mb-4">🎉</div>
             <h1 className="text-2xl font-bold text-foreground mb-2">¡Ya eres un Winner!</h1>
-            <p className="text-foreground">Contrato firmado correctamente. En breve recibirás tus accesos a la Academia por email.</p>
+            <p className="text-foreground">
+              Contrato firmado correctamente. En breve recibirás tus accesos a la Academia por email.
+            </p>
             {signedUrl && (
-              <a href={signedUrl} target="_blank" rel="noopener noreferrer" download
-                className="inline-block mt-6 text-sm font-medium text-brand-300 underline">
+              <a
+                href={signedUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                download
+                className="inline-block mt-6 text-sm font-medium text-brand-300 underline"
+              >
                 Descargar mi contrato en PDF
               </a>
             )}
@@ -131,9 +145,12 @@ export default function FirmarAlumnoPage() {
           {error && <p className="text-sm text-red-400 mb-3">{error}</p>}
 
           <label className="block text-sm text-muted-foreground mb-1">Nombre y apellidos</label>
-          <input value={name} onChange={(e) => setName(e.target.value)}
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             className="w-full rounded-lg border border-border bg-muted px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500 mb-4"
-            placeholder="Tu nombre completo" />
+            placeholder="Tu nombre completo"
+          />
 
           <div className="grid grid-cols-2 gap-3">
             {data.signerFields.map((f) => {
@@ -144,15 +161,29 @@ export default function FirmarAlumnoPage() {
               const isRequired = f.key === 'id_country' ? isInternational : f.required
               return (
                 <div key={f.key} className={['address', 'id_country'].includes(f.key) ? 'col-span-2' : ''}>
-                  <label className="block text-sm text-muted-foreground mb-1">{f.label}{isRequired && <span className="text-red-400"> *</span>}</label>
+                  <label className="block text-sm text-muted-foreground mb-1">
+                    {f.label}
+                    {isRequired && <span className="text-red-400"> *</span>}
+                  </label>
                   {f.type === 'select' ? (
-                    <select value={sd[f.key] ?? ''} onChange={(e) => setField(f.key, e.target.value)}
-                      className="w-full rounded-lg border border-border bg-muted px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500">
-                      {(f.options ?? []).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    <select
+                      value={sd[f.key] ?? ''}
+                      onChange={(e) => setField(f.key, e.target.value)}
+                      className="w-full rounded-lg border border-border bg-muted px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    >
+                      {(f.options ?? []).map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
                     </select>
                   ) : (
-                    <input value={sd[f.key] ?? ''} onChange={(e) => setField(f.key, e.target.value)} placeholder={f.placeholder}
-                      className={`w-full rounded-lg border bg-muted px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500 ${showDocError ? 'border-red-500/60' : 'border-border'}`} />
+                    <input
+                      value={sd[f.key] ?? ''}
+                      onChange={(e) => setField(f.key, e.target.value)}
+                      placeholder={f.placeholder}
+                      className={`w-full rounded-lg border bg-muted px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500 ${showDocError ? 'border-red-500/60' : 'border-border'}`}
+                    />
                   )}
                   {showDocError && <p className="mt-1 text-xs text-red-400">{docError}</p>}
                 </div>
@@ -175,11 +206,22 @@ export default function FirmarAlumnoPage() {
 
           {/* Aceptación — "condiciones" es un desplegable con el contrato completo */}
           <label className="flex items-start gap-2.5 mt-5 text-sm text-foreground cursor-pointer">
-            <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 accent-brand-600 w-4 h-4" />
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+              className="mt-0.5 accent-brand-600 w-4 h-4"
+            />
             <span>
               He leído y acepto las{' '}
-              <button type="button" onClick={(e) => { e.preventDefault(); setShowTerms((v) => !v) }}
-                className="text-brand-400 underline underline-offset-2 hover:text-brand-300">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  setShowTerms((v) => !v)
+                }}
+                className="text-brand-400 underline underline-offset-2 hover:text-brand-300"
+              >
                 condiciones del contrato
               </button>{' '}
               y consiento firmarlo electrónicamente.
@@ -196,11 +238,16 @@ export default function FirmarAlumnoPage() {
             <p className="mt-3 text-xs text-amber-400">Faltan por completar: {missingRequired.join(', ')}</p>
           )}
 
-          <button onClick={sign} disabled={submitting || !canSign}
-            className="mt-5 w-full rounded-lg bg-brand-600 text-white py-3 text-sm font-bold disabled:opacity-40 hover:bg-brand-500 transition-colors">
+          <button
+            onClick={sign}
+            disabled={submitting || !canSign}
+            className="mt-5 w-full rounded-lg bg-brand-600 text-white py-3 text-sm font-bold disabled:opacity-40 hover:bg-brand-500 transition-colors"
+          >
             {submitting ? 'Firmando…' : 'Aceptar y recibir mis accesos'}
           </button>
-          <p className="mt-3 text-xs text-muted-foreground text-center">Firma electrónica simple (eIDAS). Se registran fecha, IP y un hash del documento como evidencia.</p>
+          <p className="mt-3 text-xs text-muted-foreground text-center">
+            Firma electrónica simple (eIDAS). Se registran fecha, IP y un hash del documento como evidencia.
+          </p>
         </div>
       </div>
     </div>

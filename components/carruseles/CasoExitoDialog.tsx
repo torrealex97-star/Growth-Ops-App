@@ -1,7 +1,7 @@
-"use client"
+'use client'
 
-import { useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Dialog,
   DialogContent,
@@ -9,12 +9,12 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Loader2, ImagePlus, Trophy, X } from "lucide-react"
-import { toast } from "sonner"
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Loader2, ImagePlus, Trophy, X } from 'lucide-react'
+import { toast } from 'sonner'
 import { useTenant } from '@/lib/tenant-context'
 
 interface Props {
@@ -32,30 +32,30 @@ export function CasoExitoDialog({ open, onOpenChange }: Props) {
   const tenant = useTenant()
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
-  const [name, setName] = useState("")
-  const [story, setStory] = useState("")
-  const [photoUrl, setPhotoUrl] = useState("")
+  const [name, setName] = useState('')
+  const [story, setStory] = useState('')
+  const [photoUrl, setPhotoUrl] = useState('')
   const [uploading, setUploading] = useState(false)
   const [generating, setGenerating] = useState(false)
 
   const reset = () => {
-    setName("")
-    setStory("")
-    setPhotoUrl("")
+    setName('')
+    setStory('')
+    setPhotoUrl('')
   }
 
   const upload = async (file: File) => {
     setUploading(true)
     try {
       const fd = new FormData()
-      fd.append("file", file)
-      fd.append("purpose", "caso-exito")
-      const res = await fetch(`/api/${tenant}/evergreen/carruseles/upload`, { method: "POST", body: fd })
+      fd.append('file', file)
+      fd.append('purpose', 'caso-exito')
+      const res = await fetch(`/api/${tenant}/evergreen/carruseles/upload`, { method: 'POST', body: fd })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || "Error al subir")
+      if (!res.ok) throw new Error(data.error || 'Error al subir')
       setPhotoUrl(data.url)
     } catch (e) {
-      toast.error("No se pudo subir la foto: " + (e as Error).message)
+      toast.error('No se pudo subir la foto: ' + (e as Error).message)
     } finally {
       setUploading(false)
     }
@@ -65,12 +65,12 @@ export function CasoExitoDialog({ open, onOpenChange }: Props) {
     setGenerating(true)
     try {
       const res = await fetch(`/api/${tenant}/evergreen/carruseles/caso-exito`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim(), photoUrl, story: story.trim() }),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || "Error al generar")
+      if (!res.ok) throw new Error(data.error || 'Error al generar')
       toast.success(`Carrusel creado con ${data.slides} slides`)
       reset()
       onOpenChange(false)
@@ -93,20 +93,15 @@ export function CasoExitoDialog({ open, onOpenChange }: Props) {
             Nuevo caso de éxito
           </DialogTitle>
           <DialogDescription>
-            Sube la foto y pega la explicación del caso. Se monta solo el carrusel completo con tu estilo
-            de marca: portada con la foto, punto A, el giro, la cifra, el vehículo y el CTA de cierre.
+            Sube la foto y pega la explicación del caso. Se monta solo el carrusel completo con tu estilo de marca:
+            portada con la foto, punto A, el giro, la cifra, el vehículo y el CTA de cierre.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div>
             <label className="text-xs font-medium text-muted-foreground">Nombre del alumno</label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Miguel"
-              disabled={generating}
-            />
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Miguel" disabled={generating} />
           </div>
 
           <div>
@@ -116,7 +111,7 @@ export function CasoExitoDialog({ open, onOpenChange }: Props) {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={photoUrl} alt="Caso de éxito" className="w-full max-h-44 object-contain bg-background/40" />
                 <button
-                  onClick={() => setPhotoUrl("")}
+                  onClick={() => setPhotoUrl('')}
                   disabled={generating}
                   className="absolute top-2 right-2 h-7 w-7 rounded-md bg-card/90 border border-border flex items-center justify-center text-muted-foreground hover:text-destructive"
                   title="Quitar foto"
@@ -131,7 +126,7 @@ export function CasoExitoDialog({ open, onOpenChange }: Props) {
                 className="mt-1 w-full border border-dashed border-border rounded-lg py-6 flex flex-col items-center gap-1.5 text-muted-foreground hover:border-brand-400/50 hover:text-foreground transition-colors"
               >
                 {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImagePlus className="h-5 w-5" />}
-                <span className="text-sm">{uploading ? "Subiendo…" : "Subir foto"}</span>
+                <span className="text-sm">{uploading ? 'Subiendo…' : 'Subir foto'}</span>
                 <span className="text-[11px]">
                   Sale en la primera slide. Vale horizontal: se encaja sin recortar caras.
                 </span>
@@ -145,7 +140,7 @@ export function CasoExitoDialog({ open, onOpenChange }: Props) {
               onChange={(e) => {
                 const f = e.target.files?.[0]
                 if (f) upload(f)
-                e.target.value = ""
+                e.target.value = ''
               }}
             />
           </div>
@@ -168,8 +163,8 @@ export function CasoExitoDialog({ open, onOpenChange }: Props) {
               className="mt-1 text-sm"
             />
             <p className="text-[11px] text-muted-foreground mt-1.5">
-              Cuanto más detalle des del antes, el después y las cifras reales, mejor sale. No se inventan
-              cifras: si el caso no tiene facturación todavía, se enfoca como testimonio de proceso.
+              Cuanto más detalle des del antes, el después y las cifras reales, mejor sale. No se inventan cifras: si el
+              caso no tiene facturación todavía, se enfoca como testimonio de proceso.
             </p>
           </div>
         </div>
@@ -184,7 +179,7 @@ export function CasoExitoDialog({ open, onOpenChange }: Props) {
             className="bg-brand-600 hover:bg-brand-500 text-white"
           >
             {generating && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
-            {generating ? "Montando el carrusel…" : "Generar carrusel"}
+            {generating ? 'Montando el carrusel…' : 'Generar carrusel'}
           </Button>
         </DialogFooter>
       </DialogContent>

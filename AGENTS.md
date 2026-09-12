@@ -8,7 +8,7 @@ GitHub `main` es la fuente de verdad del código. Supabase es la fuente de verda
 1. Antes de editar, sincroniza e inspecciona únicamente los archivos relacionados con la tarea.
 2. Busca implementaciones existentes y reutiliza la solución canónica.
 3. Realiza el cambio correcto más pequeño; evita refactors o dependencias no solicitados.
-4. Verifica el resultado en proporción al riesgo: lint, typecheck, tests y build disponibles.
+4. Verifica el resultado en proporción al riesgo: `npm run quality` (format:check + lint + typecheck + test) cubre el caso general; añade `npm run build` si el cambio toca rutas/páginas, y `npm run dead-code` si añadiste o borraste archivos/exports. No trates un hallazgo de `dead-code` como error: es un backlog informativo (`--no-exit-code`), no borres nada solo porque aparezca ahí.
 5. Revisa tu propio cambio buscando regresiones, duplicación, permisos incorrectos y código muerto.
 6. Resume los cambios, comprobaciones y riesgos pendientes al finalizar.
 

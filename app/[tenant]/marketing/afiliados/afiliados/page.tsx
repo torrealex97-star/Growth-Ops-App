@@ -81,10 +81,7 @@ export default function AfiliadosPage() {
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
 
-  const range = useMemo(
-    () => getPeriodRange(periodPreset, customFrom, customTo),
-    [periodPreset, customFrom, customTo]
-  )
+  const range = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
   const hasActiveFilters = periodPreset !== 'month' || selectedAffiliateId !== 'all'
   const clearFilters = () => {
     setPeriodPreset('month')
@@ -97,7 +94,9 @@ export default function AfiliadosPage() {
     let mounted = true
     async function load() {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
       if (!user || !mounted) return
       setCurrentUserId(user.id)
 
@@ -118,15 +117,9 @@ export default function AfiliadosPage() {
           .from('users')
           .select('id, full_name, affiliate_code, default_affiliate_commission_percent, roles!inner(key)')
           .eq('roles.key', 'affiliate'),
-        supabase
-          .from('contact_attributions')
-          .select('contact_id, utm_content_first, utm_content_last'),
-        supabase
-          .from('sales')
-          .select('id, contact_id, gross_amount, status, sale_date'),
-        supabase
-          .from('collections')
-          .select('sale_id, gross_amount, status, collected_at'),
+        supabase.from('contact_attributions').select('contact_id, utm_content_first, utm_content_last'),
+        supabase.from('sales').select('id, contact_id, gross_amount, status, sale_date'),
+        supabase.from('collections').select('sale_id, gross_amount, status, collected_at'),
       ])
 
       if (!mounted) return
@@ -137,7 +130,9 @@ export default function AfiliadosPage() {
       setLoading(false)
     }
     load()
-    return () => { mounted = false }
+    return () => {
+      mounted = false
+    }
   }, [])
 
   const isAffiliateUser = currentRole === 'affiliate'
@@ -248,10 +243,13 @@ export default function AfiliadosPage() {
   }, [isAffiliateUser, meAsAffiliate, selectedAffiliateId, affiliates])
 
   const selectedCode = isAffiliateUser
-    ? (currentAffiliateCode || meAsAffiliate?.affiliate_code || null)
-    : (selectedAffiliate?.affiliate_code || null)
+    ? currentAffiliateCode || meAsAffiliate?.affiliate_code || null
+    : selectedAffiliate?.affiliate_code || null
 
-  const selectedStats = useMemo(() => statsForCode(selectedCode), [selectedCode, salesByAffiliateCode, collections, range])
+  const selectedStats = useMemo(
+    () => statsForCode(selectedCode),
+    [selectedCode, salesByAffiliateCode, collections, range]
+  )
   const selectedSalesList = useMemo(() => allSalesForCode(selectedCode), [selectedCode, salesByAffiliateCode, range])
 
   const selectedCommission = useMemo(() => {
@@ -292,7 +290,6 @@ export default function AfiliadosPage() {
             {isAffiliateUser ? 'Tu negocio de afiliado' : 'Ranking y detalle de afiliados por código UTM'}
           </p>
         </div>
-
       </div>
 
       <PeriodFilterBar
@@ -408,7 +405,9 @@ export default function AfiliadosPage() {
 
               <div className="bg-card border border-border rounded-lg overflow-hidden">
                 <div className="px-4 py-3 border-b border-border">
-                  <h2 className="text-sm font-semibold text-foreground">Ranking de afiliados — {PERIOD_LABELS[periodPreset]}</h2>
+                  <h2 className="text-sm font-semibold text-foreground">
+                    Ranking de afiliados — {PERIOD_LABELS[periodPreset]}
+                  </h2>
                 </div>
                 {ranking.every((r) => r.sales === 0) ? (
                   <div className="p-6 text-center text-sm text-muted-foreground">

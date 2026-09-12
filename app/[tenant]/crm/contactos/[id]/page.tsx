@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -8,14 +8,7 @@ import { ContactForm, type ContactFormData } from '@/components/contacts/Contact
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
   ArrowLeft,
   Mail,
@@ -112,24 +105,27 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
   const load = async () => {
     const supabase = createClient()
 
-    const [
-      { data: authData },
-      contactRes,
-      attrRes,
-      appRes,
-      salesRes,
-      notesRes,
-    ] = await Promise.all([
+    const [{ data: authData }, contactRes, attrRes, appRes, salesRes, notesRes] = await Promise.all([
       supabase.auth.getUser(),
       supabase.from('contacts').select('*').eq('id', id).eq('tenant_id', tenantId).single(),
-      supabase.from('contact_attributions').select('*').eq('contact_id', id).eq('tenant_id', tenantId).order('first_touch_at'),
+      supabase
+        .from('contact_attributions')
+        .select('*')
+        .eq('contact_id', id)
+        .eq('tenant_id', tenantId)
+        .order('first_touch_at'),
       supabase
         .from('appointments')
         .select('*, setter:setter_id(full_name), closer:closer_id(full_name)')
         .eq('contact_id', id)
         .eq('tenant_id', tenantId)
         .order('appointment_datetime', { ascending: false }),
-      supabase.from('sales').select('*').eq('contact_id', id).eq('tenant_id', tenantId).order('sale_date', { ascending: false }),
+      supabase
+        .from('sales')
+        .select('*')
+        .eq('contact_id', id)
+        .eq('tenant_id', tenantId)
+        .order('sale_date', { ascending: false }),
       supabase
         .from('contact_notes')
         .select('*, author:author_id(full_name)')
@@ -198,7 +194,9 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
     if (!newNote.trim()) return
     setSavingNote(true)
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
     const { error } = await supabase.from('contact_notes').insert({
       contact_id: id,
@@ -242,7 +240,9 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
         <div className="bg-card border border-border rounded-lg p-12 text-center flex flex-col items-center">
           <UserX className="w-10 h-10 text-muted-foreground mb-3" />
           <p className="text-foreground font-medium mb-1">Contacto no encontrado</p>
-          <p className="text-muted-foreground text-sm mb-4">Puede que haya sido eliminado o el enlace sea incorrecto.</p>
+          <p className="text-muted-foreground text-sm mb-4">
+            Puede que haya sido eliminado o el enlace sea incorrecto.
+          </p>
           <Link href={`/${tenant}/crm/contactos`}>
             <Button variant="outline" size="sm">
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -265,11 +265,7 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
       {/* Back + Header */}
       <div>
         <Link href={`/${tenant}/crm/contactos`}>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mb-4 text-muted-foreground hover:text-foreground"
-          >
+          <Button variant="ghost" size="sm" className="mb-4 text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Volver
           </Button>
@@ -315,8 +311,13 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
               )}
               {contact.instagram && (
                 <a
-                  href={contact.instagram.startsWith('http') ? contact.instagram : `https://instagram.com/${contact.instagram.replace('@', '')}`}
-                  target="_blank" rel="noreferrer"
+                  href={
+                    contact.instagram.startsWith('http')
+                      ? contact.instagram
+                      : `https://instagram.com/${contact.instagram.replace('@', '')}`
+                  }
+                  target="_blank"
+                  rel="noreferrer"
                   className="flex items-center gap-1.5 text-pink-400 hover:text-pink-300 text-sm"
                 >
                   <AtSign className="w-3 h-3" />
@@ -349,9 +350,7 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
           {isAlumno && <TabsTrigger value="alumno">Alumno</TabsTrigger>}
           <TabsTrigger value="notes">
             Notas
-            {notes.length > 0 && (
-              <span className="ml-1.5 text-xs bg-muted px-1.5 rounded-full">{notes.length}</span>
-            )}
+            {notes.length > 0 && <span className="ml-1.5 text-xs bg-muted px-1.5 rounded-full">{notes.length}</span>}
           </TabsTrigger>
           <TabsTrigger value="appointments">
             Agendas
@@ -361,9 +360,7 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
           </TabsTrigger>
           <TabsTrigger value="sales">
             Ventas
-            {sales.length > 0 && (
-              <span className="ml-1.5 text-xs bg-muted px-1.5 rounded-full">{sales.length}</span>
-            )}
+            {sales.length > 0 && <span className="ml-1.5 text-xs bg-muted px-1.5 rounded-full">{sales.length}</span>}
           </TabsTrigger>
         </TabsList>
 
@@ -384,15 +381,32 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
                 { label: 'Género', value: contact.gender },
                 { label: 'Edad', value: contact.age != null ? String(contact.age) : null },
                 { label: 'Lead score', value: contact.lead_score != null ? String(contact.lead_score) : null },
-                { label: 'GHL Contact ID', value: (contact as unknown as Record<string, unknown>).ghl_contact_id as string | null | undefined ?? null },
+                {
+                  label: 'GHL Contact ID',
+                  value:
+                    ((contact as unknown as Record<string, unknown>).ghl_contact_id as string | null | undefined) ??
+                    null,
+                },
                 { label: 'Origen del set (set_source)', value: contact.set_source },
                 { label: 'Canal', value: contact.lead_channel },
                 { label: 'Fecha opt-in', value: contact.optin_date ? formatDate(contact.optin_date) : null },
-                { label: 'Intentos de contacto', value: contact.contact_attempts != null ? String(contact.contact_attempts) : null },
+                {
+                  label: 'Intentos de contacto',
+                  value: contact.contact_attempts != null ? String(contact.contact_attempts) : null,
+                },
                 { label: 'Motivo descarte', value: contact.discard_reason },
-                { label: 'Primera vez visto', value: contact.first_seen_at ? formatDateTime(contact.first_seen_at) : null },
-                { label: 'Primer contacto', value: contact.first_contact_at ? formatDateTime(contact.first_contact_at) : null },
-                { label: 'Última vez visto', value: contact.last_seen_at ? formatDateTime(contact.last_seen_at) : null },
+                {
+                  label: 'Primera vez visto',
+                  value: contact.first_seen_at ? formatDateTime(contact.first_seen_at) : null,
+                },
+                {
+                  label: 'Primer contacto',
+                  value: contact.first_contact_at ? formatDateTime(contact.first_contact_at) : null,
+                },
+                {
+                  label: 'Última vez visto',
+                  value: contact.last_seen_at ? formatDateTime(contact.last_seen_at) : null,
+                },
                 { label: 'Creado', value: contact.created_at ? formatDateTime(contact.created_at) : null },
                 { label: 'Actualizado', value: contact.updated_at ? formatDateTime(contact.updated_at) : null },
               ].map(({ label, value }) => (
@@ -414,13 +428,16 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
             const q = (contact as unknown as { qualification?: Qualification | null }).qualification
             const respuestas: QualificationAnswer[] = Array.isArray(q?.respuestas) ? q!.respuestas! : []
             if (respuestas.length === 0) return null
-            const updatedAt = (contact as unknown as { qualification_updated_at?: string | null }).qualification_updated_at
+            const updatedAt = (contact as unknown as { qualification_updated_at?: string | null })
+              .qualification_updated_at
             return (
               <div className="bg-card border border-border rounded-lg p-6">
                 <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
                   <MessageSquare className="w-4 h-4" />
                   Formulario / Cualificación
-                  {updatedAt && <span className="text-xs text-muted-foreground font-normal">· {formatDate(updatedAt)}</span>}
+                  {updatedAt && (
+                    <span className="text-xs text-muted-foreground font-normal">· {formatDate(updatedAt)}</span>
+                  )}
                 </h3>
                 <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {respuestas.map((r, i) => (
@@ -458,7 +475,9 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
         <TabsContent value="attribution" className="mt-4">
           {attributions.length === 0 ? (
             <div className="bg-card border border-border rounded-lg p-8 text-center">
-              <p className="text-muted-foreground text-sm">Sin datos de atribución. Se añadirán automáticamente cuando llegue una agenda desde GHL.</p>
+              <p className="text-muted-foreground text-sm">
+                Sin datos de atribución. Se añadirán automáticamente cuando llegue una agenda desde GHL.
+              </p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -466,7 +485,9 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
                 <div key={attr.id} className="bg-card border border-border rounded-lg p-6">
                   {attr.is_primary && (
                     <div className="flex items-center gap-2 mb-4">
-                      <Badge className="bg-brand-500/20 text-brand-400 border-brand-500/30 border text-xs">Atribución principal</Badge>
+                      <Badge className="bg-brand-500/20 text-brand-400 border-brand-500/30 border text-xs">
+                        Atribución principal
+                      </Badge>
                     </div>
                   )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -526,7 +547,9 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
                 </div>
                 <div>
                   <dt className="text-xs text-muted-foreground mb-1">Fecha NPS</dt>
-                  <dd className="text-sm text-foreground font-medium">{contact.nps_date ? formatDate(contact.nps_date) : '—'}</dd>
+                  <dd className="text-sm text-foreground font-medium">
+                    {contact.nps_date ? formatDate(contact.nps_date) : '—'}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-xs text-muted-foreground mb-1">Promesa cumplida</dt>
@@ -534,7 +557,9 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
                 </div>
                 <div>
                   <dt className="text-xs text-muted-foreground mb-1">TTFV (Time to First Value)</dt>
-                  <dd className="text-sm text-foreground font-medium">{contact.ttfv_date ? formatDate(contact.ttfv_date) : '—'}</dd>
+                  <dd className="text-sm text-foreground font-medium">
+                    {contact.ttfv_date ? formatDate(contact.ttfv_date) : '—'}
+                  </dd>
                 </div>
               </div>
             </div>
@@ -554,7 +579,7 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
                 onChange={(e) => setNewNote(e.target.value)}
                 rows={2}
                 placeholder="Escribe una nota sobre este contacto..."
-                className="flex-1 bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500 resize-none"
+                className="flex-1 bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500 resize-none"
               />
               <Button onClick={handleAddNote} disabled={savingNote || !newNote.trim()} className="self-end">
                 <Send className="w-4 h-4 mr-2" />
@@ -608,37 +633,55 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
                     const rec = (appt as { recording_url?: string | null }).recording_url
                     const tr = (appt as { transcript_drive_url?: string | null }).transcript_drive_url
                     return (
-                    <TableRow key={appt.id} className="border-border">
-                      <TableCell className="text-foreground">{formatDateTime(appt.appointment_datetime)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <Badge className={`border text-xs ${APPOINTMENT_STATUS_COLORS[appt.status] ?? ''}`}>
-                            {APPOINTMENT_STATUS_LABELS[appt.status] ?? appt.status}
-                          </Badge>
-                          {appt.rescheduled_from_status === 'no_show' && (
-                            <Badge className="border text-xs bg-red-500/10 text-red-400 border-red-500/30">
-                              Reagenda / No show
+                      <TableRow key={appt.id} className="border-border">
+                        <TableCell className="text-foreground">{formatDateTime(appt.appointment_datetime)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <Badge className={`border text-xs ${APPOINTMENT_STATUS_COLORS[appt.status] ?? ''}`}>
+                              {APPOINTMENT_STATUS_LABELS[appt.status] ?? appt.status}
                             </Badge>
-                          )}
-                          {appt.rescheduled_from_status === 'show' && (
-                            <Badge className="border text-xs bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
-                              Reagenda / Show
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{appt.setter?.full_name || '—'}</TableCell>
-                      <TableCell className="text-muted-foreground">{appt.closer?.full_name || '—'}</TableCell>
-                      <TableCell className="text-muted-foreground">{appt.calendar_name || '—'}</TableCell>
-                      <TableCell className="text-muted-foreground">{appt.source || '—'}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          {rec && <a href={rec} target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:text-brand-300 text-xs">Grabación</a>}
-                          {tr && <a href={tr} target="_blank" rel="noopener noreferrer" className="text-sky-400 hover:text-sky-300 text-xs">Transcripción</a>}
-                          {!rec && !tr && <span className="text-muted-foreground text-xs">—</span>}
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                            {appt.rescheduled_from_status === 'no_show' && (
+                              <Badge className="border text-xs bg-red-500/10 text-red-400 border-red-500/30">
+                                Reagenda / No show
+                              </Badge>
+                            )}
+                            {appt.rescheduled_from_status === 'show' && (
+                              <Badge className="border text-xs bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                                Reagenda / Show
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{appt.setter?.full_name || '—'}</TableCell>
+                        <TableCell className="text-muted-foreground">{appt.closer?.full_name || '—'}</TableCell>
+                        <TableCell className="text-muted-foreground">{appt.calendar_name || '—'}</TableCell>
+                        <TableCell className="text-muted-foreground">{appt.source || '—'}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            {rec && (
+                              <a
+                                href={rec}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-brand-400 hover:text-brand-300 text-xs"
+                              >
+                                Grabación
+                              </a>
+                            )}
+                            {tr && (
+                              <a
+                                href={tr}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sky-400 hover:text-sky-300 text-xs"
+                              >
+                                Transcripción
+                              </a>
+                            )}
+                            {!rec && !tr && <span className="text-muted-foreground text-xs">—</span>}
+                          </div>
+                        </TableCell>
+                      </TableRow>
                     )
                   })}
                 </TableBody>

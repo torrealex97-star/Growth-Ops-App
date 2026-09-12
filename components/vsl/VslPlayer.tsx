@@ -20,7 +20,7 @@ function getAnonId(): string {
     if (!id) {
       id = String(
         (crypto as any)?.randomUUID?.() ??
-        `a_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e9).toString(36)}`
+          `a_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e9).toString(36)}`
       )
       localStorage.setItem(k, id)
     }
@@ -33,10 +33,14 @@ function getAnonId(): string {
 // Posición guardada por vídeo (para ofrecer "continuar / reiniciar" al volver)
 const posKey = (slug: string) => `tcc_vsl_pos_${slug}`
 function savePos(slug: string, pos: number, dur: number) {
-  try { localStorage.setItem(posKey(slug), JSON.stringify({ pos, dur })) } catch {}
+  try {
+    localStorage.setItem(posKey(slug), JSON.stringify({ pos, dur }))
+  } catch {}
 }
 function clearPos(slug: string) {
-  try { localStorage.removeItem(posKey(slug)) } catch {}
+  try {
+    localStorage.removeItem(posKey(slug))
+  } catch {}
 }
 function readPos(slug: string, fallbackDur: number): number | null {
   try {
@@ -85,10 +89,10 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
   const [firstFrame, setFirstFrame] = useState(false) // ¿ya se pintó el 1er frame? (evita el "negro")
   const [isFs, setIsFs] = useState(false)
   const [resumeSec, setResumeSec] = useState<number | null>(null) // posición para ofrecer "continuar"
-  const wantResumeRef = useRef(false)                             // bloquea el autoplay hasta que el usuario elija
+  const wantResumeRef = useRef(false) // bloquea el autoplay hasta que el usuario elija
   const [sp, setSp] = useState<{ watching: number; watched: number } | null>(null) // prueba social
-  const [showExitHook, setShowExitHook] = useState(false)         // overlay "no te vayas"
-  const exitShownRef = useRef(0)                                  // veces mostrado (máx 2/sesión)
+  const [showExitHook, setShowExitHook] = useState(false) // overlay "no te vayas"
+  const exitShownRef = useRef(0) // veces mostrado (máx 2/sesión)
 
   const cfg = video.config
   const src = video.source_url || ''
@@ -114,12 +118,17 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
       const pull = () => {
         fetch(`/api/vsl/live/${video.slug}`)
           .then((r) => r.json())
-          .then((d) => { if (alive) setSp({ watching: Number(d.watching) || 0, watched: Number(d.watched) || 0 }) })
+          .then((d) => {
+            if (alive) setSp({ watching: Number(d.watching) || 0, watched: Number(d.watched) || 0 })
+          })
           .catch(() => {})
       }
       pull()
       const id = setInterval(pull, 10_000)
-      return () => { alive = false; clearInterval(id) }
+      return () => {
+        alive = false
+        clearInterval(id)
+      }
     }
 
     // mode === 'fake': número inventado con deriva suave (no salta feo al recargar)
@@ -158,7 +167,12 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
       if (event === 'ended' || event === 'unload') {
         navigator.sendBeacon?.(url, new Blob([payload], { type: 'application/json' }))
       } else {
-        fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }).catch(() => {})
+        fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+          keepalive: true,
+        }).catch(() => {})
       }
     },
     [video.duration_seconds]
@@ -201,7 +215,9 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
           // avisa al parent de que ya hay sesión (para identify diferido) e incluye el anonId,
           // para que loader.js pueda enganchar el visionado ANÓNIMO a una cita de Calendly
           // (lo pasa como salesforce_uuid en el enlace, aunque el lead no haga optin).
-          try { window.parent?.postMessage({ __tccvsl: 'ready', slug: video.slug, anonId }, '*') } catch {}
+          try {
+            window.parent?.postMessage({ __tccvsl: 'ready', slug: video.slug, anonId }, '*')
+          } catch {}
           // Si el autoplay ya arrancó antes de tener sesión, registra el 'play' ahora
           // (si no, se perdería y el play rate saldría 0).
           if (hasPlayedRef.current && !playSentRef.current) {
@@ -264,8 +280,8 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
     const el = videoRef.current
     if (!cfg.exitHook || !el) return
     if (!hasPlayedRef.current || el.currentTime < 8 || el.ended) return // no al inicio ni al final
-    if (wantResumeRef.current) return                                    // no encima del selector "continuar"
-    if (exitShownRef.current >= 2) return                                // máx 2 veces por sesión
+    if (wantResumeRef.current) return // no encima del selector "continuar"
+    if (exitShownRef.current >= 2) return // máx 2 veces por sesión
     exitShownRef.current += 1
     setShowExitHook(true)
   }, [cfg.exitHook])
@@ -279,7 +295,9 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
   // Intención de salida en escritorio: el ratón se va por arriba (hacia cerrar/pestañas)
   useEffect(() => {
     if (!cfg.exitHook) return
-    const onLeave = (e: MouseEvent) => { if (e.clientY <= 0) maybeShowExitHook() }
+    const onLeave = (e: MouseEvent) => {
+      if (e.clientY <= 0) maybeShowExitHook()
+    }
     document.addEventListener('mouseout', onLeave)
     return () => document.removeEventListener('mouseout', onLeave)
   }, [cfg.exitHook, maybeShowExitHook])
@@ -302,7 +320,12 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
     }
     // progreso al parent (útil para píxeles en Fase 3)
     if (d > 0) {
-      try { window.parent?.postMessage({ __tccvsl: 'progress', slug: video.slug, percent: Math.round((el.currentTime / d) * 100) }, '*') } catch {}
+      try {
+        window.parent?.postMessage(
+          { __tccvsl: 'progress', slug: video.slug, percent: Math.round((el.currentTime / d) * 100) },
+          '*'
+        )
+      } catch {}
     }
   }
 
@@ -324,7 +347,11 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
       sendBeat('play')
     }
   }
-  const onPause = () => { setPlaying(false); sendBeat('beat'); maybeShowExitHook() }
+  const onPause = () => {
+    setPlaying(false)
+    sendBeat('beat')
+    maybeShowExitHook()
+  }
   const onEnded = () => {
     setPlaying(false)
     sendBeat('ended')
@@ -334,7 +361,9 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
       if (el) {
         maxReachedRef.current = 0 // vuelve a bloquear el adelanto en la nueva vuelta
         el.currentTime = 0
-        el.play().then(() => setPlaying(true)).catch(() => {})
+        el.play()
+          .then(() => setPlaying(true))
+          .catch(() => {})
       }
     }
   }
@@ -356,8 +385,10 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
     if (cfg.tryAudioAutoplay) {
       el.muted = false
       el.play()
-        .then(() => { setMuted(false) })  // sonó con audio: no hace falta overlay
-        .catch(startMuted)                 // bloqueado por el navegador: fallback silencioso
+        .then(() => {
+          setMuted(false)
+        }) // sonó con audio: no hace falta overlay
+        .catch(startMuted) // bloqueado por el navegador: fallback silencioso
     } else {
       startMuted()
     }
@@ -371,7 +402,9 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
     setResumeSec(null)
     if (!el) return
     maxReachedRef.current = sec // permite el salto pese a lockSeek (ya lo había visto)
-    try { el.currentTime = sec } catch {}
+    try {
+      el.currentTime = sec
+    } catch {}
     el.muted = muted
     el.play().catch(() => {})
   }
@@ -382,7 +415,9 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
     clearPos(video.slug)
     if (!el) return
     maxReachedRef.current = 0
-    try { el.currentTime = 0 } catch {}
+    try {
+      el.currentTime = 0
+    } catch {}
     el.muted = muted
     el.play().catch(() => {})
   }
@@ -403,7 +438,9 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
     // volvemos al inicio para que el hook se escuche desde el segundo 0.
     if (cfg.restartOnUnmute) {
       maxReachedRef.current = 0
-      try { el.currentTime = 0 } catch {}
+      try {
+        el.currentTime = 0
+      } catch {}
     }
     el.play().catch(() => {})
   }
@@ -422,8 +459,7 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
   }
 
   useEffect(() => {
-    const onFs = () =>
-      setIsFs(!!(document.fullscreenElement || (document as any).webkitFullscreenElement))
+    const onFs = () => setIsFs(!!(document.fullscreenElement || (document as any).webkitFullscreenElement))
     document.addEventListener('fullscreenchange', onFs)
     document.addEventListener('webkitfullscreenchange', onFs)
     return () => {
@@ -453,7 +489,11 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
     <div
       ref={containerRef}
       className="relative w-full overflow-hidden bg-black"
-      style={{ aspectRatio: isFs ? undefined : '16 / 9', maxHeight: embed && !isFs ? '100vh' : undefined, height: isFs ? '100%' : undefined }}
+      style={{
+        aspectRatio: isFs ? undefined : '16 / 9',
+        maxHeight: embed && !isFs ? '100vh' : undefined,
+        height: isFs ? '100%' : undefined,
+      }}
     >
       <video
         ref={videoRef}
@@ -508,7 +548,9 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
             className="flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:brightness-110"
             style={{ backgroundColor: cfg.primaryColor }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z" /></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+              <path d="M8 5v14l11-7z" />
+            </svg>
             Seguir viendo
           </button>
         </div>
@@ -525,14 +567,28 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
               className="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:brightness-110"
               style={{ backgroundColor: cfg.primaryColor }}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z" /></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                <path d="M8 5v14l11-7z" />
+              </svg>
               Continuar
             </button>
             <button
               onClick={restartFromStart}
               className="flex items-center gap-2 rounded-full border border-white/30 bg-white/5 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-white/15"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /></svg>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+                <path d="M3 3v5h5" />
+              </svg>
               Empezar de nuevo
             </button>
           </div>
@@ -553,18 +609,13 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
               <path d="M3 10v4h4l5 5V5L7 10H3zm13.5 2a4.5 4.5 0 00-2.5-4.03v8.06A4.5 4.5 0 0016.5 12z" />
             </svg>
           </span>
-          <span className="rounded-full bg-black/60 px-3 py-1 text-xs font-medium">
-            Toca para activar el sonido
-          </span>
+          <span className="rounded-full bg-black/60 px-3 py-1 text-xs font-medium">Toca para activar el sonido</span>
         </button>
       )}
 
       {/* Botón play central cuando está pausado y con sonido */}
       {!playing && !muted && resumeSec === null && !showExitHook && (
-        <button
-          onClick={togglePlay}
-          className="absolute inset-0 flex items-center justify-center bg-black/20"
-        >
+        <button onClick={togglePlay} className="absolute inset-0 flex items-center justify-center bg-black/20">
           <span
             className="flex h-16 w-16 items-center justify-center rounded-full shadow-lg"
             style={{ backgroundColor: cfg.primaryColor }}
@@ -583,11 +634,29 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
         className="absolute bottom-2.5 right-2.5 z-20 flex h-9 w-9 items-center justify-center rounded-md bg-black/45 text-foreground opacity-80 transition hover:bg-black/65 hover:opacity-100"
       >
         {isFs ? (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />
           </svg>
         ) : (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />
           </svg>
         )}

@@ -1,19 +1,19 @@
-"use client"
+'use client'
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 
 interface Props {
-  role: "user" | "assistant"
+  role: 'user' | 'assistant'
   content: string
   isStreaming?: boolean
 }
 
 export function ChatMessage({ role, content, isStreaming }: Props) {
-  const isUser = role === "user"
+  const isUser = role === 'user'
   return (
-    <div className={cn("px-4 py-2.5", isUser ? "" : "bg-muted/40")}>
+    <div className={cn('px-4 py-2.5', isUser ? '' : 'bg-muted/40')}>
       <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-        {isUser ? "Tú" : "IA"}
+        {isUser ? 'Tú' : 'IA'}
       </div>
       <div className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed break-words">
         {content}

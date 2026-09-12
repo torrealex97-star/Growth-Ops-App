@@ -2,10 +2,25 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Gauge, Users, PhoneCall, CalendarCheck, HandCoins, Trophy, Clock, Timer, Target as TargetIcon } from 'lucide-react'
 import {
-  teamRanking, setterAgendaStats, targetCurrentValue,
-  type SaleRow, type AppointmentRow, type UserRow, type CollectionRow,
+  Gauge,
+  Users,
+  PhoneCall,
+  CalendarCheck,
+  HandCoins,
+  Trophy,
+  Clock,
+  Timer,
+  Target as TargetIcon,
+} from 'lucide-react'
+import {
+  teamRanking,
+  setterAgendaStats,
+  targetCurrentValue,
+  type SaleRow,
+  type AppointmentRow,
+  type UserRow,
+  type CollectionRow,
 } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
@@ -56,15 +71,19 @@ function roleRanking(
   for (const a of appointments) {
     const ownerId = a[field]
     if (!ownerId) continue
-    const row = map.get(ownerId) ?? map.set(ownerId, {
-      userId: ownerId,
-      name: nameOf.get(ownerId) || 'Sin asignar',
-      total: 0,
-      qualified: 0,
-      qualifiedRate: 0,
-      noShows: 0,
-      noShowRate: 0,
-    }).get(ownerId)!
+    const row =
+      map.get(ownerId) ??
+      map
+        .set(ownerId, {
+          userId: ownerId,
+          name: nameOf.get(ownerId) || 'Sin asignar',
+          total: 0,
+          qualified: 0,
+          qualifiedRate: 0,
+          noShows: 0,
+          noShowRate: 0,
+        })
+        .get(ownerId)!
     row.total += 1
     if (a.offered === true || a.result === 'offer_made' || isAttended(a.status)) {
       row.qualified += 1
@@ -110,8 +129,16 @@ function formatDays(days: number | null): string {
 }
 
 function FunnelStep({
-  label, value, pct, icon: Icon,
-}: { label: string; value: number; pct: number | null; icon: React.ElementType }) {
+  label,
+  value,
+  pct,
+  icon: Icon,
+}: {
+  label: string
+  value: number
+  pct: number | null
+  icon: React.ElementType
+}) {
   return (
     <div className="flex-1 min-w-[140px] bg-card border border-border rounded-lg p-4">
       <div className="flex items-center gap-2 mb-2">
@@ -119,16 +146,22 @@ function FunnelStep({
         <span className="text-xs uppercase tracking-wider text-muted-foreground">{label}</span>
       </div>
       <div className="text-2xl font-bold text-foreground">{value}</div>
-      {pct !== null && (
-        <div className="text-xs text-muted-foreground mt-1">{pct.toFixed(1)}% desde etapa anterior</div>
-      )}
+      {pct !== null && <div className="text-xs text-muted-foreground mt-1">{pct.toFixed(1)}% desde etapa anterior</div>}
     </div>
   )
 }
 
 function KPICardSimple({
-  title, value, icon: Icon, description,
-}: { title: string; value: string; icon: React.ElementType; description?: string }) {
+  title,
+  value,
+  icon: Icon,
+  description,
+}: {
+  title: string
+  value: string
+  icon: React.ElementType
+  description?: string
+}) {
   return (
     <div className="bg-card border border-border rounded-lg p-5">
       <div className="flex items-center gap-2 mb-3">
@@ -161,7 +194,11 @@ export default function PipelinePage() {
       const supabase = createClient()
       const [contactsRes, apptRes, salesRes, collectionsRes, usersRes, usersRolesRes, targetsRes] = await Promise.all([
         supabase.from('contacts').select('id, created_at, first_contact_at, lead_status'),
-        supabase.from('appointments').select('id, status, result, offered, setter_id, closer_id, triager_id, cold_caller_id, appointment_datetime, contact_id'),
+        supabase
+          .from('appointments')
+          .select(
+            'id, status, result, offered, setter_id, closer_id, triager_id, cold_caller_id, appointment_datetime, contact_id'
+          ),
         supabase.from('sales').select('id, gross_amount, status, sale_date, closer_id, setter_id, contact_id'),
         supabase.from('collections').select('sale_id, gross_amount, collected_at, status'),
         supabase.from('users').select('id, full_name').eq('is_active', true),
@@ -179,7 +216,9 @@ export default function PipelinePage() {
       setLoading(false)
     }
     load()
-    return () => { mounted = false }
+    return () => {
+      mounted = false
+    }
   }, [])
 
   const range = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
@@ -187,16 +226,17 @@ export default function PipelinePage() {
   // Filtrado por persona + periodo. Cada entidad usa su propia fecha:
   // appointments → appointment_datetime, sales → sale_date, contacts → created_at, collections → collected_at
   const filteredAppointments = useMemo(() => {
-    return appointments.filter((a) =>
-      (personId === 'all' || a.setter_id === personId || a.closer_id === personId) &&
-      inPeriod(a.appointment_datetime, range)
+    return appointments.filter(
+      (a) =>
+        (personId === 'all' || a.setter_id === personId || a.closer_id === personId) &&
+        inPeriod(a.appointment_datetime, range)
     )
   }, [appointments, personId, range])
 
   const filteredSales = useMemo(() => {
-    return sales.filter((s) =>
-      (personId === 'all' || s.closer_id === personId || s.setter_id === personId) &&
-      inPeriod(s.sale_date, range)
+    return sales.filter(
+      (s) =>
+        (personId === 'all' || s.closer_id === personId || s.setter_id === personId) && inPeriod(s.sale_date, range)
     )
   }, [sales, personId, range])
 
@@ -207,24 +247,23 @@ export default function PipelinePage() {
 
   const filteredCollections = useMemo(() => {
     const saleIds = new Set(salesForPerson.map((s) => s.id))
-    return collections.filter((c) =>
-      (personId === 'all' || saleIds.has(c.sale_id)) && inPeriod(c.collected_at, range)
-    )
+    return collections.filter((c) => (personId === 'all' || saleIds.has(c.sale_id)) && inPeriod(c.collected_at, range))
   }, [collections, salesForPerson, personId, range])
 
   const filteredContacts = useMemo(() => {
-    const byPerson = personId === 'all'
-      ? contacts
-      : (() => {
-          const contactIds = new Set<string>()
-          for (const a of appointments) {
-            if ((a.setter_id === personId || a.closer_id === personId) && a.contact_id) contactIds.add(a.contact_id)
-          }
-          for (const s of sales) {
-            if ((s.closer_id === personId || s.setter_id === personId) && s.contact_id) contactIds.add(s.contact_id)
-          }
-          return contacts.filter((c) => contactIds.has(c.id))
-        })()
+    const byPerson =
+      personId === 'all'
+        ? contacts
+        : (() => {
+            const contactIds = new Set<string>()
+            for (const a of appointments) {
+              if ((a.setter_id === personId || a.closer_id === personId) && a.contact_id) contactIds.add(a.contact_id)
+            }
+            for (const s of sales) {
+              if ((s.closer_id === personId || s.setter_id === personId) && s.contact_id) contactIds.add(s.contact_id)
+            }
+            return contacts.filter((c) => contactIds.has(c.id))
+          })()
     return byPerson.filter((c) => inPeriod(c.created_at, range))
   }, [contacts, appointments, sales, personId, range])
 
@@ -360,19 +399,30 @@ export default function PipelinePage() {
   )
   const closers = useMemo(() => teamRanking(filteredSales, [], usersWithRole, 'closer'), [filteredSales, usersWithRole])
   const setters = useMemo(() => teamRanking(filteredSales, [], usersWithRole, 'setter'), [filteredSales, usersWithRole])
-  const setterAgendas = useMemo(() => setterAgendaStats(filteredAppointments, usersWithRole), [filteredAppointments, usersWithRole])
-  const triagerRanking = useMemo(() => roleRanking(filteredAppointments, usersWithRoles, 'triager_id'), [filteredAppointments, usersWithRoles])
-  const coldCallerRanking = useMemo(() => roleRanking(filteredAppointments, usersWithRoles, 'cold_caller_id'), [filteredAppointments, usersWithRoles])
+  const setterAgendas = useMemo(
+    () => setterAgendaStats(filteredAppointments, usersWithRole),
+    [filteredAppointments, usersWithRole]
+  )
+  const triagerRanking = useMemo(
+    () => roleRanking(filteredAppointments, usersWithRoles, 'triager_id'),
+    [filteredAppointments, usersWithRoles]
+  )
+  const coldCallerRanking = useMemo(
+    () => roleRanking(filteredAppointments, usersWithRoles, 'cold_caller_id'),
+    [filteredAppointments, usersWithRoles]
+  )
 
   const targetProgress = useMemo(() => {
     // Ventana móvil vigente (hoy/semana/mes…) sobre datos completos, no acotados por la barra de periodo.
     const now = new Date()
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-    return targets.map((t) => {
-      const current = targetCurrentValue(t, { sales, collections, appointments }, todayStr)
-      const pct = t.target_value ? (current / t.target_value) * 100 : 0
-      return { target: t, current, pct }
-    }).sort((a, b) => b.pct - a.pct)
+    return targets
+      .map((t) => {
+        const current = targetCurrentValue(t, { sales, collections, appointments }, todayStr)
+        const pct = t.target_value ? (current / t.target_value) * 100 : 0
+        return { target: t, current, pct }
+      })
+      .sort((a, b) => b.pct - a.pct)
   }, [targets, sales, collections, appointments])
 
   const hasData = contacts.length > 0 || appointments.length > 0 || sales.length > 0
@@ -385,9 +435,7 @@ export default function PipelinePage() {
           <Gauge className="w-6 h-6 text-brand-400" />
           <h1 className="text-2xl font-bold text-foreground">Ranking</h1>
         </div>
-        <p className="text-muted-foreground text-sm mt-1">
-          Ranking del equipo, objetivos y velocidad de conversión
-        </p>
+        <p className="text-muted-foreground text-sm mt-1">Ranking del equipo, objetivos y velocidad de conversión</p>
       </div>
 
       <PeriodFilterBar
@@ -401,7 +449,12 @@ export default function PipelinePage() {
         member={personId}
         onMemberChange={setPersonId}
         hasActiveFilters={periodPreset !== 'all' || personId !== 'all'}
-        onClear={() => { setPeriodPreset('all'); setPersonId('all'); setCustomFrom(''); setCustomTo('') }}
+        onClear={() => {
+          setPeriodPreset('all')
+          setPersonId('all')
+          setCustomFrom('')
+          setCustomTo('')
+        }}
       />
 
       {loading ? (
@@ -439,7 +492,12 @@ export default function PipelinePage() {
                   const barColor = pct >= 100 ? 'bg-emerald-500' : pct >= 60 ? 'bg-amber-500' : 'bg-red-500'
                   const textColor = pct >= 100 ? 'text-emerald-400' : pct >= 60 ? 'text-amber-400' : 'text-red-400'
                   const isCurrency = ['revenue', 'cash_collected'].includes(t.metric_key)
-                  const formatVal = (v: number) => (isCurrency ? formatCurrency(v) : t.metric_key === 'conversion_rate' ? `${v.toFixed(1)}%` : v.toFixed(0))
+                  const formatVal = (v: number) =>
+                    isCurrency
+                      ? formatCurrency(v)
+                      : t.metric_key === 'conversion_rate'
+                        ? `${v.toFixed(1)}%`
+                        : v.toFixed(0)
                   return (
                     <div key={t.id} className="bg-card border border-border rounded-lg p-4">
                       <div className="flex items-center justify-between mb-2">
@@ -468,27 +526,36 @@ export default function PipelinePage() {
             <div className="flex flex-wrap gap-3">
               <FunnelStep label="Leads" value={funnel.leads} pct={null} icon={Users} />
               <FunnelStep
-                label="Contactado" value={funnel.contacted}
-                pct={pctOf(funnel.contacted, funnel.leads)} icon={PhoneCall}
+                label="Contactado"
+                value={funnel.contacted}
+                pct={pctOf(funnel.contacted, funnel.leads)}
+                icon={PhoneCall}
               />
               <FunnelStep
-                label="Cita" value={funnel.citas}
-                pct={pctOf(funnel.citas, funnel.contacted)} icon={CalendarCheck}
+                label="Cita"
+                value={funnel.citas}
+                pct={pctOf(funnel.citas, funnel.contacted)}
+                icon={CalendarCheck}
               />
               <FunnelStep
-                label="Oferta" value={funnel.ofertas}
-                pct={pctOf(funnel.ofertas, funnel.citas)} icon={HandCoins}
+                label="Oferta"
+                value={funnel.ofertas}
+                pct={pctOf(funnel.ofertas, funnel.citas)}
+                icon={HandCoins}
               />
               <FunnelStep
-                label="Cierre" value={funnel.cierres}
-                pct={pctOf(funnel.cierres, funnel.ofertas)} icon={Trophy}
+                label="Cierre"
+                value={funnel.cierres}
+                pct={pctOf(funnel.cierres, funnel.ofertas)}
+                icon={Trophy}
               />
             </div>
             <p className="text-xs text-muted-foreground mt-2">
               Conversión global Lead → Cierre: {pctOf(funnel.cierres, funnel.leads)?.toFixed(1) ?? '—'}%
             </p>
             <p className="text-[11px] text-muted-foreground mt-1">
-              Por cohorte: cada etapa cuenta a los mismos leads creados en el periodo elegido, mirando qué les pasó después (sin importar cuándo). Puede tardar en reflejar cierres de leads muy recientes.
+              Por cohorte: cada etapa cuenta a los mismos leads creados en el periodo elegido, mirando qué les pasó
+              después (sin importar cuándo). Puede tardar en reflejar cierres de leads muy recientes.
             </p>
           </div>
 
@@ -510,7 +577,9 @@ export default function PipelinePage() {
 
           {/* Tiempos de conversión medios */}
           <div>
-            <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Tiempos de conversión medios</h2>
+            <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
+              Tiempos de conversión medios
+            </h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <KPICardSimple
                 title="Lead → Contacto"

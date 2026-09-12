@@ -7,17 +7,17 @@ import { reconcileSaleCommissions } from '@/lib/commissions/generate'
 export const runtime = 'nodejs'
 
 function serviceClient() {
-  return createServiceClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
+  return createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
 }
 
 // Solo admin/director pueden editar/eliminar cobros (afecta a la contabilidad y a las comisiones).
 async function requireAdmin(sb: ReturnType<typeof serviceClient>) {
   const authed = await createServerClient()
-  const { data: { user } } = await authed.auth.getUser()
+  const {
+    data: { user },
+  } = await authed.auth.getUser()
   if (!user) return { error: 'No autenticado', status: 401 as const }
   const { data } = await sb.from('users').select('roles(key)').eq('id', user.id).single()
   const role = (data?.roles as { key?: string } | null)?.key
@@ -36,7 +36,8 @@ async function syncInstallmentStatus(sb: ReturnType<typeof serviceClient>, insta
     .neq('status', 'reversed')
     .limit(1)
   const hasCollection = !!(remaining && remaining.length > 0)
-  await sb.from('sale_expected_installments')
+  await sb
+    .from('sale_expected_installments')
     .update({ status: hasCollection ? 'collected' : 'pending' })
     .eq('id', installmentId)
 }
@@ -56,13 +57,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
 
     const { data: coll } = await sb
       .from('collections')
-      .select('id, sale_id, gross_amount, commissionable_amount, sales!inner(payment_plans(cash_collection_ratio, fee_percent))')
+      .select(
+        'id, sale_id, gross_amount, commissionable_amount, sales!inner(payment_plans(cash_collection_ratio, fee_percent))'
+      )
       .eq('id', id)
       .eq('tenant_id', t.tenantId)
       .single()
     if (!coll) return NextResponse.json({ error: 'Cobro no encontrado' }, { status: 404 })
 
-    const plan = (coll.sales as unknown as { payment_plans?: { cash_collection_ratio?: number; fee_percent?: number } } | null)?.payment_plans
+    const plan = (
+      coll.sales as unknown as { payment_plans?: { cash_collection_ratio?: number; fee_percent?: number } } | null
+    )?.payment_plans
     const ratio = Number(plan?.cash_collection_ratio ?? 1)
     const feePercent = Number(plan?.fee_percent ?? 0)
     const round2 = (n: number) => Math.round(n * 100) / 100
@@ -73,12 +78,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       if (isNaN(gross) || gross < 0) return NextResponse.json({ error: 'Importe inválido' }, { status: 400 })
       update.gross_amount = round2(gross)
       // Recalcula comisionable y fee según el plan, salvo que se pase un comisionable explícito.
-      update.commissionable_amount = body.commissionable_amount != null && body.commissionable_amount !== ''
-        ? round2(Number(body.commissionable_amount))
-        : round2(gross * ratio)
+      if (body.commissionable_amount != null && body.commissionable_amount !== '') {
+        const comm = Number(body.commissionable_amount)
+        if (!Number.isFinite(comm) || comm < 0 || comm > gross + 0.01) {
+          return NextResponse.json({ error: 'commissionable_amount inválido' }, { status: 400 })
+        }
+        update.commissionable_amount = round2(comm)
+      } else {
+        update.commissionable_amount = round2(gross * ratio)
+      }
       update.processing_fee = round2(gross * (feePercent / 100))
     } else if (body.commissionable_amount != null && body.commissionable_amount !== '') {
-      update.commissionable_amount = round2(Number(body.commissionable_amount))
+      const comm = Number(body.commissionable_amount)
+      const currentGross = Number(coll.gross_amount)
+      if (!Number.isFinite(comm) || comm < 0 || comm > currentGross + 0.01) {
+        return NextResponse.json({ error: 'commissionable_amount inválido' }, { status: 400 })
+      }
+      update.commissionable_amount = round2(comm)
     }
     if (body.collected_at) update.collected_at = new Date(body.collected_at).toISOString()
     if (typeof body.payment_method === 'string') update.payment_method = body.payment_method || null
@@ -89,7 +105,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       if (body.is_eligible_for_commission) update.needs_commission_review = false
     }
     if (typeof body.needs_commission_review === 'boolean') update.needs_commission_review = body.needs_commission_review
-    if (typeof body.status === 'string' && ['collected', 'reversed', 'disputed'].includes(body.status)) update.status = body.status
+    if (typeof body.status === 'string' && ['collected', 'reversed', 'disputed'].includes(body.status))
+      update.status = body.status
 
     if (Object.keys(update).length === 0) {
       return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 })
@@ -144,7 +161,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       .eq('status', 'liquidated')
       .limit(1)
     if (liq && liq.length > 0) {
-      return NextResponse.json({ error: 'Este cobro tiene comisiones ya liquidadas; no se puede eliminar.' }, { status: 409 })
+      return NextResponse.json(
+        { error: 'Este cobro tiene comisiones ya liquidadas; no se puede eliminar.' },
+        { status: 409 }
+      )
     }
 
     // Borra primero las comisiones del cobro (evita conflictos de FK), luego el cobro.

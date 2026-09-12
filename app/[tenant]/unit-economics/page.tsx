@@ -6,30 +6,13 @@ import { KPICard } from '@/components/os/DashboardKPICard'
 import { PieChart, Target, Users, TrendingUp, Wallet, Filter, MousePointerClick, Megaphone } from 'lucide-react'
 import { ACTIVE_SALE_STATUSES } from '@/lib/analytics'
 import { formatCurrency, formatPercent } from '@/lib/utils'
+import { FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
+import { buildChannelRows, type CampaignRow, type SaleRow, type ContactRow } from '@/lib/unit-economics'
 
-type CampaignRow = {
-  id: string
-  channel: string
-  adspend: number | string | null
-  leads_generated: number | string | null
-  impressions: number | string | null
-  clicks: number | string | null
-}
-type SaleRow = {
-  id: string
-  gross_amount: number | string | null
-  status: string
-  contact_id: string | null
-  sale_date: string | null
-}
 type CollectionRow = {
   gross_amount: number | string | null
   collected_at: string | null
   status: string
-}
-type ContactRow = {
-  id: string
-  campaign_id: string | null
 }
 type AppointmentRow = {
   id: string
@@ -59,64 +42,6 @@ const CHANNEL_LABELS: Record<string, string> = {
   other: 'Otro',
 }
 const labelChannel = (ch: string) => CHANNEL_LABELS[ch?.toLowerCase()] || ch || 'Sin canal'
-
-type ChannelRow = {
-  channel: string
-  adspend: number
-  leads: number
-  cpl: number | null
-  customers: number
-  cac: number | null
-  revenue: number
-  roas: number | null
-}
-
-function buildChannelRows(
-  campaigns: CampaignRow[],
-  sales: SaleRow[],
-  contacts: ContactRow[]
-): ChannelRow[] {
-  // campaign id -> channel
-  const campaignChannel = new Map<string, string>()
-  for (const c of campaigns) campaignChannel.set(c.id, c.channel || 'Sin canal')
-
-  // contact id -> channel (via contacts.campaign_id -> campaign.channel)
-  const contactChannel = new Map<string, string>()
-  for (const ct of contacts) {
-    if (ct.campaign_id) {
-      const ch = campaignChannel.get(ct.campaign_id)
-      if (ch) contactChannel.set(ct.id, ch)
-    }
-  }
-
-  const agg = new Map<string, ChannelRow>()
-  const ensure = (channel: string) =>
-    agg.get(channel) ??
-    agg.set(channel, { channel, adspend: 0, leads: 0, cpl: null, customers: 0, cac: null, revenue: 0, roas: null }).get(channel)!
-
-  for (const c of campaigns) {
-    const row = ensure(c.channel || 'Sin canal')
-    row.adspend += num(c.adspend)
-    row.leads += num(c.leads_generated)
-  }
-
-  for (const s of sales) {
-    if (!ACTIVE_SALE_STATUSES.includes(s.status) || !s.contact_id) continue
-    const channel = contactChannel.get(s.contact_id)
-    if (!channel) continue
-    const row = ensure(channel)
-    row.customers += 1
-    row.revenue += num(s.gross_amount)
-  }
-
-  agg.forEach((row) => {
-    row.cpl = row.leads ? row.adspend / row.leads : null
-    row.cac = row.customers ? row.adspend / row.customers : null
-    row.roas = row.adspend ? row.revenue / row.adspend : null
-  })
-
-  return Array.from(agg.values()).sort((a, b) => b.adspend - a.adspend)
-}
 
 // Guard div/0 → null (se pinta como "—")
 const safeDiv = (a: number, b: number): number | null => (b ? a / b : null)
@@ -158,9 +83,7 @@ function buildMarketingFunnel(
 
   const contactHasCampaign = new Set(contactsWithCampaign.map((c) => c.id))
 
-  const salesCallsBooked = appointments.filter(
-    (a) => a.contact_id && contactHasCampaign.has(a.contact_id)
-  ).length
+  const salesCallsBooked = appointments.filter((a) => a.contact_id && contactHasCampaign.has(a.contact_id)).length
 
   const attributedSales = sales.filter(
     (s) => ACTIVE_SALE_STATUSES.includes(s.status) && s.contact_id && contactHasCampaign.has(s.contact_id)
@@ -213,11 +136,20 @@ export default function UnitEconomicsPage() {
     async function load() {
       const supabase = createClient()
       const [campRes, salesRes, collRes, contactsRes, apptRes] = await Promise.all([
-        supabase.from('campaigns').select('id, channel, adspend, leads_generated, impressions, clicks'),
-        supabase.from('sales').select('id, gross_amount, status, contact_id, sale_date'),
-        supabase.from('collections').select('gross_amount, collected_at, status'),
-        supabase.from('contacts').select('id, campaign_id'),
-        supabase.from('appointments').select('id, contact_id, status, appointment_datetime, pipe_value'),
+        supabase
+          .from('campaigns')
+          .select('id, channel, adspend, leads_generated, impressions, clicks')
+          .range(0, FINANCE_QUERY_ROW_CAP),
+        supabase
+          .from('sales')
+          .select('id, gross_amount, status, contact_id, sale_date')
+          .range(0, FINANCE_QUERY_ROW_CAP),
+        supabase.from('collections').select('gross_amount, collected_at, status').range(0, FINANCE_QUERY_ROW_CAP),
+        supabase.from('contacts').select('id, campaign_id').range(0, FINANCE_QUERY_ROW_CAP),
+        supabase
+          .from('appointments')
+          .select('id, contact_id, status, appointment_datetime, pipe_value')
+          .range(0, FINANCE_QUERY_ROW_CAP),
       ])
       if (!mounted) return
       setCampaigns(campRes.data || [])
@@ -228,13 +160,12 @@ export default function UnitEconomicsPage() {
       setLoading(false)
     }
     load()
-    return () => { mounted = false }
+    return () => {
+      mounted = false
+    }
   }, [])
 
-  const channelRows = useMemo(
-    () => buildChannelRows(campaigns, sales, contacts),
-    [campaigns, sales, contacts]
-  )
+  const channelRows = useMemo(() => buildChannelRows(campaigns, sales, contacts), [campaigns, sales, contacts])
 
   const totals = useMemo(() => {
     const totalAdspend = campaigns.reduce((a, c) => a + num(c.adspend), 0)
@@ -242,7 +173,11 @@ export default function UnitEconomicsPage() {
       .filter((c) => c.status === 'collected')
       .reduce((a, c) => a + num(c.gross_amount), 0)
     const activeSales = sales.filter((s) => ACTIVE_SALE_STATUSES.includes(s.status))
-    const totalCustomers = activeSales.length
+    // Clientes ÚNICOS, no nº de ventas — mismo fix que buildChannelRows. Antes dividía por
+    // nº de ventas: un cliente que compra 2 veces contaba como "2 clientes", lo que infla el
+    // denominador y hace que tanto CAC como "LTV medio" salgan sistemáticamente por debajo de
+    // lo real.
+    const totalCustomers = new Set(activeSales.map((s) => s.contact_id).filter((id): id is string => !!id)).size
     const totalGross = activeSales.reduce((a, s) => a + num(s.gross_amount), 0)
 
     const mer = totalAdspend ? totalCashCollected / totalAdspend : null
@@ -268,7 +203,14 @@ export default function UnitEconomicsPage() {
           <PieChart className="w-6 h-6 text-white" />
           <h1 className="text-2xl font-semibold text-foreground">Métricas y KPIs</h1>
         </div>
-        <p className="text-muted-foreground text-sm mt-1">Pasa el ratón por las gráficas para ver el rendimiento mes a mes.</p>
+        <p className="text-muted-foreground text-sm mt-1">
+          Pasa el ratón por las gráficas para ver el rendimiento mes a mes.
+        </p>
+        <p className="text-xs text-amber-400/90 mt-2">
+          Acumulado histórico total desde el origen de los datos — a diferencia de Dashboard/Finanzas, esta pantalla no
+          filtra por mes/periodo (el adspend de campañas se guarda como total acumulado, no por día). No compares estos
+          números directamente contra un mes concreto de otra pantalla.
+        </p>
       </div>
 
       {/* Top cards */}
@@ -285,20 +227,20 @@ export default function UnitEconomicsPage() {
           value={loading ? '—' : totals.cacGlobal !== null ? formatCurrency(totals.cacGlobal) : '—'}
           icon={Target}
           loading={loading}
-          description="Ad spend / clientes nuevos"
+          description="Ad spend / clientes únicos (no por venta)"
         />
         <KPICard
           title="LTV medio"
           value={loading ? '—' : totals.ltvMedio !== null ? formatCurrency(totals.ltvMedio) : '—'}
           icon={Wallet}
           loading={loading}
-          description="Facturación media por venta activa"
+          description="Facturación activa / clientes únicos"
         />
-        <div className="rounded-2xl border border-[#26262A] bg-[#141416] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_8px_24px_rgba(0,0,0,0.3)]">
+        <div className="rounded-2xl border border-border bg-card p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_8px_24px_rgba(0,0,0,0.3)]">
           <div className="flex items-start justify-between mb-4">
             <p className="text-sm font-medium text-muted-foreground">LTV:CAC ratio</p>
-            <div className="w-9 h-9 rounded-lg border border-[#26262A] bg-[#0A0A0B] flex items-center justify-center">
-              <Users className="w-4 h-4 text-[#A1A1AA]" />
+            <div className="w-9 h-9 rounded-lg border border-border bg-background flex items-center justify-center">
+              <Users className="w-4 h-4 text-muted-foreground" />
             </div>
           </div>
           {loading ? (
@@ -425,13 +367,7 @@ export default function UnitEconomicsPage() {
           />
           <KPICard
             title="ROAS"
-            value={
-              loading
-                ? '—'
-                : marketingFunnel.roas !== null
-                  ? `${marketingFunnel.roas.toFixed(2)}x`
-                  : '—'
-            }
+            value={loading ? '—' : marketingFunnel.roas !== null ? `${marketingFunnel.roas.toFixed(2)}x` : '—'}
             icon={TrendingUp}
             loading={loading}
             description="Gross de deals cerrados / adspend"
@@ -446,43 +382,48 @@ export default function UnitEconomicsPage() {
         </div>
 
         {/* Mini-embudo visual */}
-        <div className="rounded-2xl border border-[#26262A] bg-[#141416] p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">Impresiones → Clicks → Leads → Sales Calls → Closes</h3>
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <h3 className="text-sm font-semibold text-foreground mb-4">
+            Impresiones → Clicks → Leads → Sales Calls → Closes
+          </h3>
           {loading ? (
             <div className="h-24 w-full bg-muted animate-pulse rounded" />
           ) : (
-            <div className="flex flex-col sm:flex-row items-stretch gap-2">
-              {[
-                { label: 'Impresiones', value: marketingFunnel.impressions },
-                { label: 'Clicks', value: marketingFunnel.clicks },
-                { label: 'Leads', value: marketingFunnel.leads },
-                { label: 'Sales Calls', value: marketingFunnel.salesCallsBooked },
-                { label: 'Closes', value: marketingFunnel.dealsClosed },
-              ].map((stage, i, arr) => {
-                const prev = i > 0 ? arr[i - 1].value : null
-                const pct = prev !== null ? safeDiv(stage.value * 100, prev) : null
-                return (
-                  <div key={stage.label} className="flex items-center gap-2 flex-1">
-                    <div className="flex-1 rounded-2xl border border-[#26262A] bg-[#0A0A0B] p-4 text-center">
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">{stage.label}</p>
-                      <p className="text-xl font-bold text-foreground mt-1">{stage.value.toLocaleString('es-ES')}</p>
-                      {pct !== null && (
-                        <p className="text-xs text-white mt-1">{pct.toFixed(1)}% vs. anterior</p>
+            // El scroll horizontal queda contenido aquí (no en la página): a ~640-768px, 5 tarjetas
+            // de ancho mínimo real no caben sin overflow-x-auto propio, y sin él el overflow subía
+            // al contenedor de la página y arrastraba la cabecera con él.
+            <div className="overflow-x-auto -mx-1 px-1">
+              <div className="flex flex-col sm:flex-row items-stretch gap-2 sm:min-w-[560px]">
+                {[
+                  { label: 'Impresiones', value: marketingFunnel.impressions },
+                  { label: 'Clicks', value: marketingFunnel.clicks },
+                  { label: 'Leads', value: marketingFunnel.leads },
+                  { label: 'Sales Calls', value: marketingFunnel.salesCallsBooked },
+                  { label: 'Closes', value: marketingFunnel.dealsClosed },
+                ].map((stage, i, arr) => {
+                  const prev = i > 0 ? arr[i - 1].value : null
+                  const pct = prev !== null ? safeDiv(stage.value * 100, prev) : null
+                  return (
+                    <div key={stage.label} className="flex items-center gap-2 flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 rounded-2xl border border-border bg-background p-4 text-center">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">{stage.label}</p>
+                        <p className="text-xl font-bold text-foreground mt-1">{stage.value.toLocaleString('es-ES')}</p>
+                        {pct !== null && <p className="text-xs text-white mt-1">{pct.toFixed(1)}% vs. anterior</p>}
+                      </div>
+                      {i < arr.length - 1 && (
+                        <span className="text-muted-foreground text-lg shrink-0 hidden sm:block">→</span>
                       )}
                     </div>
-                    {i < arr.length - 1 && (
-                      <span className="text-muted-foreground text-lg hidden sm:block">→</span>
-                    )}
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>
       </div>
 
       {/* Tabla por canal */}
-      <div className="rounded-2xl border border-[#26262A] bg-[#141416] p-5">
+      <div className="rounded-2xl border border-border bg-card p-5">
         <h3 className="text-sm font-semibold text-foreground mb-4">Unit economics por canal</h3>
         {loading ? (
           <div className="space-y-2">
@@ -518,11 +459,7 @@ export default function UnitEconomicsPage() {
                     <td className="py-2.5 pr-4">{row.cac !== null ? formatCurrency(row.cac) : '—'}</td>
                     <td className="py-2.5 pr-4">{formatCurrency(row.revenue)}</td>
                     <td className="py-2.5 pr-4">
-                      {row.roas !== null ? (
-                        <span className={ratioColor(row.roas)}>{row.roas.toFixed(2)}x</span>
-                      ) : (
-                        '—'
-                      )}
+                      {row.roas !== null ? <span className={ratioColor(row.roas)}>{row.roas.toFixed(2)}x</span> : '—'}
                     </td>
                   </tr>
                 ))}
@@ -534,10 +471,10 @@ export default function UnitEconomicsPage() {
 
       {/* Nota de atribución */}
       <p className="text-xs text-muted-foreground leading-relaxed">
-        La atribución por canal se calcula a partir de <span className="text-muted-foreground">contacts.campaign_id</span>{' '}
-        (aproximación tipo last-touch): cada contacto se asigna al canal de la campaña que lo originó, y las ventas
-        activas de esos contactos se atribuyen al canal correspondiente. Los clientes sin campaña asociada no se
-        incluyen en el desglose por canal.
+        La atribución por canal se calcula a partir de{' '}
+        <span className="text-muted-foreground">contacts.campaign_id</span> (aproximación tipo last-touch): cada
+        contacto se asigna al canal de la campaña que lo originó, y las ventas activas de esos contactos se atribuyen al
+        canal correspondiente. Los clientes sin campaña asociada no se incluyen en el desglose por canal.
       </p>
     </div>
   )

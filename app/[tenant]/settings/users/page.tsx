@@ -1,32 +1,14 @@
-"use client"
+'use client'
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { UserPlus, Edit2, Loader2, Users, KeyRound, Copy, Wallet, RefreshCw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ROLE_LABELS, ROLE_COLORS, NAV_PAGES, type AppRole } from '@/lib/auth/permissions'
@@ -55,7 +37,12 @@ export default function UsersPage() {
   const [submitting, setSubmitting] = useState(false)
   const [resettingId, setResettingId] = useState<string | null>(null)
   const [resetResult, setResetResult] = useState<{ name: string; password: string } | null>(null)
-  const [inviteResult, setInviteResult] = useState<{ email: string; url: string; emailed: boolean; emailError: string | null } | null>(null)
+  const [inviteResult, setInviteResult] = useState<{
+    email: string
+    url: string
+    emailed: boolean
+    emailError: string | null
+  } | null>(null)
   const [generatingSalaries, setGeneratingSalaries] = useState(false)
   const [regeneratingAll, setRegeneratingAll] = useState(false)
 
@@ -99,7 +86,12 @@ export default function UsersPage() {
     const [usersRes, rolesRes, tplRes, rulesRes] = await Promise.all([
       supabase.from('users').select('*, roles(*)').order('full_name'),
       supabase.from('roles').select('*').order('name'),
-      supabase.from('contract_templates').select('*').eq('is_active', true).eq('tenant_id', tenantId).order('created_at', { ascending: false }),
+      supabase
+        .from('contract_templates')
+        .select('*')
+        .eq('is_active', true)
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false }),
       supabase.from('commission_rules').select('*').eq('tenant_id', tenantId),
     ])
 
@@ -110,11 +102,15 @@ export default function UsersPage() {
     setLoading(false)
   }
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => {
+    fetchData()
+  }, [])
 
   // Asegura la columna users.page_overrides (idempotente). Corre en Vercel, donde POSTGRES_URL
   // está poblado; la llamada va autenticada (sesión admin) desde dentro de la app.
-  useEffect(() => { fetch(`/api/${tenant}/evergreen/admin/migrate-page-overrides`, { method: 'POST' }).catch(() => {}) }, [])
+  useEffect(() => {
+    fetch(`/api/${tenant}/evergreen/admin/migrate-page-overrides`, { method: 'POST' }).catch(() => {})
+  }, [])
 
   const openEdit = (user: UserWithRole) => {
     setEditingUser(user)
@@ -127,13 +123,24 @@ export default function UsersPage() {
     setEditDataScope(user.data_scope ?? 'team')
     setEditBaseSalary(user.base_salary !== null && user.base_salary !== undefined ? String(user.base_salary) : '')
     {
-      const u = user as { fijo_unlock_type?: string | null; fijo_min_sales?: number | null; fijo_min_revenue?: number | null }
+      const u = user as {
+        fijo_unlock_type?: string | null
+        fijo_min_sales?: number | null
+        fijo_min_revenue?: number | null
+      }
       const type = (u.fijo_unlock_type as 'sales' | 'revenue') ?? 'sales'
       const sales = Number(u.fijo_min_sales ?? 0)
       const rev = Number(u.fijo_min_revenue ?? 0)
-      if (type === 'revenue' && rev > 0) { setEditFijoUnlockType('revenue'); setEditFijoThreshold(String(rev)) }
-      else if (sales > 0) { setEditFijoUnlockType('sales'); setEditFijoThreshold(String(sales)) }
-      else { setEditFijoUnlockType('none'); setEditFijoThreshold('') }
+      if (type === 'revenue' && rev > 0) {
+        setEditFijoUnlockType('revenue')
+        setEditFijoThreshold(String(rev))
+      } else if (sales > 0) {
+        setEditFijoUnlockType('sales')
+        setEditFijoThreshold(String(sales))
+      } else {
+        setEditFijoUnlockType('none')
+        setEditFijoThreshold('')
+      }
     }
     setEditMonthlyGoal(user.monthly_goal !== null && user.monthly_goal !== undefined ? String(user.monthly_goal) : '')
     setEditAssignedChannel(user.assigned_channel ?? '')
@@ -144,9 +151,11 @@ export default function UsersPage() {
     const pageOv = (user as { page_overrides?: string[] | null }).page_overrides
     const deptOv = (user.dept_overrides as string[] | null) ?? []
     setEditPageOverrides(
-      pageOv && pageOv.length ? pageOv
-        : deptOv.length ? NAV_PAGES.filter((p) => deptOv.includes(p.dept)).map((p) => p.href)
-        : []
+      pageOv && pageOv.length
+        ? pageOv
+        : deptOv.length
+          ? NAV_PAGES.filter((p) => deptOv.includes(p.dept)).map((p) => p.href)
+          : []
     )
     setEditTrackingCode(user.tracking_code ?? '')
     setEditDialog(true)
@@ -157,8 +166,8 @@ export default function UsersPage() {
   const handleRegenerateAllTrackingCodes = async () => {
     const ok = window.confirm(
       'Se generará un código de tracking privado nuevo para todo el equipo.\n\n' +
-      'Los enlaces YA compartidos con el código antiguo dejarán de atribuir agendas/ventas hasta que ' +
-      'cada persona recopie su enlace desde la sección Enlaces.\n\n¿Continuar?'
+        'Los enlaces YA compartidos con el código antiguo dejarán de atribuir agendas/ventas hasta que ' +
+        'cada persona recopie su enlace desde la sección Enlaces.\n\n¿Continuar?'
     )
     if (!ok) return
     setRegeneratingAll(true)
@@ -189,7 +198,9 @@ export default function UsersPage() {
   // invitar (id vacío → usa reglas de comisión genéricas del rol); el fijo se edita a mano.
   const recomputeContractTerms = (rk: AppRole) => {
     const roleLabel = ROLE_LABELS[rk] ?? rk
-    setContractTerms(buildDefaultTerms({ id: '', base_salary: null, default_affiliate_commission_percent: null }, rk, roleLabel, rules))
+    setContractTerms(
+      buildDefaultTerms({ id: '', base_salary: null, default_affiliate_commission_percent: null }, rk, roleLabel, rules)
+    )
     setContractTitle(`Contrato ${roleLabel} — ${inviteFullName || inviteEmail || 'colaborador'}`)
     const match = templates.find((t) => t.role_key === rk) ?? templates[0]
     setContractTemplateId(match?.id ?? '')
@@ -211,8 +222,16 @@ export default function UsersPage() {
   }
 
   const resetInviteForm = () => {
-    setInviteEmail(''); setInvitePersonalEmail(''); setInviteRole(''); setInviteFullName(''); setInvitePageOverrides([])
-    setSendContract(false); setContractRoleKey(''); setContractTerms(null); setContractTemplateId(''); setContractTitle('')
+    setInviteEmail('')
+    setInvitePersonalEmail('')
+    setInviteRole('')
+    setInviteFullName('')
+    setInvitePageOverrides([])
+    setSendContract(false)
+    setContractRoleKey('')
+    setContractTerms(null)
+    setContractTemplateId('')
+    setContractTitle('')
   }
 
   const handleInvite = async () => {
@@ -228,7 +247,13 @@ export default function UsersPage() {
     const res = await fetch(`/api/${tenant}/evergreen/invite`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: inviteEmail, personalEmail: invitePersonalEmail.trim() || null, roleId: inviteRole, fullName: inviteFullName, pageOverrides: invitePageOverrides }),
+      body: JSON.stringify({
+        email: inviteEmail,
+        personalEmail: invitePersonalEmail.trim() || null,
+        roleId: inviteRole,
+        fullName: inviteFullName,
+        pageOverrides: invitePageOverrides,
+      }),
     })
     const data = await res.json()
     if (!res.ok) {
@@ -268,7 +293,12 @@ export default function UsersPage() {
 
     setSubmitting(false)
     setInviteDialog(false)
-    setInviteResult({ email: inviteEmail, url: data.inviteUrl, emailed: !!data.emailed, emailError: data.emailError ?? null })
+    setInviteResult({
+      email: inviteEmail,
+      url: data.inviteUrl,
+      emailed: !!data.emailed,
+      emailError: data.emailError ?? null,
+    })
     resetInviteForm()
     fetchData()
   }
@@ -325,7 +355,9 @@ export default function UsersPage() {
     // toca Supabase Auth (login); el personal solo el perfil.
     const newCompanyEmail = editCompanyEmail.trim().toLowerCase()
     const newPersonalEmail = editPersonalEmail.trim().toLowerCase()
-    const currentPersonalEmail = ((editingUser as { personal_email?: string | null }).personal_email ?? '').toLowerCase()
+    const currentPersonalEmail = (
+      (editingUser as { personal_email?: string | null }).personal_email ?? ''
+    ).toLowerCase()
     const companyChanged = !!newCompanyEmail && newCompanyEmail !== (editingUser.email ?? '').toLowerCase()
     const personalChanged = newPersonalEmail !== currentPersonalEmail
     if (companyChanged && !newCompanyEmail) {
@@ -408,15 +440,20 @@ export default function UsersPage() {
   }
 
   const handleDeleteUser = async (user: UserWithRole) => {
-    if (!confirm(
-      `¿Eliminar a ${user.full_name} definitivamente?\n\n` +
-      `Se borrará su acceso (login) y su ficha. Esto NO se puede deshacer.\n` +
-      `Si tiene ventas, agendas, comisiones o contratos asociados, se bloqueará ` +
-      `y deberás desactivarlo en su lugar.`
-    )) return
+    if (
+      !confirm(
+        `¿Eliminar a ${user.full_name} definitivamente?\n\n` +
+          `Se borrará su acceso (login) y su ficha. Esto NO se puede deshacer.\n` +
+          `Si tiene ventas, agendas, comisiones o contratos asociados, se bloqueará ` +
+          `y deberás desactivarlo en su lugar.`
+      )
+    )
+      return
     setDeletingId(user.id)
     try {
-      const res = await fetch(`/api/${tenant}/evergreen/users?userId=${encodeURIComponent(user.id)}`, { method: 'DELETE' })
+      const res = await fetch(`/api/${tenant}/evergreen/users?userId=${encodeURIComponent(user.id)}`, {
+        method: 'DELETE',
+      })
       const data = await res.json()
       if (!res.ok) {
         toast.error('No se pudo eliminar', { description: data.error, duration: 8000 })
@@ -439,14 +476,18 @@ export default function UsersPage() {
           <p className="text-muted-foreground text-sm mt-1">Gestiona los miembros del equipo</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={handleGenerateSalariesClick}
-            disabled={generatingSalaries}
-          >
-            {generatingSalaries
-              ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generando...</>
-              : <><Wallet className="w-4 h-4 mr-2" />Generar sueldos del mes</>}
+          <Button variant="outline" onClick={handleGenerateSalariesClick} disabled={generatingSalaries}>
+            {generatingSalaries ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Generando...
+              </>
+            ) : (
+              <>
+                <Wallet className="w-4 h-4 mr-2" />
+                Generar sueldos del mes
+              </>
+            )}
           </Button>
           <Button
             variant="outline"
@@ -454,9 +495,17 @@ export default function UsersPage() {
             disabled={regeneratingAll}
             title="Genera un código de tracking privado para todo el equipo"
           >
-            {regeneratingAll
-              ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Regenerando...</>
-              : <><RefreshCw className="w-4 h-4 mr-2" />Regenerar códigos</>}
+            {regeneratingAll ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Regenerando...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Regenerar códigos
+              </>
+            )}
           </Button>
           <Button onClick={() => setInviteDialog(true)}>
             <UserPlus className="w-4 h-4 mr-2" />
@@ -465,8 +514,8 @@ export default function UsersPage() {
         </div>
       </div>
       <p className="text-xs text-muted-foreground -mt-4">
-        Los sueldos fijos del equipo (campo "Sueldo base mensual") se contabilizan como gasto mensual en la categoría
-        Sueldos y aparecen automáticamente en Gastos y en el Resumen financiero.
+        Los sueldos fijos del equipo (campo &quot;Sueldo base mensual&quot;) se contabilizan como gasto mensual en la
+        categoría Sueldos y aparecen automáticamente en Gastos y en el Resumen financiero.
       </p>
 
       {loading ? (
@@ -522,9 +571,7 @@ export default function UsersPage() {
                         ? `${user.default_affiliate_commission_percent}%`
                         : '—'}
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {formatCurrency(user.base_salary)}
-                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">{formatCurrency(user.base_salary)}</TableCell>
                     <TableCell className="text-muted-foreground text-xs font-mono">
                       {user.tracking_code || <span className="text-muted-foreground">—</span>}
                     </TableCell>
@@ -547,9 +594,11 @@ export default function UsersPage() {
                           disabled={resettingId === user.id}
                           title="Restablecer contraseña"
                         >
-                          {resettingId === user.id
-                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            : <KeyRound className="w-3.5 h-3.5" />}
+                          {resettingId === user.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <KeyRound className="w-3.5 h-3.5" />
+                          )}
                         </Button>
                         <Button
                           variant="ghost"
@@ -559,9 +608,11 @@ export default function UsersPage() {
                           disabled={deletingId === user.id}
                           title="Eliminar usuario"
                         >
-                          {deletingId === user.id
-                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            : <Trash2 className="w-3.5 h-3.5" />}
+                          {deletingId === user.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-3.5 h-3.5" />
+                          )}
                         </Button>
                       </div>
                     </TableCell>
@@ -574,7 +625,13 @@ export default function UsersPage() {
       )}
 
       {/* Invite Dialog */}
-      <Dialog open={inviteDialog} onOpenChange={(o) => { setInviteDialog(o); if (!o) resetInviteForm() }}>
+      <Dialog
+        open={inviteDialog}
+        onOpenChange={(o) => {
+          setInviteDialog(o)
+          if (!o) resetInviteForm()
+        }}
+      >
         <DialogContent className="bg-card border-border text-foreground max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Invitar Usuario</DialogTitle>
@@ -599,7 +656,10 @@ export default function UsersPage() {
                 className="bg-muted border-border"
                 placeholder="usuario@empresa.com"
               />
-              <p className="text-xs text-muted-foreground">Con este entra a la app y se conectan sus calendarios (Calendly/GHL). Se usa para todo salvo el contrato.</p>
+              <p className="text-xs text-muted-foreground">
+                Con este entra a la app y se conectan sus calendarios (Calendly/GHL). Se usa para todo salvo el
+                contrato.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Correo personal (opcional)</Label>
@@ -610,7 +670,10 @@ export default function UsersPage() {
                 className="bg-muted border-border"
                 placeholder="nombre@ejemplo.com"
               />
-              <p className="text-xs text-muted-foreground">Solo para el contrato: recibe copia de la firma. Puedes marcarlo ahora para que el contrato salga a ambos correos.</p>
+              <p className="text-xs text-muted-foreground">
+                Solo para el contrato: recibe copia de la firma. Puedes marcarlo ahora para que el contrato salga a
+                ambos correos.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Rol *</Label>
@@ -620,7 +683,9 @@ export default function UsersPage() {
                 </SelectTrigger>
                 <SelectContent className="bg-card border-border">
                   {roles.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -629,7 +694,9 @@ export default function UsersPage() {
             <div className="space-y-2">
               <Label>Páginas que puede ver (vacío = según su rol)</Label>
               <PageAccessSelector value={invitePageOverrides} onChange={setInvitePageOverrides} />
-              <p className="text-xs text-muted-foreground">Activa/desactiva cada página una a una. Editable después en el usuario.</p>
+              <p className="text-xs text-muted-foreground">
+                Activa/desactiva cada página una a una. Editable después en el usuario.
+              </p>
             </div>
 
             {/* Contrato opcional: si se activa, al invitar se crea y envía el contrato en un solo paso */}
@@ -644,7 +711,9 @@ export default function UsersPage() {
                 <span className="text-sm text-foreground">Enviar contrato al invitar</span>
               </label>
               {sendContract && templates.length === 0 && (
-                <p className="text-xs text-amber-400">No hay plantillas activas. Crea una en Contratos → Plantillas antes de enviar el contrato.</p>
+                <p className="text-xs text-amber-400">
+                  No hay plantillas activas. Crea una en Contratos → Plantillas antes de enviar el contrato.
+                </p>
               )}
               {sendContract && (
                 <ContractTermsEditor
@@ -662,11 +731,27 @@ export default function UsersPage() {
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => { setInviteDialog(false); resetInviteForm() }} disabled={submitting}>Cancelar</Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setInviteDialog(false)
+                  resetInviteForm()
+                }}
+                disabled={submitting}
+              >
+                Cancelar
+              </Button>
               <Button onClick={handleInvite} disabled={submitting || !inviteEmail || !inviteRole}>
-                {submitting
-                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Enviando...</>
-                  : sendContract ? 'Invitar y enviar contrato' : 'Enviar Invitacion'}
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Enviando...
+                  </>
+                ) : sendContract ? (
+                  'Invitar y enviar contrato'
+                ) : (
+                  'Enviar Invitacion'
+                )}
               </Button>
             </div>
           </div>
@@ -681,8 +766,8 @@ export default function UsersPage() {
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <p className="text-sm text-muted-foreground">
-              Comparte esta contraseña con <span className="text-foreground">{resetResult?.name}</span> por un canal seguro.
-              Debería cambiarla al entrar. No se volverá a mostrar.
+              Comparte esta contraseña con <span className="text-foreground">{resetResult?.name}</span> por un canal
+              seguro. Debería cambiarla al entrar. No se volverá a mostrar.
             </p>
             <div className="flex items-center gap-2">
               <code className="flex-1 bg-muted border border-border rounded-lg px-3 py-2.5 text-sm text-emerald-400 font-mono select-all">
@@ -718,16 +803,26 @@ export default function UsersPage() {
           <div className="space-y-4 mt-2">
             {inviteResult?.emailed ? (
               <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-3 text-sm text-emerald-300">
-                ✓ Email para <b>crear contraseña</b> enviado a <span className="text-foreground">{inviteResult.email}</span>.
+                ✓ Email para <b>crear contraseña</b> enviado a{' '}
+                <span className="text-foreground">{inviteResult.email}</span>.
               </div>
             ) : (
               <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-3 text-xs text-amber-300">
-                {inviteResult?.emailError
-                  ? <>No se pudo enviar el email ({inviteResult.emailError}). Comparte este enlace de <b>crear contraseña</b> con el miembro:</>
-                  : <>Envío por email no configurado. Comparte este enlace de <b>crear contraseña</b> con el miembro:</>}
+                {inviteResult?.emailError ? (
+                  <>
+                    No se pudo enviar el email ({inviteResult.emailError}). Comparte este enlace de{' '}
+                    <b>crear contraseña</b> con el miembro:
+                  </>
+                ) : (
+                  <>
+                    Envío por email no configurado. Comparte este enlace de <b>crear contraseña</b> con el miembro:
+                  </>
+                )}
               </div>
             )}
-            <p className="text-sm text-muted-foreground">Con este enlace crea su contraseña y entra directamente (sin pasar por &quot;he olvidado&quot;).</p>
+            <p className="text-sm text-muted-foreground">
+              Con este enlace crea su contraseña y entra directamente (sin pasar por &quot;he olvidado&quot;).
+            </p>
             <div className="flex items-center gap-2">
               <code className="flex-1 bg-muted border border-border rounded-lg px-3 py-2.5 text-xs text-brand-300 font-mono break-all select-all">
                 {inviteResult?.url}
@@ -769,7 +864,9 @@ export default function UsersPage() {
                 className="bg-muted border-border"
                 placeholder="usuario@empresa.com"
               />
-              <p className="text-xs text-muted-foreground">Cambia el login (Supabase Auth) y todo lo demás. Recuerda actualizarlo también en Calendly/GHL.</p>
+              <p className="text-xs text-muted-foreground">
+                Cambia el login (Supabase Auth) y todo lo demás. Recuerda actualizarlo también en Calendly/GHL.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Correo personal (contrato)</Label>
@@ -780,7 +877,9 @@ export default function UsersPage() {
                 className="bg-muted border-border"
                 placeholder="nombre@ejemplo.com"
               />
-              <p className="text-xs text-muted-foreground">Solo para el contrato (firma + copia). Déjalo vacío para no usarlo.</p>
+              <p className="text-xs text-muted-foreground">
+                Solo para el contrato (firma + copia). Déjalo vacío para no usarlo.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Rol</Label>
@@ -790,14 +889,21 @@ export default function UsersPage() {
                 </SelectTrigger>
                 <SelectContent className="bg-card border-border">
                   {roles.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label>Telefono</Label>
-              <Input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} className="bg-muted border-border" placeholder="+34 600 000 000" />
+              <Input
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                className="bg-muted border-border"
+                placeholder="+34 600 000 000"
+              />
             </div>
             <div className="space-y-2">
               <Label>Comision afiliado por defecto (%)</Label>
@@ -823,7 +929,9 @@ export default function UsersPage() {
                   <SelectItem value="own">Solo lo suyo (sus ventas/agendas/contactos)</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">Admin y director siempre ven todo. La adscripción se controla aparte.</p>
+              <p className="text-xs text-muted-foreground">
+                Admin y director siempre ven todo. La adscripción se controla aparte.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Sueldo base mensual (€)</Label>
@@ -836,13 +944,20 @@ export default function UsersPage() {
                 className="bg-muted border-border"
                 placeholder="1500.00"
               />
-              <p className="text-xs text-muted-foreground">Se contabiliza automáticamente como gasto mensual (categoría Sueldos).</p>
+              <p className="text-xs text-muted-foreground">
+                Se contabiliza automáticamente como gasto mensual (categoría Sueldos).
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Condición para desbloquear el fijo</Label>
               <div className="flex gap-2">
-                <Select value={editFijoUnlockType} onValueChange={(v) => setEditFijoUnlockType(v as 'none' | 'sales' | 'revenue')}>
-                  <SelectTrigger className="bg-muted border-border w-44"><SelectValue /></SelectTrigger>
+                <Select
+                  value={editFijoUnlockType}
+                  onValueChange={(v) => setEditFijoUnlockType(v as 'none' | 'sales' | 'revenue')}
+                >
+                  <SelectTrigger className="bg-muted border-border w-44">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent className="bg-card border-border">
                     <SelectItem value="none">Sin condición</SelectItem>
                     <SelectItem value="sales">Por nº de ventas</SelectItem>
@@ -862,8 +977,8 @@ export default function UsersPage() {
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Debe alcanzar el mínimo en el mes para cobrar su fijo (lo verá como progreso en su dashboard).
-                Una reserva y su pago completado cuentan como 1 venta.
+                Debe alcanzar el mínimo en el mes para cobrar su fijo (lo verá como progreso en su dashboard). Una
+                reserva y su pago completado cuentan como 1 venta.
               </p>
             </div>
             <div className="space-y-2">
@@ -880,7 +995,10 @@ export default function UsersPage() {
             </div>
             <div className="space-y-2">
               <Label>Canal asignado</Label>
-              <Select value={editAssignedChannel || '__none__'} onValueChange={(v) => setEditAssignedChannel(v === '__none__' ? '' : v)}>
+              <Select
+                value={editAssignedChannel || '__none__'}
+                onValueChange={(v) => setEditAssignedChannel(v === '__none__' ? '' : v)}
+              >
                 <SelectTrigger className="bg-muted border-border">
                   <SelectValue placeholder="Seleccionar canal..." />
                 </SelectTrigger>
@@ -895,7 +1013,10 @@ export default function UsersPage() {
             </div>
             <div className="space-y-2">
               <Label>Estado del miembro</Label>
-              <Select value={editMemberStatus} onValueChange={(v) => setEditMemberStatus(v as 'activo' | 'inactivo' | 'prueba')}>
+              <Select
+                value={editMemberStatus}
+                onValueChange={(v) => setEditMemberStatus(v as 'activo' | 'inactivo' | 'prueba')}
+              >
                 <SelectTrigger className="bg-muted border-border">
                   <SelectValue />
                 </SelectTrigger>
@@ -937,8 +1058,8 @@ export default function UsersPage() {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Código privado y opaco (no revela el nombre). Se usa en los enlaces de la sección Enlaces
-                (utm_term para setter/cold caller, utm_content para afiliado).
+                Código privado y opaco (no revela el nombre). Se usa en los enlaces de la sección Enlaces (utm_term para
+                setter/cold caller, utm_content para afiliado).
               </p>
             </div>
             <div className="space-y-2">
@@ -960,9 +1081,18 @@ export default function UsersPage() {
               </button>
             </div>
             <div className="flex justify-end gap-3 pt-2">
-              <Button variant="outline" onClick={() => setEditDialog(false)} disabled={submitting}>Cancelar</Button>
+              <Button variant="outline" onClick={() => setEditDialog(false)} disabled={submitting}>
+                Cancelar
+              </Button>
               <Button onClick={handleEditUser} disabled={submitting}>
-                {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Guardando...</> : 'Guardar Cambios'}
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  'Guardar Cambios'
+                )}
               </Button>
             </div>
           </div>

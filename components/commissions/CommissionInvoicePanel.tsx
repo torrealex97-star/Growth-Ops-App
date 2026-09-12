@@ -1,13 +1,11 @@
-"use client"
+'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FileText, Upload, Loader2, CheckCircle2, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTenantId } from '@/lib/tenant-context'
@@ -112,19 +110,17 @@ export function CommissionInvoicePanel({
         return
       }
       const { data: pub } = supabase.storage.from('facturas').getPublicUrl(path)
-      const { error: dbErr } = await supabase
-        .from('commission_invoices')
-        .upsert(
-          {
-            tenant_id: tenantId,
-            user_id: currentUserId,
-            period_month: period,
-            invoice_url: pub.publicUrl,
-            amount: amount.trim() ? parseFloat(amount) : null,
-            status: 'recibida',
-          },
-          { onConflict: 'user_id,period_month' }
-        )
+      const { error: dbErr } = await supabase.from('commission_invoices').upsert(
+        {
+          tenant_id: tenantId,
+          user_id: currentUserId,
+          period_month: period,
+          invoice_url: pub.publicUrl,
+          amount: amount.trim() ? parseFloat(amount) : null,
+          status: 'recibida',
+        },
+        { onConflict: 'user_id,period_month' }
+      )
       if (dbErr) {
         toast.error('No se pudo registrar la factura', { description: dbErr.message })
         return
@@ -141,7 +137,11 @@ export function CommissionInvoicePanel({
   const togglePaid = async (inv: CommissionInvoice) => {
     const supabase = createClient()
     const next = inv.status === 'pagada' ? 'recibida' : 'pagada'
-    const { error } = await supabase.from('commission_invoices').update({ status: next }).eq('id', inv.id).eq('tenant_id', tenantId)
+    const { error } = await supabase
+      .from('commission_invoices')
+      .update({ status: next })
+      .eq('id', inv.id)
+      .eq('tenant_id', tenantId)
     if (error) {
       toast.error('No se pudo actualizar', { description: error.message })
       return
@@ -172,7 +172,9 @@ export function CommissionInvoicePanel({
               </SelectTrigger>
               <SelectContent>
                 {months.map((m) => (
-                  <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                  <SelectItem key={m.value} value={m.value}>
+                    {m.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -193,7 +195,10 @@ export function CommissionInvoicePanel({
               ref={fileRef}
               type="file"
               accept="application/pdf,image/*"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f) }}
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) handleUpload(f)
+              }}
               className="hidden"
             />
             <Button
@@ -203,7 +208,17 @@ export function CommissionInvoicePanel({
               onClick={() => fileRef.current?.click()}
               className="w-full"
             >
-              {uploading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Subiendo…</> : <><Upload className="w-4 h-4 mr-2" />Adjuntar factura</>}
+              {uploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Subiendo…
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Adjuntar factura
+                </>
+              )}
             </Button>
           </div>
         </div>
@@ -214,7 +229,12 @@ export function CommissionInvoicePanel({
             Factura de {monthLabel(myInvoiceForPeriod.period_month)} enviada
             {myInvoiceForPeriod.status === 'pagada' && ' · pagada'}
             {myInvoiceForPeriod.invoice_url && (
-              <a href={myInvoiceForPeriod.invoice_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand-400 hover:text-brand-300 ml-2">
+              <a
+                href={myInvoiceForPeriod.invoice_url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-brand-400 hover:text-brand-300 ml-2"
+              >
                 Ver <ExternalLink className="w-3 h-3" />
               </a>
             )}
@@ -246,7 +266,9 @@ export function CommissionInvoicePanel({
                     <tr key={inv.id} className="border-b border-border/60">
                       <td className="py-2 pr-3 text-foreground">{memberName(inv.user_id)}</td>
                       <td className="py-2 pr-3 text-foreground">{monthLabel(inv.period_month)}</td>
-                      <td className="py-2 pr-3 text-foreground">{inv.amount != null ? `${inv.amount.toLocaleString('es-ES')} €` : '—'}</td>
+                      <td className="py-2 pr-3 text-foreground">
+                        {inv.amount != null ? `${inv.amount.toLocaleString('es-ES')} €` : '—'}
+                      </td>
                       <td className="py-2 pr-3">
                         <span className={inv.status === 'pagada' ? 'text-emerald-400' : 'text-amber-400'}>
                           {inv.status === 'pagada' ? 'Pagada' : 'Recibida'}
@@ -254,10 +276,17 @@ export function CommissionInvoicePanel({
                       </td>
                       <td className="py-2 pr-3">
                         {inv.invoice_url ? (
-                          <a href={inv.invoice_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand-400 hover:text-brand-300">
+                          <a
+                            href={inv.invoice_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-brand-400 hover:text-brand-300"
+                          >
                             Ver <ExternalLink className="w-3 h-3" />
                           </a>
-                        ) : '—'}
+                        ) : (
+                          '—'
+                        )}
                       </td>
                       <td className="py-2 text-right">
                         <Button size="sm" variant="outline" onClick={() => togglePaid(inv)}>

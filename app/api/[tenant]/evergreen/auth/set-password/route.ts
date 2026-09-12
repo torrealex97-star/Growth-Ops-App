@@ -22,11 +22,9 @@ export async function POST(req: NextRequest) {
 
     // Cliente anónimo aislado (sin persistir sesión): la sesión de verifyOtp queda
     // en memoria de esta instancia y la usa updateUser en la misma request.
-    const sb = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
 
     const { error: otpErr } = await sb.auth.verifyOtp({ token_hash: tokenHash, type: type as EmailOtpType })
     if (otpErr) {

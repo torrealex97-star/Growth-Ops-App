@@ -81,7 +81,11 @@ export async function getTenantConfig(tenantId: string, force = false): Promise<
       if (!raw) continue
       let value = raw
       if ((row as { is_secret: boolean }).is_secret && isEncrypted(raw)) {
-        try { value = decryptSecret(raw) } catch { continue }
+        try {
+          value = decryptSecret(raw)
+        } catch {
+          continue
+        }
       }
       vals[(row as { key: string }).key] = value
     }

@@ -1,0 +1,26 @@
+version: 2
+updates:
+  # GitHub ya escanea vulnerabilidades nativamente (Dependabot alerts) sin este archivo; esto
+  # añade la parte que faltaba: PRs automáticas para mantener las dependencias al día antes de
+  # que se acumulen saltos grandes. Un único ecosistema (npm) y un único bot — no se añade Renovate.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: ['minor', 'patch']
+    ignore:
+      # Saltos MAJOR de piezas centrales (framework, auth/DB, runtime) requieren revisión humana
+      # explícita de breaking changes, no una PR automática — ver AGENTS.md.
+      - dependency-name: 'next'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'react'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'react-dom'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@supabase/*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']

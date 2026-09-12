@@ -11,8 +11,16 @@ export default function GastosFacturasLayout({ children }: { children: React.Rea
 
   const TABS: RouteTab[] = [
     { label: 'Gastos', href: `/${tenant}/finanzas/gastos-facturas/gastos`, match: '/finanzas/gastos-facturas/gastos' },
-    { label: 'Facturas', href: `/${tenant}/finanzas/gastos-facturas/facturas`, match: '/finanzas/gastos-facturas/facturas' },
-    { label: 'Export gestoría', href: `/${tenant}/finanzas/gastos-facturas/gestoria`, match: '/finanzas/gastos-facturas/gestoria' },
+    {
+      label: 'Facturas',
+      href: `/${tenant}/finanzas/gastos-facturas/facturas`,
+      match: '/finanzas/gastos-facturas/facturas',
+    },
+    {
+      label: 'Export gestoría',
+      href: `/${tenant}/finanzas/gastos-facturas/gestoria`,
+      match: '/finanzas/gastos-facturas/gestoria',
+    },
   ]
 
   return (

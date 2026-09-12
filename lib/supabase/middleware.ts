@@ -21,7 +21,9 @@ export async function updateSession(request: NextRequest, tenant: string) {
     },
   })
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
   if (!user) {
     const login = request.nextUrl.clone()
     login.pathname = `/${tenant}/login`

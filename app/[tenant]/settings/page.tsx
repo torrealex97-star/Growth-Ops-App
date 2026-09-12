@@ -1,8 +1,20 @@
-"use client"
+'use client'
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Package, Percent, UserCog, FileText, Building2, FileSignature, ChevronRight, TrendingUp, Settings as SettingsIcon, Database, Loader2 } from 'lucide-react'
+import {
+  Package,
+  Percent,
+  UserCog,
+  FileText,
+  Building2,
+  FileSignature,
+  ChevronRight,
+  TrendingUp,
+  Settings as SettingsIcon,
+  Database,
+  Loader2,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useTenant } from '@/lib/tenant-context'
 import { createClient } from '@/lib/supabase/client'
@@ -84,7 +96,10 @@ function SettingsPageInner() {
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) { setRoleLoading(false); return }
+      if (!user) {
+        setRoleLoading(false)
+        return
+      }
       const { data } = await supabase.from('users').select('roles(key)').eq('id', user.id).single()
       const role = (data?.roles as { key?: string } | null)?.key
       setDataHealthOnly(!!role && DATA_HEALTH_ONLY_ROLES.has(role))
@@ -101,7 +116,11 @@ function SettingsPageInner() {
   }
 
   if (roleLoading) {
-    return <div className="flex items-center gap-2 p-6 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Cargando…</div>
+    return (
+      <div className="flex items-center gap-2 p-6 text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
+      </div>
+    )
   }
 
   // Roles no-admin: solo pueden ver Data Health, directamente, sin las tarjetas de

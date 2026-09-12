@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -19,7 +19,8 @@ type Tramo = {
 type Metric = 'sales' | 'cash_collected'
 type Period = 'month' | 'all'
 
-const cls = 'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500'
+const cls =
+  'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500'
 
 export default function TramosSettingsPage() {
   const tenantId = useTenantId()
@@ -51,32 +52,60 @@ export default function TramosSettingsPage() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+  }, [])
 
   const saveConfig = async (nextMetric: Metric, nextPeriod: Period) => {
     setSavingCfg(true)
     const sb = createClient()
-    const { error } = await sb.from('sales_tramos_config').upsert({ id: 1, tenant_id: tenantId, metric: nextMetric, period: nextPeriod })
+    const { error } = await sb
+      .from('sales_tramos_config')
+      .upsert({ id: 1, tenant_id: tenantId, metric: nextMetric, period: nextPeriod })
     setSavingCfg(false)
-    if (error) { toast.error('No se pudo guardar la configuración', { description: error.message }); return }
+    if (error) {
+      toast.error('No se pudo guardar la configuración', { description: error.message })
+      return
+    }
     toast.success('Configuración guardada')
   }
 
   const addTramo = async () => {
     const name = nName.trim()
     const threshold = parseFloat(nThreshold)
-    if (!name) { toast.error('Ponle nombre al tramo'); return }
-    if (!Number.isFinite(threshold) || threshold <= 0) { toast.error('Indica un umbral válido'); return }
+    if (!name) {
+      toast.error('Ponle nombre al tramo')
+      return
+    }
+    if (!Number.isFinite(threshold) || threshold <= 0) {
+      toast.error('Indica un umbral válido')
+      return
+    }
     setAdding(true)
     const sb = createClient()
-    const { data, error } = await sb.from('sales_tramos').insert({
-      name, threshold, emoji: nEmoji.trim() || null, reward: nReward.trim() || null,
-      sort_order: tramos.length + 1, is_active: true, tenant_id: tenantId,
-    }).select().single()
+    const { data, error } = await sb
+      .from('sales_tramos')
+      .insert({
+        name,
+        threshold,
+        emoji: nEmoji.trim() || null,
+        reward: nReward.trim() || null,
+        sort_order: tramos.length + 1,
+        is_active: true,
+        tenant_id: tenantId,
+      })
+      .select()
+      .single()
     setAdding(false)
-    if (error) { toast.error('No se pudo crear el tramo', { description: error.message }); return }
+    if (error) {
+      toast.error('No se pudo crear el tramo', { description: error.message })
+      return
+    }
     setTramos((prev) => [...prev, data as Tramo].sort((a, b) => Number(a.threshold) - Number(b.threshold)))
-    setNName(''); setNThreshold(''); setNEmoji(''); setNReward('')
+    setNName('')
+    setNThreshold('')
+    setNEmoji('')
+    setNReward('')
     toast.success('Tramo creado')
   }
 
@@ -84,7 +113,10 @@ export default function TramosSettingsPage() {
     if (!window.confirm('¿Borrar este tramo?')) return
     const sb = createClient()
     const { error } = await sb.from('sales_tramos').delete().eq('id', id).eq('tenant_id', tenantId)
-    if (error) { toast.error('No se pudo borrar', { description: error.message }); return }
+    if (error) {
+      toast.error('No se pudo borrar', { description: error.message })
+      return
+    }
     setTramos((prev) => prev.filter((t) => t.id !== id))
   }
 
@@ -98,13 +130,16 @@ export default function TramosSettingsPage() {
         </div>
         <div>
           <h1 className="text-2xl font-bold text-foreground">Tramos / niveles de desbloqueo</h1>
-          <p className="text-muted-foreground text-sm">Niveles que el equipo desbloquea en su dashboard (con confeti al llegar).</p>
+          <p className="text-muted-foreground text-sm">
+            Niveles que el equipo desbloquea en su dashboard (con confeti al llegar).
+          </p>
         </div>
       </div>
 
       {tableMissing && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-300">
-          Falta aplicar la migración <code className="text-amber-200">scripts/migration-v26-tramos.sql</code> en Supabase para activar los tramos.
+          Falta aplicar la migración <code className="text-amber-200">scripts/migration-v26-tramos.sql</code> en
+          Supabase para activar los tramos.
         </div>
       )}
 
@@ -116,7 +151,11 @@ export default function TramosSettingsPage() {
             <label className="text-xs text-muted-foreground">Métrica del nivel</label>
             <select
               value={metric}
-              onChange={(e) => { const v = e.target.value as Metric; setMetric(v); saveConfig(v, period) }}
+              onChange={(e) => {
+                const v = e.target.value as Metric
+                setMetric(v)
+                saveConfig(v, period)
+              }}
               className={cls}
               disabled={savingCfg}
             >
@@ -128,7 +167,11 @@ export default function TramosSettingsPage() {
             <label className="text-xs text-muted-foreground">Periodo</label>
             <select
               value={period}
-              onChange={(e) => { const v = e.target.value as Period; setPeriod(v); saveConfig(metric, v) }}
+              onChange={(e) => {
+                const v = e.target.value as Period
+                setPeriod(v)
+                saveConfig(metric, v)
+              }}
               className={cls}
               disabled={savingCfg}
             >
@@ -138,8 +181,8 @@ export default function TramosSettingsPage() {
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          Los umbrales de los tramos se miden en <span className="text-foreground">{unit}</span>.
-          En «Nº de ventas» cuentan todas las ventas cerradas salvo las reservas sin completar.
+          Los umbrales de los tramos se miden en <span className="text-foreground">{unit}</span>. En «Nº de ventas»
+          cuentan todas las ventas cerradas salvo las reservas sin completar.
         </p>
       </div>
 
@@ -160,7 +203,9 @@ export default function TramosSettingsPage() {
                   {t.reward && <p className="text-xs text-muted-foreground truncate">{t.reward}</p>}
                 </div>
                 <span className="text-sm text-amber-300 font-semibold whitespace-nowrap">
-                  {metric === 'cash_collected' ? `${Number(t.threshold).toLocaleString('es-ES')} €` : `${Number(t.threshold)} ventas`}
+                  {metric === 'cash_collected'
+                    ? `${Number(t.threshold).toLocaleString('es-ES')} €`
+                    : `${Number(t.threshold)} ventas`}
                 </span>
                 <span className="text-xs text-muted-foreground w-6 text-center">#{i + 1}</span>
                 <button onClick={() => deleteTramo(t.id)} className="text-muted-foreground hover:text-red-400 p-1">
@@ -175,7 +220,13 @@ export default function TramosSettingsPage() {
         <div className="border-t border-border pt-4 grid grid-cols-1 sm:grid-cols-[auto,1fr,140px] gap-2 items-end">
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Emoji</label>
-            <input value={nEmoji} onChange={(e) => setNEmoji(e.target.value)} placeholder="🏆" className={`${cls} w-16 text-center`} maxLength={4} />
+            <input
+              value={nEmoji}
+              onChange={(e) => setNEmoji(e.target.value)}
+              placeholder="🏆"
+              className={`${cls} w-16 text-center`}
+              maxLength={4}
+            />
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Nombre del nivel</label>
@@ -183,14 +234,32 @@ export default function TramosSettingsPage() {
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Umbral ({unit})</label>
-            <input value={nThreshold} onChange={(e) => setNThreshold(e.target.value)} type="number" min={1} placeholder={metric === 'cash_collected' ? '10000' : '10'} className={cls} />
+            <input
+              value={nThreshold}
+              onChange={(e) => setNThreshold(e.target.value)}
+              type="number"
+              min={1}
+              placeholder={metric === 'cash_collected' ? '10000' : '10'}
+              className={cls}
+            />
           </div>
           <div className="space-y-1 sm:col-span-2">
             <label className="text-xs text-muted-foreground">Recompensa / nota (opcional)</label>
-            <input value={nReward} onChange={(e) => setNReward(e.target.value)} placeholder="Bonus, premio, reconocimiento…" className={cls} />
+            <input
+              value={nReward}
+              onChange={(e) => setNReward(e.target.value)}
+              placeholder="Bonus, premio, reconocimiento…"
+              className={cls}
+            />
           </div>
           <Button onClick={addTramo} disabled={adding} className="bg-brand-600 hover:bg-brand-500 sm:col-span-1">
-            {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Plus className="w-4 h-4 mr-1" /> Añadir</>}
+            {adding ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <>
+                <Plus className="w-4 h-4 mr-1" /> Añadir
+              </>
+            )}
           </Button>
         </div>
       </div>

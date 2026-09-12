@@ -67,7 +67,9 @@ export function SequraMorosidadView() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+  }, [])
 
   const lastSyncedAt = useMemo(
     () => rows.reduce<string | null>((max, r) => (!max || r.last_synced_at > max ? r.last_synced_at : max), null),
@@ -157,9 +159,7 @@ export function SequraMorosidadView() {
             {syncing ? 'Sincronizando…' : 'Actualizar ahora'}
           </button>
           {lastSyncedAt && (
-            <p className="text-xs text-muted-foreground mt-1.5">
-              Última sincronización: {formatDate(lastSyncedAt)}
-            </p>
+            <p className="text-xs text-muted-foreground mt-1.5">Última sincronización: {formatDate(lastSyncedAt)}</p>
           )}
         </div>
       </div>

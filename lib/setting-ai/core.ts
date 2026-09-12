@@ -17,12 +17,17 @@ export function modelFrom(key?: string): string {
 // ---------- Auth (sesión Supabase) ----------
 export async function requireCaller(): Promise<{ id: string } | null> {
   const cookieStore = await cookies()
-  const authed = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
-  )
-  const { data: { user } } = await authed.auth.getUser()
+  const authed = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll()
+      },
+      setAll() {},
+    },
+  })
+  const {
+    data: { user },
+  } = await authed.auth.getUser()
   return user ? { id: user.id } : null
 }
 
@@ -53,26 +58,46 @@ export async function callText(opts: {
   } catch (e) {
     // Fallback al modelo por defecto si el id no existe.
     if (opts.model !== DEFAULT_MODEL) {
-      const r = await client.messages.create({ ...params, model: DEFAULT_MODEL } as Anthropic.MessageCreateParamsNonStreaming)
+      const r = await client.messages.create({
+        ...params,
+        model: DEFAULT_MODEL,
+      } as Anthropic.MessageCreateParamsNonStreaming)
       return textOf(r)
     }
     throw e
   }
 }
 function textOf(r: Anthropic.Message): string {
-  return r.content.filter((b): b is Anthropic.TextBlock => b.type === 'text').map((b) => b.text).join('\n').trim()
+  return r.content
+    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('\n')
+    .trim()
 }
 
 // ---------- Tipos ----------
 export type Who = 'lead' | 'agent'
-export interface ConvMsg { who: Who; text: string }
-export interface Persona { avatar?: number; registro?: string; dureza?: string; objecion?: string; extra?: string }
+export interface ConvMsg {
+  who: Who
+  text: string
+}
+export interface Persona {
+  avatar?: number
+  registro?: string
+  dureza?: string
+  objecion?: string
+  extra?: string
+}
 
 export function toAgentMessages(conv: ConvMsg[]): Anthropic.MessageParam[] {
-  return conv.filter((m) => m.text && m.text.trim()).map((m) => ({ role: m.who === 'lead' ? 'user' : 'assistant', content: m.text }))
+  return conv
+    .filter((m) => m.text && m.text.trim())
+    .map((m) => ({ role: m.who === 'lead' ? 'user' : 'assistant', content: m.text }))
 }
 export function toLeadMessages(conv: ConvMsg[]): Anthropic.MessageParam[] {
-  return conv.filter((m) => m.text && m.text.trim()).map((m) => ({ role: m.who === 'agent' ? 'user' : 'assistant', content: m.text }))
+  return conv
+    .filter((m) => m.text && m.text.trim())
+    .map((m) => ({ role: m.who === 'agent' ? 'user' : 'assistant', content: m.text }))
 }
 export function ensureStartsUser(msgs: Anthropic.MessageParam[], seed: string): Anthropic.MessageParam[] {
   if (msgs.length === 0 || msgs[0].role !== 'user') return [{ role: 'user', content: seed }, ...msgs]
@@ -133,15 +158,32 @@ Devuelve SOLO un JSON válido, sin texto alrededor:
 {"ok": true|false, "issues": [{"severidad":"critica|alta|media|baja","regla":"nombre corto","nota":"qué estuvo mal, concreto","better":"cómo debería haber respondido (reescribe el mensaje)"}]}
 Si no hay fallos: {"ok":true,"issues":[]}. Máximo 3 issues, prioriza los más graves.`
 
-export interface Issue { severidad: string; regla: string; nota: string; better?: string }
-export interface Critique { ok: boolean; issues: Issue[] }
+export interface Issue {
+  severidad: string
+  regla: string
+  nota: string
+  better?: string
+}
+export interface Critique {
+  ok: boolean
+  issues: Issue[]
+}
 
-export function parseJSONLoose(txt: string): Critique | null {
+export function parseJSONLoose<T = Critique>(txt: string): T | null {
   if (!txt) return null
-  let t = txt.trim().replace(/^```(json)?/i, '').replace(/```$/, '').trim()
-  const s = t.indexOf('{'), e = t.lastIndexOf('}')
+  let t = txt
+    .trim()
+    .replace(/^```(json)?/i, '')
+    .replace(/```$/, '')
+    .trim()
+  const s = t.indexOf('{'),
+    e = t.lastIndexOf('}')
   if (s >= 0 && e > s) t = t.slice(s, e + 1)
-  try { return JSON.parse(t) as Critique } catch { return null }
+  try {
+    return JSON.parse(t) as T
+  } catch {
+    return null
+  }
 }
 export async function critique(conv: ConvMsg[], model: string): Promise<Critique> {
   const recent = conv.slice(-8)
@@ -149,7 +191,13 @@ export async function critique(conv: ConvMsg[], model: string): Promise<Critique
   const lastAgent = [...conv].reverse().find((m) => m.who === 'agent')?.text || ''
   if (!lastAgent) return { ok: true, issues: [] }
   const user = `CONVERSACIÓN RECIENTE:\n${convText}\n\nEVALÚA EL ÚLTIMO MENSAJE DEL AGENTE:\n"${lastAgent}"\n\nDevuelve SOLO el JSON.`
-  const txt = await callText({ model, system: CRITIC_SYSTEM, messages: [{ role: 'user', content: user }], max_tokens: 800, temperature: 0 })
+  const txt = await callText({
+    model,
+    system: CRITIC_SYSTEM,
+    messages: [{ role: 'user', content: user }],
+    max_tokens: 800,
+    temperature: 0,
+  })
   return parseJSONLoose(txt) || { ok: true, issues: [] }
 }
 
@@ -157,20 +205,45 @@ export async function critique(conv: ConvMsg[], model: string): Promise<Critique
 const AV = [1, 2, 3, 4]
 const REG = ['casual', 'serio']
 const DUR = ['baja', 'media', 'alta']
-const OBJ = ['ninguna', 'no tengo tiempo ahora', 'no sé si tengo el dinero', 'me lo tengo que pensar', 'no me fío mucho de esto', 'dime el precio directamente']
+const OBJ = [
+  'ninguna',
+  'no tengo tiempo ahora',
+  'no sé si tengo el dinero',
+  'me lo tengo que pensar',
+  'no me fío mucho de esto',
+  'dime el precio directamente',
+]
 export function autoPersona(i: number): Persona {
-  return { avatar: AV[i % AV.length], registro: REG[i % REG.length], dureza: DUR[i % DUR.length], objecion: OBJ[i % OBJ.length] }
+  return {
+    avatar: AV[i % AV.length],
+    registro: REG[i % REG.length],
+    dureza: DUR[i % DUR.length],
+    objecion: OBJ[i % OBJ.length],
+  }
 }
 
 // ---------- Motor de mejora del prompt ----------
-export interface Correction { leadMsg?: string; agentMsg?: string; note?: string; better?: string }
-export function buildImprovePrompt(basePrompt: string, corrections: Correction[], transcriptNotes: string): { system: string; user: string } {
+export interface Correction {
+  leadMsg?: string
+  agentMsg?: string
+  note?: string
+  better?: string
+}
+export function buildImprovePrompt(
+  basePrompt: string,
+  corrections: Correction[],
+  transcriptNotes: string
+): { system: string; user: string } {
   const corrText = corrections.length
-    ? corrections.map((c, i) => `--- Corrección ${i + 1} ---
+    ? corrections
+        .map(
+          (c, i) => `--- Corrección ${i + 1} ---
 Contexto (lead): ${c.leadMsg || '(n/d)'}
 Respuesta ORIGINAL del agente: ${c.agentMsg || '(n/d)'}
 Qué mejorar: ${c.note || '(n/d)'}
-${c.better ? 'Cómo debería haber respondido: ' + c.better : ''}`).join('\n\n')
+${c.better ? 'Cómo debería haber respondido: ' + c.better : ''}`
+        )
+        .join('\n\n')
     : '(No se registraron correcciones individuales.)'
 
   const system = `Eres un ingeniero de prompts senior especializado en agentes de venta conversacional (setting por DM). Mejora el prompt de sistema de un agente de setting.
@@ -196,12 +269,54 @@ Devuelve el prompt completo mejorado siguiendo tus reglas.`
   return { system, user }
 }
 
+// ---------- Análisis de conversaciones reales (IG/FB/TikTok) ----------
+export const ANALYSIS_SYSTEM = `Eres un coach senior de "setting" por DM para un equipo de ventas. Te paso una conversación REAL entre un SETTER (agente) y un LEAD, capturada de una red social (Instagram, Facebook o TikTok).
+
+Analiza:
+- Avatar probable del lead a partir de lo que cuenta (p.ej. emprendedor quemado, agencia/freelance, trabajador quemado, empresario que escala), y si el setter lo detectó y adaptó el mensaje a ese avatar.
+- Fase del proceso de setting alcanzada: apertura/rapport, descubrimiento de dolor/deseo, cualificación de tiempo y dinero, manejo de objeciones, derivación a llamada/agenda.
+- Fortalezas concretas del setter, citando el mensaje.
+- Fallos concretos, citando el mensaje: interrogatorio, sonar a bot, ofrecer llamada sin cualificar, ignorar la objeción del lead, tono/género equivocado, mensajes demasiado largos para un DM, fuga de identidad (admitir ser IA), etc.
+- Recomendaciones accionables para la próxima conversación con este mismo lead o perfil.
+
+Devuelve SOLO un JSON válido, sin texto alrededor, con esta forma exacta:
+{"avatar_detectado":"string corto","fase_alcanzada":"string corto","resumen":"2-3 frases","fortalezas":["..."],"fallos":[{"cita":"...","problema":"..."}],"recomendaciones":["..."]}
+Si la conversación es demasiado corta para concluir algo, dilo en "resumen" y deja los arrays vacíos en vez de inventar.`
+
+export interface ConversationAnalysis {
+  avatar_detectado?: string
+  fase_alcanzada?: string
+  resumen?: string
+  fortalezas?: string[]
+  fallos?: { cita: string; problema: string }[]
+  recomendaciones?: string[]
+}
+
+export async function analyzeConversation(conv: ConvMsg[], model: string): Promise<ConversationAnalysis | null> {
+  const convText = conv
+    .filter((m) => m.text && m.text.trim())
+    .map((m) => (m.who === 'lead' ? 'LEAD' : 'AGENTE') + ': ' + m.text)
+    .join('\n')
+  if (!convText) return null
+  const user = `CONVERSACIÓN COMPLETA:\n${convText}\n\nDevuelve SOLO el JSON del análisis.`
+  const txt = await callText({
+    model,
+    system: ANALYSIS_SYSTEM,
+    messages: [{ role: 'user', content: user }],
+    max_tokens: 1200,
+    temperature: 0.3,
+  })
+  return parseJSONLoose<ConversationAnalysis>(txt)
+}
+
 // Sistema con correcciones en vivo (para chat/autotrain).
 export function liveSystem(basePrompt: string, corrections: Correction[]): string {
   let sys = basePrompt
   if (corrections.length) {
     sys += '\n\n## ⚠️ CORRECCIONES EN VIVO (reglas obligatorias, prioridad máxima)\n'
-    corrections.forEach((c, i) => { sys += `\n${i + 1}. ${c.note || ''}${c.better ? ` — mejor: "${c.better}"` : ''}` })
+    corrections.forEach((c, i) => {
+      sys += `\n${i + 1}. ${c.note || ''}${c.better ? ` — mejor: "${c.better}"` : ''}`
+    })
   }
   return sys
 }

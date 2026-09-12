@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
@@ -6,13 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { SalesTable } from '@/components/sales/SalesTable'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Plus, Download, ShoppingCart } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, formatCurrency } from '@/lib/utils'
@@ -41,7 +35,11 @@ const PERIOD_LABELS: Record<PeriodPreset, string> = {
   custom: 'Personalizado',
 }
 
-function getPeriodRange(preset: PeriodPreset, customFrom: string, customTo: string): { from: Date | null; to: Date | null } {
+function getPeriodRange(
+  preset: PeriodPreset,
+  customFrom: string,
+  customTo: string
+): { from: Date | null; to: Date | null } {
   const now = new Date()
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0)
   const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
@@ -167,12 +165,17 @@ export default function SalesPage() {
       const [salesRes, usersRes, productsRes, attrRes, authRes] = await Promise.all([
         supabase
           .from('sales')
-          .select(`*, contacts(*), products(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name)`)
+          .select(
+            `*, contacts(*), products(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name)`
+          )
           .eq('tenant_id', tenantId)
           .order('sale_date', { ascending: false }),
         supabase.from('users').select('*, roles(key)').eq('is_active', true),
         supabase.from('products').select('*').eq('is_active', true).eq('tenant_id', tenantId),
-        supabase.from('contact_attributions').select('contact_id, first_utm_source, utm_source').eq('tenant_id', tenantId),
+        supabase
+          .from('contact_attributions')
+          .select('contact_id, first_utm_source, utm_source')
+          .eq('tenant_id', tenantId),
         supabase.auth.getUser(),
       ])
 
@@ -188,7 +191,11 @@ export default function SalesPage() {
 
       // Mapa canal por contacto: primero first-touch, si no el utm_source suelto
       const chMap = new Map<string, string>()
-      for (const a of (attrRes.data ?? []) as { contact_id: string; first_utm_source: string | null; utm_source: string | null }[]) {
+      for (const a of (attrRes.data ?? []) as {
+        contact_id: string
+        first_utm_source: string | null
+        utm_source: string | null
+      }[]) {
         const src = a.first_utm_source || a.utm_source
         if (a.contact_id && src && !chMap.has(a.contact_id)) chMap.set(a.contact_id, src)
       }
@@ -212,14 +219,23 @@ export default function SalesPage() {
     fetchData()
   }, [tenantId])
 
-  const setters = useMemo(() => users.filter((u) => (u as { roles?: { key?: string } }).roles?.key === 'setter'), [users])
-  const closers = useMemo(() => users.filter((u) => ['closer', 'admin'].includes((u as { roles?: { key?: string } }).roles?.key ?? '')), [users])
+  const setters = useMemo(
+    () => users.filter((u) => (u as { roles?: { key?: string } }).roles?.key === 'setter'),
+    [users]
+  )
+  const closers = useMemo(
+    () => users.filter((u) => ['closer', 'admin'].includes((u as { roles?: { key?: string } }).roles?.key ?? '')),
+    [users]
+  )
 
   const handleSaleDeleted = useCallback((saleId: string) => {
     setSales((prev) => prev.filter((s) => s.id !== saleId))
   }, [])
 
-  const periodRange = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
+  const periodRange = useMemo(
+    () => getPeriodRange(periodPreset, customFrom, customTo),
+    [periodPreset, customFrom, customTo]
+  )
   const directDateRange = useMemo(() => getCustomDateRange(dateFrom, dateTo), [dateFrom, dateTo])
 
   const filteredSales = useMemo(() => {
@@ -248,13 +264,30 @@ export default function SalesPage() {
 
       return true
     })
-  }, [sales, debouncedSearch, statusFilter, setterFilter, closerFilter, productFilter, dateFrom, dateTo, directDateRange, periodPreset, periodRange])
+  }, [
+    sales,
+    debouncedSearch,
+    statusFilter,
+    setterFilter,
+    closerFilter,
+    productFilter,
+    dateFrom,
+    dateTo,
+    directDateRange,
+    periodPreset,
+    periodRange,
+  ])
 
   // Canal de una venta: first-touch UTM del contacto → si no, lead_channel del contacto → Directo
-  const channelOfSale = useCallback((s: SaleWithRelations): string => {
-    const src = (s.contact_id && channelByContact.get(s.contact_id)) || (s.contacts as { lead_channel?: string } | null)?.lead_channel
-    return channelLabel(src)
-  }, [channelByContact])
+  const channelOfSale = useCallback(
+    (s: SaleWithRelations): string => {
+      const src =
+        (s.contact_id && channelByContact.get(s.contact_id)) ||
+        (s.contacts as { lead_channel?: string } | null)?.lead_channel
+      return channelLabel(src)
+    },
+    [channelByContact]
+  )
 
   // Desglose de ventas por canal (respeta los filtros aplicados)
   const salesByChannel = useMemo(() => {
@@ -331,7 +364,9 @@ export default function SalesPage() {
           </SelectTrigger>
           <SelectContent className="bg-card border-border">
             {(Object.keys(PERIOD_LABELS) as PeriodPreset[]).map((p) => (
-              <SelectItem key={p} value={p}>{PERIOD_LABELS[p]}</SelectItem>
+              <SelectItem key={p} value={p}>
+                {PERIOD_LABELS[p]}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -356,7 +391,12 @@ export default function SalesPage() {
         )}
 
         {periodPreset !== 'all' && (
-          <Button variant="ghost" size="sm" className="h-9 text-xs text-muted-foreground hover:text-foreground" onClick={clearPeriod}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 text-xs text-muted-foreground hover:text-foreground"
+            onClick={clearPeriod}
+          >
             Limpiar periodo
           </Button>
         )}
@@ -368,7 +408,9 @@ export default function SalesPage() {
           <SelectContent className="bg-card border-border">
             <SelectItem value="all">Todos los estados</SelectItem>
             {Object.entries(STATUS_LABELS).map(([v, l]) => (
-              <SelectItem key={v} value={v}>{l}</SelectItem>
+              <SelectItem key={v} value={v}>
+                {l}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -380,7 +422,9 @@ export default function SalesPage() {
           <SelectContent className="bg-card border-border">
             <SelectItem value="all">Todos los setters</SelectItem>
             {setters.map((u) => (
-              <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>
+              <SelectItem key={u.id} value={u.id}>
+                {u.full_name}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -392,7 +436,9 @@ export default function SalesPage() {
           <SelectContent className="bg-card border-border">
             <SelectItem value="all">Todos los closers</SelectItem>
             {closers.map((u) => (
-              <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>
+              <SelectItem key={u.id} value={u.id}>
+                {u.full_name}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -404,7 +450,9 @@ export default function SalesPage() {
           <SelectContent className="bg-card border-border">
             <SelectItem value="all">Todos los productos</SelectItem>
             {products.map((p) => (
-              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              <SelectItem key={p.id} value={p.id}>
+                {p.name}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -448,26 +496,32 @@ export default function SalesPage() {
             <div className="rounded-lg border border-border bg-card/50 p-4">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-medium text-foreground">Ventas por canal</h2>
-                <span className="text-xs text-muted-foreground">{filteredSales.length} ventas · origen del contacto</span>
+                <span className="text-xs text-muted-foreground">
+                  {filteredSales.length} ventas · origen del contacto
+                </span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 {salesByChannel.map((c) => (
                   <div key={c.channel} className="rounded-lg border border-border bg-background/40 p-3">
-                    <div className="text-xs text-muted-foreground truncate" title={c.channel}>{c.channel}</div>
-                    <div className="text-lg font-semibold text-foreground tabular-nums mt-0.5">{formatCurrency(c.revenue)}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">{c.count} {c.count === 1 ? 'venta' : 'ventas'}</div>
+                    <div className="text-xs text-muted-foreground truncate" title={c.channel}>
+                      {c.channel}
+                    </div>
+                    <div className="text-lg font-semibold text-foreground tabular-nums mt-0.5">
+                      {formatCurrency(c.revenue)}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {c.count} {c.count === 1 ? 'venta' : 'ventas'}
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          <SalesTable
-          sales={filteredSales}
-          isAdmin={isAdmin}
-          onDeleted={handleSaleDeleted}
-        />
-          <p className="text-xs text-muted-foreground">{filteredSales.length} de {sales.length} ventas</p>
+          <SalesTable sales={filteredSales} isAdmin={isAdmin} onDeleted={handleSaleDeleted} />
+          <p className="text-xs text-muted-foreground">
+            {filteredSales.length} de {sales.length} ventas
+          </p>
         </>
       )}
     </div>

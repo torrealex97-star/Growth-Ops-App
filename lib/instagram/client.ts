@@ -117,7 +117,8 @@ export type IgMedia = {
 // Lista de medias (reels + posts) con los campos base. Insights se piden aparte
 // por media (fetchMediaInsights) porque el set de métricas depende del tipo.
 export async function fetchIgMedia(cfg: IgConfig, igId: string, limit = 100): Promise<IgMedia[]> {
-  const fields = 'id,media_type,media_product_type,caption,permalink,thumbnail_url,media_url,timestamp,like_count,comments_count'
+  const fields =
+    'id,media_type,media_product_type,caption,permalink,thumbnail_url,media_url,timestamp,like_count,comments_count'
   const url = `${GRAPH}/${cfg.version}/${igId}/media?fields=${fields}&limit=${Math.min(limit, 100)}&${q(cfg)}`
   const rows = await graphGetAll(url, Math.ceil(limit / 100) + 1)
   return rows.slice(0, limit).map((r: any) => ({
@@ -149,8 +150,17 @@ export type MediaInsights = {
 }
 
 const emptyInsights = (): MediaInsights => ({
-  reach: 0, views: 0, likes: 0, comments: 0, shares: 0, saved: 0,
-  total_interactions: 0, avg_watch_time: 0, reach_followers: 0, reach_non_followers: 0, follows: 0,
+  reach: 0,
+  views: 0,
+  likes: 0,
+  comments: 0,
+  shares: 0,
+  saved: 0,
+  total_interactions: 0,
+  avg_watch_time: 0,
+  reach_followers: 0,
+  reach_non_followers: 0,
+  follows: 0,
 })
 
 // Pide un set de métricas y devuelve un mapa metric->value. Si Instagram rechaza
@@ -174,7 +184,11 @@ async function fetchMetricSet(cfg: IgConfig, mediaId: string, metrics: string[])
   } catch {
     const out: Record<string, number> = {}
     for (const m of metrics) {
-      try { Object.assign(out, await call([m])) } catch { /* métrica no soportada: la saltamos */ }
+      try {
+        Object.assign(out, await call([m]))
+      } catch {
+        /* métrica no soportada: la saltamos */
+      }
     }
     return out
   }
@@ -194,7 +208,7 @@ export async function fetchMediaInsights(cfg: IgConfig, media: IgMedia): Promise
   ins.comments = m.comments ?? media.comments_count ?? 0
   ins.shares = m.shares ?? 0
   ins.saved = m.saved ?? 0
-  ins.total_interactions = m.total_interactions ?? (ins.likes + ins.comments + ins.shares + ins.saved)
+  ins.total_interactions = m.total_interactions ?? ins.likes + ins.comments + ins.shares + ins.saved
   ins.avg_watch_time = m.ig_reels_avg_watch_time ?? 0
 
   // Reach por tipo de seguidor (descubrimiento) — breakdown aparte, best-effort.
@@ -208,7 +222,9 @@ export async function fetchMediaInsights(cfg: IgConfig, media: IgMedia): Promise
       if (key.includes('non')) ins.reach_non_followers = v
       else if (key.includes('follow')) ins.reach_followers = v
     }
-  } catch { /* breakdown no disponible en esta cuenta/versión */ }
+  } catch {
+    /* breakdown no disponible en esta cuenta/versión */
+  }
 
   return ins
 }
@@ -224,7 +240,14 @@ export type AccountInsights = {
 
 // Insights de cuenta del día (best-effort: distintas cuentas soportan distintas métricas).
 export async function fetchAccountInsights(cfg: IgConfig, igId: string): Promise<AccountInsights> {
-  const out: AccountInsights = { reach: 0, profile_views: 0, new_follows: 0, unfollows: 0, reach_followers: 0, reach_non_followers: 0 }
+  const out: AccountInsights = {
+    reach: 0,
+    profile_views: 0,
+    new_follows: 0,
+    unfollows: 0,
+    reach_followers: 0,
+    reach_non_followers: 0,
+  }
 
   // reach + profile_views (period=day)
   try {
@@ -235,7 +258,9 @@ export async function fetchAccountInsights(cfg: IgConfig, igId: string): Promise
       if (row?.name === 'reach') out.reach = Number(v) || 0
       if (row?.name === 'profile_views') out.profile_views = Number(v) || 0
     }
-  } catch { /* */ }
+  } catch {
+    /* */
+  }
 
   // follows_and_unfollows (métrica nueva, requiere metric_type=total_value)
   try {
@@ -250,7 +275,9 @@ export async function fetchAccountInsights(cfg: IgConfig, igId: string): Promise
       else if (key.includes('follow')) out.new_follows = v
     }
     if (!results.length) out.new_follows = Number(row?.total_value?.value) || 0
-  } catch { /* */ }
+  } catch {
+    /* */
+  }
 
   return out
 }
@@ -276,7 +303,9 @@ export async function fetchFollowerDemographics(cfg: IgConfig, igId: string): Pr
         const value = Number(r?.value) || 0
         if (bucket) rows.push({ dimension: dim, bucket, value })
       }
-    } catch { /* dimensión no disponible */ }
+    } catch {
+      /* dimensión no disponible */
+    }
   }
   return rows
 }
@@ -344,7 +373,13 @@ export type FbReel = {
 // likes/comments por summary (fiable).
 // withEngagement=false salta los summary de likes/comments por reel (1 llamada
 // menos por reel) → se usa en el cron para no exceder los 60s de Vercel Hobby.
-export async function fetchFacebookReels(cfg: IgConfig, pageId: string, pat: string, limit = 40, withEngagement = true): Promise<FbReel[]> {
+export async function fetchFacebookReels(
+  cfg: IgConfig,
+  pageId: string,
+  pat: string,
+  limit = 40,
+  withEngagement = true
+): Promise<FbReel[]> {
   const pq = `access_token=${encodeURIComponent(pat)}`
   const url = `${GRAPH}/${cfg.version}/${pageId}/video_reels?fields=id,description,permalink_url,created_time,views&limit=${Math.min(limit, 100)}&${pq}`
   const rows = await graphGetAll(url, Math.ceil(limit / 100) + 1)
@@ -361,10 +396,14 @@ export async function fetchFacebookReels(cfg: IgConfig, pageId: string, pat: str
     }
     if (withEngagement) {
       try {
-        const j = await graphGet(`${GRAPH}/${cfg.version}/${r.id}?fields=likes.summary(true).limit(0),comments.summary(true).limit(0)&${pq}`)
+        const j = await graphGet(
+          `${GRAPH}/${cfg.version}/${r.id}?fields=likes.summary(true).limit(0),comments.summary(true).limit(0)&${pq}`
+        )
         reel.likes = Number(j?.likes?.summary?.total_count) || 0
         reel.comments = Number(j?.comments?.summary?.total_count) || 0
-      } catch { /* si falla el summary, dejamos 0 */ }
+      } catch {
+        /* si falla el summary, dejamos 0 */
+      }
     }
     out.push(reel)
   }
@@ -399,7 +438,8 @@ export async function fetchBusinessDiscovery(
   mediaLimit = 50
 ): Promise<{ profile: CompetitorProfile; media: CompetitorMedia[] }> {
   const uname = username.trim().replace(/^@/, '')
-  const mediaFields = 'id,caption,media_type,media_product_type,like_count,comments_count,permalink,media_url,thumbnail_url,timestamp'
+  const mediaFields =
+    'id,caption,media_type,media_product_type,like_count,comments_count,permalink,media_url,thumbnail_url,timestamp'
   const url = `${GRAPH}/${cfg.version}/${igUserId}?fields=business_discovery.username(${encodeURIComponent(uname)}){username,followers_count,media_count,media.limit(${Math.min(mediaLimit, 50)}){${mediaFields}}}&${q(cfg)}`
   const j = await graphGet(url)
   const bd = j?.business_discovery
@@ -417,7 +457,11 @@ export async function fetchBusinessDiscovery(
     timestamp: r.timestamp,
   }))
   return {
-    profile: { username: bd.username || uname, followers_count: Number(bd.followers_count) || 0, media_count: Number(bd.media_count) || 0 },
+    profile: {
+      username: bd.username || uname,
+      followers_count: Number(bd.followers_count) || 0,
+      media_count: Number(bd.media_count) || 0,
+    },
     media,
   }
 }
@@ -459,4 +503,63 @@ export async function fetchConversationStats(cfg: IgConfig, pageId: string, pat?
     total_messages: messages,
     unique_people: 0,
   }
+}
+
+export type IgConversationMessage = { from: 'agente' | 'lead'; text?: string; created_time?: string }
+export type IgConversation = {
+  id: string
+  participant?: string
+  updated_time?: string
+  unread_count: number
+  message_count: number
+  messages: IgConversationMessage[]
+}
+
+// Conversaciones (DMs) CON su transcripción — fase 4 (extracción para análisis con IA del
+// proceso de setting). A diferencia de fetchConversationStats (solo contadores agregados
+// porque pedir "participants" en el listado da error #1 de Meta), aquí pedimos el detalle
+// (participants + mensajes) conversación a conversación, que sí lo admite.
+export async function fetchIgConversationsWithMessages(
+  cfg: IgConfig,
+  pageId: string,
+  pat: string,
+  igUserId: string,
+  limit = 20
+): Promise<IgConversation[]> {
+  const pq = `access_token=${encodeURIComponent(pat)}`
+  const url = `${GRAPH}/${cfg.version}/${pageId}/conversations?platform=instagram&fields=updated_time,unread_count,message_count&limit=${Math.min(limit, 50)}&${pq}`
+  const rows = await graphGetAll(url, Math.ceil(limit / 50) + 1)
+  const out: IgConversation[] = []
+  for (const c of rows.slice(0, limit)) {
+    let participant: string | undefined
+    let messages: IgConversationMessage[] = []
+    try {
+      const j = await graphGet(
+        `${GRAPH}/${cfg.version}/${c.id}?fields=participants,messages.limit(50){message,from,created_time}&${pq}`
+      )
+      const participants = j?.participants?.data || []
+      const other = participants.find((p: any) => String(p?.id) !== String(igUserId))
+      participant = other?.username || other?.name || other?.id
+      const msgRows = j?.messages?.data || []
+      messages = msgRows
+        .slice()
+        .reverse()
+        .map((m: any) => ({
+          from: (m?.from?.id && String(m.from.id) === String(igUserId) ? 'agente' : 'lead') as 'agente' | 'lead',
+          text: m?.message,
+          created_time: m?.created_time,
+        }))
+    } catch {
+      // si falla el detalle de una conversación, la dejamos sin transcripción en vez de tumbar todo el listado
+    }
+    out.push({
+      id: String(c.id),
+      participant,
+      updated_time: c?.updated_time,
+      unread_count: Number(c?.unread_count) || 0,
+      message_count: Number(c?.message_count) || 0,
+      messages,
+    })
+  }
+  return out
 }

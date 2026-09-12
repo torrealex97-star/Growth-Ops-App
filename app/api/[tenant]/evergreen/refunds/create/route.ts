@@ -20,8 +20,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (!saleId) return NextResponse.json({ error: 'Falta saleId' }, { status: 400 })
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-    const role = (urow?.roles as { key?: string } | null)?.key
+    const role = t.role
     if (!['admin', 'director'].includes(role || '')) {
       return NextResponse.json({ error: 'Solo admin/director pueden registrar devoluciones' }, { status: 403 })
     }
@@ -38,10 +37,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const today = new Date().toISOString().slice(0, 10)
     const withinWindow = sale.refund_deadline_at ? today <= sale.refund_deadline_at : false
     if (!withinWindow && !override) {
-      return NextResponse.json({
-        error: `Fuera del plazo de devolución (venció el ${sale.refund_deadline_at}). No procede devolución.`,
-        outOfWindow: true,
-      }, { status: 422 })
+      return NextResponse.json(
+        {
+          error: `Fuera del plazo de devolución (venció el ${sale.refund_deadline_at}). No procede devolución.`,
+          outOfWindow: true,
+        },
+        { status: 422 }
+      )
     }
 
     // Importes: por defecto se devuelve lo COBRADO (cash collected)
@@ -54,31 +56,49 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const totalComm = (collections ?? []).reduce((s, c) => s + Number(c.commissionable_amount || 0), 0)
 
     const grossRefund = grossRefundAmount != null ? Number(grossRefundAmount) : totalGross
+    // Un importe fuera de rango (NaN, negativo, o mayor que lo realmente cobrado) generaría un
+    // refund corrupto y comisiones negativas mal calculadas — grossRefundAmount viene del body
+    // de la request sin validar hasta ahora.
+    if (!Number.isFinite(grossRefund) || grossRefund < 0 || grossRefund > totalGross + 0.01) {
+      return NextResponse.json(
+        { error: 'grossRefundAmount inválido: debe estar entre 0 y lo realmente cobrado' },
+        { status: 400 }
+      )
+    }
     // Comisionable proporcional al importe devuelto
     const commRefund = totalGross > 0 ? (grossRefund / totalGross) * totalComm : grossRefund
     const isFull = grossRefund >= totalGross - 0.01
 
     // 1) Registrar la devolución
-    const { data: refund, error: refErr } = await sb.from('refunds').insert({
-      tenant_id: t.tenantId,
-      sale_id: saleId,
-      refund_date: today,
-      gross_refund_amount: grossRefund,
-      commissionable_refund_amount: commRefund,
-      reason: reason || null,
-      status: 'processed',
-      created_by: t.userId,
-    }).select('*').single()
-    if (refErr || !refund) return NextResponse.json({ error: 'Error registrando devolución', detail: refErr?.message }, { status: 500 })
+    const { data: refund, error: refErr } = await sb
+      .from('refunds')
+      .insert({
+        tenant_id: t.tenantId,
+        sale_id: saleId,
+        refund_date: today,
+        gross_refund_amount: grossRefund,
+        commissionable_refund_amount: commRefund,
+        reason: reason || null,
+        status: 'processed',
+        created_by: t.userId,
+      })
+      .select('*')
+      .single()
+    if (refErr || !refund)
+      return NextResponse.json({ error: 'Error registrando devolución', detail: refErr?.message }, { status: 500 })
 
     // 2) Comisiones negativas (se restan de las comisiones del rep)
     const { data: commissions } = await sb.from('commissions').select('*').eq('sale_id', saleId)
-    const negatives = calculateNegativeCommissionsForRefund(refund as Refund, (commissions ?? []) as Commission[])
-      .map((n) => ({ ...n, tenant_id: t.tenantId }))
+    const negatives = calculateNegativeCommissionsForRefund(refund as Refund, (commissions ?? []) as Commission[]).map(
+      (n) => ({ ...n, tenant_id: t.tenantId })
+    )
     if (negatives.length) await sb.from('commissions').insert(negatives)
 
     // 3) Marcar la venta como devuelta / parcial
-    await sb.from('sales').update({ status: isFull ? 'refunded' : 'partial_refund', updated_by: t.userId }).eq('id', saleId)
+    await sb
+      .from('sales')
+      .update({ status: isFull ? 'refunded' : 'partial_refund', updated_by: t.userId })
+      .eq('id', saleId)
 
     // 4) Recalcular tramos del rep: al bajar el cash collected puede bajar de nivel de comisión
     await recomputeRepCommissionTiers(sb, [
@@ -88,14 +108,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
-      actor_user_id: t.userId, entity_type: 'sale', entity_id: saleId, action: 'refund',
-      new_values: { gross_refund: grossRefund, commissionable_refund: commRefund, negativeCommissions: negatives.length },
+      actor_user_id: t.userId,
+      entity_type: 'sale',
+      entity_id: saleId,
+      action: 'refund',
+      new_values: {
+        gross_refund: grossRefund,
+        commissionable_refund: commRefund,
+        negativeCommissions: negatives.length,
+      },
     })
 
     // No hay evento de devolución confirmado en creatuagente (solo venta.registrada); pendiente
     // de confirmar antes de notificar reembolsos.
 
-    return NextResponse.json({ ok: true, grossRefund, commissionableRefund: commRefund, negativeCommissions: negatives.length, saleStatus: isFull ? 'refunded' : 'partial_refund' })
+    return NextResponse.json({
+      ok: true,
+      grossRefund,
+      commissionableRefund: commRefund,
+      negativeCommissions: negatives.length,
+      saleStatus: isFull ? 'refunded' : 'partial_refund',
+    })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }

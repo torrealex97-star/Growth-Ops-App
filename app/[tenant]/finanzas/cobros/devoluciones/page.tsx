@@ -1,33 +1,15 @@
-"use client"
+'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Plus, RotateCcw, Search, Loader2, Download, X } from 'lucide-react'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { calculateNegativeCommissionsForRefund } from '@/lib/commissions/calculator'
@@ -50,7 +32,11 @@ const PERIOD_LABELS: Record<PeriodPreset, string> = {
   custom: 'Personalizado',
 }
 
-function getPeriodRange(preset: PeriodPreset, customFrom: string, customTo: string): { from: Date | null; to: Date | null } {
+function getPeriodRange(
+  preset: PeriodPreset,
+  customFrom: string,
+  customTo: string
+): { from: Date | null; to: Date | null } {
   const now = new Date()
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0)
   const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
@@ -156,30 +142,38 @@ export default function RefundsPage() {
     fetchRefunds()
   }, [])
 
-  const searchSales = useCallback(async (query: string) => {
-    if (!query || query.length < 2) {
-      setSaleResults([])
-      return
-    }
-    setSearchLoading(true)
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('sales')
-      .select(`*, contacts(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name), products(*)`)
-      .neq('status', 'refunded')
-      .eq('tenant_id', tenantId)
-      .limit(6)
+  const searchSales = useCallback(
+    async (query: string) => {
+      if (!query || query.length < 2) {
+        setSaleResults([])
+        return
+      }
+      setSearchLoading(true)
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('sales')
+        .select(
+          `*, contacts(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name), products(*)`
+        )
+        .neq('status', 'refunded')
+        .eq('tenant_id', tenantId)
+        .limit(6)
 
-    setSaleResults((data ?? []) as SaleWithRelations[])
-    setSearchLoading(false)
-  }, [tenantId])
+      setSaleResults((data ?? []) as SaleWithRelations[])
+      setSearchLoading(false)
+    },
+    [tenantId]
+  )
 
   useEffect(() => {
     const timer = setTimeout(() => searchSales(saleSearch), 300)
     return () => clearTimeout(timer)
   }, [saleSearch, searchSales])
 
-  const periodRange = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
+  const periodRange = useMemo(
+    () => getPeriodRange(periodPreset, customFrom, customTo),
+    [periodPreset, customFrom, customTo]
+  )
 
   const filteredRefunds = useMemo(() => {
     return refunds.filter((r) => {
@@ -221,9 +215,10 @@ export default function RefundsPage() {
     downloadCSV(`devoluciones_${periodFileTag}.csv`, headers, rows)
   }
 
-  const commissionableRefund = selectedSale && refundAmount
-    ? parseFloat(refundAmount) * (selectedSale.payment_plans?.cash_collection_ratio ?? 1)
-    : 0
+  const commissionableRefund =
+    selectedSale && refundAmount
+      ? parseFloat(refundAmount) * (selectedSale.payment_plans?.cash_collection_ratio ?? 1)
+      : 0
 
   const handleSubmit = async () => {
     if (!selectedSale || !refundAmount || !reason) {
@@ -248,11 +243,7 @@ export default function RefundsPage() {
       notes: null,
     }
 
-    const { data: newRefund, error } = await supabase
-      .from('refunds')
-      .insert(refundPayload)
-      .select()
-      .single()
+    const { data: newRefund, error } = await supabase.from('refunds').insert(refundPayload).select().single()
 
     if (error || !newRefund) {
       toast.error('Error al registrar la devolucion', { description: error?.message })
@@ -282,10 +273,7 @@ export default function RefundsPage() {
       .eq('tenant_id', tenantId)
 
     if (existingCommissions && existingCommissions.length > 0) {
-      const negativeCommissions = calculateNegativeCommissionsForRefund(
-        newRefund,
-        existingCommissions as Commission[]
-      )
+      const negativeCommissions = calculateNegativeCommissionsForRefund(newRefund, existingCommissions as Commission[])
       if (negativeCommissions.length > 0) {
         await supabase.from('commissions').insert(negativeCommissions.map((c) => ({ ...c, tenant_id: tenantId })))
       }
@@ -333,7 +321,12 @@ export default function RefundsPage() {
           <span className="text-sm font-medium text-foreground">Filtros</span>
           <div className="flex items-center gap-2">
             {periodPreset !== 'all' && (
-              <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={clearFilters}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                onClick={clearFilters}
+              >
                 <X className="w-3.5 h-3.5 mr-1" />
                 Limpiar filtros
               </Button>
@@ -353,7 +346,9 @@ export default function RefundsPage() {
               </SelectTrigger>
               <SelectContent className="bg-card border-border">
                 {(Object.keys(PERIOD_LABELS) as PeriodPreset[]).map((p) => (
-                  <SelectItem key={p} value={p}>{PERIOD_LABELS[p]}</SelectItem>
+                  <SelectItem key={p} value={p}>
+                    {PERIOD_LABELS[p]}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -419,10 +414,11 @@ export default function RefundsPage() {
                   <TableCell className="text-red-400 font-medium">{formatCurrency(r.gross_refund_amount)}</TableCell>
                   <TableCell className="text-muted-foreground text-sm max-w-xs truncate">{r.reason || '—'}</TableCell>
                   <TableCell>
-                    <Badge variant={
-                      r.status === 'processed' ? 'destructive' :
-                      r.status === 'pending' ? 'warning' : 'secondary'
-                    }>
+                    <Badge
+                      variant={
+                        r.status === 'processed' ? 'destructive' : r.status === 'pending' ? 'warning' : 'secondary'
+                      }
+                    >
                       {r.status}
                     </Badge>
                   </TableCell>
@@ -448,9 +444,16 @@ export default function RefundsPage() {
                 <div className="bg-muted border border-border rounded-lg p-3 flex items-center justify-between">
                   <div>
                     <p className="font-medium text-foreground text-sm">{selectedSale.contacts?.full_name}</p>
-                    <p className="text-xs text-muted-foreground">{selectedSale.payment_plans?.name} — {formatCurrency(selectedSale.gross_amount)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedSale.payment_plans?.name} — {formatCurrency(selectedSale.gross_amount)}
+                    </p>
                   </div>
-                  <Button variant="ghost" size="sm" className="text-muted-foreground text-xs" onClick={() => setSelectedSale(null)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground text-xs"
+                    onClick={() => setSelectedSale(null)}
+                  >
                     Cambiar
                   </Button>
                 </div>
@@ -467,21 +470,23 @@ export default function RefundsPage() {
                     <div className="absolute top-full left-0 right-0 z-10 mt-1 border border-border rounded-lg overflow-hidden bg-card">
                       {searchLoading ? (
                         <div className="p-3 text-center text-muted-foreground text-sm">Buscando...</div>
-                      ) : saleResults.map((s) => (
-                        <button
-                          key={s.id}
-                          className="w-full text-left px-4 py-3 hover:bg-muted border-b border-border last:border-0 text-sm"
-                          onClick={() => {
-                            setSelectedSale(s)
-                            setSaleSearch('')
-                            setSaleResults([])
-                            setRefundAmount(String(s.gross_amount))
-                          }}
-                        >
-                          <p className="text-foreground font-medium">{s.contacts?.full_name}</p>
-                          <p className="text-muted-foreground text-xs">{s.payment_plans?.name}</p>
-                        </button>
-                      ))}
+                      ) : (
+                        saleResults.map((s) => (
+                          <button
+                            key={s.id}
+                            className="w-full text-left px-4 py-3 hover:bg-muted border-b border-border last:border-0 text-sm"
+                            onClick={() => {
+                              setSelectedSale(s)
+                              setSaleSearch('')
+                              setSaleResults([])
+                              setRefundAmount(String(s.gross_amount))
+                            }}
+                          >
+                            <p className="text-foreground font-medium">{s.contacts?.full_name}</p>
+                            <p className="text-muted-foreground text-xs">{s.payment_plans?.name}</p>
+                          </button>
+                        ))
+                      )}
                     </div>
                   )}
                 </div>

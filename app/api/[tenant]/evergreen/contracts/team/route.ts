@@ -20,7 +20,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if ('error' in t) return t.error
     const me = { id: t.userId }
 
-    const { userId, templateId, title, terms, roleKey, roleLabel, personalEmail: rawPersonalEmail } = (await req.json()) as {
+    const {
+      userId,
+      templateId,
+      title,
+      terms,
+      roleKey,
+      roleLabel,
+      personalEmail: rawPersonalEmail,
+    } = (await req.json()) as {
       userId?: string
       templateId?: string | null
       title?: string
@@ -39,16 +47,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: `El correo personal "${providedPersonalEmail}" no es válido` }, { status: 400 })
     }
 
-    const sb = createServiceClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
+    const sb = createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
 
     // `users` no tiene tenant_id: comprobamos que el miembro pertenece a esta
     // subcuenta vía tenant_members para no poder generar un contrato para un
     // usuario de otro tenant.
-    const { data: membership } = await sb.from('tenant_members').select('id').eq('tenant_id', t.tenantId).eq('user_id', userId).maybeSingle()
+    const { data: membership } = await sb
+      .from('tenant_members')
+      .select('id')
+      .eq('tenant_id', t.tenantId)
+      .eq('user_id', userId)
+      .maybeSingle()
     if (!membership) return NextResponse.json({ error: 'Miembro no encontrado' }, { status: 404 })
 
     const { data: member } = await sb
@@ -72,7 +83,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // firmante (dni, direccion…) se dejan como placeholder para la 2ª pasada al firmar.
     let templateBody = ''
     if (templateId) {
-      const { data: tpl } = await sb.from('contract_templates').select('body').eq('id', templateId).eq('tenant_id', t.tenantId).maybeSingle()
+      const { data: tpl } = await sb
+        .from('contract_templates')
+        .select('body')
+        .eq('id', templateId)
+        .eq('tenant_id', t.tenantId)
+        .maybeSingle()
       templateBody = tpl?.body ?? ''
     }
     const startDate = member.start_date
@@ -103,7 +119,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         contract_role: finalRoleLabel,
         title: finalTitle,
         status: 'enviado',
-        terms: { ...terms, role_label: finalRoleLabel, role_key: roleKey ?? terms.role_key ?? null, personal_email: personalEmail },
+        terms: {
+          ...terms,
+          role_label: finalRoleLabel,
+          role_key: roleKey ?? terms.role_key ?? null,
+          personal_email: personalEmail,
+        },
         body_snapshot: bodySnapshot,
         signing_token: token,
         sent_at: now,
@@ -127,8 +148,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       const cc = member.email ? personalEmail : null
       const r = await sendContractEmail({ to: primary, cc, memberName: member.full_name, company, signUrl })
       emailed = r.ok
-      emailError = r.ok ? null : r.error ?? null
-      if (r.ok) await sb.from('contracts').update({ email_sent_at: now }).eq('id', created.id).eq('tenant_id', t.tenantId)
+      emailError = r.ok ? null : (r.error ?? null)
+      if (r.ok)
+        await sb.from('contracts').update({ email_sent_at: now }).eq('id', created.id).eq('tenant_id', t.tenantId)
     }
 
     await sb.from('audit_logs').insert({

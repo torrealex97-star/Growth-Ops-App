@@ -9,7 +9,7 @@ export type StudentContractTerms = {
   duration_months: number | null
   gross_amount: number
   currency: string
-  payment_method: string | null   // stripe | transferencia | sequra | autofinanciado | reserva | custom
+  payment_method: string | null // stripe | transferencia | sequra | autofinanciado | reserva | custom
   plan_name: string | null
   installments_count: number | null
   // Desglose del plan personalizado (si aplica): entrada + resto.
@@ -84,13 +84,20 @@ export function durationLabel(months: number | null): string {
 
 export function methodLabel(method: string | null): string {
   switch (method) {
-    case 'stripe': return 'Pago con tarjeta (Stripe)'
-    case 'transferencia': return 'Transferencia bancaria'
-    case 'sequra': return 'Financiación con Sequra'
-    case 'autofinanciado': return 'Pago autofinanciado a plazos'
-    case 'reserva': return 'Reserva'
-    case 'custom': return 'Plan de pago personalizado'
-    default: return method ?? '—'
+    case 'stripe':
+      return 'Pago con tarjeta (Stripe)'
+    case 'transferencia':
+      return 'Transferencia bancaria'
+    case 'sequra':
+      return 'Financiación con Sequra'
+    case 'autofinanciado':
+      return 'Pago autofinanciado a plazos'
+    case 'reserva':
+      return 'Reserva'
+    case 'custom':
+      return 'Plan de pago personalizado'
+    default:
+      return method ?? '—'
   }
 }
 
@@ -149,7 +156,8 @@ export function studentConditionLines(t: StudentContractTerms): { label: string;
     { label: 'Forma de pago', value: methodLabel(t.payment_method) },
   ]
   if (t.custom) {
-    if (t.custom.down_payment > 0) lines.push({ label: 'Pago inicial', value: `${fmtEur(t.custom.down_payment)} ${t.currency}` })
+    if (t.custom.down_payment > 0)
+      lines.push({ label: 'Pago inicial', value: `${fmtEur(t.custom.down_payment)} ${t.currency}` })
     const rest = Math.max(t.custom.total - t.custom.down_payment, 0)
     if (rest > 0) {
       const n = t.custom.rest_installments ?? 1

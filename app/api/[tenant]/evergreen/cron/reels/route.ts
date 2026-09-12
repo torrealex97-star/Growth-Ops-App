@@ -67,7 +67,11 @@ Slide 3 (CTA): ...
 Sé concreto y breve (una frase por slide).`,
     messages: [{ role: 'user', content: `Hook: ${hook}\n\nGuión adaptado:\n${adaptedScript.slice(0, 3000)}` }],
   })
-  return msg.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join('').trim()
+  return msg.content
+    .filter((b) => b.type === 'text')
+    .map((b) => (b as { text: string }).text)
+    .join('')
+    .trim()
 }
 
 type CompetitorMediaRow = {
@@ -195,7 +199,11 @@ async function runForTenant(
 
   // Mapa competitor_id → username, para etiquetar el origen.
   const compIds = Array.from(new Set(candidates.map((c) => c.competitor_id)))
-  const { data: comps } = await sb.from('ig_competitors').select('id, username').eq('tenant_id', tenantId).in('id', compIds)
+  const { data: comps } = await sb
+    .from('ig_competitors')
+    .select('id, username')
+    .eq('tenant_id', tenantId)
+    .in('id', compIds)
   const usernameOf = new Map((comps || []).map((c) => [c.id, c.username as string]))
 
   let created = 0
@@ -222,7 +230,13 @@ async function runForTenant(
       skipped++
       continue
     }
-    const result = await generateDraftForMedia(sb, candidate, usernameOf.get(candidate.competitor_id) || '', undefined, tenantId)
+    const result = await generateDraftForMedia(
+      sb,
+      candidate,
+      usernameOf.get(candidate.competitor_id) || '',
+      undefined,
+      tenantId
+    )
     if (result.ok) created++
     else errors++
   }
@@ -257,6 +271,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ ok: true, tenants: perTenant })
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Error en el cron de Reels del día' }, { status: 500 })
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Error en el cron de Reels del día' },
+      { status: 500 }
+    )
   }
 }

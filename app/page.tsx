@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -29,9 +29,7 @@ export default function HomePage() {
     <div className="dark min-h-screen bg-background flex items-center justify-center p-4" data-theme="os">
       <div className="w-full max-w-sm text-center">
         <span className="text-3xl font-semibold tracking-tight text-white">Scalix Systems</span>
-        <p className="text-muted-foreground text-sm mt-2 mb-8">
-          Elige tu subcuenta para entrar.
-        </p>
+        <p className="text-muted-foreground text-sm mt-2 mb-8">Elige tu subcuenta para entrar.</p>
 
         {tenants === null && (
           <div className="flex justify-center text-muted-foreground">

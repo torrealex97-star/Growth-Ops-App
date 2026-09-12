@@ -54,18 +54,28 @@ async function runForTenant(sb: SupabaseClient, tenantId: string) {
       .limit(50)
     for (const appt of pending ?? []) {
       try {
-        const r = await fetch(`https://api.calendly.com/scheduled_events/${appt.calendly_cleanup_event_uuid}/cancellation`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${process.env.CALENDLY_API_TOKEN}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reason: 'Reprogramada desde la app (reintento automático)' }),
-        })
+        const r = await fetch(
+          `https://api.calendly.com/scheduled_events/${appt.calendly_cleanup_event_uuid}/cancellation`,
+          {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${process.env.CALENDLY_API_TOKEN}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason: 'Reprogramada desde la app (reintento automático)' }),
+          }
+        )
         // 404/409: el evento ya no existe o ya está cancelado — se da por resuelto igualmente.
         if (r.ok || r.status === 404 || r.status === 409) {
-          await sb.from('appointments').update({ calendly_cleanup_pending: false }).eq('id', appt.id).eq('tenant_id', tenantId)
+          await sb
+            .from('appointments')
+            .update({ calendly_cleanup_pending: false })
+            .eq('id', appt.id)
+            .eq('tenant_id', tenantId)
           calendlyCleanedUp++
         }
       } catch (e) {
-        console.error(`[cron/reminders] Error reintentando cancelar evento Calendly ${appt.calendly_cleanup_event_uuid}:`, e)
+        console.error(
+          `[cron/reminders] Error reintentando cancelar evento Calendly ${appt.calendly_cleanup_event_uuid}:`,
+          e
+        )
       }
     }
   }
@@ -88,7 +98,8 @@ export async function GET(req: NextRequest) {
     const { data: tenants, error: tenantsErr } = await sb.from('tenants').select('id, slug').eq('status', 'active')
     if (tenantsErr) throw new Error(tenantsErr.message)
 
-    const perTenant: Record<string, { markedOverdue: number; approvedCommissions: number; calendlyCleanedUp: number }> = {}
+    const perTenant: Record<string, { markedOverdue: number; approvedCommissions: number; calendlyCleanedUp: number }> =
+      {}
     for (const tn of tenants || []) {
       perTenant[tn.slug] = await runForTenant(sb, tn.id)
     }

@@ -21,22 +21,23 @@ async function handle(req: NextRequest, tenantSlug: string) {
   const auth = req.headers.get('authorization')
   const bearerOk = !!process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`
 
-  const sb = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
   let tenantId: string
   if (bearerOk) {
     // Cron (pg_net) sin sesión de usuario: resuelve el tenant directamente por slug.
-    const { data: tenantRow } = await sb.from('tenants').select('id, status').eq('slug', tenantSlug).eq('status', 'active').maybeSingle()
+    const { data: tenantRow } = await sb
+      .from('tenants')
+      .select('id, status')
+      .eq('slug', tenantSlug)
+      .eq('status', 'active')
+      .maybeSingle()
     if (!tenantRow) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
     tenantId = tenantRow.id as string
   } else {
     const t = await requireTenant(tenantSlug)
     if ('error' in t) return t.error
-    const { data: row } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-    const role = (row?.roles as { key?: string } | null)?.key
+    const role = t.role
     if (!role || !ALLOWED_ROLES.includes(role)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }

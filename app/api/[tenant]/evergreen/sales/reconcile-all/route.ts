@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
-import { reconcileSaleCommissions } from '@/lib/commissions/generate'
+import { reconcileSaleCommissions, recomputeRepCommissionTiers } from '@/lib/commissions/generate'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -22,8 +22,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (!viaCron) {
       const t = await requireTenant(tenant)
       if ('error' in t) return t.error
-      const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-      const role = (urow?.roles as { key?: string } | null)?.key
+      const role = t.role
       if (!['admin', 'director'].includes(role || '')) {
         return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
       }
@@ -34,18 +33,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
     if (!tenantId) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
 
-    const { data: sales } = await sb.from('sales').select('id').eq('tenant_id', tenantId)
-    const ids = (sales ?? []).map((s: { id: string }) => s.id)
+    const { data: sales } = await sb.from('sales').select('id, setter_id, closer_id').eq('tenant_id', tenantId)
+    const rows = sales ?? []
+    const ids = rows.map((s) => s.id)
 
     let created = 0
     let deleted = 0
     const perSale: { saleId: string; created: number; deleted: number }[] = []
+    // skipTierRecompute: en esta reparación masiva cada rep puede tener decenas de ventas, y
+    // recomputeRepCommissionTiers ya es idempotente — recalcularlo aquí una vez por venta
+    // (N veces por rep) es trabajo repetido. Se recalcula una sola vez al final, con el cash
+    // ya consolidado de TODAS las ventas reconciliadas.
     for (const id of ids) {
-      const r = await reconcileSaleCommissions(sb, id)
+      const r = await reconcileSaleCommissions(sb, id, [], { skipTierRecompute: true })
       created += r.created
       deleted += r.deleted
       if (r.created || r.deleted) perSale.push({ saleId: id, created: r.created, deleted: r.deleted })
     }
+
+    const affectedPairs = new Map<string, { repId: string; role: 'setter' | 'closer' }>()
+    for (const s of rows) {
+      if (s.setter_id) affectedPairs.set(`${s.setter_id}|setter`, { repId: s.setter_id, role: 'setter' })
+      if (s.closer_id) affectedPairs.set(`${s.closer_id}|closer`, { repId: s.closer_id, role: 'closer' })
+    }
+    await recomputeRepCommissionTiers(sb, Array.from(affectedPairs.values()))
 
     return NextResponse.json({ ok: true, sales: ids.length, created, deleted, perSale })
   } catch (err) {

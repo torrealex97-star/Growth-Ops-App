@@ -25,7 +25,14 @@ const extractEmail = (raw: string): string => {
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
   try {
-    const { email: rawEmail, roleId, fullName, deptOverrides, pageOverrides, personalEmail: rawPersonalEmail } = await req.json()
+    const {
+      email: rawEmail,
+      roleId,
+      fullName,
+      deptOverrides,
+      pageOverrides,
+      personalEmail: rawPersonalEmail,
+    } = await req.json()
     if (!rawEmail || !roleId) {
       return NextResponse.json({ error: 'Email y rol son requeridos' }, { status: 400 })
     }
@@ -44,18 +51,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const t = await requireTenant(tenant)
     if ('error' in t) return t.error
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
+    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
 
-    const { data: callerRow } = await supabase
-      .from('users')
-      .select('roles(key)')
-      .eq('id', t.userId)
-      .single()
-    const callerRole = (callerRow?.roles as { key?: string } | null)?.key
+    const callerRole = t.role
     if (!t.isSuperAdmin && callerRole !== 'admin' && callerRole !== 'director') {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
@@ -98,26 +98,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       if (roleKey && TRACKING_ROLES.includes(roleKey)) {
         trackingCode = await generateUniqueTrackingCode(supabase)
       }
-      await supabase.from('users').upsert({
-        id: userId,
-        email,
-        ...(personalEmail ? { personal_email: personalEmail } : {}),
-        full_name: fullName || email,
-        role_id: roleId,
-        is_active: true,
-        dept_overrides: Array.isArray(deptOverrides) && deptOverrides.length ? deptOverrides : null,
-        page_overrides: Array.isArray(pageOverrides) && pageOverrides.length ? pageOverrides : null,
-        ...(trackingCode ? { tracking_code: trackingCode } : {}),
-      }, { onConflict: 'id' })
+      await supabase.from('users').upsert(
+        {
+          id: userId,
+          email,
+          ...(personalEmail ? { personal_email: personalEmail } : {}),
+          full_name: fullName || email,
+          role_id: roleId,
+          is_active: true,
+          dept_overrides: Array.isArray(deptOverrides) && deptOverrides.length ? deptOverrides : null,
+          page_overrides: Array.isArray(pageOverrides) && pageOverrides.length ? pageOverrides : null,
+          ...(trackingCode ? { tracking_code: trackingCode } : {}),
+        },
+        { onConflict: 'id' }
+      )
 
       // Alta en la subcuenta: sin esta fila, el usuario tendría perfil pero
       // no podría entrar a NINGÚN tenant (el layout exige una fila en
       // tenant_members o super_admin). onConflict evita degradar a un
       // admin/super_admin ya existente a 'member' si se le reinvita.
-      await supabase.from('tenant_members').upsert(
-        { tenant_id: t.tenantId, user_id: userId, role: 'member' },
-        { onConflict: 'tenant_id,user_id', ignoreDuplicates: true }
-      )
+      await supabase
+        .from('tenant_members')
+        .upsert(
+          { tenant_id: t.tenantId, user_id: userId, role: 'member' },
+          { onConflict: 'tenant_id,user_id', ignoreDuplicates: true }
+        )
     }
 
     // 3) Enviar el email de "crea tu contraseña" con nuestra plantilla (si Resend está configurado).
@@ -126,7 +131,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     let emailError: string | null = null
     const r = await sendInviteEmail({ to: email, fullName: fullName || email, company, url: inviteUrl })
     emailed = r.ok
-    emailError = r.ok ? null : r.error ?? null
+    emailError = r.ok ? null : (r.error ?? null)
 
     return NextResponse.json({
       ok: true,

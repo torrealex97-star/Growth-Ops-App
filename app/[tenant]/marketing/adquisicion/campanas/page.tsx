@@ -16,8 +16,13 @@ import { useTenant } from '@/lib/tenant-context'
 
 // Gasto y métricas de ads agregadas por campaña dentro del rango seleccionado (campaign_daily).
 type RangeMetrics = {
-  spend: number; impressions: number; clicks: number; leads: number
-  reach: number; link_clicks: number; landing_views: number
+  spend: number
+  impressions: number
+  clicks: number
+  leads: number
+  reach: number
+  link_clicks: number
+  landing_views: number
 }
 
 const CHANNELS = [
@@ -68,8 +73,18 @@ type NewCampaign = {
 }
 
 const emptyForm: NewCampaign = {
-  name: '', channel: 'meta_ads', type: 'prospeccion', start_date: '', end_date: '',
-  budget: '', adspend: '', impressions: '', clicks: '', leads_generated: '', ad_source: '', notes: '',
+  name: '',
+  channel: 'meta_ads',
+  type: 'prospeccion',
+  start_date: '',
+  end_date: '',
+  budget: '',
+  adspend: '',
+  impressions: '',
+  clicks: '',
+  leads_generated: '',
+  ad_source: '',
+  notes: '',
 }
 
 type QuickEdit = {
@@ -123,10 +138,7 @@ export default function CampaignsPage() {
     return times.length ? times.sort().slice(-1)[0] : null
   }, [items])
 
-  const range = useMemo(
-    () => getPeriodRange(periodPreset, customFrom, customTo),
-    [periodPreset, customFrom, customTo]
-  )
+  const range = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
 
   // Cuentas publicitarias presentes (para el desplegable de filtro). Solo campañas
   // de Meta traen account_id; las manuales no aparecen aquí. Se muestran por NOMBRE
@@ -150,7 +162,10 @@ export default function CampaignsPage() {
   // Gasto REAL del periodo (campaign_daily). Solo cuando hay un periodo activo (no "Todo").
   // Cuando no hay periodo, mostramos el total histórico (adspend de la campaña) como siempre.
   useEffect(() => {
-    if (periodPreset === 'all' || !rangeFrom || !rangeTo) { setRangeMap(null); return }
+    if (periodPreset === 'all' || !rangeFrom || !rangeTo) {
+      setRangeMap(null)
+      return
+    }
     let active = true
     ;(async () => {
       try {
@@ -161,7 +176,9 @@ export default function CampaignsPage() {
         if (active) setRangeMap({})
       }
     })()
-    return () => { active = false }
+    return () => {
+      active = false
+    }
   }, [periodPreset, rangeFrom, rangeTo])
 
   // ¿Tenemos serie diaria para este rango? Si aún no se ha sincronizado (mapa vacío), caemos al
@@ -240,7 +257,9 @@ export default function CampaignsPage() {
       }
     }
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+  }, [])
 
   useEffect(() => {
     const supabase = createClient()
@@ -279,7 +298,9 @@ export default function CampaignsPage() {
       toast.success('Gasto diario sincronizado', { description: `${json.daysSynced} días · ${json.accounts} cuentas` })
       // Si hay un periodo activo, recarga el mapa de gasto del rango.
       if (periodPreset !== 'all' && range.from && range.to) {
-        const r = await fetch(`/api/${tenant}/evergreen/meta/spend-range?from=${ymdLocal(range.from)}&to=${ymdLocal(range.to)}`)
+        const r = await fetch(
+          `/api/${tenant}/evergreen/meta/spend-range?from=${ymdLocal(range.from)}&to=${ymdLocal(range.to)}`
+        )
         const j = await r.json()
         if (r.ok) setRangeMap(j.byCampaign ?? {})
       }
@@ -329,7 +350,9 @@ export default function CampaignsPage() {
       })
       setAdsVersion((v) => v + 1)
     } catch (e) {
-      toast.error('No se pudieron sincronizar los anuncios', { description: e instanceof Error ? e.message : undefined })
+      toast.error('No se pudieron sincronizar los anuncios', {
+        description: e instanceof Error ? e.message : undefined,
+      })
     } finally {
       setSyncingAds(false)
     }
@@ -362,34 +385,48 @@ export default function CampaignsPage() {
   }
 
   const create = async () => {
-    if (!nc.name.trim()) { toast.error('Pon un nombre'); return }
+    if (!nc.name.trim()) {
+      toast.error('Pon un nombre')
+      return
+    }
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
     const adspendNum = nc.adspend ? Number(nc.adspend) : 0
-    const { data: created, error } = await supabase.from('campaigns').insert({
-      name: nc.name.trim(),
-      channel: nc.channel,
-      type: nc.type || null,
-      start_date: nc.start_date || null,
-      end_date: nc.end_date || null,
-      budget: nc.budget ? Number(nc.budget) : 0,
-      adspend: adspendNum,
-      impressions: nc.impressions ? Number(nc.impressions) : 0,
-      clicks: nc.clicks ? Number(nc.clicks) : 0,
-      leads_generated: nc.leads_generated ? Number(nc.leads_generated) : 0,
-      status: 'activa',
-      ad_source: nc.ad_source || null,
-      notes: nc.notes || null,
-      created_by: user?.id,
-    }).select('id, name').single()
-    if (error) { toast.error('Error al crear', { description: error.message }); return }
+    const { data: created, error } = await supabase
+      .from('campaigns')
+      .insert({
+        name: nc.name.trim(),
+        channel: nc.channel,
+        type: nc.type || null,
+        start_date: nc.start_date || null,
+        end_date: nc.end_date || null,
+        budget: nc.budget ? Number(nc.budget) : 0,
+        adspend: adspendNum,
+        impressions: nc.impressions ? Number(nc.impressions) : 0,
+        clicks: nc.clicks ? Number(nc.clicks) : 0,
+        leads_generated: nc.leads_generated ? Number(nc.leads_generated) : 0,
+        status: 'activa',
+        ad_source: nc.ad_source || null,
+        notes: nc.notes || null,
+        created_by: user?.id,
+      })
+      .select('id, name')
+      .single()
+    if (error) {
+      toast.error('Error al crear', { description: error.message })
+      return
+    }
     // Auto-enlace: el gasto de ads aparece en Gastos/P&L del mes en curso sin pulsar nada.
     if (created && adspendNum > 0) {
       const { error: expErr } = await upsertAdExpense(created.id as string, created.name as string, adspendNum)
       if (!expErr) setAccountingIds((prev) => ({ ...prev, [`campaign:${created.id}`]: true }))
     }
-    toast.success('Campaña creada'); setShowNew(false)
-    setNc(emptyForm); load()
+    toast.success('Campaña creada')
+    setShowNew(false)
+    setNc(emptyForm)
+    load()
   }
 
   const openEdit = (c: Campaign) => {
@@ -413,7 +450,11 @@ export default function CampaignsPage() {
       leads_generated: qe.leads_generated ? Number(qe.leads_generated) : 0,
     }
     const { error } = await supabase.from('campaigns').update(payload).eq('id', editing.id)
-    if (error) { setSavingEdit(false); toast.error('No se pudo actualizar', { description: error.message }); return }
+    if (error) {
+      setSavingEdit(false)
+      toast.error('No se pudo actualizar', { description: error.message })
+      return
+    }
     // Auto-enlace: mantener el gasto de ads al día con el gasto real editado.
     if (payload.adspend > 0) {
       const { error: expErr } = await upsertAdExpense(editing.id, editing.name, payload.adspend)
@@ -429,8 +470,13 @@ export default function CampaignsPage() {
     setPostingId(c.id)
     const { error } = await upsertAdExpense(c.id, c.name, c.adspend || 0)
     setPostingId(null)
-    if (error) { toast.error('No se pudo contabilizar el gasto', { description: error.message }); return }
-    toast.success('Gasto contabilizado', { description: `${formatCurrency(c.adspend || 0)} llevado a Gastos / P&L de ${period}` })
+    if (error) {
+      toast.error('No se pudo contabilizar el gasto', { description: error.message })
+      return
+    }
+    toast.success('Gasto contabilizado', {
+      description: `${formatCurrency(c.adspend || 0)} llevado a Gastos / P&L de ${period}`,
+    })
     setAccountingIds((prev) => ({ ...prev, [`campaign:${c.id}`]: true }))
   }
 
@@ -446,11 +492,21 @@ export default function CampaignsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2"><Radio className="w-6 h-6 text-brand-400" /> Campañas</h1>
+          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <Radio className="w-6 h-6 text-brand-400" /> Campañas
+          </h1>
           <p className="text-muted-foreground text-sm mt-1">
             Inversión publicitaria por canal — CPL, CPC, CTR, CPM automáticos
             {lastSync && (
-              <span className="ml-2 text-muted-foreground">· Meta sincronizado {new Date(lastSync).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+              <span className="ml-2 text-muted-foreground">
+                · Meta sincronizado{' '}
+                {new Date(lastSync).toLocaleString('es-ES', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
             )}
           </p>
         </div>
@@ -480,7 +536,8 @@ export default function CampaignsPage() {
                 title="Programar sincronización automática cada 30 min (Supabase pg_cron)"
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-muted text-foreground hover:bg-muted disabled:opacity-50"
               >
-                <RefreshCw className={`w-4 h-4 ${croning ? 'animate-spin' : ''}`} /> {croning ? 'Activando…' : 'Auto 30 min'}
+                <RefreshCw className={`w-4 h-4 ${croning ? 'animate-spin' : ''}`} />{' '}
+                {croning ? 'Activando…' : 'Auto 30 min'}
               </button>
               <button
                 onClick={runAdsSync}
@@ -488,7 +545,8 @@ export default function CampaignsPage() {
                 title="Traer el detalle por anuncio (gasto, leads y seguidores) desde Meta"
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-muted text-foreground hover:bg-muted disabled:opacity-50"
               >
-                <RefreshCw className={`w-4 h-4 ${syncingAds ? 'animate-spin' : ''}`} /> {syncingAds ? 'Anuncios…' : 'Sincronizar anuncios'}
+                <RefreshCw className={`w-4 h-4 ${syncingAds ? 'animate-spin' : ''}`} />{' '}
+                {syncingAds ? 'Anuncios…' : 'Sincronizar anuncios'}
               </button>
               <button
                 onClick={runDailySync}
@@ -496,11 +554,15 @@ export default function CampaignsPage() {
                 title="Traer el gasto DIARIO por campaña (para filtrar por mes/trimestre/año)"
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-muted text-foreground hover:bg-muted disabled:opacity-50"
               >
-                <RefreshCw className={`w-4 h-4 ${syncingDaily ? 'animate-spin' : ''}`} /> {syncingDaily ? 'Gasto diario…' : 'Sincronizar gasto diario'}
+                <RefreshCw className={`w-4 h-4 ${syncingDaily ? 'animate-spin' : ''}`} />{' '}
+                {syncingDaily ? 'Gasto diario…' : 'Sincronizar gasto diario'}
               </button>
             </>
           )}
-          <button onClick={() => setShowNew(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-500">
+          <button
+            onClick={() => setShowNew(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-500"
+          >
             <Plus className="w-4 h-4" /> Nueva campaña
           </button>
         </div>
@@ -522,244 +584,339 @@ export default function CampaignsPage() {
       </div>
 
       {view === 'campaigns' && (
-      <div className="flex flex-wrap items-center gap-3">
-        <PeriodFilterBar
-          preset={periodPreset}
-          onPresetChange={setPeriodPreset}
-          customFrom={customFrom}
-          customTo={customTo}
-          onCustomFromChange={setCustomFrom}
-          onCustomToChange={setCustomTo}
-          onClear={() => { setPeriodPreset('all'); setCustomFrom(''); setCustomTo(''); setAccountFilter('all'); setSelectedCampaignIds([]) }}
-          hasActiveFilters={periodPreset !== 'all' || accountFilter !== 'all' || selectedCampaignIds.length > 0}
-        />
-        {accounts.length > 1 && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Cuenta publicitaria</span>
-            <select
-              value={accountFilter}
-              onChange={(e) => { setAccountFilter(e.target.value); setSelectedCampaignIds([]) }}
-              className="text-sm rounded-lg border border-border bg-muted px-3 py-2 text-foreground focus:outline-none focus:border-brand-500"
-            >
-              <option value="all">Todas ({accounts.length})</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Campañas</span>
-          <MultiSelect
-            options={campaignOptions}
-            value={selectedCampaignIds}
-            onChange={setSelectedCampaignIds}
-            allLabel={`Todas (${campaignOptions.length})`}
-            searchPlaceholder="Buscar campaña…"
+        <div className="flex flex-wrap items-center gap-3">
+          <PeriodFilterBar
+            preset={periodPreset}
+            onPresetChange={setPeriodPreset}
+            customFrom={customFrom}
+            customTo={customTo}
+            onCustomFromChange={setCustomFrom}
+            onCustomToChange={setCustomTo}
+            onClear={() => {
+              setPeriodPreset('all')
+              setCustomFrom('')
+              setCustomTo('')
+              setAccountFilter('all')
+              setSelectedCampaignIds([])
+            }}
+            hasActiveFilters={periodPreset !== 'all' || accountFilter !== 'all' || selectedCampaignIds.length > 0}
           />
-        </div>
-      </div>
-      )}
-
-      {view === 'ads' && (
-        <AdsTable campaigns={items} accounts={accounts} version={adsVersion} />
-      )}
-
-      {view === 'campaigns' && (loading ? (
-        <div className="h-64 bg-card rounded-lg animate-pulse" />
-      ) : (
-        <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-card/50 border border-border rounded-lg p-4">
-              <p className="text-xs text-muted-foreground">Gasto real</p>
-              <p className="text-xl font-bold text-foreground mt-1">{formatCurrency(totalAdspend)}</p>
-            </div>
-            <div className="bg-card/50 border border-border rounded-lg p-4">
-              <p className="text-xs text-muted-foreground">Leads Meta</p>
-              <p className="text-xl font-bold text-foreground mt-1">{totalMetaLeads.toLocaleString('es-ES')}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Funnel (app): <span className="text-foreground">{totalFunnelLeads.toLocaleString('es-ES')}</span></p>
-            </div>
-            <div className="bg-card/50 border border-border rounded-lg p-4">
-              <p className="text-xs text-muted-foreground">CPL medio (Meta)</p>
-              <p className="text-xl font-bold text-foreground mt-1">{cplMedio === null ? '—' : formatCurrency(cplMedio)}</p>
-              {totalFollowers > 0 && (
-                <p className="text-[11px] text-muted-foreground mt-0.5">Seguidores: <span className="text-foreground">{totalFollowers.toLocaleString('es-ES')}</span> · €/seg: <span className="text-foreground">{costPerFollower === null ? '—' : formatCurrency(costPerFollower)}</span></p>
-              )}
-            </div>
-            <div className="bg-card/50 border border-border rounded-lg p-4">
-              <p className="text-xs text-muted-foreground">Campañas activas</p>
-              <p className="text-xl font-bold text-foreground mt-1">{activeCount}</p>
-            </div>
-          </div>
-
-          <AdsFunnelPanel campaigns={displayItems} />
-
-          <DailyMetricsPanel from={rangeFrom} to={rangeTo} />
-
-          {displayItems.length === 0 ? (
-            <div className="bg-card/50 border border-border rounded-lg p-10 text-center">
-              <p className="text-muted-foreground text-sm">Aún no hay campañas. Crea la primera para empezar a medir CPL, CPC, CTR y CPM.</p>
-            </div>
-          ) : (
-            <div className="bg-card/50 border border-border rounded-lg overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground text-xs uppercase">
-                    <th className="px-4 py-3">Campaña</th>
-                    <th className="px-4 py-3">Canal</th>
-                    {accounts.length > 1 && <th className="px-4 py-3">Cuenta</th>}
-                    <th className="px-4 py-3">Estado</th>
-                    <th className="px-4 py-3 text-right">Gasto real</th>
-                    <th className="px-4 py-3 text-right">Leads Meta</th>
-                    <th className="px-4 py-3 text-right">Leads Funnel</th>
-                    <th className="px-4 py-3 text-right">CPM</th>
-                    <th className="px-4 py-3 text-right">CPC</th>
-                    <th className="px-4 py-3 text-right">CTR</th>
-                    <th className="px-4 py-3 text-right">CPL</th>
-                    <th className="px-4 py-3 text-right">Seguidores</th>
-                    <th className="px-4 py-3 text-right">€/Seguidor</th>
-                    <th className="px-4 py-3 text-center">Contabilidad</th>
-                    <th className="px-4 py-3 text-center">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayItems.map((c) => {
-                    const cpm = c.impressions > 0 ? (c.adspend / c.impressions) * 1000 : null
-                    const cpc = div(c.adspend, c.clicks)
-                    const ctr = div(c.clicks, c.impressions)
-                    const cpl = div(c.adspend, c.meta_leads)
-                    const isAccounted = !!accountingIds[`campaign:${c.id}`]
-                    const isMeta = c.provider === 'meta'
-                    // Desfase entre lo que reporta Meta y los leads reales de la app
-                    const leadGap = (c.meta_leads || 0) - (c.funnel_leads || 0)
-                    const showGap = c.meta_leads > 0 && Math.abs(leadGap) >= Math.max(3, c.meta_leads * 0.2)
-                    return (
-                      <tr key={c.id} className="border-b border-border/60 hover:bg-muted/30">
-                        <td className="px-4 py-3 text-foreground">
-                          <div className="flex items-center gap-2">
-                            <span>{c.name}</span>
-                            {isMeta && (
-                              <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                                <Zap className="w-2.5 h-2.5" /> Meta auto
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{channelLabel(c.channel)}</span>
-                        </td>
-                        {accounts.length > 1 && (
-                          <td className="px-4 py-3">
-                            <span className="text-[11px] text-muted-foreground">{c.account_name || c.account_id || '—'}</span>
-                          </td>
-                        )}
-                        <td className="px-4 py-3">
-                          <select
-                            value={c.status}
-                            onChange={(e) => updateStatus(c.id, e.target.value)}
-                            className={`text-xs rounded border px-2 py-1 bg-muted ${statusBadge(c.status)}`}
-                          >
-                            {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                          </select>
-                        </td>
-                        <td className="px-4 py-3 text-right text-foreground">{formatCurrency(c.adspend)}</td>
-                        <td className="px-4 py-3 text-right text-foreground">{(c.meta_leads || 0).toLocaleString('es-ES')}</td>
-                        <td className="px-4 py-3 text-right">
-                          <span className="inline-flex items-center gap-1 text-foreground">
-                            {(c.funnel_leads || 0).toLocaleString('es-ES')}
-                            {showGap && (
-                              <span title={`Meta reporta ${c.meta_leads} pero en la app hay ${c.funnel_leads}. Revisa el tracking/UTM.`}>
-                                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                              </span>
-                            )}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right text-muted-foreground">{cpm === null ? '—' : formatCurrency(cpm)}</td>
-                        <td className="px-4 py-3 text-right text-muted-foreground">{cpc === null ? '—' : formatCurrency(cpc)}</td>
-                        <td className="px-4 py-3 text-right text-muted-foreground">{ctr === null ? '—' : `${fmtNum(ctr)}%`}</td>
-                        <td className="px-4 py-3 text-right text-muted-foreground">{cpl === null ? '—' : formatCurrency(cpl)}</td>
-                        <td className="px-4 py-3 text-right text-foreground">{(c.followers || 0) > 0 ? (c.followers || 0).toLocaleString('es-ES') : '—'}</td>
-                        <td className="px-4 py-3 text-right text-muted-foreground">{(() => { const cpf = div(c.adspend, c.followers || 0); return cpf === null ? '—' : formatCurrency(cpf) })()}</td>
-                        <td className="px-4 py-3 text-center">
-                          {isAccounted ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                              <CheckCircle2 className="w-3 h-3" /> Contabilizado ({period})
-                            </span>
-                          ) : (
-                            <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
-                              Pendiente
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center justify-center gap-2">
-                            {!isMeta && (
-                              <button
-                                onClick={() => openEdit(c)}
-                                title="Editar gasto/leads"
-                                className="p-1.5 rounded-md bg-muted text-foreground hover:bg-muted"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => postToExpenses(c)}
-                              disabled={postingId === c.id}
-                              title="Contabilizar en gastos"
-                              className="flex items-center gap-1 px-2 py-1.5 rounded-md text-xs bg-brand-600/20 text-brand-300 border border-brand-600/30 hover:bg-brand-600/30 disabled:opacity-50"
-                            >
-                              <Receipt className="w-3.5 h-3.5" />
-                              {postingId === c.id ? 'Guardando…' : isAccounted ? 'Actualizar gasto' : 'Contabilizar en gastos'}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+          {accounts.length > 1 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Cuenta publicitaria</span>
+              <select
+                value={accountFilter}
+                onChange={(e) => {
+                  setAccountFilter(e.target.value)
+                  setSelectedCampaignIds([])
+                }}
+                className="text-sm rounded-lg border border-border bg-muted px-3 py-2 text-foreground focus:outline-none focus:border-brand-500"
+              >
+                <option value="all">Todas ({accounts.length})</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Campañas</span>
+            <MultiSelect
+              options={campaignOptions}
+              value={selectedCampaignIds}
+              onChange={setSelectedCampaignIds}
+              allLabel={`Todas (${campaignOptions.length})`}
+              searchPlaceholder="Buscar campaña…"
+            />
+          </div>
+        </div>
+      )}
 
-          <p className="text-xs text-muted-foreground">
-            Usa <span className="text-muted-foreground">Editar</span> para ir actualizando el gasto acumulado, impresiones, clics y leads de cada campaña.
-            Con <span className="text-muted-foreground">Contabilizar en gastos</span> el importe de "Gasto real" se registra automáticamente como un gasto
-            de publicidad en Finanzas y se refleja en el P&amp;L del mes en curso; si vuelves a pulsarlo, actualiza el mismo gasto en vez de duplicarlo.
-          </p>
-        </>
-      ))}
+      {view === 'ads' && <AdsTable campaigns={items} accounts={accounts} version={adsVersion} />}
+
+      {view === 'campaigns' &&
+        (loading ? (
+          <div className="h-64 bg-card rounded-lg animate-pulse" />
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-card/50 border border-border rounded-lg p-4">
+                <p className="text-xs text-muted-foreground">Gasto real</p>
+                <p className="text-xl font-bold text-foreground mt-1">{formatCurrency(totalAdspend)}</p>
+              </div>
+              <div className="bg-card/50 border border-border rounded-lg p-4">
+                <p className="text-xs text-muted-foreground">Leads Meta</p>
+                <p className="text-xl font-bold text-foreground mt-1">{totalMetaLeads.toLocaleString('es-ES')}</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Funnel (app): <span className="text-foreground">{totalFunnelLeads.toLocaleString('es-ES')}</span>
+                </p>
+              </div>
+              <div className="bg-card/50 border border-border rounded-lg p-4">
+                <p className="text-xs text-muted-foreground">CPL medio (Meta)</p>
+                <p className="text-xl font-bold text-foreground mt-1">
+                  {cplMedio === null ? '—' : formatCurrency(cplMedio)}
+                </p>
+                {totalFollowers > 0 && (
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Seguidores: <span className="text-foreground">{totalFollowers.toLocaleString('es-ES')}</span> ·
+                    €/seg:{' '}
+                    <span className="text-foreground">
+                      {costPerFollower === null ? '—' : formatCurrency(costPerFollower)}
+                    </span>
+                  </p>
+                )}
+              </div>
+              <div className="bg-card/50 border border-border rounded-lg p-4">
+                <p className="text-xs text-muted-foreground">Campañas activas</p>
+                <p className="text-xl font-bold text-foreground mt-1">{activeCount}</p>
+              </div>
+            </div>
+
+            <AdsFunnelPanel campaigns={displayItems} />
+
+            <DailyMetricsPanel from={rangeFrom} to={rangeTo} />
+
+            {displayItems.length === 0 ? (
+              <div className="bg-card/50 border border-border rounded-lg p-10 text-center">
+                <p className="text-muted-foreground text-sm">
+                  Aún no hay campañas. Crea la primera para empezar a medir CPL, CPC, CTR y CPM.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-card/50 border border-border rounded-lg overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-muted-foreground text-xs uppercase">
+                      <th className="px-4 py-3">Campaña</th>
+                      <th className="px-4 py-3">Canal</th>
+                      {accounts.length > 1 && <th className="px-4 py-3">Cuenta</th>}
+                      <th className="px-4 py-3">Estado</th>
+                      <th className="px-4 py-3 text-right">Gasto real</th>
+                      <th className="px-4 py-3 text-right">Leads Meta</th>
+                      <th className="px-4 py-3 text-right">Leads Funnel</th>
+                      <th className="px-4 py-3 text-right">CPM</th>
+                      <th className="px-4 py-3 text-right">CPC</th>
+                      <th className="px-4 py-3 text-right">CTR</th>
+                      <th className="px-4 py-3 text-right">CPL</th>
+                      <th className="px-4 py-3 text-right">Seguidores</th>
+                      <th className="px-4 py-3 text-right">€/Seguidor</th>
+                      <th className="px-4 py-3 text-center">Contabilidad</th>
+                      <th className="px-4 py-3 text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayItems.map((c) => {
+                      const cpm = c.impressions > 0 ? (c.adspend / c.impressions) * 1000 : null
+                      const cpc = div(c.adspend, c.clicks)
+                      const ctr = div(c.clicks, c.impressions)
+                      const cpl = div(c.adspend, c.meta_leads)
+                      const isAccounted = !!accountingIds[`campaign:${c.id}`]
+                      const isMeta = c.provider === 'meta'
+                      // Desfase entre lo que reporta Meta y los leads reales de la app
+                      const leadGap = (c.meta_leads || 0) - (c.funnel_leads || 0)
+                      const showGap = c.meta_leads > 0 && Math.abs(leadGap) >= Math.max(3, c.meta_leads * 0.2)
+                      return (
+                        <tr key={c.id} className="border-b border-border/60 hover:bg-muted/30">
+                          <td className="px-4 py-3 text-foreground">
+                            <div className="flex items-center gap-2">
+                              <span>{c.name}</span>
+                              {isMeta && (
+                                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                  <Zap className="w-2.5 h-2.5" /> Meta auto
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                              {channelLabel(c.channel)}
+                            </span>
+                          </td>
+                          {accounts.length > 1 && (
+                            <td className="px-4 py-3">
+                              <span className="text-[11px] text-muted-foreground">
+                                {c.account_name || c.account_id || '—'}
+                              </span>
+                            </td>
+                          )}
+                          <td className="px-4 py-3">
+                            <select
+                              value={c.status}
+                              onChange={(e) => updateStatus(c.id, e.target.value)}
+                              className={`text-xs rounded border px-2 py-1 bg-muted ${statusBadge(c.status)}`}
+                            >
+                              {STATUSES.map((s) => (
+                                <option key={s.value} value={s.value}>
+                                  {s.label}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-4 py-3 text-right text-foreground">{formatCurrency(c.adspend)}</td>
+                          <td className="px-4 py-3 text-right text-foreground">
+                            {(c.meta_leads || 0).toLocaleString('es-ES')}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <span className="inline-flex items-center gap-1 text-foreground">
+                              {(c.funnel_leads || 0).toLocaleString('es-ES')}
+                              {showGap && (
+                                <span
+                                  title={`Meta reporta ${c.meta_leads} pero en la app hay ${c.funnel_leads}. Revisa el tracking/UTM.`}
+                                >
+                                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                                </span>
+                              )}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right text-muted-foreground">
+                            {cpm === null ? '—' : formatCurrency(cpm)}
+                          </td>
+                          <td className="px-4 py-3 text-right text-muted-foreground">
+                            {cpc === null ? '—' : formatCurrency(cpc)}
+                          </td>
+                          <td className="px-4 py-3 text-right text-muted-foreground">
+                            {ctr === null ? '—' : `${fmtNum(ctr)}%`}
+                          </td>
+                          <td className="px-4 py-3 text-right text-muted-foreground">
+                            {cpl === null ? '—' : formatCurrency(cpl)}
+                          </td>
+                          <td className="px-4 py-3 text-right text-foreground">
+                            {(c.followers || 0) > 0 ? (c.followers || 0).toLocaleString('es-ES') : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-right text-muted-foreground">
+                            {(() => {
+                              const cpf = div(c.adspend, c.followers || 0)
+                              return cpf === null ? '—' : formatCurrency(cpf)
+                            })()}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {isAccounted ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                <CheckCircle2 className="w-3 h-3" /> Contabilizado ({period})
+                              </span>
+                            ) : (
+                              <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                                Pendiente
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-center gap-2">
+                              {!isMeta && (
+                                <button
+                                  onClick={() => openEdit(c)}
+                                  title="Editar gasto/leads"
+                                  className="p-1.5 rounded-md bg-muted text-foreground hover:bg-muted"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => postToExpenses(c)}
+                                disabled={postingId === c.id}
+                                title="Contabilizar en gastos"
+                                className="flex items-center gap-1 px-2 py-1.5 rounded-md text-xs bg-brand-600/20 text-brand-300 border border-brand-600/30 hover:bg-brand-600/30 disabled:opacity-50"
+                              >
+                                <Receipt className="w-3.5 h-3.5" />
+                                {postingId === c.id
+                                  ? 'Guardando…'
+                                  : isAccounted
+                                    ? 'Actualizar gasto'
+                                    : 'Contabilizar en gastos'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              Usa <span className="text-muted-foreground">Editar</span> para ir actualizando el gasto acumulado,
+              impresiones, clics y leads de cada campaña. Con{' '}
+              <span className="text-muted-foreground">Contabilizar en gastos</span> el importe de &quot;Gasto real&quot;
+              se registra automáticamente como un gasto de publicidad en Finanzas y se refleja en el P&amp;L del mes en
+              curso; si vuelves a pulsarlo, actualiza el mismo gasto en vez de duplicarlo.
+            </p>
+          </>
+        ))}
 
       {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setEditing(null)}>
-          <div className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setEditing(null)}
+        >
+          <div
+            className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between">
               <h3 className="text-foreground font-semibold">Actualizar {editing.name}</h3>
-              <button onClick={() => setEditing(null)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+              <button onClick={() => setEditing(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
             </div>
             <div>
               <label className="text-xs text-muted-foreground">Gasto real acumulado (€)</label>
-              <input type="number" step="0.01" value={qe.adspend} onChange={(e) => setQe({ ...qe, adspend: e.target.value })} placeholder="0.00" className={cls} />
+              <input
+                type="number"
+                step="0.01"
+                value={qe.adspend}
+                onChange={(e) => setQe({ ...qe, adspend: e.target.value })}
+                placeholder="0.00"
+                className={cls}
+              />
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="text-xs text-muted-foreground">Impresiones</label>
-                <input type="number" value={qe.impressions} onChange={(e) => setQe({ ...qe, impressions: e.target.value })} placeholder="0" className={cls} />
+                <input
+                  type="number"
+                  value={qe.impressions}
+                  onChange={(e) => setQe({ ...qe, impressions: e.target.value })}
+                  placeholder="0"
+                  className={cls}
+                />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">Clics</label>
-                <input type="number" value={qe.clicks} onChange={(e) => setQe({ ...qe, clicks: e.target.value })} placeholder="0" className={cls} />
+                <input
+                  type="number"
+                  value={qe.clicks}
+                  onChange={(e) => setQe({ ...qe, clicks: e.target.value })}
+                  placeholder="0"
+                  className={cls}
+                />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">Leads</label>
-                <input type="number" value={qe.leads_generated} onChange={(e) => setQe({ ...qe, leads_generated: e.target.value })} placeholder="0" className={cls} />
+                <input
+                  type="number"
+                  value={qe.leads_generated}
+                  onChange={(e) => setQe({ ...qe, leads_generated: e.target.value })}
+                  placeholder="0"
+                  className={cls}
+                />
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Esto solo actualiza los datos de la campaña. Para que el gasto entre en Finanzas/P&amp;L, usa después "Contabilizar en gastos".
+              Esto solo actualiza los datos de la campaña. Para que el gasto entre en Finanzas/P&amp;L, usa después
+              &quot;Contabilizar en gastos&quot;.
             </p>
             <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setEditing(null)} className="px-3 py-2 text-sm text-muted-foreground">Cancelar</button>
-              <button onClick={saveEdit} disabled={savingEdit} className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg disabled:opacity-50">
+              <button onClick={() => setEditing(null)} className="px-3 py-2 text-sm text-muted-foreground">
+                Cancelar
+              </button>
+              <button
+                onClick={saveEdit}
+                disabled={savingEdit}
+                className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg disabled:opacity-50"
+              >
                 {savingEdit ? 'Guardando…' : 'Guardar'}
               </button>
             </div>
@@ -768,60 +925,138 @@ export default function CampaignsPage() {
       )}
 
       {showNew && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowNew(false)}>
-          <div className="bg-card border border-border rounded-xl p-5 w-full max-w-lg space-y-3 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setShowNew(false)}
+        >
+          <div
+            className="bg-card border border-border rounded-xl p-5 w-full max-w-lg space-y-3 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between">
               <h3 className="text-foreground font-semibold">Nueva campaña</h3>
-              <button onClick={() => setShowNew(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+              <button onClick={() => setShowNew(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <input value={nc.name} onChange={(e) => setNc({ ...nc, name: e.target.value })} placeholder="Nombre de la campaña" className={cls} />
+            <input
+              value={nc.name}
+              onChange={(e) => setNc({ ...nc, name: e.target.value })}
+              placeholder="Nombre de la campaña"
+              className={cls}
+            />
             <div className="grid grid-cols-2 gap-3">
               <select value={nc.channel} onChange={(e) => setNc({ ...nc, channel: e.target.value })} className={cls}>
-                {CHANNELS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                {CHANNELS.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
               </select>
               <select value={nc.type} onChange={(e) => setNc({ ...nc, type: e.target.value })} className={cls}>
-                {TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                {TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-muted-foreground">Fecha inicio</label>
-                <input type="date" value={nc.start_date} onChange={(e) => setNc({ ...nc, start_date: e.target.value })} className={cls} />
+                <input
+                  type="date"
+                  value={nc.start_date}
+                  onChange={(e) => setNc({ ...nc, start_date: e.target.value })}
+                  className={cls}
+                />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">Fecha fin</label>
-                <input type="date" value={nc.end_date} onChange={(e) => setNc({ ...nc, end_date: e.target.value })} className={cls} />
+                <input
+                  type="date"
+                  value={nc.end_date}
+                  onChange={(e) => setNc({ ...nc, end_date: e.target.value })}
+                  className={cls}
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-muted-foreground">Presupuesto (€)</label>
-                <input type="number" step="0.01" value={nc.budget} onChange={(e) => setNc({ ...nc, budget: e.target.value })} placeholder="0.00" className={cls} />
+                <input
+                  type="number"
+                  step="0.01"
+                  value={nc.budget}
+                  onChange={(e) => setNc({ ...nc, budget: e.target.value })}
+                  placeholder="0.00"
+                  className={cls}
+                />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">Gasto real (€)</label>
-                <input type="number" step="0.01" value={nc.adspend} onChange={(e) => setNc({ ...nc, adspend: e.target.value })} placeholder="0.00" className={cls} />
+                <input
+                  type="number"
+                  step="0.01"
+                  value={nc.adspend}
+                  onChange={(e) => setNc({ ...nc, adspend: e.target.value })}
+                  placeholder="0.00"
+                  className={cls}
+                />
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="text-xs text-muted-foreground">Impresiones</label>
-                <input type="number" value={nc.impressions} onChange={(e) => setNc({ ...nc, impressions: e.target.value })} placeholder="0" className={cls} />
+                <input
+                  type="number"
+                  value={nc.impressions}
+                  onChange={(e) => setNc({ ...nc, impressions: e.target.value })}
+                  placeholder="0"
+                  className={cls}
+                />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">Clics</label>
-                <input type="number" value={nc.clicks} onChange={(e) => setNc({ ...nc, clicks: e.target.value })} placeholder="0" className={cls} />
+                <input
+                  type="number"
+                  value={nc.clicks}
+                  onChange={(e) => setNc({ ...nc, clicks: e.target.value })}
+                  placeholder="0"
+                  className={cls}
+                />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">Leads</label>
-                <input type="number" value={nc.leads_generated} onChange={(e) => setNc({ ...nc, leads_generated: e.target.value })} placeholder="0" className={cls} />
+                <input
+                  type="number"
+                  value={nc.leads_generated}
+                  onChange={(e) => setNc({ ...nc, leads_generated: e.target.value })}
+                  placeholder="0"
+                  className={cls}
+                />
               </div>
             </div>
-            <input value={nc.ad_source} onChange={(e) => setNc({ ...nc, ad_source: e.target.value })} placeholder="Fuente del anuncio (ad_source)" className={cls} />
-            <textarea value={nc.notes} onChange={(e) => setNc({ ...nc, notes: e.target.value })} rows={2} placeholder="Notas" className={cls} />
+            <input
+              value={nc.ad_source}
+              onChange={(e) => setNc({ ...nc, ad_source: e.target.value })}
+              placeholder="Fuente del anuncio (ad_source)"
+              className={cls}
+            />
+            <textarea
+              value={nc.notes}
+              onChange={(e) => setNc({ ...nc, notes: e.target.value })}
+              rows={2}
+              placeholder="Notas"
+              className={cls}
+            />
             <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setShowNew(false)} className="px-3 py-2 text-sm text-muted-foreground">Cancelar</button>
-              <button onClick={create} className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg">Crear</button>
+              <button onClick={() => setShowNew(false)} className="px-3 py-2 text-sm text-muted-foreground">
+                Cancelar
+              </button>
+              <button onClick={create} className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg">
+                Crear
+              </button>
             </div>
           </div>
         </div>
@@ -830,4 +1065,5 @@ export default function CampaignsPage() {
   )
 }
 
-const cls = 'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500'
+const cls =
+  'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500'

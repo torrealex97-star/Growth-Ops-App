@@ -19,19 +19,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ ok: true })
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
+    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
 
     // Público (sin login): resolvemos el tenant por slug directamente en vez de
     // requireTenant (que exige sesión) y acotamos cada lectura/escritura a su tenant_id.
-    const { data: tenantRow } = await supabase
-      .from('tenants')
-      .select('id, status')
-      .eq('slug', tenant)
-      .maybeSingle()
+    const { data: tenantRow } = await supabase.from('tenants').select('id, status').eq('slug', tenant).maybeSingle()
     if (!tenantRow || tenantRow.status !== 'active') {
       return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
     }
@@ -41,10 +35,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // podría entrar a NINGÚN tenant (el layout exige una fila en tenant_members
     // o super_admin). onConflict evita degradar a un miembro ya existente.
     const ensureTenantMembership = async (affiliateUserId: string) => {
-      await supabase.from('tenant_members').upsert(
-        { tenant_id: tenantId, user_id: affiliateUserId, role: 'member' },
-        { onConflict: 'tenant_id,user_id', ignoreDuplicates: true }
-      )
+      await supabase
+        .from('tenant_members')
+        .upsert(
+          { tenant_id: tenantId, user_id: affiliateUserId, role: 'member' },
+          { onConflict: 'tenant_id,user_id', ignoreDuplicates: true }
+        )
     }
 
     // 1) Config del programa (campos + % por defecto + mensaje)
