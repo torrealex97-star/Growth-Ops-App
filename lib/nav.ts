@@ -352,20 +352,6 @@ export const NAV_SECTIONS: NavSection[] = [
           { label: 'Formularios KPI', href: '/kpi/templates', icon: FileText, roles: ['admin', 'director'] },
         ],
       },
-      {
-        label: 'Configuración',
-        href: '/settings/data-health',
-        icon: Settings,
-        roles: ['marketing', 'adscripcion'],
-        children: [
-          {
-            label: 'Data Health',
-            href: '/settings/data-health',
-            icon: Activity,
-            roles: ['marketing', 'adscripcion'],
-          },
-        ],
-      },
     ],
   },
 ]
@@ -399,4 +385,11 @@ export function visibleNavItems(filter: (item: NavItem) => boolean): NavItem[] {
     }
   }
   return out
+}
+
+export function navHrefForRole(item: NavItem, role: AppRole): string {
+  if (item.href === '/settings' && (role === 'marketing' || role === 'adscripcion')) {
+    return '/settings/data-health'
+  }
+  return item.href
 }
