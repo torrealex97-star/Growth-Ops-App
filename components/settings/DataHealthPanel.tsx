@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, CheckCircle2, Clock3, Database, RefreshCw, ShieldCheck } from 'lucide-react'
+import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -30,6 +31,9 @@ type DeliveryRow = {
   next_retry_at: string | null
   created_at: string
 }
+type DuplicateContact = { id: string; full_name: string | null; email: string | null; phone: string | null }
+type DuplicateContactGroup = { key: string; primaryId: string; duplicateIds: string[]; contacts: DuplicateContact[] }
+type DuplicateAppointmentGroup = { key: string; keepId: string; duplicateIds: string[] }
 type OperationalHealth = {
   totals: { contacts: number; appointments: number }
   sources: Array<{
@@ -103,12 +107,16 @@ export function DataHealthPanel() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [operational, setOperational] = useState<OperationalHealth | null>(null)
+  const [contactGroups, setContactGroups] = useState<DuplicateContactGroup[]>([])
+  const [appointmentGroups, setAppointmentGroups] = useState<DuplicateAppointmentGroup[]>([])
+  const [mergingKey, setMergingKey] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     const sb = createClient()
     const operationalRequest = fetch(`/api/${tenant}/evergreen/settings/data-health`)
+    const dedupeRequest = fetch(`/api/${tenant}/evergreen/settings/data-health/dedupe`)
     const [
       eventCount,
       matchedCount,
@@ -169,6 +177,12 @@ export function DataHealthPanel() {
 
     const operationalResponse = await operationalRequest
     const operationalPayload = await operationalResponse.json().catch(() => null)
+    const dedupeResponse = await dedupeRequest
+    const dedupePayload = await dedupeResponse.json().catch(() => null)
+    if (dedupeResponse.ok && dedupePayload) {
+      setContactGroups(dedupePayload.contactGroups ?? [])
+      setAppointmentGroups(dedupePayload.appointmentGroups ?? [])
+    }
     const firstError = [
       eventCount,
       matchedCount,
@@ -206,6 +220,57 @@ export function DataHealthPanel() {
   useEffect(() => {
     void load()
   }, [load])
+
+  async function mergeContactGroup(group: DuplicateContactGroup) {
+    const primary = group.contacts.find((c) => c.id === group.primaryId)
+    if (
+      !window.confirm(
+        `¿Fusionar ${group.duplicateIds.length} contacto(s) duplicado(s) en "${primary?.full_name || primary?.email || 'este contacto'}"? Se conservará todo el historial (ventas, agendas), solo se marcan los duplicados como fusionados.`
+      )
+    )
+      return
+    setMergingKey(group.key)
+    try {
+      const r = await fetch(`/api/${tenant}/evergreen/settings/data-health/dedupe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'contacts', primaryId: group.primaryId, duplicateIds: group.duplicateIds }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(j.error || 'No se pudo fusionar')
+      toast.success(`${group.duplicateIds.length} contacto(s) fusionado(s)`)
+      await load()
+    } catch (error) {
+      toast.error('No se pudo fusionar', { description: error instanceof Error ? error.message : String(error) })
+    } finally {
+      setMergingKey(null)
+    }
+  }
+
+  async function cleanAppointmentGroup(group: DuplicateAppointmentGroup) {
+    if (
+      !window.confirm(
+        `¿Eliminar ${group.duplicateIds.length} agenda(s) duplicada(s) (misma fuente e ID externo — reingesta del mismo webhook)? Se conserva la más antigua.`
+      )
+    )
+      return
+    setMergingKey(group.key)
+    try {
+      const r = await fetch(`/api/${tenant}/evergreen/settings/data-health/dedupe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'appointments', keepId: group.keepId, duplicateIds: group.duplicateIds }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(j.error || 'No se pudo limpiar')
+      toast.success(`${group.duplicateIds.length} agenda(s) duplicada(s) eliminada(s)`)
+      await load()
+    } catch (error) {
+      toast.error('No se pudo limpiar', { description: error instanceof Error ? error.message : String(error) })
+    } finally {
+      setMergingKey(null)
+    }
+  }
 
   const matchRate = summary.events ? (summary.matched / summary.events) * 100 : null
   const deliveryRate = summary.deliveryAttempts ? (summary.accepted / summary.deliveryAttempts) * 100 : null
@@ -316,6 +381,70 @@ export function DataHealthPanel() {
               />
             </div>
           </section>
+
+          {(contactGroups.length > 0 || appointmentGroups.length > 0) && (
+            <section className="rounded-xl border border-border bg-card p-5">
+              <h2 className="font-semibold text-foreground">Duplicados detectados</h2>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Fusionar conserva todo el historial (ventas, agendas, contratos) bajo el contacto primario; solo se
+                marca el duplicado como fusionado, nunca se borra.
+              </p>
+              <div className="space-y-3">
+                {contactGroups.map((group) => {
+                  const primary = group.contacts.find((c) => c.id === group.primaryId)
+                  const dupes = group.contacts.filter((c) => c.id !== group.primaryId)
+                  return (
+                    <div
+                      key={group.key}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3"
+                    >
+                      <div className="text-sm">
+                        <p className="text-foreground">
+                          <span className="font-medium">{primary?.full_name || primary?.email || primary?.phone}</span>{' '}
+                          <span className="text-muted-foreground">se quedará como primario</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Duplicados: {dupes.map((d) => d.full_name || d.email || d.phone).join(', ')}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => mergeContactGroup(group)}
+                        disabled={mergingKey === group.key}
+                      >
+                        {mergingKey === group.key ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : 'Fusionar'}
+                      </Button>
+                    </div>
+                  )
+                })}
+                {appointmentGroups.map((group) => (
+                  <div
+                    key={group.key}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3"
+                  >
+                    <div className="text-sm">
+                      <p className="text-foreground">
+                        Agenda duplicada: <span className="font-mono text-xs">{group.key}</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {group.duplicateIds.length} copia(s) de la misma reingesta de webhook — se conserva la más
+                        antigua.
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => cleanAppointmentGroup(group)}
+                      disabled={mergingKey === group.key}
+                    >
+                      {mergingKey === group.key ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : 'Limpiar'}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </>
       )}
 
