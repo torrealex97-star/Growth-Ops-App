@@ -59,3 +59,5 @@ Sin relleno tipo "todo parece bien" sin evidencia detrás.
 ## Nota sobre Codex
 
 Codex (CLI de OpenAI) lee `AGENTS.md` de forma nativa como su archivo de instrucciones del repositorio, igual que Claude Code lee `CLAUDE.md`. Por eso no existe un archivo `CODEX.md` aparte: crear uno duplicaría `AGENTS.md` sin necesidad. Si en el futuro Codex necesita algo que no aplique a Claude Code, añádelo aquí como sección propia en vez de crear un archivo nuevo.
+
+Claude Code debe respetar especialmente la sección **Relevo Codex ↔ Claude Code y disciplina de ramas** de `AGENTS.md`: no debe abrir una rama nueva si Codex dejó una rama o PR activo, y debe publicar o documentar el relevo antes de terminar su contexto.

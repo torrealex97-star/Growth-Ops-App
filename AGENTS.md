@@ -12,6 +12,22 @@ GitHub `main` es la fuente de verdad del código. Supabase es la fuente de verda
 5. Revisa tu propio cambio buscando regresiones, duplicación, permisos incorrectos y código muerto.
 6. Resume los cambios, comprobaciones y riesgos pendientes al finalizar.
 
+## Relevo Codex ↔ Claude Code y disciplina de ramas
+
+Codex y Claude Code trabajan **por relevos, no en paralelo**. La regla operativa es una sola tarea activa y, como máximo, una rama de trabajo remota además de `main`.
+
+1. `main` es siempre el punto de partida y la fuente de verdad. Antes de comenzar, ejecuta `git fetch --prune`, inspecciona el estado y actualiza desde `origin/main` mediante fast-forward.
+2. Antes de crear una rama, comprueba si ya existe una rama o PR de trabajo activa. Si existe, retómala; no abras otra para la misma sesión, fase o asistente.
+3. Si no existe trabajo activo, usa una única rama corta y descriptiva. Todas las tareas posteriores deben continuar en esa misma rama hasta publicarla o descartarla de forma explícita.
+4. Nunca borres ni reemplaces trabajo no fusionado de otro asistente. Lee el diff, los commits y `docs/ACTIVE_HANDOFF.md` antes de continuar.
+5. Antes de agotar contexto o finalizar una sesión, deja el repositorio en uno de estos dos estados:
+   - **Validado:** commit y push, PR contra `main`, Quality Gate relevante en verde, merge a `main`, despliegue verificado y rama eliminada.
+   - **No validado/bloqueado:** commit y push en la única rama activa y actualización de `docs/ACTIVE_HANDOFF.md` con estado, validaciones, bloqueo y siguiente acción exacta. No fusiones código dudoso solo por cerrar la sesión.
+6. Después de fusionar, elimina la rama remota y actualiza `main`. No acumules ramas `claude/*`, `codex/*`, `worktree-*` ni ramas de sesión ya fusionadas o sustituidas.
+7. El siguiente asistente empieza leyendo `AGENTS.md`, `docs/ACTIVE_HANDOFF.md`, el último commit de `main` y, si existe, el único PR activo. Continúa desde ahí sin rehacer auditorías ya documentadas salvo que el código haya cambiado.
+
+Los bots de mantenimiento pueden crear ramas automáticas temporales, pero no cuentan como autorización para que los asistentes creen trabajo paralelo. Si aparecen varias ramas con trabajo potencialmente único, detente, consolídalas de forma verificable y evita borrarlas hasta demostrar que no se pierde ningún cambio.
+
 No sobrescribas cambios del usuario ni uses operaciones destructivas de Git. Trabaja en una rama o commit acotado cuando corresponda.
 
 No pidas permiso para inspeccionar archivos, buscar referencias, ejecutar lint/typecheck/tests/build o corregir bugs relacionados directamente con la tarea. Detente y pide al usuario cuando: falten credenciales, haya riesgo real de pérdida de datos, una acción destructiva afecte producción, exista una decisión de producto/negocio que no puedas inferir, o el cambio sea financiero/legal. No bloquees el resto del trabajo si puedes seguir con otras partes.
