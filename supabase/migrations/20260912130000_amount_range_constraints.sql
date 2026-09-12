@@ -8,18 +8,29 @@
 -- gross_amount < 0 OR affiliate_commission_percent NOT BETWEEN 0 AND 100` (y el equivalente en
 -- collections) para decidir si limpiar datos históricos y poder VALIDATE el constraint.
 
-ALTER TABLE public.sales
-  ADD CONSTRAINT sales_gross_amount_nonneg CHECK (gross_amount >= 0) NOT VALID;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'sales_gross_amount_nonneg') THEN
+    ALTER TABLE public.sales
+      ADD CONSTRAINT sales_gross_amount_nonneg CHECK (gross_amount >= 0) NOT VALID;
+  END IF;
 
-ALTER TABLE public.sales
-  ADD CONSTRAINT sales_affiliate_percent_range
-  CHECK (affiliate_commission_percent IS NULL OR affiliate_commission_percent BETWEEN 0 AND 100) NOT VALID;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'sales_affiliate_percent_range') THEN
+    ALTER TABLE public.sales
+      ADD CONSTRAINT sales_affiliate_percent_range
+      CHECK (affiliate_commission_percent IS NULL OR affiliate_commission_percent BETWEEN 0 AND 100) NOT VALID;
+  END IF;
 
-ALTER TABLE public.collections
-  ADD CONSTRAINT collections_gross_amount_nonneg CHECK (gross_amount >= 0) NOT VALID;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'collections_gross_amount_nonneg') THEN
+    ALTER TABLE public.collections
+      ADD CONSTRAINT collections_gross_amount_nonneg CHECK (gross_amount >= 0) NOT VALID;
+  END IF;
 
-ALTER TABLE public.collections
-  ADD CONSTRAINT collections_commissionable_nonneg CHECK (commissionable_amount >= 0) NOT VALID;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'collections_commissionable_nonneg') THEN
+    ALTER TABLE public.collections
+      ADD CONSTRAINT collections_commissionable_nonneg CHECK (commissionable_amount >= 0) NOT VALID;
+  END IF;
+END $$;
 
 -- Deliberadamente NO se añade aquí `commissionable_amount <= gross_amount` a nivel de DB: aunque es
 -- la invariante de negocio esperada, hay varios caminos de inserción (payments/mark,
