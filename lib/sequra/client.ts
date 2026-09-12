@@ -14,20 +14,35 @@ async function callTool(name: string, args: Record<string, unknown>): Promise<st
   const token = process.env.SEQURA_MCP_TOKEN
   if (!token) throw new SequraApiError('Falta SEQURA_MCP_TOKEN')
 
-  const res = await fetch(SEQURA_MCP_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json, text/event-stream',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: Date.now(),
-      method: 'tools/call',
-      params: { name, arguments: args },
-    }),
-  })
+  // Timeout duro: sin esto, si el MCP de sequra se cuelga, el cron consume toda su ventana
+  // (maxDuration) en esta única llamada — mismo patrón que lib/calendly.ts.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 15000)
+  let res: Response
+  try {
+    res = await fetch(SEQURA_MCP_URL, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: Date.now(),
+        method: 'tools/call',
+        params: { name, arguments: args },
+      }),
+    })
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new SequraApiError('sequra MCP tardó demasiado en responder (timeout)')
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
 
   if (!res.ok) {
     throw new SequraApiError(`sequra MCP respondió ${res.status}: ${await res.text()}`)

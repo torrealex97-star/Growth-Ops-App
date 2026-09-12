@@ -13,7 +13,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   if ('error' in t) return t.error
   const user = await getCarruselUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  const templates = await listTemplates()
+  const templates = await listTemplates(t.tenantId)
   return NextResponse.json({ templates })
 }
 
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   const body = await req.json().catch(() => ({}))
   if (!body.projectId) return NextResponse.json({ error: 'projectId requerido' }, { status: 400 })
-  const tpl = await createTemplateFromProject(body.projectId)
+  const tpl = await createTemplateFromProject(t.tenantId, body.projectId)
   if (!tpl) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 })
   return NextResponse.json(tpl)
 }

@@ -45,7 +45,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
   if (purpose === 'reference' && projectId) {
     const image = { id: crypto.randomUUID(), url, name: file.name, addedAt: new Date().toISOString() }
-    await addReferenceImage(projectId, image)
+    await addReferenceImage(t.tenantId, projectId, image)
     return NextResponse.json(image)
   }
 

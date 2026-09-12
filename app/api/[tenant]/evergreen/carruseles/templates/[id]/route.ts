@@ -13,6 +13,6 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
   if ('error' in t) return t.error
   const user = await getCarruselUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  await deleteTemplate(id)
+  await deleteTemplate(t.tenantId, id)
   return NextResponse.json({ ok: true })
 }

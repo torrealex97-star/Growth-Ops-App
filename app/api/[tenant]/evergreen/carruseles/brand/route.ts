@@ -13,7 +13,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   if ('error' in t) return t.error
   const user = await getCarruselUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  const brand = await getBrand()
+  const brand = await getBrand(t.tenantId)
   return NextResponse.json(brand)
 }
 
@@ -24,7 +24,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   const user = await getCarruselUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   const body = await req.json().catch(() => ({}))
-  const brand = await updateBrand({
+  const brand = await updateBrand(t.tenantId, {
     name: body.name,
     colors: body.colors,
     fonts: body.fonts,

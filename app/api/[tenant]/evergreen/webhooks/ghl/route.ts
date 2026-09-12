@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { resolveUserIdByTrackingCode } from '@/lib/tracking'
+import { isValidWebhookSecret } from '@/lib/webhooks/verifySecret'
 
 // Webhook único de GHL (+ player VSL). Maneja, de forma IDEMPOTENTE, varios eventos:
 //   - lead opt-in (solo contacto + atribución, sin agenda)
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   try {
     const secret = req.headers.get('x-ghl-secret')
     // Fail-closed: si el secret no está configurado o no coincide, rechazamos.
-    if (!process.env.GHL_WEBHOOK_SECRET || secret !== process.env.GHL_WEBHOOK_SECRET) {
+    if (!isValidWebhookSecret(secret, process.env.GHL_WEBHOOK_SECRET)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

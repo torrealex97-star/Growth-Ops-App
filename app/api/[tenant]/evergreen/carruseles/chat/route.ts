@@ -73,15 +73,15 @@ const TOOLS: Anthropic.Tool[] = [
 ]
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-async function executeTool(projectId: string, name: string, input: any): Promise<string> {
+async function executeTool(tenantId: string, projectId: string, name: string, input: any): Promise<string> {
   try {
     if (name === 'add_slide') {
-      const slide = await addSlide(projectId, String(input.html || ''), String(input.notes || ''))
+      const slide = await addSlide(tenantId, projectId, String(input.html || ''), String(input.notes || ''))
       if (!slide) return `ERROR: no se pudo añadir la slide (límite ${MAX_SLIDES} alcanzado o proyecto inexistente).`
       return `OK: slide añadida con id ${slide.id}.`
     }
     if (name === 'update_slide') {
-      const slide = await updateSlide(projectId, String(input.slideId), {
+      const slide = await updateSlide(tenantId, projectId, String(input.slideId), {
         html: input.html !== undefined ? String(input.html) : undefined,
         notes: input.notes !== undefined ? String(input.notes) : undefined,
       })
@@ -89,11 +89,11 @@ async function executeTool(projectId: string, name: string, input: any): Promise
       return `OK: slide ${slide.id} actualizada.`
     }
     if (name === 'delete_slide') {
-      const ok = await deleteSlide(projectId, String(input.slideId))
+      const ok = await deleteSlide(tenantId, projectId, String(input.slideId))
       return ok ? `OK: slide ${input.slideId} eliminada.` : `ERROR: no existe la slide ${input.slideId}.`
     }
     if (name === 'set_caption') {
-      await updateProject(projectId, {
+      await updateProject(tenantId, projectId, {
         caption: String(input.caption || ''),
         hashtags: Array.isArray(input.hashtags) ? input.hashtags.map(String) : [],
       })
@@ -184,10 +184,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   if (!message.trim() || message.length > 10000)
     return NextResponse.json({ error: 'Mensaje inválido' }, { status: 400 })
 
-  const project = await getProject(projectId)
+  const project = await getProject(t.tenantId, projectId)
   if (!project) return NextResponse.json({ error: 'Proyecto no encontrado' }, { status: 404 })
 
-  const brand = await getBrand()
+  const brand = await getBrand(t.tenantId)
   const brandAssets = parseBrandAssets(process.env.IG_BRAND_ASSETS)
   const system = buildSystemPrompt(brand, project, process.env.IG_BUSINESS_CONTEXT, brandAssets)
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -276,7 +276,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
             // El modelo dejó de llamar tools. Si aún faltan slides respecto al número
             // pedido explícitamente, empújalo a continuar (acotado para no bucle infinito).
             if (targetSlideCount != null && autoContinues < MAX_AUTO_CONTINUES) {
-              const current = await getProject(projectId)
+              const current = await getProject(t.tenantId, projectId)
               const currentCount = current?.slides.length ?? 0
               if (currentCount < targetSlideCount) {
                 autoContinues++
@@ -292,7 +292,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
           const results: Anthropic.ToolResultBlockParam[] = []
           for (const tu of toolUses) {
-            const out = await executeTool(projectId, tu.name, tu.input)
+            const out = await executeTool(t.tenantId, projectId, tu.name, tu.input)
             send({ type: 'refresh' }) // el cliente refresca el proyecto tras cada cambio
             results.push({ type: 'tool_result', tool_use_id: tu.id, content: out })
           }

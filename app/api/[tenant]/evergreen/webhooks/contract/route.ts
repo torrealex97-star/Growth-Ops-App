@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { isValidWebhookSecret } from '@/lib/webhooks/verifySecret'
 
 // Webhook de firma de contrato: lo llama la herramienta de firma (e-sign / GHL / Zapier)
 // cuando el contrato se firma. Marca el contrato como 'firmado', guarda la URL del PDF
@@ -9,7 +10,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   try {
     const secret = req.headers.get('x-ghl-secret')
     // Fail-closed: si el secret no está configurado o no coincide, rechazamos.
-    if (!process.env.GHL_WEBHOOK_SECRET || secret !== process.env.GHL_WEBHOOK_SECRET) {
+    if (!isValidWebhookSecret(secret, process.env.GHL_WEBHOOK_SECRET)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     const payload = await req.json()

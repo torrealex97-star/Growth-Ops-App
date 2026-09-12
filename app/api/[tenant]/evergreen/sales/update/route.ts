@@ -42,14 +42,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if ('closer_id' in body) payload.closer_id = norm(body.closer_id)
     if ('affiliate_id' in body) payload.affiliate_id = norm(body.affiliate_id)
     if ('affiliate_commission_percent' in body) {
-      payload.affiliate_commission_percent =
-        payload.affiliate_id && body.affiliate_commission_percent
-          ? parseFloat(String(body.affiliate_commission_percent))
-          : null
+      const pct = parseFloat(String(body.affiliate_commission_percent))
+      if (payload.affiliate_id && body.affiliate_commission_percent) {
+        if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+          return NextResponse.json({ error: 'affiliate_commission_percent debe estar entre 0 y 100' }, { status: 400 })
+        }
+        payload.affiliate_commission_percent = pct
+      } else {
+        payload.affiliate_commission_percent = null
+      }
     }
     if ('sale_date' in body && body.sale_date) payload.sale_date = body.sale_date
     if ('gross_amount' in body && body.gross_amount !== '' && body.gross_amount != null) {
-      payload.gross_amount = parseFloat(String(body.gross_amount))
+      const gross = parseFloat(String(body.gross_amount))
+      if (!Number.isFinite(gross) || gross < 0) {
+        return NextResponse.json({ error: 'gross_amount debe ser un número mayor o igual a 0' }, { status: 400 })
+      }
+      payload.gross_amount = gross
     }
     if ('status' in body && body.status) payload.status = body.status
     if ('notes' in body) payload.notes = body.notes || null
