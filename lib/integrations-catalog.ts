@@ -102,6 +102,30 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     ],
   },
   {
+    id: 'fathom',
+    title: 'Fathom',
+    description: 'Importa reuniones, grabaciones, resúmenes y transcripciones; incluye el servidor MCP oficial.',
+    test: true,
+    required: ['FATHOM_API_KEY'],
+    fields: [
+      {
+        key: 'FATHOM_API_KEY',
+        label: 'API Key',
+        type: 'password',
+        secret: true,
+        help: 'Se genera en Fathom → Settings → API Access. Solo accede a reuniones visibles para ese usuario/equipo.',
+      },
+      {
+        key: 'FATHOM_MCP_URL',
+        label: 'Servidor MCP oficial',
+        type: 'text',
+        secret: false,
+        placeholder: 'https://api.fathom.ai/mcp',
+        help: 'URL oficial para conectar Fathom con clientes MCP compatibles.',
+      },
+    ],
+  },
+  {
     id: 'email',
     title: 'Email (Resend)',
     description: 'Envío de invitaciones, recuperación y contratos.',
