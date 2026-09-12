@@ -8,7 +8,7 @@
 - Último commit en `main`: `5a04d2f` — rediseño visual del embudo de ads en Campañas (#28).
 - CI de `main`: verde.
 - Despliegue de Vercel: `https://growth-ops-weld.vercel.app` (proyecto `growth-ops`, team `app-b1af`).
-- **PR activa sin fusionar**: #29 (`claude/handoff-update`) — validada localmente (typecheck/lint/tests/build PASS), CI en GitHub en curso al redactar esto. Contiene 3 commits: este relevo, consistencia visual en AdsTable/AdsFunnelPanel, y el MVP del agente de IA (sección 5). El siguiente asistente debe RETOMAR esta rama, no crear una nueva.
+- **PR activa sin fusionar**: #29 (`claude/handoff-update`) — validada localmente (typecheck/lint/tests/build PASS) en cada commit. Contiene 4 commits: este relevo, consistencia visual en AdsTable/AdsFunnelPanel, el MVP del agente de IA (sección 5) y su fase 2 (sección 6). El siguiente asistente debe RETOMAR esta rama, no crear una nueva.
 
 ## Hecho en esta sesión (Claude Code, con acceso real a Supabase MCP)
 
@@ -30,7 +30,16 @@
    - `app/api/[tenant]/evergreen/ai/agent/route.ts`: usa el cliente AUTENTICADO del usuario (no service role) — el aislamiento lo aplican las RLS ya existentes de cada tabla de negocio, no una capa nueva.
    - `components/ai/AgentLauncher.tsx`: launcher + panel flotante (desktop) / sheet a pantalla completa (mobile), montado en `app/[tenant]/layout.tsx`.
    - **NOT_VERIFIED**: no se ha probado en navegador real (login, preguntar algo, comprobar aislamiento cruzado WDC↔Evergreen con dos usuarios reales) — sin entorno de browser en esta sesión. Antes de dar el agente por "funcionando", alguien con acceso real debe: (a) abrir el chat en cada tenant y confirmar que responde con datos de ESE tenant, (b) intentar explícitamente pedir datos del otro tenant y confirmar que se deniega, (c) revisar `ai_tool_calls` para confirmar que el log de auditoría se está poblando.
-   - **Deliberadamente fuera de este MVP** (fase 2 explícita del propio brief, no descuido): RAG/pgvector + Knowledge Base de documentos, integración Google Drive, routing multi-proveedor (Gemini/DeepSeek — hoy solo hay credenciales de Anthropic), streaming de respuesta, Insight Engine proactivo (análisis programados/por evento), acciones de escritura, cost dashboard/budgets, evals de seguridad (prompt injection, cross-tenant) automatizados.
+   - **Deliberadamente fuera de este MVP** (fase 3 explícita del propio brief, no descuido): RAG/pgvector + Knowledge Base de documentos, integración Google Drive, routing multi-proveedor (Gemini/DeepSeek — hoy solo hay credenciales de Anthropic), streaming de respuesta, acciones de escritura, cost dashboard/budgets, evals de seguridad (prompt injection, cross-tenant) automatizados.
+6. **Fase 2 del agente de IA** (misma PR #29) — arquitectura híbrida RAG+Data+Memory+Proactive pedida por el usuario, implementada en la parte de mayor apalancamiento que no depende de RAG:
+   - Descubierto al auditar: `analyzeCall()` (`lib/ai/claude.ts`) existía como código pero nunca se ejecutaba — 0 de 555 citas tenían `ai_analysis` pese a que 62 tienen transcripción. Nuevo cron `cron/analyze-calls` lo rellena en lotes de 15.
+   - `lib/ai/metrics/registry.ts`: capa semántica de negocio (definición/fórmula/fuente de cada métrica canónica), consultable por tool `getMetricDefinition`.
+   - Root Cause Analysis determinista: `analyzeFunnelChange`/`comparePeriods` descomponen el funnel entre dos periodos y señalan la etapa con mayor cambio — el system prompt obliga a usarlas antes de explicar por qué cambió una métrica agregada.
+   - Voice of Customer / Sales Intelligence agregados: `getTopObjections`/`compareClosers`, sobre `ai_analysis` ya poblado — sin nueva llamada al LLM por consulta.
+   - Memoria de negocio explícita: tabla `ai_business_facts` (hechos/hipótesis/decisiones/resultados, `outcome_of` enlaza DECISION→OUTCOME) — solo se escribe cuando el usuario confirma el hecho en su propio mensaje (regla de system prompt, no automática).
+   - Insights proactivos deterministas: tabla `ai_insights` + `lib/ai/insights/detectors.ts` + cron `cron/ai-insights` — compara 7 días vs 7 anteriores con umbrales fijos (CAC +25%, ROAS -20%, show/close rate -15%). El LLM NUNCA corre en bucle vigilando el negocio; el resumen se redacta con plantilla de datos exactos. Dedup por fingerprint (tenant+tipo+semana).
+   - **`cron/analyze-calls` y `cron/ai-insights` NO están en `vercel.json`** — el plan de Vercel es Hobby y ya hay 3 crons registrados; añadir más podría romper el despliegue. Hay que dispararlos manualmente con `CRON_SECRET` o configurarlos vía `pg_cron` de Supabase (mismo patrón que "Auto 30 min" de Meta) — **decisión pendiente de alguien con acceso a Vercel para confirmar el límite real del plan**.
+   - **Fuera de esta fase 2** (fase 3 explícita): RAG/pgvector, Google Drive/Notion, Business Graph como grafo explícito, Creative Intelligence, Experiment Engine, Model Router multi-proveedor, Daily Executive Brief, Insight Feed completo (solo hay un indicador ligero en el chat), Business Health Score.
 
 ## Bloqueo actual (lo único que impide terminar el backfill de Stripe)
 
@@ -59,7 +68,8 @@ Los dos endpoints que faltan ejecutar (`POST .../settings/integraciones/stripe-c
 3. Verificar en detalle el resto del drift listado arriba (RLS completo por tabla) antes de declarar el multi-tenant "cerrado".
 4. Auditoría/ampliación de atribución a nivel de anuncio individual (`campaign_ads`) — pendiente del rediseño de Campañas, fuera de alcance de la PR #28.
 5. **PR #29 pendiente de mergear** — revisar CI y hacerlo si está verde. Después: smoke test real del agente de IA (ver punto 5 de "Hecho en esta sesión") antes de anunciarlo a los usuarios finales.
-6. Fase 2 del agente de IA (si el MVP se valida bien): RAG/pgvector para Knowledge Base de documentos, Google Drive, Insight Engine proactivo — todo con su propia auditoría antes de implementar, igual que se hizo para el MVP.
+6. Decidir cómo disparar `cron/analyze-calls` y `cron/ai-insights` (no están en `vercel.json` por el límite del plan Hobby de Vercel) — probablemente vía `pg_cron` de Supabase, igual que "Auto 30 min" de Meta.
+7. Fase 3 del agente de IA (si las fases 1-2 se validan bien): RAG/pgvector para Knowledge Base de documentos, Google Drive/Notion, Model Router multi-proveedor — todo con su propia auditoría antes de implementar, igual que se hizo para las fases anteriores.
 
 ## Regla de continuidad
 
