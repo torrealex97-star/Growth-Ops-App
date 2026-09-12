@@ -8,10 +8,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { TrendingUp, Loader2, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantBranding } from '@/lib/tenant-context'
 
 export default function RecoverPage() {
   const tenant = useTenant()
+  const branding = useTenantBranding()
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
@@ -61,7 +62,7 @@ export default function RecoverPage() {
           <div className="w-12 h-12 rounded-xl bg-brand-600 flex items-center justify-center mb-4">
             <TrendingUp className="w-6 h-6 text-foreground" />
           </div>
-          <h1 className="text-2xl font-semibold text-foreground">Scalix Systems</h1>
+          <h1 className="text-2xl font-semibold text-foreground">{branding.name}</h1>
           <p className="text-muted-foreground text-sm mt-1">Panel Comercial Interno</p>
         </div>
 

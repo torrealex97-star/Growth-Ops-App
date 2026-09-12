@@ -10,19 +10,22 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Azul eléctrico (marca). Sustituye al violeta por defecto.
+        // Color de marca — respaldado por variables CSS (ver app/globals.css) en vez de hex fijo,
+        // para que el acento cambie por tenant en runtime (Fase 10: branding, sin rebuild) vía el
+        // atributo `data-accent` que pone app/[tenant]/layout.tsx según tenants.settings.branding.
+        // Default (sin data-accent, o data-accent="brand"): azul eléctrico. WDC usa data-accent="pink".
         brand: {
-          50: '#ecf6ff',
-          100: '#d6ecff',
-          200: '#b0dbff',
-          300: '#7ac3ff',
-          400: '#3ea6ff',
-          500: '#1e9eff', // primario
-          600: '#0a84f0',
-          700: '#0a68c4',
-          800: '#0d549b',
-          900: '#11467d',
-          950: '#0b2c52',
+          50: 'hsl(var(--brand-50) / <alpha-value>)',
+          100: 'hsl(var(--brand-100) / <alpha-value>)',
+          200: 'hsl(var(--brand-200) / <alpha-value>)',
+          300: 'hsl(var(--brand-300) / <alpha-value>)',
+          400: 'hsl(var(--brand-400) / <alpha-value>)',
+          500: 'hsl(var(--brand-500) / <alpha-value>)', // primario
+          600: 'hsl(var(--brand-600) / <alpha-value>)',
+          700: 'hsl(var(--brand-700) / <alpha-value>)',
+          800: 'hsl(var(--brand-800) / <alpha-value>)',
+          900: 'hsl(var(--brand-900) / <alpha-value>)',
+          950: 'hsl(var(--brand-950) / <alpha-value>)',
         },
         pink: {
           primary: '#C9477A',
