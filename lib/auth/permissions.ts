@@ -147,7 +147,7 @@ export const NAV_PAGES: { href: string; label: string; dept: Department }[] = [
   { href: '/actividad', label: 'Actividad', dept: 'sistema' },
   { href: '/audit', label: 'Auditoría', dept: 'sistema' },
   { href: '/settings', label: 'Configuración', dept: 'sistema' },
-  { href: '/settings?tab=data-health', label: 'Data Health', dept: 'sistema' },
+  { href: '/settings/data-health', label: 'Data Health', dept: 'sistema' },
 ]
 
 const normalizeAllowedPrefixes = (prefixes: string[]) =>
@@ -210,17 +210,17 @@ export const ROLE_ALLOWED_PREFIXES: Partial<Record<AppRole, string[]>> = {
     '/finanzas/gastos-facturas/gestoria',
     '/finanzas/analitica/pnl',
   ],
-  // Data Health usa un permiso exacto con query para no abrir el resto de /settings.
+  // Data Health usa una ruta propia para no abrir el resto de /settings.
   // Adscripción y Editor conservan solo las pestañas a las que ya tenían acceso antes del cambio.
   marketing: [
     '/marketing/adquisicion',
     '/marketing/contenido',
     '/instagram',
-    '/settings?tab=data-health',
+    '/settings/data-health',
     '/setting-ai',
     '/recursos/testimonios',
   ],
-  adscripcion: ['/marketing/adquisicion/campanas', '/marketing/adquisicion/atribucion', '/settings?tab=data-health'],
+  adscripcion: ['/marketing/adquisicion/campanas', '/marketing/adquisicion/atribucion', '/settings/data-health'],
   editor: ['/instagram', '/marketing/contenido', '/marketing/adquisicion/vsl', '/recursos/testimonios'],
   csm: ['/students', '/csm-events', '/drops', '/recursos/testimonios'],
   // cobros ganó acceso a la pestaña Conciliación (antes inexistente): cotejar SUS PROPIOS cobros
