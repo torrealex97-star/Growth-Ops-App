@@ -83,13 +83,15 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
 
   return (
     <>
-      {/* Mobile overlay */}
+      {/* Mobile overlay. z-40/z-[45] (no z-50): Dialog/Popover (components/ui) usan z-50 — si
+          quedan por debajo, un modal abierto con el drawer también abierto siempre gana el
+          empate visual de forma determinista, en vez de depender del orden de montado en el DOM. */}
       {isOpen && <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={onClose} />}
 
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed left-0 top-0 z-50 h-full w-64 flex-col bg-[#0A0A0B] border-r border-[#26262A] transition-transform duration-300 lg:static lg:flex lg:translate-x-0',
+          'fixed left-0 top-0 z-[45] h-full w-64 flex-col bg-[#0A0A0B] border-r border-[#26262A] transition-transform duration-300 lg:static lg:flex lg:translate-x-0',
           isOpen ? 'flex translate-x-0' : '-translate-x-full hidden lg:flex'
         )}
       >
