@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+const serviceClient = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
@@ -10,6 +10,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   if ('error' in t) return t.error
 
   try {
+    const supabase = serviceClient()
     const data = await req.json()
     const { saleId, contactId, countryCode, documentType, fileBase64, fileName } = data
 
