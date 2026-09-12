@@ -249,6 +249,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         refund_deadline_at: refundDeadline,
         gross_amount: price,
         status: 'active',
+        closer_id: owner.data.id,
         created_by: owner.data.id,
         notes: 'Importado automáticamente desde Stripe (backfill)',
       })
