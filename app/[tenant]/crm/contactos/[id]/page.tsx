@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { ContactForm, type ContactFormData } from '@/components/contacts/ContactForm'
@@ -99,10 +99,12 @@ const TIMELINE_ICON: Record<TimelineEventType, typeof Clock> = {
   note: StickyNote,
 }
 
-export default function ContactDetailPage({ params }: { params: { id: string } }) {
+// Next.js 15: `params` pasa a ser una Promise — useParams() de next/navigation sigue siendo
+// síncrono en Client Components, evita React.use() (requiere React 19).
+export default function ContactDetailPage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
-  const { id } = params
+  const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [contact, setContact] = useState<Contact | null>(null)
   const [attributions, setAttributions] = useState<ContactAttribution[]>([])
