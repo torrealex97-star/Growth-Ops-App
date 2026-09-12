@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { CalendarRange } from 'lucide-react'
-import { monthLabel } from '@/lib/analytics'
+import { isActiveSale, monthLabel } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
 import { FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 
@@ -36,8 +36,11 @@ function buildCohorts(sales: SaleRow[], collections: CollectionRow[]): CohortRow
     byCohort.get(ym) ??
     byCohort.set(ym, { ym, contracted: 0, clients: 0, collectedAt: { 30: 0, 60: 0, 90: 0, 180: 0 } }).get(ym)!
 
+  // "Contratado" solo cuenta ventas activas (isActiveSale, misma definición canónica que
+  // Dashboard/PNL) — una venta cancelada/reembolsada/con chargeback nunca fue negocio real, y
+  // dejarla en el denominador hacía que el %cobrado de la cohorte pareciera peor de lo que es.
   for (const s of sales) {
-    if (!s.sale_date) continue
+    if (!s.sale_date || !isActiveSale(s)) continue
     const ym = ymOf(s.sale_date)
     if (!ym) continue
     const row = ensure(ym)

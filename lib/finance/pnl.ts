@@ -1,3 +1,5 @@
+import { isActiveSale } from '@/lib/analytics'
+
 // Única fuente de verdad para el cálculo de I&G/Resultado neto mensual — antes vivía
 // duplicado (con fórmulas ya divergentes) en finanzas/page.tsx, pnl/page.tsx y gestoria/page.tsx.
 // Las pantallas deben leer de aquí, nunca recalcular su propia versión de "resultado neto".
@@ -8,6 +10,12 @@
 // - Net Revenue = Gross Revenue − Refunds − Discounts (las devoluciones se restan UNA sola vez aquí).
 // - Pre-Tax Profit = Net Revenue − COGS − Total OpEx (ya parte de un revenue neto de devoluciones,
 //   por lo que Refunds NO vuelve a restarse en OpEx ni en ningún otro punto de este cálculo).
+//
+// CANONICALIZACIÓN (Fase 5): contractedRevenue usaba TODAS las ventas del mes sin filtrar por
+// status, mientras que Dashboard/lib/analytics.ts (isActiveSale) excluye refunded/chargeback/
+// cancelled. Dos pantallas mostrando "ventas del mes" con cifras distintas para el mismo periodo
+// es el bug canónico que esta fase corrige — se adopta aquí el mismo filtro que ya usa analytics.ts
+// como ÚNICA definición de "venta que cuenta como negocio real". Ver docs/METRICS.md.
 
 // PostgREST trunca a un límite por defecto (típicamente 1000 filas) cualquier select sin
 // `.range()` explícito — las páginas de P&L/Finanzas traen tablas completas (sales, collections,
@@ -18,7 +26,12 @@
 // collection es de un mes distinto al que se está mostrando (comisiones liquidadas después).
 export const FINANCE_QUERY_ROW_CAP = 49999
 
-export type PnlSaleRow = { gross_amount: number | string; discount: number | string | null; sale_date: string | null }
+export type PnlSaleRow = {
+  gross_amount: number | string
+  discount: number | string | null
+  sale_date: string | null
+  status: string
+}
 export type PnlCollectionRow = {
   id: string
   gross_amount: number | string
@@ -71,7 +84,7 @@ export function computeMonthlyPnl(
   }
 ): MonthlyPnl {
   const { sales, collections, refunds, expenses, commissions } = data
-  const monthSales = sales.filter((s) => ymOf(s.sale_date) === ym)
+  const monthSales = sales.filter((s) => isActiveSale(s) && ymOf(s.sale_date) === ym)
   const monthCollections = collections.filter((c) => c.status === 'collected' && ymOf(c.collected_at) === ym)
   const monthRefunds = refunds.filter((r) => ymOf(r.refund_date) === ym)
   const monthExpenses = expenses.filter((e) => ymOf(e.expense_date) === ym)
