@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
+import { useRouter, usePathname, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Sidebar } from '@/components/os/Sidebar'
 import { Header } from '@/components/os/Header'
@@ -30,7 +30,11 @@ const CONTRACT_GATED_ROLES: AppRole[] = ['closer', 'setter', 'affiliate']
 
 type ContractGate = { pendingToken: string | null }
 
-export default function TenantLayout({ children, params }: { children: React.ReactNode; params: { tenant: string } }) {
+// Next.js 15: `params` pasa a ser una Promise en Server Components, pero este layout es Client
+// Component ('use client') — en vez de desenvolverla con React.use() (requiere React 19, y este
+// proyecto sigue en React 18), se usa useParams() de next/navigation, que sigue siendo síncrono.
+export default function TenantLayout({ children }: { children: React.ReactNode }) {
+  const params = useParams<{ tenant: string }>()
   const tenant = params.tenant
   const [user, setUser] = useState<UserWithRole | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)

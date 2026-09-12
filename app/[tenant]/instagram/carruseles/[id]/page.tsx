@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { ArrowLeft, Bookmark, Loader2, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ChatPanel } from '@/components/carruseles/ChatPanel'
@@ -15,9 +15,11 @@ import { toast } from 'sonner'
 import type { CarruselProject, AspectRatio } from '@/lib/carruseles/types'
 import { useTenant } from '@/lib/tenant-context'
 
-export default function CarruselEditorPage({ params }: { params: { id: string } }) {
+// Next.js 15: `params` pasa a ser una Promise — useParams() de next/navigation sigue siendo
+// síncrono en Client Components, evita React.use() (requiere React 19).
+export default function CarruselEditorPage() {
   const tenant = useTenant()
-  const { id } = params
+  const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [project, setProject] = useState<CarruselProject | null>(null)
   const [notFound, setNotFound] = useState(false)

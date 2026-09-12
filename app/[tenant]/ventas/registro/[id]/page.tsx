@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { isSetterRoleKey, isCloserRoleKey, isAffiliateRoleKey } from '@/lib/users'
 import { Button } from '@/components/ui/button'
@@ -94,10 +94,12 @@ const COMMISSION_STATUS_COLORS: Record<string, string> = {
   cancelled: 'bg-zinc-500/20 text-muted-foreground',
 }
 
-export default function SaleDetailPage({ params }: { params: { id: string } }) {
+// Next.js 15: `params` pasa a ser una Promise — useParams() de next/navigation sigue siendo
+// síncrono en Client Components, evita React.use() (requiere React 19).
+export default function SaleDetailPage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
-  const { id } = params
+  const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [sale, setSale] = useState<SaleWithRelations | null>(null)
   const [collections, setCollections] = useState<Collection[]>([])
