@@ -530,7 +530,6 @@ export default function CampaignsPage() {
   const totalAdspend = displayItems.reduce((s, c) => s + (c.adspend || 0), 0)
   const totalMetaLeads = displayItems.reduce((s, c) => s + (c.meta_leads || 0), 0)
   const totalFunnelLeads = displayItems.reduce((s, c) => s + (c.funnel_leads || 0), 0)
-  const cplMedio = div(totalAdspend, totalMetaLeads)
   const totalFollowers = displayItems.reduce((s, c) => s + (c.followers || 0), 0)
   const costPerFollower = div(totalAdspend, totalFollowers)
   const activeCount = displayItems.filter((c) => c.status === 'activa').length
@@ -559,59 +558,63 @@ export default function CampaignsPage() {
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && (
-            <>
+            <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
               <button
                 onClick={runSync}
                 disabled={syncing}
                 title="Traer campañas, gasto y leads desde Meta ahora"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-blue-600 text-foreground hover:bg-blue-500 disabled:opacity-50"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-foreground hover:bg-muted disabled:opacity-50"
               >
                 <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
                 {syncing ? 'Sincronizando…' : 'Sincronizar con Meta'}
               </button>
-              <button
-                onClick={runMigrate}
-                disabled={migrating}
-                title="Ejecutar una vez para preparar la base de datos para Meta"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-muted text-foreground hover:bg-muted disabled:opacity-50"
-              >
-                <Zap className="w-4 h-4" /> {migrating ? 'Aplicando…' : 'Migración Meta'}
-              </button>
-              <button
-                onClick={runCronSetup}
-                disabled={croning}
-                title="Programar sincronización automática cada 30 min (Supabase pg_cron)"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-muted text-foreground hover:bg-muted disabled:opacity-50"
-              >
-                <RefreshCw className={`w-4 h-4 ${croning ? 'animate-spin' : ''}`} />{' '}
-                {croning ? 'Activando…' : 'Auto 30 min'}
-              </button>
+              <span className="w-px h-5 bg-border" />
               <button
                 onClick={runAdsSync}
                 disabled={syncingAds}
                 title="Traer el detalle por anuncio (gasto, leads y seguidores) desde Meta"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-muted text-foreground hover:bg-muted disabled:opacity-50"
+                aria-label="Sincronizar anuncios"
+                className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"
               >
-                <RefreshCw className={`w-4 h-4 ${syncingAds ? 'animate-spin' : ''}`} />{' '}
-                {syncingAds ? 'Anuncios…' : 'Sincronizar anuncios'}
+                <RefreshCw className={`w-4 h-4 ${syncingAds ? 'animate-spin' : ''}`} />
               </button>
               <button
                 onClick={runDailySync}
                 disabled={syncingDaily}
                 title="Traer el gasto DIARIO por campaña (para filtrar por mes/trimestre/año)"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-muted text-foreground hover:bg-muted disabled:opacity-50"
+                aria-label="Sincronizar gasto diario"
+                className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"
               >
-                <RefreshCw className={`w-4 h-4 ${syncingDaily ? 'animate-spin' : ''}`} />{' '}
-                {syncingDaily ? 'Gasto diario…' : 'Sincronizar gasto diario'}
+                <RefreshCw className={`w-4 h-4 ${syncingDaily ? 'animate-spin' : ''}`} />
               </button>
               <button
                 onClick={() => setShowTargets(true)}
                 title="Fijar objetivos de ROAS/CAC/CPL para las alertas del embudo"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-muted text-foreground hover:bg-muted"
+                aria-label="Objetivos de rendimiento"
+                className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
               >
-                <AlertTriangle className="w-4 h-4" /> Objetivos
+                <AlertTriangle className="w-4 h-4" />
               </button>
-            </>
+              <span className="w-px h-5 bg-border" />
+              <button
+                onClick={runMigrate}
+                disabled={migrating}
+                title="Migración Meta — ejecutar una vez para preparar la base de datos"
+                aria-label="Migración Meta"
+                className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"
+              >
+                <Zap className={`w-4 h-4 ${migrating ? 'animate-pulse' : ''}`} />
+              </button>
+              <button
+                onClick={runCronSetup}
+                disabled={croning}
+                title="Auto 30 min — programar sincronización automática (Supabase pg_cron)"
+                aria-label="Activar sincronización automática cada 30 minutos"
+                className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"
+              >
+                <RefreshCw className={`w-4 h-4 ${croning ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
           )}
           <button
             onClick={() => setShowNew(true)}
@@ -695,36 +698,35 @@ export default function CampaignsPage() {
           <div className="h-64 bg-card rounded-lg animate-pulse" />
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-card/50 border border-border rounded-lg p-4">
-                <p className="text-xs text-muted-foreground">Gasto real</p>
-                <p className="text-xl font-bold text-foreground mt-1">{formatCurrency(totalAdspend)}</p>
+            {/* Solo lo que el embudo de abajo no cuenta: desfase Meta vs Funnel, y cuántas
+                campañas están activas ahora. Inversión/Leads/CPL/ROAS ya son el hero del embudo
+                — repetirlos aquí sería la misma cifra dos veces en dos cards distintas. */}
+            <div className="flex flex-wrap items-center gap-6 text-sm border-b border-border pb-4">
+              <div>
+                <span className="text-muted-foreground">Leads Meta </span>
+                <span className="font-semibold text-foreground tabular-nums">
+                  {totalMetaLeads.toLocaleString('es-ES')}
+                </span>
+                <span className="text-muted-foreground"> · Funnel (app) </span>
+                <span className="font-semibold text-foreground tabular-nums">
+                  {totalFunnelLeads.toLocaleString('es-ES')}
+                </span>
               </div>
-              <div className="bg-card/50 border border-border rounded-lg p-4">
-                <p className="text-xs text-muted-foreground">Leads Meta</p>
-                <p className="text-xl font-bold text-foreground mt-1">{totalMetaLeads.toLocaleString('es-ES')}</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Funnel (app): <span className="text-foreground">{totalFunnelLeads.toLocaleString('es-ES')}</span>
-                </p>
-              </div>
-              <div className="bg-card/50 border border-border rounded-lg p-4">
-                <p className="text-xs text-muted-foreground">CPL medio (Meta)</p>
-                <p className="text-xl font-bold text-foreground mt-1">
-                  {cplMedio === null ? '—' : formatCurrency(cplMedio)}
-                </p>
-                {totalFollowers > 0 && (
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Seguidores: <span className="text-foreground">{totalFollowers.toLocaleString('es-ES')}</span> ·
-                    €/seg:{' '}
-                    <span className="text-foreground">
-                      {costPerFollower === null ? '—' : formatCurrency(costPerFollower)}
-                    </span>
-                  </p>
-                )}
-              </div>
-              <div className="bg-card/50 border border-border rounded-lg p-4">
-                <p className="text-xs text-muted-foreground">Campañas activas</p>
-                <p className="text-xl font-bold text-foreground mt-1">{activeCount}</p>
+              {totalFollowers > 0 && (
+                <div>
+                  <span className="text-muted-foreground">Seguidores </span>
+                  <span className="font-semibold text-foreground tabular-nums">
+                    {totalFollowers.toLocaleString('es-ES')}
+                  </span>
+                  <span className="text-muted-foreground"> · €/seguidor </span>
+                  <span className="font-semibold text-foreground tabular-nums">
+                    {costPerFollower === null ? '—' : formatCurrency(costPerFollower)}
+                  </span>
+                </div>
+              )}
+              <div>
+                <span className="text-muted-foreground">Campañas activas </span>
+                <span className="font-semibold text-foreground tabular-nums">{activeCount}</span>
               </div>
             </div>
 
@@ -742,7 +744,7 @@ export default function CampaignsPage() {
               <div className="bg-card/50 border border-border rounded-lg overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-border text-left text-muted-foreground text-xs uppercase">
+                    <tr className="sticky top-0 z-10 bg-card border-b border-border text-left text-muted-foreground text-xs uppercase">
                       <th className="px-4 py-3">Campaña</th>
                       <th className="px-4 py-3">Canal</th>
                       {accounts.length > 1 && <th className="px-4 py-3">Cuenta</th>}
@@ -808,11 +810,13 @@ export default function CampaignsPage() {
                               ))}
                             </select>
                           </td>
-                          <td className="px-4 py-3 text-right text-foreground">{formatCurrency(c.adspend)}</td>
-                          <td className="px-4 py-3 text-right text-foreground">
+                          <td className="px-4 py-3 text-right text-foreground tabular-nums">
+                            {formatCurrency(c.adspend)}
+                          </td>
+                          <td className="px-4 py-3 text-right text-foreground tabular-nums">
                             {(c.meta_leads || 0).toLocaleString('es-ES')}
                           </td>
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-4 py-3 text-right tabular-nums">
                             <span className="inline-flex items-center gap-1 text-foreground">
                               {(c.funnel_leads || 0).toLocaleString('es-ES')}
                               {showGap && (
@@ -824,22 +828,22 @@ export default function CampaignsPage() {
                               )}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-right text-muted-foreground">
+                          <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">
                             {cpm === null ? '—' : formatCurrency(cpm)}
                           </td>
-                          <td className="px-4 py-3 text-right text-muted-foreground">
+                          <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">
                             {cpc === null ? '—' : formatCurrency(cpc)}
                           </td>
-                          <td className="px-4 py-3 text-right text-muted-foreground">
+                          <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">
                             {ctr === null ? '—' : `${fmtNum(ctr)}%`}
                           </td>
-                          <td className="px-4 py-3 text-right text-muted-foreground">
+                          <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">
                             {cpl === null ? '—' : formatCurrency(cpl)}
                           </td>
-                          <td className="px-4 py-3 text-right text-foreground">
+                          <td className="px-4 py-3 text-right text-foreground tabular-nums">
                             {(c.followers || 0) > 0 ? (c.followers || 0).toLocaleString('es-ES') : '—'}
                           </td>
-                          <td className="px-4 py-3 text-right text-muted-foreground">
+                          <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">
                             {(() => {
                               const cpf = div(c.adspend, c.followers || 0)
                               return cpf === null ? '—' : formatCurrency(cpf)

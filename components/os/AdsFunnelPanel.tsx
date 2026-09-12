@@ -25,36 +25,62 @@ const fmtPct = (n: number | null) => (n === null ? '—' : `${n.toFixed(1)}%`)
 const short = (name: string) => (name.length > 18 ? `${name.slice(0, 17)}…` : name)
 
 type AlertState = 'ok' | 'warn' | 'bad' | null
-type Cell = { label: string; value: string; hint?: string; strong?: boolean; alert?: AlertState }
 
-// Borde/punto de color según si el KPI cumple el objetivo configurado (Settings → Campañas).
-// Sin objetivo fijado, `alert` viene null y la tarjeta no cambia de aspecto — nunca inventamos
-// un umbral por defecto, porque "sin objetivo" y "objetivo cumplido" no son lo mismo.
-const alertRing: Record<'ok' | 'warn' | 'bad', string> = {
-  ok: 'border-emerald-500/40',
-  warn: 'border-amber-500/40',
-  bad: 'border-red-500/40',
-}
-const alertDot: Record<'ok' | 'warn' | 'bad', string> = {
-  ok: 'bg-emerald-500',
-  warn: 'bg-amber-500',
-  bad: 'bg-red-500',
+// Color de texto (no de tarjeta — aquí no hay tarjetas) según si el KPI cumple el objetivo
+// configurado (Settings → Campañas → Objetivos). Sin objetivo fijado, `alert` es null y el
+// número se queda en el color normal — nunca inventamos un umbral por defecto, porque "sin
+// objetivo" y "objetivo cumplido" no son lo mismo.
+const alertText: Record<'ok' | 'warn' | 'bad', string> = {
+  ok: 'text-emerald-400',
+  warn: 'text-amber-400',
+  bad: 'text-red-400',
 }
 
-function MetricGrid({ cells }: { cells: Cell[] }) {
+// KPI grande, "hero": los 4-5 números que de verdad importan de un vistazo, sin tarjeta propia
+// — una sola superficie con divisores en vez de un grid de cards idénticas.
+type HeroStat = { label: string; value: string; hint?: string; alert?: AlertState }
+
+function HeroRow({ stats }: { stats: HeroStat[] }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
-      {cells.map((c) => (
-        <div
-          key={c.label}
-          className={`bg-card/50 border rounded-lg p-3 ${c.alert ? alertRing[c.alert] : 'border-border'}`}
-        >
-          <div className="flex items-center gap-1.5">
-            <p className="text-[11px] text-muted-foreground leading-tight">{c.label}</p>
-            {c.alert && <span className={`w-1.5 h-1.5 rounded-full ${alertDot[c.alert]}`} />}
-          </div>
-          <p className={`mt-1 font-bold text-foreground ${c.strong ? 'text-lg' : 'text-base'}`}>{c.value}</p>
-          {c.hint && <p className="text-[10px] text-muted-foreground mt-0.5">{c.hint}</p>}
+    <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border">
+      {stats.map((s) => (
+        <div key={s.label} className="px-4 py-3 first:pl-0 sm:first:pl-0">
+          <p className="text-xs text-muted-foreground">{s.label}</p>
+          <p
+            className={`mt-1 text-2xl font-semibold tracking-tight ${s.alert ? alertText[s.alert] : 'text-foreground'}`}
+          >
+            {s.value}
+          </p>
+          {s.hint && <p className="text-[11px] text-muted-foreground mt-0.5">{s.hint}</p>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Una etapa del funnel: cantidad + coste por unidad + conversión respecto a la etapa anterior
+// (drop-off implícito: 100% - conversión). Fila de texto, no card — el funnel se lee de arriba
+// abajo como un embudo real, no como cifras sueltas.
+type FunnelStage = { label: string; count: string; cost?: string; conversion?: string; alert?: AlertState }
+
+function FunnelList({ stages }: { stages: FunnelStage[] }) {
+  return (
+    <div className="divide-y divide-border/60">
+      {stages.map((s, i) => (
+        <div key={s.label} className="flex items-center gap-3 py-2.5 text-sm">
+          <span className="w-5 text-xs text-muted-foreground tabular-nums">{i + 1}</span>
+          <span className="flex-1 text-foreground">{s.label}</span>
+          {s.conversion && (
+            <span className="text-xs text-muted-foreground w-24 text-right tabular-nums">{s.conversion}</span>
+          )}
+          {s.cost && (
+            <span
+              className={`text-xs w-20 text-right tabular-nums ${s.alert ? alertText[s.alert] : 'text-muted-foreground'}`}
+            >
+              {s.cost}
+            </span>
+          )}
+          <span className="font-semibold text-foreground w-20 text-right tabular-nums">{s.count}</span>
         </div>
       ))}
     </div>
@@ -116,50 +142,57 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
     [campaigns]
   )
 
-  const cells: Cell[] = [
-    { label: 'Inversión', value: fmtEur(f.inversion), strong: true },
-    { label: 'Alcance', value: fmtNum(f.alcance) },
-    { label: 'Impresiones', value: fmtNum(f.impresiones) },
-    { label: 'CPM', value: fmtEur(f.cpm) },
-    { label: 'Clics en el enlace', value: fmtNum(f.linkClicks) },
-    { label: 'CPC', value: fmtEur(f.cpc) },
-    { label: 'CTR', value: fmtPct(f.ctr) },
-    { label: 'Visitas a la página', value: fmtNum(f.visitas) },
-    { label: 'Coste por visita', value: fmtEur(f.costeVisita) },
-    { label: '% de carga', value: fmtPct(f.pctCarga), hint: 'Visitas vs clics' },
-    { label: 'Leads', value: fmtNum(f.leads), strong: true },
+  const cplAlert = targetAlert(f.cpl, targets?.target_cpl ?? null, 'max')
+  const cacAlert = targetAlert(f.cpa, targets?.target_cac ?? null, 'max')
+  const roasAlert = targetAlert(f.roas, targets?.target_roas ?? null, 'min')
+
+  const heroStats: HeroStat[] = [
+    { label: 'Inversión', value: fmtEur(f.inversion) },
+    { label: 'Leads', value: fmtNum(f.leads) },
     {
       label: 'Coste por lead',
       value: fmtEur(f.cpl),
-      alert: targetAlert(f.cpl, targets?.target_cpl ?? null, 'max'),
+      alert: cplAlert,
       hint: targets?.target_cpl ? `Objetivo: ≤ ${fmtEur(targets.target_cpl)}` : undefined,
     },
-    { label: '% de registro', value: fmtPct(f.pctRegistro), hint: 'Leads vs visitas' },
-    { label: 'Agendas', value: fmtNum(f.agendas), strong: true },
-    { label: 'Coste por agenda', value: fmtEur(f.costeAgenda) },
-    { label: '% conversión VSL', value: fmtPct(f.pctConversionVSL), hint: 'Agendas vs leads' },
-    { label: 'Llamadas', value: fmtNum(f.llamadas), hint: 'Show up' },
-    { label: '% de show up', value: fmtPct(f.pctShowUp), hint: 'Llamadas vs agendas' },
-    { label: 'Cierres', value: fmtNum(f.cierres), strong: true },
-    { label: '% de cierre', value: fmtPct(f.pctCierre), hint: 'Cierres vs llamadas' },
     {
-      label: 'CPA',
-      value: fmtEur(f.cpa),
-      strong: true,
-      alert: targetAlert(f.cpa, targets?.target_cac ?? null, 'max'),
-      hint: targets?.target_cac ? `Objetivo (CAC): ≤ ${fmtEur(targets.target_cac)}` : 'Coste por adquisición',
+      label: 'ROAS',
+      value: f.roas !== null ? `${f.roas.toFixed(2)}x` : '—',
+      alert: roasAlert,
+      hint: targets?.target_roas ? `Objetivo: ≥ ${targets.target_roas.toFixed(2)}x` : fmtEur(f.facturacion),
+    },
+  ]
+
+  const funnelStages: FunnelStage[] = [
+    { label: 'Impresiones', count: fmtNum(f.impresiones), cost: fmtEur(f.cpm) + '/mil' },
+    { label: 'Clics en el enlace', count: fmtNum(f.linkClicks), cost: fmtEur(f.cpc), conversion: fmtPct(f.ctr) },
+    {
+      label: 'Visitas a la página',
+      count: fmtNum(f.visitas),
+      cost: fmtEur(f.costeVisita),
+      conversion: fmtPct(f.pctCarga),
     },
     {
-      label: 'Facturación',
-      value: fmtEur(f.facturacion),
-      alert: targetAlert(f.roas, targets?.target_roas ?? null, 'min'),
-      hint:
-        f.roas !== null
-          ? `ROAS ${f.roas.toFixed(2)}x${targets?.target_roas ? ` (objetivo ≥ ${targets.target_roas.toFixed(2)}x)` : ''}`
-          : undefined,
+      label: 'Leads',
+      count: fmtNum(f.leads),
+      cost: fmtEur(f.cpl),
+      conversion: fmtPct(f.pctRegistro),
+      alert: cplAlert,
     },
-    { label: 'Seguidores', value: fmtNum(f.seguidores), strong: true, hint: 'Conseguidos por los ads' },
-    { label: 'Coste/seguidor', value: fmtEur(f.costeSeguidor) },
+    {
+      label: 'Agendas',
+      count: fmtNum(f.agendas),
+      cost: fmtEur(f.costeAgenda),
+      conversion: fmtPct(f.pctConversionVSL),
+    },
+    { label: 'Llamadas (show up)', count: fmtNum(f.llamadas), conversion: fmtPct(f.pctShowUp) },
+    {
+      label: 'Cierres',
+      count: fmtNum(f.cierres),
+      cost: fmtEur(f.cpa),
+      conversion: fmtPct(f.pctCierre),
+      alert: cacAlert,
+    },
   ]
 
   return (
@@ -170,7 +203,27 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
           Agendas · Llamadas · Cierres se cruzan con el CRM por UTM del contacto
         </span>
       </div>
-      <MetricGrid cells={cells} />
+
+      <HeroRow stats={heroStats} />
+
+      <div className="rounded-lg border border-border bg-card/30 p-4">
+        <div className="flex items-center justify-between text-xs text-muted-foreground mb-1 pl-8">
+          <span />
+          <span className="w-24 text-right">% conversión</span>
+          <span className="w-20 text-right">Coste/ud.</span>
+          <span className="w-20 text-right">Cantidad</span>
+        </div>
+        <FunnelList stages={funnelStages} />
+        {f.seguidores > 0 && (
+          <div className="flex items-center gap-3 pt-2.5 mt-1 border-t border-border/60 text-sm text-muted-foreground">
+            <span className="w-5" />
+            <span className="flex-1">Seguidores conseguidos</span>
+            <span className="text-xs w-24 text-right" />
+            <span className="text-xs w-20 text-right tabular-nums">{fmtEur(f.costeSeguidor)}</span>
+            <span className="font-medium text-foreground w-20 text-right tabular-nums">{fmtNum(f.seguidores)}</span>
+          </div>
+        )}
+      </div>
 
       {points.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
