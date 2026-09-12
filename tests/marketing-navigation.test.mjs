@@ -24,6 +24,7 @@ const NEW_PAGE_FILES = [
   'app/[tenant]/marketing/contenido/page.tsx',
   'app/[tenant]/setting-ai/page.tsx',
   'app/[tenant]/settings/page.tsx',
+  'app/[tenant]/settings/data-health/page.tsx',
 ]
 
 test('cada destino nuevo tiene una página real', () => {
@@ -41,7 +42,7 @@ test('todas las rutas históricas apuntan al deep-link esperado', () => {
     '/content': '/marketing/contenido',
     '/instagram/contenido': '/marketing/contenido',
     '/carruseles': '/instagram/carruseles',
-    '/data-health': '/settings?tab=data-health',
+    '/data-health': '/settings/data-health',
   }
 
   assert.deepEqual(LEGACY_MARKETING_ROUTES, expected)
@@ -97,7 +98,7 @@ test('el menú compartido con ⌘K contiene todas las páginas absorbidas', () =
     ['Competencia', '/instagram/competencia'],
     ['Contenido', '/marketing/contenido'],
     ['Setting AI', '/setting-ai'],
-    ['Data Health', '/settings?tab=data-health'],
+    ['Data Health', '/settings/data-health'],
   ]
 
   for (const [label, href] of entries) {
@@ -111,7 +112,7 @@ test('los roles limitados no reciben prefijos amplios de configuración o adquis
   const permissions = readFileSync(join(root, 'lib/auth/permissions.ts'), 'utf8')
   assert.match(
     permissions,
-    /adscripcion:\s*\['\/marketing\/adquisicion\/campanas', '\/marketing\/adquisicion\/atribucion', '\/settings\?tab=data-health'\]/
+    /adscripcion:\s*\['\/marketing\/adquisicion\/campanas', '\/marketing\/adquisicion\/atribucion', '\/settings\/data-health'\]/
   )
   assert.match(
     permissions,
@@ -122,11 +123,11 @@ test('los roles limitados no reciben prefijos amplios de configuración o adquis
 })
 
 test('el permiso de Data Health no abre el resto de Configuración', () => {
-  const zones = ['/settings?tab=data-health']
-  assert.equal(isAllowedLocation(zones, permissionLocationFor('/settings', true)), true)
-  assert.equal(isAllowedLocation(zones, permissionLocationFor('/settings', false)), false)
-  assert.equal(isAllowedLocation(zones, permissionLocationFor('/settings/users', false)), false)
-  assert.equal(isAllowedLocation(zones, permissionLocationFor('/settings/integraciones', false)), false)
+  const zones = ['/settings/data-health']
+  assert.equal(isAllowedLocation(zones, permissionLocationFor('/settings/data-health')), true)
+  assert.equal(isAllowedLocation(zones, permissionLocationFor('/settings')), false)
+  assert.equal(isAllowedLocation(zones, permissionLocationFor('/settings/users')), false)
+  assert.equal(isAllowedLocation(zones, permissionLocationFor('/settings/integraciones')), false)
 })
 
 test('Adscripción y Editor quedan limitados a sus pestañas históricas', () => {

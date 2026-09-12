@@ -327,14 +327,14 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: 'Auditoría', href: '/audit', icon: Shield, roles: ['admin', 'director'] },
       {
         label: 'Configuración',
-        href: '/settings?tab=data-health',
+        href: '/settings',
         icon: Settings,
-        roles: [...LEAD, 'marketing', 'adscripcion'],
+        roles: LEAD,
         children: [
           { label: 'General', href: '/settings', icon: Settings, roles: ['admin'] },
           {
             label: 'Data Health',
-            href: '/settings?tab=data-health',
+            href: '/settings/data-health',
             icon: Activity,
             roles: [...LEAD, 'marketing', 'adscripcion'],
           },
@@ -385,4 +385,11 @@ export function visibleNavItems(filter: (item: NavItem) => boolean): NavItem[] {
     }
   }
   return out
+}
+
+export function navHrefForRole(item: NavItem, role: AppRole): string {
+  if (item.href === '/settings' && (role === 'marketing' || role === 'adscripcion')) {
+    return '/settings/data-health'
+  }
+  return item.href
 }
