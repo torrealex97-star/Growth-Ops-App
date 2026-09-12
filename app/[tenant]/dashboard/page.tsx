@@ -8,10 +8,8 @@ import { TeamRanking } from '@/components/os/TeamRanking'
 import { AttributionTable } from '@/components/os/AttributionTable'
 import { SetterAgendas } from '@/components/os/SetterAgendas'
 import { QualificationInsights } from '@/components/os/QualificationInsights'
-import { PendingAttendanceAlert } from '@/components/os/PendingAttendanceAlert'
 import { KaizenWidget } from '@/components/os/KaizenWidget'
 import { DailyQuoteWidget } from '@/components/os/DailyQuoteWidget'
-import { PositiveNoteWidget } from '@/components/os/PositiveNoteWidget'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
@@ -243,7 +241,7 @@ export default function DashboardPage() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [tenant])
 
   // Meses para el selector: últimos 12 (más reciente primero)
   // Personas del rol elegido (para el selector de usuario del filtro de arriba).
@@ -479,10 +477,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {userId && <PendingAttendanceAlert userId={userId} isLeadership={isLeadership(myRoleKey as AppRole)} />}
       <DailyQuoteWidget />
       {userId && <KaizenWidget userId={userId} />}
-      <PositiveNoteWidget />
 
       <PeriodFilterBar
         preset={periodPreset}

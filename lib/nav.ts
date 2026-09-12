@@ -327,14 +327,14 @@ export const NAV_SECTIONS: NavSection[] = [
       { label: 'Auditoría', href: '/audit', icon: Shield, roles: ['admin', 'director'] },
       {
         label: 'Configuración',
-        href: '/settings?tab=data-health',
+        href: '/settings',
         icon: Settings,
-        roles: [...LEAD, 'marketing', 'adscripcion'],
+        roles: LEAD,
         children: [
           { label: 'General', href: '/settings', icon: Settings, roles: ['admin'] },
           {
             label: 'Data Health',
-            href: '/settings?tab=data-health',
+            href: '/settings/data-health',
             icon: Activity,
             roles: [...LEAD, 'marketing', 'adscripcion'],
           },
@@ -350,6 +350,20 @@ export const NAV_SECTIONS: NavSection[] = [
           },
           { label: 'Integraciones', href: '/settings/integraciones', icon: Plug, roles: ['admin'] },
           { label: 'Formularios KPI', href: '/kpi/templates', icon: FileText, roles: ['admin', 'director'] },
+        ],
+      },
+      {
+        label: 'Configuración',
+        href: '/settings/data-health',
+        icon: Settings,
+        roles: ['marketing', 'adscripcion'],
+        children: [
+          {
+            label: 'Data Health',
+            href: '/settings/data-health',
+            icon: Activity,
+            roles: ['marketing', 'adscripcion'],
+          },
         ],
       },
     ],

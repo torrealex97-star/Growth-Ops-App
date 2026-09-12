@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter, usePathname, useSearchParams } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Sidebar } from '@/components/os/Sidebar'
 import { Header } from '@/components/os/Header'
@@ -43,11 +43,10 @@ export default function TenantLayout({ children, params }: { children: React.Rea
   const [contractGate, setContractGate] = useState<ContractGate | null>(null)
   const router = useRouter()
   const pathname = usePathname()
-  const searchParams = useSearchParams()
   // Ruta relativa al tenant, sin el segmento /<tenant> — todas las comparaciones
   // de zonas/overrides usan esta forma "portable" (igual en cualquier subcuenta).
   const relPathname = pathname.replace(new RegExp(`^/${tenant}`), '') || '/'
-  const relLocation = permissionLocationFor(relPathname, searchParams.get('tab') === 'data-health')
+  const relLocation = permissionLocationFor(relPathname)
 
   const isAuthRoute = AUTH_ROUTES.includes(relPathname) || PUBLIC_PREFIXES.some((p) => relPathname.startsWith(p))
 
