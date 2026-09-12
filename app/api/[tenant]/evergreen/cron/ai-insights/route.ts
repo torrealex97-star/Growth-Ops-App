@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
+import { cookies } from 'next/headers'
+import { NextRequest, NextResponse } from 'next/server'
 import { detectAnomalies } from '@/lib/ai/insights/detectors'
 import { formatCurrency } from '@/lib/utils'
 
@@ -11,9 +13,37 @@ export const maxDuration = 60
 // (ver lib/ai/insights/detectors.ts). El resumen se redacta con datos exactos, no con un LLM —
 // más fiable y sin coste añadido para algo que una plantilla ya explica bien. Dedup por
 // fingerprint (tenant+tipo+semana): reintentos del cron en la misma semana no duplican el aviso.
-export async function GET(req: NextRequest) {
+
+// Auth: header Bearer CRON_SECRET (Vercel Cron/pg_cron) o sesión de admin/director (botón manual)
+// — mismo patrón que cron/monthly y cron/sequra-morosos. Sin esto no había NINGUNA forma de
+// disparar este cron en producción (no está en vercel.json ni hay pg_cron configurado).
+async function isAuthorized(req: NextRequest): Promise<boolean> {
   const auth = req.headers.get('authorization')
-  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`) return true
+  try {
+    const cookieStore = await cookies()
+    const sb = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll() {},
+      },
+    })
+    const {
+      data: { user },
+    } = await sb.auth.getUser()
+    if (!user) return false
+    const { data } = await sb.from('users').select('roles(key)').eq('id', user.id).single()
+    const role = (data?.roles as { key?: string } | null)?.key
+    return role === 'admin' || role === 'director'
+  } catch {
+    return false
+  }
+}
+
+export async function GET(req: NextRequest) {
+  if (!(await isAuthorized(req))) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
   const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
