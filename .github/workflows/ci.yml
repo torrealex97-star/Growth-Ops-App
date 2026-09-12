@@ -27,7 +27,12 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run format:check
       - run: npm run lint
-      - run: npm run typecheck
+      - name: Typecheck
+        run: npm run typecheck
+        env:
+          # El grafo de tipos de Next/Supabase supera el límite V8 por defecto (~2 GB)
+          # en el runner de GitHub; no es un error de tipos (local pasa), sino OOM.
+          NODE_OPTIONS: --max-old-space-size=4096
       - run: npm run dead-code
       - run: npm test
       - run: npm run test:metrics
