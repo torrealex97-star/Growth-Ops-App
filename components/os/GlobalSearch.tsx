@@ -97,6 +97,7 @@ export function GlobalSearch({ user }: { user: User & { roles: { key: string; na
           .from('contacts')
           .select('id, full_name, email, phone, lead_status')
           .eq('tenant_id', tenantId)
+          .is('merged_into', null)
           .or(or.join(','))
           .limit(8),
         sb

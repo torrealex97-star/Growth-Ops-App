@@ -24,6 +24,7 @@ export function ContactsAllView() {
       .from('contacts')
       .select('*')
       .eq('tenant_id', tenantId)
+      .is('merged_into', null)
       .order('created_at', { ascending: false })
 
     if (error) {

@@ -73,6 +73,22 @@ const CATEGORY_ORDER: IntegrationCategory[] = [
 ]
 type StateEntry = { source: 'db' | 'env' | 'none'; secret: boolean; preview: string; value?: string }
 type BrandAsset = { url: string; name: string }
+type StripeCustomerRow = {
+  stripe_customer_id: string
+  contact_id: string | null
+  email: string | null
+  name: string | null
+  status: 'cliente' | 'activo_mensual' | 'moroso' | 'cancelado'
+  subscription_id: string | null
+  current_period_end: string | null
+  last_synced_at: string
+}
+const STRIPE_CUSTOMER_STATUS_META: Record<StripeCustomerRow['status'], { label: string; className: string }> = {
+  cliente: { label: 'Cliente (pago único)', className: 'text-blue-600' },
+  activo_mensual: { label: 'Activo mensual', className: 'text-emerald-600' },
+  moroso: { label: 'Moroso', className: 'text-red-600' },
+  cancelado: { label: 'Cancelado', className: 'text-muted-foreground' },
+}
 type StripeReview = {
   summary: { total: number; matched: number; probable: number; mismatch: number; missing: number }
   rows: Array<{
@@ -259,6 +275,8 @@ export default function IntegracionesPage() {
   const [assetUploading, setAssetUploading] = useState(false)
   const [stripeReview, setStripeReview] = useState<StripeReview | null>(null)
   const [reviewingStripe, setReviewingStripe] = useState(false)
+  const [stripeCustomers, setStripeCustomers] = useState<StripeCustomerRow[] | null>(null)
+  const [syncingCustomers, setSyncingCustomers] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [verification, setVerification] = useState<Record<string, 'ok' | 'error'>>({})
 
@@ -294,6 +312,11 @@ export default function IntegracionesPage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (selectedId === 'stripe' && stripeCustomers === null) void loadStripeCustomers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId])
 
   async function saveBrandAssets(next: BrandAsset[]) {
     setBrandAssets(next)
@@ -447,6 +470,34 @@ export default function IntegracionesPage() {
       toast.error('No se pudo revisar Stripe', { description: error instanceof Error ? error.message : String(error) })
     } finally {
       setReviewingStripe(false)
+    }
+  }
+
+  async function loadStripeCustomers() {
+    const r = await fetch(`/api/${tenant}/evergreen/settings/integraciones/stripe-customers`)
+    const j = await r.json().catch(() => ({}))
+    if (r.ok) setStripeCustomers(j.rows ?? [])
+  }
+
+  async function syncStripeCustomersHandler() {
+    setSyncingCustomers(true)
+    try {
+      const r = await fetch(`/api/${tenant}/evergreen/settings/integraciones/stripe-customers`, { method: 'POST' })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        toast.error(j.error || 'No se pudo sincronizar la base de clientes')
+        return
+      }
+      toast.success('Base de clientes actualizada con Stripe', {
+        description: `${j.matched} vinculados a contactos existentes · ${j.unmatched} sin vincular`,
+      })
+      await loadStripeCustomers()
+    } catch (error) {
+      toast.error('No se pudo sincronizar con Stripe', {
+        description: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setSyncingCustomers(false)
     }
   }
 
@@ -771,6 +822,66 @@ export default function IntegracionesPage() {
                                   </table>
                                 </div>
                               </div>
+                            )}
+                          </div>
+                        )}
+
+                        {g.id === 'stripe' && (
+                          <div className="mt-5 space-y-3 rounded-md border border-dashed p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-medium">Base de clientes/alumnos</p>
+                                <p className="text-xs text-muted-foreground">
+                                  Completa quién ha pagado, quién paga mensualmente y quién está en mora, según Stripe.
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={syncStripeCustomersHandler}
+                                disabled={syncingCustomers || state.STRIPE_SECRET_KEY?.source === 'none'}
+                              >
+                                {syncingCustomers ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="mr-2 h-4 w-4" />
+                                )}
+                                Sincronizar clientes
+                              </Button>
+                            </div>
+                            {stripeCustomers && stripeCustomers.length > 0 && (
+                              <div className="max-h-72 overflow-auto rounded border">
+                                <table className="w-full text-xs">
+                                  <thead className="sticky top-0 bg-card text-left">
+                                    <tr>
+                                      <th className="p-2">Cliente</th>
+                                      <th className="p-2">Estado</th>
+                                      <th className="p-2">Vinculado</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {stripeCustomers.map((c) => (
+                                      <tr key={c.stripe_customer_id} className="border-t">
+                                        <td className="p-2">{c.name || c.email || c.stripe_customer_id}</td>
+                                        <td className="p-2">
+                                          <span className={STRIPE_CUSTOMER_STATUS_META[c.status].className}>
+                                            {STRIPE_CUSTOMER_STATUS_META[c.status].label}
+                                          </span>
+                                        </td>
+                                        <td className="p-2">
+                                          {c.contact_id ? 'Sí' : 'No — sin contacto interno con ese email'}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                            {stripeCustomers && stripeCustomers.length === 0 && (
+                              <p className="text-xs text-muted-foreground">
+                                Todavía no se ha sincronizado ningún cliente. Usa &quot;Sincronizar clientes&quot;.
+                              </p>
                             )}
                           </div>
                         )}
