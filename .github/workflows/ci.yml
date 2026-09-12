@@ -22,7 +22,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Node 24 ejecuta imports TypeScript en los tests nativos y coincide con
+          # el runtime local/Vercel usado para validar este repositorio.
+          node-version: 24
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run format:check
@@ -45,7 +47,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Build (con placeholders de env — no toca Supabase real)
