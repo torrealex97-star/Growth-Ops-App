@@ -65,6 +65,12 @@ export async function recomputeRepCommissionTiers(
   const now = new Date()
   const seen = new Set<string>()
 
+  // Tramo batcheado una sola vez para todos los reps de `pairs` (antes se llamaba
+  // tramoIdByReps(sb, [repId]) dentro del loop, recargando la config de tramos —
+  // sales_tramos + sales_tramos_config — en cada iteración en vez de una sola vez).
+  const uniqueRepIds = Array.from(new Set(pairs.map((p) => p.repId).filter((x): x is string => !!x)))
+  const tramoMap = await tramoIdByReps(sb, uniqueRepIds)
+
   for (const { repId, role } of pairs) {
     if (!repId) continue
     const key = `${repId}|${role}`
@@ -72,7 +78,6 @@ export async function recomputeRepCommissionTiers(
     seen.add(key)
 
     const total = await repNetCash(sb, repId, role)
-    const tramoMap = await tramoIdByReps(sb, [repId])
     const rule = pickCommissionRule(rules, role, repId, now, total, tramoMap[repId] ?? null)
     const percent = rule?.percent ?? (role === 'setter' ? 5 : 10)
 
@@ -84,10 +89,14 @@ export async function recomputeRepCommissionTiers(
       .eq('direction', 'positive')
       .neq('status', 'liquidated')
 
-    for (const cm of comms ?? []) {
-      if (Number(cm.percent) === percent) continue
-      const newAmount = Math.round(Number(cm.base_amount) * percent) / 100
-      await sb.from('commissions').update({ percent, commission_amount: newAmount }).eq('id', cm.id)
+    // Batcheado en un solo upsert por PK en vez de un UPDATE individual por comisión —
+    // esto corre en el hot path de "registrar cobro" (generateCommissionsForCollection),
+    // así que un rep con decenas de comisiones no liquidadas generaba decenas de round-trips.
+    const toUpdate = (comms ?? [])
+      .filter((cm) => Number(cm.percent) !== percent)
+      .map((cm) => ({ id: cm.id, percent, commission_amount: Math.round(Number(cm.base_amount) * percent) / 100 }))
+    if (toUpdate.length) {
+      await sb.from('commissions').upsert(toUpdate)
     }
   }
 }
