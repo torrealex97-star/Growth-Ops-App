@@ -12,6 +12,7 @@ import { performLogout } from '@/lib/auth/logout'
 import type { User } from '@/lib/types/database'
 import { FileSignature, LogOut } from 'lucide-react'
 import { ScriptQueueProvider } from '@/components/os/ScriptQueue'
+import { AgentLauncher } from '@/components/ai/AgentLauncher'
 import { isAllowedLocation, permissionLocationFor } from '@/lib/marketing-navigation'
 
 // Rutas confidenciales SOLO para liderazgo (admin/director/manager), aunque el admin
@@ -348,6 +349,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
             <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
           </div>
         </div>
+        <AgentLauncher />
       </ScriptQueueProvider>
     </TenantProvider>
   )
