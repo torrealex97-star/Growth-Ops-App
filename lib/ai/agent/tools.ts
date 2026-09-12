@@ -8,9 +8,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { computeAdFunnel, perCampaign, type AdFunnel } from '@/lib/ads/funnel'
 import { buildContactTimeline, type TimelineEvent } from '@/lib/contact-timeline'
 import { isActiveSale } from '@/lib/analytics'
+import { getMetricDefinition as lookupMetricDefinition } from '@/lib/ai/metrics/registry'
 import type { Campaign, ContactAttribution, Appointment, Sale, ContactNote } from '@/lib/types/database'
 
-export type ToolContext = { tenantId: string; sb: SupabaseClient }
+export type ToolContext = { tenantId: string; sb: SupabaseClient; userId?: string }
 
 // Periodo en fechas YYYY-MM-DD. Sin "from"/"to" = todo el histórico disponible (acotado por
 // row limits en cada query, nunca "trae toda la tabla").
@@ -221,4 +222,221 @@ export async function getSales({ tenantId, sb }: ToolContext, period: Period, li
       gross_amount: r.gross_amount,
     })),
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// getMetricDefinition — capa semántica de negocio: definición/fórmula/fuente canónica de una
+// métrica, para que el agente cite siempre la misma definición que docs/METRICS.md en vez de
+// reformularla cada vez con sus propias palabras.
+// ─────────────────────────────────────────────────────────────────────────────
+export function getMetricDefinition(name: string) {
+  const def = lookupMetricDefinition(name)
+  return def || { error: `No hay una definición canónica registrada para "${name}".` }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// comparePeriods — compara el resumen del negocio entre dos periodos y devuelve el delta de cada
+// métrica ya calculado (nunca "las ventas bajaron" sin decir cuánto ni respecto a qué).
+// ─────────────────────────────────────────────────────────────────────────────
+export async function comparePeriods(ctx: ToolContext, current: Period, previous: Period) {
+  const [now, prev] = await Promise.all([getBusinessOverview(ctx, current), getBusinessOverview(ctx, previous)])
+  const pctChange = (a: number | null, b: number | null): number | null =>
+    a === null || b === null || b === 0 ? null : ((a - b) / b) * 100
+  return {
+    current: now,
+    previous: prev,
+    delta: {
+      inversion_pct: pctChange(now.inversion, prev.inversion),
+      leads_pct: pctChange(now.leads, prev.leads),
+      agendas_pct: pctChange(now.agendas, prev.agendas),
+      cpl_pct: pctChange(now.cpl, prev.cpl),
+      roas_pct: pctChange(now.roas, prev.roas),
+      ventas_pct: pctChange(now.ventas, prev.ventas),
+      ingresos_pct: pctChange(now.ingresos, prev.ingresos),
+    },
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// analyzeFunnelChange — Root Cause Analysis determinista: descompone el funnel completo entre
+// dos periodos y señala en qué ETAPA está el mayor movimiento relativo, para que el agente no
+// diga "las ventas bajaron" sino "el show rate cayó del 67% al 49%, el resto se mantuvo estable".
+// ─────────────────────────────────────────────────────────────────────────────
+export async function analyzeFunnelChange(ctx: ToolContext, current: Period, previous: Period) {
+  const [now, prev] = await Promise.all([getFunnel(ctx, current), getFunnel(ctx, previous)])
+  const stages: Array<{ stage: string; now: number | null; previous: number | null }> = [
+    { stage: 'CPM', now: now.cpm, previous: prev.cpm },
+    { stage: 'CTR', now: now.ctr, previous: prev.ctr },
+    { stage: '% de carga (visitas/clics)', now: now.pctCarga, previous: prev.pctCarga },
+    { stage: '% de registro (leads/visitas)', now: now.pctRegistro, previous: prev.pctRegistro },
+    { stage: '% conversión VSL (agendas/leads)', now: now.pctConversionVSL, previous: prev.pctConversionVSL },
+    { stage: '% show up (llamadas/agendas)', now: now.pctShowUp, previous: prev.pctShowUp },
+    { stage: '% de cierre (cierres/llamadas)', now: now.pctCierre, previous: prev.pctCierre },
+    { stage: 'ROAS', now: now.roas, previous: prev.roas },
+  ]
+  const withDelta = stages
+    .map((s) => ({
+      ...s,
+      pct_change:
+        s.now === null || s.previous === null || s.previous === 0 ? null : ((s.now - s.previous) / s.previous) * 100,
+    }))
+    .filter((s) => s.pct_change !== null)
+    .sort((a, b) => (Math.abs(a.pct_change ?? 0) < Math.abs(b.pct_change ?? 0) ? 1 : -1))
+
+  return {
+    current: now,
+    previous: prev,
+    stages_ordenadas_por_mayor_cambio: withDelta,
+    etapa_mas_afectada: withDelta[0] ?? null,
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// getTopObjections — Voice of Customer agregado: cuenta objeciones reales extraídas por
+// analyzeCall() (lib/ai/claude.ts) y ya guardadas en appointments.ai_analysis.objections — no
+// vuelve a leer transcripciones completas ni gasta una llamada nueva al LLM por consulta.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function getTopObjections({ tenantId, sb }: ToolContext, period: Period, limit = 10) {
+  const { data } = await sb
+    .from('appointments')
+    .select('ai_analysis, appointment_datetime')
+    .eq('tenant_id', tenantId)
+    .not('ai_analysis', 'is', null)
+    .gte('appointment_datetime', period.from || '1970-01-01')
+    .lte('appointment_datetime', period.to || '2999-12-31')
+    .limit(2000)
+
+  const rows = (data || []) as Array<{ ai_analysis: { objections?: string[] } | null }>
+  const counts = new Map<string, number>()
+  let analyzedCalls = 0
+  for (const r of rows) {
+    const objections = r.ai_analysis?.objections
+    if (!objections || objections.length === 0) continue
+    analyzedCalls++
+    for (const o of objections) counts.set(o, (counts.get(o) || 0) + 1)
+  }
+  const top = Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, Math.min(Math.max(limit, 1), 25))
+    .map(([objection, count]) => ({
+      objection,
+      count,
+      pct_of_calls: analyzedCalls > 0 ? (count / analyzedCalls) * 100 : 0,
+    }))
+
+  return { period, llamadas_analizadas: analyzedCalls, llamadas_totales_en_periodo: rows.length, top_objeciones: top }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// compareClosers — Sales Intelligence agregado: compara closers por volumen de llamadas, score
+// medio de ejecución (analyzeCall) y cierres reales — para encontrar patrones de éxito, no para
+// "rankear" personas sin contexto (se muestra el dato crudo, la interpretación la hace el agente).
+// ─────────────────────────────────────────────────────────────────────────────
+export async function compareClosers({ tenantId, sb }: ToolContext, period: Period) {
+  const [{ data: appointments }, { data: sales }, { data: users }] = await Promise.all([
+    sb
+      .from('appointments')
+      .select('closer_id, ai_call_score, status, appointment_datetime')
+      .eq('tenant_id', tenantId)
+      .not('closer_id', 'is', null)
+      .gte('appointment_datetime', period.from || '1970-01-01')
+      .lte('appointment_datetime', period.to || '2999-12-31')
+      .limit(3000),
+    sb
+      .from('sales')
+      .select('closer_id, gross_amount, status, sale_date')
+      .eq('tenant_id', tenantId)
+      .not('closer_id', 'is', null)
+      .gte('sale_date', period.from || '1970-01-01')
+      .lte('sale_date', period.to || '2999-12-31')
+      .limit(3000),
+    sb.from('users').select('id,full_name'),
+  ])
+
+  const nameById = new Map((users || []).map((u) => [u.id as string, u.full_name as string]))
+  const byCloser = new Map<
+    string,
+    { llamadas: number; scoreSum: number; scoreCount: number; ventas: number; ingresos: number }
+  >()
+  const ensure = (id: string) => {
+    if (!byCloser.has(id)) byCloser.set(id, { llamadas: 0, scoreSum: 0, scoreCount: 0, ventas: 0, ingresos: 0 })
+    return byCloser.get(id)!
+  }
+  for (const a of (appointments || []) as Array<{ closer_id: string; ai_call_score: number | null; status: string }>) {
+    const e = ensure(a.closer_id)
+    e.llamadas++
+    if (a.ai_call_score !== null) {
+      e.scoreSum += a.ai_call_score
+      e.scoreCount++
+    }
+  }
+  for (const s of (sales || []) as Array<{ closer_id: string; gross_amount: number; status: string }>) {
+    if (!isActiveSale(s)) continue
+    const e = ensure(s.closer_id)
+    e.ventas++
+    e.ingresos += s.gross_amount || 0
+  }
+
+  return {
+    period,
+    closers: Array.from(byCloser.entries()).map(([id, v]) => ({
+      closer: nameById.get(id) || id,
+      llamadas: v.llamadas,
+      score_medio_llamada: v.scoreCount > 0 ? v.scoreSum / v.scoreCount : null,
+      ventas: v.ventas,
+      ingresos: v.ingresos,
+      close_rate: v.llamadas > 0 ? (v.ventas / v.llamadas) * 100 : null,
+    })),
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI Business Memory — hechos/hipótesis/decisiones/resultados EXPLÍCITOS (nunca lo que el LLM
+// "cree" por su cuenta). recordBusinessFact solo debe llamarse cuando el usuario confirma
+// explícitamente el hecho en su mensaje (regla del system prompt del agente, no aquí).
+// ─────────────────────────────────────────────────────────────────────────────
+export async function getBusinessMemory({ tenantId, sb }: ToolContext, type?: string, limit = 20) {
+  let q = sb
+    .from('ai_business_facts')
+    .select('id,type,content,evidence,outcome_of,created_at')
+    .eq('tenant_id', tenantId)
+  if (type) q = q.eq('type', type)
+  const { data } = await q.order('created_at', { ascending: false }).limit(Math.min(Math.max(limit, 1), 50))
+  return data || []
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// getRecentInsights — insights generados por el detector determinista (ver
+// lib/ai/insights/detectors.ts + cron/ai-insights). Solo lectura; el agente los cita, no los
+// genera él mismo en cada conversación.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function getRecentInsights({ tenantId, sb }: ToolContext, limit = 10) {
+  const { data } = await sb
+    .from('ai_insights')
+    .select('id,type,severity,title,summary,evidence,status,generated_at')
+    .eq('tenant_id', tenantId)
+    .neq('status', 'stale')
+    .order('generated_at', { ascending: false })
+    .limit(Math.min(Math.max(limit, 1), 30))
+  return data || []
+}
+
+export async function recordBusinessFact(
+  { tenantId, sb, userId }: ToolContext,
+  input: { type: 'business' | 'hypothesis' | 'decision' | 'outcome'; content: string; outcomeOf?: string }
+) {
+  if (!userId) return { error: 'No se pudo identificar al usuario para registrar el hecho.' }
+  const { data, error } = await sb
+    .from('ai_business_facts')
+    .insert({
+      tenant_id: tenantId,
+      type: input.type,
+      content: input.content,
+      outcome_of: input.outcomeOf || null,
+      created_by: userId,
+    })
+    .select('id,type,content,created_at')
+    .single()
+  if (error) return { error: error.message }
+  return data
 }

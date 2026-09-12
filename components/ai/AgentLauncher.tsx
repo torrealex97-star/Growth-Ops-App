@@ -7,6 +7,14 @@ import { useTenant } from '@/lib/tenant-context'
 
 type Evidence = { name: string; input: Record<string, unknown>; summary: string }
 type ChatMsg = { role: 'user' | 'assistant'; content: string; evidence?: Evidence[] }
+type Insight = { id: string; severity: 'critical' | 'warning' | 'opportunity' | 'info'; title: string; summary: string }
+
+const SEVERITY_DOT: Record<Insight['severity'], string> = {
+  critical: 'bg-red-500',
+  warning: 'bg-amber-500',
+  opportunity: 'bg-emerald-500',
+  info: 'bg-brand-500',
+}
 
 // Nombres de tool → etiqueta corta para mostrar como "fuente" (punto 20/84 del brief: evidencia
 // compacta, nunca logs técnicos ni el nombre crudo de la función).
@@ -18,6 +26,13 @@ const TOOL_LABELS: Record<string, string> = {
   getContactTimeline: 'Timeline de contacto',
   searchTranscripts: 'Transcripciones de llamadas',
   getSales: 'Ventas',
+  getMetricDefinition: 'Definición de métrica',
+  comparePeriods: 'Comparativa de periodos',
+  analyzeFunnelChange: 'Análisis de causa raíz',
+  getTopObjections: 'Objeciones (llamadas)',
+  compareClosers: 'Comparativa de closers',
+  getBusinessMemory: 'Memoria de negocio',
+  recordBusinessFact: 'Hecho registrado',
 }
 
 // Preguntas sugeridas por pantalla (punto 87): nada de "¿cómo puedo ayudarte?" genérico.
@@ -52,11 +67,28 @@ export function AgentLauncher() {
   const [loading, setLoading] = useState(false)
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [insights, setInsights] = useState<Insight[]>([])
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, loading])
+
+  // Indicador ligero de insights nuevos — no pasa por el LLM, es una lectura directa (barato,
+  // instantáneo). El feed completo (punto 27) queda para una fase posterior; esto es solo el
+  // "hay algo que revisar" antes de abrir el chat.
+  useEffect(() => {
+    let mounted = true
+    fetch(`/api/${tenant}/evergreen/ai/agent?insights=1`)
+      .then((r) => (r.ok ? r.json() : { insights: [] }))
+      .then((json) => {
+        if (mounted) setInsights(json.insights || [])
+      })
+      .catch(() => {})
+    return () => {
+      mounted = false
+    }
+  }, [tenant])
 
   // Escape cierra el panel (accesibilidad — punto 48).
   useEffect(() => {
@@ -101,6 +133,11 @@ export function AgentLauncher() {
         className="fixed bottom-5 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-card text-foreground shadow-lg transition-colors hover:border-brand-500/50 hover:text-brand-400"
       >
         {open ? <X className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
+        {!open && insights.length > 0 && (
+          <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+            {insights.length}
+          </span>
+        )}
       </button>
 
       {open && (
@@ -125,6 +162,21 @@ export function AgentLauncher() {
           </div>
 
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+            {messages.length === 0 && insights.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs text-muted-foreground">Detectado automáticamente:</p>
+                {insights.map((ins) => (
+                  <button
+                    key={ins.id}
+                    onClick={() => send(`Explícame este insight: "${ins.title}". ${ins.summary}`)}
+                    className="flex w-full items-start gap-2 rounded-lg border border-border bg-background px-3 py-2 text-left transition-colors hover:border-brand-500/40"
+                  >
+                    <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${SEVERITY_DOT[ins.severity]}`} />
+                    <span className="text-sm text-foreground">{ins.title}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             {messages.length === 0 && (
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">

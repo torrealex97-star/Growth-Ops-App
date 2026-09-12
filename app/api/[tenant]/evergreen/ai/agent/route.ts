@@ -72,6 +72,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     turn = await runAgent({
       tenantId: auth.tenantId,
       tenantName: tenantRow?.slug || tenant,
+      userId: auth.userId,
       sb,
       history,
       screen: body.screen,
@@ -118,6 +119,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   const auth = await requireTenant(tenant)
   if ('error' in auth) return auth.error
   const sb = await createClient()
+
+  if (req.nextUrl.searchParams.get('insights') === '1') {
+    const { data, error } = await sb
+      .from('ai_insights')
+      .select('id,type,severity,title,summary,status,generated_at')
+      .eq('tenant_id', auth.tenantId)
+      .eq('status', 'new')
+      .order('generated_at', { ascending: false })
+      .limit(10)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ insights: data || [] })
+  }
 
   const conversationId = req.nextUrl.searchParams.get('conversationId')
   if (conversationId) {
