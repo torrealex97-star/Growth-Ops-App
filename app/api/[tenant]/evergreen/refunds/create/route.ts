@@ -56,6 +56,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const totalComm = (collections ?? []).reduce((s, c) => s + Number(c.commissionable_amount || 0), 0)
 
     const grossRefund = grossRefundAmount != null ? Number(grossRefundAmount) : totalGross
+    // Un importe fuera de rango (NaN, negativo, o mayor que lo realmente cobrado) generaría un
+    // refund corrupto y comisiones negativas mal calculadas — grossRefundAmount viene del body
+    // de la request sin validar hasta ahora.
+    if (!Number.isFinite(grossRefund) || grossRefund < 0 || grossRefund > totalGross + 0.01) {
+      return NextResponse.json(
+        { error: 'grossRefundAmount inválido: debe estar entre 0 y lo realmente cobrado' },
+        { status: 400 }
+      )
+    }
     // Comisionable proporcional al importe devuelto
     const commRefund = totalGross > 0 ? (grossRefund / totalGross) * totalComm : grossRefund
     const isFull = grossRefund >= totalGross - 0.01
