@@ -223,6 +223,8 @@ export type Appointment = {
   ai_summary: string | null
   ai_analysis: Record<string, unknown> | null
   ai_analyzed_at: string | null
+  // ID estable de la reunión en Fathom (share_url/url) — hace idempotente el re-sync histórico.
+  fathom_meeting_id: string | null
   // v14 — Calendly
   meeting_url: string | null
   reschedule_url: string | null
