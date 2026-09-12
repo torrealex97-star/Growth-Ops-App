@@ -78,13 +78,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       if (isNaN(gross) || gross < 0) return NextResponse.json({ error: 'Importe inválido' }, { status: 400 })
       update.gross_amount = round2(gross)
       // Recalcula comisionable y fee según el plan, salvo que se pase un comisionable explícito.
-      update.commissionable_amount =
-        body.commissionable_amount != null && body.commissionable_amount !== ''
-          ? round2(Number(body.commissionable_amount))
-          : round2(gross * ratio)
+      if (body.commissionable_amount != null && body.commissionable_amount !== '') {
+        const comm = Number(body.commissionable_amount)
+        if (!Number.isFinite(comm) || comm < 0 || comm > gross + 0.01) {
+          return NextResponse.json({ error: 'commissionable_amount inválido' }, { status: 400 })
+        }
+        update.commissionable_amount = round2(comm)
+      } else {
+        update.commissionable_amount = round2(gross * ratio)
+      }
       update.processing_fee = round2(gross * (feePercent / 100))
     } else if (body.commissionable_amount != null && body.commissionable_amount !== '') {
-      update.commissionable_amount = round2(Number(body.commissionable_amount))
+      const comm = Number(body.commissionable_amount)
+      const currentGross = Number(coll.gross_amount)
+      if (!Number.isFinite(comm) || comm < 0 || comm > currentGross + 0.01) {
+        return NextResponse.json({ error: 'commissionable_amount inválido' }, { status: 400 })
+      }
+      update.commissionable_amount = round2(comm)
     }
     if (body.collected_at) update.collected_at = new Date(body.collected_at).toISOString()
     if (typeof body.payment_method === 'string') update.payment_method = body.payment_method || null
