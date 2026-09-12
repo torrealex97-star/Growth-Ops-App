@@ -198,12 +198,18 @@ export async function buildConciliacion(
   for (const [method, cols] of Array.from(manualCollectionsByMethod.entries())) {
     const candidates = (manualRecords || []).filter((m) => m.platform === method)
     for (const c of cols) {
-      const match = candidates.find(
-        (m) =>
-          !usedRecordIds.has(m.id) &&
-          Math.abs(num(m.amount) - num(c.gross_amount)) < 0.01 &&
-          (!c.collected_at || daysBetween(m.transacted_at, c.collected_at) <= 3)
-      )
+      // Un enlace explícito (matched_collection_id, fijado a mano en la carga del extracto) tiene
+      // prioridad sobre el cotejo por importe+fecha — sin esto, dos cobros con importe y fecha
+      // parecidos podían cotejarse con el registro equivocado aunque el usuario ya hubiera fijado
+      // el enlace correcto.
+      const match =
+        candidates.find((m) => !usedRecordIds.has(m.id) && m.matched_collection_id === c.id) ??
+        candidates.find(
+          (m) =>
+            !usedRecordIds.has(m.id) &&
+            Math.abs(num(m.amount) - num(c.gross_amount)) < 0.01 &&
+            (!c.collected_at || daysBetween(m.transacted_at, c.collected_at) <= 3)
+        )
       if (match) usedRecordIds.add(match.id)
       rows.push({
         id: `manual_${c.id}`,

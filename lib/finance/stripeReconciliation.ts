@@ -63,6 +63,9 @@ export async function reconcileStripePayments(
       ...(stripeAccountId ? { 'Stripe-Account': stripeAccountId } : {}),
     },
     cache: 'no-store',
+    // Sin esto, un Stripe caído/lento deja la petición colgada indefinidamente y bloquea
+    // Finanzas/Conciliación con ella (mismo patrón ya usado en lib/sequra/client.ts).
+    signal: AbortSignal.timeout(15_000),
   })
   const stripeJson = (await stripeRes.json().catch(() => ({}))) as {
     data?: StripeIntent[]
