@@ -5,17 +5,18 @@
 ## Estado canónico
 
 - Rama fuente de verdad: `main`
-- Último commit en `main`: `5a04d2f` — rediseño visual del embudo de ads en Campañas (#28).
+- Último commit en `main`: `b6809b5` — relevo + consistencia visual en Anuncios + agente de IA MVP y fase 2 (#29, mergeada).
 - CI de `main`: verde.
 - Despliegue de Vercel: `https://growth-ops-weld.vercel.app` (proyecto `growth-ops`, team `app-b1af`).
-- **PR activa sin fusionar**: #29 (`claude/handoff-update`) — validada localmente (typecheck/lint/tests/build PASS) en cada commit. Contiene 4 commits: este relevo, consistencia visual en AdsTable/AdsFunnelPanel, el MVP del agente de IA (sección 5) y su fase 2 (sección 6). El siguiente asistente debe RETOMAR esta rama, no crear una nueva.
+- PR abiertos al redactar este relevo: ninguno. Después de mergear #29 se aplicó además, directamente sobre Supabase (sin PR de código porque la migración ya estaba en el repo desde antes, solo no aplicada): `financial_integrity_constraints`.
 
 ## Hecho en esta sesión (Claude Code, con acceso real a Supabase MCP)
 
 1. **Corregido el bloqueo de migraciones** que dejó el relevo anterior: las 4 migraciones señaladas (`stripe_customers`, `contact_merge`, `fathom_meeting_id`, `campaign_targets`) fueron VERIFICADAS ausentes en el proyecto Supabase real (`rgcbveflosqgxrcqlqzv`) y APLICADAS ahí mismo (son aditivas: `CREATE TABLE`/`ADD COLUMN IF NOT EXISTS`, sin riesgo de pérdida de datos; dependían solo de funciones/tablas ya presentes — `is_admin_or_director`, `get_my_role`, `auth_tenant_ids`, `is_super_admin`, `handle_updated_at`, `tenants` — verificadas antes de aplicar). VERIFICADO tras aplicar: las 3 tablas y la columna existen; `get_advisors` (security) no muestra hallazgos nuevos atribuibles a este cambio (solo warnings preexistentes: `merge_contacts` con search_path mutable — mismo patrón que otras funciones ya en el proyecto, no se corrigió, `OUT_OF_SCOPE_FINDING`).
 2. **Ampliado el diagnóstico de drift real**: `list_migrations` de Supabase solo registra 7 migraciones aplicadas de las 20 que hay en `supabase/migrations/`. Las 14 restantes están en dos categorías distintas — no asumir que "no está en el historial" = "no está en el esquema":
    - **DRIFT (probablemente ya aplicadas fuera de tracking)**: `fix_rls_p0`, `fix_rls_p0_round2`, `multi_tenant_foundation`, `multi_tenant_domain_tables`, `fix_cron_unique_constraints`, `tenant_scope_singleton_constraints`, `tenant_scope_users_rls`. Verificado parcialmente: `contacts.tenant_id` existe, `auth_tenant_ids()`/`is_admin_or_director()` existen, `contacts` tiene 3 políticas RLS. **NO se verificó exhaustivamente cada una** — sigue siendo `NOT_VERIFIED` a nivel de detalle (constraints exactos, políticas INSERT/UPDATE/DELETE completas por tabla).
-   - **CONFIRMADO genuinamente ausente**: `20260911190000_drop_partners.sql` (la tabla `partners` SIGUE existiendo en producción) y `20260911200000_financial_integrity_constraints.sql` (no existe ningún constraint `UNIQUE`/anti-doble-cobro en `sales` con ese patrón de nombre). Estas dos NO se aplicaron esta sesión — son HIGH/CRITICAL reales y requieren la revisión de compatibilidad/rollback que pide `AGENTS.md` antes de tocarlas (en particular `drop_partners` es potencialmente destructivo si `partners` tiene filas con datos reales — **verificar contenido antes de aplicar**, no asumir que está vacía).
+   - **`financial_integrity_constraints` — APLICADA y VALIDADA** (tras el hallazgo de arriba): es 100% aditiva (índices + `ADD CONSTRAINT ... NOT VALID`), verificado antes de aplicar que `expenses.status`/`campaigns.status` no tenían ningún valor fuera de lista (`SELECT DISTINCT ... WHERE status NOT IN (...)` → 0 filas en ambas), así que los dos CHECK se validaron (`VALIDATE CONSTRAINT`) en el mismo paso, no se dejaron `NOT VALID` indefinidamente. `get_advisors` (security) sin hallazgos nuevos.
+   - **`drop_partners` — VERIFICADA pero NO aplicada, requiere tu confirmación explícita**: `partners` tiene exactamente 3 filas (Adrián Martínez 55%, Alex 30%, Jesús Peña 15%, todas `is_active=true`, sin `user_id` vinculado), confirmado que no hay ninguna FK de otra tabla apuntando a `partners`. Coincide con lo que la propia migración documenta (`SAFE_TO_REMOVE`). Es un `DROP TABLE` — destructivo e irreversible una vez aplicado — así que no lo ejecuté sin tu autorización explícita aunque la verificación salió limpia. Si confirmas, es un `apply_migration` de una sola línea (`DROP TABLE IF EXISTS public.partners;`).
 3. **Backfill de ventas de Stripe (women-digital-closer)** — se resolvió el motivo por el que nunca pudo ejecutarse:
    - **Tenant correcto identificado**: es `women-digital-closer`, no `evergreen` — Claudia Martínez (`claudia.martinezf.03@gmail.com`) es miembro de `women-digital-closer`, y ese tenant no tenía NINGÚN producto.
    - **Producto creado**: `products` (`id=abbf35fa-586f-4053-a8b5-4e54f2469510`, `name='Women Digital Closer'`, `tenant_id='74c7fab3-7ea6-47ed-a8d3-97f839bab3b2'`) — nombre dado explícitamente por el usuario en esta misma sesión, no inventado.
@@ -64,10 +65,10 @@ Los dos endpoints que faltan ejecutar (`POST .../settings/integraciones/stripe-c
      body: JSON.stringify({ ownerEmail: 'claudia.martinezf.03@gmail.com', dryRun: false }),
    }).then(r => r.json())
    ```
-2. Revisar `drop_partners` (¿tiene `partners` filas reales?) y `financial_integrity_constraints` como cambios HIGH/CRITICAL aparte, con su propia rama — no aplicar a ciegas.
+2. **Confirmar `drop_partners`**: verificado seguro (3 filas de config, sin FKs), pero es un `DROP TABLE` irreversible — pídele al usuario el "sí" explícito antes de ejecutarlo. Si confirma: `apply_migration` con `DROP TABLE IF EXISTS public.partners;`.
 3. Verificar en detalle el resto del drift listado arriba (RLS completo por tabla) antes de declarar el multi-tenant "cerrado".
 4. Auditoría/ampliación de atribución a nivel de anuncio individual (`campaign_ads`) — pendiente del rediseño de Campañas, fuera de alcance de la PR #28.
-5. **PR #29 pendiente de mergear** — revisar CI y hacerlo si está verde. Después: smoke test real del agente de IA (ver punto 5 de "Hecho en esta sesión") antes de anunciarlo a los usuarios finales.
+5. Smoke test real del agente de IA (ver punto 5 de "Hecho en esta sesión") antes de anunciarlo a los usuarios finales — sigue `NOT_VERIFIED`.
 6. Decidir cómo disparar `cron/analyze-calls` y `cron/ai-insights` (no están en `vercel.json` por el límite del plan Hobby de Vercel) — probablemente vía `pg_cron` de Supabase, igual que "Auto 30 min" de Meta.
 7. Fase 3 del agente de IA (si las fases 1-2 se validan bien): RAG/pgvector para Knowledge Base de documentos, Google Drive/Notion, Model Router multi-proveedor — todo con su propia auditoría antes de implementar, igual que se hizo para las fases anteriores.
 
