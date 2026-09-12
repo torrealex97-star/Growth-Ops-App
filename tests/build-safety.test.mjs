@@ -22,7 +22,7 @@ test('los endpoints de documentos no crean el cliente service-role al importar e
       /^const supabase = createClient/m,
       `${route} vuelve a bloquear el build sin secretos de producción`
     )
-    assert.match(source, /const serviceClient = \(\) =>/)
+    assert.match(source, /(?:const serviceClient = \(\) =>|function serviceClient\(\))/)
     assert.match(source, /const supabase = serviceClient\(\)/)
   }
 })
