@@ -57,6 +57,7 @@ export default function IntegracionesPage() {
   const [loading, setLoading] = useState(true)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [testingId, setTestingId] = useState<string | null>(null)
+  const [syncingId, setSyncingId] = useState<string | null>(null)
   const [brandAssets, setBrandAssets] = useState<BrandAsset[]>([])
   const [assetUploading, setAssetUploading] = useState(false)
   const [stripeReview, setStripeReview] = useState<StripeReview | null>(null)
@@ -168,6 +169,45 @@ export default function IntegracionesPage() {
     else toast.error(`${g.title}: ${j.message || 'falló'}`)
   }
 
+  async function syncHistory(g: Group) {
+    setSyncingId(g.id)
+    try {
+      const direct: Record<string, string> = {
+        meta: `/api/${tenant}/evergreen/meta/sync`,
+        instagram: `/api/${tenant}/evergreen/instagram/sync`,
+      }
+      const r = await fetch(direct[g.id] || `/api/${tenant}/evergreen/settings/integraciones/history-sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: direct[g.id] ? undefined : JSON.stringify({ provider: g.id }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(j.error || 'La sincronización falló')
+      const imported = j.imported ?? j.inserted ?? j.synced ?? j.total ?? 0
+      const updated = j.updated ?? j.matched ?? 0
+      toast.success(`${g.title}: histórico sincronizado`, {
+        description: `${imported} nuevos · ${updated} actualizados`,
+      })
+    } catch (error) {
+      toast.error(`${g.title}: no se pudo sincronizar`, {
+        description: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setSyncingId(null)
+    }
+  }
+
+  function canSyncHistory(groupId: string) {
+    const requiredByProvider: Record<string, string[]> = {
+      meta: ['META_ACCESS_TOKEN'],
+      instagram: ['IG_USER_ID'],
+      calendly: ['CALENDLY_API_TOKEN'],
+      ghl: ['GHL_API_TOKEN', 'GHL_LOCATION_ID'],
+      fathom: ['FATHOM_API_KEY'],
+    }
+    return (requiredByProvider[groupId] || []).every((key) => state[key]?.source !== 'none')
+  }
+
   async function reviewStripe() {
     setReviewingStripe(true)
     try {
@@ -234,11 +274,28 @@ export default function IntegracionesPage() {
               </div>
               <p className="text-sm text-muted-foreground">{g.description}</p>
             </div>
-            {g.test && (
-              <Button variant="outline" size="sm" onClick={() => testGroup(g)} disabled={testingId === g.id}>
-                {testingId === g.id ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Probar conexión'}
-              </Button>
-            )}
+            <div className="flex flex-wrap justify-end gap-2">
+              {['meta', 'instagram', 'calendly', 'ghl', 'fathom'].includes(g.id) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => syncHistory(g)}
+                  disabled={syncingId === g.id || !canSyncHistory(g.id)}
+                >
+                  {syncingId === g.id ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                  )}
+                  Cargar históricos
+                </Button>
+              )}
+              {g.test && (
+                <Button variant="outline" size="sm" onClick={() => testGroup(g)} disabled={testingId === g.id}>
+                  {testingId === g.id ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Probar conexión'}
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="space-y-4">

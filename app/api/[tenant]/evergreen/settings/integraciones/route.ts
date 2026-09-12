@@ -212,6 +212,21 @@ async function runTest(group: string, tenantId: string): Promise<NextResponse> {
         ? NextResponse.json({ ok: true, message: `Usuario: ${j.resource?.name || 'OK'}` })
         : NextResponse.json({ ok: false, message: j.message || 'Token inválido' })
     }
+    if (group === 'fathom') {
+      const key = cfg.FATHOM_API_KEY
+      if (!key) return NextResponse.json({ ok: false, message: 'Falta la API key de Fathom.' })
+      const r = await fetch('https://api.fathom.ai/external/v1/meetings?limit=1', {
+        headers: { 'X-Api-Key': key, Accept: 'application/json' },
+        signal: AbortSignal.timeout(10_000),
+      })
+      const j = (await r.json().catch(() => ({}))) as { items?: unknown[]; message?: string; error?: string }
+      return r.ok
+        ? NextResponse.json({
+            ok: true,
+            message: `Fathom conectado; ${j.items?.length ? 'hay reuniones accesibles.' : 'sin reuniones accesibles todavía.'}`,
+          })
+        : NextResponse.json({ ok: false, message: j.message || j.error || `Fathom respondió ${r.status}.` })
+    }
     if (group === 'email') {
       const key = cfg.RESEND_API_KEY
       if (!key) return NextResponse.json({ ok: false, message: 'Falta la API key de Resend.' })
