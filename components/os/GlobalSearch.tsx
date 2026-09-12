@@ -6,7 +6,7 @@ import { Search, Loader2, ArrowRight, User as UserIcon, Calendar } from 'lucide-
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { createClient } from '@/lib/supabase/client'
 import { normalizeText } from '@/components/ui/search-box'
-import { makeNavFilter, visibleNavItems, type NavItem } from '@/lib/nav'
+import { makeNavFilter, navHrefForRole, visibleNavItems, type NavItem } from '@/lib/nav'
 import { formatDateTime } from '@/lib/utils'
 import type { AppRole } from '@/lib/auth/permissions'
 import type { User } from '@/lib/types/database'
@@ -125,10 +125,10 @@ export function GlobalSearch({ user }: { user: User & { roles: { key: string; na
       .slice(0, q ? 8 : 6)
       .map((p) => ({
         kind: 'page',
-        key: `page:${p.href}`,
+        key: `page:${navHrefForRole(p, role)}`,
         label: p.label,
-        sub: p.href.replace(`/${tenant}/`, ''),
-        href: p.href,
+        sub: navHrefForRole(p, role),
+        href: `/${tenant}${navHrefForRole(p, role)}`,
         icon: p.icon,
       }))
 
@@ -151,7 +151,7 @@ export function GlobalSearch({ user }: { user: User & { roles: { key: string; na
     }))
 
     return [...pageHits, ...contactHits, ...apptHits]
-  }, [pages, query, contacts, appts])
+  }, [pages, query, contacts, appts, role, tenant])
 
   // Mantén la selección dentro de rango cuando cambian los resultados.
   useEffect(() => {
