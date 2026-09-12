@@ -7,9 +7,9 @@ export const dynamic = 'force-dynamic'
 //   - watching: sesiones con un latido en los últimos ~15s (viendo ahora mismo)
 //   - watched : sesiones que han reproducido de verdad (max_position > 0)
 // Público (lo llama el reproductor embebido). Ver PUBLIC_PATHS /api/vsl en middleware.
-export async function GET(_req: Request, { params }: { params: { slug: string } }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
   try {
-    const { slug } = params
+    const { slug } = await params
     const [row] = await sql`
       SELECT
         count(*) FILTER (WHERE s.last_beat_at > now() - interval '15 seconds')::int AS watching,

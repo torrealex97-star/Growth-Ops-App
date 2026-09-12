@@ -13,8 +13,8 @@ function originOf(u: string | null | undefined): string | null {
   }
 }
 
-export default async function VslEmbedPage({ params }: { params: { slug: string } }) {
-  const { slug } = params
+export default async function VslEmbedPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
   const [video] = await sql`
     SELECT slug, name, source_url, poster_url, duration_seconds, config
     FROM vsl_videos WHERE slug = ${slug} LIMIT 1

@@ -2,12 +2,15 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useTenantBranding } from '@/lib/tenant-context'
 import { Loader2, Mail, Lock } from 'lucide-react'
 
-export default function LoginPage({ params }: { params: { tenant: string } }) {
-  const tenant = params.tenant
+// Next.js 15: `params` pasa a ser una Promise — useParams() de next/navigation sigue siendo
+// síncrono en Client Components, evita React.use() (requiere React 19).
+export default function LoginPage() {
+  const { tenant } = useParams<{ tenant: string }>()
   const branding = useTenantBranding()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
