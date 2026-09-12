@@ -1,6 +1,4 @@
-import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { generateTrackingCode } from '@/lib/tracking'
 import { requireTenant } from '@/lib/auth/requireTenant'
@@ -27,26 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       if ('error' in t) return t.error
       tenantId = t.tenantId
 
-      const cookieStore = await cookies()
-      const authed = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-          cookies: {
-            getAll() {
-              return cookieStore.getAll()
-            },
-            setAll() {},
-          },
-        }
-      )
-      const {
-        data: { user },
-      } = await authed.auth.getUser()
-      if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-      const { data: urow } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
-      const role = (urow?.roles as { key?: string } | null)?.key
-      if (!t.isSuperAdmin && !['admin', 'director'].includes(role || '')) {
+      if (!t.isSuperAdmin && !['admin', 'director'].includes(t.role || '')) {
         return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
       }
     } else {
@@ -75,19 +54,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     const used = new Set<string>()
-    const mapping: { id: string; name: string | null; old: string | null; new: string }[] = []
-    let updated = 0
+    const toUpdate: { id: string; name: string | null; old: string | null; new: string }[] = []
     for (const u of users ?? []) {
       let code = generateTrackingCode()
       while (used.has(code)) code = generateTrackingCode()
       used.add(code)
-      const { error: upErr } = await sb.from('users').update({ tracking_code: code }).eq('id', u.id)
-      if (upErr) continue
-      mapping.push({ id: u.id, name: u.full_name, old: u.tracking_code, new: code })
-      updated++
+      toUpdate.push({ id: u.id, name: u.full_name, old: u.tracking_code, new: code })
     }
 
-    return NextResponse.json({ ok: true, total: users?.length ?? 0, updated, mapping })
+    // Un solo upsert por PK en vez de un UPDATE individual por usuario — es un endpoint
+    // admin de uso ocasional, pero no cuesta nada batchearlo igual. Si falla, no hay
+    // actualizaciones parciales que reportar como si hubieran ocurrido.
+    let mapping: typeof toUpdate = []
+    if (toUpdate.length) {
+      const { error: upErr } = await sb
+        .from('users')
+        .upsert(toUpdate.map(({ id, new: code }) => ({ id, tracking_code: code })))
+      if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 })
+      mapping = toUpdate
+    }
+
+    return NextResponse.json({ ok: true, total: users?.length ?? 0, updated: mapping.length, mapping })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }

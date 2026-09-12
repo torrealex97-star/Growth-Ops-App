@@ -20,8 +20,7 @@ async function requireAdmin(
 ): Promise<{ ok: true; callerId: string; tenantId: string; isSuperAdmin: boolean } | { ok: false; res: NextResponse }> {
   const t = await requireTenant(tenantSlug)
   if ('error' in t) return { ok: false, res: t.error }
-  const { data: callerRow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-  const callerRole = (callerRow?.roles as { key?: string } | null)?.key
+  const callerRole = t.role
   if (!t.isSuperAdmin && callerRole !== 'admin' && callerRole !== 'director') {
     return { ok: false, res: NextResponse.json({ error: 'No autorizado' }, { status: 403 }) }
   }

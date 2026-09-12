@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { getInitials } from '@/lib/utils'
 import { performLogout } from '@/lib/auth/logout'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { User } from '@/lib/types/database'
 import { NAV_SECTIONS, makeNavFilter, type NavItem } from '@/lib/nav'
@@ -30,7 +30,22 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
   const relPathname = pathname.replace(new RegExp(`^/${tenant}`), '') || '/'
   const role = user.roles.key as AppRole
   const u = user as unknown as { dept_overrides?: string[] | null; page_overrides?: string[] | null }
-  const isVisible = makeNavFilter(role, u?.dept_overrides, u?.page_overrides)
+  const deptOverrides = u?.dept_overrides
+  const pageOverrides = u?.page_overrides
+  const isVisible = useMemo(
+    () => makeNavFilter(role, deptOverrides, pageOverrides),
+    [role, deptOverrides, pageOverrides]
+  )
+  // NAV_SECTIONS es estática y `isVisible` solo cambia si cambian rol/overrides — sin memo, cada
+  // render del Sidebar (incluido cada toggle de una sola sección) recorría y filtraba TODO el
+  // árbol de navegación de nuevo.
+  const visibleSections = useMemo(
+    () =>
+      NAV_SECTIONS.map((section) => ({ section, visibleItems: section.items.filter(isVisible) })).filter(
+        ({ visibleItems }) => visibleItems.length > 0
+      ),
+    [isVisible]
+  )
   const [loggingOut, setLoggingOut] = useState(false)
 
   // Secciones colapsables (estilo Notion). Se recuerda el estado en localStorage.
@@ -110,9 +125,7 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
-          {NAV_SECTIONS.map((section) => {
-            const visibleItems = section.items.filter(isVisible)
-            if (visibleItems.length === 0) return null
+          {visibleSections.map(({ section, visibleItems }) => {
             // El usuario puede minimizar cualquier sección, aunque contenga la ruta activa
             // (antes "ventas" no se podía recoger nunca porque casi siempre hay una página
             // activa dentro de ella: Leads, Agendas, Ventas... y eso forzaba a mantenerla

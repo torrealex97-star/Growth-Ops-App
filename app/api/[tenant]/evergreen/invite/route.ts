@@ -55,8 +55,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    const { data: callerRow } = await supabase.from('users').select('roles(key)').eq('id', t.userId).single()
-    const callerRole = (callerRow?.roles as { key?: string } | null)?.key
+    const callerRole = t.role
     if (!t.isSuperAdmin && callerRole !== 'admin' && callerRole !== 'director') {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }

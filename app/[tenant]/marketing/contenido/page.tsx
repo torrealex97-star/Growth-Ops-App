@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { activeUserNamesQuery } from '@/lib/users'
 import {
   Clapperboard,
   Plus,
@@ -158,7 +159,7 @@ export default function ContentPage() {
         .from('content_items')
         .select('*, assignee:assigned_to(full_name)')
         .order('created_at', { ascending: false }),
-      supabase.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
+      activeUserNamesQuery(supabase),
       supabase.auth.getUser(),
     ])
     setItems((cRes.data as Content[]) || [])

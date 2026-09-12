@@ -9,6 +9,7 @@ import { Video, ExternalLink, FileText, Star, EyeOff, Eye, Drama, Plus, Trash2, 
 import { formatDateTime } from '@/lib/utils'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import { createClient } from '@/lib/supabase/client'
+import { activeUserNamesQuery } from '@/lib/users'
 import type { Roleplay } from '@/lib/types/database'
 import { toast } from 'sonner'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
@@ -93,7 +94,7 @@ export default function BibliotecaPage() {
     const sb = createClient()
     const [{ data: rps }, { data: us }] = await Promise.all([
       sb.from('roleplays').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }),
-      sb.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
+      activeUserNamesQuery(sb),
     ])
     setRoleplays((rps as Roleplay[]) ?? [])
     setTeamUsers((us as TeamUser[]) ?? [])

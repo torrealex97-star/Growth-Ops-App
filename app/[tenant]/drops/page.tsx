@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { activeUserNamesQuery } from '@/lib/users'
 import { UserMinus, Plus, X, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -185,7 +186,7 @@ export default function DropsPage() {
         .select('*, contacts(full_name), handler:handled_by(full_name)')
         .order('created_at', { ascending: false }),
       supabase.from('contacts').select('id, full_name').order('full_name').limit(300),
-      supabase.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
+      activeUserNamesQuery(supabase),
     ])
     setItems((dRes.data as DropRow[]) || [])
     setContacts((cRes.data as Contact[]) || [])

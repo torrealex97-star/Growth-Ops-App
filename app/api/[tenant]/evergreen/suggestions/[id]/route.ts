@@ -16,8 +16,7 @@ async function requireAdmin(tenantSlug: string) {
   const t = await requireTenant(tenantSlug)
   if ('error' in t) return { error: 'No autenticado', status: 401 as const }
   const sb = serviceClient()
-  const { data } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-  const role = (data?.roles as { key?: string } | null)?.key
+  const role = t.role
   if (role !== 'admin' && role !== 'director') return { error: 'Sin permisos', status: 403 as const }
   return { ok: true as const, tenantId: t.tenantId }
 }

@@ -16,8 +16,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     // 2) Comprobar rol admin/director
     const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { data: me } = await admin.from('users').select('roles(key)').eq('id', t.userId).single()
-    const role = (me as { roles?: { key?: string } })?.roles?.key
+    const role = t.role
     if (!t.isSuperAdmin && (!role || !['admin', 'director'].includes(role))) {
       return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
     }

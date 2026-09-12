@@ -154,7 +154,8 @@ export async function generateCommissionsForCollection(
 export async function reconcileSaleCommissions(
   sb: SupabaseClient,
   saleId: string,
-  alsoRecompute: { repId: string | null | undefined; role: Role }[] = []
+  alsoRecompute: { repId: string | null | undefined; role: Role }[] = [],
+  opts: { skipTierRecompute?: boolean } = {}
 ): Promise<{ created: number; deleted: number; keptLiquidated: number }> {
   const { data: sale } = await sb.from('sales').select('*').eq('id', saleId).single()
   if (!sale) return { created: 0, deleted: 0, keptLiquidated: 0 }
@@ -227,12 +228,18 @@ export async function reconcileSaleCommissions(
     await sb.from('commissions').insert(toInsert)
   }
 
-  // Recalcula tramos: reps actuales de la venta + los que se indiquen (p.ej. reps anteriores al cambio)
-  await recomputeRepCommissionTiers(sb, [
-    { repId: s.setter_id, role: 'setter' },
-    { repId: s.closer_id, role: 'closer' },
-    ...alsoRecompute,
-  ])
+  // Recalcula tramos: reps actuales de la venta + los que se indiquen (p.ej. reps anteriores al cambio).
+  // skipTierRecompute lo usa la reparación masiva (reconcile-all): recalcular el tramo de un rep
+  // DESPUÉS de cada una de sus N ventas (en vez de una vez al final, con el cash ya consolidado)
+  // es trabajo repetido — recomputeRepCommissionTiers es idempotente, así que el resultado final
+  // es el mismo, pero recalculándolo N veces por rep en vez de 1 es el N+1 real de ese endpoint.
+  if (!opts.skipTierRecompute) {
+    await recomputeRepCommissionTiers(sb, [
+      { repId: s.setter_id, role: 'setter' },
+      { repId: s.closer_id, role: 'closer' },
+      ...alsoRecompute,
+    ])
+  }
 
   return { created: toInsert.length, deleted: toDelete.length, keptLiquidated: liqKeys.size }
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { activeUserNamesQuery } from '@/lib/users'
 import { CalendarCheck, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
@@ -78,7 +79,7 @@ export default function CsmEventsPage() {
         .from('csm_events')
         .select('*, contacts(full_name), csm:csm_id(full_name)')
         .order('event_datetime', { ascending: false }),
-      supabase.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
+      activeUserNamesQuery(supabase),
     ])
     setItems((eRes.data as CsmEventRow[]) || [])
     setCsmUsers((uRes.data as DbUser[]) || [])

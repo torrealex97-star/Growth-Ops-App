@@ -26,8 +26,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    const { data: urow } = await sb.from('users').select('roles(key)').eq('id', t.userId).single()
-    const role = (urow?.roles as { key?: string } | null)?.key || ''
+    const role = t.role || ''
     if (!t.isSuperAdmin && !ALLOWED_ROLES.includes(role))
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 

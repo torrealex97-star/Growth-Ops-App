@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { activeUserNamesQuery } from '@/lib/users'
 import { ListChecks, Plus, Sparkles, X, Loader2, Trash2, Calendar } from 'lucide-react'
 import { toast } from 'sonner'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
@@ -100,7 +101,7 @@ export default function TasksPage() {
     const supabase = createClient()
     const [tRes, uRes, authRes] = await Promise.all([
       supabase.from('tasks').select('*, assignee:assignee_id(full_name)').order('created_at', { ascending: false }),
-      supabase.from('users').select('id, full_name').eq('is_active', true).order('full_name'),
+      activeUserNamesQuery(supabase),
       supabase.auth.getUser(),
     ])
     setTasks((tRes.data as Task[]) || [])
