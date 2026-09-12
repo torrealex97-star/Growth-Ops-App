@@ -53,6 +53,10 @@ jobs:
       - name: Build (con placeholders de env — no toca Supabase real)
         run: npm run build
         env:
+          # La fase de recopilación/prerender también supera el heap V8 por defecto
+          # en GitHub Actions, aunque el mismo build termina en local y Vercel.
+          NODE_OPTIONS: --max-old-space-size=4096
+          NEXT_TELEMETRY_DISABLED: 1
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
           SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
