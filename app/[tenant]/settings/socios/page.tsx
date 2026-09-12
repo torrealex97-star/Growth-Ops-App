@@ -76,7 +76,9 @@ export default function SociosSettingsPage() {
       toast.error('No se pudo añadir el socio', { description: error.message })
       return
     }
-    setPartners((prev) => [...prev, data as Partner].sort((a, b) => Number(b.profit_percent) - Number(a.profit_percent)))
+    setPartners((prev) =>
+      [...prev, data as Partner].sort((a, b) => Number(b.profit_percent) - Number(a.profit_percent))
+    )
     setNName('')
     setNPercent('')
     setNNotes('')
@@ -147,7 +149,9 @@ export default function SociosSettingsPage() {
             {partners.map((p) => (
               <div key={p.id} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2.5">
                 <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-medium truncate ${p.is_active ? 'text-foreground' : 'text-muted-foreground line-through'}`}>
+                  <p
+                    className={`text-sm font-medium truncate ${p.is_active ? 'text-foreground' : 'text-muted-foreground line-through'}`}
+                  >
                     {p.name}
                   </p>
                   {p.notes && <p className="text-xs text-muted-foreground truncate">{p.notes}</p>}
