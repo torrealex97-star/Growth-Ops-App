@@ -14,7 +14,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   const user = await getCarruselUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   const body = await req.json().catch(() => ({}))
-  const updated = await updateProject(id, {
+  const updated = await updateProject(t.tenantId, id, {
     caption: typeof body.caption === 'string' ? body.caption : undefined,
     hashtags: Array.isArray(body.hashtags) ? body.hashtags : undefined,
   })

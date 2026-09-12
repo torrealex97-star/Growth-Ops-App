@@ -17,7 +17,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   const body = await req.json().catch(() => ({}))
   if (typeof body.html !== 'string' || !body.html.trim())
     return NextResponse.json({ error: 'html requerido' }, { status: 400 })
-  const slide = await addSlide(id, body.html, body.notes || '')
+  const slide = await addSlide(t.tenantId, id, body.html, body.notes || '')
   if (!slide) return NextResponse.json({ error: 'No se pudo añadir (límite o proyecto inexistente)' }, { status: 400 })
   return NextResponse.json(slide)
 }
@@ -31,7 +31,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   const body = await req.json().catch(() => ({}))
   if (!Array.isArray(body.slideIds)) return NextResponse.json({ error: 'slideIds requerido' }, { status: 400 })
-  const ok = await reorderSlides(id, body.slideIds)
+  const ok = await reorderSlides(t.tenantId, id, body.slideIds)
   if (!ok) return NextResponse.json({ error: 'Reordenación inválida' }, { status: 400 })
   return NextResponse.json({ ok: true })
 }

@@ -13,7 +13,7 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
   if ('error' in t) return t.error
   const user = await getCarruselUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  const dup = await duplicateProject(id)
+  const dup = await duplicateProject(t.tenantId, id)
   if (!dup) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   return NextResponse.json(dup)
 }

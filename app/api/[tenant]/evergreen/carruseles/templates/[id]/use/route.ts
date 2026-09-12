@@ -13,7 +13,7 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
   if ('error' in t) return t.error
   const user = await getCarruselUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  const project = await createProjectFromTemplate(id)
+  const project = await createProjectFromTemplate(t.tenantId, id)
   if (!project) return NextResponse.json({ error: 'Plantilla no encontrada' }, { status: 404 })
   return NextResponse.json(project)
 }

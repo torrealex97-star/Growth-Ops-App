@@ -15,6 +15,6 @@ export async function DELETE(req: NextRequest, { params }: Ctx) {
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   const imageId = new URL(req.url).searchParams.get('imageId')
   if (!imageId) return NextResponse.json({ error: 'imageId requerido' }, { status: 400 })
-  await removeReferenceImage(id, imageId)
+  await removeReferenceImage(t.tenantId, id, imageId)
   return NextResponse.json({ ok: true })
 }

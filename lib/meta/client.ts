@@ -171,7 +171,22 @@ function proofParam(cfg: MetaConfig): string {
 }
 
 async function graphGet(url: string): Promise<any> {
-  const res = await fetch(url, { cache: 'no-store' })
+  // Timeout duro: sin esto, si la Graph API de Meta se cuelga, el cron consume toda su ventana
+  // (maxDuration) en esta única llamada — mismo patrón que lib/calendly.ts. graphGetAll pagina
+  // llamando a esta función en bucle, así que sin timeout un solo hueco cuelga toda la sync.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 15000)
+  let res: Response
+  try {
+    res = await fetch(url, { cache: 'no-store', signal: controller.signal })
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('Meta API tardó demasiado en responder (timeout)')
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
   const json = await res.json()
   if (!res.ok || json?.error) {
     const err = json?.error

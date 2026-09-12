@@ -13,7 +13,7 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
   if ('error' in t) return t.error
   const user = await getCarruselUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  const slide = await undoSlide(id, slideId)
+  const slide = await undoSlide(t.tenantId, id, slideId)
   if (!slide) return NextResponse.json({ error: 'Sin versión anterior' }, { status: 400 })
   return NextResponse.json(slide)
 }

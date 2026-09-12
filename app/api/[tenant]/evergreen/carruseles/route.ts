@@ -14,7 +14,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   if ('error' in t) return t.error
   const user = await getCarruselUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  const projects = await listProjects()
+  const projects = await listProjects(t.tenantId)
   return NextResponse.json({ projects })
 }
 
@@ -33,6 +33,6 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     : kind === 'flyer'
       ? 'A4'
       : '4:5'
-  const project = await createProject(title, kind, aspectRatio, user.id)
+  const project = await createProject(t.tenantId, title, kind, aspectRatio, user.id)
   return NextResponse.json(project)
 }

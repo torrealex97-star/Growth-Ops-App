@@ -20,12 +20,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     const { saleId, grossAmount, method, collectedAt, commissionableAmount } = await req.json()
     const amount = Number(grossAmount)
-    if (!saleId || !amount || amount <= 0) {
+    if (!saleId || !Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json({ error: 'Parámetros inválidos' }, { status: 400 })
     }
     // Comisionable explícito (opcional): para cobros donde el importe ya ES la parte comisionable
     // y NO hay que re-aplicar el ratio del plan (p.ej. el adelanto de Sequra, que recibimos neto).
+    // Nunca puede ser negativo ni superar lo realmente cobrado (amount) — sin este tope, un valor
+    // mal formado (o manipulado en un curl directo) podía generar comisiones sobre más dinero del
+    // que realmente entró.
     const explicitCommissionable = commissionableAmount != null ? Number(commissionableAmount) : null
+    if (explicitCommissionable != null && (!Number.isFinite(explicitCommissionable) || explicitCommissionable < 0)) {
+      return NextResponse.json({ error: 'commissionableAmount inválido' }, { status: 400 })
+    }
+    if (explicitCommissionable != null && explicitCommissionable > amount) {
+      return NextResponse.json({ error: 'commissionableAmount no puede superar el importe cobrado' }, { status: 400 })
+    }
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const role = t.role

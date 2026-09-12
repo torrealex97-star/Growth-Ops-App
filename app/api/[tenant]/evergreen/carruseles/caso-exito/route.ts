@@ -176,10 +176,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       { status: 502 }
     )
 
-  const project = await createProject(spec.title, 'carousel', '4:5', user.id)
+  const project = await createProject(t.tenantId, spec.title, 'carousel', '4:5', user.id)
 
   // La foto queda también como imagen de referencia para poder seguir editando por chat.
-  await addReferenceImage(project.id, {
+  await addReferenceImage(t.tenantId, project.id, {
     id: crypto.randomUUID(),
     url: photoUrl,
     name: `${spec.name} (caso de éxito)`,
@@ -189,10 +189,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const html = buildCasoExitoSlides(spec, photoUrl)
   for (const [i, h] of html.entries()) {
     const notes = i === 0 ? 'Portada con foto' : i === html.length - 1 ? 'CTA · clase gratuita' : `Contenido ${i}`
-    await addSlide(project.id, h, notes)
+    await addSlide(t.tenantId, project.id, h, notes)
   }
 
-  await updateProject(project.id, {
+  await updateProject(t.tenantId, project.id, {
     caption: buildCaption(spec.caption),
     hashtags: spec.hashtags?.length ? spec.hashtags : ['CasoDeExito'],
   })
