@@ -15,7 +15,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { User } from '@/lib/types/database'
 import { NAV_SECTIONS, makeNavFilter, type NavItem } from '@/lib/nav'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantBranding } from '@/lib/tenant-context'
 
 interface SidebarProps {
   user: User & { roles: { key: string; name: string } }
@@ -27,6 +27,7 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const tenant = useTenant()
+  const branding = useTenantBranding()
   const relPathname = pathname.replace(new RegExp(`^/${tenant}`), '') || '/'
   const role = user.roles.key as AppRole
   const u = user as unknown as { dept_overrides?: string[] | null; page_overrides?: string[] | null }
@@ -113,10 +114,12 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
         {/* Logo */}
         <div className="flex items-center justify-between px-6 py-6 border-b border-[#26262A]">
           <div className="flex items-center gap-2.5">
-            <div className="relative flex h-9 w-9 items-center justify-center" aria-label="Scalix Systems">
-              <span className="text-[34px] font-semibold leading-none tracking-[-0.18em] text-white">S</span>
+            <div className="relative flex h-9 w-9 items-center justify-center" aria-label={branding.name}>
+              <span className="text-[34px] font-semibold leading-none tracking-[-0.18em] text-white">
+                {branding.name.charAt(0)}
+              </span>
             </div>
-            <span className="font-sans font-semibold text-white text-lg tracking-tight">Scalix Systems</span>
+            <span className="font-sans font-semibold text-white text-lg tracking-tight">{branding.name}</span>
           </div>
           <Button variant="ghost" size="icon" className="lg:hidden h-8 w-8" onClick={onClose}>
             <X className="w-4 h-4" />

@@ -8,6 +8,40 @@
   --dark-bg: #0f0f1a;
   --dark-card: #1a1a2e;
   --dark-border: #2a2a3e;
+
+  /* Rampa de color de marca (azul eléctrico) — default, tenant "evergreen"/data-accent="brand".
+     Formato "H S% L%" sin hsl() para que tailwind.config.ts pueda envolverlas en
+     hsl(var(--brand-N) / <alpha-value>) y soportar modificadores de opacidad (bg-brand-600/50). */
+  --brand-50: 208 100% 96%;
+  --brand-100: 208 100% 92%;
+  --brand-200: 207 100% 85%;
+  --brand-300: 207 100% 74%;
+  --brand-400: 208 100% 62%;
+  --brand-500: 206 100% 56%;
+  --brand-600: 208 92% 49%;
+  --brand-700: 210 90% 40%;
+  --brand-800: 210 85% 33%;
+  --brand-900: 211 76% 28%;
+  --brand-950: 212 76% 18%;
+}
+
+/* Fase 10 — branding por tenant: WDC (women-digital-closer) usa acento rosa en vez del azul por
+   defecto. app/[tenant]/layout.tsx pone data-accent="pink" en <html> según
+   tenants.settings.branding.accent (ver supabase/migrations/20260912110000_tenant_branding.sql).
+   Misma rampa de 11 pasos que --brand-*, derivada de los tokens --pink-primary/--pink-light ya
+   existentes (antes definidos pero sin usar en ningún componente). */
+[data-accent='pink'] {
+  --brand-50: 338 73% 97%;
+  --brand-100: 339 74% 94%;
+  --brand-200: 338 74% 86%;
+  --brand-300: 338 72% 77%;
+  --brand-400: 340 72% 68%;
+  --brand-500: 335 59% 58%;
+  --brand-600: 336 55% 53%;
+  --brand-700: 337 50% 43%;
+  --brand-800: 337 50% 33%;
+  --brand-900: 337 51% 25%;
+  --brand-950: 337 51% 15%;
 }
 
 * {

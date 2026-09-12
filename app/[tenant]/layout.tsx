@@ -7,6 +7,7 @@ import { Sidebar } from '@/components/os/Sidebar'
 import { Header } from '@/components/os/Header'
 import { allowedPrefixesFor, isLeadership, type AppRole } from '@/lib/auth/permissions'
 import { TenantProvider } from '@/lib/tenant-context'
+import { resolveTenantBranding, type TenantBranding } from '@/lib/tenant-branding'
 import { performLogout } from '@/lib/auth/logout'
 import type { User } from '@/lib/types/database'
 import { FileSignature, LogOut } from 'lucide-react'
@@ -38,6 +39,7 @@ export default function TenantLayout({ children, params }: { children: React.Rea
   const [noTenantAccess, setNoTenantAccess] = useState(false)
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [tenantId, setTenantId] = useState<string | null>(null)
+  const [branding, setBranding] = useState<TenantBranding>(() => resolveTenantBranding(null))
   const [contractGate, setContractGate] = useState<ContractGate | null>(null)
   const router = useRouter()
   const pathname = usePathname()
@@ -56,6 +58,13 @@ export default function TenantLayout({ children, params }: { children: React.Rea
   useEffect(() => {
     document.body.style.pointerEvents = ''
   }, [pathname])
+
+  // Acento de color por tenant (Fase 10): en <html>, no en un wrapper interno, porque las
+  // pantallas de login/recover/carga/error se renderizan FUERA del shell (antes de que exista
+  // ningún contenedor propio de esta subcuenta) y deben verse igual de rebrandeadas que el resto.
+  useEffect(() => {
+    document.documentElement.dataset.accent = branding.accent
+  }, [branding.accent])
 
   // La red de seguridad anterior solo actuaba al cambiar de RUTA. Pero el bug reportado
   // ("se queda bloqueada la app al usar los filtros de Ventas") ocurre SIN navegar: al
@@ -82,6 +91,24 @@ export default function TenantLayout({ children, params }: { children: React.Rea
     observer.observe(document.body, { attributes: true, attributeFilter: ['style'] })
     return () => observer.disconnect()
   }, [])
+
+  // Branding: se resuelve SIEMPRE, incluso en login/recover — esas páginas están fuera del
+  // `if (isAuthRoute)` de más abajo (que corta antes de tocar Supabase para no exigir sesión
+  // donde no la hay), pero también deben verse con la marca/acento de esta subcuenta.
+  useEffect(() => {
+    let mounted = true
+    createClient()
+      .from('tenants')
+      .select('settings')
+      .eq('slug', tenant)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (mounted && data) setBranding(resolveTenantBranding(data.settings))
+      })
+    return () => {
+      mounted = false
+    }
+  }, [tenant])
 
   useEffect(() => {
     // Skip auth/tenant checks on login/recover pages
@@ -192,7 +219,7 @@ export default function TenantLayout({ children, params }: { children: React.Rea
   // Auth pages render without sidebar
   if (isAuthRoute) {
     return (
-      <TenantProvider tenant={tenant} tenantId={tenantId}>
+      <TenantProvider tenant={tenant} tenantId={tenantId} branding={branding}>
         <div className="dark">{children}</div>
       </TenantProvider>
     )
@@ -203,7 +230,7 @@ export default function TenantLayout({ children, params }: { children: React.Rea
       <div className="dark flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <div className="w-8 h-8 rounded-lg bg-brand-600 animate-pulse" />
-          <p className="text-muted-foreground text-sm">Cargando Scalix Systems...</p>
+          <p className="text-muted-foreground text-sm">Cargando {branding.name}...</p>
         </div>
       </div>
     )
@@ -309,7 +336,7 @@ export default function TenantLayout({ children, params }: { children: React.Rea
   }
 
   return (
-    <TenantProvider tenant={tenant} tenantId={tenantId}>
+    <TenantProvider tenant={tenant} tenantId={tenantId} branding={branding}>
       <ScriptQueueProvider>
         <div className="flex h-screen bg-background text-foreground overflow-hidden" data-theme="os">
           <Sidebar user={user} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />

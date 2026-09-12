@@ -3,10 +3,12 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { useTenantBranding } from '@/lib/tenant-context'
 import { Loader2, Mail, Lock } from 'lucide-react'
 
 export default function LoginPage({ params }: { params: { tenant: string } }) {
   const tenant = params.tenant
+  const branding = useTenantBranding()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -66,7 +68,7 @@ export default function LoginPage({ params }: { params: { tenant: string } }) {
         <div className="flex flex-col items-center mb-8">
           <div className="mb-3 flex items-center gap-3">
             <span className="text-5xl font-semibold leading-none tracking-[-0.16em] text-white">S</span>
-            <span className="text-2xl font-semibold tracking-tight text-white">Scalix Systems</span>
+            <span className="text-2xl font-semibold tracking-tight text-white">{branding.name}</span>
           </div>
           <p className="text-muted-foreground text-sm mt-1 font-display">{tenant}</p>
         </div>
@@ -146,7 +148,7 @@ export default function LoginPage({ params }: { params: { tenant: string } }) {
           </div>
         </div>
 
-        <p className="text-center text-xs text-muted-foreground mt-6">Scalix Systems · Acceso privado del equipo</p>
+        <p className="text-center text-xs text-muted-foreground mt-6">{branding.name} · Acceso privado del equipo</p>
       </div>
     </div>
   )
