@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+const serviceClient = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
@@ -10,6 +10,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   if ('error' in t) return t.error
 
   try {
+    const supabase = serviceClient()
     const saleId = new URL(req.url).searchParams.get('saleId')
     if (!saleId) {
       return NextResponse.json({ error: 'Missing saleId' }, { status: 400 })

@@ -9,6 +9,7 @@ import {
   marketingDestinationFor,
   permissionLocationFor,
 } from '../lib/marketing-navigation.ts'
+import nextConfig from '../next.config.js'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 
@@ -46,6 +47,16 @@ test('todas las rutas históricas apuntan al deep-link esperado', () => {
   assert.deepEqual(LEGACY_MARKETING_ROUTES, expected)
   for (const [source, destination] of Object.entries(expected)) {
     assert.equal(marketingDestinationFor(source), destination)
+  }
+})
+
+test('las rutas históricas responden con 301 real, no con el 308 de permanent', async () => {
+  const redirects = await nextConfig.redirects()
+
+  assert.ok(redirects.length > 0)
+  for (const redirect of redirects) {
+    assert.equal(redirect.statusCode, 301, `${redirect.source} no devuelve 301`)
+    assert.equal('permanent' in redirect, false, `${redirect.source} conserva permanent y Next.js lo convierte en 308`)
   }
 })
 
