@@ -579,7 +579,7 @@ export default function ContactDetailPage({ params }: { params: { id: string } }
                 onChange={(e) => setNewNote(e.target.value)}
                 rows={2}
                 placeholder="Escribe una nota sobre este contacto..."
-                className="flex-1 bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500 resize-none"
+                className="flex-1 bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500 resize-none"
               />
               <Button onClick={handleAddNote} disabled={savingNote || !newNote.trim()} className="self-end">
                 <Send className="w-4 h-4 mr-2" />

@@ -161,7 +161,7 @@ function matchesOnbView(row: StudentRow, view: OnbView): boolean {
 }
 
 const cls =
-  'text-xs rounded-md border border-border bg-muted text-foreground px-2 py-1 focus:outline-none focus:border-brand-500'
+  'text-xs rounded-md border border-border bg-muted text-foreground px-2 py-1 focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500'
 
 const FUNNEL_TONE: Record<string, string> = {
   muted: 'text-foreground',

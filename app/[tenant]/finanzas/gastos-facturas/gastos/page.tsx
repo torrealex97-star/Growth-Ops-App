@@ -1171,7 +1171,11 @@ export default function ExpensesPage() {
           >
             <div className="flex items-center justify-between">
               <h3 className="text-foreground font-semibold">Nuevo gasto</h3>
-              <button onClick={resetNewModal} className="text-muted-foreground hover:text-foreground">
+              <button
+                onClick={resetNewModal}
+                aria-label="Cerrar"
+                className="text-muted-foreground hover:text-foreground"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -1326,7 +1330,7 @@ export default function ExpensesPage() {
           >
             <div className="flex items-center justify-between">
               <h3 className="text-foreground font-semibold">Editar gasto</h3>
-              <button onClick={closeEdit} className="text-muted-foreground hover:text-foreground">
+              <button onClick={closeEdit} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground">
                 <X className="w-4 h-4" />
               </button>
             </div>
