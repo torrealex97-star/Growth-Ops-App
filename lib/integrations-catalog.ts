@@ -15,10 +15,24 @@ export type IntegrationField = {
   hidden?: boolean
 }
 
+// Categoría para agrupar visualmente el catálogo en Configuración → Integraciones.
+export type IntegrationCategory = 'marketing' | 'ventas' | 'pagos' | 'comunicacion' | 'ia' | 'seguridad' | 'negocio'
+
+export const CATEGORY_LABELS: Record<IntegrationCategory, string> = {
+  marketing: 'Marketing y publicidad',
+  ventas: 'Ventas y agenda',
+  pagos: 'Pagos y cobros',
+  comunicacion: 'Comunicación',
+  ia: 'Inteligencia artificial y reuniones',
+  seguridad: 'Seguridad y tracking',
+  negocio: 'Negocio',
+}
+
 export type IntegrationGroup = {
   id: string
   title: string
   description: string
+  category: IntegrationCategory
   test?: boolean // si hay acción "probar conexión"
   required?: string[] // claves mínimas para considerar operativa la integración
   fields: IntegrationField[]
@@ -29,6 +43,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     id: 'meta',
     title: 'Meta Ads',
     description: 'Sincroniza el gasto y los leads de tus campañas de Meta.',
+    category: 'marketing',
     test: true,
     required: ['META_ACCESS_TOKEN'],
     fields: [
@@ -68,6 +83,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     id: 'instagram',
     title: 'Instagram',
     description: 'Analítica orgánica, transcripción de reels y guiones.',
+    category: 'marketing',
     test: true,
     required: ['IG_USER_ID'],
     fields: [
@@ -94,6 +110,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     id: 'calendly',
     title: 'Calendly',
     description: 'Agendas automáticas y cancelación desde la app.',
+    category: 'ventas',
     test: true,
     required: ['CALENDLY_API_TOKEN', 'CALENDLY_WEBHOOK_SECRET'],
     fields: [
@@ -105,6 +122,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     id: 'fathom',
     title: 'Fathom',
     description: 'Importa reuniones, grabaciones, resúmenes y transcripciones; incluye el servidor MCP oficial.',
+    category: 'ia',
     test: true,
     required: ['FATHOM_API_KEY'],
     fields: [
@@ -129,6 +147,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     id: 'email',
     title: 'Email (Resend)',
     description: 'Envío de invitaciones, recuperación y contratos.',
+    category: 'comunicacion',
     test: true,
     required: ['RESEND_API_KEY', 'RESEND_FROM'],
     fields: [
@@ -146,6 +165,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     id: 'stripe',
     title: 'Stripe',
     description: 'Verifica cobros con Stripe y coteja los pagos del proveedor con los registrados en la app.',
+    category: 'pagos',
     test: true,
     required: ['STRIPE_SECRET_KEY'],
     fields: [
@@ -171,6 +191,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     id: 'ghl',
     title: 'GoHighLevel',
     description: 'CRM: contactos, citas (sustituye Calendly), pipeline y conversaciones.',
+    category: 'ventas',
     test: true,
     required: ['GHL_API_TOKEN', 'GHL_LOCATION_ID', 'GHL_WEBHOOK_SECRET'],
     fields: [
@@ -225,6 +246,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     id: 'ai',
     title: 'Inteligencia artificial',
     description: 'Generación de contenido, análisis, roleplays y transcripción de llamadas y reels.',
+    category: 'ia',
     test: true,
     required: ['ANTHROPIC_API_KEY', 'GROQ_API_KEY'],
     fields: [
@@ -257,6 +279,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     id: 'youtube',
     title: 'YouTube',
     description: 'Publica reels como Shorts y sincroniza sus métricas.',
+    category: 'marketing',
     test: true,
     required: ['YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET', 'YOUTUBE_REFRESH_TOKEN'],
     fields: [
@@ -269,6 +292,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     id: 'sequra',
     title: 'SeQura',
     description: 'Consulta financiación, deuda y morosidad para cotejar las cuotas.',
+    category: 'pagos',
     test: true,
     required: ['SEQURA_MCP_TOKEN'],
     fields: [
@@ -285,6 +309,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     id: 'creatuagente',
     title: 'Creatuagente',
     description: 'Notifica citas y ventas al agente externo del funnel de Setting IA.',
+    category: 'ventas',
     test: true,
     required: ['CREATUAGENTE_WEBHOOK_URL', 'CREATUAGENTE_WEBHOOK_SECRET'],
     fields: [
@@ -293,9 +318,85 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     ],
   },
   {
+    id: 'hotmart',
+    title: 'Hotmart',
+    description: 'Cotejo de compras y suscripciones de tus productos vendidos en Hotmart.',
+    category: 'pagos',
+    test: true,
+    required: ['HOTMART_CLIENT_ID', 'HOTMART_CLIENT_SECRET'],
+    fields: [
+      {
+        key: 'HOTMART_CLIENT_ID',
+        label: 'Client ID',
+        type: 'text',
+        secret: false,
+        help: 'Credencial de la API de Hotmart (Herramientas → Credenciales).',
+      },
+      { key: 'HOTMART_CLIENT_SECRET', label: 'Client Secret', type: 'password', secret: true },
+      {
+        key: 'HOTMART_WEBHOOK_SECRET',
+        label: 'Webhook Secret (Hottok)',
+        type: 'password',
+        secret: true,
+        help: 'Token que valida los webhooks entrantes de compra/suscripción/reembolso de Hotmart.',
+      },
+    ],
+  },
+  {
+    id: 'whop',
+    title: 'Whop',
+    description: 'Cotejo de membresías y pagos de tu comunidad en Whop.',
+    category: 'pagos',
+    test: true,
+    required: ['WHOP_API_KEY'],
+    fields: [
+      {
+        key: 'WHOP_API_KEY',
+        label: 'API Key',
+        type: 'password',
+        secret: true,
+        help: 'Clave de la API de Whop (Developer Settings) con acceso de lectura a membresías y pagos.',
+      },
+      {
+        key: 'WHOP_WEBHOOK_SECRET',
+        label: 'Webhook Secret',
+        type: 'password',
+        secret: true,
+        help: 'Firma que valida los webhooks entrantes de Whop (altas/bajas/pagos de membresía).',
+      },
+    ],
+  },
+  {
+    id: 'skool',
+    title: 'Skool',
+    description: 'Cotejo de miembros y pagos de tu comunidad/curso en Skool.',
+    category: 'pagos',
+    // Skool no expone una API pública oficial y estable para verificar credenciales — a diferencia
+    // de Hotmart/Whop, aquí no hay "Probar conexión" (sin test:true); se guarda igualmente para
+    // poder usarse en webhooks/cotejo manual.
+    required: ['SKOOL_API_KEY'],
+    fields: [
+      {
+        key: 'SKOOL_API_KEY',
+        label: 'API Key',
+        type: 'password',
+        secret: true,
+        help: 'Clave de la API de Skool con acceso de lectura a miembros y pagos de la comunidad.',
+      },
+      {
+        key: 'SKOOL_WEBHOOK_SECRET',
+        label: 'Webhook Secret',
+        type: 'password',
+        secret: true,
+        help: 'Firma que valida los webhooks entrantes de Skool (altas/bajas/pagos de miembros).',
+      },
+    ],
+  },
+  {
     id: 'tracking',
     title: 'Tracking y atribución',
     description: 'Protege la entrada de eventos del píxel, VSL y atribución del funnel.',
+    category: 'seguridad',
     required: ['TRACKING_INGEST_KEY'],
     fields: [
       {
@@ -311,6 +412,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     id: 'negocio',
     title: 'Negocio',
     description: 'Contexto que usa la IA para generar guiones a tu estilo.',
+    category: 'negocio',
     fields: [
       {
         key: 'IG_BUSINESS_CONTEXT',

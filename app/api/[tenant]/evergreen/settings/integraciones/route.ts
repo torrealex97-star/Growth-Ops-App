@@ -312,6 +312,31 @@ async function runTest(group: string, tenantId: string): Promise<NextResponse> {
         ? NextResponse.json({ ok: true, message: `Subcuenta ${j.location?.name || locationId} conectada.` })
         : NextResponse.json({ ok: false, message: j.message || `GoHighLevel respondió ${r.status}.` })
     }
+    if (group === 'hotmart') {
+      if (!cfg.HOTMART_CLIENT_ID || !cfg.HOTMART_CLIENT_SECRET) {
+        return NextResponse.json({ ok: false, message: 'Faltan el Client ID o el Client Secret de Hotmart.' })
+      }
+      const query = new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: cfg.HOTMART_CLIENT_ID,
+        client_secret: cfg.HOTMART_CLIENT_SECRET,
+      })
+      const r = await fetch(`https://api-sec-vlc.hotmart.com/security/oauth/token?${query}`, { method: 'POST' })
+      const j = (await r.json().catch(() => ({}))) as { error_description?: string; access_token?: string }
+      return r.ok && j.access_token
+        ? NextResponse.json({ ok: true, message: 'Credenciales de Hotmart válidas.' })
+        : NextResponse.json({ ok: false, message: j.error_description || 'Client ID o Secret inválidos.' })
+    }
+    if (group === 'whop') {
+      if (!cfg.WHOP_API_KEY) return NextResponse.json({ ok: false, message: 'Falta la API Key de Whop.' })
+      const r = await fetch('https://api.whop.com/api/v2/me', {
+        headers: { Authorization: `Bearer ${cfg.WHOP_API_KEY}` },
+      })
+      const j = (await r.json().catch(() => ({}))) as { message?: string }
+      return r.ok
+        ? NextResponse.json({ ok: true, message: 'API Key de Whop válida.' })
+        : NextResponse.json({ ok: false, message: j.message || `Whop respondió ${r.status}.` })
+    }
     if (group === 'ai') {
       const missing = [!cfg.ANTHROPIC_API_KEY && 'Anthropic', !cfg.GROQ_API_KEY && 'Groq'].filter(Boolean)
       if (missing.length) return NextResponse.json({ ok: false, message: `Falta configurar: ${missing.join(', ')}.` })
