@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { isSetterRoleKey, isCloserRoleKey, isAffiliateRoleKey } from '@/lib/users'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -1324,7 +1325,7 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
                   <SelectContent className="bg-card border-border">
                     <SelectItem value="none">Sin setter</SelectItem>
                     {teamUsers
-                      .filter((u) => u.role === 'setter' || u.role === 'cold_caller')
+                      .filter((u) => isSetterRoleKey(u.role))
                       .map((u) => (
                         <SelectItem key={u.id} value={u.id}>
                           {u.full_name}
@@ -1344,7 +1345,7 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
                     <SelectItem value="none">Sin closer</SelectItem>
                     {/* Incluye admin: hay admins (ej. [tenant]) que también cierran ventas y deben poder marcarse como closer. */}
                     {teamUsers
-                      .filter((u) => u.role === 'closer' || u.role === 'admin')
+                      .filter((u) => isCloserRoleKey(u.role))
                       .map((u) => (
                         <SelectItem key={u.id} value={u.id}>
                           {u.full_name}
@@ -1365,7 +1366,7 @@ export default function SaleDetailPage({ params }: { params: { id: string } }) {
                   <SelectContent className="bg-card border-border">
                     <SelectItem value="none">Sin afiliado</SelectItem>
                     {teamUsers
-                      .filter((u) => u.role === 'affiliate')
+                      .filter((u) => isAffiliateRoleKey(u.role))
                       .map((u) => (
                         <SelectItem key={u.id} value={u.id}>
                           {u.full_name}

@@ -20,6 +20,8 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { AppointmentDetail } from '@/components/appointments/AppointmentDetail'
+import { AgendasAnalysisView } from '@/components/appointments/AgendasAnalysisView'
+import { AgendasMetricsView } from '@/components/appointments/AgendasMetricsView'
 import { CalendarPopover } from '@/components/ui/calendar-popover'
 import {
   Calendar,
@@ -852,27 +854,6 @@ export default function AppointmentsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [closers, prevMetricsAppointments, prevMetricsSales, purchased, hasPrevPeriod]
   )
-
-  // Flecha + delta de puntos porcentuales vs el periodo anterior (verde si sube, rojo si baja).
-  const RateDelta = ({ current, previous }: { current: number | null; previous: number | null }) => {
-    if (!hasPrevPeriod || current === null || previous === null) return null
-    const delta = current - previous
-    if (Math.abs(delta) < 0.05)
-      return <span className="text-[11px] text-muted-foreground ml-1.5">· = vs. anterior</span>
-    const up = delta > 0
-    return (
-      <span className={`text-[11px] ml-1.5 ${up ? 'text-emerald-400' : 'text-red-400'}`}>
-        {up ? '▲' : '▼'} {Math.abs(delta).toFixed(1)}pp vs. anterior
-      </span>
-    )
-  }
-
-  const rateColor = (rate: number | null): string => {
-    if (rate === null) return 'text-muted-foreground'
-    if (rate >= 60) return 'text-emerald-400'
-    if (rate >= 30) return 'text-amber-400'
-    return 'text-red-400'
-  }
 
   const handleStatusChange = (id: string, status: AppointmentStatus) => {
     setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)))
@@ -1767,225 +1748,31 @@ export default function AppointmentsPage() {
       )}
 
       {view === 'analisis' && (
-        <div className="space-y-6">
-          {/* KPIs */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-card border border-border rounded-lg p-4">
-              <p className="text-xs text-muted-foreground">Llamadas analizadas</p>
-              <p className="text-2xl font-bold text-foreground mt-1">{aiKpis.count}</p>
-            </div>
-            <div className="bg-card border border-border rounded-lg p-4">
-              <p className="text-xs text-muted-foreground">Nota media de llamada</p>
-              <p className="text-2xl font-bold text-foreground mt-1">
-                {aiKpis.avgCall !== null ? `${aiKpis.avgCall.toFixed(1)}/10` : '—'}
-              </p>
-            </div>
-            <div className="bg-card border border-border rounded-lg p-4">
-              <p className="text-xs text-muted-foreground">Nota media de lead</p>
-              <p className="text-2xl font-bold text-foreground mt-1">
-                {aiKpis.avgLead !== null ? `${aiKpis.avgLead.toFixed(1)}/10` : '—'}
-              </p>
-            </div>
-          </div>
-
-          {/* En proceso / error */}
-          {pendingAnalysisAppointments.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-foreground">En proceso</p>
-              <div className="flex flex-wrap gap-2">
-                {pendingAnalysisAppointments.map((appt) => (
-                  <button
-                    key={appt.id}
-                    onClick={() => {
-                      setSelectedAppointment(appt)
-                      setSheetOpen(true)
-                    }}
-                    className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-2 hover:bg-muted transition-colors"
-                  >
-                    <span className="text-sm text-foreground">{appt.contacts?.full_name || '—'}</span>
-                    {appt.transcript_status === 'procesando' ? (
-                      <Badge className="border text-xs bg-blue-500/20 text-blue-400 border-blue-500/30">
-                        <Loader className="w-3 h-3 mr-1 animate-spin" />
-                        Procesando
-                      </Badge>
-                    ) : (
-                      <Badge className="border text-xs bg-red-500/20 text-red-400 border-red-500/30">Error</Badge>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Lista de analizadas */}
-          {analyzedAppointments.length === 0 ? (
-            <div className="text-center py-12 border border-dashed border-border rounded-lg">
-              <Sparkles className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-              <p className="text-muted-foreground">
-                Aún no hay llamadas analizadas. Añade el enlace de Drive de una llamada en su detalle y pulsa Analizar.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {analyzedAppointments.map((appt) => (
-                <div key={appt.id} className="bg-card border border-border rounded-lg p-4 space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">{appt.contacts?.full_name || '—'}</p>
-                      <p className="text-xs text-muted-foreground">{formatDateTime(appt.appointment_datetime)}</p>
-                    </div>
-                    {appt.ai_suggested_stage && (
-                      <Badge className="border text-xs bg-brand-500/20 text-brand-400 border-brand-500/30">
-                        {appt.ai_suggested_stage}
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="flex gap-4">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Nota llamada</p>
-                      <p className="text-sm font-semibold text-foreground">
-                        {appt.ai_call_score !== null && appt.ai_call_score !== undefined
-                          ? `${appt.ai_call_score}/10`
-                          : '—'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Nota lead</p>
-                      <p className="text-sm font-semibold text-foreground">
-                        {appt.ai_lead_score !== null && appt.ai_lead_score !== undefined
-                          ? `${appt.ai_lead_score}/10`
-                          : '—'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {appt.ai_summary && <p className="text-sm text-muted-foreground line-clamp-3">{appt.ai_summary}</p>}
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-border text-foreground"
-                    onClick={() => {
-                      setSelectedAppointment(appt)
-                      setSheetOpen(true)
-                    }}
-                  >
-                    Ver detalle
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <AgendasAnalysisView
+          aiKpis={aiKpis}
+          pendingAnalysisAppointments={pendingAnalysisAppointments}
+          analyzedAppointments={analyzedAppointments}
+          onSelectAppointment={(appt) => {
+            setSelectedAppointment(appt)
+            setSheetOpen(true)
+          }}
+        />
       )}
 
       {view === 'metricas' && (
-        <div className="space-y-8">
-          <PeriodFilterBar
-            preset={metricsPeriodPreset}
-            onPresetChange={setMetricsPeriodPreset}
-            customFrom={metricsCustomFrom}
-            customTo={metricsCustomTo}
-            onCustomFromChange={setMetricsCustomFrom}
-            onCustomToChange={setMetricsCustomTo}
-          />
-          {/* Setters */}
-          <div className="space-y-3">
-            <h2 className="text-lg font-semibold text-foreground">Setters</h2>
-            <div className="rounded-lg border border-border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-border hover:bg-transparent">
-                    <TableHead className="text-muted-foreground">Setter</TableHead>
-                    <TableHead className="text-muted-foreground">Agendas</TableHead>
-                    <TableHead className="text-muted-foreground">Programadas</TableHead>
-                    <TableHead className="text-muted-foreground">Shows</TableHead>
-                    <TableHead className="text-muted-foreground">No-shows</TableHead>
-                    <TableHead className="text-muted-foreground">Seguimiento</TableHead>
-                    <TableHead className="text-muted-foreground">Show Rate</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {setterMetrics.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        No hay setters activos
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    setterMetrics.map((m) => (
-                      <TableRow key={m.id} className="border-border hover:bg-card/50">
-                        <TableCell className="text-foreground text-sm font-medium">{m.name}</TableCell>
-                        <TableCell className="text-foreground text-sm">{m.agendas}</TableCell>
-                        <TableCell className="text-blue-400 text-sm">{m.programadas}</TableCell>
-                        <TableCell className="text-foreground text-sm">{m.shows}</TableCell>
-                        <TableCell className="text-foreground text-sm">{m.noShows}</TableCell>
-                        <TableCell className="text-indigo-300 text-sm">{m.seguimientos}</TableCell>
-                        <TableCell className={`text-sm font-semibold ${rateColor(m.showRate)}`}>
-                          {m.showRate !== null ? `${m.showRate.toFixed(1)}%` : '—'}
-                          <RateDelta
-                            current={m.showRate}
-                            previous={prevSetterMetrics.find((p) => p.id === m.id)?.showRate ?? null}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-
-          {/* Closers */}
-          <div className="space-y-3">
-            <h2 className="text-lg font-semibold text-foreground">Closers</h2>
-            <div className="rounded-lg border border-border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-border hover:bg-transparent">
-                    <TableHead className="text-muted-foreground">Closer</TableHead>
-                    <TableHead className="text-muted-foreground">Asignadas</TableHead>
-                    <TableHead className="text-muted-foreground">Programadas</TableHead>
-                    <TableHead className="text-muted-foreground">Shows atendidos</TableHead>
-                    <TableHead className="text-muted-foreground">Seguimiento</TableHead>
-                    <TableHead className="text-muted-foreground">Cierres</TableHead>
-                    <TableHead className="text-muted-foreground">Close Rate</TableHead>
-                    <TableHead className="text-muted-foreground">Ingresos</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {closerMetrics.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                        No hay closers activos
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    closerMetrics.map((m) => (
-                      <TableRow key={m.id} className="border-border hover:bg-card/50">
-                        <TableCell className="text-foreground text-sm font-medium">{m.name}</TableCell>
-                        <TableCell className="text-foreground text-sm">{m.asignadas}</TableCell>
-                        <TableCell className="text-blue-400 text-sm">{m.programadas}</TableCell>
-                        <TableCell className="text-foreground text-sm">{m.showsAtendidos}</TableCell>
-                        <TableCell className="text-indigo-300 text-sm">{m.seguimientos}</TableCell>
-                        <TableCell className="text-foreground text-sm">{m.cierres}</TableCell>
-                        <TableCell className={`text-sm font-semibold ${rateColor(m.closeRate)}`}>
-                          {m.closeRate !== null ? `${m.closeRate.toFixed(1)}%` : '—'}
-                          <RateDelta
-                            current={m.closeRate}
-                            previous={prevCloserMetrics.find((p) => p.id === m.id)?.closeRate ?? null}
-                          />
-                        </TableCell>
-                        <TableCell className="text-foreground text-sm">{formatCurrency(m.ingresos)}</TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        </div>
+        <AgendasMetricsView
+          metricsPeriodPreset={metricsPeriodPreset}
+          onMetricsPeriodPresetChange={setMetricsPeriodPreset}
+          metricsCustomFrom={metricsCustomFrom}
+          metricsCustomTo={metricsCustomTo}
+          onMetricsCustomFromChange={setMetricsCustomFrom}
+          onMetricsCustomToChange={setMetricsCustomTo}
+          setterMetrics={setterMetrics}
+          prevSetterMetrics={prevSetterMetrics}
+          closerMetrics={closerMetrics}
+          prevCloserMetrics={prevCloserMetrics}
+          hasPrevPeriod={hasPrevPeriod}
+        />
       )}
 
       {/* Detail Sheet */}

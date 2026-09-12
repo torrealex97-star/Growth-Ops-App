@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { isSetterRoleKey, isCloserRoleKey, isAffiliateRoleKey } from '@/lib/users'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -406,18 +407,14 @@ export default function NewSalePage() {
 
   // El desplegable de "setter" incluye también cold callers: ambos agendan por utm_term y cobran
   // como setter. Así el rep atribuido por UTM (setter o cold caller) aparece pre-seleccionado.
-  const setters = users.filter((u) => {
-    const key = (u as { roles?: { key?: string } }).roles?.key
-    return key === 'setter' || key === 'cold_caller'
-  })
+  // Filtros centralizados en lib/users.ts (compartidos con ventas/registro/[id]).
+  const setters = users.filter((u) => isSetterRoleKey((u as { roles?: { key?: string } }).roles?.key))
   const roleLabel = (u: DbUser) => {
     const key = (u as { roles?: { key?: string } }).roles?.key
     return key === 'cold_caller' ? ' (cold caller)' : ''
   }
-  const closers = users.filter((u) =>
-    ['closer', 'admin'].includes((u as { roles?: { key?: string } }).roles?.key ?? '')
-  )
-  const affiliates = users.filter((u) => (u as { roles?: { key?: string } }).roles?.key === 'affiliate')
+  const closers = users.filter((u) => isCloserRoleKey((u as { roles?: { key?: string } }).roles?.key))
+  const affiliates = users.filter((u) => isAffiliateRoleKey((u as { roles?: { key?: string } }).roles?.key))
 
   // Plan personalizado: el precio total lo fija el closer (no viene del plan).
   const isCustom = selectedPlan?.method === 'custom'
