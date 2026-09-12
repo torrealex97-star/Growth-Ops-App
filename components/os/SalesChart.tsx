@@ -1,6 +1,6 @@
 'use client'
 
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { formatCurrency } from '@/lib/utils'
 
 interface SalesChartProps {
@@ -28,24 +28,46 @@ const CustomTooltip = ({
   return null
 }
 
+// Área en vez de barras: comunica mejor evolución/volumen (punto 18) y usa el token de marca del
+// tenant (--brand-500, rosa en WDC / azul en Evergreen) en vez de un blanco fijo — antes el chart
+// no cambiaba de acento aunque el resto de la UI sí lo hiciera por tenant.
 export function SalesChart({ data, title = 'Cash Cobrado por Día' }: SalesChartProps) {
   return (
-    <div className="rounded-2xl border border-[#26262A] bg-[#141416] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_8px_24px_rgba(0,0,0,0.3)]">
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_8px_24px_rgba(0,0,0,0.3)]">
       <h3 className="text-sm font-medium text-muted-foreground mb-4">{title}</h3>
       <div className="h-48">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-            <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#71717a' }} axisLine={false} tickLine={false} />
+          <AreaChart data={data} margin={{ top: 8, right: 0, bottom: 0, left: 0 }}>
+            <defs>
+              <linearGradient id="salesChartFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="hsl(var(--brand-500))" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="hsl(var(--brand-500))" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+              axisLine={false}
+              tickLine={false}
+            />
             <YAxis
-              tick={{ fontSize: 11, fill: '#71717a' }}
+              tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
               axisLine={false}
               tickLine={false}
               tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
             />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-            <Bar dataKey="amount" fill="#FFFFFF" radius={[3, 3, 0, 0]} />
-          </BarChart>
+            <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'hsl(var(--border))' }} />
+            <Area
+              type="monotone"
+              dataKey="amount"
+              stroke="hsl(var(--brand-500))"
+              strokeWidth={2}
+              fill="url(#salesChartFill)"
+              isAnimationActive
+              animationDuration={400}
+            />
+          </AreaChart>
         </ResponsiveContainer>
       </div>
     </div>

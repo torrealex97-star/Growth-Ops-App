@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
+import { AreaChart, Area, ResponsiveContainer } from 'recharts'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { TeamRanking } from '@/components/os/TeamRanking'
 import { AttributionTable } from '@/components/os/AttributionTable'
@@ -11,7 +12,9 @@ import { QualificationInsights } from '@/components/os/QualificationInsights'
 import { KaizenWidget } from '@/components/os/KaizenWidget'
 import { DailyQuoteWidget } from '@/components/os/DailyQuoteWidget'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
-import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
+import { FunnelStrip } from '@/components/os/FunnelStrip'
+import { MarketingEfficiencyCard } from '@/components/os/MarketingEfficiencyCard'
+import { getPeriodRange, inPeriod, toDateInputValue, type PeriodPreset } from '@/lib/filters/period'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import {
   TrendingUp,
@@ -37,6 +40,8 @@ import {
   targetCurrentValue,
   setterAgendaStats,
   isActiveSale,
+  funnelBySource,
+  aggregateFunnel,
   type SaleRow,
   type CollectionRow,
   type AttributionRow,
@@ -111,10 +116,19 @@ export default function DashboardPage() {
   const [users, setUsers] = useState<UserRow[]>([])
   const [roleUsers, setRoleUsers] = useState<RoleUser[]>([])
   const [contactIds, setContactIds] = useState<string[]>([])
+  const [contacts, setContacts] = useState<{ id: string; created_at: string | null }[]>([])
   const [attributions, setAttributions] = useState<AttributionRow[]>([])
   const [appointments, setAppointments] = useState<AppointmentRow[]>([])
   const [targets, setTargets] = useState<TargetRow[]>([])
   const [ym, setYm] = useState(nowYm())
+
+  // --- Eficiencia de marketing (gasto real de Meta Ads del periodo, vía campaign_daily) ---
+  // null = todavía sin sincronizar/gasto en el periodo; false en adSpendAllowed = el rol de este
+  // usuario no tiene acceso a esos datos (el bloque simplemente no se muestra, no tiene sentido
+  // mostrarle a un closer un CTA para conectar Meta Ads).
+  const [adSpend, setAdSpend] = useState<number | null>(null)
+  const [adSpendAllowed, setAdSpendAllowed] = useState(true)
+  const [adSpendLoading, setAdSpendLoading] = useState(true)
 
   // --- Filtros ---
   const [role, setRole] = useState('all')
@@ -193,7 +207,7 @@ export default function DashboardPage() {
             .range(0, FINANCE_QUERY_ROW_CAP),
           supabase.from('users').select('id, full_name'),
           supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
-          supabase.from('contacts').select('id').range(0, FINANCE_QUERY_ROW_CAP),
+          supabase.from('contacts').select('id, created_at').range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('contact_attributions')
             .select('contact_id, source, utm_source, utm_campaign, utm_content, is_primary')
@@ -222,6 +236,7 @@ export default function DashboardPage() {
       setUsers(usersRes.data || [])
       setRoleUsers((roleUsersRes.data as RoleUser[] | null) || [])
       setContactIds((contactsRes.data || []).map((c: { id: string }) => c.id))
+      setContacts((contactsRes.data as { id: string; created_at: string | null }[]) || [])
       setAttributions(attrRes.data || [])
       setAppointments(apptRes.data || [])
       setTargets(targetsRes.data || [])
@@ -260,6 +275,37 @@ export default function DashboardPage() {
       setYm(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
     }
   }, [range])
+
+  // Gasto real de Meta Ads del periodo activo (campaign_daily, no el acumulado histórico de
+  // Unit Economics) — mismo endpoint que ya usa Marketing › Adquisición › Campañas.
+  useEffect(() => {
+    let active = true
+    setAdSpendLoading(true)
+    const query = new URLSearchParams()
+    if (range.from) query.set('from', toDateInputValue(range.from))
+    if (range.to) query.set('to', toDateInputValue(range.to))
+    fetch(`/api/${tenant}/evergreen/meta/spend-range?${query}`)
+      .then(async (r) => {
+        if (!active) return
+        if (r.status === 403) {
+          setAdSpendAllowed(false)
+          return
+        }
+        const j = await r.json().catch(() => ({}))
+        const byCampaign = (j.byCampaign ?? {}) as Record<string, { spend: number }>
+        const rows = Object.values(byCampaign)
+        setAdSpend(rows.length > 0 ? rows.reduce((sum, c) => sum + Number(c.spend || 0), 0) : null)
+      })
+      .catch(() => {
+        if (active) setAdSpend(null)
+      })
+      .finally(() => {
+        if (active) setAdSpendLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [tenant, range])
 
   // Coincidencia por rol+persona. Si no hay persona elegida (member='all') no filtra por equipo.
   const saleMatches = useCallback(
@@ -328,6 +374,30 @@ export default function DashboardPage() {
     () => attributionBySource(contactIds, attributions, filteredSales),
     [contactIds, attributions, filteredSales]
   )
+  // Leads del periodo = contactos CREADOS en el rango activo (a diferencia de la tabla de
+  // Atribución de más abajo, que usa el histórico completo de contactos — son preguntas de
+  // negocio distintas: "¿qué trajo cada fuente en este periodo?" vs "¿qué trajo cada fuente en
+  // toda la vida de la cuenta?"). No se filtra por rol/persona: un lead no pertenece a un closer.
+  const filteredContactIds = useMemo(() => {
+    if (periodPreset === 'all') return contactIds
+    return contacts.filter((c) => inPeriod(c.created_at, range)).map((c) => c.id)
+  }, [contacts, contactIds, periodPreset, range])
+
+  const funnelTotals = useMemo(
+    () => aggregateFunnel(funnelBySource(filteredContactIds, attributions, filteredSales, filteredAppointments)),
+    [filteredContactIds, attributions, filteredSales, filteredAppointments]
+  )
+
+  // Clientes únicos del periodo (mismo criterio que CAC en Unit Economics: contact_id distinto
+  // con al menos una venta activa) — denominador del CAC de Eficiencia de marketing.
+  const periodCustomers = useMemo(() => {
+    const seen = new Set<string>()
+    for (const s of filteredSales) {
+      if (isActiveSale(s) && s.contact_id) seen.add(s.contact_id)
+    }
+    return seen.size
+  }, [filteredSales])
+
   const setterAgendas = useMemo(
     () => setterAgendaStats(filteredAppointments, usersWithRole),
     [filteredAppointments, usersWithRole]
@@ -606,7 +676,30 @@ export default function DashboardPage() {
             value={loading ? '—' : fmt(cur.gross)}
             icon={TrendingUp}
             loading={loading}
-            description="vs mes anterior"
+            compareLabel="vs mes anterior"
+            spark={
+              series.length > 1 && (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={series} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+                    <defs>
+                      <linearGradient id="kpiSparkFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="hsl(var(--brand-500))" stopOpacity={0.4} />
+                        <stop offset="100%" stopColor="hsl(var(--brand-500))" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <Area
+                      type="monotone"
+                      dataKey="amount"
+                      stroke="hsl(var(--brand-500))"
+                      strokeWidth={1.5}
+                      fill="url(#kpiSparkFill)"
+                      isAnimationActive
+                      animationDuration={300}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )
+            }
             {...delta(cur.gross, prev.gross)}
           />
           <KPICard
@@ -614,7 +707,7 @@ export default function DashboardPage() {
             value={loading ? '—' : fmt(cur.cash)}
             icon={Wallet}
             loading={loading}
-            description="cobrado real"
+            compareLabel="vs mes anterior · cobrado real"
             {...delta(cur.cash, prev.cash)}
           />
           <KPICard
@@ -622,7 +715,7 @@ export default function DashboardPage() {
             value={loading ? '—' : cur.count}
             icon={ShoppingCart}
             loading={loading}
-            description="cierres del mes"
+            compareLabel="vs mes anterior"
             {...delta(cur.count, prev.count)}
           />
           <KPICard
@@ -630,7 +723,7 @@ export default function DashboardPage() {
             value={loading ? '—' : fmt(cur.avgTicket)}
             icon={Receipt}
             loading={loading}
-            description="por venta"
+            compareLabel="vs mes anterior · por venta"
             {...delta(cur.avgTicket, prev.avgTicket)}
           />
         </div>
@@ -654,11 +747,10 @@ export default function DashboardPage() {
 
       {/* Evolución + Objetivos */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 rounded-2xl border border-[#26262A] bg-[#141416] p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">Facturación últimos 6 meses</h3>
-          <SalesChart data={series} />
+        <div className="lg:col-span-2">
+          <SalesChart data={series} title="Facturación últimos 6 meses" />
         </div>
-        <div className="rounded-2xl border border-[#26262A] bg-[#141416] p-5">
+        <div className="rounded-2xl border border-border bg-card p-5">
           <div className="flex items-center gap-2 mb-4">
             <TargetIcon className="w-4 h-4 text-brand-400" />
             <h3 className="text-sm font-semibold text-foreground">Objetivos de empresa</h3>
@@ -697,6 +789,19 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Eficiencia de marketing + Funnel del periodo */}
+      {adSpendAllowed && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <MarketingEfficiencyCard
+            loading={adSpendLoading}
+            spend={adSpend}
+            revenue={cur.gross}
+            customers={periodCustomers}
+          />
+          <FunnelStrip totals={funnelTotals} loading={loading} />
+        </div>
+      )}
 
       {/* Ranking + Agendas por setter */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
