@@ -59,7 +59,7 @@ export default function FirmarPage() {
   const [signedUrl, setSignedUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch(`/api/evergreen/contracts/sign/${token}`)
+    fetch(`/api/public-contracts/sign/${token}`)
       .then((r) => r.json())
       .then((d) => {
         if (d.error) setError(d.error)
@@ -80,7 +80,7 @@ export default function FirmarPage() {
   const sign = async () => {
     setSubmitting(true)
     setError(null)
-    const res = await fetch(`/api/evergreen/contracts/sign/${token}`, {
+    const res = await fetch(`/api/public-contracts/sign/${token}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ signerName: name, consent, signerData: sd }),

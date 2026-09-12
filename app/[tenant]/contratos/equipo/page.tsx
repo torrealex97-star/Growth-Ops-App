@@ -34,6 +34,8 @@ export default function ContratosEquipoPage() {
   const [contracts, setContracts] = useState<TeamContract[]>([])
   const [loading, setLoading] = useState(true)
 
+  const [openingPdfId, setOpeningPdfId] = useState<string | null>(null)
+
   const [dialog, setDialog] = useState(false)
   const [userId, setUserId] = useState('')
   const [roleKey, setRoleKey] = useState<AppRole | ''>('')
@@ -220,14 +222,26 @@ export default function ContratosEquipoPage() {
                   </Button>
                 )}
                 {c.signed_pdf_url && (
-                  <a
-                    href={c.signed_pdf_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-emerald-400 hover:underline flex items-center gap-1"
+                  <button
+                    type="button"
+                    disabled={openingPdfId === c.id}
+                    onClick={async () => {
+                      setOpeningPdfId(c.id)
+                      try {
+                        const res = await fetch(`/api/${tenant}/evergreen/contracts/pdf-url?contractId=${c.id}`)
+                        const d = await res.json().catch(() => ({}))
+                        if (res.ok && d.url) window.open(d.url, '_blank', 'noopener,noreferrer')
+                        else toast.error('No se pudo abrir el PDF', { description: d?.error })
+                      } catch {
+                        toast.error('No se pudo abrir el PDF')
+                      } finally {
+                        setOpeningPdfId(null)
+                      }
+                    }}
+                    className="text-sm text-emerald-400 hover:underline flex items-center gap-1 disabled:opacity-60"
                   >
-                    PDF <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
+                    {openingPdfId === c.id ? 'Abriendo…' : 'PDF'} <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
                 )}
                 <Button
                   variant="ghost"

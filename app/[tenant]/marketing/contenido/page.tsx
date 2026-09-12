@@ -373,7 +373,7 @@ export default function ContentPage() {
           <select
             value={editorFilter}
             onChange={(e) => setEditorFilter(e.target.value)}
-            className="text-sm rounded-lg border border-border bg-card text-foreground px-3 py-2 focus:outline-none focus:border-brand-500"
+            className="text-sm rounded-lg border border-border bg-card text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500"
           >
             <option value="">Todos los editores</option>
             <option value="none">Sin asignar</option>
@@ -389,7 +389,7 @@ export default function ContentPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="text-sm rounded-lg border border-border bg-card text-foreground px-3 py-2 focus:outline-none focus:border-brand-500"
+          className="text-sm rounded-lg border border-border bg-card text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500"
         >
           <option value="">Todos los estados</option>
           {STATUSES.map((s) => (
@@ -401,7 +401,7 @@ export default function ContentPage() {
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
-          className="text-sm rounded-lg border border-border bg-card text-foreground px-3 py-2 focus:outline-none focus:border-brand-500"
+          className="text-sm rounded-lg border border-border bg-card text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500"
         >
           <option value="">Todos los formatos</option>
           {TYPES.map((t) => (
@@ -418,7 +418,7 @@ export default function ContentPage() {
             value={sort}
             onChange={(e) => changeSort(e.target.value as SortKey)}
             title="Con el orden por fase, una pieza cambia de sitio al cambiarle el estado"
-            className="text-sm rounded-lg border border-border bg-card text-foreground px-3 py-2 focus:outline-none focus:border-brand-500"
+            className="text-sm rounded-lg border border-border bg-card text-foreground px-3 py-2 focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500"
           >
             {SORTS.map((s) => (
               <option key={s.value} value={s.value}>
@@ -670,7 +670,7 @@ function TableView({
           patch(c.id, 'testimonio_id', v)
           persist(c.id, 'testimonio_id', v)
         }}
-        className="w-full bg-transparent border border-transparent hover:border-border focus:border-brand-500 rounded px-2 py-1 text-xs text-foreground focus:outline-none"
+        className="w-full bg-transparent border border-transparent hover:border-border focus:border-brand-500 rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-brand-500/60"
       >
         <option value="" className="bg-muted text-foreground">
           — sin testimonio —
@@ -694,7 +694,7 @@ function TableView({
           }
         }}
         placeholder={placeholder}
-        className="w-full bg-transparent border border-transparent hover:border-border focus:border-brand-500 rounded px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none truncate"
+        className="w-full bg-transparent border border-transparent hover:border-border focus:border-brand-500 rounded px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-500/60 truncate"
       />
     </td>
   )
@@ -710,7 +710,7 @@ function TableView({
             }
           }}
           placeholder="https://…"
-          className="w-full bg-transparent border border-transparent hover:border-border focus:border-brand-500 rounded px-2 py-1 text-sm text-sky-400 placeholder:text-muted-foreground focus:outline-none truncate"
+          className="w-full bg-transparent border border-transparent hover:border-border focus:border-brand-500 rounded px-2 py-1 text-sm text-sky-400 placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-500/60 truncate"
         />
         {value && (
           <a
@@ -754,7 +754,7 @@ function TableView({
           }
         }}
         placeholder="0,00 €"
-        className="w-full bg-transparent border border-transparent hover:border-border focus:border-brand-500 rounded px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+        className="w-full bg-transparent border border-transparent hover:border-border focus:border-brand-500 rounded px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-500/60"
       />
     </td>
   )
@@ -853,7 +853,7 @@ function TableView({
                       }
                     }}
                     placeholder="(sin título)"
-                    className="w-full min-w-0 bg-transparent border border-transparent hover:border-border focus:border-brand-500 rounded px-2 py-1 text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none truncate"
+                    className="w-full min-w-0 bg-transparent border border-transparent hover:border-border focus:border-brand-500 rounded px-2 py-1 text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-500/60 truncate"
                   />
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
                     {TYPES.find((t) => t.value === c.content_type)?.label}
@@ -1118,10 +1118,14 @@ function DetailCard({
                 }
               }}
               placeholder="(sin título)"
-              className="w-full bg-transparent text-lg font-semibold text-foreground focus:outline-none border-b border-transparent focus:border-brand-500"
+              className="w-full bg-transparent text-lg font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-brand-500/60 border-b border-transparent focus:border-brand-500"
             />
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground shrink-0">
+          <button
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="text-muted-foreground hover:text-foreground shrink-0"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1298,4 +1302,4 @@ function DetailCard({
 }
 
 const cls =
-  'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500'
+  'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500'

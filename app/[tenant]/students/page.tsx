@@ -54,6 +54,7 @@ type StudentRow = {
   accesos_enviados_at: string | null
   accesos_abiertos_at: string | null
   signed_pdf_url: string | null
+  contract_id: string | null
   course_access_granted_at: string | null
   course_access_revoked_at: string | null
 }
@@ -160,7 +161,7 @@ function matchesOnbView(row: StudentRow, view: OnbView): boolean {
 }
 
 const cls =
-  'text-xs rounded-md border border-border bg-muted text-foreground px-2 py-1 focus:outline-none focus:border-brand-500'
+  'text-xs rounded-md border border-border bg-muted text-foreground px-2 py-1 focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500'
 
 const FUNNEL_TONE: Record<string, string> = {
   muted: 'text-foreground',
@@ -198,6 +199,7 @@ export default function StudentsPage() {
   const tenant = useTenant()
   const [rows, setRows] = useState<StudentRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [openingPdfId, setOpeningPdfId] = useState<string | null>(null)
   const [filter, setFilter] = useState<EngagementScore | 'all'>('all')
   const [onbView, setOnbView] = useState<OnbView>('all')
   const [q, setQ] = useState('')
@@ -222,7 +224,7 @@ export default function StudentsPage() {
           .order('sale_date', { ascending: false }),
         supabase
           .from('contracts')
-          .select('sale_id, contact_id, accesos_enviados_at, accesos_abiertos_at, signed_at, signed_pdf_url')
+          .select('id, sale_id, contact_id, accesos_enviados_at, accesos_abiertos_at, signed_at, signed_pdf_url')
           .eq('kind', 'venta')
           .neq('contract_party', 'tomador')
           .eq('is_reservation', false),
@@ -236,6 +238,7 @@ export default function StudentsPage() {
       }
       // Índice del tracking del contrato de alumno por sale_id (y por contact_id como fallback).
       type CTrack = {
+        id: string
         sale_id: string | null
         contact_id: string | null
         accesos_enviados_at: string | null
@@ -260,6 +263,7 @@ export default function StudentsPage() {
             accesos_enviados_at: t?.accesos_enviados_at ?? null,
             accesos_abiertos_at: t?.accesos_abiertos_at ?? null,
             signed_pdf_url: t?.signed_pdf_url ?? null,
+            contract_id: t?.id ?? null,
           }
         })
       setRows(merged)
@@ -779,15 +783,31 @@ export default function StudentsPage() {
                           <div className="flex flex-wrap items-center gap-4 mt-4 pt-3 border-t border-border/50">
                             <div>
                               <label className="text-xs text-muted-foreground block mb-1">Contrato firmado</label>
-                              {r.signed_pdf_url ? (
-                                <a
-                                  href={r.signed_pdf_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-brand-400 hover:text-brand-300 underline"
+                              {r.signed_pdf_url && r.contract_id ? (
+                                <button
+                                  type="button"
+                                  disabled={openingPdfId === r.contract_id}
+                                  onClick={async () => {
+                                    const contractId = r.contract_id
+                                    if (!contractId) return
+                                    setOpeningPdfId(contractId)
+                                    try {
+                                      const res = await fetch(
+                                        `/api/${tenant}/evergreen/contracts/pdf-url?contractId=${contractId}`
+                                      )
+                                      const d = await res.json().catch(() => ({}))
+                                      if (res.ok && d.url) window.open(d.url, '_blank', 'noopener,noreferrer')
+                                      else toast.error('No se pudo abrir el contrato', { description: d?.error })
+                                    } catch {
+                                      toast.error('No se pudo abrir el contrato')
+                                    } finally {
+                                      setOpeningPdfId(null)
+                                    }
+                                  }}
+                                  className="text-xs text-brand-400 hover:text-brand-300 underline disabled:opacity-60"
                                 >
-                                  Ver contrato firmado
-                                </a>
+                                  {openingPdfId === r.contract_id ? 'Abriendo…' : 'Ver contrato firmado'}
+                                </button>
                               ) : (
                                 <span className="text-xs text-muted-foreground">Sin contrato firmado</span>
                               )}

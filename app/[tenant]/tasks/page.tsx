@@ -582,7 +582,7 @@ export default function TasksPage() {
                           onChange={(e) =>
                             setProposals((prev) => prev.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))
                           }
-                          className="flex-1 bg-transparent text-sm text-foreground font-medium focus:outline-none border-b border-transparent focus:border-border"
+                          className="flex-1 bg-transparent text-sm text-foreground font-medium focus:outline-none focus:ring-1 focus:ring-brand-500 rounded border-b border-transparent focus:border-border"
                         />
                       </div>
                       <textarea
@@ -681,7 +681,7 @@ export default function TasksPage() {
 }
 
 const inputCls =
-  'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500'
+  'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500'
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
