@@ -36,9 +36,14 @@ async function requireActiveTenant(sb: SupabaseClient, tenantId: string): Promis
 // Devuelve una signed URL de 1h para el PDF ya firmado en vez de la URL pública horneada —
 // funciona igual si el bucket `contratos` sigue público hoy, y sigue funcionando el día que se
 // haga privado (ver PROMPT_ARQUITECTURA_PENDIENTE.md punto 4), sin tener que tocar esta ruta.
-async function freshPdfUrl(sb: SupabaseClient, contractId: string, hasSignedPdf: boolean): Promise<string | null> {
+async function freshPdfUrl(
+  sb: SupabaseClient,
+  contractId: string,
+  hasSignedPdf: boolean,
+  ttlSeconds = 60 * 60
+): Promise<string | null> {
   if (!hasSignedPdf) return null
-  const signed = await sb.storage.from(BUCKET).createSignedUrl(`${contractId}.pdf`, 60 * 60)
+  const signed = await sb.storage.from(BUCKET).createSignedUrl(`${contractId}.pdf`, ttlSeconds)
   return signed.data?.signedUrl ?? null
 }
 
@@ -232,7 +237,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
         cc: memberEmail ? personalEmail : null,
         memberName: memberName || signerName.trim(),
         company,
-        pdfUrl: url,
+        // Signed URL de 7 días (no la url pública horneada — el bucket `contratos` es privado):
+        // el correo puede abrirse días después de firmar, a diferencia de la respuesta de esta
+        // misma request, que solo necesita 1h (freshPdfUrl() de más abajo).
+        pdfUrl: await freshPdfUrl(sb, c.id, true, 60 * 60 * 24 * 7),
         pdfBytes,
       })
     }

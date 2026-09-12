@@ -75,20 +75,24 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
   const count = missing.length
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center border-b border-[#26262A] bg-[#0A0A0B]/95 backdrop-blur-xl px-4 lg:px-7">
+    <header className="sticky top-0 z-30 flex h-16 items-center border-b border-border bg-background/95 backdrop-blur-xl px-4 lg:px-7">
       <Button variant="ghost" size="icon" className="lg:hidden mr-2 text-muted-foreground" onClick={onMenuClick}>
         <Menu className="w-5 h-5" />
       </Button>
 
-      <div className="flex-1 flex items-center gap-3">
-        {title && <h1 className="text-sm font-medium text-muted-foreground">{title}</h1>}
+      <div className="flex-1 min-w-0 flex items-center gap-3">
+        {title && <h1 className="text-sm font-medium text-muted-foreground truncate">{title}</h1>}
         {isSuperAdmin && (
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground hover:text-foreground">
-                <span className="text-xs">Subcuenta:</span>
-                <span className="text-sm font-medium text-foreground">{tenant}</span>
-                <ChevronsUpDown className="w-3.5 h-3.5" />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-muted-foreground hover:text-foreground min-w-0 max-w-full"
+              >
+                <span className="text-xs shrink-0 hidden sm:inline">Subcuenta:</span>
+                <span className="text-sm font-medium text-foreground truncate">{tenant}</span>
+                <ChevronsUpDown className="w-3.5 h-3.5 shrink-0" />
               </Button>
             </PopoverTrigger>
             <PopoverContent align="start" className="w-64 bg-card border-border p-1">
@@ -107,7 +111,7 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
         )}
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
         <GlobalSearch user={user} />
         <FeedbackDialog />
         <Popover>

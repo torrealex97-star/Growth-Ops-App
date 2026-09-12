@@ -27,7 +27,11 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run format:check
       - run: npm run lint
+      # El runner ubuntu-latest estándar (7GB) se queda sin memoria en `tsc --noEmit` con la carga
+      # de tipos actual de la app (SIGABRT/exit 134) sin este límite explícito más alto.
       - run: npm run typecheck
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
       - run: npm run dead-code
       - run: npm test
       - run: npm run test:metrics
