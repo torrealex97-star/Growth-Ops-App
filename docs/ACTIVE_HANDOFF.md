@@ -16,10 +16,14 @@ Avance de esta sesión, todo sobre `claude/financial-constraints-handoff` (PR #3
 | `f4f028a` | Fase B de UX: Configuración a un solo nivel, negocio fuera de Integraciones, Auditoría dentro         |
 | (este)    | Fase C: capa canónica `lib/funnels/` con tests, sin UI todavía                                        |
 
-**Próximo paso para quien recoja el relevo (Codex incluido):** fase I — backfill de Stripe con
-dry-run y su informe de conciliación (regla ya acordada: un cliente sin pagos exitosos **no es
-venta**), y diagnóstico de la sincronización de Meta sin dar por supuesta la causa. Luego la fase J
-(aprovisionador). Ver `docs/ROADMAP_MVP.md`.
+**Próximo paso para quien recoja el relevo (Codex incluido):** fase J — el aprovisionador de
+subcuentas, **en PR aparte** como pidió el usuario. Ojo con un fallo que ya bloqueaba esto y se
+corrigió hoy: tres tablas tenían un único GLOBAL sobre `slug`, así que cada subcuenta nueva chocaba
+con los slugs de las demás. Ver `ROADMAP_MVP.md` §3.3.
+
+Pendiente que NO es código y necesita decisión del usuario: pantalla para registrar en lote los pagos
+`registrable` del informe de Stripe (asignando producto y plan), habilitar `pg_cron` + `pg_net` si se
+quiere la frecuencia original de Meta, y rotar el Client Secret de Google.
 
 Lo aplicado hoy en producción son **once migraciones**, cada una con dry-run previo
 (`BEGIN`/`ROLLBACK` probando el COMPORTAMIENTO, no solo que la DDL compile) y verificación posterior.

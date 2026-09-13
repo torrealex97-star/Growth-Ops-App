@@ -41,18 +41,18 @@ y eventos de conversión. Es la fuente correcta para Web/SEO.
 
 Leyenda: ✅ hecho · 🚧 en curso · ⛔ bloqueado por el usuario · ⬜ pendiente
 
-| #   | Fase                                          | Estado | Nota                                                       |
-| --- | --------------------------------------------- | ------ | ---------------------------------------------------------- |
-| A   | Desbloquear PR #30                            | ⛔     | Requiere acción del usuario (ver §5)                       |
-| B   | Reordenación de navegación y Configuración    | ✅     | Commit `f4f028a`                                           |
-| C   | Capa canónica de funnels (sin UI)             | ⬜     | Siguiente. No necesita credenciales                        |
-| E   | Sección Funnels con lo que ya hay en base     | ⬜     | MVP sin GA4: VSL, Webinar y Profile ya tienen datos        |
-| F   | CRM → Agenda, detalle de cita legible, Fathom | ⬜     | Mejora diaria, barata                                      |
-| D   | GA4 (OAuth multi-tenant)                      | ✅     | OAuth + sync + enganchado a Funnels                        |
-| G   | Banco de testimonios y de grabaciones         | ✅     | Grabaciones hechas; testimonios ya existía (§3.3)          |
-| H   | Facturas por email (**solo Gmail**)           | ✅     | Importa y deja en pendiente_validacion                     |
-| I   | Backfill de Stripe y diagnóstico de Meta      | ⬜     | **Siguiente**                                              |
-| J   | Aprovisionamiento                             | ⬜     | Al final: el blueprint solo puede incluir lo que ya existe |
+| #   | Fase                                          | Estado | Nota                                                |
+| --- | --------------------------------------------- | ------ | --------------------------------------------------- |
+| A   | Desbloquear PR #30                            | ⛔     | Requiere acción del usuario (ver §5)                |
+| B   | Reordenación de navegación y Configuración    | ✅     | Commit `f4f028a`                                    |
+| C   | Capa canónica de funnels (sin UI)             | ⬜     | Siguiente. No necesita credenciales                 |
+| E   | Sección Funnels con lo que ya hay en base     | ⬜     | MVP sin GA4: VSL, Webinar y Profile ya tienen datos |
+| F   | CRM → Agenda, detalle de cita legible, Fathom | ⬜     | Mejora diaria, barata                               |
+| D   | GA4 (OAuth multi-tenant)                      | ✅     | OAuth + sync + enganchado a Funnels                 |
+| G   | Banco de testimonios y de grabaciones         | ✅     | Grabaciones hechas; testimonios ya existía (§3.3)   |
+| H   | Facturas por email (**solo Gmail**)           | ✅     | Importa y deja en pendiente_validacion              |
+| I   | Backfill de Stripe y diagnóstico de Meta      | ✅     | Informe de solo lectura + causa de Meta encontrada  |
+| J   | Aprovisionamiento                             | ⬜     | **Siguiente**, y en PR aparte como pediste          |
 
 **Por qué este orden y no el del plan original:** D (GA4) estaba antes de E (UI de Funnels), pero
 GA4 está bloqueada por una acción del usuario en Google Cloud. Hacer C+E primero entrega una
@@ -153,6 +153,31 @@ Lo que **sigue pendiente** de la fase G, y ahora sí es trabajo nuevo:
   (no por IA), dedupe por hash, Storage privado bajo `tenant_id/` y aprobación manual.
 - Clasificación de llamadas ganada/perdida/pendiente **derivada de datos canónicos**, nunca de la IA
   por sí sola.
+
+## 3.4 Fase I: por qué el backfill de Stripe es un informe y no un importador
+
+`sales.product_id` y `sales.payment_plan_id` son **`NOT NULL`**, y un pago de Stripe no dice a qué
+producto interno corresponde ni cuál es la política de reembolso. Con 2 productos y 1 plan de pago en
+base, un importador automático tendría que **elegir** — es decir, inventar datos financieros, y
+encima en la tabla de la que salen la facturación y las comisiones.
+
+Así que `/api/[tenant]/evergreen/stripe-backfill` es **solo GET y no escribe nada** (hay un test que
+falla si aparece un POST o una escritura de Supabase). Clasifica cada pago del rango:
+
+| Veredicto       | Significa                                                           |
+| --------------- | ------------------------------------------------------------------- |
+| `ya_registrado` | hay un cobro interno con esa referencia: nada que decidir           |
+| `registrable`   | pago bueno y cliente identificado: **falta elegir producto y plan** |
+| `sin_contacto`  | pago bueno, pero ningún contacto con ese email                      |
+| `no_es_venta`   | el pago no se completó — **la regla que acordamos**                 |
+| `reembolsado`   | se cobró y se devolvió entero: no es ingreso                        |
+
+El resumen suma el importe **solo de lo registrable**. Sumar todo prometería una facturación que no
+existe. Y paginación real por rango de fechas: la conciliación que ya había solo miraba los últimos
+100 pagos, así que no servía para histórico.
+
+Lo que falta para cerrar el círculo, y necesita tu decisión: una pantalla donde asignar producto y
+plan a los `registrable` y registrarlos en lote. Eso sí escribe, así que no lo he hecho sin pedírtelo.
 
 ## 4. Regla que aplica a todas las fases
 
