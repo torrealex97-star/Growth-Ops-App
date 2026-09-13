@@ -171,6 +171,16 @@ const GROUP_META: Record<string, { icon: typeof Plug; tone: string; steps: strin
       'Guarda y verifica; la clave queda cifrada y nunca llega al navegador.',
     ],
   },
+  deepseek: {
+    icon: Sparkles,
+    tone: 'from-sky-500/20 to-blue-700/5',
+    steps: [
+      'Abre la plataforma de DeepSeek y entra en API keys.',
+      'Crea una clave de servidor y cópiala; no la incluyas nunca en código del navegador.',
+      'Guarda la clave y usa “Probar conexión” para validar el acceso y el modelo elegido.',
+    ],
+    docs: 'https://api-docs.deepseek.com/',
+  },
   youtube: {
     icon: Play,
     tone: 'from-red-500/25 to-red-950/5',
