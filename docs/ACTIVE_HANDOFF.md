@@ -2,6 +2,64 @@
 
 Última actualización: 2026-09-13 (Claude Code)
 
+## CIERRE DE SESIÓN 2026-09-13 — estado real y qué decide quién
+
+Rama: `claude/financial-constraints-handoff` (PR #30). Árbol limpio, todo empujado, CI verde en cada
+commit. Nada quedó a medias: la fase J no se empezó **a propósito**, porque va en PR aparte.
+
+### Fases del brief
+
+| Fase | Qué                                    | Estado                                       |
+| ---- | -------------------------------------- | -------------------------------------------- |
+| A    | Desbloquear #30                        | ✅ migraciones aplicadas, historial reparado |
+| B    | UX de Configuración                    | ✅                                           |
+| C    | Capa canónica de funnels               | ✅                                           |
+| D    | GA4 (OAuth + sync)                     | ✅ código; **sin ejecutar contra Google**    |
+| E    | Sección Funnels                        | ✅                                           |
+| F    | CRM → Agenda, ficha, Fathom            | ✅                                           |
+| G    | Grabaciones (testimonios ya existía)   | ✅                                           |
+| H    | Facturas por Gmail                     | ✅ código; **sin ejecutar contra Gmail**     |
+| I    | Stripe (informe) y diagnóstico de Meta | ✅                                           |
+| J    | Aprovisionador de subcuentas           | ⬜ **no empezado, va en PR aparte**          |
+
+### Lo que NO está verificado, y hay que saberlo antes de fusionar
+
+Ninguna pantalla nueva se ha abierto con una sesión real y datos, y ninguna integración se ha
+ejecutado contra su API. En este entorno no hay credenciales de la app (solo acceso administrativo
+por MCP a Supabase). Lo que sí está probado: la lógica pura con tests, y el comportamiento de cada
+tabla contra Postgres real vía dry-run.
+
+En concreto siguen sin probar de punta a punta: el flujo OAuth de Google, el sync de GA4, el buzón de
+Gmail, el informe de Stripe, la subida de grabaciones (usa `crypto.subtle`) y la pantalla de Funnels.
+
+### Decisiones que son del usuario, no mías
+
+1. **Rotar el Client Secret de Google.** Se pegó en un chat, así que ya no es secreto. Generar uno
+   nuevo y pegarlo en Configuración → Integraciones → Google (ahí se cifra). No lo guardé yo porque
+   `CONFIG_ENC_KEY` es un placeholder en este entorno y habría quedado ilegible para la app.
+2. **Frecuencia de Meta.** Los crons ya están programados en `vercel.json`, pero a diario. Para
+   recuperar los 30 minutos del diseño original: habilitar `pg_cron` + `pg_net` en producción, o
+   pagar Vercel Pro. Ninguna la decido yo. Ver `DIAGNOSTICO_SINCRONIZACIONES.md`.
+3. **`reels` y `youtube-backfill`** siguen sin programar a propósito: una genera borradores que hay
+   que revisar, la otra consume cupo de la API de YouTube.
+4. **Registrar en lote los pagos `registrable`** del informe de Stripe. Requiere asignar producto y
+   plan de pago, y eso escribe en la tabla de la que salen facturación y comisiones.
+5. **Pantalla para resolver `fathom_match_review`.** Los casos dudosos se anotan bien; resolverlos hoy
+   requiere tocar la tabla a mano. Deliberadamente no construí una pantalla vacía.
+6. **Mapeo de eventos de landing/VSL.** `canonical_events.event_name` es texto libre. Hay que listar
+   los nombres que llegan de verdad y que el usuario diga cuál es cada etapa. **No inventar un
+   vocabulario**: esas etapas de Funnels salen hoy como "fuente sin configurar", que es la verdad.
+
+### Disciplina que conviene mantener
+
+Once migraciones aplicadas hoy, **cada una con dry-run previo** (`BEGIN`/`ROLLBACK` probando el
+COMPORTAMIENTO, no solo que la DDL compile) y verificación posterior. Varias cazaron fallos reales
+antes de tocar producción: un mensaje de error mal formado, un id de destino nulo, un unique que
+habría sido global. No aplicar migraciones sin ese paso.
+
+Y la regla que atraviesa todo lo de hoy: **un hueco no es un cero**. Un fallo de fuente, una fuente
+sin configurar y un cero medido son tres cosas distintas, y la UI tiene que distinguirlas.
+
 ## Qué se está haciendo ahora y qué sigue (2026-09-13)
 
 **La hoja de ruta viva está en `docs/ROADMAP_MVP.md`.** Ahí está el estado de cada fase, las
@@ -16,10 +74,25 @@ Avance de esta sesión, todo sobre `claude/financial-constraints-handoff` (PR #3
 | `f4f028a` | Fase B de UX: Configuración a un solo nivel, negocio fuera de Integraciones, Auditoría dentro         |
 | (este)    | Fase C: capa canónica `lib/funnels/` con tests, sin UI todavía                                        |
 
-**Próximo paso para quien recoja el relevo (Codex incluido):** terminar la fase F — el **matching
-de Fathom**. Determinista por identificador externo primero, email + ventana temporal solo como
-respaldo, y cola de revisión para los ambiguos en vez de adivinar. Necesita tabla nueva por
-migración versionada y reconciliación histórica idempotente con dry-run. Ver `ROADMAP_MVP.md` §3.2.
+**Próximo paso para quien recoja el relevo (Codex incluido):** fase J — el aprovisionador de
+subcuentas, **en PR aparte** como pidió el usuario. Ojo con un fallo que ya bloqueaba esto y se
+corrigió hoy: tres tablas tenían un único GLOBAL sobre `slug`, así que cada subcuenta nueva chocaba
+con los slugs de las demás. Ver `ROADMAP_MVP.md` §3.3.
+
+Pendiente que NO es código y necesita decisión del usuario: pantalla para registrar en lote los pagos
+`registrable` del informe de Stripe (asignando producto y plan), habilitar `pg_cron` + `pg_net` si se
+quiere la frecuencia original de Meta, y rotar el Client Secret de Google.
+
+Lo aplicado hoy en producción son **once migraciones**, cada una con dry-run previo
+(`BEGIN`/`ROLLBACK` probando el COMPORTAMIENTO, no solo que la DDL compile) y verificación posterior.
+Mantén esa disciplina: varias cazaron fallos reales antes de tocar nada.
+
+Antes de eso, si hay tiempo: la **pantalla para resolver la cola `fathom_match_review`**. El sync ya
+anota los casos dudosos correctamente, pero resolverlos hoy requiere tocar la tabla a mano.
+
+Si tocas el sync de Fathom: la decisión de emparejamiento NO va ahí, va en `lib/fathom/match.ts`
+(función pura, 10 tests). **Nunca escribas una transcripción en más de una cita**: eso es lo que
+hacía antes y duplicaba llamadas. Ver `ROADMAP_MVP.md` §3.2.
 
 Si vas a tocar Funnels: lee antes `ROADMAP_MVP.md` §3.1, que dice exactamente qué etapas tienen
 datos reales y cuáles salen como "fuente sin configurar" y por qué. **No inventes nombres de evento

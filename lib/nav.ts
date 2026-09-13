@@ -50,6 +50,7 @@ import {
   Wrench,
   Scale,
   Filter,
+  FileAudio,
 } from 'lucide-react'
 import { allowedPrefixesFor, type AppRole, type Department } from '@/lib/auth/permissions'
 
@@ -195,6 +196,12 @@ export const NAV_SECTIONS: NavSection[] = [
             href: '/recursos/testimonios',
             icon: Award,
             roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller', 'csm', 'marketing', 'editor'],
+          },
+          {
+            label: 'Grabaciones',
+            href: '/recursos/grabaciones',
+            icon: FileAudio,
+            roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'],
           },
           { label: 'Contratos', href: '/recursos/contratos-producto', icon: FileText, roles: [...LEAD, 'closer'] },
         ],

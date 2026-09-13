@@ -41,18 +41,18 @@ y eventos de conversión. Es la fuente correcta para Web/SEO.
 
 Leyenda: ✅ hecho · 🚧 en curso · ⛔ bloqueado por el usuario · ⬜ pendiente
 
-| #   | Fase                                          | Estado | Nota                                                       |
-| --- | --------------------------------------------- | ------ | ---------------------------------------------------------- |
-| A   | Desbloquear PR #30                            | ⛔     | Requiere acción del usuario (ver §5)                       |
-| B   | Reordenación de navegación y Configuración    | ✅     | Commit `f4f028a`                                           |
-| C   | Capa canónica de funnels (sin UI)             | ⬜     | Siguiente. No necesita credenciales                        |
-| E   | Sección Funnels con lo que ya hay en base     | ⬜     | MVP sin GA4: VSL, Webinar y Profile ya tienen datos        |
-| F   | CRM → Agenda, detalle de cita legible, Fathom | ⬜     | Mejora diaria, barata                                      |
-| D   | GA4 (OAuth multi-tenant)                      | ⛔     | Bloqueada: hay que crear el proyecto de Google Cloud       |
-| G   | Banco de testimonios y de grabaciones         | ⬜     |                                                            |
-| H   | Facturas por email (**solo Gmail**)           | ⬜     | También necesita el proyecto de Google Cloud               |
-| I   | Backfill de Stripe y diagnóstico de Meta      | ⬜     | Empieza por dry-run, sin escribir                          |
-| J   | Aprovisionamiento                             | ⬜     | Al final: el blueprint solo puede incluir lo que ya existe |
+| #   | Fase                                          | Estado | Nota                                                |
+| --- | --------------------------------------------- | ------ | --------------------------------------------------- |
+| A   | Desbloquear PR #30                            | ⛔     | Requiere acción del usuario (ver §5)                |
+| B   | Reordenación de navegación y Configuración    | ✅     | Commit `f4f028a`                                    |
+| C   | Capa canónica de funnels (sin UI)             | ⬜     | Siguiente. No necesita credenciales                 |
+| E   | Sección Funnels con lo que ya hay en base     | ⬜     | MVP sin GA4: VSL, Webinar y Profile ya tienen datos |
+| F   | CRM → Agenda, detalle de cita legible, Fathom | ⬜     | Mejora diaria, barata                               |
+| D   | GA4 (OAuth multi-tenant)                      | ✅     | OAuth + sync + enganchado a Funnels                 |
+| G   | Banco de testimonios y de grabaciones         | ✅     | Grabaciones hechas; testimonios ya existía (§3.3)   |
+| H   | Facturas por email (**solo Gmail**)           | ✅     | Importa y deja en pendiente_validacion              |
+| I   | Backfill de Stripe y diagnóstico de Meta      | ✅     | Informe de solo lectura + causa de Meta encontrada  |
+| J   | Aprovisionamiento                             | ⬜     | **Siguiente**, y en PR aparte como pediste          |
 
 **Por qué este orden y no el del plan original:** D (GA4) estaba antes de E (UI de Funnels), pero
 GA4 está bloqueada por una acción del usuario en Google Cloud. Hacer C+E primero entrega una
@@ -97,12 +97,87 @@ Hecho:
   legibles. Las respuestas del formulario **ya existían** y se siguen viendo para todos: esa parte
   del brief estaba resuelta de antes, solo faltaba quitar el ruido técnico de encima.
 
-Pendiente, y es la parte grande de esta fase — **próximo paso concreto**:
+**Matching de Fathom — hecho, y arregla una corrupción de datos que no estaba en el brief.**
 
-- **Matching de Fathom.** Emparejar por identificador externo primero (determinista), y solo si no
-  hay, por email + ventana temporal. Los casos ambiguos NO se adivinan: van a una **cola de
-  revisión** para que una persona decida. Hace falta una tabla nueva (migración versionada) para esa
-  cola, y una reconciliación histórica **idempotente y con dry-run** antes de escribir nada.
+Lo que hacía antes: cuando había varias citas candidatas en una ventana de ±12 h, escribía la
+transcripción en **todas**, con un comentario que lo presentaba como lo prudente. No lo era:
+duplicaba la misma llamada en N citas (el análisis de IA y Voice of Customer la contaban N veces),
+estampaba el mismo `fathom_meeting_id` en N filas, y en el re-sync siguiente la comprobación de "ya
+importada" encontraba una y saltaba — **parecía idempotente habiendo dejado N-1 filas con una
+llamada que no ocurrió ahí**.
+
+Lo que hace ahora:
+
+- La decisión vive en `lib/fathom/match.ts`, función pura con 10 tests. El sync solo obedece.
+- Identificador de Fathom primero (determinista). Si no, email + proximidad, con ventana de
+  **90 minutos** en vez de 12 horas.
+- Si dos candidatas están a menos de 15 minutos de diferencia entre sí, **no se elige**: elegir
+  sería tirar una moneda. Va a `fathom_match_review` para que una persona decida.
+- Escritura a **una sola** cita, con `.select()` para no dar por escrito lo que RLS dejó en 0 filas.
+- `dryRun: true` recorre y clasifica sin escribir, y devuelve una muestra legible de lo que haría.
+- La cola es idempotente por `(tenant_id, fathom_meeting_id)`: un re-sync no duplica casos, y si la
+  persona ya resolvió uno, no se reabre.
+
+Queda por hacer, y es pequeño: la **pantalla** para resolver la cola. Hoy los casos se anotan
+correctamente y se pueden consultar, pero resolverlos requiere tocar la tabla. Es lo primero que
+debería añadirse cuando haya casos reales que resolver.
+
+## 3.3 Fase G: replanteada, y por qué
+
+Al abrirla me encontré con que **el banco de testimonios ya existe** (`/recursos/testimonios`, tabla
+`testimonios`), pero es otra cosa que lo que pedía el brief: un banco de **copy** de venta (hook,
+punto A → punto B, vehículo, cifra ancla, consentimiento de imagen), no un banco de archivos con
+subida masiva. Así que "banco de testimonios" no era trabajo nuevo: es una tabla que ya está y que
+nadie ha llenado.
+
+Y buscando ahí aparecieron **tres fallos reales** que valían más que construir otra pantalla:
+
+1. **Unique global sobre `slug`** en `testimonios`, `qualification_questions` y `vsl_videos`, que
+   tienen `tenant_id`. La segunda subcuenta que usara el slug "xavi" (o "principal" en un vídeo VSL)
+   recibía un error de clave duplicada por una fila de **otra subcuenta que no puede ni ver**. Y
+   bloqueaba de raíz la fase J: cada subcuenta nueva chocaría en los slugs naturales. Misma clase de
+   fallo ya corregida en `integration_settings`, que se quedó sin revisar aquí. **Arreglado.**
+2. **El auto-registro de preguntas de cualificación no ha funcionado nunca** desde la migración
+   multi-tenant. Los webhooks de GHL y Calendly hacían `upsert` sin `tenant_id`, que es `NOT NULL`,
+   así que cada llamada moría con `not_null_violation`. **Arreglado.**
+3. **El error se tragaba.** Nadie miraba el resultado de ese `upsert`, y eso es lo que escondió el
+   fallo: la tabla estaba vacía habiendo pasado cientos de formularios. Ahora se registra en consola
+   sin abortar el webhook — perder la cita entera por un efecto secundario sería peor.
+
+Verificado en producción, no deducido: reproduje el `not_null_violation` y comprobé que las tres
+tablas estaban vacías antes de tocar los índices.
+
+Lo que **sigue pendiente** de la fase G, y ahora sí es trabajo nuevo:
+
+- Banco de **grabaciones** (archivos) con subida masiva, progreso y reintento, categoría por MIME
+  (no por IA), dedupe por hash, Storage privado bajo `tenant_id/` y aprobación manual.
+- Clasificación de llamadas ganada/perdida/pendiente **derivada de datos canónicos**, nunca de la IA
+  por sí sola.
+
+## 3.4 Fase I: por qué el backfill de Stripe es un informe y no un importador
+
+`sales.product_id` y `sales.payment_plan_id` son **`NOT NULL`**, y un pago de Stripe no dice a qué
+producto interno corresponde ni cuál es la política de reembolso. Con 2 productos y 1 plan de pago en
+base, un importador automático tendría que **elegir** — es decir, inventar datos financieros, y
+encima en la tabla de la que salen la facturación y las comisiones.
+
+Así que `/api/[tenant]/evergreen/stripe-backfill` es **solo GET y no escribe nada** (hay un test que
+falla si aparece un POST o una escritura de Supabase). Clasifica cada pago del rango:
+
+| Veredicto       | Significa                                                           |
+| --------------- | ------------------------------------------------------------------- |
+| `ya_registrado` | hay un cobro interno con esa referencia: nada que decidir           |
+| `registrable`   | pago bueno y cliente identificado: **falta elegir producto y plan** |
+| `sin_contacto`  | pago bueno, pero ningún contacto con ese email                      |
+| `no_es_venta`   | el pago no se completó — **la regla que acordamos**                 |
+| `reembolsado`   | se cobró y se devolvió entero: no es ingreso                        |
+
+El resumen suma el importe **solo de lo registrable**. Sumar todo prometería una facturación que no
+existe. Y paginación real por rango de fechas: la conciliación que ya había solo miraba los últimos
+100 pagos, así que no servía para histórico.
+
+Lo que falta para cerrar el círculo, y necesita tu decisión: una pantalla donde asignar producto y
+plan a los `registrable` y registrarlos en lote. Eso sí escribe, así que no lo he hecho sin pedírtelo.
 
 ## 4. Regla que aplica a todas las fases
 
@@ -134,8 +209,20 @@ en todo lo nuevo.
 
 **Sigue bloqueado, y es lo único que necesito de ti:**
 
-- Crear el proyecto de Google Cloud con pantalla de consentimiento OAuth. Desbloquea la fase D
-  (GA4) **y** la fase H (buzón de facturas por Gmail). Hasta entonces ambas quedan fuera del MVP.
+- ~~Crear el proyecto de Google Cloud~~ ✅ **hecho por el usuario el 2026-09-13.** Client ID y
+  Secret creados para el cliente `growth-ops-web`.
+
+  Dos cosas que aprendimos al hacerlo y conviene no repetir:
+  - `vercel.app` **no vale** como dominio autorizado: está en la Public Suffix List, así que Google
+    lo rechaza igual que rechazaría `.com`. Hay que poner el subdominio real
+    (`growth-ops-weld.vercel.app`), y cada preview o proyecto nuevo se añade uno a uno.
+  - El URI de redirección registrado es `/api/oauth/google/callback`, **sin subcuenta en la ruta**.
+    Google compara la cadena literal y exige registrar cada URI, así que no puede haber un callback
+    por subcuenta. De ahí que la subcuenta viaje **firmada** en el parámetro `state`.
+
+- **Pendiente del usuario: rotar el Client Secret.** Se pegó en un chat, así que queda en un
+  historial almacenado y ya no es secreto. Generar uno nuevo en Clientes → `growth-ops-web` →
+  Secretos del cliente y pegarlo en Configuración → Integraciones → Google, que es donde se cifra.
 
 ### Hallazgos fuera de alcance detectados al pasar el linter
 
