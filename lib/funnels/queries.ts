@@ -101,12 +101,52 @@ async function metaStages(sb: SupabaseClient, tenantId: string, range: DateRange
   }
 }
 
+// ── Etapas de GA4: sesiones desde ga4_daily ─────────────────────────────────
+// Se lee la tabla local, NO la API de Google: la pantalla de Funnels no debe depender de una
+// llamada externa que puede tardar o fallar. El sync llena la tabla; aquí solo se suma.
+
+async function ga4Stages(sb: SupabaseClient, tenantId: string, range: DateRange) {
+  // ¿Hay conexión con propiedad elegida? Si no la hay, la etapa no está "vacía": está sin
+  // configurar, y decir 0 sesiones sería afirmar que nadie visitó la web.
+  const { data: conn, error: connError } = await sb
+    .from('google_oauth_connections')
+    .select('ga4_property_id,status,last_sync_at')
+    .eq('tenant_id', tenantId)
+    .eq('provider', 'ga4')
+    .maybeSingle()
+  if (connError) return { sesiones: fromCount(null, 'ga4', { error: connError.message }) }
+  const c = conn as { ga4_property_id: string | null; status: string; last_sync_at: string | null } | null
+  if (!c) {
+    return { sesiones: noConfigurada('ga4', 'GA4 no está conectado en esta subcuenta.') }
+  }
+  if (!c.ga4_property_id) {
+    return { sesiones: noConfigurada('ga4', 'GA4 está conectado pero no se ha elegido ninguna propiedad.') }
+  }
+  if (c.status === 'revocada') {
+    return { sesiones: fromCount(null, 'ga4', { error: 'Google revocó el acceso: hay que volver a conectar.' }) }
+  }
+  if (!c.last_sync_at) {
+    return { sesiones: noConfigurada('ga4', 'GA4 conectado, pero todavía no se ha sincronizado ningún dato.') }
+  }
+
+  // `date` es DATE, así que el rango se compara por día. El `to` del rango puede venir con hora
+  // (para las tablas con timestamptz), de ahí el recorte a 10 caracteres.
+  const { data, error } = await sb
+    .from('ga4_daily')
+    .select('sessions')
+    .eq('tenant_id', tenantId)
+    .gte('date', range.from.slice(0, 10))
+    .lte('date', range.to.slice(0, 10))
+  if (error) return { sesiones: fromCount(null, 'ga4', { error: error.message }) }
+  const total = (data ?? []).reduce((a, r) => a + (Number((r as { sessions: number }).sessions) || 0), 0)
+  return { sesiones: fromCount(total, 'ga4', { lastSync: c.last_sync_at }) }
+}
+
 // ── Fuentes que todavía no pueden alimentar una etapa, y por qué ────────────
 // Se nombran con precisión para que la UI diga qué hay que configurar. Un texto genérico obligaría
 // al usuario a adivinar si es un fallo suyo, nuestro o de la integración.
 const NOT_READY: Record<string, string> = {
   vsl: 'Los eventos de landing/VSL se guardan con nombre libre en canonical_events y esta subcuenta no tiene mapeado qué nombre corresponde a esta etapa.',
-  ga4: 'GA4 no está conectado todavía: falta el proyecto de Google Cloud con pantalla de consentimiento OAuth.',
   clarity:
     'Clarity solo expone los últimos 1-3 días con 10 peticiones diarias, así que no puede alimentar una etapa del funnel.',
 }
@@ -124,10 +164,12 @@ export async function loadFunnelCounts(
   const stages = stagesOf(family)
   const needsCrm = stages.some((s) => s.source === 'crm')
   const needsMeta = stages.some((s) => s.source === 'meta')
+  const needsGa4 = stages.some((s) => s.source === 'ga4')
 
-  const [crm, meta] = await Promise.all([
+  const [crm, meta, ga4] = await Promise.all([
     needsCrm ? crmStages(sb, tenantId, range) : Promise.resolve(null),
     needsMeta ? metaStages(sb, tenantId, range) : Promise.resolve(null),
+    needsGa4 ? ga4Stages(sb, tenantId, range) : Promise.resolve(null),
   ])
 
   const counts: Record<string, MetricValue> = {}
@@ -145,6 +187,11 @@ export async function loadFunnelCounts(
           'crm',
           `La etapa "${stage.label}" necesita distinguir este subconjunto de contactos y todavía no hay ese criterio en base.`
         )
+      continue
+    }
+    if (stage.source === 'ga4' && ga4) {
+      counts[stage.id] =
+        stage.id === 'sesiones' ? ga4.sesiones : noConfigurada('ga4', `GA4 no aporta "${stage.label}".`)
       continue
     }
     if (stage.source === 'meta' && meta) {
