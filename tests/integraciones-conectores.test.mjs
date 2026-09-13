@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -142,4 +142,24 @@ test('la cuenta de Meta se elige de una lista, sin guardar el token antes', () =
   assert.match(page, /name="meta-account"/, 'no hay dónde elegir la cuenta')
   // Una cuenta cerrada o con deuda no devuelve datos: se avisa antes de elegirla.
   assert.match(page, /inactiva en Meta/)
+})
+
+// Este catálogo decide si una integración sale "con datos" o "sin datos". Si apunta a una tabla que
+// no existe, el panel dice "sin datos" para siempre y manda a revisar credenciales que están bien:
+// exactamente el fallo que este módulo existe para evitar. Pasó de verdad con `instagram_posts`,
+// que no está en ninguna migración.
+test('cada sincronización apunta a una tabla que existe de verdad', () => {
+  const defs = read('lib/ops/sync-health.ts')
+  const tablas = [...new Set([...defs.matchAll(/^ {4}table: '([a-z_]+)',$/gm)].map((m) => m[1]))]
+  assert.ok(tablas.length >= 8, 'no se han extraído las tablas del catálogo')
+
+  const migraciones = readdirSync(join(root, 'supabase/migrations'))
+    .filter((f) => f.endsWith('.sql'))
+    .map((f) => readFileSync(join(root, 'supabase/migrations', f), 'utf8'))
+    .join('\n')
+
+  const inexistentes = tablas.filter(
+    (t) => !new RegExp(`CREATE TABLE (IF NOT EXISTS )?public\\.${t}\\b`).test(migraciones)
+  )
+  assert.deepEqual(inexistentes, [], `estas tablas no las crea ninguna migración: ${inexistentes.join(', ')}`)
 })
