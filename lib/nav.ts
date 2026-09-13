@@ -49,6 +49,7 @@ import {
   UserRound,
   Wrench,
   Scale,
+  Filter,
 } from 'lucide-react'
 import { allowedPrefixesFor, type AppRole, type Department } from '@/lib/auth/permissions'
 
@@ -78,6 +79,10 @@ export const NAV_SECTIONS: NavSection[] = [
         roles: [...LEAD, 'setter', 'closer', 'affiliate'],
       },
       { label: 'Métricas', href: '/unit-economics', icon: BarChart3, roles: LEAD },
+      // Funnels va arriba y no dentro de "Analítica de ventas" a propósito: cruza marketing y
+      // ventas (impresiones de Meta, visitas, leads, agendas, cierres), así que no pertenece a un
+      // solo departamento.
+      { label: 'Funnels', href: '/funnels', icon: Filter, roles: [...LEAD, 'marketing', 'adscripcion'] },
       {
         label: 'Tareas',
         href: '/tasks',
