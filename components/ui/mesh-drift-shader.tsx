@@ -347,6 +347,19 @@ export function ShaderBackground({ className }: { className?: string }) {
     gl.attachShader(program, vertexShader)
     gl.attachShader(program, fragmentShader)
     gl.linkProgram(program)
+    // Sin esta comprobación, un driver que rechace el fragment shader (va justo en el límite de
+    // uniform vectors de WebGL1) dejaba el lienzo transparente y el bucle girando a 60 fps sin
+    // pintar nada y sin un solo mensaje: imposible de diagnosticar desde "no me sale el fondo".
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      console.error(
+        '[ShaderBackground] El programa WebGL no enlazó, se omite el fondo animado:',
+        gl.getProgramInfoLog(program) || gl.getShaderInfoLog(fragmentShader) || 'sin detalle del driver'
+      )
+      gl.deleteShader(vertexShader)
+      gl.deleteShader(fragmentShader)
+      gl.deleteProgram(program)
+      return
+    }
     gl.deleteShader(vertexShader)
     gl.deleteShader(fragmentShader)
     gl.useProgram(program)

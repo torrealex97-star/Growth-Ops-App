@@ -1,7 +1,6 @@
-import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 import { detectAnomalies } from '@/lib/ai/insights/detectors'
 import { formatCurrency } from '@/lib/utils'
 
@@ -14,46 +13,44 @@ export const maxDuration = 60
 // más fiable y sin coste añadido para algo que una plantilla ya explica bien. Dedup por
 // fingerprint (tenant+tipo+semana): reintentos del cron en la misma semana no duplican el aviso.
 
-// Auth: header Bearer CRON_SECRET (Vercel Cron/pg_cron) o sesión de admin/director (botón manual)
-// — mismo patrón que cron/monthly y cron/sequra-morosos. Sin esto no había NINGUNA forma de
-// disparar este cron en producción (no está en vercel.json ni hay pg_cron configurado).
-async function isAuthorized(req: NextRequest): Promise<boolean> {
+type Authorized = { mode: 'cron' } | { mode: 'user'; tenantId: string }
+
+// Mismo criterio que cron/analyze-calls: el secreto de cron recorre todas las subcuentas (proceso
+// de plataforma), pero una sesión solo puede lanzarlo sobre la SUYA. El job usa service role, así
+// que sin este alcance un director de una subcuenta escribía insights en las demás.
+async function authorize(req: NextRequest, tenantSlug: string): Promise<Authorized | NextResponse> {
   const auth = req.headers.get('authorization')
-  if (process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`) return true
-  try {
-    const cookieStore = await cookies()
-    const sb = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll() {},
-      },
-    })
-    const {
-      data: { user },
-    } = await sb.auth.getUser()
-    if (!user) return false
-    const { data } = await sb.from('users').select('roles(key)').eq('id', user.id).single()
-    const role = (data?.roles as { key?: string } | null)?.key
-    return role === 'admin' || role === 'director'
-  } catch {
-    return false
+  if (process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`) return { mode: 'cron' }
+
+  const session = await requireTenant(tenantSlug)
+  if ('error' in session) return session.error
+  if (!session.isSuperAdmin && session.role !== 'admin' && session.role !== 'director') {
+    return NextResponse.json({ error: 'Requiere rol de admin o director' }, { status: 403 })
   }
+  return { mode: 'user', tenantId: session.tenantId }
 }
 
-export async function GET(req: NextRequest) {
-  if (!(await isAuthorized(req))) {
-    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  }
+export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params
+  const authorized = await authorize(req, tenant)
+  if (authorized instanceof NextResponse) return authorized
+
   const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-  const { data: tenants, error: tenantsErr } = await sb.from('tenants').select('id, slug').eq('status', 'active')
-  if (tenantsErr) return NextResponse.json({ error: tenantsErr.message }, { status: 500 })
+  let targets: Array<{ id: string; slug: string }>
+  if (authorized.mode === 'cron') {
+    const { data, error } = await sb.from('tenants').select('id, slug').eq('status', 'active')
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    targets = data || []
+  } else {
+    const { data, error } = await sb.from('tenants').select('id, slug').eq('id', authorized.tenantId).single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    targets = [data]
+  }
 
   const perTenant: Record<string, { detected: number; inserted: number }> = {}
 
-  for (const t of tenants || []) {
+  for (const t of targets) {
     const anomalies = await detectAnomalies(t.id, sb)
     let inserted = 0
     for (const a of anomalies) {

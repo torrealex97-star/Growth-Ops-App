@@ -36,7 +36,9 @@ export default function SociosSettingsPage() {
       .select('*')
       .eq('tenant_id', tenantId)
       .order('profit_percent', { ascending: false })
-    if (error && /relation .* does not exist|partners/.test(error.message)) setTableMissing(true)
+    // Solo "la tabla no existe" (42P01). El patrón anterior incluía la palabra "partners", así que
+    // un "permission denied for table partners" se mostraba como "falta la migración".
+    if (error && (error.code === '42P01' || /relation .* does not exist/i.test(error.message))) setTableMissing(true)
     setPartners((data as Partner[]) ?? [])
     setLoading(false)
   }
@@ -85,15 +87,23 @@ export default function SociosSettingsPage() {
     toast.success('Socio añadido')
   }
 
+  // La RLS deja LEER socios a todo el equipo pero solo escribir a admin/director, y un write
+  // bloqueado por RLS no da error: afecta a 0 filas en silencio. Sin pedir las filas devueltas, la
+  // UI decía "eliminado" y quitaba la fila de pantalla mientras en la base seguía intacta.
   const toggleActive = async (p: Partner) => {
     const sb = createClient()
-    const { error } = await sb
+    const { data, error } = await sb
       .from('partners')
       .update({ is_active: !p.is_active })
       .eq('id', p.id)
       .eq('tenant_id', tenantId)
+      .select('id')
     if (error) {
       toast.error('No se pudo actualizar', { description: error.message })
+      return
+    }
+    if (!data || data.length === 0) {
+      toast.error('No tienes permisos para modificar socios')
       return
     }
     setPartners((prev) => prev.map((x) => (x.id === p.id ? { ...x, is_active: !x.is_active } : x)))
@@ -102,9 +112,13 @@ export default function SociosSettingsPage() {
   const deletePartner = async (id: string) => {
     if (!window.confirm('¿Eliminar este socio?')) return
     const sb = createClient()
-    const { error } = await sb.from('partners').delete().eq('id', id).eq('tenant_id', tenantId)
+    const { data, error } = await sb.from('partners').delete().eq('id', id).eq('tenant_id', tenantId).select('id')
     if (error) {
       toast.error('No se pudo eliminar', { description: error.message })
+      return
+    }
+    if (!data || data.length === 0) {
+      toast.error('No tienes permisos para eliminar socios')
       return
     }
     setPartners((prev) => prev.filter((p) => p.id !== id))

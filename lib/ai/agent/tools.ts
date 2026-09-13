@@ -31,12 +31,20 @@ const inPeriod = (dateStr: string | null, p: Period): boolean => {
 // es un problema comercial, "no hay ninguna venta cargada en el sistema" es un problema de
 // integración. Sin esta señal el agente presentaría lo segundo como lo primero.
 // ─────────────────────────────────────────────────────────────────────────────
-export type SourceCoverage = { fuente: string; filas: number; desde: string | null; hasta: string | null }
+// filas = null significa "no se pudo leer", que NO es lo mismo que 0 ("vacía"). Confundirlos aquí
+// reproduciría justo el error que esta tool existe para evitar.
+export type SourceCoverage = {
+  fuente: string
+  filas: number | null
+  desde: string | null
+  hasta: string | null
+  error?: string
+}
 
 const SOURCES: Array<{ fuente: string; table: string; dateColumn: string }> = [
   { fuente: 'ventas', table: 'sales', dateColumn: 'sale_date' },
   { fuente: 'campañas / ads', table: 'campaigns', dateColumn: 'start_date' },
-  { fuente: 'cobros', table: 'collections', dateColumn: 'collection_date' },
+  { fuente: 'cobros', table: 'collections', dateColumn: 'collected_at' },
   { fuente: 'contactos', table: 'contacts', dateColumn: 'created_at' },
   { fuente: 'citas', table: 'appointments', dateColumn: 'appointment_datetime' },
   { fuente: 'atribución de contactos', table: 'contact_attributions', dateColumn: 'created_at' },
@@ -45,24 +53,33 @@ const SOURCES: Array<{ fuente: string; table: string; dateColumn: string }> = [
 export async function getDataCoverage({ tenantId, sb }: ToolContext): Promise<{
   fuentes: SourceCoverage[]
   fuentes_vacias: string[]
+  fuentes_no_legibles: string[]
 }> {
   const results = await Promise.all(
-    SOURCES.map(async (s) => {
-      const [{ count }, { data: first }, { data: last }] = await Promise.all([
+    SOURCES.map(async (s): Promise<SourceCoverage> => {
+      // Las consultas de rango excluyen NULL en la columna de fecha: con ORDER BY DESC, Postgres
+      // pone los NULL primero, así que una sola fila sin fecha dejaba "hasta" vacío aunque la
+      // fuente estuviera completa.
+      const [{ count, error: countError }, { data: first }, { data: last }] = await Promise.all([
         sb.from(s.table).select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId),
         sb
           .from(s.table)
           .select(s.dateColumn)
           .eq('tenant_id', tenantId)
+          .not(s.dateColumn, 'is', null)
           .order(s.dateColumn, { ascending: true })
           .limit(1),
         sb
           .from(s.table)
           .select(s.dateColumn)
           .eq('tenant_id', tenantId)
+          .not(s.dateColumn, 'is', null)
           .order(s.dateColumn, { ascending: false })
           .limit(1),
       ])
+      if (countError) {
+        return { fuente: s.fuente, filas: null, desde: null, hasta: null, error: countError.message }
+      }
       const pick = (rows: unknown): string | null => {
         const row = Array.isArray(rows) ? (rows[0] as Record<string, unknown> | undefined) : undefined
         const v = row?.[s.dateColumn]
@@ -71,24 +88,43 @@ export async function getDataCoverage({ tenantId, sb }: ToolContext): Promise<{
       return { fuente: s.fuente, filas: count ?? 0, desde: pick(first), hasta: pick(last) }
     })
   )
-  return { fuentes: results, fuentes_vacias: results.filter((r) => r.filas === 0).map((r) => r.fuente) }
+  return {
+    fuentes: results,
+    fuentes_vacias: results.filter((r) => r.filas === 0).map((r) => r.fuente),
+    fuentes_no_legibles: results.filter((r) => r.filas === null).map((r) => r.fuente),
+  }
 }
 
 // Aviso compacto para incrustar en las respuestas de las tools de métricas: si la tabla que
-// alimenta la métrica no tiene NI UNA fila, el 0 no es una medición.
+// alimenta la métrica no tiene NI UNA fila, el 0 no es una medición. Un fallo de lectura se
+// reporta aparte: dar por "vacía" una tabla que no se pudo consultar sería una alarma falsa.
 async function emptySourceWarning(
   { tenantId, sb }: ToolContext,
   sources: Array<{ label: string; table: string }>
 ): Promise<string | null> {
   const counts = await Promise.all(
     sources.map(async (s) => {
-      const { count } = await sb.from(s.table).select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId)
-      return { label: s.label, empty: (count ?? 0) === 0 }
+      const { count, error } = await sb
+        .from(s.table)
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
+      return { label: s.label, empty: !error && (count ?? 0) === 0, unreadable: !!error }
     })
   )
   const empty = counts.filter((c) => c.empty).map((c) => c.label)
-  if (empty.length === 0) return null
-  return `SIN DATOS CARGADOS en: ${empty.join(', ')}. Los ceros de estas métricas NO son una medición del negocio: esa fuente está vacía (nunca se ha sincronizado o se vació). Dilo explícitamente y no lo presentes como un resultado comercial.`
+  const unreadable = counts.filter((c) => c.unreadable).map((c) => c.label)
+  const parts: string[] = []
+  if (empty.length > 0) {
+    parts.push(
+      `SIN DATOS CARGADOS en: ${empty.join(', ')}. Los ceros de estas métricas NO son una medición del negocio: esa fuente está vacía (nunca se ha sincronizado o se vació). Dilo explícitamente y no lo presentes como un resultado comercial.`
+    )
+  }
+  if (unreadable.length > 0) {
+    parts.push(
+      `NO SE PUDO CONSULTAR: ${unreadable.join(', ')}. No afirmes que están vacías ni uses sus cifras: avisa de que la consulta falló.`
+    )
+  }
+  return parts.length > 0 ? parts.join(' ') : null
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
