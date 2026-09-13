@@ -1,6 +1,28 @@
 # Relevo activo
 
-Última actualización: 2026-09-12 (Claude Code)
+Última actualización: 2026-09-13 (Claude Code)
+
+## Qué se está haciendo ahora y qué sigue (2026-09-13)
+
+**La hoja de ruta viva está en `docs/ROADMAP_MVP.md`.** Ahí está el estado de cada fase, las
+decisiones ya tomadas por el usuario y lo que sigue bloqueado esperándole. Criterio acordado:
+**MVP funcional de todo antes que una sola cosa perfecta**, con el avance reportado en cada PR.
+
+Avance de esta sesión, todo sobre `claude/financial-constraints-handoff` (PR #30):
+
+| Commit    | Qué                                                                                                   |
+| --------- | ----------------------------------------------------------------------------------------------------- |
+| `8e20a44` | P0: `cron/monthly` dejaba a una sesión escribir gastos en TODAS las subcuentas + tests de aislamiento |
+| `f4f028a` | Fase B de UX: Configuración a un solo nivel, negocio fuera de Integraciones, Auditoría dentro         |
+| (este)    | Fase C: capa canónica `lib/funnels/` con tests, sin UI todavía                                        |
+
+**Próximo paso para quien recoja el relevo (Codex incluido):** Fase E — la sección Funnels
+consumiendo `lib/funnels/` con las fuentes que YA tienen datos en base (VSL, webinar, perfil). GA4
+queda fuera del MVP a propósito: está bloqueada hasta que exista el proyecto de Google Cloud.
+
+Regla que no se negocia en nada de esto: una métrica **nunca** colapsa a 0 por un fallo de fuente.
+`lib/funnels/types.ts` distingue `ok` / `sin_datos` / `error_fuente`, y la UI tiene que distinguir
+los tres. Los tests de `tests/metrics/funnels.test.mjs` lo fijan.
 
 ## Estado canónico (2026-09-13)
 
