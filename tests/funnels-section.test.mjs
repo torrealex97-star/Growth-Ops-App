@@ -58,3 +58,49 @@ test('el endpoint saca el tenant de la URL y valida el rango de fechas', () => {
   assert.match(route, /FUNNEL_FAMILIES\.includes/)
   assert.match(route, /from > to/)
 })
+
+// ── Mapeo de eventos de tracking (etapas de landing/VSL) ────────────────────
+// La regla que no se puede romper: sin mapeo explícito de la subcuenta, esas etapas NO cuentan nada.
+// Un diccionario de nombres inventado aquí ('page_view', 'vsl_play'…) daría números creíbles y
+// falsos, distintos por subcuenta según qué use su tracking, y sin que la pantalla lo dijera.
+test('sin mapeo de la subcuenta, las etapas de tracking siguen sin configurar', () => {
+  const queries = read('lib/funnels/queries.ts')
+  assert.match(queries, /namesFor\(eventMap, family, stage\.id\)/)
+  assert.match(queries, /names\.length > 0/, 'no se comprueba que haya nombres mapeados antes de contar')
+  assert.match(queries, /noConfigurada\('vsl', NOT_READY\.vsl\)/, 'sin mapeo debería salir no_configurada')
+  // El mapeo por defecto es vacío: una firma con un diccionario por defecto contaría eventos que
+  // nadie eligió en cuanto alguien llamara a la función sin pasar el mapa.
+  assert.match(queries, /eventMap: EventMap = \{\}/)
+})
+
+test('el mapeo se lee de la subcuenta y nunca de una variable de entorno global', () => {
+  const route = read('app/api/[tenant]/evergreen/funnels/route.ts')
+  assert.match(route, /getTenantConfig\(session\.tenantId\)/)
+  // getTenantConfigWithFallback mezcla process.env, así que una variable global mapearía los eventos
+  // de TODAS las subcuentas a la vez.
+  assert.doesNotMatch(route, /getTenantConfigWithFallback/)
+})
+
+test('guardar el mapeo es solo de admin o dirección, y comprueba las filas escritas', () => {
+  const route = read('app/api/[tenant]/evergreen/funnels/event-map/route.ts')
+  const put = route.slice(route.indexOf('export async function PUT'))
+  assert.match(put, /role !== 'admin' && session\.role !== 'director'/)
+  assert.match(put, /status: 403/)
+  assert.match(put, /validateEventMap/, 'el PUT no valida lo que llega del cliente')
+  assert.match(put, /onConflict: 'tenant_id,key'/, 'el upsert debe ser por subcuenta, no global')
+  assert.match(put, /\.select\('key'\)/)
+  assert.match(put, /0 filas afectadas/, 'un upsert bloqueado por RLS no da error: hay que comprobar las filas')
+})
+
+test('la pantalla de mapeo no propone ningún nombre de evento', () => {
+  const page = read('app/[tenant]/funnels/eventos/page.tsx')
+  // Los nombres salen SIEMPRE de data.available (lo que realmente llega). Una lista sugerida en el
+  // código sería el vocabulario inventado entrando por la UI.
+  assert.match(page, /data\.available\.map/)
+  for (const inventado of ['page_view', 'vsl_play', 'landing_view', 'optin']) {
+    assert.doesNotMatch(page, new RegExp(`'${inventado}'`), `la pantalla sugiere el evento ${inventado}`)
+  }
+  // Y avisa de lo que el usuario no puede ver venir: el mismo evento en dos etapas se cuenta dos
+  // veces.
+  assert.match(page, /más de una etapa/)
+})
