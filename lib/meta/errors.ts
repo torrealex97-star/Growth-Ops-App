@@ -8,6 +8,21 @@
 
 export type MetaErrorInfo = { code: string; message: string }
 
+/**
+ * Error de Meta con su código estable adjunto. Sin esto, quien lo captura solo tiene el texto: y
+ * decidir si merece la pena reintentar, o qué arreglo proponer, a base de buscar subcadenas en un
+ * mensaje que escribe Meta y cambia sin avisar es exactamente cómo "Invalid appsecret_proof" acabó
+ * mandando a corregir el identificador de la cuenta.
+ */
+export class MetaError extends Error {
+  readonly code: string
+  constructor(info: MetaErrorInfo) {
+    super(info.message)
+    this.name = 'MetaError'
+    this.code = info.code
+  }
+}
+
 type MetaErrorBody = {
   error?: {
     message?: string

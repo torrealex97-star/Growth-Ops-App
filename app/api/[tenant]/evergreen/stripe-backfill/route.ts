@@ -4,6 +4,7 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 import { getTenantConfigWithFallback } from '@/lib/config'
 import { classifyForBackfill, summarizeBackfill, type BackfillRow } from '@/lib/finance/stripeBackfill'
 import type { StripeIntent } from '@/lib/finance/stripeReconciliation'
+import { stripeList } from '@/lib/stripe/client'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -75,44 +76,34 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   const gte = Math.floor(new Date(`${from}T00:00:00Z`).getTime() / 1000)
   const lte = Math.floor(new Date(`${to}T23:59:59Z`).getTime() / 1000)
 
-  const rows: BackfillRow[] = []
-  let startingAfter: string | undefined
+  // Una sola implementación de la paginación (lib/stripe/client.ts) para las cuatro llamadas a
+  // Stripe que había escritas a mano: aquí, la conciliación, la base de clientes y el registro de
+  // ventas. `truncated` dice si Stripe tenía más páginas de las que caben en la ventana de la
+  // función, para poder informarlo en vez de presentar medio informe como si fuera completo.
+  const query = new URLSearchParams({ limit: '100' })
+  query.set('created[gte]', String(gte))
+  query.set('created[lte]', String(lte))
+  query.append('expand[]', 'data.latest_charge')
+
+  let rows: BackfillRow[] = []
   let paginas = 0
-  // Presupuesto de tiempo: un año de pagos puede ser mucho. Antes parar e informar de que quedan.
-  const deadline = Date.now() + 45_000
-
-  while (paginas < 40 && Date.now() < deadline) {
-    const query = new URLSearchParams({ limit: '100' })
-    query.set('created[gte]', String(gte))
-    query.set('created[lte]', String(lte))
-    query.append('expand[]', 'data.latest_charge')
-    if (startingAfter) query.set('starting_after', startingAfter)
-
-    const r = await fetch(`https://api.stripe.com/v1/payment_intents?${query}`, {
-      headers: {
-        Authorization: `Bearer ${key}`,
-        ...(cfg.STRIPE_ACCOUNT_ID ? { 'Stripe-Account': cfg.STRIPE_ACCOUNT_ID } : {}),
-      },
-      cache: 'no-store',
-      signal: AbortSignal.timeout(20_000),
-    })
-    const j = (await r.json().catch(() => ({}))) as {
-      data?: StripeIntent[]
-      has_more?: boolean
-      error?: { message?: string }
-    }
-    if (!r.ok) {
-      return NextResponse.json({ error: j.error?.message || `Stripe respondió ${r.status}` }, { status: 400 })
-    }
-    const intents = j.data ?? []
-    for (const intent of intents) rows.push(classifyForBackfill(intent, { knownReferences, contactsByEmail }))
-
-    paginas++
-    if (!j.has_more || intents.length === 0) {
-      startingAfter = undefined
-      break
-    }
-    startingAfter = intents[intents.length - 1].id
+  let truncado = false
+  try {
+    const lista = await stripeList<StripeIntent>(
+      'payment_intents',
+      query,
+      { secretKey: key, accountId: cfg.STRIPE_ACCOUNT_ID },
+      // Presupuesto de tiempo: un año de pagos puede ser mucho. Antes parar e informar de que quedan.
+      { maxPages: 40, deadline: Date.now() + 45_000 }
+    )
+    rows = lista.items.map((intent) => classifyForBackfill(intent, { knownReferences, contactsByEmail }))
+    paginas = lista.pages
+    truncado = lista.truncated
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Stripe no respondió', code: (e as { code?: string }).code },
+      { status: 400 }
+    )
   }
 
   const resumen = summarizeBackfill(rows)
@@ -121,7 +112,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     solo_lectura: true,
     rango: { from, to },
     paginas,
-    quedan_por_revisar: !!startingAfter,
+    quedan_por_revisar: truncado,
     resumen,
     // Solo lo que requiere una decisión: mandar 5.000 filas de "ya registrado" no ayuda a nadie.
     pendientes: rows.filter((r) => r.verdict !== 'ya_registrado').slice(0, 500),

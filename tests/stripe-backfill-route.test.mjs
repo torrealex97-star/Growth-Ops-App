@@ -31,10 +31,15 @@ test('pagina de verdad sobre el rango, con tope y presupuesto de tiempo', () => 
   // backfill histórico.
   assert.match(route, /created\[gte\]/)
   assert.match(route, /created\[lte\]/)
-  assert.match(route, /starting_after/)
-  assert.match(route, /has_more/)
   assert.match(route, /deadline/)
   assert.match(route, /quedan_por_revisar/)
+  // La mecánica de paginación vive en el cliente compartido de Stripe: había cuatro bucles escritos
+  // a mano y solo este paginaba. Los otros tres se quedaban con las 100 filas más recientes.
+  assert.match(route, /stripeList</)
+  const client = read('lib/stripe/client.ts')
+  assert.match(client, /starting_after/)
+  assert.match(client, /has_more/)
+  assert.match(client, /truncated/)
 })
 
 test('el tenant sale de la URL y exige rol de gestión', () => {
