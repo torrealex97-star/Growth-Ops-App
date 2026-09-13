@@ -71,6 +71,21 @@ test('Integraciones usa tarjetas, panel accesible y estados no engañosos', () =
   assert.match(page, /h\.fix/, 'no se pinta cómo arreglarlo')
 })
 
+test('DeepSeek se configura por tenant como secreto y admite prueba de conexión', () => {
+  const catalog = read('lib/integrations-catalog.ts')
+  const route = read('app/api/[tenant]/evergreen/settings/integraciones/route.ts')
+  const page = read('app/[tenant]/settings/integraciones/page.tsx')
+
+  assert.match(catalog, /id: 'deepseek'/)
+  assert.match(catalog, /key: 'DEEPSEEK_API_KEY'[\s\S]*?secret: true/)
+  assert.match(catalog, /key: 'DEEPSEEK_MODEL'[\s\S]*?secret: false/)
+  assert.match(route, /group === 'deepseek'/)
+  assert.match(route, /https:\/\/api\.deepseek\.com\/models/)
+  assert.match(route, /AbortSignal\.timeout\(10_000\)/)
+  assert.match(page, /deepseek: \{/)
+  assert.match(page, /https:\/\/api-docs\.deepseek\.com\//)
+})
+
 test('la asistencia vive en Notificaciones y el widget positivo ya no se sirve', () => {
   const header = read('components/os/Header.tsx')
   const dashboard = read('app/[tenant]/dashboard/page.tsx')

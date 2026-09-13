@@ -321,6 +321,32 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     ],
   },
   {
+    id: 'deepseek',
+    title: 'DeepSeek',
+    description: 'Conecta DeepSeek como proveedor adicional para modelos de lenguaje y razonamiento.',
+    category: 'ia',
+    test: true,
+    required: ['DEEPSEEK_API_KEY'],
+    fields: [
+      {
+        key: 'DEEPSEEK_API_KEY',
+        label: 'DeepSeek API Key',
+        type: 'password',
+        secret: true,
+        placeholder: 'sk-…',
+        help: 'Crea la clave en la plataforma de DeepSeek. Se guarda cifrada y solo se utiliza en el servidor.',
+      },
+      {
+        key: 'DEEPSEEK_MODEL',
+        label: 'Modelo predeterminado',
+        type: 'text',
+        secret: false,
+        placeholder: 'deepseek-v4-flash',
+        help: 'Opcional. Debe ser un modelo disponible para tu cuenta; si queda vacío se usa deepseek-v4-flash.',
+      },
+    ],
+  },
+  {
     id: 'youtube',
     title: 'YouTube',
     description: 'Publica reels como Shorts y sincroniza sus métricas.',
