@@ -1,7 +1,10 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
+  Activity,
+  Shield,
   Package,
   Percent,
   UserCog,
@@ -14,9 +17,21 @@ import {
   Handshake,
 } from 'lucide-react'
 import { useTenant } from '@/lib/tenant-context'
-import { SettingsNav } from '@/components/settings/SettingsNav'
+import { createClient } from '@/lib/supabase/client'
 
+// `manageOnly: false` = visible para cualquiera que llegue a Configuración. El resto son de
+// gestión (admin/director/manager), igual que filtraba la barra de pestañas que esta rejilla
+// sustituye: sin ese filtro, un rol de marketing vería tarjetas que no puede abrir.
 const SETTINGS_CARDS = [
+  {
+    title: 'Data Health',
+    description: 'Calidad, duplicados y frescura de los datos de cada fuente',
+    icon: Activity,
+    href: '/settings/data-health',
+    color: 'text-teal-400',
+    bg: 'bg-teal-500/10',
+    manageOnly: false,
+  },
   {
     title: 'Integraciones',
     description: 'Conecta y verifica las fuentes de datos de esta subcuenta',
@@ -89,11 +104,37 @@ const SETTINGS_CARDS = [
     color: 'text-amber-400',
     bg: 'bg-amber-500/10',
   },
+  {
+    title: 'Auditoría',
+    description: 'Quién cambió cada venta, cobro, cita o comisión, y cuándo',
+    icon: Shield,
+    href: '/audit',
+    color: 'text-rose-400',
+    bg: 'bg-rose-500/10',
+  },
 ]
 
 export default function SettingsPage() {
   const tenant = useTenant()
   const router = useRouter()
+  // Arranca en null (= "todavía no se sabe") en vez de true: asumir que puede gestionar pintaría
+  // por un instante tarjetas que no le corresponden.
+  const [canManage, setCanManage] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    const sb = createClient()
+    void sb.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) {
+        setCanManage(false)
+        return
+      }
+      const { data } = await sb.from('users').select('roles(key)').eq('id', user.id).single()
+      const role = (data?.roles as { key?: string } | null)?.key
+      setCanManage(role === 'admin' || role === 'director' || role === 'manager')
+    })
+  }, [])
+
+  const cards = SETTINGS_CARDS.filter((card) => canManage === true || card.manageOnly === false)
 
   return (
     <div className="space-y-6">
@@ -102,10 +143,8 @@ export default function SettingsPage() {
         <p className="text-muted-foreground text-sm mt-1">Ajustes del sistema y gestion del equipo</p>
       </div>
 
-      <SettingsNav current="general" />
-
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {SETTINGS_CARDS.map((card) => (
+        {cards.map((card) => (
           <button
             key={card.href}
             onClick={() => router.push(`/${tenant}${card.href}`)}

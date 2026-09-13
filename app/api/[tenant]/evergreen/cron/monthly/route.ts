@@ -1,38 +1,23 @@
-import { createServerClient } from '@supabase/ssr'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
 // Genera los gastos mensuales automáticos: sueldos fijos del equipo + gastos recurrentes.
 // Idempotente por (auto_source, period) — se puede llamar varias veces el mismo mes.
-// Auth: header Bearer CRON_SECRET (Vercel Cron) o sesión de admin/director (botón manual).
-async function isAuthorized(req: NextRequest): Promise<boolean> {
-  const auth = req.headers.get('authorization')
-  if (process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`) return true
-  try {
-    const cookieStore = await cookies()
-    const sb = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll() {},
-      },
-    })
-    const {
-      data: { user },
-    } = await sb.auth.getUser()
-    if (!user) return false
-    const { data } = await sb.from('users').select('roles(key)').eq('id', user.id).single()
-    const role = (data?.roles as { key?: string } | null)?.key
-    return role === 'admin' || role === 'director'
-  } catch {
-    return false
-  }
-}
+//
+// Dos superficies con alcances DELIBERADAMENTE distintos (mismo patrón que cron/analyze-calls):
+//   GET  → proceso de plataforma (Vercel Cron). SOLO Bearer CRON_SECRET. Recorre todas las
+//          subcuentas activas. Nunca acepta sesión.
+//   POST → botón manual de la UI. Sesión + requireTenant(slug de la URL) + rol admin/director de
+//          ESA subcuenta. Genera ÚNICAMENTE la subcuenta de la URL y su respuesta no menciona
+//          ninguna otra.
+//
+// Antes bastaba una sesión con rol global admin/director para que POST recorriera TODAS las
+// subcuentas con service_role, escribiera gastos en cada una y devolviera los slugs de todas. El
+// rol además se leía de `users.roles`, que es global y no dice de qué subcuenta eres miembro.
 
 // Corre la generación de gastos mensuales para UNA subcuenta (todas las lecturas/escrituras
 // van filtradas/estampadas por tenant_id).
@@ -173,8 +158,11 @@ async function run() {
   return { tenants: perTenant }
 }
 
-export async function POST(req: NextRequest) {
-  if (!(await isAuthorized(req))) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+export async function GET(req: NextRequest) {
+  const auth = req.headers.get('authorization')
+  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
   try {
     return NextResponse.json({ ok: true, ...(await run()) })
   } catch (err) {
@@ -182,11 +170,21 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// Vercel Cron usa GET
-export async function GET(req: NextRequest) {
-  if (!(await isAuthorized(req))) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+export async function POST(_req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params
+  const session = await requireTenant(tenant)
+  if ('error' in session) return session.error
+  if (!session.isSuperAdmin && session.role !== 'admin' && session.role !== 'director') {
+    return NextResponse.json({ error: 'Requiere rol de admin o director' }, { status: 403 })
+  }
+
+  // Alcance: exclusivamente la subcuenta de la URL, ya validada por requireTenant. El tenant NUNCA
+  // sale del body. La respuesta es plana y solo habla de esta subcuenta — que es además lo que los
+  // botones de la UI leen (`period`, `inserted`), y con la forma anterior ({ tenants: { slug } })
+  // mostraban "Generados undefined gastos de undefined".
   try {
-    return NextResponse.json({ ok: true, ...(await run()) })
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    return NextResponse.json({ ok: true, ...(await runForTenant(sb, session.tenantId)) })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }

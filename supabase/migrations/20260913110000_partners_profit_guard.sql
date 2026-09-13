@@ -32,8 +32,11 @@ BEGIN
   END IF;
 
   IF v_total > 100 THEN
+    -- Ojo con los %% de RAISE: se parsea de izquierda a derecha, así que '%%%' sería '%%' (un %
+    -- literal) seguido de '%' (el marcador), y el mensaje saldría como "%120.00". Por eso el
+    -- marcador va solo y la palabra "por ciento" va escrita.
     RAISE EXCEPTION
-      'El reparto de beneficios activo no puede superar el 100%% (quedaría en %%%)', ROUND(v_total, 2)
+      'El reparto de beneficios activo no puede superar el 100%%: quedaría en % por ciento', ROUND(v_total, 2)
       USING ERRCODE = 'check_violation';
   END IF;
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 import { encryptSecret, invalidateConfigCache, getTenantConfigWithFallback } from '@/lib/config'
-import { ALL_FIELDS, SECRET_KEYS, isKnownKey, INTEGRATION_GROUPS } from '@/lib/integrations-catalog'
+import { ALL_FIELDS, SECRET_KEYS, isKnownKey, INTEGRATION_ONLY_GROUPS } from '@/lib/integrations-catalog'
 import { parseAccountIds, fetchAdAccounts } from '@/lib/meta/client'
 import { requireTenant } from '@/lib/auth/requireTenant'
 
@@ -68,7 +68,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
       state[f.key] = { source: 'none', secret: f.secret, preview: '' }
     }
   }
-  return NextResponse.json({ encReady, groups: INTEGRATION_GROUPS, state })
+  // `groups` son los grupos pintables en Integraciones; `state` sigue cubriendo ALL_FIELDS, así
+  // que Datos de empresa puede leer IG_BUSINESS_CONTEXT/IG_BRAND_ASSETS del mismo endpoint.
+  return NextResponse.json({ encReady, groups: INTEGRATION_ONLY_GROUPS, state })
 }
 
 // POST — guardar cambios. body: { updates: { KEY: value } }.
@@ -116,10 +118,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   }
 
   if (rows.length) {
-    // NOTA: el índice único original era (key) global; ver la migración
-    // supabase/migrations/20260911160000_fix_cron_unique_constraints.sql (pendiente
-    // de aplicar) que lo sustituye por (tenant_id, key) — sin eso, dos subcuentas
-    // guardando la misma clave (p.ej. META_ACCESS_TOKEN) se pisarían entre sí.
+    // El índice único original era (key) global, lo que habría hecho que dos subcuentas guardando
+    // la misma clave (p.ej. META_ACCESS_TOKEN) se pisaran entre sí.
+    // 20260911160000_fix_cron_unique_constraints lo sustituyó por (tenant_id, key): VERIFICADO en
+    // producción el 2026-09-13 — existe integration_settings_tenant_key_key UNIQUE (tenant_id, key)
+    // y ya no hay unique global sobre `key`. (Este comentario decía "pendiente de aplicar": era
+    // información obsoleta, no un pendiente real.)
     const { error } = await client.from('integration_settings').upsert(rows, { onConflict: 'tenant_id,key' })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }

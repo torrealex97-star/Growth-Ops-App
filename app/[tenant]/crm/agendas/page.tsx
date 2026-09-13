@@ -1791,6 +1791,7 @@ export default function AppointmentsPage() {
                 canChangeStatus={canChangeStatus}
                 currentUserName={currentUserName}
                 canDelete={isAdmin}
+                canSeeRawPayload={isAdmin}
                 canReassignCloser={isLeadership(currentUserRole as AppRole)}
                 canReassignSetter={isLeadership(currentUserRole as AppRole)}
                 closers={closers}

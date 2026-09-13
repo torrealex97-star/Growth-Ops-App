@@ -25,6 +25,17 @@ Codex y Claude Code trabajan **por relevos, no en paralelo**. La regla operativa
    - **No validado/bloqueado:** commit y push en la única rama activa y actualización de `docs/ACTIVE_HANDOFF.md` con estado, validaciones, bloqueo y siguiente acción exacta. No fusiones código dudoso solo por cerrar la sesión.
 6. Después de fusionar, elimina la rama remota y actualiza `main`. No acumules ramas `claude/*`, `codex/*`, `worktree-*` ni ramas de sesión ya fusionadas o sustituidas.
 7. El siguiente asistente empieza leyendo `AGENTS.md`, `docs/ACTIVE_HANDOFF.md`, el último commit de `main` y, si existe, el único PR activo. Continúa desde ahí sin rehacer auditorías ya documentadas salvo que el código haya cambiado.
+8. Además del relevo, lee `docs/ROADMAP_MVP.md` (estado de cada fase, decisiones ya tomadas por el usuario y lo que sigue bloqueado esperándole) y, si tocas sincronizaciones, `docs/DIAGNOSTICO_SINCRONIZACIONES.md`.
+
+## Tres reglas aprendidas a golpes (no volver a romperlas)
+
+- **Un hueco no es un cero.** "No se pudo leer la fuente", "la fuente no está configurada" y "hay cero filas" son tres cosas distintas. Colapsarlas convierte una integración caída en "esta campaña no convierte". Ver `lib/funnels/types.ts`.
+- **Ante la duda, no decidas: encola.** Si no se puede saber a qué registro pertenece un dato externo, va a una cola de revisión humana. Escribirlo "en todos los candidatos por si acaso" corrompe datos y encima parece idempotente. Ver `lib/fathom/match.ts`.
+- **No inventes datos financieros ni vocabularios.** Si `sales` exige un producto que el pago externo no indica, el resultado es un informe con la decisión pendiente, no un importe elegido a dedo. Y si `canonical_events.event_name` es texto libre, el mapeo lo elige el usuario. Ver `lib/finance/stripeBackfill.ts`.
+
+## Migraciones: dry-run obligatorio
+
+Antes de aplicar una migración, pruébala con `BEGIN … ROLLBACK` comprobando el **comportamiento** (que la constraint rechaza lo que debe, que el único no es global, que un re-sync actualiza en vez de duplicar), no solo que la DDL compile. En la sesión del 2026-09-13 ese paso cazó un mensaje de error mal formado, un id de destino nulo y un unique que habría sido global — todo antes de tocar producción.
 
 Los bots de mantenimiento pueden crear ramas automáticas temporales, pero no cuentan como autorización para que los asistentes creen trabajo paralelo. Si aparecen varias ramas con trabajo potencialmente único, detente, consolídalas de forma verificable y evita borrarlas hasta demostrar que no se pierde ningún cambio.
 
