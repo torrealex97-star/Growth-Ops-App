@@ -9,6 +9,7 @@ import { PG_CRON_READY, VERCEL_CRON_ROUTES } from '@/lib/ops/vercel-crons'
 import { parseAccountIds, fetchAdAccounts } from '@/lib/meta/client'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { isDeprecatedMetaVersion, META_API_VERSION } from '@/lib/meta/api-version'
+import { classifyMetaError } from '@/lib/meta/errors'
 
 export const runtime = 'nodejs'
 
@@ -376,15 +377,18 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
           const url = `https://graph.facebook.com/${ver}/${acc}?fields=name,account_status&access_token=${encodeURIComponent(token)}${proofQs}`
           const r = await fetch(url)
           const j = await r.json()
-          return { acc, ok: r.ok, name: j.name as string | undefined, err: j.error?.message as string | undefined }
+          return { acc, ok: r.ok && !j.error, name: j.name as string | undefined, body: j, status: r.status }
         })
       )
       const failed = results.filter((r) => !r.ok)
       if (failed.length > 0) {
+        // El código de Meta dice si es el token, el permiso o el id de cuenta: tres arreglos
+        // distintos que antes se resumían todos en "token_invalido".
+        const causa = classifyMetaError(failed[0].body, failed[0].status)
         return {
           ok: false,
-          message: `Fallo en ${failed.map((f) => f.acc).join(', ')}: ${failed[0].err || 'Error de Meta'}`,
-          code: 'token_invalido',
+          message: `Cuenta ${failed.map((f) => f.acc).join(', ')}: ${causa.message}`,
+          code: causa.code,
         }
       }
       const names = results.map((r) => r.name || r.acc)
@@ -528,7 +532,17 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
         client_id: cfg.HOTMART_CLIENT_ID,
         client_secret: cfg.HOTMART_CLIENT_SECRET,
       })
-      const r = await fetch(`https://api-sec-vlc.hotmart.com/security/oauth/token?${query}`, { method: 'POST' })
+      // Hotmart EXIGE la cabecera `Authorization: Basic` además de los parámetros: sin ella responde
+      // 401 siempre, con las credenciales correctas. Faltaba, así que esta integración no podía
+      // conectar nunca. El valor es el "token Basic" que muestra su panel, que es exactamente
+      // base64(client_id:client_secret); se acepta pegado a mano por si el suyo difiere.
+      const basic =
+        cfg.HOTMART_BASIC_TOKEN?.trim() ||
+        Buffer.from(`${cfg.HOTMART_CLIENT_ID}:${cfg.HOTMART_CLIENT_SECRET}`).toString('base64')
+      const r = await fetch(`https://api-sec-vlc.hotmart.com/security/oauth/token?${query}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Basic ${basic}` },
+      })
       const j = (await r.json().catch(() => ({}))) as { error_description?: string; access_token?: string }
       return r.ok && j.access_token
         ? { ok: true, message: 'Credenciales de Hotmart válidas.' }

@@ -164,6 +164,12 @@ export const FIXES: Record<string, string> = {
     'La credencial funciona pero no ve ninguna cuenta. Da acceso a la cuenta desde el panel del proveedor y vuelve a comprobar.',
   dominio_no_verificado:
     'El dominio del remitente no está verificado, así que los correos no saldrían. Verifícalo en el panel del proveedor y vuelve a comprobar.',
+  cuenta_incorrecta:
+    'El identificador de la cuenta publicitaria no le suena a Meta. Bórralo y usa "Buscar cuentas" para elegirla de la lista en vez de escribirlo a mano.',
+  limite_de_uso:
+    'El proveedor ha limitado las peticiones durante un rato. No hay nada que arreglar: vuelve a comprobar en unos minutos.',
+  respuesta_inesperada:
+    'El proveedor respondió algo que no esperábamos. Vuelve a comprobar; si sigue igual, copia este mensaje y mándalo a soporte.',
   sin_saldo:
     'La clave es válida pero la cuenta no tiene saldo. Recarga en el panel del proveedor: no hace falta tocar la credencial.',
   modelo_no_disponible:

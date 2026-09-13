@@ -7,6 +7,7 @@
 
 import { createHmac } from 'crypto'
 import { META_API_VERSION } from '@/lib/meta/api-version'
+import { classifyMetaError } from '@/lib/meta/errors'
 
 export type MetaConfig = {
   token: string
@@ -194,10 +195,10 @@ async function graphGet(url: string): Promise<any> {
   }
   const json = await res.json()
   if (!res.ok || json?.error) {
-    const err = json?.error
-    throw new Error(
-      `Meta API error${err?.code ? ` (${err.code})` : ''}: ${err?.message || res.statusText || 'desconocido'}`
-    )
+    // Se lanza la causa ya traducida (token caducado, falta permiso, id de cuenta que Meta no
+    // reconoce…) en vez del mensaje en inglés para desarrolladores: quien ve esto es quien tiene que
+    // arreglarlo, y "Unsupported get request" no le dice qué hacer.
+    throw new Error(classifyMetaError(json, res.status).message)
   }
   return json
 }
