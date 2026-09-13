@@ -16,9 +16,13 @@ Avance de esta sesión, todo sobre `claude/financial-constraints-handoff` (PR #3
 | `f4f028a` | Fase B de UX: Configuración a un solo nivel, negocio fuera de Integraciones, Auditoría dentro         |
 | (este)    | Fase C: capa canónica `lib/funnels/` con tests, sin UI todavía                                        |
 
-**Próximo paso para quien recoja el relevo (Codex incluido):** Fase E — la sección Funnels
-consumiendo `lib/funnels/` con las fuentes que YA tienen datos en base (VSL, webinar, perfil). GA4
-queda fuera del MVP a propósito: está bloqueada hasta que exista el proyecto de Google Cloud.
+**Próximo paso para quien recoja el relevo (Codex incluido):** Fase F — redirección canónica de
+`/crm` a `/crm/agendas`, detalle de cita legible (etiquetas en vez de payload crudo) y matching
+determinista de Fathom con cola de revisión para los ambiguos. Ver `docs/ROADMAP_MVP.md`.
+
+Si vas a tocar Funnels: lee antes `ROADMAP_MVP.md` §3.1, que dice exactamente qué etapas tienen
+datos reales y cuáles salen como "fuente sin configurar" y por qué. **No inventes nombres de evento
+para `canonical_events`**: es texto libre y el mapeo tiene que elegirlo el usuario.
 
 Regla que no se negocia en nada de esto: una métrica **nunca** colapsa a 0 por un fallo de fuente.
 `lib/funnels/types.ts` distingue `ok` / `sin_datos` / `error_fuente`, y la UI tiene que distinguir

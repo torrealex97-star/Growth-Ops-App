@@ -60,6 +60,31 @@ sección de Funnels **funcionando con las fuentes que ya tienen datos en base** 
 perfil), y GA4 entra después como una fuente más cuando exista el proyecto OAuth. Así el MVP no
 depende de un bloqueo externo.
 
+## 3.1 Qué hace y qué NO hace el MVP de Funnels
+
+Funciona hoy, con datos reales de la base:
+
+- Etapas de CRM: leads (contactos nuevos), agendas, llamadas realizadas (`status = 'show'`) y
+  cierres (ventas activas según `isActiveSale`, así que un reembolso no cuenta como cierre).
+- Etapas de Meta: impresiones, clics y alcance desde `campaign_daily`, más la inversión del periodo
+  para calcular coste por etapa.
+- Conversión entre etapas y desde el inicio, coste unitario, y las cuatro familias con su rango de
+  fechas.
+
+NO funciona todavía, y la pantalla lo dice con el motivo en cada fila:
+
+- **Visitas a landing / VSL.** `canonical_events.event_name` es texto libre: no hay un vocabulario
+  declarado que diga qué nombre de evento es "visita a la landing". Inventármelo habría producido
+  números creíbles y falsos, así que esas etapas salen como "fuente sin configurar".
+  _Siguiente paso concreto:_ listar los `event_name` que realmente llegan por subcuenta y dejar que
+  el usuario mapee cuál corresponde a cada etapa.
+- **Sesiones (GA4).** Bloqueado por el proyecto de Google Cloud.
+- **Asistentes de webinar y conversaciones por DM.** Hoy no hay en base un criterio que separe ese
+  subconjunto de contactos del resto.
+
+Por eso el cálculo se niega a dividir personas entre eventos: daría tasas por encima del 100 % sin
+que nada esté roto. Esas celdas dicen "no comparable", no un porcentaje inventado.
+
 ## 4. Regla que aplica a todas las fases
 
 Una métrica nunca colapsa a 0 por un fallo de fuente. El tipo canónico es
