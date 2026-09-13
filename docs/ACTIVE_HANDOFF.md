@@ -56,6 +56,34 @@ Lo que sí está verificado del proyecto real, y lo que no:
 reporta cuántas llamadas quedan, así que un techo mayor solo haría que cada pasada avance más,
 nunca que se corte a medias.
 
+## Estado canónico (2026-09-13)
+
+- **PR #30 ABIERTO y NO fusionable todavía.** Rama activa: `claude/financial-constraints-handoff`.
+- **PR #29 ya fusionado** en `main` (`b6809b5`).
+- Trabajo en curso sobre los P0/P1 de la revisión de #30. Ver "Pendientes bloqueantes" al final.
+
+### Corrección de una afirmación errónea que estaba en este documento
+
+Se afirmó aquí y en varios commits que **el plan Hobby de Vercel "solo permite 3 crons"** y que por
+eso no se registraban los dos jobs de IA. **Eso era falso** y llevó a construir un panel manual como
+sustituto de algo que sí se podía programar. Los dos jobs ya están en `vercel.json` con horarios
+separados (04:00 y 05:00 UTC).
+
+Lo que sí está verificado del proyecto real, y lo que no:
+
+| Dato                                  | Estado                                                              |
+| ------------------------------------- | ------------------------------------------------------------------- |
+| Plan del equipo                       | VERIFICADO: `hobby` (vía `list_teams`)                              |
+| Logs de runtime (24h)                 | VERIFICADO: 99× 200 y 1× 502. **Ningún 504** entre los principales  |
+| Nº máximo de crons del plan           | NO VERIFICADO — las herramientas de doc no devuelven esa tabla      |
+| Fluid Compute activo/inactivo         | NO VERIFICADO — no expuesto por las herramientas disponibles        |
+| Límite efectivo de `maxDuration`      | NO VERIFICADO — 60s es un valor conservador, no un techo medido     |
+| `CRON_SECRET` en Production y Preview | NO VERIFICADO — no hay herramienta para listar variables de entorno |
+
+`maxDuration` se deja en 60s por prudencia: el bucle se autolimita por presupuesto de tiempo y
+reporta cuántas llamadas quedan, así que un techo mayor solo haría que cada pasada avance más,
+nunca que se corte a medias.
+
 ## Estado canónico
 
 - Rama fuente de verdad: `main`
