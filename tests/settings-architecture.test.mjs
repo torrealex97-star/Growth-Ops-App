@@ -8,13 +8,46 @@ import { countDuplicateKeys, countDuplicateValues, deriveSourceStatus } from '..
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const read = (path) => readFileSync(join(root, path), 'utf8')
 
-test('Configuración tiene rutas canónicas únicas y abre General por defecto', () => {
-  const nav = read('components/settings/SettingsNav.tsx')
+// Configuración tiene UN solo nivel de navegación: la rejilla de tarjetas. La barra de pestañas
+// (General / Integraciones / Data Health) que se superponía a la rejilla ya no existe.
+test('Configuración es una sola rejilla, sin pestañas por encima', () => {
   const general = read('app/[tenant]/settings/page.tsx')
-  assert.match(nav, /href: '\/settings'/)
-  assert.match(nav, /href: '\/settings\/integraciones'/)
-  assert.match(nav, /href: '\/settings\/data-health'/)
+  assert.equal(existsSync(join(root, 'components/settings/SettingsNav.tsx')), false)
+  assert.doesNotMatch(general, /SettingsNav/)
   assert.doesNotMatch(general, /searchParams|tab=data-health|DataHealthPanel/)
+  // Integraciones, Data Health y Auditoría son tarjetas más de la rejilla.
+  for (const href of ["'/settings/integraciones'", "'/settings/data-health'", "'/audit'"]) {
+    assert.match(general, new RegExp(`href: ${href}`), `falta la tarjeta ${href}`)
+  }
+  // Data Health es la única visible sin permisos de gestión, como filtraba antes la barra.
+  assert.match(general, /manageOnly: false/)
+  assert.match(general, /canManage === true \|\| card\.manageOnly === false/)
+})
+
+// El contexto de negocio y los assets de marca no son una integración: no hay credencial ni
+// conexión que probar. Viven en Datos de empresa, pero su persistencia sigue siendo la misma.
+test('el bloque de negocio salió de Integraciones sin migrar datos', () => {
+  const catalog = read('lib/integrations-catalog.ts')
+  const integraciones = read('app/[tenant]/settings/integraciones/page.tsx')
+  const empresa = read('app/[tenant]/settings/empresa/page.tsx')
+  assert.match(catalog, /surface: 'empresa'/, 'el grupo negocio no está marcado como fuera de Integraciones')
+  assert.match(catalog, /IG_BUSINESS_CONTEXT/, 'las claves deben seguir en el catálogo para poder guardarse')
+  assert.match(catalog, /IG_BRAND_ASSETS/)
+  assert.match(catalog, /INTEGRATION_ONLY_GROUPS/)
+  assert.doesNotMatch(integraciones, /IG_BRAND_ASSETS|brandAssets|'negocio'/)
+  assert.match(empresa, /BusinessContextCard/)
+})
+
+// Auditoría es la única trazabilidad de quién tocó un dato financiero: se mueve, no se borra.
+test('Auditoría sigue existiendo, dentro de Configuración y no en primer nivel', () => {
+  const nav = read('lib/nav.ts')
+  assert.equal(existsSync(join(root, 'app/[tenant]/audit/page.tsx')), true, 'la pantalla de auditoría ha desaparecido')
+  const sistema = nav.slice(nav.indexOf("dept: 'sistema'"))
+  const config = sistema.slice(sistema.indexOf("label: 'Configuración'"))
+  assert.match(config, /label: 'Auditoría'/, 'Auditoría no está entre los hijos de Configuración')
+  // Y ya no cuelga del primer nivel, al lado de Actividad.
+  const beforeConfig = sistema.slice(0, sistema.indexOf("label: 'Configuración'"))
+  assert.doesNotMatch(beforeConfig, /label: 'Auditoría'/)
 })
 
 test('Integraciones usa tarjetas, panel accesible y estados no engañosos', () => {
