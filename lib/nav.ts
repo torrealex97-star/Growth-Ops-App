@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Users,
   Calendar,
+  Mic,
   ShoppingCart,
   DollarSign,
   RotateCcw,
@@ -126,6 +127,15 @@ export const NAV_SECTIONS: NavSection[] = [
             href: '/crm/seguimiento',
             icon: ClipboardList,
             roles: [...LEAD, 'setter', 'closer', 'cold_caller'],
+          },
+          {
+            // Cola de reuniones de Fathom que el sync no pudo atribuir sin adivinar. Está en el menú
+            // y no solo enlazada desde Agendas porque una cola que nadie ve se queda sin vaciar, que
+            // es como estaba: los casos se anotaban y solo se podían resolver tocando la tabla.
+            label: 'Llamadas sin atribuir',
+            href: '/crm/fathom-revision',
+            icon: Mic,
+            roles: [...LEAD],
           },
         ],
       },

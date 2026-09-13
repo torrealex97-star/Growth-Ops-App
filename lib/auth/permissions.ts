@@ -118,6 +118,7 @@ export const NAV_PAGES: { href: string; label: string; dept: Department }[] = [
   { href: '/crm/contactos', label: 'CRM · Contactos', dept: 'ventas' },
   { href: '/crm/agendas', label: 'CRM · Agendas', dept: 'ventas' },
   { href: '/crm/seguimiento', label: 'CRM · Seguimiento', dept: 'ventas' },
+  { href: '/crm/fathom-revision', label: 'CRM · Llamadas sin atribuir', dept: 'ventas' },
   { href: '/ventas/registro', label: 'Ventas & Cobros · Registro', dept: 'ventas' },
   { href: '/ventas/pagos', label: 'Ventas & Cobros · Pagos', dept: 'ventas' },
   { href: '/ventas/reservas', label: 'Ventas & Cobros · Reservas', dept: 'ventas' },
