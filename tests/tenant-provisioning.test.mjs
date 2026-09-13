@@ -35,12 +35,19 @@ test('solo el super admin de plataforma puede listar y crear subcuentas', () => 
   const route = sinComentarios(read(ROUTE))
   assert.match(route, /if \(!session\.isSuperAdmin\)/, 'la ruta no exige super admin')
   assert.match(route, /status: 403/)
-  // El gate es compartido por GET y POST: dos comprobaciones distintas se desincronizan.
-  assert.match(route, /requireSuperAdmin\(tenant\)/)
-  const gets = [...route.matchAll(/requireSuperAdmin\(tenant\)/g)]
-  assert.equal(gets.length, 2, 'GET y POST deberían pasar por el mismo gate')
-  // El rol NO se lee del body ni de un query param.
-  assert.doesNotMatch(route, /body\.(role|isSuperAdmin|superAdmin)/)
+  // El gate es UNO y lo usan todos los handlers: dos comprobaciones distintas se desincronizan, y un
+  // handler nuevo sin gate deja la plataforma abierta a cualquier admin de subcuenta. Se cuenta
+  // contra los handlers reales del fichero para que añadir uno sin gate rompa este test.
+  const handlers = [...route.matchAll(/export async function (GET|POST|PATCH|PUT|DELETE)\(/g)]
+  const gates = [...route.matchAll(/requireSuperAdmin\(tenant\)/g)]
+  assert.ok(handlers.length >= 3, 'no se han encontrado los handlers de la ruta')
+  assert.equal(gates.length, handlers.length, `hay ${handlers.length} handlers y ${gates.length} gates`)
+  // El privilegio nunca viene del cliente. `body.role` sí existe (es el rol que se da a otra
+  // persona), pero solo puede llegar a la escritura pasando por validateMemberRole.
+  assert.doesNotMatch(route, /body\.(isSuperAdmin|superAdmin|isAdmin)/)
+  const usosDeRole = [...route.matchAll(/body\.role/g)]
+  assert.equal(usosDeRole.length, 1, 'body.role debería usarse una sola vez, al validarlo')
+  assert.match(route, /validateMemberRole\(body\.role\)/)
 })
 
 // La regla de la fase: una subcuenta nace configurada y VACÍA. Sembrar productos, planes o ventas de
@@ -103,4 +110,58 @@ test('la tarjeta de Subcuentas solo se pinta para super admin', () => {
   assert.match(page, /superAdminOnly\) return isSuperAdmin === true/)
   // Arranca en null para no pintar la tarjeta antes de saberlo.
   assert.match(page, /useState<boolean \| null>\(null\)/)
+})
+
+// ── Acceso y suspensión de subcuentas ───────────────────────────────────────
+// El fallo que esto impide: `public.is_super_admin()` comprueba si existe ALGUNA fila de
+// tenant_members con role='super_admin' para ese usuario, SIN filtrar por subcuenta. Así que ofrecer
+// ese rol al añadir a alguien a una subcuenta lo convertiría en super admin de TODA la plataforma,
+// con acceso a las demás — una escalada de privilegios con aspecto de permiso local.
+test('el rol super_admin no se puede dar desde la pantalla de subcuentas', () => {
+  const blueprint = read(BLUEPRINT)
+  assert.match(blueprint, /ASSIGNABLE_MEMBER_ROLES = \['admin', 'member'\]/)
+  assert.match(blueprint, /raw === 'super_admin'/, 'no se rechaza explícitamente el rol de plataforma')
+  const route = sinComentarios(read(ROUTE))
+  assert.match(route, /validateMemberRole\(body\.role\)/, 'el rol no se valida antes de escribirlo')
+  // El rol NO se puede colar tal cual desde el body a la escritura.
+  const provision = sinComentarios(read(PROVISION))
+  assert.doesNotMatch(provision, /role: 'super_admin'[\s\S]{0,80}grantAccess/)
+  // La pantalla pinta solo los roles que el servidor declara asignables, no una lista propia.
+  const page = read('app/[tenant]/settings/subcuentas/page.tsx')
+  assert.match(page, /data\.assignableRoles\.map/)
+  assert.doesNotMatch(sinComentarios(page), /'super_admin'\]/, 'la pantalla tiene su propia lista de roles')
+})
+
+// Dos formas de quedarse fuera sin arreglo posible desde la aplicación: quitarte tu propio acceso, y
+// suspender la subcuenta desde la que estás administrando.
+test('no se puede provocar un bloqueo del que no se pueda salir', () => {
+  const provision = sinComentarios(read(PROVISION))
+  assert.match(provision, /userId === actor\.userId/, 'se puede quitar el acceso a uno mismo')
+  assert.match(provision, /no_a_ti_mismo/)
+  assert.match(provision, /tenantId === actor\.tenantId/, 'se puede suspender la subcuenta propia')
+  assert.match(provision, /no_la_propia/)
+  // Y una subcuenta no puede quedarse sin ningún miembro: nadie podría administrarla después.
+  assert.match(provision, /ultimo_miembro/)
+  assert.match(provision, /members \?\? \[\]\)\.length <= 1/)
+})
+
+test('dar acceso no crea cuentas: si el email no existe, se dice', () => {
+  const provision = sinComentarios(read(PROVISION))
+  assert.match(provision, /usuario_inexistente/)
+  // Crear un usuario implica alta en Auth y correo de invitación; hacerlo a medias dejaría cuentas
+  // que no pueden entrar.
+  assert.doesNotMatch(provision, /auth\.admin|createUser/)
+  // Volver a añadir a alguien que ya está actualiza su rol en vez de fallar con clave duplicada.
+  assert.match(provision, /onConflict: 'tenant_id,user_id'/)
+})
+
+test('las operaciones sobre subcuentas existentes pasan por el mismo gate y quedan auditadas', () => {
+  const route = sinComentarios(read(ROUTE))
+  const patch = route.slice(route.indexOf('export async function PATCH'))
+  assert.match(patch, /requireSuperAdmin\(tenant\)/, 'el PATCH no pasa por el gate de super admin')
+  const provision = sinComentarios(read(PROVISION))
+  // Cada operación deja rastro: sin auditoría, un acceso dado o una suspensión no tiene autor.
+  const audits = [...provision.matchAll(/from\('audit_logs'\)\.insert/g)]
+  assert.ok(audits.length >= 4, `solo ${audits.length} operaciones auditadas: faltan acceso, revocación o estado`)
+  assert.match(provision, /entity_type: 'tenant_member'/)
 })

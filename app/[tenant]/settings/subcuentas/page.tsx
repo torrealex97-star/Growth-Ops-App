@@ -2,7 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, ArrowLeft, Building2, CheckCircle2, CircleDashed, Loader2, Plus } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Building2,
+  CheckCircle2,
+  CircleDashed,
+  Loader2,
+  Plus,
+  UserMinus,
+  UserPlus,
+} from 'lucide-react'
 import { useTenant } from '@/lib/tenant-context'
 import { normalizeSlug } from '@/lib/tenants/blueprint'
 
@@ -15,8 +25,16 @@ type Readiness = {
   createdAt: string
   brandName: string | null
   counts: { miembros: number; productos: number; planes: number; integraciones: number }
+  members: Member[]
 }
-type Payload = { steps: Step[]; tenants: Readiness[] }
+type Member = { userId: string; email: string | null; fullName: string | null; role: string }
+type Payload = {
+  steps: Step[]
+  assignableRoles: string[]
+  yourUserId: string
+  yourTenantId: string
+  tenants: Readiness[]
+}
 
 const ACCENTS = [
   { key: 'brand', label: 'Verde (por defecto)' },
@@ -33,6 +51,10 @@ export default function SubcuentasPage() {
   const [accent, setAccent] = useState<'brand' | 'pink'>('brand')
   const [creating, setCreating] = useState(false)
   const [result, setResult] = useState<{ ok: boolean; text: string; pendiente?: Step[] } | null>(null)
+  // Estado de las operaciones sobre subcuentas ya existentes, por subcuenta.
+  const [working, setWorking] = useState<string | null>(null)
+  const [opResult, setOpResult] = useState<{ tenantId: string; ok: boolean; text: string } | null>(null)
+  const [invite, setInvite] = useState<Record<string, { email: string; role: string }>>({})
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -88,6 +110,29 @@ export default function SubcuentasPage() {
       setResult({ ok: false, text: e instanceof Error ? e.message : 'Error de conexión' })
     } finally {
       setCreating(false)
+    }
+  }
+
+  async function patch(tenantId: string, body: Record<string, unknown>, exito: string) {
+    setWorking(tenantId)
+    setOpResult(null)
+    try {
+      const r = await fetch(`/api/${tenant}/evergreen/settings/subcuentas`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, tenantId }),
+      })
+      const j = await r.json()
+      if (!r.ok || j.ok === false) {
+        setOpResult({ tenantId, ok: false, text: j.mensaje || j.error || 'No se pudo aplicar el cambio' })
+        return
+      }
+      setOpResult({ tenantId, ok: true, text: exito })
+      await load()
+    } catch (e) {
+      setOpResult({ tenantId, ok: false, text: e instanceof Error ? e.message : 'Error de conexión' })
+    } finally {
+      setWorking(null)
     }
   }
 
@@ -236,6 +281,103 @@ export default function SubcuentasPage() {
                   Sin producto o sin plan de pago no se puede registrar una venta en esta subcuenta.
                 </p>
               ) : null}
+
+              <div className="border-border mt-3 space-y-3 border-t pt-3">
+                <div className="space-y-1">
+                  {t.members.map((m) => (
+                    <div key={m.userId} className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="text-foreground">{m.fullName || m.email || m.userId}</span>
+                      <span className="text-muted-foreground">{m.role}</span>
+                      {m.role === 'super_admin' ? (
+                        <span className="text-muted-foreground opacity-70">(plataforma)</span>
+                      ) : null}
+                      <button
+                        onClick={() =>
+                          void patch(t.id, { action: 'quitar_acceso', userId: m.userId }, 'Acceso quitado.')
+                        }
+                        disabled={working === t.id || m.userId === data.yourUserId}
+                        title={m.userId === data.yourUserId ? 'No puedes quitarte a ti mismo' : 'Quitar acceso'}
+                        className="text-muted-foreground hover:text-red-400 disabled:opacity-40"
+                      >
+                        <UserMinus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    value={invite[t.id]?.email ?? ''}
+                    onChange={(e) =>
+                      setInvite((p) => ({ ...p, [t.id]: { email: e.target.value, role: p[t.id]?.role ?? 'member' } }))
+                    }
+                    placeholder="email de alguien que ya existe"
+                    className="border-border bg-background/60 text-foreground rounded-lg border px-2 py-1 text-xs"
+                  />
+                  <select
+                    value={invite[t.id]?.role ?? 'member'}
+                    onChange={(e) =>
+                      setInvite((p) => ({ ...p, [t.id]: { email: p[t.id]?.email ?? '', role: e.target.value } }))
+                    }
+                    className="border-border bg-background/60 text-foreground rounded-lg border px-2 py-1 text-xs"
+                  >
+                    {data.assignableRoles.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() =>
+                      void patch(
+                        t.id,
+                        {
+                          action: 'dar_acceso',
+                          email: invite[t.id]?.email ?? '',
+                          role: invite[t.id]?.role ?? 'member',
+                        },
+                        'Acceso dado.'
+                      )
+                    }
+                    disabled={working === t.id || !(invite[t.id]?.email ?? '').trim()}
+                    className="border-border text-muted-foreground hover:text-foreground inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs disabled:opacity-50"
+                  >
+                    <UserPlus className="h-3.5 w-3.5" /> Dar acceso
+                  </button>
+                  {t.status === 'active' ? (
+                    <button
+                      onClick={() => void patch(t.id, { action: 'suspender' }, 'Subcuenta suspendida.')}
+                      disabled={working === t.id || t.id === data.yourTenantId}
+                      title={
+                        t.id === data.yourTenantId
+                          ? 'No puedes suspender la subcuenta desde la que administras'
+                          : 'Suspender: nadie podrá entrar, sin borrar datos'
+                      }
+                      className="border-border text-muted-foreground hover:text-amber-400 ml-auto rounded-lg border px-2 py-1 text-xs disabled:opacity-40"
+                    >
+                      Suspender
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => void patch(t.id, { action: 'reactivar' }, 'Subcuenta reactivada.')}
+                      disabled={working === t.id}
+                      className="border-border text-muted-foreground hover:text-emerald-400 ml-auto rounded-lg border px-2 py-1 text-xs disabled:opacity-50"
+                    >
+                      Reactivar
+                    </button>
+                  )}
+                </div>
+
+                <p className="text-muted-foreground text-xs">
+                  Dar acceso requiere que la persona ya exista en la plataforma: aquí no se crean cuentas. Y el rol
+                  <code className="mx-1">super_admin</code> no está en la lista a propósito — es de plataforma, no de
+                  subcuenta, y daría acceso también a las demás.
+                </p>
+
+                {opResult?.tenantId === t.id ? (
+                  <p className={`text-xs ${opResult.ok ? 'text-emerald-400' : 'text-red-400'}`}>{opResult.text}</p>
+                ) : null}
+              </div>
             </article>
           ))}
         </div>
