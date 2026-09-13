@@ -6,6 +6,10 @@
     { "path": "/api/_/evergreen/cron/reminders", "schedule": "0 7 * * *" },
     { "path": "/api/_/evergreen/cron/sequra-morosos", "schedule": "0 8 * * 1" },
     { "path": "/api/_/evergreen/cron/analyze-calls", "schedule": "0 4 * * *" },
-    { "path": "/api/_/evergreen/cron/ai-insights", "schedule": "0 5 * * *" }
+    { "path": "/api/_/evergreen/cron/ai-insights", "schedule": "0 5 * * *" },
+    { "path": "/api/_/evergreen/cron/meta", "schedule": "0 3 * * *" },
+    { "path": "/api/_/evergreen/cron/meta-daily", "schedule": "30 3 * * *" },
+    { "path": "/api/_/evergreen/cron/meta-ads", "schedule": "0 2 * * *" },
+    { "path": "/api/_/evergreen/cron/instagram", "schedule": "30 2 * * *" }
   ]
 }
