@@ -85,6 +85,25 @@ NO funciona todavía, y la pantalla lo dice con el motivo en cada fila:
 Por eso el cálculo se niega a dividir personas entre eventos: daría tasas por encima del 100 % sin
 que nada esté roto. Esas celdas dicen "no comparable", no un porcentaje inventado.
 
+## 3.2 Fase F: qué queda
+
+Hecho:
+
+- `/crm` redirige a `/crm/agendas` **en servidor**, y el menú apunta ahí. Antes era un `useEffect`
+  con `router.replace`: parpadeo en blanco y ninguna redirección HTTP real, así que el botón
+  "atrás" rebotaba.
+- El payload crudo del webhook en la ficha de cita queda **plegado y solo para admin**. Antes se
+  volcaba abierto para cualquiera que pudiera ver la cita, justo debajo de las respuestas ya
+  legibles. Las respuestas del formulario **ya existían** y se siguen viendo para todos: esa parte
+  del brief estaba resuelta de antes, solo faltaba quitar el ruido técnico de encima.
+
+Pendiente, y es la parte grande de esta fase — **próximo paso concreto**:
+
+- **Matching de Fathom.** Emparejar por identificador externo primero (determinista), y solo si no
+  hay, por email + ventana temporal. Los casos ambiguos NO se adivinan: van a una **cola de
+  revisión** para que una persona decida. Hace falta una tabla nueva (migración versionada) para esa
+  cola, y una reconciliación histórica **idempotente y con dry-run** antes de escribir nada.
+
 ## 4. Regla que aplica a todas las fases
 
 Una métrica nunca colapsa a 0 por un fallo de fuente. El tipo canónico es

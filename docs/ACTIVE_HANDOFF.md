@@ -16,9 +16,10 @@ Avance de esta sesión, todo sobre `claude/financial-constraints-handoff` (PR #3
 | `f4f028a` | Fase B de UX: Configuración a un solo nivel, negocio fuera de Integraciones, Auditoría dentro         |
 | (este)    | Fase C: capa canónica `lib/funnels/` con tests, sin UI todavía                                        |
 
-**Próximo paso para quien recoja el relevo (Codex incluido):** Fase F — redirección canónica de
-`/crm` a `/crm/agendas`, detalle de cita legible (etiquetas en vez de payload crudo) y matching
-determinista de Fathom con cola de revisión para los ambiguos. Ver `docs/ROADMAP_MVP.md`.
+**Próximo paso para quien recoja el relevo (Codex incluido):** terminar la fase F — el **matching
+de Fathom**. Determinista por identificador externo primero, email + ventana temporal solo como
+respaldo, y cola de revisión para los ambiguos en vez de adivinar. Necesita tabla nueva por
+migración versionada y reconciliación histórica idempotente con dry-run. Ver `ROADMAP_MVP.md` §3.2.
 
 Si vas a tocar Funnels: lee antes `ROADMAP_MVP.md` §3.1, que dice exactamente qué etapas tienen
 datos reales y cuáles salen como "fuente sin configurar" y por qué. **No inventes nombres de evento

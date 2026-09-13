@@ -76,6 +76,17 @@ interface AppointmentDetailProps {
   closers?: { id: string; full_name: string }[]
   /** Setters disponibles para el selector de reasignación. */
   setters?: { id: string; full_name: string }[]
+  /**
+   * Muestra el payload crudo del webhook (GHL/Calendly). Solo para quien administra la subcuenta:
+   * es un volcado interno con campos técnicos, ids externos y datos del lead sin normalizar, y un
+   * setter o closer no tiene nada que hacer ahí — las respuestas del formulario ya se pintan
+   * legibles justo arriba, en "Formulario / Cualificación".
+   *
+   * Nota honesta: el brief pedía "solo super_admin", pero el vocabulario de roles del cliente
+   * (`currentUserRole`) no incluye super_admin — solo llega hasta 'admin'. Así que 'admin' es el
+   * cierre más estricto que se puede aplicar aquí sin una consulta extra por cada ficha abierta.
+   */
+  canSeeRawPayload?: boolean
   onStatusChange?: (id: string, status: AppointmentStatus) => void
   onCancelled?: (id: string) => void
   onDeleted?: (id: string) => void
@@ -94,6 +105,7 @@ export function AppointmentDetail({
   canReassignSetter,
   closers,
   setters,
+  canSeeRawPayload = false,
   onStatusChange,
   onCancelled,
   onDeleted,
@@ -1052,16 +1064,21 @@ export function AppointmentDetail({
         </>
       )}
 
-      {/* Raw payload */}
-      {appointment.raw_payload && (
+      {/* Payload crudo: plegado y solo para quien administra. Antes se volcaba abierto para
+          cualquiera que pudiera ver la cita, encima justo debajo de las respuestas ya legibles, así
+          que ocupaba media ficha con ruido técnico. */}
+      {canSeeRawPayload && appointment.raw_payload && (
         <>
           <Separator className="bg-muted" />
-          <div>
-            <h4 className="text-sm font-medium text-muted-foreground mb-3">Payload GHL</h4>
-            <pre className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg overflow-auto max-h-48 border border-border">
+          <details className="group">
+            <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
+              Payload crudo del webhook
+              <span className="ml-2 text-xs font-normal">(diagnóstico — las respuestas legibles están arriba)</span>
+            </summary>
+            <pre className="mt-3 max-h-48 overflow-auto rounded-lg border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
               {JSON.stringify(appointment.raw_payload, null, 2)}
             </pre>
-          </div>
+          </details>
         </>
       )}
 
