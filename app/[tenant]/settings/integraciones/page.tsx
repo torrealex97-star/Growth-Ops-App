@@ -33,6 +33,7 @@ import {
   Gem,
   GraduationCap,
   Settings2,
+  Search,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTenant } from '@/lib/tenant-context'
@@ -49,6 +50,8 @@ type Field = {
   placeholder?: string
   help?: string
   hidden?: boolean
+  /** No hace falta para conectar: se pinta plegado bajo "Opciones avanzadas". */
+  advanced?: boolean
 }
 type Group = {
   id: string
@@ -99,9 +102,10 @@ const GROUP_META: Record<string, { icon: typeof Plug; tone: string; steps: strin
     icon: Megaphone,
     tone: 'from-blue-500/25 to-indigo-500/5',
     steps: [
-      'Crea o abre una app en Meta for Developers.',
-      'Genera un token con ads_read y acceso a la cuenta publicitaria.',
-      'Pega el token, guarda y usa “Probar conexión”.',
+      'Entra en developers.facebook.com y crea un token de acceso.',
+      'Dale el permiso ads_read. Solo lectura: nunca escribimos en tu cuenta.',
+      'Pega el token abajo y pulsa «Buscar cuentas».',
+      'Elige la cuenta publicitaria que quieres enlazar y guarda.',
     ],
     docs: 'https://developers.facebook.com/docs/marketing-apis/get-started/',
   },
@@ -287,6 +291,67 @@ function haceCuanto(iso: string | null): string | null {
   return `hace ${Math.round(h / 24)} d`
 }
 
+/** Campo de la sección avanzada. Mismo comportamiento que el formulario principal, sin duplicar su
+ *  JSX entero: aquí solo hacen falta texto, contraseña, casilla y área de texto. */
+function AdvancedField({
+  field,
+  state,
+  value,
+  onChange,
+}: {
+  field: { key: string; label: string; type: string; secret: boolean; placeholder?: string; help?: string }
+  state?: StateEntry
+  value?: string
+  onChange: (v: string) => void
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <Label htmlFor={field.key} className="text-sm">
+          {field.label}
+        </Label>
+        <span className="text-muted-foreground text-xs">
+          {state?.source === 'db' ? 'guardado' : state?.source === 'env' ? 'en entorno' : 'sin configurar'}
+        </span>
+      </div>
+      {field.type === 'textarea' ? (
+        <Textarea
+          id={field.key}
+          rows={4}
+          value={value ?? ''}
+          placeholder={field.placeholder}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      ) : field.type === 'boolean' ? (
+        <label
+          htmlFor={field.key}
+          className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm"
+        >
+          <Checkbox
+            id={field.key}
+            checked={(value ?? state?.value ?? '0') === '1'}
+            onCheckedChange={(checked) => onChange(checked ? '1' : '0')}
+          />
+          {(value ?? state?.value ?? '0') === '1' ? 'Activado' : 'Desactivado'}
+        </label>
+      ) : (
+        <Input
+          id={field.key}
+          type={field.secret ? 'password' : 'text'}
+          value={value ?? ''}
+          placeholder={
+            field.secret && state?.source !== 'none'
+              ? `Guardado (${state?.preview}). Escribe para cambiar.`
+              : field.placeholder
+          }
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )}
+      {field.help ? <p className="text-muted-foreground text-xs">{field.help}</p> : null}
+    </div>
+  )
+}
+
 export default function IntegracionesPage() {
   const tenant = useTenant()
   const [groups, setGroups] = useState<Group[]>([])
@@ -308,6 +373,9 @@ export default function IntegracionesPage() {
   const [health, setHealth] = useState<Record<string, IntegrationHealth>>({})
   // Integración recién conectada que todavía no ha dicho si quiere traer el pasado.
   const [askHistory, setAskHistory] = useState<string | null>(null)
+  // Cuentas publicitarias que ve el token de Meta. null = todavía no se han buscado.
+  const [metaAccounts, setMetaAccounts] = useState<{ id: string; name: string; active: boolean }[] | null>(null)
+  const [findingAccounts, setFindingAccounts] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -421,6 +489,30 @@ export default function IntegracionesPage() {
     if (!r.ok) return toast.error(`No se pudo desconectar ${g.title}`)
     toast.success(`${g.title} desconectada; el histórico se ha conservado`)
     await load()
+  }
+
+  // Busca las cuentas que ve el token ANTES de guardar nada: si hubiera que guardar primero, se
+  // guardaría un token inválido para descubrir que lo es.
+  async function findMetaAccounts() {
+    setFindingAccounts(true)
+    try {
+      const r = await fetch(`/api/${tenant}/evergreen/settings/integraciones`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'meta-accounts', token: drafts.META_ACCESS_TOKEN || undefined }),
+      })
+      const j = await r.json()
+      if (!j.ok) {
+        setMetaAccounts([])
+        toast.error(j.message || 'No se pudieron buscar las cuentas')
+        return
+      }
+      setMetaAccounts(j.accounts)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error de conexión')
+    } finally {
+      setFindingAccounts(false)
+    }
   }
 
   async function syncHistory(g: Group) {
@@ -753,9 +845,64 @@ export default function IntegracionesPage() {
                           </section>
                         ) : null}
 
+                        {g.id === 'meta' ? (
+                          <section className="mb-5 space-y-3 rounded-lg border border-border p-3">
+                            <div>
+                              <p className="text-sm font-medium">Elegir cuenta publicitaria</p>
+                              <p className="text-muted-foreground text-xs">
+                                Pega arriba el token y busca: te salen las cuentas que ese token ve, con su nombre. No
+                                hace falta que averigües ningún identificador.
+                              </p>
+                            </div>
+                            <Button variant="outline" size="sm" onClick={findMetaAccounts} disabled={findingAccounts}>
+                              {findingAccounts ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Search className="mr-2 h-4 w-4" />
+                              )}
+                              Buscar cuentas
+                            </Button>
+                            {metaAccounts?.length === 0 ? (
+                              <p className="text-muted-foreground text-xs">Ese token no ve ninguna cuenta.</p>
+                            ) : null}
+                            {metaAccounts && metaAccounts.length > 0 ? (
+                              <div className="space-y-1">
+                                {metaAccounts.map((acc) => {
+                                  const elegida = (drafts.META_AD_ACCOUNT_ID ?? '').includes(acc.id)
+                                  return (
+                                    <label
+                                      key={acc.id}
+                                      className={`flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-sm ${
+                                        elegida ? 'border-primary/60 bg-primary/5' : 'border-border hover:bg-muted/40'
+                                      }`}
+                                    >
+                                      <input
+                                        type="radio"
+                                        name="meta-account"
+                                        checked={elegida}
+                                        onChange={() => setDrafts({ ...drafts, META_AD_ACCOUNT_ID: acc.id })}
+                                      />
+                                      <span className="flex-1">{acc.name}</span>
+                                      {/* Una cuenta cerrada o con deuda no devuelve datos: mejor
+                                          saberlo antes de elegirla que después. */}
+                                      {!acc.active ? (
+                                        <span className="text-xs text-amber-400">inactiva en Meta</span>
+                                      ) : null}
+                                      <code className="text-muted-foreground text-xs">{acc.id}</code>
+                                    </label>
+                                  )
+                                })}
+                                <p className="text-muted-foreground text-xs">
+                                  Déjalas todas sin marcar para sincronizar todas las que vea el token.
+                                </p>
+                              </div>
+                            ) : null}
+                          </section>
+                        ) : null}
+
                         <div className="space-y-4">
                           {g.fields
-                            .filter((f) => !f.hidden)
+                            .filter((f) => !f.hidden && !f.advanced)
                             .map((f) => {
                               const st = state[f.key]
                               const badge =
@@ -820,6 +967,30 @@ export default function IntegracionesPage() {
                               )
                             })}
                         </div>
+
+                        {/* Lo que NO hace falta para conectar va plegado. Un formulario con nueve
+                            campos cuando solo dos son obligatorios hace que la gente rellene lo que
+                            no debe, o abandone creyendo que le falta algo. */}
+                        {g.fields.some((f) => !f.hidden && f.advanced) ? (
+                          <details className="mt-4">
+                            <summary className="text-muted-foreground cursor-pointer text-sm">
+                              Opciones avanzadas ({g.fields.filter((f) => !f.hidden && f.advanced).length})
+                            </summary>
+                            <div className="mt-3 space-y-4">
+                              {g.fields
+                                .filter((f) => !f.hidden && f.advanced)
+                                .map((f) => (
+                                  <AdvancedField
+                                    key={f.key}
+                                    field={f}
+                                    state={state[f.key]}
+                                    value={drafts[f.key]}
+                                    onChange={(v) => setDrafts({ ...drafts, [f.key]: v })}
+                                  />
+                                ))}
+                            </div>
+                          </details>
+                        ) : null}
 
                         {g.id === 'stripe' && (
                           <div className="mt-5 space-y-3 rounded-md border border-dashed p-3">

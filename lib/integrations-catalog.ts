@@ -13,6 +13,10 @@ export type IntegrationField = {
   // Campos "hidden" existen en el catálogo (para poder guardarse vía el endpoint genérico)
   // pero no se pintan con el formulario genérico — tienen su propia UI a medida en la página.
   hidden?: boolean
+  // `advanced: true` = no hace falta para conectar. Se pinta plegado bajo "Opciones avanzadas".
+  // Un formulario con nueve campos cuando solo dos son obligatorios hace que la gente rellene lo que
+  // no debe, o abandone pensando que le falta información que en realidad no necesita.
+  advanced?: boolean
 }
 
 // Categoría para agrupar visualmente el catálogo en Configuración → Integraciones.
@@ -61,6 +65,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
       },
       {
         key: 'META_APP_SECRET',
+        advanced: true,
         label: 'App Secret',
         type: 'password',
         secret: true,
@@ -76,6 +81,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
       },
       {
         key: 'META_API_VERSION',
+        advanced: true,
         label: 'Versión de la API',
         type: 'text',
         secret: false,
@@ -84,6 +90,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
       },
       {
         key: 'META_AD_ACCOUNTS_ALL',
+        advanced: true,
         label: 'Sincronizar todas las cuentas accesibles',
         type: 'boolean',
         secret: false,
@@ -113,9 +120,23 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         secret: false,
         placeholder: '17841400000000000',
       },
-      { key: 'IG_PAGE_ID', label: 'Page ID (Facebook vinculada)', type: 'text', secret: false },
-      { key: 'IG_HANDLE', label: 'Handle de Instagram', type: 'text', secret: false, placeholder: '@tucuenta' },
-      { key: 'IG_ENABLE_DM_SYNC', label: 'Sincronizar DMs (1 = sí)', type: 'text', secret: false, placeholder: '0' },
+      { key: 'IG_PAGE_ID', label: 'Page ID (Facebook vinculada)', type: 'text', secret: false, advanced: true },
+      {
+        key: 'IG_HANDLE',
+        label: 'Handle de Instagram',
+        type: 'text',
+        secret: false,
+        placeholder: '@tucuenta',
+        advanced: true,
+      },
+      {
+        key: 'IG_ENABLE_DM_SYNC',
+        label: 'Sincronizar DMs (1 = sí)',
+        type: 'text',
+        secret: false,
+        placeholder: '0',
+        advanced: true,
+      },
     ],
   },
   {
@@ -147,6 +168,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
       },
       {
         key: 'FATHOM_MCP_URL',
+        advanced: true,
         label: 'Servidor MCP oficial',
         type: 'text',
         secret: false,
@@ -191,6 +213,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
       },
       {
         key: 'STRIPE_ACCOUNT_ID',
+        advanced: true,
         label: 'Connected Account ID (opcional)',
         type: 'text',
         secret: false,
@@ -232,6 +255,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
       },
       {
         key: 'GHL_ONBOARDING_WEBHOOK_URL',
+        advanced: true,
         label: 'Webhook de altas/bajas de alumnos',
         type: 'text',
         secret: false,
@@ -240,13 +264,21 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
       },
       {
         key: 'GHL_ONBOARDING_WEBHOOK_SECRET',
+        advanced: true,
         label: 'Secreto del webhook de altas/bajas',
         type: 'password',
         secret: true,
       },
-      { key: 'ONBOARDING_INBOUND_SECRET', label: 'Secreto de onboarding entrante', type: 'password', secret: true },
+      {
+        key: 'ONBOARDING_INBOUND_SECRET',
+        label: 'Secreto de onboarding entrante',
+        type: 'password',
+        secret: true,
+        advanced: true,
+      },
       {
         key: 'ONBOARDING_LANDING_URL',
+        advanced: true,
         label: 'URL de onboarding',
         type: 'text',
         secret: false,
@@ -280,6 +312,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
       },
       {
         key: 'GOOGLE_API_KEY',
+        advanced: true,
         label: 'Google API Key (Drive)',
         type: 'password',
         secret: true,
@@ -347,6 +380,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
       { key: 'HOTMART_CLIENT_SECRET', label: 'Client Secret', type: 'password', secret: true },
       {
         key: 'HOTMART_WEBHOOK_SECRET',
+        advanced: true,
         label: 'Webhook Secret (Hottok)',
         type: 'password',
         secret: true,
@@ -371,6 +405,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
       },
       {
         key: 'WHOP_WEBHOOK_SECRET',
+        advanced: true,
         label: 'Webhook Secret',
         type: 'password',
         secret: true,
@@ -397,6 +432,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
       },
       {
         key: 'SKOOL_WEBHOOK_SECRET',
+        advanced: true,
         label: 'Webhook Secret',
         type: 'password',
         secret: true,
