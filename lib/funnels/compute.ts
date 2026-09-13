@@ -17,7 +17,7 @@ export type StageResult = {
    * Por qué una conversión no se pudo calcular. Que la UI pueda decir "la fuente falló" en vez de
    * un "—" indistinguible de "el denominador era 0".
    */
-  blockedBy?: 'error_fuente' | 'etapa_anterior' | 'unidades_incompatibles'
+  blockedBy?: 'error_fuente' | 'no_configurada' | 'unidades_incompatibles'
 }
 
 export type FunnelResult = {
@@ -25,10 +25,12 @@ export type FunnelResult = {
   label: string
   stages: StageResult[]
   inversion: number | null
-  /** true si alguna etapa no se pudo leer: la UI debe avisar de que el funnel está incompleto. */
+  /** true si alguna etapa no se pudo leer o no está configurada: el funnel está incompleto. */
   incomplete: boolean
-  /** Fuentes que fallaron, para nombrarlas en pantalla. */
+  /** Fuentes que fallaron de verdad, para nombrarlas en pantalla. */
   failedSources: string[]
+  /** Fuentes que solo les falta configuración. Se separan: una pide arreglo, la otra un ajuste. */
+  unconfiguredSources: string[]
 }
 
 export type ComputeInput = {
@@ -42,6 +44,7 @@ export function computeFunnel({ family, counts, inversion = null }: ComputeInput
   const def = FUNNEL_DEFS[family]
   const stages: StageResult[] = []
   const failed = new Set<string>()
+  const unconfigured = new Set<string>()
 
   // La etapa de referencia para "% desde el inicio" es la primera que se haya podido leer: si la
   // primera falló, usar 0 como tope daría porcentajes inventados.
@@ -57,6 +60,7 @@ export function computeFunnel({ family, counts, inversion = null }: ComputeInput
       error: 'La etapa no se ha calculado',
     }
     if (count.status === 'error_fuente') failed.add(count.source)
+    if (count.status === 'no_configurada') unconfigured.add(count.source)
 
     const usable = isUsable(count)
     const value = usable ? (count.value as number) : null
@@ -66,7 +70,7 @@ export function computeFunnel({ family, counts, inversion = null }: ComputeInput
     let blockedBy: StageResult['blockedBy']
 
     if (!usable) {
-      blockedBy = 'error_fuente'
+      blockedBy = count.status === 'no_configurada' ? 'no_configurada' : 'error_fuente'
     } else if (previous === null) {
       // Primera etapa legible: no hay nada antes con lo que comparar, y eso no es un fallo.
       conversionFromTop = value === null ? null : 100
@@ -100,7 +104,8 @@ export function computeFunnel({ family, counts, inversion = null }: ComputeInput
     label: def.label,
     stages,
     inversion,
-    incomplete: failed.size > 0,
+    incomplete: failed.size > 0 || unconfigured.size > 0,
     failedSources: [...failed],
+    unconfiguredSources: [...unconfigured],
   }
 }

@@ -16,6 +16,10 @@ export type MetricStatus =
   | 'ok' // hay dato y es de fiar
   | 'sin_datos' // la fuente respondió, pero no hay filas en el rango: un 0 legítimo
   | 'error_fuente' // no se pudo leer la fuente: el valor es DESCONOCIDO, no 0
+  // La fuente no está conectada o le falta el mapeo que esta etapa necesita. NO es un fallo (no
+  // hay nada roto que arreglar) ni un 0 (no sabemos cuánto es): es trabajo de configuración
+  // pendiente, y la UI debe decir qué hay que configurar en vez de pintar un error rojo.
+  | 'no_configurada'
 
 export type MetricValue = {
   value: number | null
@@ -59,6 +63,14 @@ export const errorFuente = (source: FunnelSource, error: string): MetricValue =>
   error,
 })
 
+export const noConfigurada = (source: FunnelSource, reason: string): MetricValue => ({
+  value: null,
+  status: 'no_configurada',
+  source,
+  lastSync: null,
+  error: reason,
+})
+
 /**
  * Convierte un recuento leído de una fuente en MetricValue.
  * `rows === null` significa "no se pudo leer", NO "cero": esa distinción es todo el punto.
@@ -72,7 +84,15 @@ export function fromCount(
   return rows === 0 ? sinDatos(source, opts.lastSync ?? null) : ok(rows, source, opts.lastSync ?? null)
 }
 
-/** Un valor es utilizable como número solo si la fuente respondió. */
+/** Un valor es utilizable como número solo si la fuente respondió con un dato. */
 export function isUsable(m: MetricValue): boolean {
-  return m.status !== 'error_fuente' && m.value !== null
+  return (m.status === 'ok' || m.status === 'sin_datos') && m.value !== null
+}
+
+/** Etiqueta corta para pintar el estado sin que el usuario tenga que interpretar un código. */
+export const STATUS_LABELS: Record<MetricStatus, string> = {
+  ok: 'Dato real',
+  sin_datos: 'Sin datos en el periodo',
+  error_fuente: 'No se pudo leer la fuente',
+  no_configurada: 'Fuente sin configurar',
 }
