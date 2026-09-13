@@ -4,52 +4,36 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 import { analyzeCall } from '@/lib/ai/claude'
 
 export const runtime = 'nodejs'
-// 60s es el techo real del plan Hobby de Vercel: declarar más no lo amplía, solo hace creer que
-// cabe un lote que se cortaría a medias. El bucle de abajo se autolimita por tiempo para terminar
-// dentro de la ventana y decir cuántas llamadas quedan pendientes.
 export const maxDuration = 60
 
-// Techo duro de filas leídas por tenant y ejecución; el presupuesto de tiempo suele cortar antes.
+// Analiza llamadas con transcripción pero sin análisis estructurado y guarda el resultado en
+// appointments.ai_analysis/ai_summary/ai_call_score/ai_lead_score/ai_suggested_stage. Es el
+// prerrequisito de las tools de Voice of Customer/Sales Intelligence del agente.
+//
+// Dos superficies con alcances DELIBERADAMENTE distintos:
+//   GET  → proceso de plataforma (Vercel Cron / pg_cron). SOLO Bearer CRON_SECRET. Recorre todas
+//          las subcuentas activas. Nunca acepta sesión: una sesión no debe poder mover datos de
+//          otras subcuentas aunque su rol sea admin.
+//   POST → disparo manual desde la UI. Sesión + requireTenant(slug de la URL). Ejecuta ÚNICAMENTE
+//          la subcuenta de la URL y su respuesta no menciona ninguna otra.
 const BATCH_SIZE = 15
-// Deja margen sobre maxDuration para responder con el recuento en vez de que la función muera:
-// una llamada a analyzeCall tarda varios segundos, así que se comprueba el reloj antes de cada una.
+// Margen sobre maxDuration para responder con el recuento en vez de que la función muera a medias.
 const TIME_BUDGET_MS = 45_000
 
-type Authorized = { mode: 'cron' } | { mode: 'user'; tenantId: string }
+type TenantResult = { analyzed: number; errors: number; pendientes_restantes: number }
 
-// Dos vías de entrada con alcances DISTINTOS a propósito:
-//  - Bearer CRON_SECRET (Vercel Cron/pg_cron): proceso de plataforma, recorre todas las subcuentas.
-//  - Sesión de admin/director: solo puede lanzarlo sobre SU propia subcuenta. Sin esto, un director
-//    de la subcuenta B disparaba trabajo de IA (con coste real) sobre las transcripciones de A,
-//    porque el job corre con service role y recorría todos los tenants.
-async function authorize(req: NextRequest, tenantSlug: string): Promise<Authorized | NextResponse> {
-  const auth = req.headers.get('authorization')
-  if (process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`) return { mode: 'cron' }
-
-  const session = await requireTenant(tenantSlug)
-  if ('error' in session) return session.error
-  if (!session.isSuperAdmin && session.role !== 'admin' && session.role !== 'director') {
-    return NextResponse.json({ error: 'Requiere rol de admin o director' }, { status: 403 })
-  }
-  return { mode: 'user', tenantId: session.tenantId }
-}
-
-async function analyzeTenant(
-  sb: SupabaseClient,
-  tenantId: string,
-  deadline: number
-): Promise<{ analyzed: number; errors: number; pendientes_restantes: number }> {
-  // Recuento total de pendientes (independiente del lote) para poder decir cuánto queda: con el
-  // presupuesto de tiempo casi nunca se vacía la cola de una sola pasada, y silenciarlo haría
-  // creer que ya está todo analizado.
-  const { count: pendingTotal } = await sb
+async function analyzeTenant(sb: SupabaseClient, tenantId: string, deadline: number): Promise<TenantResult> {
+  // Recuento total de pendientes, independiente del lote: con el presupuesto de tiempo casi nunca
+  // se vacía la cola de una pasada, y omitirlo haría creer que ya está todo analizado.
+  const { count: pendingTotal, error: countError } = await sb
     .from('appointments')
     .select('id', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
     .not('transcript', 'is', null)
     .is('ai_analysis', null)
+  if (countError) throw new Error(`No se pudo contar las llamadas pendientes: ${countError.message}`)
 
-  const { data: pending } = await sb
+  const { data: pending, error: selectError } = await sb
     .from('appointments')
     .select('id,contact_id,transcript,contacts(full_name)')
     .eq('tenant_id', tenantId)
@@ -57,6 +41,7 @@ async function analyzeTenant(
     .is('ai_analysis', null)
     .order('appointment_datetime', { ascending: false })
     .limit(BATCH_SIZE)
+  if (selectError) throw new Error(`No se pudieron leer las llamadas pendientes: ${selectError.message}`)
 
   let analyzed = 0
   let errors = 0
@@ -65,7 +50,10 @@ async function analyzeTenant(
     const r = row as unknown as { id: string; transcript: string; contacts: { full_name: string } | null }
     try {
       const analysis = await analyzeCall(r.transcript, { leadName: r.contacts?.full_name })
-      await sb
+      // .select() para confirmar que la fila se actualizó de verdad: un UPDATE que no afecta a
+      // ninguna fila no da error, y contarlo como analizado dejaría la cola "avanzando" sin que
+      // nada cambie en la base.
+      const { data: updated, error: updateError } = await sb
         .from('appointments')
         .update({
           ai_analysis: analysis,
@@ -76,7 +64,10 @@ async function analyzeTenant(
           ai_analyzed_at: new Date().toISOString(),
         })
         .eq('id', r.id)
-      analyzed++
+        .eq('tenant_id', tenantId)
+        .select('id')
+      if (updateError || !updated || updated.length === 0) errors++
+      else analyzed++
     } catch {
       errors++
     }
@@ -84,32 +75,51 @@ async function analyzeTenant(
   return { analyzed, errors, pendientes_restantes: Math.max((pendingTotal ?? 0) - analyzed, 0) }
 }
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
-  const { tenant } = await params
-  const authorized = await authorize(req, tenant)
-  if (authorized instanceof NextResponse) return authorized
+function serviceClient() {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+}
 
-  const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
-  let targets: Array<{ id: string; slug: string }>
-  if (authorized.mode === 'cron') {
-    const { data, error } = await sb.from('tenants').select('id, slug').eq('status', 'active')
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    targets = data || []
-  } else {
-    const { data, error } = await sb.from('tenants').select('id, slug').eq('id', authorized.tenantId).single()
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    targets = [data]
+export async function GET(req: NextRequest) {
+  const auth = req.headers.get('authorization')
+  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
-  // El presupuesto se reparte entre las subcuentas a procesar. Con un único deadline global, la
-  // primera subcuenta se lo comía entero y las demás no se analizaban NUNCA.
+  const sb = serviceClient()
+  const { data: tenants, error } = await sb.from('tenants').select('id, slug').eq('status', 'active')
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // El presupuesto se reparte entre subcuentas: con un único deadline global la primera se lo
+  // comía entero y las demás no se analizaban nunca.
+  const targets = tenants || []
   const perTenantBudget = TIME_BUDGET_MS / Math.max(targets.length, 1)
-  const perTenant: Record<string, { analyzed: number; errors: number; pendientes_restantes: number }> = {}
+  const perTenant: Record<string, TenantResult | { error: string }> = {}
   for (const t of targets) {
-    perTenant[t.slug] = await analyzeTenant(sb, t.id, Date.now() + perTenantBudget)
+    try {
+      perTenant[t.slug] = await analyzeTenant(sb, t.id, Date.now() + perTenantBudget)
+    } catch (e) {
+      // Un fallo en una subcuenta no debe abortar el barrido de las demás, pero sí constar.
+      perTenant[t.slug] = { error: e instanceof Error ? e.message : String(e) }
+    }
+  }
+  return NextResponse.json({ ok: true, tenants: perTenant })
+}
+
+export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params
+  const session = await requireTenant(tenant)
+  if ('error' in session) return session.error
+  if (!session.isSuperAdmin && session.role !== 'admin' && session.role !== 'director') {
+    return NextResponse.json({ error: 'Requiere rol de admin o director' }, { status: 403 })
   }
 
-  const totalRemaining = Object.values(perTenant).reduce((sum, t) => sum + t.pendientes_restantes, 0)
-  return NextResponse.json({ ok: true, tenants: perTenant, pendientes_restantes: totalRemaining })
+  // Alcance: exclusivamente la subcuenta de la URL, ya validada por requireTenant. El tenant NUNCA
+  // sale del body. La respuesta solo habla de esta subcuenta: ni slugs, ni contadores, ni errores
+  // de las demás.
+  try {
+    const result = await analyzeTenant(serviceClient(), session.tenantId, Date.now() + TIME_BUDGET_MS)
+    return NextResponse.json({ ok: true, ...result })
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Error al analizar llamadas' }, { status: 500 })
+  }
 }

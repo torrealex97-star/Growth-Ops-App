@@ -43,10 +43,13 @@ export function AiEnginePanel() {
         .select('id', { count: 'exact', head: true })
         .eq('tenant_id', tenantId)
         .not('transcript', 'is', null),
+      // Con transcripción Y análisis: contar cualquier ai_analysis metía en "analizadas" citas
+      // sin transcripción, y entonces pendientes = transcripciones - analizadas salía mal.
       sb
         .from('appointments')
         .select('id', { count: 'exact', head: true })
         .eq('tenant_id', tenantId)
+        .not('transcript', 'is', null)
         .not('ai_analysis', 'is', null),
       sb.from('ai_insights').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId).eq('status', 'new'),
     ])
@@ -66,7 +69,9 @@ export function AiEnginePanel() {
     setRunning(job)
     const path = job === 'calls' ? 'analyze-calls' : 'ai-insights'
     try {
-      const r = await fetch(`/api/${tenant}/evergreen/cron/${path}`)
+      // POST: el disparo manual se ejecuta solo sobre esta subcuenta. El GET de esas rutas es el
+      // barrido global y exige CRON_SECRET, que el navegador no tiene ni debe tener.
+      const r = await fetch(`/api/${tenant}/evergreen/cron/${path}`, { method: 'POST' })
       const j = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(j.error || 'El job no se pudo ejecutar')
       if (job === 'calls') {

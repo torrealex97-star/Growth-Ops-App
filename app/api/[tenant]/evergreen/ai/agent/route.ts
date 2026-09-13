@@ -137,14 +137,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
   if (ids.length === 0) return NextResponse.json({ error: 'Faltan los ids de los insights' }, { status: 400 })
 
   const sb = await createClient()
-  const { error } = await sb
+  // .select() para devolver lo que de verdad cambió: un UPDATE bloqueado por RLS, o sobre insights
+  // que ya no están en 'new', afecta a 0 filas sin dar error. Informar de ids.length haría creer
+  // al cliente que se marcaron avisos que siguen intactos.
+  const { data, error } = await sb
     .from('ai_insights')
     .update({ status })
     .eq('tenant_id', auth.tenantId)
     .in('id', ids)
     .eq('status', 'new')
+    .select('id')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true, updated: ids.length, status })
+  return NextResponse.json({ ok: true, updated: data?.length ?? 0, ids: data?.map((r) => r.id) ?? [], status })
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
