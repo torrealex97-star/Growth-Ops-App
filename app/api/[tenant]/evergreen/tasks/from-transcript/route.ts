@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import Anthropic from '@anthropic-ai/sdk'
+import { completeText, tenantAiEnv } from '@/lib/ai/provider'
 import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const maxDuration = 60
@@ -26,23 +26,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const { data: users } = await sb.from('users').select('id, full_name').eq('is_active', true)
     const roster = (users || []).map((u) => u.full_name).join(', ')
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-    const msg = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2000,
-      system:
-        'Eres un asistente que extrae tareas accionables de la transcripción de una reunión de un equipo de ventas. ' +
-        'Devuelve EXCLUSIVAMENTE un JSON válido con esta forma: ' +
-        '{"summary": string, "tasks": [{"title": string, "description": string, "assignee_name": string|null, "stage": string|null}]}. ' +
-        `Asigna cada tarea a una de estas personas si se menciona o se deduce (usa el nombre EXACTO de la lista o null): ${roster || 'sin equipo'}. ` +
-        'Sé conciso. No inventes tareas que no estén en la reunión. Responde en español.',
-      messages: [{ role: 'user', content: `Transcripción:\n\n${transcript.slice(0, 50000)}` }],
-    })
-
-    const text =
-      msg.content.find((c) => c.type === 'text')?.type === 'text'
-        ? (msg.content.find((c) => c.type === 'text') as { text: string }).text
-        : ''
+    // Por el motor configurado en Integraciones (DeepSeek si la subcuenta lo tiene puesto, Anthropic
+    // si no). Antes fijaba a mano un modelo concreto, así que ni respetaba esa elección ni se
+    // enteraba cuando ese modelo dejaba de existir.
+    const { text } = await completeText(
+      {
+        system:
+          'Eres un asistente que extrae tareas accionables de la transcripción de una reunión de un equipo de ventas. ' +
+          'Devuelve EXCLUSIVAMENTE un JSON válido con esta forma: ' +
+          '{"summary": string, "tasks": [{"title": string, "description": string, "assignee_name": string|null, "stage": string|null}]}. ' +
+          `Asigna cada tarea a una de estas personas si se menciona o se deduce (usa el nombre EXACTO de la lista o null): ${roster || 'sin equipo'}. ` +
+          'Sé conciso. No inventes tareas que no estén en la reunión. Responde en español.',
+        user: `Transcripción:\n\n${transcript.slice(0, 50000)}`,
+        maxTokens: 2000,
+        smart: true,
+      },
+      await tenantAiEnv(t.tenantId)
+    )
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (!jsonMatch) return NextResponse.json({ error: 'La IA no devolvió tareas válidas' }, { status: 502 })
     const parsed = JSON.parse(jsonMatch[0]) as {

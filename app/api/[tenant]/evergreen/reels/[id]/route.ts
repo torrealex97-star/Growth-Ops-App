@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { generateDraftForMedia } from '@/app/api/[tenant]/evergreen/cron/reels/route'
+import { generateDraftForMedia } from '@/lib/reels/generate'
 import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'

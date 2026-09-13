@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { analyzeCall } from '@/lib/ai/claude'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { tenantAiEnv } from '@/lib/ai/provider'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -142,7 +143,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     // 2) Análisis IA
     const contact = appt.contacts as { id?: string; full_name?: string } | null
-    const analysis = await analyzeCall(transcript, { leadName: contact?.full_name })
+    const analysis = await analyzeCall(transcript, { leadName: contact?.full_name }, await tenantAiEnv(t.tenantId))
 
     await sb
       .from('appointments')

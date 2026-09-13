@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
-import { encryptSecret, invalidateConfigCache, getTenantConfigWithFallback } from '@/lib/config'
+import { decryptSecret, encryptSecret, invalidateConfigCache, getTenantConfigWithFallback } from '@/lib/config'
 import { ALL_FIELDS, SECRET_KEYS, isKnownKey, INTEGRATION_ONLY_GROUPS } from '@/lib/integrations-catalog'
 import { assessIntegration, SYNCS_BY_GROUP, type LastCheck } from '@/lib/integrations/health'
 import { SYNC_DEFS } from '@/lib/ops/sync-health'
@@ -9,6 +9,7 @@ import { PG_CRON_READY, VERCEL_CRON_ROUTES } from '@/lib/ops/vercel-crons'
 import { parseAccountIds, fetchAdAccounts } from '@/lib/meta/client'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { isDeprecatedMetaVersion, META_API_VERSION } from '@/lib/meta/api-version'
+import { classifyMetaError } from '@/lib/meta/errors'
 
 export const runtime = 'nodejs'
 
@@ -79,6 +80,15 @@ async function countSyncTables(client: SupabaseClient, tenantId: string): Promis
   return out
 }
 
+/** Longitud del secreto ya descifrado. Si no se puede descifrar, no se inventa un número. */
+function decryptedLength(stored: string): number | undefined {
+  try {
+    return decryptSecret(stored).length
+  } catch {
+    return undefined
+  }
+}
+
 function mask(v: string): string {
   if (!v) return ''
   if (v.length <= 6) return '••••'
@@ -104,17 +114,23 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
     /* tabla sin migrar */
   }
 
-  const state: Record<string, { source: 'db' | 'env' | 'none'; secret: boolean; preview: string; value?: string }> = {}
+  // `length` acompaña a los secretos: una longitud NO es una credencial, y es lo único que permite
+  // ver de un vistazo que un token se pegó a medias — el fallo que Meta reporta como "Bad signature"
+  // y que la máscara ••••1234 esconde por completo.
+  const state: Record<
+    string,
+    { source: 'db' | 'env' | 'none'; secret: boolean; preview: string; value?: string; length?: number }
+  > = {}
   for (const f of ALL_FIELDS) {
     const inDb = dbRows[f.key]?.value
     const inEnv = process.env[f.key]
     if (inDb) {
       state[f.key] = f.secret
-        ? { source: 'db', secret: true, preview: '••••••' }
+        ? { source: 'db', secret: true, preview: '••••••', length: decryptedLength(inDb) }
         : { source: 'db', secret: false, preview: inDb, value: inDb }
     } else if (inEnv) {
       state[f.key] = f.secret
-        ? { source: 'env', secret: true, preview: mask(inEnv) }
+        ? { source: 'env', secret: true, preview: mask(inEnv), length: inEnv.length }
         : { source: 'env', secret: false, preview: inEnv, value: inEnv }
     } else {
       state[f.key] = { source: 'none', secret: f.secret, preview: '' }
@@ -263,6 +279,28 @@ async function listMetaAccounts(tenantId: string, tokenSinGuardar?: string): Pro
   }
 }
 
+/**
+ * ¿Conecta Meta sin firmar? Se usa cuando la firma `appsecret_proof` falla, para poder decir si el
+ * problema es SOLO el App Secret guardado.
+ *
+ * Meta exige la firma únicamente si la app tiene activado "Require app secret". Si sin firma responde
+ * bien, la app NO la exige y el secreto guardado es basura que sobra; si sin firma también falla, hay
+ * algo más (token, permisos) y decir "borra el secreto" sería mandar al sitio equivocado. Es la
+ * diferencia entre diagnosticar y adivinar.
+ */
+async function metaConectaSinFirma(token: string, version: string): Promise<boolean> {
+  try {
+    const r = await fetch(
+      `https://graph.facebook.com/${version}/me/adaccounts?limit=1&access_token=${encodeURIComponent(token.trim())}`,
+      { signal: AbortSignal.timeout(15_000) }
+    )
+    const j = (await r.json().catch(() => ({}))) as { error?: unknown }
+    return r.ok && !j.error
+  } catch {
+    return false
+  }
+}
+
 /** Veredicto de una comprobación. `code` es una pista ESTABLE para elegir el arreglo a mostrar. */
 type ProbeResult = { ok: boolean; message: string; code?: string }
 
@@ -318,8 +356,11 @@ async function saveLastCheck(tenantId: string, group: string, result: ProbeResul
 }
 
 function metaProof(token: string, appSecret?: string): string {
-  if (!appSecret) return ''
-  return crypto.createHmac('sha256', appSecret).update(token).digest('hex')
+  // Se recortan los dos: un espacio o un salto de línea pegados al copiar rompen la firma y Meta
+  // responde "Invalid appsecret_proof", que no señala en absoluto a un espacio invisible.
+  const secret = appSecret?.trim()
+  if (!secret) return ''
+  return crypto.createHmac('sha256', secret).update(token.trim()).digest('hex')
 }
 
 // Habla con la API de cada integración y devuelve un veredicto en claro.
@@ -346,6 +387,26 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
       }
       const proof = metaProof(token, cfg.META_APP_SECRET)
       const proofQs = proof ? `&appsecret_proof=${proof}` : ''
+      // Si hay App Secret guardado, se comprueba ANTES que la firma que produce sea válida: es el
+      // fallo que más veces bloquea esta integración, y disfrazado de "cuenta desconocida".
+      if (proof) {
+        const conFirma = await fetch(
+          `https://graph.facebook.com/${ver}/me/adaccounts?limit=1&access_token=${encodeURIComponent(token.trim())}${proofQs}`,
+          { signal: AbortSignal.timeout(15_000) }
+        )
+        const cuerpo = (await conFirma.json().catch(() => ({}))) as { error?: { message?: string } }
+        if (/appsecret_proof/i.test(cuerpo.error?.message || '')) {
+          const sinFirma = await metaConectaSinFirma(token, ver)
+          return {
+            ok: false,
+            code: 'proof_invalido',
+            message: sinFirma
+              ? 'El App Secret guardado no es el de la app que generó el token. Sin él la conexión SÍ funciona: tu app de Meta no exige la firma, así que bórralo con el botón "Borrar" que hay junto al campo.'
+              : 'El App Secret guardado no corresponde a la app que generó el token, y sin él Meta tampoco acepta el token: pega el App Secret de la MISMA app desde la que generaste el token.',
+          }
+        }
+      }
+
       const accounts = parseAccountIds(cfg.META_AD_ACCOUNT_ID)
       // Sin cuentas explícitas → modo "todas": descubrir las accesibles por el token.
       if (accounts.length === 0) {
@@ -376,15 +437,18 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
           const url = `https://graph.facebook.com/${ver}/${acc}?fields=name,account_status&access_token=${encodeURIComponent(token)}${proofQs}`
           const r = await fetch(url)
           const j = await r.json()
-          return { acc, ok: r.ok, name: j.name as string | undefined, err: j.error?.message as string | undefined }
+          return { acc, ok: r.ok && !j.error, name: j.name as string | undefined, body: j, status: r.status }
         })
       )
       const failed = results.filter((r) => !r.ok)
       if (failed.length > 0) {
+        // El código de Meta dice si es el token, el permiso o el id de cuenta: tres arreglos
+        // distintos que antes se resumían todos en "token_invalido".
+        const causa = classifyMetaError(failed[0].body, failed[0].status)
         return {
           ok: false,
-          message: `Fallo en ${failed.map((f) => f.acc).join(', ')}: ${failed[0].err || 'Error de Meta'}`,
-          code: 'token_invalido',
+          message: `Cuenta ${failed.map((f) => f.acc).join(', ')}: ${causa.message}`,
+          code: causa.code,
         }
       }
       const names = results.map((r) => r.name || r.acc)
@@ -398,12 +462,25 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
       if (!token) return { ok: false, message: 'Falta el token de Instagram/Meta.' }
       const ver = cfg.META_API_VERSION || META_API_VERSION
       const proof = metaProof(token, cfg.META_APP_SECRET)
-      const url = `https://graph.facebook.com/${ver}/me/accounts?fields=name&access_token=${encodeURIComponent(token)}${proof ? `&appsecret_proof=${proof}` : ''}`
-      const r = await fetch(url)
-      const j = await r.json()
-      return r.ok
-        ? { ok: true, message: 'Token válido.' }
-        : { ok: false, message: j.error?.message || 'Error de Instagram', code: codeFromStatus(r.status) }
+      const qs = `&access_token=${encodeURIComponent(token.trim())}${proof ? `&appsecret_proof=${proof}` : ''}`
+      // Se comprueba la CUENTA que se va a sincronizar (IG_USER_ID), no solo que el token exista.
+      // Antes bastaba con que `/me/accounts` respondiera: con un IG_USER_ID equivocado la pantalla
+      // decía "Token válido" y luego no llegaba ni una publicación, sin que nadie supiera por qué.
+      const objetivo = cfg.IG_USER_ID
+        ? `${encodeURIComponent(cfg.IG_USER_ID.trim())}?fields=username,media_count`
+        : `me/accounts?fields=name`
+      const r = await fetch(`https://graph.facebook.com/${ver}/${objetivo}${qs}`)
+      const j = (await r.json()) as { username?: string; media_count?: number; error?: unknown }
+      if (!r.ok || j.error) {
+        const causa = classifyMetaError(j, r.status)
+        return { ok: false, message: causa.message, code: causa.code }
+      }
+      return {
+        ok: true,
+        message: j.username
+          ? `Cuenta @${j.username} conectada (${j.media_count ?? 0} publicaciones).`
+          : 'El token vale, pero falta IG_USER_ID: sin él no se sabe qué cuenta sincronizar.',
+      }
     }
     if (group === 'calendly') {
       const token = cfg.CALENDLY_API_TOKEN
@@ -528,7 +605,17 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
         client_id: cfg.HOTMART_CLIENT_ID,
         client_secret: cfg.HOTMART_CLIENT_SECRET,
       })
-      const r = await fetch(`https://api-sec-vlc.hotmart.com/security/oauth/token?${query}`, { method: 'POST' })
+      // Hotmart EXIGE la cabecera `Authorization: Basic` además de los parámetros: sin ella responde
+      // 401 siempre, con las credenciales correctas. Faltaba, así que esta integración no podía
+      // conectar nunca. El valor es el "token Basic" que muestra su panel, que es exactamente
+      // base64(client_id:client_secret); se acepta pegado a mano por si el suyo difiere.
+      const basic =
+        cfg.HOTMART_BASIC_TOKEN?.trim() ||
+        Buffer.from(`${cfg.HOTMART_CLIENT_ID}:${cfg.HOTMART_CLIENT_SECRET}`).toString('base64')
+      const r = await fetch(`https://api-sec-vlc.hotmart.com/security/oauth/token?${query}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Basic ${basic}` },
+      })
       const j = (await r.json().catch(() => ({}))) as { error_description?: string; access_token?: string }
       return r.ok && j.access_token
         ? { ok: true, message: 'Credenciales de Hotmart válidas.' }
