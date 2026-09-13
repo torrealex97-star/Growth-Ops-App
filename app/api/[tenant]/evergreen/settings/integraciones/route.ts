@@ -462,12 +462,25 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
       if (!token) return { ok: false, message: 'Falta el token de Instagram/Meta.' }
       const ver = cfg.META_API_VERSION || META_API_VERSION
       const proof = metaProof(token, cfg.META_APP_SECRET)
-      const url = `https://graph.facebook.com/${ver}/me/accounts?fields=name&access_token=${encodeURIComponent(token)}${proof ? `&appsecret_proof=${proof}` : ''}`
-      const r = await fetch(url)
-      const j = await r.json()
-      return r.ok
-        ? { ok: true, message: 'Token válido.' }
-        : { ok: false, message: j.error?.message || 'Error de Instagram', code: codeFromStatus(r.status) }
+      const qs = `&access_token=${encodeURIComponent(token.trim())}${proof ? `&appsecret_proof=${proof}` : ''}`
+      // Se comprueba la CUENTA que se va a sincronizar (IG_USER_ID), no solo que el token exista.
+      // Antes bastaba con que `/me/accounts` respondiera: con un IG_USER_ID equivocado la pantalla
+      // decía "Token válido" y luego no llegaba ni una publicación, sin que nadie supiera por qué.
+      const objetivo = cfg.IG_USER_ID
+        ? `${encodeURIComponent(cfg.IG_USER_ID.trim())}?fields=username,media_count`
+        : `me/accounts?fields=name`
+      const r = await fetch(`https://graph.facebook.com/${ver}/${objetivo}${qs}`)
+      const j = (await r.json()) as { username?: string; media_count?: number; error?: unknown }
+      if (!r.ok || j.error) {
+        const causa = classifyMetaError(j, r.status)
+        return { ok: false, message: causa.message, code: causa.code }
+      }
+      return {
+        ok: true,
+        message: j.username
+          ? `Cuenta @${j.username} conectada (${j.media_count ?? 0} publicaciones).`
+          : 'El token vale, pero falta IG_USER_ID: sin él no se sabe qué cuenta sincronizar.',
+      }
     }
     if (group === 'calendly') {
       const token = cfg.CALENDLY_API_TOKEN
