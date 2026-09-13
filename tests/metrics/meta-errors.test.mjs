@@ -14,6 +14,15 @@ test('un token caducado, uno revocado y uno inválido se distinguen', () => {
   assert.match(classifyMetaError(meta(190, 463)).message, /caducado/)
 })
 
+// "Bad signature" NO es un token caducado: es una cadena incompleta o alterada, casi siempre un
+// copiado a medias. Decir "renueva el token" manda a generar otro que se volverá a pegar mal.
+test('Bad signature manda a recopiar el token, no a renovarlo', () => {
+  const causa = classifyMetaError(meta(190, undefined, 'Bad signature'), 400)
+  assert.equal(causa.code, 'token_incompleto')
+  assert.match(causa.message, /incompleto|alterado/)
+  assert.doesNotMatch(causa.message, /caducad/i)
+})
+
 test('falta de permisos no se confunde con token inválido', () => {
   for (const code of [10, 200, 294]) {
     assert.equal(classifyMetaError(meta(code)).code, 'sin_permisos')

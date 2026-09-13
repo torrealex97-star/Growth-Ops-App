@@ -65,7 +65,15 @@ type Group = {
 
 // Orden de las categorías tal y como se muestran en el panel.
 const CATEGORY_ORDER: IntegrationCategory[] = ['marketing', 'ventas', 'pagos', 'comunicacion', 'ia', 'seguridad']
-type StateEntry = { source: 'db' | 'env' | 'none'; secret: boolean; preview: string; value?: string }
+type StateEntry = {
+  source: 'db' | 'env' | 'none'
+  secret: boolean
+  preview: string
+  value?: string
+  /** Longitud del secreto guardado. Una longitud no es una credencial, y es lo único que delata un
+   *  token pegado a medias, que Meta reporta como "Bad signature" y la máscara esconde. */
+  length?: number
+}
 type StripeCustomerRow = {
   stripe_customer_id: string
   contact_id: string | null
@@ -979,6 +987,11 @@ export default function IntegracionesPage() {
                                   {/* Un valor que viene del entorno no se puede quitar desde aquí: lo
                                       manda la variable de Vercel, y decir "bórralo" sería mandar a un
                                       botón que no existe. */}
+                                  {f.secret && st?.length ? (
+                                    <p className="text-muted-foreground text-xs">
+                                      Guardado: {st.length} caracteres. Si al copiarlo se cortó, aquí se ve.
+                                    </p>
+                                  ) : null}
                                   {st?.source === 'env' ? (
                                     <p className="text-xs text-amber-400">
                                       Este valor viene de una variable de entorno del servidor. Para quitarlo hay que
