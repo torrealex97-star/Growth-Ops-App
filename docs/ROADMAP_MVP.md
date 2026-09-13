@@ -97,12 +97,30 @@ Hecho:
   legibles. Las respuestas del formulario **ya existían** y se siguen viendo para todos: esa parte
   del brief estaba resuelta de antes, solo faltaba quitar el ruido técnico de encima.
 
-Pendiente, y es la parte grande de esta fase — **próximo paso concreto**:
+**Matching de Fathom — hecho, y arregla una corrupción de datos que no estaba en el brief.**
 
-- **Matching de Fathom.** Emparejar por identificador externo primero (determinista), y solo si no
-  hay, por email + ventana temporal. Los casos ambiguos NO se adivinan: van a una **cola de
-  revisión** para que una persona decida. Hace falta una tabla nueva (migración versionada) para esa
-  cola, y una reconciliación histórica **idempotente y con dry-run** antes de escribir nada.
+Lo que hacía antes: cuando había varias citas candidatas en una ventana de ±12 h, escribía la
+transcripción en **todas**, con un comentario que lo presentaba como lo prudente. No lo era:
+duplicaba la misma llamada en N citas (el análisis de IA y Voice of Customer la contaban N veces),
+estampaba el mismo `fathom_meeting_id` en N filas, y en el re-sync siguiente la comprobación de "ya
+importada" encontraba una y saltaba — **parecía idempotente habiendo dejado N-1 filas con una
+llamada que no ocurrió ahí**.
+
+Lo que hace ahora:
+
+- La decisión vive en `lib/fathom/match.ts`, función pura con 10 tests. El sync solo obedece.
+- Identificador de Fathom primero (determinista). Si no, email + proximidad, con ventana de
+  **90 minutos** en vez de 12 horas.
+- Si dos candidatas están a menos de 15 minutos de diferencia entre sí, **no se elige**: elegir
+  sería tirar una moneda. Va a `fathom_match_review` para que una persona decida.
+- Escritura a **una sola** cita, con `.select()` para no dar por escrito lo que RLS dejó en 0 filas.
+- `dryRun: true` recorre y clasifica sin escribir, y devuelve una muestra legible de lo que haría.
+- La cola es idempotente por `(tenant_id, fathom_meeting_id)`: un re-sync no duplica casos, y si la
+  persona ya resolvió uno, no se reabre.
+
+Queda por hacer, y es pequeño: la **pantalla** para resolver la cola. Hoy los casos se anotan
+correctamente y se pueden consultar, pero resolverlos requiere tocar la tabla. Es lo primero que
+debería añadirse cuando haya casos reales que resolver.
 
 ## 4. Regla que aplica a todas las fases
 
