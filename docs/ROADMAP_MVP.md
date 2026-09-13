@@ -70,15 +70,37 @@ Y: ninguna integración se marca como lista si solo existe la interfaz; ningún 
 presenta como real; ningún DDL fuera de migraciones versionadas; aislamiento por `tenant_id` y RLS
 en todo lo nuevo.
 
-## 5. Bloqueado esperando al usuario
+## 5. Estado de los bloqueos
 
-1. Aplicar dos migraciones ya escritas y revisadas:
-   `20260913100000_storage_tenant_policies.sql` y `20260913110000_partners_profit_guard.sql`.
-   (El MCP de Supabase de esta sesión necesita reautenticación, así que no puedo aplicarlas yo.)
-2. Confirmar la reparación del historial de migraciones — ver `MIGRATION_RECONCILIATION.md`.
-3. Crear el proyecto de Google Cloud con pantalla de consentimiento OAuth (desbloquea D y H).
+**Resueltos el 2026-09-13**, con autorización explícita del usuario y verificación en producción:
 
-Sin 1 y 2, cualquier migración nueva se apila sobre un historial ya inconsistente.
+1. ✅ `storage_tenant_policies` aplicada. Antes: comprobado que solo existía el bucket `contratos`,
+   ya privado y con 0 objetos, y que ninguna ruta quedaría inaccesible por el prefijo `tenant_id/`.
+   Después: los dos buckets privados y las cuatro políticas presentes.
+2. ✅ `partners_profit_guard` aplicada. Antes: comprobado que `partners` está vacía, así que el
+   trigger no podía romper ningún reparto existente. Después: **probado funcionalmente** — 60 + 60
+   y 70 + 40 se rechazan con `check_violation`, sin dejar filas escritas.
+   De paso se corrigió un fallo del propio mensaje de error (`%%%` en `RAISE` se parsea como
+   literal + marcador, y salía "quedaría en %120.00").
+3. ✅ Historial de migraciones reparado: 28 locales = 28 remotas, sin sobras ni faltas. Con respaldo
+   previo en `schema_migrations_backup_20260913`. Ver `MIGRATION_RECONCILIATION.md`.
+4. ✅ Aviso del linter causado por el punto 2 y cerrado en el mismo día: la función del trigger era
+   invocable como RPC por `anon`. Revocado en `20260913120000_partners_guard_revoke_rpc.sql`, y
+   verificado que el guard sigue bloqueando después de revocar.
+
+**Sigue bloqueado, y es lo único que necesito de ti:**
+
+- Crear el proyecto de Google Cloud con pantalla de consentimiento OAuth. Desbloquea la fase D
+  (GA4) **y** la fase H (buzón de facturas por Gmail). Hasta entonces ambas quedan fuera del MVP.
+
+### Hallazgos fuera de alcance detectados al pasar el linter
+
+- `public.merge_contacts` tiene `search_path` mutable (preexistente, no lo he tocado).
+- Diez funciones `SECURITY DEFINER` son invocables por `authenticated`. Las de RLS
+  (`auth_tenant_ids`, `is_admin_or_director`, `get_my_role`…) **tienen que serlo** para que las
+  políticas funcionen: no es un fallo. Conviene revisar una a una si alguna sobra.
+- Protección de contraseñas filtradas (HaveIBeenPwned) desactivada en Auth. Es un interruptor del
+  panel, gratis de activar.
 
 ## 6. Revisión de UX: qué se hizo y qué se descartó
 
