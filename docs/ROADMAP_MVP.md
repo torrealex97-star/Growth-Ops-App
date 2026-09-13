@@ -48,7 +48,7 @@ Leyenda: ✅ hecho · 🚧 en curso · ⛔ bloqueado por el usuario · ⬜ pendi
 | C   | Capa canónica de funnels (sin UI)             | ⬜     | Siguiente. No necesita credenciales                        |
 | E   | Sección Funnels con lo que ya hay en base     | ⬜     | MVP sin GA4: VSL, Webinar y Profile ya tienen datos        |
 | F   | CRM → Agenda, detalle de cita legible, Fathom | ⬜     | Mejora diaria, barata                                      |
-| D   | GA4 (OAuth multi-tenant)                      | ⛔     | Bloqueada: hay que crear el proyecto de Google Cloud       |
+| D   | GA4 (OAuth multi-tenant)                      | 🚧     | Flujo OAuth hecho; falta el sync de datos                  |
 | G   | Banco de testimonios y de grabaciones         | ✅     | Grabaciones hechas; testimonios ya existía (§3.3)          |
 | H   | Facturas por email (**solo Gmail**)           | ⬜     | También necesita el proyecto de Google Cloud               |
 | I   | Backfill de Stripe y diagnóstico de Meta      | ⬜     | **Siguiente**                                              |
@@ -184,8 +184,20 @@ en todo lo nuevo.
 
 **Sigue bloqueado, y es lo único que necesito de ti:**
 
-- Crear el proyecto de Google Cloud con pantalla de consentimiento OAuth. Desbloquea la fase D
-  (GA4) **y** la fase H (buzón de facturas por Gmail). Hasta entonces ambas quedan fuera del MVP.
+- ~~Crear el proyecto de Google Cloud~~ ✅ **hecho por el usuario el 2026-09-13.** Client ID y
+  Secret creados para el cliente `growth-ops-web`.
+
+  Dos cosas que aprendimos al hacerlo y conviene no repetir:
+  - `vercel.app` **no vale** como dominio autorizado: está en la Public Suffix List, así que Google
+    lo rechaza igual que rechazaría `.com`. Hay que poner el subdominio real
+    (`growth-ops-weld.vercel.app`), y cada preview o proyecto nuevo se añade uno a uno.
+  - El URI de redirección registrado es `/api/oauth/google/callback`, **sin subcuenta en la ruta**.
+    Google compara la cadena literal y exige registrar cada URI, así que no puede haber un callback
+    por subcuenta. De ahí que la subcuenta viaje **firmada** en el parámetro `state`.
+
+- **Pendiente del usuario: rotar el Client Secret.** Se pegó en un chat, así que queda en un
+  historial almacenado y ya no es secreto. Generar uno nuevo en Clientes → `growth-ops-web` →
+  Secretos del cliente y pegarlo en Configuración → Integraciones → Google, que es donde se cifra.
 
 ### Hallazgos fuera de alcance detectados al pasar el linter
 
