@@ -323,7 +323,8 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
   {
     id: 'deepseek',
     title: 'DeepSeek',
-    description: 'Conecta DeepSeek como proveedor adicional para modelos de lenguaje y razonamiento.',
+    description:
+      'Motor de IA de la subcuenta: análisis de llamadas, guiones, tareas desde transcripción y variables de contrato.',
     category: 'ia',
     test: true,
     required: ['DEEPSEEK_API_KEY'],
@@ -405,6 +406,14 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         help: 'Credencial de la API de Hotmart (Herramientas → Credenciales).',
       },
       { key: 'HOTMART_CLIENT_SECRET', label: 'Client Secret', type: 'password', secret: true },
+      {
+        key: 'HOTMART_BASIC_TOKEN',
+        label: 'Token Basic',
+        type: 'password',
+        secret: true,
+        advanced: true,
+        help: 'Opcional. Hotmart muestra un "token Basic" junto al Client ID y el Secret. Si lo dejas vacío se calcula a partir de los otros dos, que es lo que hace Hotmart; ponlo solo si el suyo es distinto.',
+      },
       {
         key: 'HOTMART_WEBHOOK_SECRET',
         advanced: true,

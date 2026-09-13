@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { analyzeCall } from '@/lib/ai/claude'
+import { tenantAiEnv } from '@/lib/ai/provider'
 
 export const runtime = 'nodejs'
 // 60s es un valor conservador, no un techo verificado: el límite efectivo depende del plan y de si
@@ -27,6 +28,9 @@ const TIME_BUDGET_MS = 45_000
 type TenantResult = { analyzed: number; errors: number; pendientes_restantes: number }
 
 async function analyzeTenant(sb: SupabaseClient, tenantId: string, deadline: number): Promise<TenantResult> {
+  // Una sola lectura de la configuración de IA por subcuenta: dentro del bucle sería una consulta por
+  // llamada analizada.
+  const aiEnv = await tenantAiEnv(tenantId)
   // Recuento total de pendientes, independiente del lote: con el presupuesto de tiempo casi nunca
   // se vacía la cola de una pasada, y omitirlo haría creer que ya está todo analizado.
   const { count: pendingTotal, error: countError } = await sb
@@ -53,7 +57,7 @@ async function analyzeTenant(sb: SupabaseClient, tenantId: string, deadline: num
     if (Date.now() > deadline) break
     const r = row as unknown as { id: string; transcript: string; contacts: { full_name: string } | null }
     try {
-      const analysis = await analyzeCall(r.transcript, { leadName: r.contacts?.full_name })
+      const analysis = await analyzeCall(r.transcript, { leadName: r.contacts?.full_name }, aiEnv)
       // .select() para confirmar que la fila se actualizó de verdad: un UPDATE que no afecta a
       // ninguna fila no da error, y contarlo como analizado dejaría la cola "avanzando" sin que
       // nada cambie en la base.

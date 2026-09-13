@@ -157,6 +157,8 @@ export function fixFor(code: string | undefined, groupId: string): string | unde
 export const FIXES: Record<string, string> = {
   token_invalido:
     'La credencial ya no vale: se ha caducado, rotado o revocado. Genera una nueva en el panel del proveedor, pégala aquí y vuelve a comprobar.',
+  token_incompleto:
+    'Vuelve a copiar el token ENTERO desde Meta (son más de 150 caracteres y es fácil dejarse el final) y pégalo de nuevo. Debajo del campo verás cuántos caracteres hay guardados: si son muchos menos, se cortó al pegar.',
   token_caducado: 'El token ha caducado. Genera uno que no expire (en Meta, un token de System User) y pégalo aquí.',
   sin_permisos:
     'La credencial es válida pero no tiene permisos para lo que necesitamos. Revisa los permisos en el panel del proveedor y vuelve a generarla.',
@@ -164,6 +166,14 @@ export const FIXES: Record<string, string> = {
     'La credencial funciona pero no ve ninguna cuenta. Da acceso a la cuenta desde el panel del proveedor y vuelve a comprobar.',
   dominio_no_verificado:
     'El dominio del remitente no está verificado, así que los correos no saldrían. Verifícalo en el panel del proveedor y vuelve a comprobar.',
+  proof_invalido:
+    'Vacía el campo "App Secret" en opciones avanzadas y vuelve a comprobar: solo hace falta si tu app de Meta exige la firma appsecret_proof. Si la exige, pega el App Secret de LA MISMA app que generó el token (Meta for Developers › Configuración › Básica).',
+  cuenta_incorrecta:
+    'El identificador de la cuenta publicitaria no le suena a Meta. Bórralo y usa "Buscar cuentas" para elegirla de la lista en vez de escribirlo a mano.',
+  limite_de_uso:
+    'El proveedor ha limitado las peticiones durante un rato. No hay nada que arreglar: vuelve a comprobar en unos minutos.',
+  respuesta_inesperada:
+    'El proveedor respondió algo que no esperábamos. Vuelve a comprobar; si sigue igual, copia este mensaje y mándalo a soporte.',
   sin_saldo:
     'La clave es válida pero la cuenta no tiene saldo. Recarga en el panel del proveedor: no hace falta tocar la credencial.',
   modelo_no_disponible:

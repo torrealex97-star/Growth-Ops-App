@@ -163,3 +163,85 @@ test('cada sincronización apunta a una tabla que existe de verdad', () => {
   )
   assert.deepEqual(inexistentes, [], `estas tablas no las crea ninguna migración: ${inexistentes.join(', ')}`)
 })
+
+// Hotmart EXIGE la cabecera `Authorization: Basic` en la petición de token, además de los parámetros.
+// Sin ella responde 401 con las credenciales correctas, así que esta integración no podía conectar
+// nunca — daba "Client ID o Secret inválidos" con un Client ID y un Secret perfectos.
+test('Hotmart manda la cabecera Basic que su API exige', () => {
+  const route = sinComentarios(read(ROUTE))
+  const hotmart = route.slice(route.indexOf("group === 'hotmart'"))
+  const cuerpo = hotmart.slice(0, hotmart.indexOf("group === 'whop'"))
+  assert.match(cuerpo, /Authorization: `Basic \$\{basic\}`/, 'falta la cabecera Basic en el token de Hotmart')
+  assert.match(cuerpo, /Buffer\.from\(`\$\{cfg\.HOTMART_CLIENT_ID\}:\$\{cfg\.HOTMART_CLIENT_SECRET\}`\)/)
+  // Y se puede pegar el que muestra su panel, por si no coincide con el calculado.
+  assert.match(cuerpo, /HOTMART_BASIC_TOKEN/)
+  assert.match(read(CATALOG), /HOTMART_BASIC_TOKEN/)
+})
+
+// Un fallo del proveedor tiene que llegar a la pantalla como una causa con arreglo, no como el
+// mensaje en inglés que Meta escribe para desarrolladores.
+test('los errores de Meta se traducen a una causa, también dentro del cliente', () => {
+  const client = sinComentarios(read('lib/meta/client.ts'))
+  assert.match(client, /classifyMetaError\(json, res\.status\)/, 'el cliente sigue lanzando el mensaje crudo')
+  assert.doesNotMatch(client, /Meta API error\$\{/, 'quedó el error en inglés sin clasificar')
+  const route = sinComentarios(read(ROUTE))
+  assert.match(route, /classifyMetaError\(failed\[0\]\.body, failed\[0\]\.status\)/)
+  // Y una respuesta 200 que trae `error` dentro NO puede darse por buena: Meta responde así a veces.
+  assert.match(route, /ok: r\.ok && !j\.error/)
+})
+
+// Un espacio o un salto de línea pegados al copiar el App Secret rompen la firma appsecret_proof, y
+// Meta responde "Invalid appsecret_proof" sin decir que sobra un carácter invisible: horas de
+// revisar unas credenciales correctas.
+test('las credenciales de Meta se recortan antes de firmar', () => {
+  const route = sinComentarios(read(ROUTE))
+  assert.match(route, /const secret = appSecret\?\.trim\(\)/)
+  assert.match(route, /\.update\(token\.trim\(\)\)/)
+  const client = sinComentarios(read('lib/meta/client.ts'))
+  assert.match(client, /createHmac\('sha256', secret\)\.update\(token\.trim\(\)\)/)
+  assert.match(client, /createHmac\('sha256', cfg\.appSecret\.trim\(\)\)\.update\(cfg\.token\.trim\(\)\)/)
+})
+
+// Vaciar el campo de un secreto y guardar NO lo borra: el endpoint ignora los secretos en blanco a
+// propósito (si no, el campo enmascarado los borraría al guardar cualquier otra cosa). Sin un botón
+// de borrar, una credencial mal pegada se queda para siempre y la única salida es "Desconectar", que
+// borra TODAS las de esa integración. Pasó de verdad: bloqueó Meta con un App Secret incorrecto.
+test('un secreto guardado se puede borrar uno a uno', () => {
+  const route = sinComentarios(read(ROUTE))
+  assert.match(route, /if \(secret && val === ''\) continue/, 'cambió el comportamiento de guardado')
+  const page = read('app/[tenant]/settings/integraciones/page.tsx')
+  assert.match(page, /async function clearField/)
+  assert.match(page, /JSON\.stringify\(\{ clear: \[key\] \}\)/, 'el borrado debe afectar a UNA clave')
+  assert.match(page, /Borrar/)
+  // Y lo que viene de una variable de entorno no se puede borrar desde aquí: decir "bórralo" sería
+  // mandar a un botón que no existe.
+  assert.match(page, /viene de una variable de entorno/)
+})
+
+// "Borra el App Secret" solo se puede afirmar si se ha comprobado que sin él conecta. Si sin firma
+// tampoco conecta, el problema es otro y ese consejo manda al sitio equivocado.
+test('el consejo sobre el App Secret se demuestra, no se supone', () => {
+  const route = sinComentarios(read(ROUTE))
+  assert.match(route, /async function metaConectaSinFirma/)
+  assert.match(route, /const sinFirma = await metaConectaSinFirma\(token, ver\)/)
+  const bloque = route.slice(route.indexOf('const sinFirma'))
+  assert.match(bloque.slice(0, 900), /sinFirma\s*\?/, 'el mensaje no depende de la comprobación')
+  assert.match(bloque.slice(0, 900), /MISMA app/, 'falta el caso en el que el secreto sí hace falta')
+})
+
+// Las funciones de Meta leen las credenciales de process.env (resolveMetaConfigs), así que cualquier
+// ruta que las llame DEBE cargar antes la configuración de su subcuenta. Sin eso, o no encuentra
+// token, o sincroniza con el de otra subcuenta — que es peor que fallar.
+test('toda ruta que sincroniza Meta carga antes la config de su subcuenta', () => {
+  const rutas = [
+    'app/api/[tenant]/evergreen/settings/integraciones/history-sync/route.ts',
+    'app/api/[tenant]/evergreen/cron/meta/route.ts',
+    'app/api/[tenant]/evergreen/cron/meta-daily/route.ts',
+    'app/api/[tenant]/evergreen/cron/meta-ads/route.ts',
+  ]
+  for (const ruta of rutas) {
+    const src = read(ruta)
+    if (!/runMetaSync|runMetaDailySync|runMetaAdsSync/.test(src)) continue
+    assert.match(src, /ensureConfig\(/, `${ruta} sincroniza Meta sin cargar la config de la subcuenta`)
+  }
+})
