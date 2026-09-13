@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Plug,
   Handshake,
+  Building,
 } from 'lucide-react'
 import { useTenant } from '@/lib/tenant-context'
 import { createClient } from '@/lib/supabase/client'
@@ -105,6 +106,18 @@ const SETTINGS_CARDS = [
     bg: 'bg-amber-500/10',
   },
   {
+    // Alta de subcuentas: operación de PLATAFORMA, no de cliente. Por eso no basta con `manageOnly`
+    // (que mira el rol global admin/director/manager): se comprueba `is_super_admin` aparte, y la
+    // ruta de la API lo vuelve a comprobar — esta tarjeta solo decide qué se pinta.
+    title: 'Subcuentas',
+    description: 'Da de alta subcuentas y mira qué le falta a cada una',
+    icon: Building,
+    href: '/settings/subcuentas',
+    color: 'text-violet-400',
+    bg: 'bg-violet-500/10',
+    superAdminOnly: true,
+  },
+  {
     title: 'Auditoría',
     description: 'Quién cambió cada venta, cobro, cita o comisión, y cuándo',
     icon: Shield,
@@ -120,6 +133,8 @@ export default function SettingsPage() {
   // Arranca en null (= "todavía no se sabe") en vez de true: asumir que puede gestionar pintaría
   // por un instante tarjetas que no le corresponden.
   const [canManage, setCanManage] = useState<boolean | null>(null)
+  // Igual que `canManage`: arranca en null para no pintar la tarjeta de plataforma antes de saberlo.
+  const [isSuperAdmin, setIsSuperAdmin] = useState<boolean | null>(null)
 
   useEffect(() => {
     const sb = createClient()
@@ -131,10 +146,17 @@ export default function SettingsPage() {
       const { data } = await sb.from('users').select('roles(key)').eq('id', user.id).single()
       const role = (data?.roles as { key?: string } | null)?.key
       setCanManage(role === 'admin' || role === 'director' || role === 'manager')
+      // Super admin de plataforma no es un rol de `users`: es la función de base que usan las
+      // políticas de RLS, así que se pregunta a ella y no se deduce del rol.
+      const { data: superAdmin } = await sb.rpc('is_super_admin')
+      setIsSuperAdmin(!!superAdmin)
     })
   }, [])
 
-  const cards = SETTINGS_CARDS.filter((card) => canManage === true || card.manageOnly === false)
+  const cards = SETTINGS_CARDS.filter((card) => {
+    if ('superAdminOnly' in card && card.superAdminOnly) return isSuperAdmin === true
+    return canManage === true || card.manageOnly === false
+  })
 
   return (
     <div className="space-y-6">
