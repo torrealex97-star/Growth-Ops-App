@@ -7,6 +7,8 @@ export const runtime = 'nodejs'
 export const maxDuration = 300
 
 import { decideMatch } from '@/lib/fathom/match'
+import { HISTORY_CAPABILITIES } from '@/lib/integrations/history'
+import { runMetaDailySync, runMetaSync } from '@/lib/meta/sync'
 import { fetchMeetingsPage, meetingId, meetingSummary, meetingTranscript } from '@/lib/fathom/meetings'
 
 type Json = Record<string, unknown>
@@ -478,6 +480,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const body = (await req.json().catch(() => ({}))) as { provider?: string; dryRun?: boolean }
     const cfg = await getTenantConfigWithFallback(auth.tenantId, true)
     const sb = serviceClient()
+    // Meta se carga desde aquí para que el histórico entre por el mismo sitio que el resto: primero
+    // las campañas, y después el gasto día a día pidiendo el MÁXIMO que Meta conserva (37 meses) en
+    // vez de los 180 días del sync rutinario. Es una carga puntual que el usuario ha pedido
+    // explícitamente, así que traer poco sería lo único que no tiene sentido.
+    if (body.provider === 'meta') {
+      const campañas = await runMetaSync(sb, auth.tenantId)
+      const dias = HISTORY_CAPABILITIES.meta.sinceDays
+      const diario = await runMetaDailySync(sb, auth.tenantId, dias)
+      return NextResponse.json({ provider: 'meta', campañas, diario, sinceDays: dias })
+    }
     if (body.provider === 'ghl') return NextResponse.json(await syncGhl(sb, auth.tenantId, cfg))
     if (body.provider === 'calendly') return NextResponse.json(await syncCalendly(sb, auth.tenantId, cfg))
     if (body.provider === 'fathom')

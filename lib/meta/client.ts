@@ -6,11 +6,12 @@
 // que el nº de llamadas NO crece con el nº de campañas (paginación incluida).
 
 import { createHmac } from 'crypto'
+import { META_API_VERSION } from '@/lib/meta/api-version'
 
 export type MetaConfig = {
   token: string
   accountId: string // formato act_1234567890
-  version: string // ej. v21.0
+  version: string // ej. v25.0
   appSecret?: string // para firmar las llamadas con appsecret_proof
   accountName?: string // nombre legible de la cuenta (para filtros de UI)
 }
@@ -101,7 +102,11 @@ export function getMetaConfig(): MetaConfig | null {
 // nombre legible. Se usa para (a) autodescubrir cuentas cuando no se listan a mano
 // y (b) mostrar el nombre en los filtros de la UI. Best-effort: puede fallar si el
 // token no tiene permiso `ads_read` sobre el Business.
-export async function fetchAdAccounts(token: string, version = 'v21.0', appSecret?: string): Promise<AdAccount[]> {
+export async function fetchAdAccounts(
+  token: string,
+  version = META_API_VERSION,
+  appSecret?: string
+): Promise<AdAccount[]> {
   const proof = appSecret ? `&appsecret_proof=${createHmac('sha256', appSecret).update(token).digest('hex')}` : ''
   const url =
     `${GRAPH}/${version}/me/adaccounts` +
@@ -125,7 +130,7 @@ export async function fetchAdAccounts(token: string, version = 'v21.0', appSecre
 export async function resolveMetaConfigs(): Promise<MetaConfig[]> {
   const token = process.env.META_ACCESS_TOKEN
   if (!token) return []
-  const version = process.env.META_API_VERSION || 'v21.0'
+  const version = process.env.META_API_VERSION || META_API_VERSION
   const appSecret = process.env.META_APP_SECRET || undefined
   const explicit = parseAccountIds(process.env.META_AD_ACCOUNT_ID)
   const wantAll =
@@ -157,7 +162,7 @@ export function getMetaConfigs(): MetaConfig[] {
   const token = process.env.META_ACCESS_TOKEN
   const accountIds = parseAccountIds(process.env.META_AD_ACCOUNT_ID)
   if (!token || accountIds.length === 0) return []
-  const version = process.env.META_API_VERSION || 'v21.0'
+  const version = process.env.META_API_VERSION || META_API_VERSION
   const appSecret = process.env.META_APP_SECRET || undefined
   return accountIds.map((accountId) => ({ token, accountId, version, appSecret }))
 }

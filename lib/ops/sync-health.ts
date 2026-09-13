@@ -59,7 +59,10 @@ export const SYNC_DEFS: SyncDef[] = [
     id: 'instagram',
     label: 'Instagram orgánico',
     route: 'cron/instagram',
-    table: 'instagram_posts',
+    // `ig_media` es la tabla que ESCRIBE el cron (y la que lee la pantalla de Instagram). Aquí ponía
+    // `instagram_posts`, que no existe en ninguna migración: el panel iba a decir "sin datos" para
+    // siempre por contar una tabla inexistente, justo el fallo que este módulo existe para evitar.
+    table: 'ig_media',
     requiredKeys: ['INSTAGRAM_ACCESS_TOKEN'],
     scheduler: 'vercel',
   },

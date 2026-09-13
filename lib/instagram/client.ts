@@ -9,6 +9,7 @@
 // métrica no soportada no tumba toda la sincronización).
 
 import { createHmac } from 'crypto'
+import { META_API_VERSION } from '@/lib/meta/api-version'
 
 export type IgConfig = {
   token: string
@@ -26,7 +27,7 @@ export function getInstagramConfig(): IgConfig | null {
   return {
     token,
     igUserId: process.env.IG_USER_ID || undefined,
-    version: process.env.META_API_VERSION || 'v21.0',
+    version: process.env.META_API_VERSION || META_API_VERSION,
     appSecret: process.env.META_APP_SECRET || undefined,
   }
 }
