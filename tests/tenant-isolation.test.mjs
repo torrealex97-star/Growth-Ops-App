@@ -122,3 +122,35 @@ test('la UI de socios no reporta éxito cuando RLS bloquea la escritura', () => 
   assert.match(page, /length === 0/, 'no se comprueba que la escritura afectase a alguna fila')
   assert.match(page, /canWrite/, 'no hay puerta de rol en la UI')
 })
+
+// Los slugs de tablas con tenant_id deben ser únicos POR SUBCUENTA. Un unique global hace que la
+// segunda subcuenta choque con una fila de otra que no puede ni ver por RLS, y bloquea el
+// aprovisionamiento de subcuentas nuevas (todas chocarían en los slugs naturales).
+test('ninguna tabla con tenant_id declara un unique global sobre slug', () => {
+  const sql = read('supabase/migrations/20260913140000_tenant_scoped_slug_uniques.sql')
+  for (const tabla of ['testimonios', 'qualification_questions', 'vsl_videos']) {
+    assert.match(sql, new RegExp(`DROP INDEX IF EXISTS public\\.${tabla}_slug_key`), `${tabla}: no se quita el global`)
+    assert.match(
+      sql,
+      new RegExp(`CREATE UNIQUE INDEX IF NOT EXISTS ${tabla}_tenant_slug_key[\\s\\S]*?\\(tenant_id, slug\\)`),
+      `${tabla}: no se crea el único por subcuenta`
+    )
+  }
+})
+
+// El auto-registro de preguntas de cualificación falló EN SILENCIO desde la migración multi-tenant:
+// el upsert no pasaba tenant_id (NOT NULL) y nadie miraba el error, así que la tabla quedó vacía
+// habiendo pasado cientos de formularios.
+test('los webhooks estampan tenant_id al registrar preguntas y no se tragan el error', () => {
+  for (const route of [
+    'app/api/[tenant]/evergreen/webhooks/calendly/route.ts',
+    'app/api/[tenant]/evergreen/webhooks/ghl/route.ts',
+  ]) {
+    const source = read(route)
+    const upsert = source.slice(source.indexOf("from('qualification_questions')"))
+    assert.match(upsert.slice(0, 400), /tenant_id: tenantId/, `${route}: el upsert no estampa tenant_id`)
+    assert.match(upsert.slice(0, 400), /onConflict: 'tenant_id,slug'/, `${route}: el conflicto sigue siendo global`)
+    assert.doesNotMatch(source, /onConflict: 'slug'/, `${route}: queda un onConflict global`)
+    assert.match(upsert.slice(0, 900), /qqError/, `${route}: el error del upsert se sigue tragando`)
+  }
+})
