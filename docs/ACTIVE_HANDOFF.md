@@ -20,7 +20,17 @@ commit. Nada quedó a medias: la fase J no se empezó **a propósito**, porque v
 | G    | Grabaciones (testimonios ya existía)   | ✅                                           |
 | H    | Facturas por Gmail                     | ✅ código; **sin ejecutar contra Gmail**     |
 | I    | Stripe (informe) y diagnóstico de Meta | ✅                                           |
-| J    | Aprovisionador de subcuentas           | ⬜ **no empezado, va en PR aparte**          |
+| J    | Aprovisionador de subcuentas           | ✅ MVP, en rama aparte (ver abajo)           |
+
+### Dos ramas, no una
+
+- `claude/financial-constraints-handoff` → **PR #30** (abierto, CI verde, sin conflictos). Fases A-I,
+  más dos cosas añadidas después de cerrarlo la primera vez: la pantalla que resuelve la cola de
+  Fathom (CRM › Llamadas sin atribuir) y el mapeo de eventos de landing/VSL (`/funnels/eventos`), que
+  era el único bloqueo que quedaba en Funnels y no necesitaba ninguna decisión tuya.
+- `claude/app-continuation-lpbupf` → **fase J**, sin PR abierto todavía. Sale de la punta de #30
+  porque depende de los únicos por subcuenta sobre `slug` que van ahí: sin ellos, cada subcuenta nueva
+  chocaría en los slugs naturales. Fusionar #30 primero.
 
 ### Lo que NO está verificado, y hay que saberlo antes de fusionar
 
