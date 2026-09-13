@@ -195,6 +195,54 @@ existe. Y paginación real por rango de fechas: la conciliación que ya había s
 Lo que falta para cerrar el círculo, y necesita tu decisión: una pantalla donde asignar producto y
 plan a los `registrable` y registrarlos en lote. Eso sí escribe, así que no lo he hecho sin pedírtelo.
 
+## 3.5 Fase J: qué crea el aprovisionador y qué no
+
+Rama aparte (`claude/app-continuation-lpbupf`), como pediste. Configuración › **Subcuentas**, visible
+solo para el super admin de plataforma — no para un admin de cliente, que si pudiera crear subcuentas
+se estaría dando acceso a sí mismo a una subcuenta nueva sin que nadie lo autorizara.
+
+Lo que hace al crear una subcuenta: la fila en `tenants` con su slug y su marca, tu acceso como super
+admin en `tenant_members`, y el registro en Auditoría (bajo la subcuenta del operador, porque
+Auditoría filtra por subcuenta y anotarlo en la nueva lo dejaría invisible justo donde se busca).
+
+Lo que **no** hace, y por qué: no crea productos ni planes de pago de ejemplo. `sales.product_id` y
+`sales.payment_plan_id` son `NOT NULL`, así que la tentación es sembrar unos "de prueba" — y eso
+serían filas inventadas en las tablas de las que salen la facturación y las comisiones. En vez de eso
+la pantalla devuelve la lista de lo que falta **con el motivo de cada cosa**, y marca en ámbar la
+subcuenta que no puede registrar una venta todavía.
+
+Dos guardas que vienen de fallos reales:
+
+- **Slugs reservados.** El primer segmento de la URL ES la subcuenta, así que una subcuenta llamada
+  `api` o `embed` taparía rutas reales de la aplicación sin dar ningún error al crearla. La lista de
+  reservados se comprueba contra los directorios reales de `app/` en un test, así que añadir una ruta
+  nueva a la raíz sin reservar su nombre rompe el build. De paso el test encontró que `_next` y
+  `favicon.ico` eran entradas muertas en esa lista: el guion bajo y el punto desaparecen al
+  normalizar, así que nunca podrían coincidir.
+- **Ningún `upsert` sobre `tenants`.** Un slug repetido se rechaza. Con upsert, repetir un nombre en
+  un formulario reescribiría la marca de un cliente en producción.
+
+**Gestión de las subcuentas que ya existen** (añadido en la misma rama): dar y quitar acceso a
+personas que ya existen en la plataforma, y suspender o reactivar una subcuenta. Suspendida,
+`requireTenant` la rechaza para todo el mundo: es el interruptor para un cliente que deja de pagar,
+sin borrar sus datos.
+
+Al construirlo apareció un **riesgo de escalada de privilegios** que había que cerrar antes:
+`public.is_super_admin()` comprueba si existe **alguna** fila de `tenant_members` con
+`role = 'super_admin'` para ese usuario, **sin filtrar por subcuenta**. Es decir, dar ese rol en una
+sola subcuenta convierte a esa persona en super admin de **toda la plataforma**, con acceso a las
+demás. Ofrecerlo en un desplegable al lado de "admin" y "miembro" habría sido una escalada disfrazada
+de permiso local, así que la lista asignable es `['admin', 'member']` y `super_admin` se rechaza con
+su motivo. La pantalla pinta solo los roles que el servidor declara, no una lista propia.
+
+Y dos bloqueos sin salida que ahora se rechazan: quitarte tu propio acceso, y suspender la subcuenta
+desde la que estás administrando. Ninguno se podría arreglar después desde la aplicación. Tampoco se
+puede dejar una subcuenta sin ningún miembro.
+
+Falta, y es trabajo siguiente: crear usuarios nuevos desde esa pantalla (hoy la persona tiene que
+existir ya; crear una cuenta implica alta en Auth y correo de invitación, y hacerlo a medias dejaría
+cuentas que no pueden entrar).
+
 ## 4. Regla que aplica a todas las fases
 
 Una métrica nunca colapsa a 0 por un fallo de fuente. El tipo canónico es
