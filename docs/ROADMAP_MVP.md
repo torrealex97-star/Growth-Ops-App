@@ -48,9 +48,9 @@ Leyenda: ✅ hecho · 🚧 en curso · ⛔ bloqueado por el usuario · ⬜ pendi
 | C   | Capa canónica de funnels (sin UI)             | ⬜     | Siguiente. No necesita credenciales                        |
 | E   | Sección Funnels con lo que ya hay en base     | ⬜     | MVP sin GA4: VSL, Webinar y Profile ya tienen datos        |
 | F   | CRM → Agenda, detalle de cita legible, Fathom | ⬜     | Mejora diaria, barata                                      |
-| D   | GA4 (OAuth multi-tenant)                      | 🚧     | Flujo OAuth hecho; falta el sync de datos                  |
+| D   | GA4 (OAuth multi-tenant)                      | ✅     | OAuth + sync + enganchado a Funnels                        |
 | G   | Banco de testimonios y de grabaciones         | ✅     | Grabaciones hechas; testimonios ya existía (§3.3)          |
-| H   | Facturas por email (**solo Gmail**)           | ⬜     | También necesita el proyecto de Google Cloud               |
+| H   | Facturas por email (**solo Gmail**)           | ⬜     | **Siguiente.** Reutiliza el OAuth ya hecho                 |
 | I   | Backfill de Stripe y diagnóstico de Meta      | ⬜     | **Siguiente**                                              |
 | J   | Aprovisionamiento                             | ⬜     | Al final: el blueprint solo puede incluir lo que ya existe |
 
