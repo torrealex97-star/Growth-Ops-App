@@ -35,6 +35,11 @@ export type IntegrationGroup = {
   category: IntegrationCategory
   test?: boolean // si hay acción "probar conexión"
   required?: string[] // claves mínimas para considerar operativa la integración
+  // Pantalla donde se edita este grupo. 'empresa' = no es una integración (no hay credencial,
+  // conexión que probar ni sincronización): son datos de la propia empresa y se editan en
+  // Configuración → Datos de empresa. Sigue en este catálogo porque su persistencia es la misma
+  // (integration_settings vía el endpoint genérico, que solo acepta claves conocidas).
+  surface?: 'integraciones' | 'empresa'
   fields: IntegrationField[]
 }
 
@@ -409,10 +414,34 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     ],
   },
   {
+    id: 'google',
+    title: 'Google (GA4 y Gmail)',
+    description: 'Credenciales del proyecto de Google Cloud. La conexión de cada servicio se autoriza aparte.',
+    category: 'marketing',
+    required: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
+    fields: [
+      {
+        key: 'GOOGLE_CLIENT_ID',
+        label: 'Client ID',
+        type: 'text',
+        secret: false,
+        help: 'Del cliente OAuth de tipo "Aplicación web". Es público por diseño.',
+      },
+      {
+        key: 'GOOGLE_CLIENT_SECRET',
+        label: 'Client Secret',
+        type: 'password',
+        secret: true,
+        help: 'Google solo lo muestra una vez. Se guarda cifrado y nunca se vuelve a mostrar en claro.',
+      },
+    ],
+  },
+  {
     id: 'negocio',
     title: 'Negocio',
     description: 'Contexto que usa la IA para generar guiones a tu estilo.',
     category: 'negocio',
+    surface: 'empresa',
     fields: [
       {
         key: 'IG_BUSINESS_CONTEXT',
@@ -427,13 +456,16 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         type: 'text',
         secret: false,
         hidden: true,
-        help: 'Array JSON {url,name} de logos/fotos de marca. Gestionado desde la sección "Assets de marca" de abajo.',
+        help: 'Array JSON {url,name} de logos/fotos de marca. Gestionado desde Configuración → Datos de empresa.',
       },
     ],
   },
 ]
 
 export const ALL_FIELDS: IntegrationField[] = INTEGRATION_GROUPS.flatMap((g) => g.fields)
+
+// Grupos que se pintan en Configuración → Integraciones: todo menos lo que no es una integración.
+export const INTEGRATION_ONLY_GROUPS: IntegrationGroup[] = INTEGRATION_GROUPS.filter((g) => g.surface !== 'empresa')
 export const SECRET_KEYS = new Set(ALL_FIELDS.filter((f) => f.secret).map((f) => f.key))
 export function isKnownKey(k: string): boolean {
   return ALL_FIELDS.some((f) => f.key === k)

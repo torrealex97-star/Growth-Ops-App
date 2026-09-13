@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Users,
   Calendar,
+  Mic,
   ShoppingCart,
   DollarSign,
   RotateCcw,
@@ -49,6 +50,8 @@ import {
   UserRound,
   Wrench,
   Scale,
+  Filter,
+  FileAudio,
 } from 'lucide-react'
 import { allowedPrefixesFor, type AppRole, type Department } from '@/lib/auth/permissions'
 
@@ -78,6 +81,10 @@ export const NAV_SECTIONS: NavSection[] = [
         roles: [...LEAD, 'setter', 'closer', 'affiliate'],
       },
       { label: 'Métricas', href: '/unit-economics', icon: BarChart3, roles: LEAD },
+      // Funnels va arriba y no dentro de "Analítica de ventas" a propósito: cruza marketing y
+      // ventas (impresiones de Meta, visitas, leads, agendas, cierres), así que no pertenece a un
+      // solo departamento.
+      { label: 'Funnels', href: '/funnels', icon: Filter, roles: [...LEAD, 'marketing', 'adscripcion'] },
       {
         label: 'Tareas',
         href: '/tasks',
@@ -90,11 +97,19 @@ export const NAV_SECTIONS: NavSection[] = [
     dept: 'ventas',
     items: [
       {
+        // La agenda es la pantalla de cada mañana, así que es el destino por defecto del CRM y el
+        // primer hijo. /crm redirige aquí en servidor (ver app/[tenant]/crm/page.tsx).
         label: 'CRM',
-        href: '/crm/contactos',
+        href: '/crm/agendas',
         icon: Users,
         roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'],
         children: [
+          {
+            label: 'Agendas',
+            href: '/crm/agendas',
+            icon: Calendar,
+            roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'],
+          },
           {
             label: 'Contactos',
             href: '/crm/contactos',
@@ -108,16 +123,19 @@ export const NAV_SECTIONS: NavSection[] = [
             roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'],
           },
           {
-            label: 'Agendas',
-            href: '/crm/agendas',
-            icon: Calendar,
-            roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'],
-          },
-          {
             label: 'Seguimiento',
             href: '/crm/seguimiento',
             icon: ClipboardList,
             roles: [...LEAD, 'setter', 'closer', 'cold_caller'],
+          },
+          {
+            // Cola de reuniones de Fathom que el sync no pudo atribuir sin adivinar. Está en el menú
+            // y no solo enlazada desde Agendas porque una cola que nadie ve se queda sin vaciar, que
+            // es como estaba: los casos se anotaban y solo se podían resolver tocando la tabla.
+            label: 'Llamadas sin atribuir',
+            href: '/crm/fathom-revision',
+            icon: Mic,
+            roles: [...LEAD],
           },
         ],
       },
@@ -188,6 +206,12 @@ export const NAV_SECTIONS: NavSection[] = [
             href: '/recursos/testimonios',
             icon: Award,
             roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller', 'csm', 'marketing', 'editor'],
+          },
+          {
+            label: 'Grabaciones',
+            href: '/recursos/grabaciones',
+            icon: FileAudio,
+            roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'],
           },
           { label: 'Contratos', href: '/recursos/contratos-producto', icon: FileText, roles: [...LEAD, 'closer'] },
         ],
@@ -324,7 +348,9 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Sugerencias', href: '/settings/sugerencias', icon: Lightbulb, roles: ['admin', 'director'] },
       { label: 'Actividad', href: '/actividad', icon: Activity, roles: ['admin', 'director'] },
-      { label: 'Auditoría', href: '/audit', icon: Shield, roles: ['admin', 'director'] },
+      // Auditoría baja de primer nivel a Configuración: es la única trazabilidad de quién tocó un
+      // dato financiero (no se borra), pero es una pantalla de consulta puntual y solo para
+      // admin/director — no merecía un hueco permanente en la navegación principal.
       {
         label: 'Configuración',
         href: '/settings',
@@ -350,6 +376,7 @@ export const NAV_SECTIONS: NavSection[] = [
           },
           { label: 'Integraciones', href: '/settings/integraciones', icon: Plug, roles: ['admin'] },
           { label: 'Formularios KPI', href: '/kpi/templates', icon: FileText, roles: ['admin', 'director'] },
+          { label: 'Auditoría', href: '/audit', icon: Shield, roles: ['admin', 'director'] },
         ],
       },
     ],

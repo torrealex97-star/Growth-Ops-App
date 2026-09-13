@@ -268,12 +268,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const ghlQualification = buildQualification(payload as Record<string, unknown>)
     if (ghlQualification) {
       for (const { q } of ghlQualification.respuestas as Array<{ q: string; a: string }>) {
-        await sb
+        // Mismo fallo que en el webhook de Calendly: faltaba tenant_id (NOT NULL) y el error se
+        // tragaba, así que el auto-registro de preguntas no ha funcionado nunca desde que la app
+        // es multi-tenant. Y el unique era global sobre slug, de modo que dos subcuentas no podían
+        // registrar la misma pregunta ni queriendo.
+        const { error: qqError } = await sb
           .from('qualification_questions')
           .upsert(
-            { slug: slugifyQ(q), question_text: q, field_key: mapKeyQ(q) },
-            { onConflict: 'slug', ignoreDuplicates: true }
+            { tenant_id: tenantId, slug: slugifyQ(q), question_text: q, field_key: mapKeyQ(q) },
+            { onConflict: 'tenant_id,slug', ignoreDuplicates: true }
           )
+        if (qqError) console.error('[ghl] no se pudo registrar la pregunta de cualificación:', qqError.message)
       }
       await sb
         .from('contacts')

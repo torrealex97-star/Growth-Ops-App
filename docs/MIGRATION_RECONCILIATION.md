@@ -1,4 +1,30 @@
-# Reconciliación del historial de migraciones (local ↔ remoto)
+# Reconciliación del historial de migraciones
+
+> **RESUELTO el 2026-09-13.** El historial remoto y los ficheros de `supabase/migrations/` ya
+> coinciden: 28 y 28, sin ninguna local sin registrar ni ninguna remota sin fichero.
+>
+> Qué se hizo, en este orden:
+>
+> 1. **Respaldo** del historial en `supabase_migrations.schema_migrations_backup_20260913`
+>    (19 filas, copia literal previa a cualquier cambio). Sigue ahí si hay que volver atrás.
+> 2. **Verificación de las 8 migraciones locales sin registro** contra objetos reales del esquema
+>    antes de sellarlas como aplicadas. Todas tenían su objeto en la base. Esto desmintió un
+>    comentario del código que afirmaba que `fix_cron_unique_constraints` estaba pendiente: el
+>    índice `integration_settings_tenant_key_key UNIQUE (tenant_id, key)` existe y el unique global
+>    sobre `key` ya no está. El comentario era obsoleto y se ha corregido.
+> 3. **Realineado de versiones** emparejando por `name` (lo único estable entre fichero y registro),
+>    e inserción de las 8 que faltaban con `statements` vacío — el registro declara "ya aplicada",
+>    nunca se reejecuta.
+>
+> No se ejecutó `supabase migration repair` desde CLI: no hay CLI con credenciales en este entorno.
+> Se hizo con SQL sobre `supabase_migrations.schema_migrations`, que es la tabla que el CLI
+> manipula, dentro de una transacción y con respaldo previo.
+>
+> Lo que sigue debajo es el análisis original que llevó a esta reparación, y se conserva como
+> registro de por qué existía el drift: aplicar con `apply_migration` sella la versión con la hora
+> de aplicación, no con la del nombre del fichero.
+
+---
 
 Estado a 2026-09-13. Proyecto Supabase `rgcbveflosqgxrcqlqzv`.
 

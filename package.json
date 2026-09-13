@@ -13,7 +13,7 @@
     "dead-code": "knip --no-exit-code",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/*.test.mjs",
     "test:metrics": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/metrics/register.mjs --test tests/metrics/*.test.mjs",
-    "quality": "npm run format:check && npm run lint && npm run typecheck && npm test"
+    "quality": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:metrics"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.36.3",

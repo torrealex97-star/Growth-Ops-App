@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Building2, Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTenantId } from '@/lib/tenant-context'
+import { BusinessContextCard } from '@/components/settings/BusinessContextCard'
 
 type Company = {
   name: string
@@ -98,7 +99,7 @@ export default function EmpresaSettingsPage() {
           <h1 className="text-2xl font-bold text-foreground">Datos de empresa</h1>
           <p className="text-muted-foreground text-sm">
             Se mapean automáticamente en los contratos ({'{{empresa}}'}, {'{{cif}}'}, {'{{empresa_direccion}}'},{' '}
-            {'{{representante}}'}) y en los emails.
+            {'{{representante}}'}), en los emails y en los contenidos que genera la IA.
           </p>
         </div>
       </div>
@@ -146,6 +147,10 @@ export default function EmpresaSettingsPage() {
           </Button>
         </div>
       </div>
+
+      {/* El contexto de negocio y los assets de marca estaban en Integraciones, donde no pintaban
+          nada: no son una integración. Aquí quedan junto al resto de la identidad de la empresa. */}
+      <BusinessContextCard />
     </div>
   )
 }

@@ -14,8 +14,6 @@ import {
   XCircle,
   KeyRound,
   ShieldAlert,
-  ImagePlus,
-  X,
   RefreshCw,
   Megaphone,
   Camera,
@@ -29,7 +27,6 @@ import {
   Landmark,
   Workflow,
   Radar,
-  Building2,
   ExternalLink,
   Trash2,
   ShoppingBag,
@@ -38,7 +35,6 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTenant } from '@/lib/tenant-context'
-import { SettingsNav } from '@/components/settings/SettingsNav'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { CATEGORY_LABELS, type IntegrationCategory } from '@/lib/integrations-catalog'
 
@@ -62,17 +58,8 @@ type Group = {
 }
 
 // Orden de las categorías tal y como se muestran en el panel.
-const CATEGORY_ORDER: IntegrationCategory[] = [
-  'marketing',
-  'ventas',
-  'pagos',
-  'comunicacion',
-  'ia',
-  'seguridad',
-  'negocio',
-]
+const CATEGORY_ORDER: IntegrationCategory[] = ['marketing', 'ventas', 'pagos', 'comunicacion', 'ia', 'seguridad']
 type StateEntry = { source: 'db' | 'env' | 'none'; secret: boolean; preview: string; value?: string }
-type BrandAsset = { url: string; name: string }
 type StripeCustomerRow = {
   stripe_customer_id: string
   contact_id: string | null
@@ -250,15 +237,6 @@ const GROUP_META: Record<string, { icon: typeof Plug; tone: string; steps: strin
       'Comprueba la recepción desde Data Health.',
     ],
   },
-  negocio: {
-    icon: Building2,
-    tone: 'from-zinc-500/20 to-slate-500/5',
-    steps: [
-      'Completa los datos públicos de marca.',
-      'Sube logos y recursos con permiso de uso.',
-      'Guarda para reutilizarlos en contenidos y comunicaciones.',
-    ],
-  },
 }
 
 export default function IntegracionesPage() {
@@ -271,8 +249,6 @@ export default function IntegracionesPage() {
   const [savingId, setSavingId] = useState<string | null>(null)
   const [testingId, setTestingId] = useState<string | null>(null)
   const [syncingId, setSyncingId] = useState<string | null>(null)
-  const [brandAssets, setBrandAssets] = useState<BrandAsset[]>([])
-  const [assetUploading, setAssetUploading] = useState(false)
   const [stripeReview, setStripeReview] = useState<StripeReview | null>(null)
   const [reviewingStripe, setReviewingStripe] = useState(false)
   const [stripeCustomers, setStripeCustomers] = useState<StripeCustomerRow[] | null>(null)
@@ -298,15 +274,6 @@ export default function IntegracionesPage() {
       if (!v.secret && v.value != null) d[k] = v.value
     }
     setDrafts(d)
-    const rawAssets = (j.state as Record<string, StateEntry>)['IG_BRAND_ASSETS']?.value
-    if (rawAssets) {
-      try {
-        const parsed = JSON.parse(rawAssets)
-        if (Array.isArray(parsed)) setBrandAssets(parsed)
-      } catch {
-        /* ignore */
-      }
-    }
     setLoading(false)
   }, [tenant])
   useEffect(() => {
@@ -317,41 +284,6 @@ export default function IntegracionesPage() {
     if (selectedId === 'stripe' && stripeCustomers === null) void loadStripeCustomers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId])
-
-  async function saveBrandAssets(next: BrandAsset[]) {
-    setBrandAssets(next)
-    const r = await fetch(`/api/${tenant}/evergreen/settings/integraciones`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ updates: { IG_BRAND_ASSETS: JSON.stringify(next) } }),
-    })
-    if (!r.ok) {
-      const j = await r.json().catch(() => ({}))
-      toast.error(j.error || 'No se pudo guardar el asset')
-    }
-  }
-
-  async function uploadBrandAsset(file: File) {
-    setAssetUploading(true)
-    try {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('purpose', 'brand-asset')
-      const res = await fetch(`/api/${tenant}/evergreen/carruseles/upload`, { method: 'POST', body: fd })
-      const j = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(j.error || 'Error al subir')
-      await saveBrandAssets([...brandAssets, { url: j.url, name: j.name || file.name }])
-      toast.success('Asset de marca añadido')
-    } catch (e) {
-      toast.error('No se pudo subir el asset: ' + (e as Error).message)
-    } finally {
-      setAssetUploading(false)
-    }
-  }
-
-  async function removeBrandAsset(idx: number) {
-    await saveBrandAssets(brandAssets.filter((_, i) => i !== idx))
-  }
 
   async function saveGroup(g: Group) {
     setSavingId(g.id)
@@ -511,7 +443,6 @@ export default function IntegracionesPage() {
 
   return (
     <div className="space-y-6">
-      <SettingsNav current="integraciones" />
       <div className="flex items-center gap-3">
         <Plug className="h-6 w-6" />
         <div>
@@ -882,57 +813,6 @@ export default function IntegracionesPage() {
                               <p className="text-xs text-muted-foreground">
                                 Todavía no se ha sincronizado ningún cliente. Usa &quot;Sincronizar clientes&quot;.
                               </p>
-                            )}
-                          </div>
-                        )}
-
-                        {g.id === 'negocio' && (
-                          <div className="mt-5 space-y-2 rounded-md border border-dashed border-border p-3">
-                            <div className="flex items-center justify-between">
-                              <Label className="text-sm">Assets de marca (logos, fotos)</Label>
-                              <label className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground cursor-pointer">
-                                {assetUploading ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <ImagePlus className="h-3.5 w-3.5" />
-                                )}
-                                Añadir
-                                <input
-                                  type="file"
-                                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                                  className="hidden"
-                                  disabled={assetUploading}
-                                  onChange={(e) => {
-                                    const f = e.target.files?.[0]
-                                    if (f) uploadBrandAsset(f)
-                                    e.target.value = ''
-                                  }}
-                                />
-                              </label>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              Se usan en los carruseles/flyers generados por IA (logo, fotos de producto o equipo). Se
-                              guardan en el mismo bucket que las referencias visuales.
-                            </p>
-                            {brandAssets.length > 0 && (
-                              <div className="flex flex-wrap gap-2 pt-1">
-                                {brandAssets.map((a, idx) => (
-                                  <div key={`${a.url}-${idx}`} className="relative group">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img
-                                      src={a.url}
-                                      alt={a.name}
-                                      className="h-12 w-12 rounded object-cover border border-border"
-                                    />
-                                    <button
-                                      onClick={() => removeBrandAsset(idx)}
-                                      className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-card border border-border flex items-center justify-center text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                                    >
-                                      <X className="h-2.5 w-2.5" />
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
                             )}
                           </div>
                         )}

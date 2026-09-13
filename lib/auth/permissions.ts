@@ -87,13 +87,27 @@ export const DEPARTMENT_PREFIXES: Record<Department, string[]> = {
   ventas: ['/crm', '/ventas', '/analitica', '/comisiones', '/recursos', '/tasks'],
   // '/marketing/afiliados' se añade aquí porque Afiliados se movió a Marketing (antes vivía
   // bajo el departamento 'finanzas', ver DEPARTMENT_PREFIXES.finanzas más abajo).
-  marketing: ['/marketing/adquisicion', '/marketing/afiliados', '/marketing/contenido', '/instagram', '/setting-ai'],
+  // '/funnels' cuelga de marketing porque es una vista de captación (impresiones, visitas, leads),
+  // aunque sus últimas etapas sean de ventas. Sin registrarlo aquí, el filtro del menú lo
+  // escondería para TODOS los roles: `inZones` exige que la ruta case con algún prefijo.
+  marketing: [
+    '/marketing/adquisicion',
+    '/marketing/afiliados',
+    '/marketing/contenido',
+    '/instagram',
+    '/setting-ai',
+    '/funnels',
+  ],
   producto: ['/students', '/csm-events', '/drops', '/contratos'],
   // '/dashboard' y '/unit-economics' viven aquí porque la sección "Dirección" se disolvió: sus
   // páginas (Cohortes, I&G) ya viven bajo /finanzas/analitica, y el resto de KPIs generales de
   // liderazgo (Dashboard, Unit Economics) se agrupan con Finanzas a efectos de permisos.
   finanzas: ['/finanzas', '/dashboard', '/unit-economics'],
-  sistema: ['/actividad', '/audit', '/settings', '/contratos/equipo', '/contratos/plantillas'],
+  // '/kpi' (Formularios KPI) faltaba: la entrada existía en el menú de Configuración pero no casaba
+  // con ningún prefijo, así que el filtro la escondía del sidebar para TODOS los roles. Se llegaba
+  // solo por la tarjeta de la rejilla de Configuración, que no pasa por este filtro — por eso no se
+  // notó. Lo detectó el test de tests/funnels-section.test.mjs.
+  sistema: ['/actividad', '/audit', '/settings', '/contratos/equipo', '/contratos/plantillas', '/kpi'],
 }
 
 // Catálogo de páginas navegables agrupadas por departamento. Es la fuente para el selector de
@@ -104,6 +118,7 @@ export const NAV_PAGES: { href: string; label: string; dept: Department }[] = [
   { href: '/crm/contactos', label: 'CRM · Contactos', dept: 'ventas' },
   { href: '/crm/agendas', label: 'CRM · Agendas', dept: 'ventas' },
   { href: '/crm/seguimiento', label: 'CRM · Seguimiento', dept: 'ventas' },
+  { href: '/crm/fathom-revision', label: 'CRM · Llamadas sin atribuir', dept: 'ventas' },
   { href: '/ventas/registro', label: 'Ventas & Cobros · Registro', dept: 'ventas' },
   { href: '/ventas/pagos', label: 'Ventas & Cobros · Pagos', dept: 'ventas' },
   { href: '/ventas/reservas', label: 'Ventas & Cobros · Reservas', dept: 'ventas' },
@@ -115,7 +130,9 @@ export const NAV_PAGES: { href: string; label: string; dept: Department }[] = [
   { href: '/recursos/enlaces', label: 'Recursos de venta · Enlaces', dept: 'ventas' },
   { href: '/recursos/biblioteca', label: 'Recursos de venta · Biblioteca', dept: 'ventas' },
   { href: '/recursos/testimonios', label: 'Recursos de venta · Testimonios', dept: 'ventas' },
+  { href: '/recursos/grabaciones', label: 'Recursos de venta · Grabaciones', dept: 'ventas' },
   { href: '/recursos/contratos-producto', label: 'Recursos de venta · Contratos de producto', dept: 'ventas' },
+  { href: '/funnels', label: 'Funnels', dept: 'marketing' },
   { href: '/marketing/adquisicion/campanas', label: 'Adquisición · Campañas', dept: 'marketing' },
   { href: '/marketing/adquisicion/atribucion', label: 'Adquisición · Atribución', dept: 'marketing' },
   { href: '/marketing/adquisicion/vsl', label: 'Adquisición · VSL', dept: 'marketing' },
