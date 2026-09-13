@@ -7,7 +7,8 @@
 
 import { createHmac } from 'crypto'
 import { META_API_VERSION } from '@/lib/meta/api-version'
-import { classifyMetaError } from '@/lib/meta/errors'
+import { classifyMetaError, MetaError } from '@/lib/meta/errors'
+import { isRetryableCode } from '@/lib/integrations/sync-runs'
 
 export type MetaConfig = {
   token: string
@@ -95,8 +96,24 @@ export function parseAccountIds(raw: string | undefined): string[] {
     .map(normalizeAccountId)
 }
 
-export function getMetaConfig(): MetaConfig | null {
-  return getMetaConfigs()[0] ?? null
+/**
+ * Credenciales de Meta tal y como las guarda la subcuenta. Se pasan EXPLÍCITAMENTE en vez de leerse
+ * de `process.env`.
+ *
+ * POR QUÉ. `ensureConfig(tenantId)` vuelca la configuración de una subcuenta en `process.env`, que
+ * es global al proceso y NUNCA borra lo que ya había. En el cron, que recorre todas las subcuentas
+ * en un bucle dentro de la misma lambda, eso significaba que el token de la subcuenta A seguía
+ * puesto al sincronizar la subcuenta B si B no tenía token propio: B se llenaba con las campañas de
+ * A, estampadas con el tenant_id de B. Y también explicaba el "borré el App Secret y sigue ahí":
+ * el valor borrado de la base de datos continuaba vivo en process.env el resto de la vida de la
+ * lambda. Con la config explícita, la configuración GUARDADA es la configuración USADA.
+ */
+export type MetaEnv = {
+  META_ACCESS_TOKEN?: string
+  META_API_VERSION?: string
+  META_APP_SECRET?: string
+  META_AD_ACCOUNT_ID?: string
+  META_AD_ACCOUNTS_ALL?: string
 }
 
 // Lista TODAS las cuentas publicitarias a las que el token tiene acceso, con su
@@ -131,25 +148,44 @@ export async function fetchAdAccounts(
 //     TODAS las cuentas accesibles por el token.
 // El descubrimiento de nombres es best-effort: si /me/adaccounts falla, seguimos
 // con lo que haya (sin nombre) para no romper la sync.
-export async function resolveMetaConfigs(): Promise<MetaConfig[]> {
-  const token = process.env.META_ACCESS_TOKEN
-  if (!token) return []
-  const version = process.env.META_API_VERSION || META_API_VERSION
-  const appSecret = process.env.META_APP_SECRET || undefined
-  const explicit = parseAccountIds(process.env.META_AD_ACCOUNT_ID)
-  const wantAll =
-    explicit.length === 0 || /^(1|true|all|todas|todos)$/i.test((process.env.META_AD_ACCOUNTS_ALL || '').trim())
+export async function resolveMetaConfigs(env: MetaEnv): Promise<MetaConfig[]> {
+  const token = env.META_ACCESS_TOKEN?.trim()
+  if (!token) {
+    throw new MetaError({
+      code: 'sin_credenciales',
+      message:
+        'Falta el token de Meta en esta subcuenta. Pégalo en Configuración › Integraciones › Meta Ads y elige la cuenta publicitaria.',
+    })
+  }
+  const version = env.META_API_VERSION || META_API_VERSION
+  const appSecret = env.META_APP_SECRET?.trim() || undefined
+  const explicit = parseAccountIds(env.META_AD_ACCOUNT_ID)
+  const wantAll = explicit.length === 0 || /^(1|true|all|todas|todos)$/i.test((env.META_AD_ACCOUNTS_ALL || '').trim())
 
   let discovered: AdAccount[] = []
+  let discoveryError: unknown = null
   try {
     discovered = await fetchAdAccounts(token, version, appSecret)
-  } catch {
+  } catch (err) {
+    // Con cuentas escritas a mano el descubrimiento es solo para poner nombres: si falla, seguimos.
+    // Sin cuentas escritas a mano ES la única forma de saber qué sincronizar, así que el error del
+    // token tiene que llegar arriba — devolver "faltan credenciales" mandaba a revisar un campo
+    // que estaba perfecto mientras el problema real era el token o la firma.
+    discoveryError = err
     discovered = []
   }
+  if (explicit.length === 0 && discoveryError) throw discoveryError
   const nameById = new Map(discovered.map((a) => [a.id, a.name]))
 
   const ids = wantAll && discovered.length > 0 ? discovered.map((a) => a.id) : explicit
   const uniq = Array.from(new Set(ids))
+  if (uniq.length === 0) {
+    throw new MetaError({
+      code: 'sin_cuentas',
+      message:
+        'El token de Meta funciona pero no ve ninguna cuenta publicitaria. Da acceso a la cuenta desde Meta Business y vuelve a comprobar.',
+    })
+  }
   return uniq.map((accountId) => ({
     token,
     accountId,
@@ -157,18 +193,6 @@ export async function resolveMetaConfigs(): Promise<MetaConfig[]> {
     appSecret,
     accountName: nameById.get(accountId),
   }))
-}
-
-// Devuelve una config por cada cuenta publicitaria declarada en
-// META_AD_ACCOUNT_ID (una o varias, separadas por comas). Lista vacía si faltan
-// credenciales. Todas comparten token/versión/appSecret.
-export function getMetaConfigs(): MetaConfig[] {
-  const token = process.env.META_ACCESS_TOKEN
-  const accountIds = parseAccountIds(process.env.META_AD_ACCOUNT_ID)
-  if (!token || accountIds.length === 0) return []
-  const version = process.env.META_API_VERSION || META_API_VERSION
-  const appSecret = process.env.META_APP_SECRET || undefined
-  return accountIds.map((accountId) => ({ token, accountId, version, appSecret }))
 }
 
 // appsecret_proof = HMAC-SHA256(access_token) con la app secret. Requerido si la
@@ -179,7 +203,7 @@ function proofParam(cfg: MetaConfig): string {
   return `&appsecret_proof=${proof}`
 }
 
-async function graphGet(url: string): Promise<any> {
+async function graphGetOnce(url: string): Promise<any> {
   // Timeout duro: sin esto, si la Graph API de Meta se cuelga, el cron consume toda su ventana
   // (maxDuration) en esta única llamada — mismo patrón que lib/calendly.ts. graphGetAll pagina
   // llamando a esta función en bucle, así que sin timeout un solo hueco cuelga toda la sync.
@@ -190,9 +214,9 @@ async function graphGet(url: string): Promise<any> {
     res = await fetch(url, { cache: 'no-store', signal: controller.signal })
   } catch (err) {
     if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error('Meta API tardó demasiado en responder (timeout)')
+      throw new MetaError({ code: 'timeout', message: 'Meta API tardó demasiado en responder (timeout).' })
     }
-    throw err
+    throw new MetaError({ code: 'red', message: 'No se pudo conectar con la API de Meta.' })
   } finally {
     clearTimeout(timer)
   }
@@ -201,9 +225,26 @@ async function graphGet(url: string): Promise<any> {
     // Se lanza la causa ya traducida (token caducado, falta permiso, id de cuenta que Meta no
     // reconoce…) en vez del mensaje en inglés para desarrolladores: quien ve esto es quien tiene que
     // arreglarlo, y "Unsupported get request" no le dice qué hacer.
-    throw new Error(classifyMetaError(json, res.status).message)
+    throw new MetaError(classifyMetaError(json, res.status))
   }
   return json
+}
+
+/** Reintentos SOLO para lo que tiene sentido reintentar: rate limit, error temporal o timeout. */
+const RETRY_DELAYS_MS = [800, 2400]
+
+async function graphGet(url: string): Promise<any> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await graphGetOnce(url)
+    } catch (err) {
+      const code = err instanceof MetaError ? err.code : null
+      // Un token caducado o un permiso que falta no se arreglan repitiendo la llamada: reintentar
+      // ahí solo gasta la ventana del cron y multiplica las peticiones contra el rate limit.
+      if (attempt >= RETRY_DELAYS_MS.length || !isRetryableCode(code)) throw err
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]))
+    }
+  }
 }
 
 // Sigue la paginación de la Graph API (data + paging.next) acumulando resultados.

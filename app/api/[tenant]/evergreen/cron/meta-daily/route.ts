@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ensureConfig } from '@/lib/config'
+import { getTenantConfigWithFallback } from '@/lib/config'
 import { createClient } from '@supabase/supabase-js'
 import { runMetaDailySync } from '@/lib/meta/sync'
+import { recordSyncRun, SyncBusyError } from '@/lib/integrations/sync-runs'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -25,8 +26,31 @@ export async function GET(req: NextRequest) {
 
     const perTenant: Record<string, unknown> = {}
     for (const tn of tenants || []) {
-      await ensureConfig(tn.id)
-      perTenant[tn.slug] = await runMetaDailySync(sb, tn.id)
+      // Configuración EXPLÍCITA por subcuenta. Antes esto llamaba a ensureConfig(), que vuelca las
+      // credenciales en process.env y no borra las anteriores: en este mismo bucle, la subcuenta sin
+      // token propio heredaba el de la anterior y se llenaba con SUS campañas.
+      const cfg = await getTenantConfigWithFallback(tn.id, true)
+      try {
+        perTenant[tn.slug] = await recordSyncRun(
+          sb,
+          {
+            tenantId: tn.id,
+            provider: 'meta',
+            job: 'meta-daily',
+            trigger: 'cron',
+            secrets: [cfg.META_ACCESS_TOKEN, cfg.META_APP_SECRET],
+          },
+          () => runMetaDailySync(sb, tn.id, cfg),
+          (r) => ({ rowsWritten: r.daysSynced, failures: r.failures, detail: { cuentas: r.accounts } })
+        )
+      } catch (e) {
+        // Una subcuenta que falla no puede impedir que se sincronicen las demás. El motivo queda
+        // guardado en integration_sync_runs y el panel de esa subcuenta lo muestra.
+        perTenant[tn.slug] = {
+          error: e instanceof Error ? e.message : 'Error al sincronizar',
+          omitida: e instanceof SyncBusyError,
+        }
+      }
     }
     return NextResponse.json({ ok: true, tenants: perTenant })
   } catch (e) {

@@ -4,6 +4,7 @@
 // interno, el cliente de Stripe queda igualmente cacheado (sin contact_id) — dato útil para
 // detectar altas de pago que no llegaron a registrarse en la app.
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { stripeList } from '@/lib/stripe/client'
 
 export type StripeCustomerStatus = 'cliente' | 'activo_mensual' | 'moroso' | 'cancelado'
 
@@ -61,28 +62,25 @@ export async function syncStripeCustomers(
   tenantId: string,
   stripeSecretKey: string,
   stripeAccountId?: string | null
-): Promise<{ rows: StripeCustomerRow[]; matched: number; unmatched: number }> {
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${stripeSecretKey}`,
-    ...(stripeAccountId ? { 'Stripe-Account': stripeAccountId } : {}),
-  }
-  const fetchOpts = { headers, cache: 'no-store' as const, signal: AbortSignal.timeout(15_000) }
+): Promise<{ rows: StripeCustomerRow[]; matched: number; unmatched: number; truncated: boolean }> {
+  const auth = { secretKey: stripeSecretKey, accountId: stripeAccountId }
+  // Presupuesto de tiempo compartido por las dos listas: la lambda tiene 60 s y hay que dejar margen
+  // para escribir en la base de datos.
+  const deadline = Date.now() + 40_000
 
   const subsQuery = new URLSearchParams({ status: 'all', limit: '100' })
   subsQuery.append('expand[]', 'data.customer')
   const chargesQuery = new URLSearchParams({ limit: '100' })
   chargesQuery.append('expand[]', 'data.customer')
 
-  const [subsRes, chargesRes] = await Promise.all([
-    fetch(`https://api.stripe.com/v1/subscriptions?${subsQuery}`, fetchOpts),
-    fetch(`https://api.stripe.com/v1/charges?${chargesQuery}`, fetchOpts),
+  // PAGINADO. Antes se pedía una sola página de 100: con más de 100 suscripciones o cargos, la base
+  // de clientes salía incompleta sin ningún aviso, y quien la mirara concluiría que esos alumnos no
+  // habían pagado nunca.
+  const [subs, charges] = await Promise.all([
+    stripeList<StripeSubscription & { id: string }>('subscriptions', subsQuery, auth, { deadline }),
+    stripeList<StripeCharge & { id: string }>('charges', chargesQuery, auth, { deadline }),
   ])
-  const [subsJson, chargesJson] = await Promise.all([
-    subsRes.json().catch(() => ({})) as Promise<{ data?: StripeSubscription[]; error?: { message?: string } }>,
-    chargesRes.json().catch(() => ({})) as Promise<{ data?: StripeCharge[]; error?: { message?: string } }>,
-  ])
-  if (!subsRes.ok) throw new Error(subsJson.error?.message || 'Stripe no respondió al listar suscripciones.')
-  if (!chargesRes.ok) throw new Error(chargesJson.error?.message || 'Stripe no respondió al listar cargos.')
+  const truncated = subs.truncated || charges.truncated
 
   const byCustomer = new Map<
     string,
@@ -117,7 +115,7 @@ export async function syncStripeCustomers(
     }
   }
 
-  for (const sub of subsJson.data ?? []) {
+  for (const sub of subs.items) {
     const id = customerId(sub.customer)
     const status = statusFromSubscription(sub.status)
     if (!id || !status) continue
@@ -129,7 +127,7 @@ export async function syncStripeCustomers(
       sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null
     )
   }
-  for (const charge of chargesJson.data ?? []) {
+  for (const charge of charges.items) {
     if (!charge.paid) continue
     const id = customerId(charge.customer)
     if (!id) continue
@@ -143,24 +141,26 @@ export async function syncStripeCustomers(
     applyStatus(id, info, 'cliente', null, null)
   }
 
-  const emails = Array.from(
-    new Set(
-      Array.from(byCustomer.values())
-        .map((c) => c.email?.toLowerCase())
-        .filter(Boolean)
-    )
-  ) as string[]
+  const emails = new Set(
+    Array.from(byCustomer.values())
+      .map((c) => c.email?.trim().toLowerCase())
+      .filter((e): e is string => !!e)
+  )
   const contactByEmail = new Map<string, string>()
-  if (emails.length > 0) {
+  if (emails.size > 0) {
+    // `.limit(10000)` explícito: sin él PostgREST devuelve como mucho 1.000 filas y el resto de los
+    // contactos simplemente no existiría para el cruce — los clientes de Stripe saldrían "sin
+    // contacto" por un tope de la API, no porque falte el contacto.
     const { data: contacts, error } = await sb
       .from('contacts')
       .select('id,email')
       .eq('tenant_id', tenantId)
       .not('email', 'is', null)
+      .limit(10000)
     if (error) throw new Error(error.message)
     for (const c of contacts ?? []) {
-      const email = (c as { email: string | null }).email?.toLowerCase()
-      if (email && emails.includes(email)) contactByEmail.set(email, (c as { id: string }).id)
+      const email = (c as { email: string | null }).email?.trim().toLowerCase()
+      if (email && emails.has(email) && !contactByEmail.has(email)) contactByEmail.set(email, (c as { id: string }).id)
     }
   }
 
@@ -171,7 +171,7 @@ export async function syncStripeCustomers(
     status: c.status,
     subscriptionId: c.subscriptionId,
     currentPeriodEnd: c.currentPeriodEnd,
-    contactId: (c.email && contactByEmail.get(c.email.toLowerCase())) || null,
+    contactId: (c.email && contactByEmail.get(c.email.trim().toLowerCase())) || null,
   }))
 
   if (rows.length > 0) {
@@ -193,5 +193,5 @@ export async function syncStripeCustomers(
   }
 
   const matched = rows.filter((r) => r.contactId).length
-  return { rows, matched, unmatched: rows.length - matched }
+  return { rows, matched, unmatched: rows.length - matched, truncated }
 }

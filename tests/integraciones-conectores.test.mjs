@@ -229,19 +229,103 @@ test('el consejo sobre el App Secret se demuestra, no se supone', () => {
   assert.match(bloque.slice(0, 900), /MISMA app/, 'falta el caso en el que el secreto sí hace falta')
 })
 
-// Las funciones de Meta leen las credenciales de process.env (resolveMetaConfigs), así que cualquier
-// ruta que las llame DEBE cargar antes la configuración de su subcuenta. Sin eso, o no encuentra
-// token, o sincroniza con el de otra subcuenta — que es peor que fallar.
-test('toda ruta que sincroniza Meta carga antes la config de su subcuenta', () => {
+// La configuración GUARDADA tiene que ser la configuración USADA. `ensureConfig` vuelca las
+// credenciales de una subcuenta en process.env, que es global al proceso y nunca borra lo anterior:
+// en el cron que recorre todas las subcuentas, la segunda heredaba el token de la primera y se
+// llenaba con SUS campañas. Por eso las syncs de Meta reciben la config como argumento.
+test('toda ruta que sincroniza Meta le pasa la config explícita de su subcuenta', () => {
   const rutas = [
     'app/api/[tenant]/evergreen/settings/integraciones/history-sync/route.ts',
     'app/api/[tenant]/evergreen/cron/meta/route.ts',
     'app/api/[tenant]/evergreen/cron/meta-daily/route.ts',
     'app/api/[tenant]/evergreen/cron/meta-ads/route.ts',
+    'app/api/[tenant]/evergreen/meta/sync/route.ts',
+    'app/api/[tenant]/evergreen/meta/daily-sync/route.ts',
+    'app/api/[tenant]/evergreen/meta/ads-sync/route.ts',
   ]
   for (const ruta of rutas) {
     const src = read(ruta)
     if (!/runMetaSync|runMetaDailySync|runMetaAdsSync/.test(src)) continue
-    assert.match(src, /ensureConfig\(/, `${ruta} sincroniza Meta sin cargar la config de la subcuenta`)
+    const code = sinComentarios(src)
+    assert.doesNotMatch(code, /ensureConfig\(/, `${ruta} sigue volcando credenciales en process.env`)
+    assert.match(code, /getTenantConfigWithFallback\(/, `${ruta} no lee la config de su subcuenta`)
+    assert.match(code, /runMeta\w*Sync\(sb, [\w.]+, cfg/, `${ruta} no pasa la config a la sync`)
+    // Y toda ejecución queda registrada: sin historial, "la tabla está vacía" no tiene causa.
+    assert.match(code, /recordSyncRun\(/, `${ruta} sincroniza sin dejar constancia de la ejecución`)
   }
+})
+
+// Las credenciales se leen SOLO de lo que se pasa. Un `process.env.META_*` aquí devuelve el proceso
+// al fallo de arriba, y además hace imposible saber qué se usó al sincronizar.
+test('el cliente y la sync de Meta no leen credenciales del entorno', () => {
+  for (const archivo of ['lib/meta/client.ts', 'lib/meta/sync.ts']) {
+    const code = sinComentarios(read(archivo))
+    assert.doesNotMatch(code, /process\.env\.META_/, `${archivo} lee credenciales de process.env`)
+  }
+})
+
+// `if (error) continue` convertía un fallo total de escritura en `ok: true, synced: 0`: la tabla se
+// quedaba vacía, el panel decía "vacía" y el motivo no aparecía en ninguna parte. Y como
+// campaign_daily y campaign_ads se enlazan por el mapa de campañas, un único fallo aquí vaciaba tres
+// tablas de golpe.
+test('la sync de Meta no se traga ningún fallo de escritura', () => {
+  const code = sinComentarios(read('lib/meta/sync.ts'))
+  assert.doesNotMatch(code, /if \(!error\) synced \+=/, 'un upsert fallido no puede pasar en silencio')
+  assert.doesNotMatch(code, /catch\(\(\) => 0\)/, 'una cuenta que falla entera no puede leerse como "gastó 0"')
+  for (const tabla of ['campaigns', 'campaign_daily', 'campaign_ads', 'expenses']) {
+    assert.ok(code.includes(`from('${tabla}')`), `la sync ya no escribe en ${tabla}`)
+  }
+  // Cada resultado arrastra sus fallos parciales hasta el historial.
+  assert.equal((code.match(/failures\.push\(/g) || []).length >= 5, true, 'faltan fallos por reportar')
+  assert.match(code, /failures,\s*\}/)
+})
+
+// "He borrado el App Secret y sigue dando el mismo error": el valor borrado de la base de datos
+// seguía vivo en process.env el resto de la vida de la lambda, porque ensureConfig lo había volcado.
+test('borrar un campo lo borra de verdad: cuenta filas y retira el valor del proceso', () => {
+  const code = sinComentarios(read(ROUTE))
+  assert.match(code, /\.in\('key', clearable\)\s*\.select\('key'\)/s, 'un delete sin .select() no sabe si borró algo')
+  assert.match(code, /forgetInjectedKeys\(auth\.tenantId, clearable\)/)
+  assert.match(code, /stillInEnv/, 'hay que decirlo si la clave sigue llegando por variable de entorno')
+  const config = sinComentarios(read('lib/config.ts'))
+  assert.match(config, /injectedBy/, 'hay que saber qué clave inyectó cada subcuenta')
+  assert.match(config, /if \(owner && owner !== tenantId\) continue/, 'el valor de otra subcuenta no es entorno')
+})
+
+// El historial es la pieza que faltaba para que el panel pueda decir la causa. Con cerrojo, para que
+// el cron y el botón manual no corran a la vez, y con aislamiento por subcuenta.
+test('la migración del historial trae cerrojo de concurrencia y RLS por subcuenta', () => {
+  const sql = read('supabase/migrations/20260913190000_integration_sync_runs.sql')
+  assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.integration_sync_runs/)
+  assert.match(
+    sql,
+    /CREATE UNIQUE INDEX IF NOT EXISTS integration_sync_runs_one_running_idx[\s\S]*?WHERE status = 'running'/
+  )
+  assert.match(sql, /ENABLE ROW LEVEL SECURITY/)
+  assert.match(sql, /AS RESTRICTIVE FOR ALL/)
+  for (const op of ['FOR SELECT', 'FOR ALL']) assert.ok(sql.includes(op), `falta politica ${op}`)
+  assert.match(sql, /error_message TEXT/)
+})
+
+// Stripe: tres de las cuatro llamadas pedían limit=100 sin paginar. Truncar en silencio es peor que
+// fallar — la base de clientes "estaba completa" dejando fuera todo el historial anterior.
+test('todo lo que lista Stripe pagina por el cliente compartido', () => {
+  for (const archivo of ['lib/finance/stripeCustomers.ts', 'lib/finance/stripeReconciliation.ts']) {
+    const code = sinComentarios(read(archivo))
+    assert.match(code, /stripeList</, `${archivo} no pagina`)
+    assert.doesNotMatch(code, /fetch\(`https:\/\/api\.stripe\.com/, `${archivo} vuelve a llamar a Stripe a mano`)
+  }
+  // La conciliación ya no coteja contra "los 1.000 cobros más recientes": busca por las referencias
+  // que aparecen. Con los pagos paginados, un cobro más antiguo que ese tope se habría reportado como
+  // "sin registrar", y registrarlo otra vez duplicaría la facturación.
+  const recon = sinComentarios(read('lib/finance/stripeReconciliation.ts'))
+  assert.doesNotMatch(recon, /\.limit\(1000\)/)
+  assert.match(recon, /\.in\('payment_reference', lote\)/)
+  assert.match(recon, /truncated/)
+})
+
+test('una lista de Stripe incompleta no se guarda como sincronización correcta', () => {
+  const code = sinComentarios(read('app/api/[tenant]/evergreen/settings/integraciones/stripe-customers/route.ts'))
+  assert.match(code, /recordSyncRun\(/)
+  assert.match(code, /failures: r\.truncated/)
 })
