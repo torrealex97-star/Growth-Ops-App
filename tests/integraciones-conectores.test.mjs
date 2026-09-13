@@ -189,3 +189,15 @@ test('los errores de Meta se traducen a una causa, también dentro del cliente',
   // Y una respuesta 200 que trae `error` dentro NO puede darse por buena: Meta responde así a veces.
   assert.match(route, /ok: r\.ok && !j\.error/)
 })
+
+// Un espacio o un salto de línea pegados al copiar el App Secret rompen la firma appsecret_proof, y
+// Meta responde "Invalid appsecret_proof" sin decir que sobra un carácter invisible: horas de
+// revisar unas credenciales correctas.
+test('las credenciales de Meta se recortan antes de firmar', () => {
+  const route = sinComentarios(read(ROUTE))
+  assert.match(route, /const secret = appSecret\?\.trim\(\)/)
+  assert.match(route, /\.update\(token\.trim\(\)\)/)
+  const client = sinComentarios(read('lib/meta/client.ts'))
+  assert.match(client, /createHmac\('sha256', secret\)\.update\(token\.trim\(\)\)/)
+  assert.match(client, /createHmac\('sha256', cfg\.appSecret\.trim\(\)\)\.update\(cfg\.token\.trim\(\)\)/)
+})

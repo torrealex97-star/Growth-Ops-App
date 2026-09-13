@@ -319,8 +319,11 @@ async function saveLastCheck(tenantId: string, group: string, result: ProbeResul
 }
 
 function metaProof(token: string, appSecret?: string): string {
-  if (!appSecret) return ''
-  return crypto.createHmac('sha256', appSecret).update(token).digest('hex')
+  // Se recortan los dos: un espacio o un salto de línea pegados al copiar rompen la firma y Meta
+  // responde "Invalid appsecret_proof", que no señala en absoluto a un espacio invisible.
+  const secret = appSecret?.trim()
+  if (!secret) return ''
+  return crypto.createHmac('sha256', secret).update(token.trim()).digest('hex')
 }
 
 // Habla con la API de cada integración y devuelve un veredicto en claro.

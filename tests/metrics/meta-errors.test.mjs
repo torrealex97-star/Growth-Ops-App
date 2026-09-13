@@ -24,6 +24,18 @@ test('falta de permisos no se confunde con token inválido', () => {
   assert.equal(classifyMetaError(meta(100, 33)).code, 'sin_permisos')
 })
 
+// EL CASO REAL que bloqueaba una cuenta: Meta devuelve código 100 con "Invalid appsecret_proof", y
+// sin tratarlo aparte acabábamos diciendo "corrige el identificador de la cuenta" con un
+// identificador perfecto. La firma se calcula con el App Secret: el problema es el secreto, no la
+// cuenta ni el token.
+test('appsecret_proof inválido señala al App Secret, no a la cuenta', () => {
+  const body = { error: { code: 100, message: 'Invalid appsecret_proof provided in the API argument' } }
+  const causa = classifyMetaError(body, 400)
+  assert.equal(causa.code, 'proof_invalido')
+  assert.match(causa.message, /App Secret/)
+  assert.doesNotMatch(causa.message, /identificador/i, 'no puede mandar a corregir la cuenta')
+})
+
 test('los límites de uso no se presentan como una avería', () => {
   for (const code of [4, 17, 32, 613, 80004]) {
     assert.equal(classifyMetaError(meta(code)).code, 'limite_de_uso')
