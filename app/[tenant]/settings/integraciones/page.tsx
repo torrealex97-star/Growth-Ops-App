@@ -482,6 +482,33 @@ export default function IntegracionesPage() {
     return j as { ok: boolean; message?: string }
   }
 
+  // Borra UNA clave. Hace falta porque vaciar el campo y guardar NO borra un secreto: el endpoint
+  // ignora los secretos en blanco a propósito (si no, el campo enmascarado los borraría cada vez que
+  // guardas otra cosa). Sin esto, una credencial mal pegada se queda para siempre y la única salida
+  // es "Desconectar", que borra TODAS las de esa integración.
+  async function clearField(g: Group, key: string, label: string) {
+    if (!window.confirm(`¿Borrar "${label}" de ${g.title}? Las demás credenciales se mantienen.`)) return
+    setSavingId(g.id)
+    const r = await fetch(`/api/${tenant}/evergreen/settings/integraciones`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clear: [key] }),
+    })
+    setSavingId(null)
+    if (!r.ok) {
+      toast.error(`No se pudo borrar ${label}`)
+      return
+    }
+    setDrafts((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
+    toast.success(`${label} borrado`)
+    await load()
+    if (g.test) void testGroup(g)
+  }
+
   async function disconnectGroup(g: Group) {
     if (
       !window.confirm(
@@ -931,12 +958,33 @@ export default function IntegracionesPage() {
                                 )
                               return (
                                 <div key={f.key} className="space-y-1.5">
-                                  <div className="flex items-center justify-between">
+                                  <div className="flex items-center justify-between gap-2">
                                     <Label htmlFor={f.key} className="text-sm">
                                       {f.label}
                                     </Label>
-                                    {badge}
+                                    <span className="flex items-center gap-2">
+                                      {badge}
+                                      {st?.source === 'db' ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => void clearField(g, f.key, f.label)}
+                                          disabled={savingId === g.id}
+                                          className="text-muted-foreground text-xs underline hover:text-red-400"
+                                        >
+                                          Borrar
+                                        </button>
+                                      ) : null}
+                                    </span>
                                   </div>
+                                  {/* Un valor que viene del entorno no se puede quitar desde aquí: lo
+                                      manda la variable de Vercel, y decir "bórralo" sería mandar a un
+                                      botón que no existe. */}
+                                  {st?.source === 'env' ? (
+                                    <p className="text-xs text-amber-400">
+                                      Este valor viene de una variable de entorno del servidor. Para quitarlo hay que
+                                      borrarlo en Vercel; escribir aquí otro valor sí lo sustituye.
+                                    </p>
+                                  ) : null}
                                   {f.type === 'textarea' ? (
                                     <Textarea
                                       id={f.key}
