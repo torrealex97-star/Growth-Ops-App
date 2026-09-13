@@ -108,7 +108,10 @@ export async function fetchAdAccounts(
   version = META_API_VERSION,
   appSecret?: string
 ): Promise<AdAccount[]> {
-  const proof = appSecret ? `&appsecret_proof=${createHmac('sha256', appSecret).update(token).digest('hex')}` : ''
+  // Recortados a propósito: un espacio pegado al copiar el secreto rompe la firma y Meta responde
+  // "Invalid appsecret_proof" sin decir que sobra un carácter invisible.
+  const secret = appSecret?.trim()
+  const proof = secret ? `&appsecret_proof=${createHmac('sha256', secret).update(token.trim()).digest('hex')}` : ''
   const url =
     `${GRAPH}/${version}/me/adaccounts` +
     `?fields=name,account_status&limit=500&access_token=${encodeURIComponent(token)}${proof}`
@@ -172,7 +175,7 @@ export function getMetaConfigs(): MetaConfig[] {
 // app tiene activado "Require app secret" para llamadas desde servidor.
 function proofParam(cfg: MetaConfig): string {
   if (!cfg.appSecret) return ''
-  const proof = createHmac('sha256', cfg.appSecret).update(cfg.token).digest('hex')
+  const proof = createHmac('sha256', cfg.appSecret.trim()).update(cfg.token.trim()).digest('hex')
   return `&appsecret_proof=${proof}`
 }
 

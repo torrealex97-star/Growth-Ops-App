@@ -164,6 +164,8 @@ export const FIXES: Record<string, string> = {
     'La credencial funciona pero no ve ninguna cuenta. Da acceso a la cuenta desde el panel del proveedor y vuelve a comprobar.',
   dominio_no_verificado:
     'El dominio del remitente no está verificado, así que los correos no saldrían. Verifícalo en el panel del proveedor y vuelve a comprobar.',
+  proof_invalido:
+    'Vacía el campo "App Secret" en opciones avanzadas y vuelve a comprobar: solo hace falta si tu app de Meta exige la firma appsecret_proof. Si la exige, pega el App Secret de LA MISMA app que generó el token (Meta for Developers › Configuración › Básica).',
   cuenta_incorrecta:
     'El identificador de la cuenta publicitaria no le suena a Meta. Bórralo y usa "Buscar cuentas" para elegirla de la lista en vez de escribirlo a mano.',
   limite_de_uso:

@@ -49,6 +49,16 @@ export function classifyMetaError(body: unknown, httpStatus?: number): MetaError
       message: `El token no tiene permiso para leer esta cuenta publicitaria. ${detalle}`.trim(),
     }
   }
+  // `appsecret_proof` inválido: la firma se calcula con el App Secret, así que este error NO es del
+  // token ni de la cuenta — es que el App Secret guardado NO es el de la app que emitió el token.
+  // Meta lo devuelve con código 100, así que sin este caso especial acabábamos mandando a corregir el
+  // identificador de la cuenta, que está perfecto.
+  if (/appsecret_proof/i.test(detalle)) {
+    return {
+      code: 'proof_invalido',
+      message: 'El App Secret guardado no corresponde a la app que generó el token.',
+    }
+  }
   if (code === 100) {
     // 100 con subcódigo 33 es "el objeto existe pero tu token no lo ve", que en la práctica es un
     // problema de permisos, no de que el id esté mal escrito.
