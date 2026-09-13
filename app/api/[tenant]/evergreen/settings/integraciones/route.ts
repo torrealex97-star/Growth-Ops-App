@@ -157,11 +157,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const body = (await req.json().catch(() => ({}))) as {
     action?: string
     group?: string
+    // Token recién pegado y TODAVÍA NO guardado: sirve para poder listar las cuentas antes de
+    // guardar nada, que es el orden natural (pegas el token, eliges cuenta, guardas). No se
+    // persiste aquí ni se escribe en ningún log.
+    token?: string
     updates?: Record<string, string>
     clear?: string[]
   }
 
   if (body.action === 'test') return runTest(body.group || '', auth.tenantId)
+  if (body.action === 'meta-accounts') return listMetaAccounts(auth.tenantId, body.token)
 
   const updates = body.updates || {}
   const clear = body.clear || []
@@ -213,6 +218,50 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 }
 
 // ── Probar conexión por integración ─────────────────────────────────────────
+
+/**
+ * Cuentas publicitarias que ve un token de Meta, para poder ELEGIR en vez de tener que averiguar el
+ * `act_…` por tu cuenta. Acepta un token sin guardar: si el usuario tuviera que guardarlo primero,
+ * guardaría uno inválido para descubrir que lo es.
+ */
+async function listMetaAccounts(tenantId: string, tokenSinGuardar?: string): Promise<NextResponse> {
+  const cfg = await getTenantConfigWithFallback(tenantId, true)
+  const token = (tokenSinGuardar || '').trim() || cfg.META_ACCESS_TOKEN
+  if (!token) {
+    return NextResponse.json({ ok: false, message: 'Pega antes el token de acceso de Meta.' }, { status: 400 })
+  }
+  const version = cfg.META_API_VERSION || META_API_VERSION
+  if (isDeprecatedMetaVersion(cfg.META_API_VERSION)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: `La versión ${cfg.META_API_VERSION} está deprecada por Meta: bórrala en opciones avanzadas.`,
+      },
+      { status: 400 }
+    )
+  }
+  try {
+    const accounts = await fetchAdAccounts(token, version, cfg.META_APP_SECRET)
+    if (accounts.length === 0) {
+      return NextResponse.json({
+        ok: false,
+        message:
+          'El token funciona pero no ve ninguna cuenta publicitaria. Dale el permiso ads_read sobre la cuenta en Meta Business y vuelve a buscar.',
+      })
+    }
+    // `status` de Meta: 1 = activa. El resto (cerrada, con deuda, en revisión…) se marca para que no
+    // elijas a ciegas una cuenta que no va a devolver datos.
+    return NextResponse.json({
+      ok: true,
+      accounts: accounts.map((a) => ({ id: a.id, name: a.name, active: a.status === 1 })),
+    })
+  } catch (e) {
+    return NextResponse.json({
+      ok: false,
+      message: `No se pudieron listar las cuentas: ${(e as Error).message}`,
+    })
+  }
+}
 
 /** Veredicto de una comprobación. `code` es una pista ESTABLE para elegir el arreglo a mostrar. */
 type ProbeResult = { ok: boolean; message: string; code?: string }

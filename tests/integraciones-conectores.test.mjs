@@ -98,3 +98,48 @@ test('toda integración con prueba declarada tiene su comprobación escrita', ()
   const sinComprobacion = conTest.filter((id) => !route.includes(`group === '${id}'`))
   assert.deepEqual(sinComprobacion, [], `estas integraciones dicen tener prueba pero no la tienen: ${sinComprobacion}`)
 })
+
+// El formulario de Meta tenía cinco campos cuando para conectar hace falta uno. Quien no sabe qué es
+// un appsecret_proof rellena lo que no debe o abandona creyendo que le falta información.
+test('conectar pide lo mínimo y lo demás va plegado', () => {
+  const catalog = read(CATALOG)
+  const page = read('app/[tenant]/settings/integraciones/page.tsx')
+  assert.match(catalog, /advanced\?: boolean/)
+  // Lo avanzado NO puede ser algo obligatorio: esconder un campo requerido deja al usuario sin saber
+  // por qué no conecta.
+  const bloques = catalog.split(/^ {2}\{$/m).slice(1)
+  for (const bloque of bloques) {
+    const id = bloque.match(/id: '([a-z0-9-]+)'/)?.[1]
+    const required = bloque.match(/required: \[([^\]]*)\]/)?.[1] ?? ''
+    for (const key of [...required.matchAll(/'([A-Z0-9_]+)'/g)].map((m) => m[1])) {
+      const campo = bloque.slice(bloque.indexOf(`key: '${key}'`))
+      const hasta = campo.indexOf('},')
+      assert.doesNotMatch(
+        campo.slice(0, hasta > 0 ? hasta : 200),
+        /advanced: true/,
+        `${id}: ${key} es obligatorio y está escondido en avanzadas`
+      )
+    }
+  }
+  assert.match(page, /!f\.hidden && !f\.advanced/, 'el formulario principal no separa lo avanzado')
+  assert.match(page, /Opciones avanzadas/)
+})
+
+// Pedir el `act_…` a mano obliga a buscarlo en el panel de Meta. Y obligar a guardar el token antes
+// de poder buscar haría guardar tokens inválidos para descubrir que lo son.
+test('la cuenta de Meta se elige de una lista, sin guardar el token antes', () => {
+  const route = sinComentarios(read(ROUTE))
+  assert.match(route, /action === 'meta-accounts'/)
+  assert.match(route, /listMetaAccounts\(auth\.tenantId, body\.token\)/)
+  assert.match(route, /\(tokenSinGuardar \|\| ''\)\.trim\(\) \|\| cfg\.META_ACCESS_TOKEN/)
+  // El token que llega sin guardar NO se persiste en esa acción.
+  const fn = route.slice(route.indexOf('async function listMetaAccounts'))
+  const hasta = fn.indexOf('\n}\n')
+  assert.doesNotMatch(fn.slice(0, hasta), /integration_settings|upsert/, 'la búsqueda de cuentas guarda el token')
+
+  const page = read('app/[tenant]/settings/integraciones/page.tsx')
+  assert.match(page, /Buscar cuentas/)
+  assert.match(page, /name="meta-account"/, 'no hay dónde elegir la cuenta')
+  // Una cuenta cerrada o con deuda no devuelve datos: se avisa antes de elegirla.
+  assert.match(page, /inactiva en Meta/)
+})
