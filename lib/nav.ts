@@ -95,11 +95,19 @@ export const NAV_SECTIONS: NavSection[] = [
     dept: 'ventas',
     items: [
       {
+        // La agenda es la pantalla de cada mañana, así que es el destino por defecto del CRM y el
+        // primer hijo. /crm redirige aquí en servidor (ver app/[tenant]/crm/page.tsx).
         label: 'CRM',
-        href: '/crm/contactos',
+        href: '/crm/agendas',
         icon: Users,
         roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'],
         children: [
+          {
+            label: 'Agendas',
+            href: '/crm/agendas',
+            icon: Calendar,
+            roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'],
+          },
           {
             label: 'Contactos',
             href: '/crm/contactos',
@@ -110,12 +118,6 @@ export const NAV_SECTIONS: NavSection[] = [
             label: 'Leads (VSL)',
             href: '/crm/contactos?view=leads',
             icon: Inbox,
-            roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'],
-          },
-          {
-            label: 'Agendas',
-            href: '/crm/agendas',
-            icon: Calendar,
             roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'],
           },
           {
