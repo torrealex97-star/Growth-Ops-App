@@ -3,8 +3,11 @@
 // %Conversión VSL, %Show Up, %Cierre, CPA) se calculan aquí, no en la BBDD.
 import type { Campaign } from '@/lib/types/database'
 
-const div = (a: number, b: number): number | null => (b > 0 ? a / b : null)
-const pct = (a: number, b: number): number | null => (b > 0 ? (a / b) * 100 : null)
+// Exportadas para que lib/funnels/ use EXACTAMENTE la misma semántica y no aparezca una segunda
+// definición de "qué pasa cuando el denominador es 0". Devolver null (y pintar "—") es deliberado:
+// un 0 ahí significaría "convierte el 0 %", que es una afirmación distinta de "no se puede calcular".
+export const div = (a: number, b: number): number | null => (b > 0 ? a / b : null)
+export const pct = (a: number, b: number): number | null => (b > 0 ? (a / b) * 100 : null)
 
 // Totales brutos sumados sobre un conjunto de campañas.
 export type AdTotals = {
