@@ -16,11 +16,14 @@ Avance de esta sesión, todo sobre `claude/financial-constraints-handoff` (PR #3
 | `f4f028a` | Fase B de UX: Configuración a un solo nivel, negocio fuera de Integraciones, Auditoría dentro         |
 | (este)    | Fase C: capa canónica `lib/funnels/` con tests, sin UI todavía                                        |
 
-**Próximo paso para quien recoja el relevo (Codex incluido):** el banco de **grabaciones**
-(archivos) de la fase G: subida masiva con progreso y reintento, categoría por MIME (no por IA),
-dedupe por hash, Storage privado bajo `tenant_id/` y aprobación manual. Ojo: el banco de
-**testimonios** YA existe y es un banco de copy, no de archivos — lee `ROADMAP_MVP.md` §3.3 antes de
-construir nada, para no duplicar lo que hay.
+**Próximo paso para quien recoja el relevo (Codex incluido):** fase I — backfill de Stripe con
+dry-run y su informe de conciliación (regla ya acordada: un cliente sin pagos exitosos **no es
+venta**), y diagnóstico de la sincronización de Meta sin dar por supuesta la causa. Luego la fase J
+(aprovisionador). Ver `docs/ROADMAP_MVP.md`.
+
+Lo aplicado hoy en producción son **once migraciones**, cada una con dry-run previo
+(`BEGIN`/`ROLLBACK` probando el COMPORTAMIENTO, no solo que la DDL compile) y verificación posterior.
+Mantén esa disciplina: varias cazaron fallos reales antes de tocar nada.
 
 Antes de eso, si hay tiempo: la **pantalla para resolver la cola `fathom_match_review`**. El sync ya
 anota los casos dudosos correctamente, pero resolverlos hoy requiere tocar la tabla a mano.
