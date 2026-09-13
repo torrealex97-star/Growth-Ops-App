@@ -323,7 +323,8 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
   {
     id: 'deepseek',
     title: 'DeepSeek',
-    description: 'Conecta DeepSeek como proveedor adicional para modelos de lenguaje y razonamiento.',
+    description:
+      'Motor de IA de la subcuenta: análisis de llamadas, guiones, tareas desde transcripción y variables de contrato.',
     category: 'ia',
     test: true,
     required: ['DEEPSEEK_API_KEY'],

@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { analyzeReel } from '@/lib/ai/claude'
 import { getInstagramConfig, resolveIgUserId, refreshOwnMediaUrl, fetchBusinessDiscovery } from '@/lib/instagram/client'
+import { tenantAiEnv } from '@/lib/ai/provider'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -285,7 +286,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // volver a descargar/transcribir el vídeo.
     let analysis: Awaited<ReturnType<typeof analyzeReel>>
     try {
-      analysis = await analyzeReel(transcript, ctx)
+      analysis = await analyzeReel(transcript, ctx, await tenantAiEnv(t.tenantId))
     } catch (e) {
       if (table === 'ig_media') {
         await sb

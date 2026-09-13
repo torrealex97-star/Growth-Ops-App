@@ -5,6 +5,7 @@ import { generateScript, type ReelAnalysis } from '@/lib/ai/claude'
 import { readStylePrompt, readBusinessContext } from '@/lib/app-settings'
 import { ctasForPrompt, CTA_CODES } from '@/lib/ctas'
 import { getTestimonio, listTestimonios, testimonioForPrompt } from '@/lib/testimonios'
+import { tenantAiEnv } from '@/lib/ai/provider'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
@@ -123,7 +124,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         forcedCta,
         styleBlock: styleBlock || undefined,
         testimonioBlock: testimonioPick.block || undefined,
-      }
+      },
+      await tenantAiEnv(t.tenantId)
     )
 
     // Testimonio que acabó en el guión: el pedido, o el que eligió la IA en modo 'auto'.
