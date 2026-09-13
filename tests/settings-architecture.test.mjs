@@ -80,3 +80,30 @@ test('una credencial no equivale a una integración operativa', () => {
   assert.equal(deriveSourceStatus(true, 0), 'needs_attention')
   assert.equal(deriveSourceStatus(true, 49), 'connected')
 })
+
+// Fase F: la agenda es el destino por defecto del CRM, y la redirección es de servidor.
+test('/crm redirige a la agenda en servidor, sin parpadeo de cliente', () => {
+  const page = read('app/[tenant]/crm/page.tsx')
+  assert.match(page, /redirect\(`\/\$\{tenant\}\/crm\/agendas`\)/)
+  // Un useEffect con router.replace obliga a montar un componente cliente que pinta null: hay un
+  // instante en blanco y el navegador no recibe un redirect HTTP de verdad.
+  // Se comprueba sobre el CÓDIGO, no sobre los comentarios: el propio archivo explica en prosa qué
+  // sustituyó, y buscar esas palabras en crudo daría un falso positivo.
+  const code = page.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+  assert.doesNotMatch(code, /'use client'|useEffect|router\.replace/)
+  assert.match(read('lib/nav.ts'), /label: 'CRM',\s*\n\s*href: '\/crm\/agendas'/)
+})
+
+// El payload crudo del webhook es un volcado interno: ids externos, campos técnicos y datos del
+// lead sin normalizar. Antes se pintaba abierto para cualquiera que pudiera ver la cita.
+test('el payload crudo de una cita está plegado y restringido', () => {
+  const detail = read('components/appointments/AppointmentDetail.tsx')
+  assert.match(detail, /canSeeRawPayload\?: boolean/)
+  assert.match(detail, /canSeeRawPayload && appointment\.raw_payload/)
+  assert.match(detail, /<details/, 'debe ir plegado, fuera del flujo normal de la ficha')
+  // Y las respuestas legibles siguen visibles para todos: eso no se restringe.
+  assert.match(detail, /qualificationEntries\.length > 0/)
+  for (const caller of ['app/[tenant]/crm/agendas/page.tsx', 'app/[tenant]/crm/seguimiento/page.tsx']) {
+    assert.match(read(caller), /canSeeRawPayload=\{isAdmin\}/, `${caller} no pasa la restricción`)
+  }
+})
