@@ -96,23 +96,58 @@ export async function getTenantConfig(tenantId: string, force = false): Promise<
   }
 }
 
+// Claves que `ensureConfig` ha volcado a process.env, y de qué subcuenta venía cada valor.
+//
+// POR QUÉ. process.env es global al proceso y `apply()` NUNCA borra: en un cron que recorre todas
+// las subcuentas dentro de la misma lambda, el token de la subcuenta A seguía puesto al sincronizar
+// la B, y la B se llenaba con los datos de A. Lo mismo explicaba el "he borrado el App Secret y
+// sigue dando el mismo error": el valor borrado de la base de datos continuaba vivo en process.env.
+// Saber QUIÉN inyectó cada clave permite (a) no usar el valor de otra subcuenta como si fuera
+// configuración del entorno y (b) retirarlo de verdad cuando se borra el campo.
+const injectedBy = new Map<string, string>()
+
 export async function getTenantConfigWithFallback(tenantId: string, force = false): Promise<Record<string, string>> {
   const tenant = await getTenantConfig(tenantId, force)
   const fallback: Record<string, string> = {}
-  for (const [key, value] of Object.entries(process.env)) if (value) fallback[key] = value
+  for (const [key, value] of Object.entries(process.env)) {
+    if (!value) continue
+    // Un valor que inyectó OTRA subcuenta no es entorno: es su credencial. Usarla aquí mezclaría
+    // datos entre subcuentas con todo el aspecto de estar funcionando bien.
+    const owner = injectedBy.get(key)
+    if (owner && owner !== tenantId) continue
+    fallback[key] = value
+  }
   return { ...fallback, ...tenant }
+}
+
+/**
+ * Retira de process.env un valor que inyectamos nosotros (al borrar el campo en el panel). Si la
+ * clave viene de verdad del entorno de Vercel no se toca: ahí manda el despliegue, y el panel ya
+ * avisa de que el valor llega por variable de entorno.
+ */
+export function forgetInjectedKeys(tenantId: string, keys: string[]): string[] {
+  const forgotten: string[] = []
+  for (const key of keys) {
+    if (injectedBy.get(key) !== tenantId) continue
+    delete process.env[key]
+    injectedBy.delete(key)
+    forgotten.push(key)
+  }
+  return forgotten
 }
 
 // Vuelca los valores configurados de UN tenant a process.env (solo los que tengan valor; el
 // env existente actúa de fallback para lo no configurado). Cacheado 30s por tenant/proceso.
 export async function ensureConfig(tenantId: string, force = false): Promise<void> {
   if (!tenantId) return // sin tenant no hay config de integración que cargar
-  apply(await getTenantConfig(tenantId, force))
+  apply(tenantId, await getTenantConfig(tenantId, force))
 }
 
-function apply(vals: Record<string, string>) {
+function apply(tenantId: string, vals: Record<string, string>) {
   for (const [k, v] of Object.entries(vals)) {
-    if (v) process.env[k] = v
+    if (!v) continue
+    process.env[k] = v
+    injectedBy.set(k, tenantId)
   }
 }
 

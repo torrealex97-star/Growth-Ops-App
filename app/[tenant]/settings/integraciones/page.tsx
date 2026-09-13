@@ -284,7 +284,17 @@ type IntegrationHealth = {
   checkedAt: string | null
   stale: boolean
   missingKeys: string[]
-  syncs: { id: string; label: string; status: string; detail: string; rows: number | null }[]
+  syncs: {
+    id: string
+    label: string
+    status: string
+    detail: string
+    rows: number | null
+    /** Estado de los datos (lib/ops/sync-health.ts): por qué la tabla está como está. */
+    dataState: string
+    lastRunAt: string | null
+    lastError: string | null
+  }[]
 }
 
 /** Logotipo de marca. `currentColor` no vale aquí: cada marca tiene su color y es lo que la hace
@@ -872,8 +882,26 @@ export default function IntegracionesPage() {
                               <ul className="text-muted-foreground space-y-1 pl-4 text-xs">
                                 {h.syncs.map((sync) => (
                                   <li key={sync.id}>
-                                    <span className={sync.status === 'ok' ? 'text-emerald-400' : ''}>{sync.label}</span>
+                                    <span
+                                      className={
+                                        sync.status === 'ok'
+                                          ? 'text-emerald-400'
+                                          : sync.status === 'sync_fallido' || sync.status === 'sin_planificador'
+                                            ? 'text-red-400'
+                                            : ''
+                                      }
+                                    >
+                                      {sync.label}
+                                    </span>
                                     : {sync.detail}
+                                    {/* Cuándo corrió por última vez. Sin esto, "hay 12 filas" no dice
+                                        si son de hoy o de hace tres meses. */}
+                                    {sync.lastRunAt ? (
+                                      <span className="text-muted-foreground/70">
+                                        {' '}
+                                        · última vez {haceCuanto(sync.lastRunAt)}
+                                      </span>
+                                    ) : null}
                                   </li>
                                 ))}
                               </ul>

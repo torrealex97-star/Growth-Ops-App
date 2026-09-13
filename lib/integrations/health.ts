@@ -53,6 +53,7 @@ export const SYNCS_BY_GROUP: Record<string, string[]> = {
   youtube: ['youtube-backfill'],
   ai: ['analyze-calls', 'ai-insights'],
   sequra: ['sequra-morosos'],
+  stripe: ['stripe-customers'],
   email: ['reminders'],
 }
 
@@ -101,6 +102,20 @@ export function assessIntegration(
       headline: 'Con error',
       detail: args.lastCheck.message,
       fix: fixFor(args.lastCheck.code, group.id),
+    }
+  }
+
+  // La última sincronización FALLÓ. Es rojo aunque las credenciales respondan al comprobarlas: el
+  // usuario cree que tiene datos actualizados y no los tiene, y ahora sí sabemos por qué (el motivo
+  // se guarda en integration_sync_runs en vez de perderse en los logs de Vercel).
+  const fallida = syncs.find((s) => s.status === 'sync_fallido')
+  if (fallida) {
+    return {
+      ...base,
+      status: 'error',
+      headline: 'La última sincronización falló',
+      detail: fallida.detail,
+      fix: fixFor(fallida.lastErrorCode ?? undefined, group.id),
     }
   }
 
