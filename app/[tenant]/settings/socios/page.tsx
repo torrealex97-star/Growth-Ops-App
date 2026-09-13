@@ -28,6 +28,19 @@ export default function SociosSettingsPage() {
   const [nPercent, setNPercent] = useState('')
   const [nNotes, setNNotes] = useState('')
   const [adding, setAdding] = useState(false)
+  // La RLS deja LEER socios a todo el equipo pero solo escribir a admin/director. Mostrar el
+  // formulario y los botones a quien no puede escribir solo produce fallos silenciosos.
+  const [canWrite, setCanWrite] = useState(false)
+
+  useEffect(() => {
+    const sb = createClient()
+    void sb.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      const { data } = await sb.from('users').select('roles(key)').eq('id', user.id).single()
+      const role = (data?.roles as { key?: string } | null)?.key
+      setCanWrite(role === 'admin' || role === 'director')
+    })
+  }, [])
 
   const load = async () => {
     const sb = createClient()
@@ -173,21 +186,38 @@ export default function SociosSettingsPage() {
                 <span className="text-sm text-amber-300 font-semibold whitespace-nowrap">
                   {Number(p.profit_percent).toFixed(2)}%
                 </span>
-                <button
-                  onClick={() => toggleActive(p)}
-                  className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border"
-                >
-                  {p.is_active ? 'Desactivar' : 'Activar'}
-                </button>
-                <button onClick={() => deletePartner(p.id)} className="text-muted-foreground hover:text-red-400 p-1">
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {canWrite ? (
+                  <>
+                    <button
+                      onClick={() => toggleActive(p)}
+                      className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border"
+                    >
+                      {p.is_active ? 'Desactivar' : 'Activar'}
+                    </button>
+                    <button
+                      onClick={() => deletePartner(p.id)}
+                      className="text-muted-foreground hover:text-red-400 p-1"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-xs text-muted-foreground">{p.is_active ? 'Activo' : 'Inactivo'}</span>
+                )}
               </div>
             ))}
           </div>
         )}
 
-        <div className="border-t border-border pt-4 grid grid-cols-1 sm:grid-cols-[1fr,120px] gap-2 items-end">
+        {!canWrite && (
+          <p className="border-t border-border pt-4 text-sm text-muted-foreground">
+            Solo un admin o director puede modificar el reparto de socios.
+          </p>
+        )}
+
+        <div
+          className={`border-t border-border pt-4 grid grid-cols-1 sm:grid-cols-[1fr,120px] gap-2 items-end ${canWrite ? '' : 'hidden'}`}
+        >
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Nombre del socio</label>
             <input value={nName} onChange={(e) => setNName(e.target.value)} placeholder="Nombre" className={cls} />
