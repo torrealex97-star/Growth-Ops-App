@@ -16,9 +16,11 @@ Avance de esta sesión, todo sobre `claude/financial-constraints-handoff` (PR #3
 | `f4f028a` | Fase B de UX: Configuración a un solo nivel, negocio fuera de Integraciones, Auditoría dentro         |
 | (este)    | Fase C: capa canónica `lib/funnels/` con tests, sin UI todavía                                        |
 
-**Próximo paso para quien recoja el relevo (Codex incluido):** fase G — banco de testimonios y de
-grabaciones (subida masiva con progreso y reintento, categoría por MIME, dedupe por hash, Storage
-privado bajo `tenant_id/`, aprobación manual). Ver `ROADMAP_MVP.md`.
+**Próximo paso para quien recoja el relevo (Codex incluido):** el banco de **grabaciones**
+(archivos) de la fase G: subida masiva con progreso y reintento, categoría por MIME (no por IA),
+dedupe por hash, Storage privado bajo `tenant_id/` y aprobación manual. Ojo: el banco de
+**testimonios** YA existe y es un banco de copy, no de archivos — lee `ROADMAP_MVP.md` §3.3 antes de
+construir nada, para no duplicar lo que hay.
 
 Antes de eso, si hay tiempo: la **pantalla para resolver la cola `fathom_match_review`**. El sync ya
 anota los casos dudosos correctamente, pero resolverlos hoy requiere tocar la tabla a mano.

@@ -49,7 +49,7 @@ Leyenda: ✅ hecho · 🚧 en curso · ⛔ bloqueado por el usuario · ⬜ pendi
 | E   | Sección Funnels con lo que ya hay en base     | ⬜     | MVP sin GA4: VSL, Webinar y Profile ya tienen datos        |
 | F   | CRM → Agenda, detalle de cita legible, Fathom | ⬜     | Mejora diaria, barata                                      |
 | D   | GA4 (OAuth multi-tenant)                      | ⛔     | Bloqueada: hay que crear el proyecto de Google Cloud       |
-| G   | Banco de testimonios y de grabaciones         | ⬜     |                                                            |
+| G   | Banco de testimonios y de grabaciones         | ⬜     | Replanteada — ver §3.3                                     |
 | H   | Facturas por email (**solo Gmail**)           | ⬜     | También necesita el proyecto de Google Cloud               |
 | I   | Backfill de Stripe y diagnóstico de Meta      | ⬜     | Empieza por dry-run, sin escribir                          |
 | J   | Aprovisionamiento                             | ⬜     | Al final: el blueprint solo puede incluir lo que ya existe |
@@ -121,6 +121,38 @@ Lo que hace ahora:
 Queda por hacer, y es pequeño: la **pantalla** para resolver la cola. Hoy los casos se anotan
 correctamente y se pueden consultar, pero resolverlos requiere tocar la tabla. Es lo primero que
 debería añadirse cuando haya casos reales que resolver.
+
+## 3.3 Fase G: replanteada, y por qué
+
+Al abrirla me encontré con que **el banco de testimonios ya existe** (`/recursos/testimonios`, tabla
+`testimonios`), pero es otra cosa que lo que pedía el brief: un banco de **copy** de venta (hook,
+punto A → punto B, vehículo, cifra ancla, consentimiento de imagen), no un banco de archivos con
+subida masiva. Así que "banco de testimonios" no era trabajo nuevo: es una tabla que ya está y que
+nadie ha llenado.
+
+Y buscando ahí aparecieron **tres fallos reales** que valían más que construir otra pantalla:
+
+1. **Unique global sobre `slug`** en `testimonios`, `qualification_questions` y `vsl_videos`, que
+   tienen `tenant_id`. La segunda subcuenta que usara el slug "xavi" (o "principal" en un vídeo VSL)
+   recibía un error de clave duplicada por una fila de **otra subcuenta que no puede ni ver**. Y
+   bloqueaba de raíz la fase J: cada subcuenta nueva chocaría en los slugs naturales. Misma clase de
+   fallo ya corregida en `integration_settings`, que se quedó sin revisar aquí. **Arreglado.**
+2. **El auto-registro de preguntas de cualificación no ha funcionado nunca** desde la migración
+   multi-tenant. Los webhooks de GHL y Calendly hacían `upsert` sin `tenant_id`, que es `NOT NULL`,
+   así que cada llamada moría con `not_null_violation`. **Arreglado.**
+3. **El error se tragaba.** Nadie miraba el resultado de ese `upsert`, y eso es lo que escondió el
+   fallo: la tabla estaba vacía habiendo pasado cientos de formularios. Ahora se registra en consola
+   sin abortar el webhook — perder la cita entera por un efecto secundario sería peor.
+
+Verificado en producción, no deducido: reproduje el `not_null_violation` y comprobé que las tres
+tablas estaban vacías antes de tocar los índices.
+
+Lo que **sigue pendiente** de la fase G, y ahora sí es trabajo nuevo:
+
+- Banco de **grabaciones** (archivos) con subida masiva, progreso y reintento, categoría por MIME
+  (no por IA), dedupe por hash, Storage privado bajo `tenant_id/` y aprobación manual.
+- Clasificación de llamadas ganada/perdida/pendiente **derivada de datos canónicos**, nunca de la IA
+  por sí sola.
 
 ## 4. Regla que aplica a todas las fases
 
