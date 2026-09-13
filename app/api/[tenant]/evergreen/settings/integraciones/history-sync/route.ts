@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
-import { getTenantConfigWithFallback } from '@/lib/config'
+import { ensureConfig, getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -485,6 +485,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // vez de los 180 días del sync rutinario. Es una carga puntual que el usuario ha pedido
     // explícitamente, así que traer poco sería lo único que no tiene sentido.
     if (body.provider === 'meta') {
+      // `runMetaSync` lee las credenciales de process.env (resolveMetaConfigs), así que SIN esto
+      // usaría la variable global del servidor en vez de las de esta subcuenta: o no encontraría
+      // token, o —peor— sincronizaría con el de otra. Todos los crons de Meta llaman a ensureConfig
+      // por este mismo motivo; esta ruta se quedó sin él al añadirla.
+      await ensureConfig(auth.tenantId)
       const campañas = await runMetaSync(sb, auth.tenantId)
       const dias = HISTORY_CAPABILITIES.meta.sinceDays
       const diario = await runMetaDailySync(sb, auth.tenantId, dias)

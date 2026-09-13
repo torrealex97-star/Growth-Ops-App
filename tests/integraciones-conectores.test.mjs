@@ -228,3 +228,20 @@ test('el consejo sobre el App Secret se demuestra, no se supone', () => {
   assert.match(bloque.slice(0, 900), /sinFirma\s*\?/, 'el mensaje no depende de la comprobación')
   assert.match(bloque.slice(0, 900), /MISMA app/, 'falta el caso en el que el secreto sí hace falta')
 })
+
+// Las funciones de Meta leen las credenciales de process.env (resolveMetaConfigs), así que cualquier
+// ruta que las llame DEBE cargar antes la configuración de su subcuenta. Sin eso, o no encuentra
+// token, o sincroniza con el de otra subcuenta — que es peor que fallar.
+test('toda ruta que sincroniza Meta carga antes la config de su subcuenta', () => {
+  const rutas = [
+    'app/api/[tenant]/evergreen/settings/integraciones/history-sync/route.ts',
+    'app/api/[tenant]/evergreen/cron/meta/route.ts',
+    'app/api/[tenant]/evergreen/cron/meta-daily/route.ts',
+    'app/api/[tenant]/evergreen/cron/meta-ads/route.ts',
+  ]
+  for (const ruta of rutas) {
+    const src = read(ruta)
+    if (!/runMetaSync|runMetaDailySync|runMetaAdsSync/.test(src)) continue
+    assert.match(src, /ensureConfig\(/, `${ruta} sincroniza Meta sin cargar la config de la subcuenta`)
+  }
+})
