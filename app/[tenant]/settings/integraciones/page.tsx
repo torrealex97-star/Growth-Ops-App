@@ -32,9 +32,12 @@ import {
   ShoppingBag,
   Gem,
   GraduationCap,
+  Settings2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTenant } from '@/lib/tenant-context'
+import { brandFor, type Brand } from '@/components/integrations/brands'
+import { historyFor } from '@/lib/integrations/history'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { CATEGORY_LABELS, type IntegrationCategory } from '@/lib/integrations-catalog'
 
@@ -239,6 +242,51 @@ const GROUP_META: Record<string, { icon: typeof Plug; tone: string; steps: strin
   },
 }
 
+// Estado que calcula el servidor en lib/integrations/health.ts. Tres luces: verde = comprobada
+// contra su API y respondiendo; gris = sin configurar o sin comprobar; roja = error o sin sincronizar.
+type IntegrationHealth = {
+  id: string
+  status: 'conectada' | 'sin_configurar' | 'error'
+  headline: string
+  detail: string
+  fix?: string
+  checkedAt: string | null
+  stale: boolean
+  missingKeys: string[]
+  syncs: { id: string; label: string; status: string; detail: string; rows: number | null }[]
+}
+
+/** Logotipo de marca. `currentColor` no vale aquí: cada marca tiene su color y es lo que la hace
+ *  reconocible de un vistazo. */
+function BrandMark({ brand, className, ...rest }: { brand: Brand; className?: string } & { 'aria-hidden'?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill={brand.color} role="img" {...rest}>
+      <title>{brand.title}</title>
+      <path d={brand.path} />
+    </svg>
+  )
+}
+
+const LUZ: Record<IntegrationHealth['status'], { dot: string; text: string }> = {
+  conectada: { dot: 'bg-emerald-400', text: 'text-emerald-400' },
+  sin_configurar: { dot: 'bg-zinc-500', text: 'text-muted-foreground' },
+  error: { dot: 'bg-red-400', text: 'text-red-400' },
+}
+
+// "hace 3 horas" en vez de una fecha: lo que importa de una comprobación es su antigüedad, porque un
+// verde de la semana pasada no dice nada de hoy.
+function haceCuanto(iso: string | null): string | null {
+  if (!iso) return null
+  const ms = Date.now() - Date.parse(iso)
+  if (Number.isNaN(ms) || ms < 0) return null
+  const min = Math.round(ms / 60000)
+  if (min < 1) return 'hace un momento'
+  if (min < 60) return `hace ${min} min`
+  const h = Math.round(min / 60)
+  if (h < 24) return `hace ${h} h`
+  return `hace ${Math.round(h / 24)} d`
+}
+
 export default function IntegracionesPage() {
   const tenant = useTenant()
   const [groups, setGroups] = useState<Group[]>([])
@@ -254,7 +302,12 @@ export default function IntegracionesPage() {
   const [stripeCustomers, setStripeCustomers] = useState<StripeCustomerRow[] | null>(null)
   const [syncingCustomers, setSyncingCustomers] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [verification, setVerification] = useState<Record<string, 'ok' | 'error'>>({})
+  // El estado de cada integración lo calcula el servidor (credenciales + última comprobación real
+  // contra su API + si sus sincronizaciones pueden funcionar). Antes era un `verification` local que
+  // solo existía si habías pulsado "probar" en esa visita: al recargar, todo volvía a "configurada".
+  const [health, setHealth] = useState<Record<string, IntegrationHealth>>({})
+  // Integración recién conectada que todavía no ha dicho si quiere traer el pasado.
+  const [askHistory, setAskHistory] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -268,6 +321,7 @@ export default function IntegracionesPage() {
     setGroups(j.groups)
     setState(j.state)
     setEncReady(j.encReady)
+    setHealth(Object.fromEntries(((j.health ?? []) as IntegrationHealth[]).map((h) => [h.id, h])))
     // precargar los no-secretos en los drafts para poder editarlos
     const d: Record<string, string> = {}
     for (const [k, v] of Object.entries(j.state as Record<string, StateEntry>)) {
@@ -282,6 +336,21 @@ export default function IntegracionesPage() {
 
   useEffect(() => {
     if (selectedId === 'stripe' && stripeCustomers === null) void loadStripeCustomers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId])
+
+  // Al abrir una integración se comprueba contra su API si no hay comprobación fresca. Es UNA llamada
+  // (la de la que se abre), no diecisiete al cargar la pantalla, y es lo que hace que el estado sea
+  // información de ahora y no de la última vez que alguien pulsó un botón.
+  useEffect(() => {
+    if (!selectedId) return
+    const grupo = groups.find((g) => g.id === selectedId)
+    const estado = health[selectedId]
+    if (!grupo?.test || !estado) return
+    if (estado.missingKeys.length > 0) return // sin credenciales no hay nada que preguntar a la API
+    if (estado.checkedAt && !estado.stale) return
+    if (testingId) return
+    void testGroup(grupo)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId])
 
@@ -307,7 +376,15 @@ export default function IntegracionesPage() {
       for (const f of g.fields) if (f.secret) delete next[f.key]
       return next
     })
-    load()
+    await load()
+    // Se comprueba al momento, y solo si la API responde bien se ofrece traer el pasado: ofrecer una
+    // carga de histórico con una credencial que no funciona es mandar al usuario directo a un error.
+    if (g.test) {
+      const probe = await testGroup(g)
+      if (probe?.ok && historyFor(g.id)) setAskHistory(g.id)
+    } else if (historyFor(g.id)) {
+      setAskHistory(g.id)
+    }
   }
 
   async function testGroup(g: Group) {
@@ -319,9 +396,12 @@ export default function IntegracionesPage() {
     })
     const j = await r.json()
     setTestingId(null)
-    setVerification((prev) => ({ ...prev, [g.id]: j.ok ? 'ok' : 'error' }))
     if (j.ok) toast.success(`${g.title}: ${j.message || 'conexión OK'}`)
     else toast.error(`${g.title}: ${j.message || 'falló'}`)
+    // Se recarga el estado del servidor en vez de deducirlo aquí: el veredicto queda guardado, así
+    // que la luz tiene que salir de la misma fuente que al entrar en la pantalla.
+    await load()
+    return j as { ok: boolean; message?: string }
   }
 
   async function disconnectGroup(g: Group) {
@@ -339,20 +419,17 @@ export default function IntegracionesPage() {
     })
     setSavingId(null)
     if (!r.ok) return toast.error(`No se pudo desconectar ${g.title}`)
-    setVerification((prev) => {
-      const next = { ...prev }
-      delete next[g.id]
-      return next
-    })
     toast.success(`${g.title} desconectada; el histórico se ha conservado`)
     await load()
   }
 
   async function syncHistory(g: Group) {
     setSyncingId(g.id)
+    setAskHistory(null)
     try {
+      // Instagram conserva su propia ruta; el resto entra por history-sync, que es donde vive el
+      // criterio de "hasta dónde se pide" de cada proveedor.
       const direct: Record<string, string> = {
-        meta: `/api/${tenant}/evergreen/meta/sync`,
         instagram: `/api/${tenant}/evergreen/instagram/sync`,
       }
       const r = await fetch(direct[g.id] || `/api/${tenant}/evergreen/settings/integraciones/history-sync`, {
@@ -477,42 +554,63 @@ export default function IntegracionesPage() {
                 const configured = Boolean(
                   g.required?.length && g.required.every((key) => state[key]?.source !== 'none')
                 )
-                const verified = verification[g.id]
-                const status =
-                  testingId === g.id
-                    ? 'Verificando…'
-                    : verified === 'ok'
-                      ? 'Conectada'
-                      : verified === 'error'
-                        ? 'Necesita atención'
-                        : configured
-                          ? 'Configurada · verificar'
-                          : 'Sin conectar'
-                const statusClass =
-                  verified === 'ok'
-                    ? 'text-emerald-400'
-                    : verified === 'error'
-                      ? 'text-red-400'
-                      : configured
-                        ? 'text-amber-400'
-                        : 'text-muted-foreground'
+                const brand = brandFor(g.id)
+                const historia = historyFor(g.id)
+                const h = health[g.id]
+                const luz = LUZ[h?.status ?? 'sin_configurar']
+                const status = testingId === g.id ? 'Comprobando…' : (h?.headline ?? 'Sin configurar')
+                const statusClass = luz.text
+                const comprobado = haceCuanto(h?.checkedAt ?? null)
                 return (
                   <Fragment key={g.id}>
                     <button
                       type="button"
                       onClick={() => setSelectedId(g.id)}
-                      className={`group flex min-h-64 flex-col justify-between overflow-hidden rounded-2xl border border-border bg-gradient-to-br ${meta.tone} p-5 text-left transition hover:-translate-y-0.5 hover:border-foreground/20`}
+                      style={{ ['--brand' as string]: brand?.color ?? '#8b8b93' }}
+                      className="group relative isolate flex min-h-60 flex-col justify-between overflow-hidden rounded-2xl border border-border bg-card p-5 text-left transition-all duration-300 hover:border-[color:var(--brand)]/40 hover:shadow-[0_0_40px_-12px_var(--brand)]"
                     >
+                      {/* El resplandor de marca vive en una capa propia y solo sube de opacidad al
+                          pasar por encima: iluminar la tarjeta entera taparía el texto. */}
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0 -z-10 opacity-[0.07] transition-opacity duration-300 group-hover:opacity-[0.16]"
+                        style={{
+                          background: `radial-gradient(120% 80% at 85% 0%, var(--brand) 0%, transparent 60%)`,
+                        }}
+                      />
+                      {/* Marca de agua: el mismo logotipo, enorme y sangrando por la esquina. */}
+                      {brand ? (
+                        <BrandMark
+                          brand={brand}
+                          aria-hidden
+                          className="pointer-events-none absolute -right-6 -top-6 -z-10 h-40 w-40 opacity-[0.06] transition-opacity duration-300 group-hover:opacity-[0.14]"
+                        />
+                      ) : (
+                        <Icon
+                          aria-hidden
+                          className="pointer-events-none absolute -right-6 -top-6 -z-10 h-40 w-40 opacity-[0.05] transition-opacity duration-300 group-hover:opacity-[0.12]"
+                        />
+                      )}
+
                       <div>
-                        <div className="mb-8 flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-black/20">
-                          <Icon className="h-7 w-7" />
+                        <div className="mb-7 flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-black/30">
+                          {brand ? <BrandMark brand={brand} className="h-7 w-7" /> : <Icon className="h-7 w-7" />}
                         </div>
                         <h2 className="text-lg font-semibold">{g.title}</h2>
-                        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{g.description}</p>
+                        <p className="text-muted-foreground mt-2 text-sm leading-relaxed">{g.description}</p>
                       </div>
+
                       <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-4">
-                        <span className={`text-xs font-medium ${statusClass}`}>{status}</span>
-                        <span className="text-sm font-medium text-foreground group-hover:underline">Configurar</span>
+                        <span className="text-foreground inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs font-medium transition-colors group-hover:bg-white/10">
+                          <Settings2 className="h-3.5 w-3.5" />
+                          {h?.status === 'conectada' ? 'Ver' : 'Configurar'}
+                        </span>
+                        <span className="flex items-center gap-2 text-xs font-medium">
+                          {/* La luz y el texto dicen lo mismo: el color por sí solo no sirve a quien
+                              no distingue verde de rojo. */}
+                          <span className={`h-2 w-2 shrink-0 rounded-full ${luz.dot}`} aria-hidden />
+                          <span className={statusClass}>{status}</span>
+                        </span>
                       </div>
                     </button>
 
@@ -520,73 +618,140 @@ export default function IntegracionesPage() {
                       <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
                         <SheetHeader className="pr-8">
                           <div className="flex items-center gap-3">
-                            <div
-                              className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${meta.tone}`}
-                            >
-                              <Icon className="h-6 w-6" />
+                            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-black/30">
+                              {brand ? <BrandMark brand={brand} className="h-6 w-6" /> : <Icon className="h-6 w-6" />}
                             </div>
                             <div>
-                              <SheetTitle>Configurar {g.title}</SheetTitle>
-                              <p className={`text-xs font-medium ${statusClass}`}>{status}</p>
+                              <SheetTitle>{h?.status === 'conectada' ? g.title : `Configurar ${g.title}`}</SheetTitle>
+                              <p className="flex items-center gap-2 text-xs font-medium">
+                                <span className={`h-2 w-2 shrink-0 rounded-full ${luz.dot}`} aria-hidden />
+                                <span className={statusClass}>{status}</span>
+                                {comprobado ? (
+                                  <span className="text-muted-foreground font-normal">· comprobado {comprobado}</span>
+                                ) : null}
+                              </p>
                             </div>
                           </div>
                           <SheetDescription>{g.description}</SheetDescription>
                         </SheetHeader>
 
-                        <section className="my-6 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <h3 className="text-sm font-semibold">Cómo se conecta</h3>
-                            {meta.docs && (
-                              <a
-                                href={meta.docs}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-xs text-cyan-400 hover:underline"
+                        {h ? (
+                          <section
+                            className={`my-5 space-y-2 rounded-lg border p-3 text-sm ${
+                              h.status === 'conectada'
+                                ? 'border-emerald-500/30 bg-emerald-500/5'
+                                : h.status === 'error'
+                                  ? 'border-red-500/30 bg-red-500/5'
+                                  : 'border-border bg-muted/30'
+                            }`}
+                          >
+                            <p className="flex items-start gap-2">
+                              <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${luz.dot}`} aria-hidden />
+                              <span>{h.detail}</span>
+                            </p>
+                            {/* El arreglo va PEGADO al problema. Un mensaje de error sin el siguiente
+                                paso obliga a buscar en documentación de APIs, que es exactamente lo
+                                que no debería tener que hacer quien usa esto. */}
+                            {h.fix ? <p className="text-muted-foreground pl-4 text-xs">{h.fix}</p> : null}
+                            {h.missingKeys.length > 0 ? (
+                              <p className="text-muted-foreground pl-4 text-xs">Falta: {h.missingKeys.join(', ')}</p>
+                            ) : null}
+                            {h.syncs.length > 0 ? (
+                              <ul className="text-muted-foreground space-y-1 pl-4 text-xs">
+                                {h.syncs.map((sync) => (
+                                  <li key={sync.id}>
+                                    <span className={sync.status === 'ok' ? 'text-emerald-400' : ''}>{sync.label}</span>
+                                    : {sync.detail}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null}
+                            {g.test ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => void testGroup(g)}
+                                disabled={testingId === g.id}
                               >
-                                Documentación oficial <ExternalLink className="h-3 w-3" />
-                              </a>
-                            )}
-                          </div>
-                          {meta.steps.map((step, index) => (
-                            <div
-                              key={step}
-                              className="flex gap-3 rounded-lg border border-border bg-muted/30 p-3 text-sm"
-                            >
-                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
-                                {index + 1}
-                              </span>
-                              <span>{step}</span>
-                            </div>
-                          ))}
-                        </section>
+                                {testingId === g.id ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="mr-2 h-4 w-4" />
+                                )}
+                                Comprobar ahora
+                              </Button>
+                            ) : null}
+                          </section>
+                        ) : null}
 
-                        <div className="mb-5 flex flex-wrap gap-2">
-                          {['meta', 'instagram', 'calendly', 'ghl', 'fathom'].includes(g.id) && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => syncHistory(g)}
-                              disabled={syncingId === g.id || !canSyncHistory(g.id)}
-                            >
-                              {syncingId === g.id ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              ) : (
-                                <RefreshCw className="mr-2 h-4 w-4" />
+                        {/* Cuando la integración funciona, la guía de conexión es ruido: se pliega. */}
+                        <details className="my-6" open={h?.status !== 'conectada'}>
+                          <summary className="cursor-pointer text-sm font-semibold">Cómo se conecta</summary>
+                          <section className="mt-2 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <h3 className="sr-only">Cómo se conecta</h3>
+                              {meta.docs && (
+                                <a
+                                  href={meta.docs}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs text-cyan-400 hover:underline"
+                                >
+                                  Documentación oficial <ExternalLink className="h-3 w-3" />
+                                </a>
                               )}
-                              Cargar históricos
-                            </Button>
-                          )}
-                          {g.test && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => testGroup(g)}
-                              disabled={testingId === g.id}
-                            >
-                              {testingId === g.id ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Probar conexión'}
-                            </Button>
-                          )}
-                        </div>
+                            </div>
+                            {meta.steps.map((step, index) => (
+                              <div
+                                key={step}
+                                className="flex gap-3 rounded-lg border border-border bg-muted/30 p-3 text-sm"
+                              >
+                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+                                  {index + 1}
+                                </span>
+                                <span>{step}</span>
+                              </div>
+                            ))}
+                          </section>
+                        </details>
+
+                        {historia ? (
+                          <section
+                            className={`mb-5 space-y-2 rounded-lg border p-3 text-sm ${
+                              askHistory === g.id ? 'border-primary/50 bg-primary/5' : 'border-border'
+                            }`}
+                          >
+                            <p className="font-medium">
+                              {askHistory === g.id ? '¿Traemos también el pasado?' : 'Cargar histórico'}
+                            </p>
+                            {/* Qué trae y hasta dónde llega, dicho ANTES de pulsar: una carga que
+                                tarda varios minutos sin avisar parece que se ha colgado. */}
+                            <p className="text-muted-foreground text-xs">
+                              {historia.brings} {historia.reach}
+                              {historia.slow ? ' Puede tardar unos minutos.' : ''}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                variant={askHistory === g.id ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => syncHistory(g)}
+                                disabled={syncingId === g.id || !canSyncHistory(g.id)}
+                              >
+                                {syncingId === g.id ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="mr-2 h-4 w-4" />
+                                )}
+                                {syncingId === g.id ? 'Trayendo histórico…' : 'Cargar histórico'}
+                              </Button>
+                              {askHistory === g.id ? (
+                                <Button variant="ghost" size="sm" onClick={() => setAskHistory(null)}>
+                                  Ahora no
+                                </Button>
+                              ) : null}
+                            </div>
+                          </section>
+                        ) : null}
 
                         <div className="space-y-4">
                           {g.fields

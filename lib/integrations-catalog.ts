@@ -74,7 +74,14 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         placeholder: 'Vacío = todas las accesibles',
         help: 'Déjalo VACÍO para sincronizar TODAS las cuentas a las que el token tiene acceso. O lista cuentas concretas separadas por comas (con o sin prefijo act_).',
       },
-      { key: 'META_API_VERSION', label: 'Versión API', type: 'text', secret: false, placeholder: 'v21.0' },
+      {
+        key: 'META_API_VERSION',
+        label: 'Versión de la API',
+        type: 'text',
+        secret: false,
+        placeholder: 'v25.0 (recomendada)',
+        help: 'Déjalo vacío salvo que sepas lo que haces. Meta retira versiones por calendario: todas las anteriores a v24.0 están deprecadas desde junio de 2026.',
+      },
       {
         key: 'META_AD_ACCOUNTS_ALL',
         label: 'Sincronizar todas las cuentas accesibles',
