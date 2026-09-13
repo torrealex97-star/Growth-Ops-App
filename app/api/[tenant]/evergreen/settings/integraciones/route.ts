@@ -563,7 +563,7 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
     }
     if (group === 'deepseek') {
       const key = cfg.DEEPSEEK_API_KEY
-      if (!key) return NextResponse.json({ ok: false, message: 'Falta la API key de DeepSeek.' })
+      if (!key) return { ok: false, message: 'Falta la API key de DeepSeek.' }
 
       const r = await fetch('https://api.deepseek.com/models', {
         headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' },
@@ -582,18 +582,21 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
               : r.status === 429
                 ? 'DeepSeek ha limitado temporalmente las solicitudes. Inténtalo de nuevo en unos minutos.'
                 : j.error?.message || `DeepSeek respondió ${r.status}.`
-        return NextResponse.json({ ok: false, message: reason })
+        // 402 (sin saldo) tiene su propio arreglo: decirle que rote la clave sería mandarlo al sitio
+        // equivocado, porque la clave está perfecta.
+        return { ok: false, message: reason, code: r.status === 402 ? 'sin_saldo' : codeFromStatus(r.status) }
       }
 
       const configuredModel = cfg.DEEPSEEK_MODEL || 'deepseek-v4-flash'
       const models = (j.data ?? []).map((model) => model.id).filter((id): id is string => Boolean(id))
       const modelAvailable = models.length === 0 || models.includes(configuredModel)
-      return NextResponse.json({
+      return {
         ok: modelAvailable,
         message: modelAvailable
           ? `DeepSeek conectado. Modelo predeterminado: ${configuredModel}.`
           : `La conexión funciona, pero el modelo ${configuredModel} no está disponible para esta cuenta.`,
-      })
+        code: modelAvailable ? undefined : 'modelo_no_disponible',
+      }
     }
     if (group === 'youtube') {
       if (!cfg.YOUTUBE_CLIENT_ID || !cfg.YOUTUBE_CLIENT_SECRET || !cfg.YOUTUBE_REFRESH_TOKEN) {

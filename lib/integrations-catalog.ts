@@ -338,6 +338,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
       },
       {
         key: 'DEEPSEEK_MODEL',
+        advanced: true,
         label: 'Modelo predeterminado',
         type: 'text',
         secret: false,

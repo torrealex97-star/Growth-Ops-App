@@ -164,6 +164,10 @@ export const FIXES: Record<string, string> = {
     'La credencial funciona pero no ve ninguna cuenta. Da acceso a la cuenta desde el panel del proveedor y vuelve a comprobar.',
   dominio_no_verificado:
     'El dominio del remitente no está verificado, así que los correos no saldrían. Verifícalo en el panel del proveedor y vuelve a comprobar.',
+  sin_saldo:
+    'La clave es válida pero la cuenta no tiene saldo. Recarga en el panel del proveedor: no hace falta tocar la credencial.',
+  modelo_no_disponible:
+    'Borra el modelo predeterminado en opciones avanzadas para usar el de por defecto, o escribe uno al que tu cuenta sí tenga acceso.',
   version_deprecada:
     'Borra el campo "Versión de la API" para usar la que la aplicación mantiene al día. Solo hace falta fijarla a mano para probar una versión nueva.',
   red: 'No se pudo llegar a la API. Suele ser temporal: vuelve a comprobar en un minuto. Si sigue, revisa si el proveedor tiene una incidencia abierta.',
