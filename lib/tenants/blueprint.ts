@@ -94,6 +94,31 @@ export function validateTenantInput(raw: {
   return { input: { slug, name, accent } }
 }
 
+/**
+ * Roles que se pueden dar desde la pantalla de subcuentas.
+ *
+ * `super_admin` NO está, y no es un olvido: `public.is_super_admin()` comprueba si existe **alguna**
+ * fila de `tenant_members` con `role = 'super_admin'` para ese usuario, SIN filtrar por subcuenta. Es
+ * decir, dar ese rol en una sola subcuenta convierte a esa persona en super admin de TODA la
+ * plataforma, con acceso a las demás subcuentas. Ofrecerlo en un desplegable al lado de "admin" y
+ * "miembro" sería una escalada de privilegios disfrazada de permiso local.
+ */
+export const ASSIGNABLE_MEMBER_ROLES = ['admin', 'member'] as const
+export type AssignableMemberRole = (typeof ASSIGNABLE_MEMBER_ROLES)[number]
+
+export function validateMemberRole(raw: unknown): { role: AssignableMemberRole } | { error: string } {
+  if (raw === 'super_admin') {
+    return {
+      error:
+        'El rol super_admin no se puede dar desde aquí: es de plataforma, no de subcuenta, y daría acceso a todas las demás subcuentas.',
+    }
+  }
+  if (typeof raw !== 'string' || !ASSIGNABLE_MEMBER_ROLES.includes(raw as AssignableMemberRole)) {
+    return { error: `El rol tiene que ser uno de: ${ASSIGNABLE_MEMBER_ROLES.join(', ')}` }
+  }
+  return { role: raw as AssignableMemberRole }
+}
+
 /** Ajustes iniciales de la subcuenta. Solo branding: es lo único que se puede saber al crearla. */
 export function initialSettings(input: TenantInput): { branding: { name: string; accent: TenantAccent } } {
   return { branding: { name: input.name, accent: input.accent } }
@@ -118,9 +143,10 @@ export const PROVISION_STEPS: ProvisionStep[] = [
   { id: 'audit', label: 'Dejar registrada la creación en Auditoría', automatic: true },
   {
     id: 'usuarios',
-    label: 'Invitar al equipo de la subcuenta',
+    label: 'Dar acceso al equipo de la subcuenta',
     automatic: false,
-    reason: 'Hacen falta los emails y el rol de cada persona, que solo los sabes tú.',
+    reason:
+      'Hacen falta los emails y el rol de cada persona, que solo los sabes tú. Se hace desde esta misma pantalla, y el usuario tiene que existir ya en la plataforma: aquí no se crean cuentas.',
   },
   {
     id: 'productos',
