@@ -108,11 +108,11 @@ export function AgentLauncher() {
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
 
-  // Al abrir el panel los insights pasan a "vistos": el badge cuenta los que están en 'new', y sin
-  // este paso se quedaba clavado para siempre aunque ya los hubieras leído. Se mantienen en la
-  // lista de la sesión actual (solo desaparecen al recargar), para poder pulsarlos después de abrir.
+  // Los insights pasan a "vistos" solo cuando REALMENTE se han pintado, es decir, con el panel
+  // abierto y en el estado inicial de la conversación (que es donde se listan). Marcarlos al abrir
+  // sin más dejaba enterrada para siempre una anomalía crítica si abrías el chat para otra cosa.
   useEffect(() => {
-    if (!open || insights.length === 0) return
+    if (!open || insights.length === 0 || messages.length > 0) return
     const ids = insights.map((i) => i.id)
     void fetch(`/api/${tenant}/evergreen/ai/agent`, {
       method: 'PATCH',
@@ -120,7 +120,7 @@ export function AgentLauncher() {
       body: JSON.stringify({ ids }),
     }).catch(() => {})
     setUnseenCount(0)
-  }, [open, insights, tenant])
+  }, [open, insights, messages.length, tenant])
 
   const send = async (text: string) => {
     const q = text.trim()

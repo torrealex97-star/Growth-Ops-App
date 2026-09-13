@@ -20,6 +20,19 @@ export function AiEnginePanel() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState<'calls' | 'insights' | null>(null)
+  // /settings/data-health está concedida también a marketing y adscripcion, pero los dos jobs
+  // exigen admin/director: sin esto, esos roles veían botones que solo podían devolver 401.
+  const [canRun, setCanRun] = useState(false)
+
+  useEffect(() => {
+    const sb = createClient()
+    void sb.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      const { data } = await sb.from('users').select('roles(key)').eq('id', user.id).single()
+      const role = (data?.roles as { key?: string } | null)?.key
+      setCanRun(role === 'admin' || role === 'director')
+    })
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -116,7 +129,11 @@ export function AiEnginePanel() {
         </p>
       )}
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      {!canRun && (
+        <p className="mt-3 text-sm text-muted-foreground">Solo un admin o director puede lanzar estos procesos.</p>
+      )}
+
+      <div className={`mt-4 flex flex-wrap gap-2 ${canRun ? '' : 'hidden'}`}>
         <Button onClick={() => void run('calls')} disabled={running !== null || pendientes === 0}>
           {running === 'calls' ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />

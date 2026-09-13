@@ -20,7 +20,7 @@ export default function EvergreenError({ error, reset }: { error: Error & { dige
       <div aria-hidden className="pointer-events-none absolute inset-0 motion-reduce:hidden">
         <ShaderBackground className="h-full w-full" />
       </div>
-      {/* Velo algo más opaco que en el login (30%): aquí encima hay un mensaje de error que debe
+      {/* Velo al 50%, más opaco que el 30% del login: aquí encima hay un mensaje de error que debe
           leerse sin esfuerzo, incluido el bloque monoespaciado con el detalle técnico. */}
       <div className="pointer-events-none absolute inset-0 bg-background/50" />
 
