@@ -4,6 +4,10 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 import { analyzeCall } from '@/lib/ai/claude'
 
 export const runtime = 'nodejs'
+// 60s es un valor conservador, no un techo verificado: el límite efectivo depende del plan y de si
+// Fluid Compute está activo, y no he podido comprobarlo con las herramientas disponibles. Da igual
+// cuál sea: el bucle se autolimita por presupuesto de tiempo y reporta cuántas llamadas quedan, así
+// que subir este número solo haría que cada pasada avance más, nunca que se corte a medias.
 export const maxDuration = 60
 
 // Analiza llamadas con transcripción pero sin análisis estructurado y guarda el resultado en
