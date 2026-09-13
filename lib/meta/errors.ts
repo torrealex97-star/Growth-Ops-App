@@ -32,6 +32,15 @@ export function classifyMetaError(body: unknown, httpStatus?: number): MetaError
   // describe SU caso concreto.
   const detalle = error?.error_user_msg || error?.message || ''
 
+  // "Bad signature" NO es un token caducado: es un token que no valida su propia firma, y en la
+  // práctica eso significa que la cadena está incompleta o alterada — casi siempre un copiado a
+  // medias. Decir "renueva el token" manda a generar otro que se volverá a pegar mal.
+  if (/bad signature/i.test(detalle)) {
+    return {
+      code: 'token_incompleto',
+      message: 'El token está incompleto o alterado: Meta no reconoce su firma.',
+    }
+  }
   if (code === 190) {
     if (sub === 463) return { code: 'token_caducado', message: `El token de Meta ha caducado. ${detalle}`.trim() }
     if (sub === 467) return { code: 'token_invalido', message: `El token de Meta fue revocado. ${detalle}`.trim() }

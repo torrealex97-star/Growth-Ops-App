@@ -157,6 +157,8 @@ export function fixFor(code: string | undefined, groupId: string): string | unde
 export const FIXES: Record<string, string> = {
   token_invalido:
     'La credencial ya no vale: se ha caducado, rotado o revocado. Genera una nueva en el panel del proveedor, pégala aquí y vuelve a comprobar.',
+  token_incompleto:
+    'Vuelve a copiar el token ENTERO desde Meta (son más de 150 caracteres y es fácil dejarse el final) y pégalo de nuevo. Debajo del campo verás cuántos caracteres hay guardados: si son muchos menos, se cortó al pegar.',
   token_caducado: 'El token ha caducado. Genera uno que no expire (en Meta, un token de System User) y pégalo aquí.',
   sin_permisos:
     'La credencial es válida pero no tiene permisos para lo que necesitamos. Revisa los permisos en el panel del proveedor y vuelve a generarla.',

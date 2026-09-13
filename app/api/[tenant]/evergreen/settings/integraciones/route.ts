@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
-import { encryptSecret, invalidateConfigCache, getTenantConfigWithFallback } from '@/lib/config'
+import { decryptSecret, encryptSecret, invalidateConfigCache, getTenantConfigWithFallback } from '@/lib/config'
 import { ALL_FIELDS, SECRET_KEYS, isKnownKey, INTEGRATION_ONLY_GROUPS } from '@/lib/integrations-catalog'
 import { assessIntegration, SYNCS_BY_GROUP, type LastCheck } from '@/lib/integrations/health'
 import { SYNC_DEFS } from '@/lib/ops/sync-health'
@@ -80,6 +80,15 @@ async function countSyncTables(client: SupabaseClient, tenantId: string): Promis
   return out
 }
 
+/** Longitud del secreto ya descifrado. Si no se puede descifrar, no se inventa un número. */
+function decryptedLength(stored: string): number | undefined {
+  try {
+    return decryptSecret(stored).length
+  } catch {
+    return undefined
+  }
+}
+
 function mask(v: string): string {
   if (!v) return ''
   if (v.length <= 6) return '••••'
@@ -105,17 +114,23 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
     /* tabla sin migrar */
   }
 
-  const state: Record<string, { source: 'db' | 'env' | 'none'; secret: boolean; preview: string; value?: string }> = {}
+  // `length` acompaña a los secretos: una longitud NO es una credencial, y es lo único que permite
+  // ver de un vistazo que un token se pegó a medias — el fallo que Meta reporta como "Bad signature"
+  // y que la máscara ••••1234 esconde por completo.
+  const state: Record<
+    string,
+    { source: 'db' | 'env' | 'none'; secret: boolean; preview: string; value?: string; length?: number }
+  > = {}
   for (const f of ALL_FIELDS) {
     const inDb = dbRows[f.key]?.value
     const inEnv = process.env[f.key]
     if (inDb) {
       state[f.key] = f.secret
-        ? { source: 'db', secret: true, preview: '••••••' }
+        ? { source: 'db', secret: true, preview: '••••••', length: decryptedLength(inDb) }
         : { source: 'db', secret: false, preview: inDb, value: inDb }
     } else if (inEnv) {
       state[f.key] = f.secret
-        ? { source: 'env', secret: true, preview: mask(inEnv) }
+        ? { source: 'env', secret: true, preview: mask(inEnv), length: inEnv.length }
         : { source: 'env', secret: false, preview: inEnv, value: inEnv }
     } else {
       state[f.key] = { source: 'none', secret: f.secret, preview: '' }
