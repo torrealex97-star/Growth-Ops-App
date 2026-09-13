@@ -33,6 +33,8 @@ const TOOL_LABELS: Record<string, string> = {
   compareClosers: 'Comparativa de closers',
   getBusinessMemory: 'Memoria de negocio',
   recordBusinessFact: 'Hecho registrado',
+  getDataCoverage: 'Cobertura de datos',
+  getRecentInsights: 'Insights detectados',
 }
 
 // Preguntas sugeridas por pantalla (punto 87): nada de "¿cómo puedo ayudarte?" genérico.
