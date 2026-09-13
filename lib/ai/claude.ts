@@ -1,15 +1,22 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { completeText, type TextRequest } from '@/lib/ai/provider'
 
-// Cliente Claude compartido. Requiere ANTHROPIC_API_KEY.
-// maxRetries alto porque Anthropic devuelve "overloaded_error" (529) con cierta
-// frecuencia en picos de carga; el default del SDK (2) no siempre aguanta hasta
-// que se libera capacidad, y el error crudo llegaba sin más al usuario final.
-export function anthropic() {
+// Cliente Claude directo. Solo lo usa lo que NO puede ir por el motor configurable: leer facturas
+// (imágenes y PDFs), que los modelos de texto de DeepSeek no ven. Todo lo demás pasa por
+// lib/ai/provider, que respeta el motor elegido en Integraciones.
+// maxRetries alto porque Anthropic devuelve "overloaded_error" (529) con cierta frecuencia en picos
+// de carga; el default del SDK (2) no siempre aguanta hasta que se libera capacidad.
+function anthropic() {
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, maxRetries: 6 })
 }
 
 const MODEL_FAST = 'claude-haiku-4-5-20251001'
-const MODEL_SMART = 'claude-sonnet-5'
+
+/**
+ * Configuración de IA de la subcuenta. Se pasa desde la ruta, que es quien sabe de qué subcuenta es
+ * la petición. Si no se pasa, se usa el entorno global — que es lo que hacía todo esto antes.
+ */
+export type AiEnv = Record<string, string | undefined>
 
 // Extrae el primer bloque JSON del texto devuelto por el modelo.
 function parseJson<T>(text: string): T {
@@ -93,7 +100,7 @@ const CONTRACT_VARS = [
   'codigo_postal',
   'ciudad',
 ]
-export async function contractVariablesFromText(text: string): Promise<string> {
+export async function contractVariablesFromText(text: string, env?: AiEnv): Promise<string> {
   const system = `Eres un asistente que prepara PLANTILLAS de contrato para una empresa.
 Recibes el texto de un contrato y debes SUSTITUIR los datos concretos por variables entre dobles llaves, para reutilizar la plantilla con distintas personas.
 Usa EXACTAMENTE estas variables (no inventes otras):
@@ -107,17 +114,8 @@ Reglas:
 - NO añadas la sección de condiciones económicas ni firmas (se generan aparte).
 Devuelve SOLO el texto resultante, sin explicaciones ni comillas de código.`
 
-  const msg = await anthropic().messages.create({
-    model: MODEL_SMART,
-    max_tokens: 4000,
-    system,
-    messages: [{ role: 'user', content: text.slice(0, 40000) }],
-  })
-  let out = msg.content
-    .filter((b) => b.type === 'text')
-    .map((b) => (b as { text: string }).text)
-    .join('')
-    .trim()
+  const completion = await completeText({ system, user: text.slice(0, 40000), maxTokens: 4000, smart: true }, env)
+  let out = completion.text.trim()
   // Quita posibles fences de código
   out = out
     .replace(/^```[a-z]*\n?/i, '')
@@ -142,7 +140,8 @@ export type CallAnalysis = {
 // Analiza la transcripción de una llamada y devuelve valoración + etapa + tareas.
 export async function analyzeCall(
   transcript: string,
-  context?: { leadName?: string; product?: string }
+  context?: { leadName?: string; product?: string },
+  env?: AiEnv
 ): Promise<CallAnalysis> {
   const system = `Eres un sales coach experto en alto ticket.
 Analizas la transcripción de una llamada de ventas y devuelves SOLO un objeto JSON:
@@ -155,16 +154,7 @@ No inventes; si la transcripción es pobre, refléjalo en los scores.`
 
   const user = `${context?.leadName ? `Lead: ${context.leadName}\n` : ''}${context?.product ? `Producto: ${context.product}\n` : ''}Transcripción:\n"""${transcript.slice(0, 60000)}"""`
 
-  const msg = await anthropic().messages.create({
-    model: MODEL_SMART,
-    max_tokens: 1500,
-    system,
-    messages: [{ role: 'user', content: user }],
-  })
-  const text = msg.content
-    .filter((b) => b.type === 'text')
-    .map((b) => (b as { text: string }).text)
-    .join('')
+  const { text } = await completeText({ system, user, maxTokens: 1500, smart: true }, env)
   return parseJson<CallAnalysis>(text)
 }
 
@@ -181,7 +171,8 @@ export type ReelAnalysis = {
 // Analiza la transcripción de un reel y explica QUÉ lo hace funcionar.
 export async function analyzeReel(
   transcript: string,
-  context?: { caption?: string; views?: number; saves?: number; engagement?: number }
+  context?: { caption?: string; views?: number; saves?: number; engagement?: number },
+  env?: AiEnv
 ): Promise<ReelAnalysis> {
   const system = `Eres un estratega de contenido viral en Instagram para un creador de nicho de IA/negocio.
 Analizas la transcripción de un reel y devuelves SOLO un objeto JSON:
@@ -192,16 +183,7 @@ Responde en español. Sé concreto y accionable; nada de generalidades.`
     : ''
   const user = `${context?.caption ? `Caption: ${context.caption}\n` : ''}${metrics}Transcripción del reel:\n"""${transcript.slice(0, 20000)}"""`
 
-  const msg = await anthropic().messages.create({
-    model: MODEL_SMART,
-    max_tokens: 900,
-    system,
-    messages: [{ role: 'user', content: user }],
-  })
-  const text = msg.content
-    .filter((b) => b.type === 'text')
-    .map((b) => (b as { text: string }).text)
-    .join('')
+  const { text } = await completeText({ system, user, maxTokens: 900, smart: true }, env)
   return parseJson<ReelAnalysis>(text)
 }
 
@@ -228,7 +210,8 @@ export async function generateScript(
     styleBlock?: string
     /** Prueba social opcional: caso de éxito a mencionar dentro del guión. */
     testimonioBlock?: string
-  }
+  },
+  env?: AiEnv
 ): Promise<ScriptDraft> {
   const system = `Eres el guionista de reels de la marca, tono directo y con autoridad, español de España.
 
@@ -247,17 +230,14 @@ Devuelves SOLO un objeto JSON:
 Responde en español.`
   const ref = `${reference.analysis ? `Análisis del original: ${JSON.stringify(reference.analysis)}\n` : ''}${reference.caption ? `Caption original: ${reference.caption}\n` : ''}${reference.transcript ? `Transcripción original:\n"""${reference.transcript.slice(0, 12000)}"""\n` : ''}${instruction ? `\nInstrucción concreta del creador para ESTE guión: ${instruction}` : ''}`
 
-  const msg = await anthropic().messages.create({
-    model: MODEL_SMART,
-    max_tokens: 2000,
-    system,
-    messages: [
-      { role: 'user', content: ref || 'Genera un guión de reel sobre IA aplicada a negocio con nuestro hook y CTA.' },
-    ],
-  })
-  const text = msg.content
-    .filter((b) => b.type === 'text')
-    .map((b) => (b as { text: string }).text)
-    .join('')
+  const { text } = await completeText(
+    {
+      system,
+      user: ref || 'Genera un guión de reel sobre IA aplicada a negocio con nuestro hook y CTA.',
+      maxTokens: 2000,
+      smart: true,
+    },
+    env
+  )
   return parseJson<ScriptDraft>(text)
 }
