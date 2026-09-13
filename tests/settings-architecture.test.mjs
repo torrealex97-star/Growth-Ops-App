@@ -54,9 +54,21 @@ test('Integraciones usa tarjetas, panel accesible y estados no engañosos', () =
   const page = read('app/[tenant]/settings/integraciones/page.tsx')
   assert.match(page, /<Sheet/)
   assert.match(page, /Cómo se conecta/)
-  assert.match(page, /Configurada · verificar/)
-  assert.match(page, /Necesita atención/)
   assert.match(page, /datos históricos importados/)
+
+  // El estado ya NO se deduce en la pantalla a partir de "¿existe la credencial?": lo calcula el
+  // servidor comprobando contra la API de verdad. Antes había aquí un `verification` local que solo
+  // existía si habías pulsado probar en esa visita, así que al recargar todo volvía a "configurada".
+  assert.match(page, /health\[g\.id\]/, 'la tarjeta no lee el estado calculado por el servidor')
+  assert.doesNotMatch(page, /const \[verification/, 'volvió el estado local que se perdía al recargar')
+
+  // Las tres luces, y cada una con texto además del color: el color solo no vale para quien no
+  // distingue verde de rojo.
+  for (const estado of ['conectada', 'sin_configurar', 'error']) {
+    assert.match(page, new RegExp(`${estado}:`), `la pantalla no contempla el estado ${estado}`)
+  }
+  assert.match(page, /h\.detail/, 'no se pinta el motivo del estado')
+  assert.match(page, /h\.fix/, 'no se pinta cómo arreglarlo')
 })
 
 test('la asistencia vive en Notificaciones y el widget positivo ya no se sirve', () => {
