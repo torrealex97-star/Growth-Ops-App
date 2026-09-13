@@ -50,16 +50,14 @@ async function freshPdfUrl(
   return signed.data?.signedUrl ?? null
 }
 
+// Devuelve la RUTA, no una URL: el contrato firmado de un alumno lleva datos personales y firma,
+// así que el bucket es privado y la descarga va siempre por signed URL de vida corta (freshPdfUrl).
 async function uploadSignedPdf(sb: SupabaseClient, contractId: string, bytes: Uint8Array): Promise<string> {
   const path = `${contractId}.pdf`
   const body = Buffer.from(bytes)
-  let up = await sb.storage.from(BUCKET).upload(path, body, { contentType: 'application/pdf', upsert: true })
-  if (up.error && /bucket.*not.*found|not found/i.test(up.error.message)) {
-    await sb.storage.createBucket(BUCKET, { public: true })
-    up = await sb.storage.from(BUCKET).upload(path, body, { contentType: 'application/pdf', upsert: true })
-  }
+  const up = await sb.storage.from(BUCKET).upload(path, body, { contentType: 'application/pdf', upsert: true })
   if (up.error) throw new Error(`No se pudo guardar el PDF: ${up.error.message}`)
-  return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
+  return path
 }
 
 // GET — datos del contrato de alumno para la página pública de firma.

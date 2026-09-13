@@ -6,6 +6,7 @@ import { FileText, ExternalLink, ClipboardCopy } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
+import { openSignedStorageFile } from '@/lib/storage/signed-url'
 
 type Expense = {
   id: string
@@ -177,14 +178,19 @@ export default function FacturasPage() {
                       <td className="px-4 py-3 text-muted-foreground">{formatDate(e.expense_date)}</td>
                       <td className="px-4 py-3">
                         {e.invoice_url ? (
-                          <a
-                            href={e.invoice_url}
-                            target="_blank"
-                            rel="noreferrer"
+                          // El bucket es privado: se firma un enlace de vida corta al pulsar, en
+                          // vez de dejar una URL permanente en el DOM.
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void openSignedStorageFile('facturas', e.invoice_url!, (m) =>
+                                toast.error('No se pudo abrir la factura', { description: m })
+                              )
+                            }
                             className="text-xs text-brand-400 hover:text-brand-300 inline-flex items-center gap-1"
                           >
                             Ver/Descargar <ExternalLink className="w-3 h-3" />
-                          </a>
+                          </button>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}

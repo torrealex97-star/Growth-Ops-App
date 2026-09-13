@@ -47,18 +47,16 @@ async function freshPdfUrl(
   return signed.data?.signedUrl ?? null
 }
 
-// Sube el PDF firmado a Supabase Storage (bucket público, se crea si no existe)
-// y devuelve su URL pública estable.
+// Sube el PDF firmado a Storage y devuelve su RUTA (no una URL).
+// Un contrato firmado lleva nombre, DNI y firma: el bucket es privado y se sirve con signed URLs
+// de vida corta. Antes esta función creaba el bucket como público y devolvía una URL permanente,
+// lo que dejaba el PDF descargable por cualquiera que tuviera el enlace, para siempre.
 async function uploadSignedPdf(sb: SupabaseClient, contractId: string, bytes: Uint8Array): Promise<string> {
   const path = `${contractId}.pdf`
   const body = Buffer.from(bytes)
-  let up = await sb.storage.from(BUCKET).upload(path, body, { contentType: 'application/pdf', upsert: true })
-  if (up.error && /bucket.*not.*found|not found/i.test(up.error.message)) {
-    await sb.storage.createBucket(BUCKET, { public: true })
-    up = await sb.storage.from(BUCKET).upload(path, body, { contentType: 'application/pdf', upsert: true })
-  }
+  const up = await sb.storage.from(BUCKET).upload(path, body, { contentType: 'application/pdf', upsert: true })
   if (up.error) throw new Error(`No se pudo guardar el PDF: ${up.error.message}`)
-  return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
+  return path
 }
 
 // GET — datos del contrato para la página pública de firma (por token).
