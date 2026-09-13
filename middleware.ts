@@ -13,6 +13,11 @@ const PUBLIC_PATHS = [
   // leyendo el contrato por signing_token (índice UNIQUE global). El token es el mecanismo de
   // seguridad, no la subcuenta.
   '/api/public-contracts',
+  // Callback de OAuth con Google. No puede llevar la subcuenta en la ruta porque el URI de
+  // redirección se registra literalmente en Google Cloud, así que no hay tenant del que exigir
+  // sesión aquí. La ruta se autentica con el `state` FIRMADO que verifica ella misma: sin firma
+  // válida no sigue adelante. Ver lib/google/oauth-state.ts.
+  '/api/oauth/google/callback',
 ]
 
 // Sub-rutas públicas DENTRO de un tenant (no requieren sesión Supabase),

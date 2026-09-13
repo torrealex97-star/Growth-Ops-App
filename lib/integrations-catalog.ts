@@ -414,6 +414,29 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     ],
   },
   {
+    id: 'google',
+    title: 'Google (GA4 y Gmail)',
+    description: 'Credenciales del proyecto de Google Cloud. La conexión de cada servicio se autoriza aparte.',
+    category: 'marketing',
+    required: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
+    fields: [
+      {
+        key: 'GOOGLE_CLIENT_ID',
+        label: 'Client ID',
+        type: 'text',
+        secret: false,
+        help: 'Del cliente OAuth de tipo "Aplicación web". Es público por diseño.',
+      },
+      {
+        key: 'GOOGLE_CLIENT_SECRET',
+        label: 'Client Secret',
+        type: 'password',
+        secret: true,
+        help: 'Google solo lo muestra una vez. Se guarda cifrado y nunca se vuelve a mostrar en claro.',
+      },
+    ],
+  },
+  {
     id: 'negocio',
     title: 'Negocio',
     description: 'Contexto que usa la IA para generar guiones a tu estilo.',
