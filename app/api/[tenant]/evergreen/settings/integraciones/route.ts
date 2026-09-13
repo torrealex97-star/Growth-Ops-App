@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
-import { decryptSecret, encryptSecret, invalidateConfigCache, getTenantConfigWithFallback } from '@/lib/config'
+import {
+  decryptSecret,
+  encryptSecret,
+  invalidateConfigCache,
+  forgetInjectedKeys,
+  getTenantConfigWithFallback,
+} from '@/lib/config'
 import { ALL_FIELDS, SECRET_KEYS, isKnownKey, INTEGRATION_ONLY_GROUPS } from '@/lib/integrations-catalog'
 import { assessIntegration, SYNCS_BY_GROUP, type LastCheck } from '@/lib/integrations/health'
 import { SYNC_DEFS } from '@/lib/ops/sync-health'
+import { lastRunsByJob } from '@/lib/integrations/sync-runs'
 import { PG_CRON_READY, VERCEL_CRON_ROUTES } from '@/lib/ops/vercel-crons'
 import { parseAccountIds, fetchAdAccounts } from '@/lib/meta/client'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { isDeprecatedMetaVersion, META_API_VERSION } from '@/lib/meta/api-version'
 import { classifyMetaError } from '@/lib/meta/errors'
+import { stripeGet } from '@/lib/stripe/client'
 
 export const runtime = 'nodejs'
 
@@ -140,15 +148,23 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
   // sincronizaciones pueden funcionar. Es lo que decide la luz verde/gris/roja, en vez de pintar
   // "conectado" por el simple hecho de que exista un token escrito.
   const lastChecks = parseLastChecks(dbRows[HEALTH_KEY]?.value)
+  const [rowCounts, lastRuns] = await Promise.all([
+    countSyncTables(svc(), auth.tenantId),
+    // Última ejecución de cada sincronización: es lo que convierte "la tabla está vacía" en "la
+    // última sincronización falló por esto". Sin esto el panel mandaba a "revisar el último error
+    // del sync" sin que ese error se guardara en ninguna parte.
+    lastRunsByJob(svc(), auth.tenantId),
+  ])
   const facts = {
     configuredKeys: new Set(
       Object.entries(state)
         .filter(([, v]) => v.source !== 'none')
         .map(([k]) => k)
     ),
-    rowCounts: await countSyncTables(svc(), auth.tenantId),
+    rowCounts,
     vercelScheduled: VERCEL_CRON_ROUTES,
     pgCronReady: PG_CRON_READY,
+    lastRuns,
   }
   const health = INTEGRATION_ONLY_GROUPS.map((g) =>
     assessIntegration(
@@ -159,7 +175,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
 
   // `groups` son los grupos pintables en Integraciones; `state` sigue cubriendo ALL_FIELDS, así
   // que Datos de empresa puede leer IG_BUSINESS_CONTEXT/IG_BRAND_ASSETS del mismo endpoint.
-  return NextResponse.json({ encReady, groups: INTEGRATION_ONLY_GROUPS, state, health })
+  return NextResponse.json({ encReady, groups: INTEGRATION_ONLY_GROUPS, state, health, runs: lastRuns })
 }
 
 // POST — guardar cambios. body: { updates: { KEY: value } }.
@@ -221,16 +237,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const { error } = await client.from('integration_settings').upsert(rows, { onConflict: 'tenant_id,key' })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
-  if (clear.length) {
-    await client
+  // Borrar de verdad: (1) contar las filas borradas en vez de dar por hecho que se fueron —una
+  // escritura bloqueada por RLS afecta a 0 filas SIN error—, y (2) retirar el valor de process.env
+  // si lo inyectó `ensureConfig`. Sin (2), el secreto borrado seguía vivo en la memoria del proceso
+  // el resto de la vida de la lambda y la comprobación seguía fallando por el mismo motivo: era
+  // exactamente el "he borrado el App Secret y no cambia nada".
+  let cleared: string[] = []
+  const clearable = clear.filter(isKnownKey)
+  if (clearable.length) {
+    const { data: deleted, error: delErr } = await client
       .from('integration_settings')
       .delete()
       .eq('tenant_id', auth.tenantId)
-      .in('key', clear.filter(isKnownKey))
+      .in('key', clearable)
+      .select('key')
+    if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 })
+    cleared = (deleted ?? []).map((r) => (r as { key: string }).key)
   }
 
   invalidateConfigCache(auth.tenantId)
-  return NextResponse.json({ ok: true, saved: rows.length, cleared: clear.length })
+  const forgotten = clearable.length ? forgetInjectedKeys(auth.tenantId, clearable) : []
+  // Una clave que sigue en el entorno de Vercel no se puede borrar desde aquí: decirlo es lo único
+  // honesto, porque el valor seguirá usándose.
+  const enEntorno = clearable.filter((k) => !!process.env[k])
+  return NextResponse.json({
+    ok: true,
+    saved: rows.length,
+    cleared: cleared.length,
+    clearedKeys: cleared,
+    forgotten,
+    stillInEnv: enEntorno,
+  })
 }
 
 // ── Probar conexión por integración ─────────────────────────────────────────
@@ -274,6 +311,7 @@ async function listMetaAccounts(tenantId: string, tokenSinGuardar?: string): Pro
   } catch (e) {
     return NextResponse.json({
       ok: false,
+      code: (e as { code?: string }).code,
       message: `No se pudieron listar las cuentas: ${(e as Error).message}`,
     })
   }
@@ -424,10 +462,12 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
             message: `${all.length} cuenta(s) detectada(s): ${all.map((a) => a.name).join(', ')}`,
           }
         } catch (e) {
+          // El código lo pone el clasificador (lib/meta/errors.ts). Fijarlo a 'token_invalido' hacía
+          // que un rate limit o una firma mal calculada propusieran "genera un token nuevo".
           return {
             ok: false,
             message: `No se pudieron listar las cuentas: ${(e as Error).message}`,
-            code: 'token_invalido',
+            code: (e as { code?: string }).code || 'respuesta_inesperada',
           }
         }
       }
@@ -570,19 +610,25 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
     if (group === 'stripe') {
       const key = cfg.STRIPE_SECRET_KEY
       if (!key) return { ok: false, message: 'Falta la Secret Key de Stripe.' }
-      const r = await fetch('https://api.stripe.com/v1/payment_intents?limit=1', {
-        headers: {
-          Authorization: `Bearer ${key}`,
-          ...(cfg.STRIPE_ACCOUNT_ID ? { 'Stripe-Account': cfg.STRIPE_ACCOUNT_ID } : {}),
-        },
-      })
-      const j = (await r.json().catch(() => ({}))) as { data?: unknown[]; error?: { message?: string } }
-      return r.ok
-        ? {
-            ok: true,
-            message: `Stripe conectado; acceso de lectura de pagos confirmado${j.data?.length ? '.' : ' (sin pagos todavía).'}`,
-          }
-        : { ok: false, message: j.error?.message || 'No se pudo conectar con Stripe.', code: codeFromStatus(r.status) }
+      // Por `stripeGet` y no por un fetch a pelo: así esta comprobación tiene timeout (la anterior no
+      // tenía ninguno: con Stripe colgado, la pantalla se quedaba esperando) y el error llega ya
+      // traducido a una causa con arreglo en vez de en inglés para desarrolladores.
+      try {
+        const j = await stripeGet<{ data?: unknown[] }>('payment_intents', new URLSearchParams({ limit: '1' }), {
+          secretKey: key,
+          accountId: cfg.STRIPE_ACCOUNT_ID,
+        })
+        return {
+          ok: true,
+          message: `Stripe conectado; acceso de lectura de pagos confirmado${j.data?.length ? '.' : ' (sin pagos todavía).'}`,
+        }
+      } catch (e) {
+        return {
+          ok: false,
+          message: e instanceof Error ? e.message : 'No se pudo conectar con Stripe.',
+          code: (e as { code?: string }).code || 'respuesta_inesperada',
+        }
+      }
     }
     if (group === 'ghl') {
       const token = cfg.GHL_API_TOKEN

@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { getTenantConfigWithFallback } from '@/lib/config'
+import { stripeGet } from '@/lib/stripe/client'
 import { classifyForBackfill, type BackfillRow } from '@/lib/finance/stripeBackfill'
 import { buildCollection, buildSaleFromPayment, type ImportChoice } from '@/lib/finance/stripeImport'
 import type { StripeIntent } from '@/lib/finance/stripeReconciliation'
@@ -133,20 +134,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   for (const paymentId of paymentIds) {
     // Cada pago se relee de Stripe por su id: es la fuente de la verdad sobre importe y estado, y
     // así el importe escrito no puede venir manipulado desde el navegador.
-    const r = await fetch(
-      `https://api.stripe.com/v1/payment_intents/${encodeURIComponent(paymentId)}?expand[]=latest_charge`,
-      {
-        headers: {
-          Authorization: `Bearer ${key}`,
-          ...(cfg.STRIPE_ACCOUNT_ID ? { 'Stripe-Account': cfg.STRIPE_ACCOUNT_ID } : {}),
-        },
-        cache: 'no-store',
-        signal: AbortSignal.timeout(20_000),
-      }
-    )
-    const intent = (await r.json().catch(() => ({}))) as StripeIntent & { error?: { message?: string } }
-    if (!r.ok || intent.error) {
-      resultados.push({ paymentId, ok: false, motivo: intent.error?.message || `Stripe respondió ${r.status}` })
+    let intent: StripeIntent
+    try {
+      intent = await stripeGet<StripeIntent>(
+        `payment_intents/${encodeURIComponent(paymentId)}`,
+        new URLSearchParams([['expand[]', 'latest_charge']]),
+        { secretKey: key, accountId: cfg.STRIPE_ACCOUNT_ID }
+      )
+    } catch (e) {
+      resultados.push({ paymentId, ok: false, motivo: e instanceof Error ? e.message : 'Stripe no respondió' })
       continue
     }
 

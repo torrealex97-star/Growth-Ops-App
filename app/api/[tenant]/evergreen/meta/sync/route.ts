@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ensureConfig } from '@/lib/config'
+import { getTenantConfigWithFallback } from '@/lib/config'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { runMetaSync } from '@/lib/meta/sync'
+import { recordSyncRun, SyncBusyError } from '@/lib/integrations/sync-runs'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -43,11 +44,25 @@ async function handle(req: NextRequest, tenantSlug: string) {
     tenantId = t.tenantId
   }
 
-  await ensureConfig(tenantId)
+  // Config explícita (la guardada en ESTA subcuenta) en vez de volcarla a process.env: así lo que
+  // se sincroniza es lo que hay guardado, y borrar un campo surte efecto de verdad.
+  const cfg = await getTenantConfigWithFallback(tenantId, true)
   try {
-    const result = await runMetaSync(sb, tenantId)
+    const result = await recordSyncRun(
+      sb,
+      {
+        tenantId,
+        provider: 'meta',
+        job: 'meta',
+        trigger: bearerOk ? 'cron' : 'manual',
+        secrets: [cfg.META_ACCESS_TOKEN, cfg.META_APP_SECRET],
+      },
+      () => runMetaSync(sb, tenantId, cfg),
+      (r) => ({ rowsWritten: r.synced, failures: r.failures, detail: { cuentas: r.accounts } })
+    )
     return NextResponse.json(result)
   } catch (e) {
+    if (e instanceof SyncBusyError) return NextResponse.json({ error: e.message }, { status: 409 })
     const msg = e instanceof Error ? e.message : 'Error al sincronizar con Meta'
     return NextResponse.json({ error: msg }, { status: 500 })
   }

@@ -80,7 +80,10 @@ test('el catálogo declara tabla, ruta y planificador para cada sincronización'
   assert.equal(new Set(ids).size, ids.length, 'hay ids repetidos')
   for (const d of SYNC_DEFS) {
     assert.ok(d.table, `${d.id} sin tabla`)
-    assert.match(d.route, /^cron\//, `${d.id} con ruta rara`)
+    // `route` null = se dispara desde la interfaz, no hay cron. Lo que NO se admite es una ruta
+    // inventada para que una sincronización manual encaje en el catálogo.
+    if (d.route !== null) assert.match(d.route, /^cron\//, `${d.id} con ruta rara`)
+    else assert.equal(d.scheduler, 'manual', `${d.id} sin ruta pero programado`)
     assert.ok(['vercel', 'pg_cron', 'manual'].includes(d.scheduler), `${d.id} con planificador inválido`)
   }
 })
