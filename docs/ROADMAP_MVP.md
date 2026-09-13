@@ -49,9 +49,9 @@ Leyenda: ✅ hecho · 🚧 en curso · ⛔ bloqueado por el usuario · ⬜ pendi
 | E   | Sección Funnels con lo que ya hay en base     | ⬜     | MVP sin GA4: VSL, Webinar y Profile ya tienen datos        |
 | F   | CRM → Agenda, detalle de cita legible, Fathom | ⬜     | Mejora diaria, barata                                      |
 | D   | GA4 (OAuth multi-tenant)                      | ⛔     | Bloqueada: hay que crear el proyecto de Google Cloud       |
-| G   | Banco de testimonios y de grabaciones         | ⬜     | Replanteada — ver §3.3                                     |
+| G   | Banco de testimonios y de grabaciones         | ✅     | Grabaciones hechas; testimonios ya existía (§3.3)          |
 | H   | Facturas por email (**solo Gmail**)           | ⬜     | También necesita el proyecto de Google Cloud               |
-| I   | Backfill de Stripe y diagnóstico de Meta      | ⬜     | Empieza por dry-run, sin escribir                          |
+| I   | Backfill de Stripe y diagnóstico de Meta      | ⬜     | **Siguiente**                                              |
 | J   | Aprovisionamiento                             | ⬜     | Al final: el blueprint solo puede incluir lo que ya existe |
 
 **Por qué este orden y no el del plan original:** D (GA4) estaba antes de E (UI de Funnels), pero

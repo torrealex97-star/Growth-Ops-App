@@ -129,6 +129,7 @@ export const NAV_PAGES: { href: string; label: string; dept: Department }[] = [
   { href: '/recursos/enlaces', label: 'Recursos de venta · Enlaces', dept: 'ventas' },
   { href: '/recursos/biblioteca', label: 'Recursos de venta · Biblioteca', dept: 'ventas' },
   { href: '/recursos/testimonios', label: 'Recursos de venta · Testimonios', dept: 'ventas' },
+  { href: '/recursos/grabaciones', label: 'Recursos de venta · Grabaciones', dept: 'ventas' },
   { href: '/recursos/contratos-producto', label: 'Recursos de venta · Contratos de producto', dept: 'ventas' },
   { href: '/funnels', label: 'Funnels', dept: 'marketing' },
   { href: '/marketing/adquisicion/campanas', label: 'Adquisición · Campañas', dept: 'marketing' },
