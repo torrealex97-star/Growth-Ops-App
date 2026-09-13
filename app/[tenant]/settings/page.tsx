@@ -11,6 +11,7 @@ import {
   ChevronRight,
   TrendingUp,
   Plug,
+  Handshake,
 } from 'lucide-react'
 import { useTenant } from '@/lib/tenant-context'
 import { SettingsNav } from '@/components/settings/SettingsNav'
@@ -79,6 +80,14 @@ const SETTINGS_CARDS = [
     href: '/settings/afiliados',
     color: 'text-brand-400',
     bg: 'bg-brand-500/10',
+  },
+  {
+    title: 'Socios y reparto de beneficios',
+    description: 'Gestiona los socios de la cuenta y su % de participación',
+    icon: Handshake,
+    href: '/settings/socios',
+    color: 'text-amber-400',
+    bg: 'bg-amber-500/10',
   },
 ]
 

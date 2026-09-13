@@ -103,19 +103,21 @@ export function CommissionInvoicePanel({
     try {
       const ext = file.name.split('.').pop() || 'pdf'
       const stamp = `${Date.now()}`
-      const path = `comisiones/${currentUserId}/${period.slice(0, 7)}-${stamp}.${ext}`
+      // Prefijo tenant_id/: es lo que permite que una política de Storage compruebe pertenencia a
+      // la subcuenta a partir de la propia ruta del objeto.
+      const path = `${tenantId}/comisiones/${currentUserId}/${period.slice(0, 7)}-${stamp}.${ext}`
       const { error: upErr } = await supabase.storage.from('facturas').upload(path, file, { upsert: true })
       if (upErr) {
         toast.error('No se pudo subir la factura', { description: upErr.message })
         return
       }
-      const { data: pub } = supabase.storage.from('facturas').getPublicUrl(path)
       const { error: dbErr } = await supabase.from('commission_invoices').upsert(
         {
           tenant_id: tenantId,
           user_id: currentUserId,
           period_month: period,
-          invoice_url: pub.publicUrl,
+          // Se guarda la RUTA del objeto, no una URL pública: la descarga se firma al abrirla.
+          invoice_url: path,
           amount: amount.trim() ? parseFloat(amount) : null,
           status: 'recibida',
         },

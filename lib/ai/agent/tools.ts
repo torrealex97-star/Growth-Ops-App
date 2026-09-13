@@ -26,6 +26,108 @@ const inPeriod = (dateStr: string | null, p: Period): boolean => {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// getDataCoverage — qué fuentes tienen datos cargados y desde cuándo. Existe porque un 0 de una
+// tabla VACÍA y un 0 medido significan cosas opuestas para el negocio: "no vendiste nada este mes"
+// es un problema comercial, "no hay ninguna venta cargada en el sistema" es un problema de
+// integración. Sin esta señal el agente presentaría lo segundo como lo primero.
+// ─────────────────────────────────────────────────────────────────────────────
+// filas = null significa "no se pudo leer", que NO es lo mismo que 0 ("vacía"). Confundirlos aquí
+// reproduciría justo el error que esta tool existe para evitar.
+export type SourceCoverage = {
+  fuente: string
+  filas: number | null
+  desde: string | null
+  hasta: string | null
+  error?: string
+}
+
+const SOURCES: Array<{ fuente: string; table: string; dateColumn: string }> = [
+  { fuente: 'ventas', table: 'sales', dateColumn: 'sale_date' },
+  { fuente: 'campañas / ads', table: 'campaigns', dateColumn: 'start_date' },
+  { fuente: 'cobros', table: 'collections', dateColumn: 'collected_at' },
+  { fuente: 'contactos', table: 'contacts', dateColumn: 'created_at' },
+  { fuente: 'citas', table: 'appointments', dateColumn: 'appointment_datetime' },
+  { fuente: 'atribución de contactos', table: 'contact_attributions', dateColumn: 'created_at' },
+]
+
+export async function getDataCoverage({ tenantId, sb }: ToolContext): Promise<{
+  fuentes: SourceCoverage[]
+  fuentes_vacias: string[]
+  fuentes_no_legibles: string[]
+}> {
+  const results = await Promise.all(
+    SOURCES.map(async (s): Promise<SourceCoverage> => {
+      // Las consultas de rango excluyen NULL en la columna de fecha: con ORDER BY DESC, Postgres
+      // pone los NULL primero, así que una sola fila sin fecha dejaba "hasta" vacío aunque la
+      // fuente estuviera completa.
+      const [{ count, error: countError }, { data: first }, { data: last }] = await Promise.all([
+        sb.from(s.table).select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+        sb
+          .from(s.table)
+          .select(s.dateColumn)
+          .eq('tenant_id', tenantId)
+          .not(s.dateColumn, 'is', null)
+          .order(s.dateColumn, { ascending: true })
+          .limit(1),
+        sb
+          .from(s.table)
+          .select(s.dateColumn)
+          .eq('tenant_id', tenantId)
+          .not(s.dateColumn, 'is', null)
+          .order(s.dateColumn, { ascending: false })
+          .limit(1),
+      ])
+      if (countError) {
+        return { fuente: s.fuente, filas: null, desde: null, hasta: null, error: countError.message }
+      }
+      const pick = (rows: unknown): string | null => {
+        const row = Array.isArray(rows) ? (rows[0] as Record<string, unknown> | undefined) : undefined
+        const v = row?.[s.dateColumn]
+        return typeof v === 'string' ? v.slice(0, 10) : null
+      }
+      return { fuente: s.fuente, filas: count ?? 0, desde: pick(first), hasta: pick(last) }
+    })
+  )
+  return {
+    fuentes: results,
+    fuentes_vacias: results.filter((r) => r.filas === 0).map((r) => r.fuente),
+    fuentes_no_legibles: results.filter((r) => r.filas === null).map((r) => r.fuente),
+  }
+}
+
+// Aviso compacto para incrustar en las respuestas de las tools de métricas: si la tabla que
+// alimenta la métrica no tiene NI UNA fila, el 0 no es una medición. Un fallo de lectura se
+// reporta aparte: dar por "vacía" una tabla que no se pudo consultar sería una alarma falsa.
+async function emptySourceWarning(
+  { tenantId, sb }: ToolContext,
+  sources: Array<{ label: string; table: string }>
+): Promise<string | null> {
+  const counts = await Promise.all(
+    sources.map(async (s) => {
+      const { count, error } = await sb
+        .from(s.table)
+        .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
+      return { label: s.label, empty: !error && (count ?? 0) === 0, unreadable: !!error }
+    })
+  )
+  const empty = counts.filter((c) => c.empty).map((c) => c.label)
+  const unreadable = counts.filter((c) => c.unreadable).map((c) => c.label)
+  const parts: string[] = []
+  if (empty.length > 0) {
+    parts.push(
+      `SIN DATOS CARGADOS en: ${empty.join(', ')}. Los ceros de estas métricas NO son una medición del negocio: esa fuente está vacía (nunca se ha sincronizado o se vació). Dilo explícitamente y no lo presentes como un resultado comercial.`
+    )
+  }
+  if (unreadable.length > 0) {
+    parts.push(
+      `NO SE PUDO CONSULTAR: ${unreadable.join(', ')}. No afirmes que están vacías ni uses sus cifras: avisa de que la consulta falló.`
+    )
+  }
+  return parts.length > 0 ? parts.join(' ') : null
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // getBusinessOverview — resumen ejecutivo rápido: inversión, leads, ventas, ingresos del periodo.
 // Primera parada para preguntas tipo "¿qué ha cambiado?" / "resumen del negocio".
 // ─────────────────────────────────────────────────────────────────────────────
@@ -49,6 +151,11 @@ export async function getBusinessOverview({ tenantId, sb }: ToolContext, period:
   const activeSales = (sales || []).filter((s) => isActiveSale(s as { status: string }))
   const revenue = activeSales.reduce((sum, s) => sum + (s.gross_amount || 0), 0)
 
+  const aviso = await emptySourceWarning({ tenantId, sb }, [
+    { label: 'ventas', table: 'sales' },
+    { label: 'campañas / ads', table: 'campaigns' },
+  ])
+
   return {
     period,
     inversion: funnel.inversion,
@@ -60,6 +167,7 @@ export async function getBusinessOverview({ tenantId, sb }: ToolContext, period:
     ingresos: revenue,
     total_contactos: contacts?.length ?? null,
     campanas_activas: periodCampaigns.filter((c) => c.status === 'activa').length,
+    ...(aviso ? { aviso_datos: aviso } : {}),
   }
 }
 
@@ -67,12 +175,19 @@ export async function getBusinessOverview({ tenantId, sb }: ToolContext, period:
 // getFunnel — embudo de ads completo (mismas fórmulas que la pantalla de Campañas:
 // lib/ads/funnel.ts), para no calcular métricas "a mano" en el LLM.
 // ─────────────────────────────────────────────────────────────────────────────
-export async function getFunnel({ tenantId, sb }: ToolContext, period: Period): Promise<AdFunnel> {
+export async function getFunnel(
+  { tenantId, sb }: ToolContext,
+  period: Period
+): Promise<AdFunnel & { aviso_datos?: string }> {
   const { data } = await sb.from('campaigns').select('*').eq('tenant_id', tenantId).limit(500)
   const campaigns = ((data as Campaign[]) || []).filter(
     (c) => !period.from || !c.start_date || inPeriod(c.start_date, period)
   )
-  return computeAdFunnel(campaigns)
+  const funnel = computeAdFunnel(campaigns)
+  // El funnel entero se alimenta de campaigns: si esa tabla está vacía, TODO lo de abajo es 0/null
+  // por falta de datos, no porque el funnel vaya mal.
+  const aviso = await emptySourceWarning({ tenantId, sb }, [{ label: 'campañas / ads', table: 'campaigns' }])
+  return aviso ? { ...funnel, aviso_datos: aviso } : funnel
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -66,6 +66,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     input: Record<string, unknown>
     success: boolean
     result_summary: string
+    latency_ms: number
   }> = []
   let turn
   try {
@@ -76,8 +77,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       sb,
       history,
       screen: body.screen,
-      onToolCall: (name, input, success, summary) => {
-        toolCallLogs.push({ tool_name: name, input, success, result_summary: summary })
+      onToolCall: (name, input, success, summary, latencyMs) => {
+        toolCallLogs.push({ tool_name: name, input, success, result_summary: summary, latency_ms: latencyMs })
       },
     })
   } catch (e) {
@@ -92,6 +93,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       role: 'assistant',
       content: turn.text,
       evidence: turn.evidence,
+      model: turn.usage.model,
+      input_tokens: turn.usage.inputTokens,
+      output_tokens: turn.usage.outputTokens,
+      cache_read_tokens: turn.usage.cacheReadTokens,
+      cache_write_tokens: turn.usage.cacheWriteTokens,
+      cost_usd: turn.usage.costUsd,
+      latency_ms: turn.usage.latencyMs,
     })
     .select('id')
     .single()
@@ -107,11 +115,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         input: t.input,
         success: t.success,
         result_summary: t.result_summary,
+        latency_ms: t.latency_ms,
       }))
     )
   }
 
   return NextResponse.json({ conversationId, message: turn.text, evidence: turn.evidence })
+}
+
+// Marca insights como vistos. Sin esto el contador del launcher se quedaba clavado para siempre:
+// el badge lee status='new' y nada lo hacía avanzar nunca, así que una vez detectada una anomalía
+// el aviso no se podía quitar ni tras leerlo.
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params
+  const auth = await requireTenant(tenant)
+  if ('error' in auth) return auth.error
+
+  const body = (await req.json().catch(() => ({}))) as { ids?: string[]; status?: string }
+  const ids = Array.isArray(body.ids) ? body.ids.filter((id) => typeof id === 'string').slice(0, 50) : []
+  const status = body.status === 'acknowledged' ? 'acknowledged' : 'seen'
+  if (ids.length === 0) return NextResponse.json({ error: 'Faltan los ids de los insights' }, { status: 400 })
+
+  const sb = await createClient()
+  // .select() para devolver lo que de verdad cambió: un UPDATE bloqueado por RLS, o sobre insights
+  // que ya no están en 'new', afecta a 0 filas sin dar error. Informar de ids.length haría creer
+  // al cliente que se marcaron avisos que siguen intactos.
+  const { data, error } = await sb
+    .from('ai_insights')
+    .update({ status })
+    .eq('tenant_id', auth.tenantId)
+    .in('id', ids)
+    .eq('status', 'new')
+    .select('id')
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true, updated: data?.length ?? 0, ids: data?.map((r) => r.id) ?? [], status })
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
