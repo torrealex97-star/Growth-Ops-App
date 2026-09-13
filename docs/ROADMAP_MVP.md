@@ -50,7 +50,7 @@ Leyenda: ✅ hecho · 🚧 en curso · ⛔ bloqueado por el usuario · ⬜ pendi
 | F   | CRM → Agenda, detalle de cita legible, Fathom | ⬜     | Mejora diaria, barata                                      |
 | D   | GA4 (OAuth multi-tenant)                      | ✅     | OAuth + sync + enganchado a Funnels                        |
 | G   | Banco de testimonios y de grabaciones         | ✅     | Grabaciones hechas; testimonios ya existía (§3.3)          |
-| H   | Facturas por email (**solo Gmail**)           | ⬜     | **Siguiente.** Reutiliza el OAuth ya hecho                 |
+| H   | Facturas por email (**solo Gmail**)           | ✅     | Importa y deja en pendiente_validacion                     |
 | I   | Backfill de Stripe y diagnóstico de Meta      | ⬜     | **Siguiente**                                              |
 | J   | Aprovisionamiento                             | ⬜     | Al final: el blueprint solo puede incluir lo que ya existe |
 
