@@ -1,8 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { getTenantConfig } from '@/lib/config'
 import { computeFunnel } from '@/lib/funnels/compute'
 import { FUNNEL_FAMILIES, type FunnelFamily } from '@/lib/funnels/definitions'
+import { EVENT_MAP_KEY, parseEventMap } from '@/lib/funnels/event-map'
 import { loadFunnelCounts } from '@/lib/funnels/queries'
 
 export const runtime = 'nodejs'
@@ -40,12 +42,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   })
 
   try {
-    // `to` se extiende al final del día: appointment_datetime es timestamptz, y comparar contra la
-    // fecha desnuda dejaría fuera todo lo del último día salvo la medianoche exacta.
-    const { counts, inversion } = await loadFunnelCounts(sb, session.tenantId, family, {
-      from,
-      to: `${to}T23:59:59.999Z`,
-    })
+    // El mapeo de eventos se lee de la config de ESTA subcuenta (getTenantConfig, no el que hace
+    // fallback a process.env): una variable de entorno global mapearía los eventos de todas las
+    // subcuentas a la vez, que es justo lo que no debe pasar.
+    const cfg = await getTenantConfig(session.tenantId)
+    const eventMap = parseEventMap(cfg[EVENT_MAP_KEY])
+
+    const { counts, inversion } = await loadFunnelCounts(
+      sb,
+      session.tenantId,
+      family,
+      // `to` se extiende al final del día: appointment_datetime es timestamptz, y comparar contra
+      // la fecha desnuda dejaría fuera todo lo del último día salvo la medianoche exacta.
+      { from, to: `${to}T23:59:59.999Z` },
+      eventMap
+    )
     return NextResponse.json({ ...computeFunnel({ family, counts, inversion }), range: { from, to } })
   } catch (e) {
     return NextResponse.json(

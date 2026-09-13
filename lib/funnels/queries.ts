@@ -7,6 +7,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { ACTIVE_SALE_STATUSES } from '@/lib/analytics'
 import { type FunnelFamily, stagesOf } from '@/lib/funnels/definitions'
+import { type EventMap, namesFor } from '@/lib/funnels/event-map'
 import { fromCount, noConfigurada, type MetricValue } from '@/lib/funnels/types'
 
 export type DateRange = { from: string; to: string } // ISO, inclusivo por fecha
@@ -142,6 +143,19 @@ async function ga4Stages(sb: SupabaseClient, tenantId: string, range: DateRange)
   return { sesiones: fromCount(total, 'ga4', { lastSync: c.last_sync_at }) }
 }
 
+// ── Etapas de tracking propio (landing/VSL): solo con el mapeo de la subcuenta ─
+//
+// `canonical_events.event_name` es texto libre. Sin un mapeo explícito de qué nombre de evento
+// corresponde a cada etapa, esto NO cuenta nada: ni 0 ni una suposición. Con mapeo, cuenta las filas
+// cuyo event_name está en la lista que eligió el usuario.
+async function vslStage(sb: SupabaseClient, tenantId: string, range: DateRange, names: string[]): Promise<MetricValue> {
+  const { rows, error } = await countRows(sb, 'canonical_events', tenantId, 'occurred_at', range, {
+    column: 'event_name',
+    in: names,
+  })
+  return fromCount(rows, 'vsl', { error })
+}
+
 // ── Fuentes que todavía no pueden alimentar una etapa, y por qué ────────────
 // Se nombran con precisión para que la UI diga qué hay que configurar. Un texto genérico obligaría
 // al usuario a adivinar si es un fallo suyo, nuestro o de la integración.
@@ -159,7 +173,10 @@ export async function loadFunnelCounts(
   sb: SupabaseClient,
   tenantId: string,
   family: FunnelFamily,
-  range: DateRange
+  range: DateRange,
+  // Mapeo de etapa → nombres de evento de esta subcuenta. Vacío por defecto: sin mapeo, las etapas
+  // de tracking siguen saliendo como 'no_configurada', que es la verdad.
+  eventMap: EventMap = {}
 ): Promise<{ counts: Record<string, MetricValue>; inversion: number | null }> {
   const stages = stagesOf(family)
   const needsCrm = stages.some((s) => s.source === 'crm')
@@ -203,6 +220,12 @@ export async function loadFunnelCounts(
           'meta',
           `Meta no expone "${stage.label}" en las columnas que se sincronizan hoy.`
         )
+      continue
+    }
+    if (stage.source === 'vsl') {
+      const names = namesFor(eventMap, family, stage.id)
+      counts[stage.id] =
+        names.length > 0 ? await vslStage(sb, tenantId, range, names) : noConfigurada('vsl', NOT_READY.vsl)
       continue
     }
     counts[stage.id] = noConfigurada(stage.source, NOT_READY[stage.source] ?? 'Fuente sin configurar.')
