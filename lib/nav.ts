@@ -324,7 +324,9 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Sugerencias', href: '/settings/sugerencias', icon: Lightbulb, roles: ['admin', 'director'] },
       { label: 'Actividad', href: '/actividad', icon: Activity, roles: ['admin', 'director'] },
-      { label: 'Auditoría', href: '/audit', icon: Shield, roles: ['admin', 'director'] },
+      // Auditoría baja de primer nivel a Configuración: es la única trazabilidad de quién tocó un
+      // dato financiero (no se borra), pero es una pantalla de consulta puntual y solo para
+      // admin/director — no merecía un hueco permanente en la navegación principal.
       {
         label: 'Configuración',
         href: '/settings',
@@ -350,6 +352,7 @@ export const NAV_SECTIONS: NavSection[] = [
           },
           { label: 'Integraciones', href: '/settings/integraciones', icon: Plug, roles: ['admin'] },
           { label: 'Formularios KPI', href: '/kpi/templates', icon: FileText, roles: ['admin', 'director'] },
+          { label: 'Auditoría', href: '/audit', icon: Shield, roles: ['admin', 'director'] },
         ],
       },
     ],
