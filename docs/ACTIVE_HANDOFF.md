@@ -2,6 +2,34 @@
 
 Última actualización: 2026-09-12 (Claude Code)
 
+## Estado canónico (2026-09-13)
+
+- **PR #30 ABIERTO y NO fusionable todavía.** Rama activa: `claude/financial-constraints-handoff`.
+- **PR #29 ya fusionado** en `main` (`b6809b5`).
+- Trabajo en curso sobre los P0/P1 de la revisión de #30. Ver "Pendientes bloqueantes" al final.
+
+### Corrección de una afirmación errónea que estaba en este documento
+
+Se afirmó aquí y en varios commits que **el plan Hobby de Vercel "solo permite 3 crons"** y que por
+eso no se registraban los dos jobs de IA. **Eso era falso** y llevó a construir un panel manual como
+sustituto de algo que sí se podía programar. Los dos jobs ya están en `vercel.json` con horarios
+separados (04:00 y 05:00 UTC).
+
+Lo que sí está verificado del proyecto real, y lo que no:
+
+| Dato                                  | Estado                                                              |
+| ------------------------------------- | ------------------------------------------------------------------- |
+| Plan del equipo                       | VERIFICADO: `hobby` (vía `list_teams`)                              |
+| Logs de runtime (24h)                 | VERIFICADO: 99× 200 y 1× 502. **Ningún 504** entre los principales  |
+| Nº máximo de crons del plan           | NO VERIFICADO — las herramientas de doc no devuelven esa tabla      |
+| Fluid Compute activo/inactivo         | NO VERIFICADO — no expuesto por las herramientas disponibles        |
+| Límite efectivo de `maxDuration`      | NO VERIFICADO — 60s es un valor conservador, no un techo medido     |
+| `CRON_SECRET` en Production y Preview | NO VERIFICADO — no hay herramienta para listar variables de entorno |
+
+`maxDuration` se deja en 60s por prudencia: el bucle se autolimita por presupuesto de tiempo y
+reporta cuántas llamadas quedan, así que un techo mayor solo haría que cada pasada avance más,
+nunca que se corte a medias.
+
 ## Estado canónico
 
 - Rama fuente de verdad: `main`
@@ -49,7 +77,7 @@
    - **Bug real corregido**: el badge de insights del launcher contaba los de `status='new'` y nada los marcaba nunca como vistos → el aviso se quedaba clavado para siempre. Nuevo `PATCH` en la ruta del agente + marcado al abrir el panel.
    - **Tracking de coste, que no existía**: migración `ai_usage_tracking` (aplicada en Supabase real) añade modelo, tokens de entrada/salida/caché, `cost_usd` y `latency_ms` a `ai_messages`, y ahora sí se rellena `ai_tool_calls.latency_ms`. Tarifas centralizadas en `lib/ai/pricing.ts` (Sonnet 5 $2/$10, Haiku 4.5 $1/$5 por millón, verificadas en la doc oficial); `cost_usd` queda NULL si el modelo no está tarifado, en vez de falsear un 0.
    - **NO verificado** (sin navegador ni credenciales reales en la sesión): respuestas del agente end-to-end, aislamiento cruzado WDC↔Evergreen con dos sesiones reales, UI en móvil, accesibilidad, y fallback de proveedor. `.env.local` del repo son **placeholders** (`placeholder.supabase.co`), no credenciales: el acceso real a producción desde la sesión es solo SQL vía MCP.
-   - **Bloqueado por credenciales, no por código**: RAG/Knowledge Base necesita un proveedor de *embeddings* (Anthropic no ofrece embeddings API; no hay claves de Voyage/OpenAI en el proyecto) y el Model Router multi-proveedor necesita más de un proveedor configurado. Mientras eso no exista, media fase 3 no se puede construir de forma honesta.
+   - **Bloqueado por credenciales, no por código**: RAG/Knowledge Base necesita un proveedor de _embeddings_ (Anthropic no ofrece embeddings API; no hay claves de Voyage/OpenAI en el proyecto) y el Model Router multi-proveedor necesita más de un proveedor configurado. Mientras eso no exista, media fase 3 no se puede construir de forma honesta.
 
 ## Bloqueo actual (lo único que impide terminar el backfill de Stripe)
 
@@ -60,24 +88,28 @@ Los dos endpoints que faltan ejecutar (`POST .../settings/integraciones/stripe-c
 1. Un admin/director de `women-digital-closer`, logueado en `https://growth-ops-weld.vercel.app/women-digital-closer/...`, abre la consola del navegador y ejecuta, en este orden:
    ```js
    // 1) Sincroniza clientes de Stripe (rellena stripe_customers)
-   await fetch('/api/women-digital-closer/evergreen/settings/integraciones/stripe-customers', { method: 'POST' }).then(r => r.json())
+   await fetch('/api/women-digital-closer/evergreen/settings/integraciones/stripe-customers', { method: 'POST' }).then(
+     (r) => r.json()
+   )
 
    // 2) Preview del backfill (dryRun por defecto — no escribe nada)
    await fetch('/api/women-digital-closer/evergreen/admin/backfill-stripe-sales', {
-     method: 'POST', headers: { 'Content-Type': 'application/json' },
+     method: 'POST',
+     headers: { 'Content-Type': 'application/json' },
      body: JSON.stringify({ ownerEmail: 'closer@ejemplo.com', dryRun: true }),
-   }).then(r => r.json())
+   }).then((r) => r.json())
 
    // 3) Solo si el preview del paso 2 es correcto: ejecuta de verdad
    await fetch('/api/women-digital-closer/evergreen/admin/backfill-stripe-sales', {
-     method: 'POST', headers: { 'Content-Type': 'application/json' },
+     method: 'POST',
+     headers: { 'Content-Type': 'application/json' },
      body: JSON.stringify({ ownerEmail: 'closer@ejemplo.com', dryRun: false }),
-   }).then(r => r.json())
+   }).then((r) => r.json())
    ```
 2. ~~Confirmar `drop_partners`~~ — hecho: ejecutado y la funcionalidad de socios recreada (punto 7 arriba). Falta: confirmar CI de PR #30 en verde y mergear cuando el usuario lo indique.
 3. ~~Verificar en detalle el resto del drift de RLS~~ — **HECHO y PASS**. Verificado por SQL contra la base real, no por nombre de migración: de TODAS las tablas con `tenant_id`, ninguna tiene RLS desactivada y ninguna carece de política de aislamiento por tenant salvo `tenant_members`, que es correcta por diseño (no puede usar `auth_tenant_ids()` porque esa función lee de ella misma — recursión infinita; su escritura exige `is_tenant_admin(tenant_id)` en `USING` **y** `WITH CHECK`, así que no hay camino de auto-escalada a otro tenant, y el `SELECT` es `user_id = auth.uid() OR is_tenant_admin(tenant_id)`). Además: 0 filas con `tenant_id` NULL en las 8 tablas de negocio core (`contacts`, `sales`, `appointments`, `campaigns`, `collections`, `commissions`, `expenses`, `contact_attributions`). El multi-tenant se puede declarar cerrado a nivel de RLS.
 4. ~~Auditoría de atribución a nivel de `campaign_ads`~~ — **no hay nada que auditar todavía**: `campaign_ads` tiene 0 filas. Ver el punto siguiente.
-4b. **BLOQUEANTE DE PRODUCTO (no de código): media base de datos está vacía.** Recuento real: `contacts` 943, `appointments` 555 (62 con transcripción) — pero `sales` 0, `collections` 0, `campaigns` 0, `contact_attributions` 0, `campaign_ads` 0, `campaign_daily` 0. Consecuencias medidas, no teóricas:
+   4b. **BLOQUEANTE DE PRODUCTO (no de código): media base de datos está vacía.** Recuento real: `contacts` 943, `appointments` 555 (62 con transcripción) — pero `sales` 0, `collections` 0, `campaigns` 0, `contact_attributions` 0, `campaign_ads` 0, `campaign_daily` 0. Consecuencias medidas, no teóricas:
    - Todas las preguntas de dinero al agente (ingresos, ROAS, CAC, CPL, rendimiento por campaña, close rate) no tienen datos detrás. Mitigado en código para que no mienta (tool `getDataCoverage` + `aviso_datos` + regla de system prompt: un 0 de fuente vacía nunca se presenta como resultado del negocio), pero el dato sigue sin existir.
    - `detectAnomalies` NO puede generar ningún insight: cada umbral necesita CAC/ROAS/show rate/close rate, y todos derivan de `campaigns` y `sales`. Con ambas vacías, siempre devuelve 0 anomalías. Por eso `ai_insights` está vacía — no es un fallo del detector.
    - Lo que desbloquea esto es exactamente el backfill de Stripe (puebla `sales`/`collections`) y la sincronización de Meta Ads (puebla `campaigns`). Hasta entonces, el agente solo puede responder de verdad sobre contactos, citas y transcripciones.
@@ -88,3 +120,19 @@ Los dos endpoints que faltan ejecutar (`POST .../settings/integraciones/stripe-c
 ## Regla de continuidad
 
 Si existe un único PR o rama activa, continuar allí. No crear una segunda rama. Si el trabajo está validado, fusionarlo a `main`, verificar CI/despliegue y eliminar la rama antes de cerrar la sesión. Al cierre de esta sesión no queda ninguna rama `claude/*` activa sin fusionar.
+
+## Pendientes bloqueantes de PR #30 (2026-09-13)
+
+Requieren acción tuya, no son cosas que pueda cerrar solo:
+
+1. **Aplicar dos migraciones nuevas** (el MCP de Supabase pide reautenticación, no he podido):
+   - `20260913100000_storage_tenant_policies.sql` — buckets privados + políticas por `tenant_id/`.
+   - `20260913110000_partners_profit_guard.sql` — trigger del 100% + `WITH CHECK` explícito.
+2. **Reparar el historial de migraciones** — plan completo y verificado en
+   `docs/MIGRATION_RECONCILIATION.md`. No ejecutado: espera confirmación explícita.
+3. **Decidir sobre el shader WebGL**: separarlo a su propio PR, o mantenerlo aquí añadiendo
+   fallback sin WebGL, control real de reduced-motion y pruebas en iOS/Safari/móvil.
+
+Pendiente de trabajo mío, no bloqueado: el aprovisionador de subcuentas en un clic
+(`/platform/tenants` + `POST /api/platform/tenants` + blueprint versionado), que va en **PR aparte**
+una vez cerrados los P0 de #30.

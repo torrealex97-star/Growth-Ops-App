@@ -103,8 +103,8 @@ export function AiEnginePanel() {
             <h2 className="text-sm font-semibold text-foreground">Motor de IA</h2>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Alimenta las respuestas del agente sobre objeciones, closers y anomalías. Estos dos procesos no están
-            programados automáticamente todavía: ejecútalos aquí cuando quieras actualizar los datos.
+            Alimenta las respuestas del agente sobre objeciones, closers y anomalías. Se ejecutan solos una vez al día;
+            desde aquí puedes lanzarlos a mano para esta subcuenta sin esperar.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
