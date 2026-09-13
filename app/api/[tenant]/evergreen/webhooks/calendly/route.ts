@@ -149,10 +149,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         const m = String(a).match(/\d{1,3}/)
         if (m) ageFromForm = parseInt(m[0], 10)
       }
-      // Auto-registro de la pregunta (idempotente por slug)
-      await sb
+      // Auto-registro de la pregunta, idempotente por (tenant_id, slug).
+      //
+      // Esto llevaba roto desde la migración multi-tenant y fallando EN SILENCIO: el upsert no
+      // pasaba tenant_id, que es NOT NULL, así que cada llamada moría con not_null_violation y
+      // nadie miraba el error. Por eso qualification_questions estaba vacía habiendo pasado
+      // cientos de formularios por aquí.
+      const { error: qqError } = await sb
         .from('qualification_questions')
-        .upsert({ slug: slugify(q), question_text: q, field_key: key }, { onConflict: 'slug', ignoreDuplicates: true })
+        .upsert(
+          { tenant_id: tenantId, slug: slugify(q), question_text: q, field_key: key },
+          { onConflict: 'tenant_id,slug', ignoreDuplicates: true }
+        )
+      // No se aborta el webhook por esto: registrar el catálogo de preguntas es un efecto
+      // secundario, y perder la cita entera por ello sería peor. Pero se deja constancia en vez de
+      // tragárselo, que es exactamente lo que escondió el fallo durante semanas.
+      if (qqError) console.error('[calendly] no se pudo registrar la pregunta de cualificación:', qqError.message)
     }
     qualification.respuestas = respuestas
 
