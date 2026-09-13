@@ -41,18 +41,18 @@ y eventos de conversión. Es la fuente correcta para Web/SEO.
 
 Leyenda: ✅ hecho · 🚧 en curso · ⛔ bloqueado por el usuario · ⬜ pendiente
 
-| #   | Fase                                          | Estado | Nota                                                |
-| --- | --------------------------------------------- | ------ | --------------------------------------------------- |
-| A   | Desbloquear PR #30                            | ⛔     | Requiere acción del usuario (ver §5)                |
-| B   | Reordenación de navegación y Configuración    | ✅     | Commit `f4f028a`                                    |
-| C   | Capa canónica de funnels (sin UI)             | ⬜     | Siguiente. No necesita credenciales                 |
-| E   | Sección Funnels con lo que ya hay en base     | ⬜     | MVP sin GA4: VSL, Webinar y Profile ya tienen datos |
-| F   | CRM → Agenda, detalle de cita legible, Fathom | ⬜     | Mejora diaria, barata                               |
-| D   | GA4 (OAuth multi-tenant)                      | ✅     | OAuth + sync + enganchado a Funnels                 |
-| G   | Banco de testimonios y de grabaciones         | ✅     | Grabaciones hechas; testimonios ya existía (§3.3)   |
-| H   | Facturas por email (**solo Gmail**)           | ✅     | Importa y deja en pendiente_validacion              |
-| I   | Backfill de Stripe y diagnóstico de Meta      | ✅     | Informe de solo lectura + causa de Meta encontrada  |
-| J   | Aprovisionamiento                             | ⬜     | **Siguiente**, y en PR aparte como pediste          |
+| #   | Fase                                          | Estado | Nota                                               |
+| --- | --------------------------------------------- | ------ | -------------------------------------------------- |
+| A   | Desbloquear PR #30                            | ✅     | Desbloqueado y aplicado el 2026-09-13 (ver §5)     |
+| B   | Reordenación de navegación y Configuración    | ✅     | Commit `f4f028a`                                   |
+| C   | Capa canónica de funnels (sin UI)             | ✅     | `lib/funnels/*` con 4 estados y tests              |
+| E   | Sección Funnels con lo que ya hay en base     | ✅     | `/funnels` + mapeo de eventos de landing/VSL       |
+| F   | CRM → Agenda, detalle de cita legible, Fathom | ✅     | Incluye la pantalla que resuelve la cola de Fathom |
+| D   | GA4 (OAuth multi-tenant)                      | ✅     | OAuth + sync + enganchado a Funnels                |
+| G   | Banco de testimonios y de grabaciones         | ✅     | Grabaciones hechas; testimonios ya existía (§3.3)  |
+| H   | Facturas por email (**solo Gmail**)           | ✅     | Importa y deja en pendiente_validacion             |
+| I   | Backfill de Stripe y diagnóstico de Meta      | ✅     | Informe de solo lectura + causa de Meta encontrada |
+| J   | Aprovisionamiento                             | 🚧     | **En curso**, en PR aparte como pediste            |
 
 **Por qué este orden y no el del plan original:** D (GA4) estaba antes de E (UI de Funnels), pero
 GA4 está bloqueada por una acción del usuario en Google Cloud. Hacer C+E primero entrega una
@@ -73,11 +73,14 @@ Funciona hoy, con datos reales de la base:
 
 NO funciona todavía, y la pantalla lo dice con el motivo en cada fila:
 
-- **Visitas a landing / VSL.** `canonical_events.event_name` es texto libre: no hay un vocabulario
-  declarado que diga qué nombre de evento es "visita a la landing". Inventármelo habría producido
-  números creíbles y falsos, así que esas etapas salen como "fuente sin configurar".
-  _Siguiente paso concreto:_ listar los `event_name` que realmente llegan por subcuenta y dejar que
-  el usuario mapee cuál corresponde a cada etapa.
+- **Visitas a landing / VSL.** Resuelto el 2026-09-13, pero necesita un clic tuyo.
+  `canonical_events.event_name` es texto libre: no hay un vocabulario declarado que diga qué nombre
+  de evento es "visita a la landing", e inventármelo habría producido números creíbles y falsos. Así
+  que ahora **Funnels › mapear eventos** (`/funnels/eventos`) lista los nombres que realmente llegan,
+  con su volumen, y tú eliges cuáles son de cada etapa. Hasta que lo mapees, esas etapas siguen
+  saliendo como "fuente sin configurar" — que es la verdad, no un 0.
+  Ojo: hoy `canonical_events` está vacía para estas subcuentas, así que la lista saldrá vacía hasta
+  que el script de tracking envíe eventos. La pantalla lo dice en vez de quedarse muda.
 - **Sesiones (GA4).** Bloqueado por el proyecto de Google Cloud.
 - **Asistentes de webinar y conversaciones por DM.** Hoy no hay en base un criterio que separe ese
   subconjunto de contactos del resto.
@@ -118,9 +121,22 @@ Lo que hace ahora:
 - La cola es idempotente por `(tenant_id, fathom_meeting_id)`: un re-sync no duplica casos, y si la
   persona ya resolvió uno, no se reabre.
 
-Queda por hacer, y es pequeño: la **pantalla** para resolver la cola. Hoy los casos se anotan
-correctamente y se pueden consultar, pero resolverlos requiere tocar la tabla. Es lo primero que
-debería añadirse cuando haya casos reales que resolver.
+**Hecho el 2026-09-13: la pantalla que resuelve la cola** (CRM › Llamadas sin atribuir). Antes los
+casos se anotaban bien pero resolverlos exigía entrar en la tabla a mano, y una cola que nadie puede
+cerrar es lo mismo que perder esas llamadas.
+
+Cada caso muestra sus candidatas legibles (contacto, hora, minutos de diferencia con la reunión, si
+la cita ya tiene otra llamada importada) y se resuelve eligiendo UNA cita, o se descarta. Lo que la
+resolución NO hace es elegir por su cuenta: ni la ruta coge el primer candidato ni la pantalla
+preselecciona nada, porque eso es justo la decisión que el matcher se niega a tomar.
+
+Guardas al escribir: la cita tiene que ser de la subcuenta de la sesión; se rechaza si la cita ya
+tiene otra llamada (la pisaría) y si esta llamada ya está en otra cita (sería el duplicado original
+hecho a mano); `UPDATE` con `.select()` y comprobación de filas; el caso se cierra solo si sigue
+pendiente, así que dos personas resolviendo a la vez no se pisan. La transcripción la trae la propia
+resolución, porque el sync ya salta los casos en revisión y no volvería a por ella; si la reunión no
+aparece en las páginas recorridas de Fathom, se enlaza la cita y queda pendiente de transcribir — no
+se afirma "sin transcripción" algo que no se ha llegado a ver.
 
 ## 3.3 Fase G: replanteada, y por qué
 
