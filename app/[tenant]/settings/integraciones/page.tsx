@@ -74,6 +74,15 @@ type StateEntry = {
    *  token pegado a medias, que Meta reporta como "Bad signature" y la máscara esconde. */
   length?: number
 }
+type BackfillRow = {
+  paymentId: string
+  createdAt: string
+  amount: number
+  currency: string
+  email: string | null
+  verdict: 'ya_registrado' | 'registrable' | 'sin_contacto' | 'no_es_venta' | 'reembolsado'
+  reason: string
+}
 type StripeCustomerRow = {
   stripe_customer_id: string
   contact_id: string | null
@@ -392,6 +401,15 @@ export default function IntegracionesPage() {
   // Integración recién conectada que todavía no ha dicho si quiere traer el pasado.
   const [askHistory, setAskHistory] = useState<string | null>(null)
   // Cuentas publicitarias que ve el token de Meta. null = todavía no se han buscado.
+  // Importador de pagos de Stripe a ventas. Nada se escribe sin que aquí se elija producto y plan.
+  const [backfill, setBackfill] = useState<BackfillRow[] | null>(null)
+  const [backfillLoading, setBackfillLoading] = useState(false)
+  const [catalogo, setCatalogo] = useState<{
+    products: { id: string; name: string }[]
+    plans: { id: string; name: string; method: string | null }[]
+  } | null>(null)
+  const [importChoice, setImportChoice] = useState<{ productId: string; planId: string }>({ productId: '', planId: '' })
+  const [importing, setImporting] = useState(false)
   const [metaAccounts, setMetaAccounts] = useState<{ id: string; name: string; active: boolean }[] | null>(null)
   const [findingAccounts, setFindingAccounts] = useState(false)
 
@@ -557,6 +575,63 @@ export default function IntegracionesPage() {
       toast.error(e instanceof Error ? e.message : 'Error de conexión')
     } finally {
       setFindingAccounts(false)
+    }
+  }
+
+  async function loadBackfill() {
+    setBackfillLoading(true)
+    try {
+      const [informe, catalogoRes] = await Promise.all([
+        fetch(`/api/${tenant}/evergreen/stripe-backfill`),
+        fetch(`/api/${tenant}/evergreen/stripe-backfill/registrar`),
+      ])
+      const j = await informe.json()
+      if (!informe.ok) {
+        toast.error(j.error || 'No se pudo leer el informe de Stripe')
+        return
+      }
+      setBackfill((j.pendientes ?? []) as BackfillRow[])
+      if (catalogoRes.ok) setCatalogo(await catalogoRes.json())
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error de conexión')
+    } finally {
+      setBackfillLoading(false)
+    }
+  }
+
+  // Registra como ventas los pagos elegidos. El servidor vuelve a clasificar cada uno antes de
+  // escribir: lo que se ve aquí es de hace unos segundos, y un pago pudo reembolsarse entre medias.
+  async function registrarVentas(pagos: string[]) {
+    if (!importChoice.productId || !importChoice.planId) {
+      toast.error('Elige antes producto y plan de pago')
+      return
+    }
+    if (!window.confirm(`Se van a registrar ${pagos.length} ventas con su cobro. ¿Continuar?`)) return
+    setImporting(true)
+    try {
+      const r = await fetch(`/api/${tenant}/evergreen/stripe-backfill/registrar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentIds: pagos,
+          productId: importChoice.productId,
+          paymentPlanId: importChoice.planId,
+        }),
+      })
+      const j = await r.json()
+      if (!r.ok) {
+        toast.error(j.error || 'No se pudieron registrar')
+        return
+      }
+      const fallos = (j.resultados ?? []).filter((x: { ok: boolean }) => !x.ok)
+      toast.success(`${j.registradas} de ${j.total} ventas registradas`, {
+        description: fallos.length ? `${fallos.length} sin registrar: ${fallos[0].motivo}` : 'Ya aparecen en Ventas.',
+      })
+      await loadBackfill()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error de conexión')
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -1161,6 +1236,137 @@ export default function IntegracionesPage() {
                                 </div>
                               </div>
                             )}
+                          </div>
+                        )}
+
+                        {g.id === 'stripe' && (
+                          <div className="border-border mt-5 space-y-3 rounded-md border p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-medium">Registrar pagos de Stripe como ventas</p>
+                                <p className="text-muted-foreground text-xs">
+                                  Los pagos no se convierten en ventas solos: `sales` exige producto y plan de pago, y
+                                  un pago de Stripe no dice cuáles. Elígelos aquí y se registran con su cobro.
+                                </p>
+                              </div>
+                              <Button variant="outline" size="sm" onClick={loadBackfill} disabled={backfillLoading}>
+                                {backfillLoading ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="mr-2 h-4 w-4" />
+                                )}
+                                Buscar pagos sin registrar
+                              </Button>
+                            </div>
+
+                            {backfill
+                              ? (() => {
+                                  const registrables = backfill.filter((b) => b.verdict === 'registrable')
+                                  const otros = backfill.filter((b) => b.verdict !== 'registrable')
+                                  return (
+                                    <div className="space-y-3">
+                                      {registrables.length === 0 ? (
+                                        <p className="text-muted-foreground text-xs">
+                                          No hay pagos registrables.{' '}
+                                          {otros.length > 0
+                                            ? `Hay ${otros.length} que necesitan otra cosa (sin contacto, reembolsados o no completados).`
+                                            : ''}
+                                        </p>
+                                      ) : (
+                                        <>
+                                          <div className="flex flex-wrap items-end gap-2">
+                                            <label className="text-muted-foreground text-xs">
+                                              Producto
+                                              <select
+                                                value={importChoice.productId}
+                                                onChange={(e) =>
+                                                  setImportChoice((p) => ({ ...p, productId: e.target.value }))
+                                                }
+                                                className="border-border bg-background/60 text-foreground mt-1 block rounded-lg border px-2 py-1 text-sm"
+                                              >
+                                                <option value="">Elige…</option>
+                                                {(catalogo?.products ?? []).map((p) => (
+                                                  <option key={p.id} value={p.id}>
+                                                    {p.name}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            </label>
+                                            <label className="text-muted-foreground text-xs">
+                                              Plan de pago
+                                              <select
+                                                value={importChoice.planId}
+                                                onChange={(e) =>
+                                                  setImportChoice((p) => ({ ...p, planId: e.target.value }))
+                                                }
+                                                className="border-border bg-background/60 text-foreground mt-1 block rounded-lg border px-2 py-1 text-sm"
+                                              >
+                                                <option value="">Elige…</option>
+                                                {(catalogo?.plans ?? []).map((p) => (
+                                                  <option key={p.id} value={p.id}>
+                                                    {p.name}
+                                                    {p.method ? ` · ${p.method}` : ''}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            </label>
+                                            <Button
+                                              size="sm"
+                                              onClick={() => void registrarVentas(registrables.map((r) => r.paymentId))}
+                                              disabled={importing || !importChoice.productId || !importChoice.planId}
+                                            >
+                                              {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                              Registrar {registrables.length} ventas
+                                            </Button>
+                                          </div>
+                                          <div className="max-h-60 overflow-auto rounded border">
+                                            <table className="w-full text-xs">
+                                              <thead className="bg-card sticky top-0 text-left">
+                                                <tr>
+                                                  <th className="p-2">Fecha</th>
+                                                  <th className="p-2">Cliente</th>
+                                                  <th className="p-2 text-right">Importe</th>
+                                                </tr>
+                                              </thead>
+                                              <tbody>
+                                                {registrables.map((b) => (
+                                                  <tr key={b.paymentId} className="border-t">
+                                                    <td className="p-2 whitespace-nowrap">
+                                                      {new Date(b.createdAt).toLocaleDateString('es-ES')}
+                                                    </td>
+                                                    <td className="p-2">{b.email || 'sin email'}</td>
+                                                    <td className="p-2 text-right whitespace-nowrap">
+                                                      {b.amount.toLocaleString('es-ES', {
+                                                        style: 'currency',
+                                                        currency: b.currency || 'EUR',
+                                                      })}
+                                                    </td>
+                                                  </tr>
+                                                ))}
+                                              </tbody>
+                                            </table>
+                                          </div>
+                                        </>
+                                      )}
+                                      {otros.length > 0 ? (
+                                        <details>
+                                          <summary className="text-muted-foreground cursor-pointer text-xs">
+                                            {otros.length} pagos que NO se registran, y por qué
+                                          </summary>
+                                          <ul className="text-muted-foreground mt-2 space-y-1 text-xs">
+                                            {otros.slice(0, 30).map((b) => (
+                                              <li key={b.paymentId}>
+                                                {new Date(b.createdAt).toLocaleDateString('es-ES')} ·{' '}
+                                                {b.email || 'sin email'} · {b.reason}
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        </details>
+                                      ) : null}
+                                    </div>
+                                  )
+                                })()
+                              : null}
                           </div>
                         )}
 

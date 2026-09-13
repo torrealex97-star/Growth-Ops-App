@@ -58,3 +58,37 @@ test('la respuesta no manda miles de filas ya registradas', () => {
   assert.match(route, /verdict !== 'ya_registrado'/)
   assert.match(route, /\.slice\(0, 500\)/)
 })
+
+// El informe sigue siendo de solo lectura: registrar vive en OTRA ruta, y ahí sí escribe, pero solo
+// lo que una persona ha elegido. Estas son las guardas de esa escritura, que toca ventas y cobros —
+// de donde salen la facturación y las comisiones.
+test('registrar ventas desde Stripe escribe solo bajo decisión humana y sin duplicar', () => {
+  const registrar = read('app/api/[tenant]/evergreen/stripe-backfill/registrar/route.ts')
+  const code = registrar.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+
+  // Rol financiero, no cualquier miembro.
+  assert.match(code, /role !== 'admin' && session\.role !== 'director'/)
+  // Producto y plan obligatorios: sin ellos no hay venta que escribir.
+  assert.match(code, /Falta elegir producto y plan de pago/)
+  // Y tienen que ser de ESTA subcuenta: con service_role, un id de otra pasaría sin que RLS lo pare.
+  assert.match(code, /Ese producto no es de esta subcuenta/)
+  assert.match(code, /Ese plan de pago no es de esta subcuenta/)
+
+  // El importe se relee de Stripe por id: no se escribe lo que diga el navegador. Se comprueba sobre
+  // el fichero SIN limpiar comentarios: el limpiador corta desde el "//" de la URL hasta fin de
+  // línea, así que sobre el texto limpio esta URL no existiría.
+  assert.match(registrar, /payment_intents\/\$\{encodeURIComponent\(paymentId\)\}/)
+  assert.match(code, /classifyForBackfill\(intent/, 'hay que reclasificar antes de escribir')
+
+  // Idempotencia: la referencia se añade a las conocidas dentro del bucle, así que un id repetido en
+  // la misma tanda no crea una segunda venta.
+  assert.match(code, /knownReferences\.add\(paymentId\)/)
+
+  // Si el cobro falla, la venta se deshace: una venta sin cobro es facturación sin dinero, y encima
+  // volvería a salir como registrable y se duplicaría.
+  assert.match(code, /from\('sales'\)\.delete\(\)/)
+  assert.match(code, /se deshizo la venta/)
+
+  // Cada venta creada queda auditada.
+  assert.match(code, /entity_type: 'sale'/)
+})
