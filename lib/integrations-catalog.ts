@@ -407,6 +407,14 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
       },
       { key: 'HOTMART_CLIENT_SECRET', label: 'Client Secret', type: 'password', secret: true },
       {
+        key: 'HOTMART_BASIC_TOKEN',
+        label: 'Token Basic',
+        type: 'password',
+        secret: true,
+        advanced: true,
+        help: 'Opcional. Hotmart muestra un "token Basic" junto al Client ID y el Secret. Si lo dejas vacío se calcula a partir de los otros dos, que es lo que hace Hotmart; ponlo solo si el suyo es distinto.',
+      },
+      {
         key: 'HOTMART_WEBHOOK_SECRET',
         advanced: true,
         label: 'Webhook Secret (Hottok)',

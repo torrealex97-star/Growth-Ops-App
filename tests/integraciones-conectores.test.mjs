@@ -163,3 +163,29 @@ test('cada sincronización apunta a una tabla que existe de verdad', () => {
   )
   assert.deepEqual(inexistentes, [], `estas tablas no las crea ninguna migración: ${inexistentes.join(', ')}`)
 })
+
+// Hotmart EXIGE la cabecera `Authorization: Basic` en la petición de token, además de los parámetros.
+// Sin ella responde 401 con las credenciales correctas, así que esta integración no podía conectar
+// nunca — daba "Client ID o Secret inválidos" con un Client ID y un Secret perfectos.
+test('Hotmart manda la cabecera Basic que su API exige', () => {
+  const route = sinComentarios(read(ROUTE))
+  const hotmart = route.slice(route.indexOf("group === 'hotmart'"))
+  const cuerpo = hotmart.slice(0, hotmart.indexOf("group === 'whop'"))
+  assert.match(cuerpo, /Authorization: `Basic \$\{basic\}`/, 'falta la cabecera Basic en el token de Hotmart')
+  assert.match(cuerpo, /Buffer\.from\(`\$\{cfg\.HOTMART_CLIENT_ID\}:\$\{cfg\.HOTMART_CLIENT_SECRET\}`\)/)
+  // Y se puede pegar el que muestra su panel, por si no coincide con el calculado.
+  assert.match(cuerpo, /HOTMART_BASIC_TOKEN/)
+  assert.match(read(CATALOG), /HOTMART_BASIC_TOKEN/)
+})
+
+// Un fallo del proveedor tiene que llegar a la pantalla como una causa con arreglo, no como el
+// mensaje en inglés que Meta escribe para desarrolladores.
+test('los errores de Meta se traducen a una causa, también dentro del cliente', () => {
+  const client = sinComentarios(read('lib/meta/client.ts'))
+  assert.match(client, /classifyMetaError\(json, res\.status\)/, 'el cliente sigue lanzando el mensaje crudo')
+  assert.doesNotMatch(client, /Meta API error\$\{/, 'quedó el error en inglés sin clasificar')
+  const route = sinComentarios(read(ROUTE))
+  assert.match(route, /classifyMetaError\(failed\[0\]\.body, failed\[0\]\.status\)/)
+  // Y una respuesta 200 que trae `error` dentro NO puede darse por buena: Meta responde así a veces.
+  assert.match(route, /ok: r\.ok && !j\.error/)
+})
