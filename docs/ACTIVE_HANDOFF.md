@@ -16,10 +16,16 @@ Avance de esta sesión, todo sobre `claude/financial-constraints-handoff` (PR #3
 | `f4f028a` | Fase B de UX: Configuración a un solo nivel, negocio fuera de Integraciones, Auditoría dentro         |
 | (este)    | Fase C: capa canónica `lib/funnels/` con tests, sin UI todavía                                        |
 
-**Próximo paso para quien recoja el relevo (Codex incluido):** terminar la fase F — el **matching
-de Fathom**. Determinista por identificador externo primero, email + ventana temporal solo como
-respaldo, y cola de revisión para los ambiguos en vez de adivinar. Necesita tabla nueva por
-migración versionada y reconciliación histórica idempotente con dry-run. Ver `ROADMAP_MVP.md` §3.2.
+**Próximo paso para quien recoja el relevo (Codex incluido):** fase G — banco de testimonios y de
+grabaciones (subida masiva con progreso y reintento, categoría por MIME, dedupe por hash, Storage
+privado bajo `tenant_id/`, aprobación manual). Ver `ROADMAP_MVP.md`.
+
+Antes de eso, si hay tiempo: la **pantalla para resolver la cola `fathom_match_review`**. El sync ya
+anota los casos dudosos correctamente, pero resolverlos hoy requiere tocar la tabla a mano.
+
+Si tocas el sync de Fathom: la decisión de emparejamiento NO va ahí, va en `lib/fathom/match.ts`
+(función pura, 10 tests). **Nunca escribas una transcripción en más de una cita**: eso es lo que
+hacía antes y duplicaba llamadas. Ver `ROADMAP_MVP.md` §3.2.
 
 Si vas a tocar Funnels: lee antes `ROADMAP_MVP.md` §3.1, que dice exactamente qué etapas tienen
 datos reales y cuáles salen como "fuente sin configurar" y por qué. **No inventes nombres de evento

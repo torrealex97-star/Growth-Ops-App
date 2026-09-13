@@ -6,6 +6,8 @@ import { getTenantConfigWithFallback } from '@/lib/config'
 export const runtime = 'nodejs'
 export const maxDuration = 300
 
+import { decideMatch } from '@/lib/fathom/match'
+
 type Json = Record<string, unknown>
 
 function serviceClient() {
@@ -280,13 +282,41 @@ async function syncCalendly(sb: SupabaseClient, tenantId: string, cfg: Record<st
   return { provider: 'calendly', pages, imported, updated }
 }
 
-async function syncFathom(sb: SupabaseClient, tenantId: string, cfg: Record<string, string>) {
+// Sincroniza las reuniones de Fathom hacia las citas.
+//
+// La decisión de A QUÉ cita pertenece cada reunión NO está aquí: está en lib/fathom/match.ts, que es
+// una función pura y probada. Esta función solo lee, obedece y escribe.
+//
+// Lo que cambió respecto a la versión anterior: cuando había varias citas candidatas en una ventana
+// de ±12 h, escribía la transcripción en TODAS. Eso duplicaba la misma llamada en N citas (el
+// análisis de IA la contaba N veces), estampaba el mismo fathom_meeting_id en N filas y hacía que el
+// re-sync siguiente pareciera idempotente habiendo dejado N-1 filas con una llamada que no ocurrió
+// ahí. Ahora los casos dudosos van a fathom_match_review y los resuelve una persona.
+//
+// `dryRun` recorre y clasifica sin escribir nada: es la forma de ver qué haría antes de dejarlo.
+async function syncFathom(
+  sb: SupabaseClient,
+  tenantId: string,
+  cfg: Record<string, string>,
+  opts: { dryRun?: boolean } = {}
+) {
   const key = cfg.FATHOM_API_KEY
   if (!key) throw new Error('Falta FATHOM_API_KEY')
+  const dryRun = opts.dryRun === true
   let cursor = ''
   let pages = 0
-  let matched = 0
-  let unmatched = 0
+  const stats = {
+    emparejadas: 0,
+    ya_importadas: 0,
+    a_revision_ambiguas: 0,
+    a_revision_sin_candidatos: 0,
+    // Ya estaban en la cola de una pasada anterior: ni se reprocesan ni se vuelven a anotar.
+    ya_en_revision: 0,
+    sin_identificador: 0,
+  }
+  // Muestra de lo que haría, para que el dry-run sea legible y no solo un recuento.
+  const muestra: Array<{ reunion: string; decision: string; detalle?: string }> = []
+
   while (pages < 100) {
     const url = new URL('https://api.fathom.ai/external/v1/meetings')
     url.searchParams.set('limit', '100')
@@ -303,85 +333,162 @@ async function syncFathom(sb: SupabaseClient, tenantId: string, cfg: Record<stri
       message?: string
     }
     if (!response.ok) throw new Error(body.message || `Fathom respondió ${response.status}`)
+
     for (const meeting of body.items ?? []) {
-      // ID estable de la llamada (share_url/url son únicos por reunión en Fathom) — sin esto no
-      // hay forma idempotente de saltar una llamada ya importada en un re-sync posterior.
       const fathomMeetingId = text(meeting.share_url) || text(meeting.url)
-      if (fathomMeetingId) {
-        const already = await sb
-          .from('appointments')
-          .select('id')
-          .eq('tenant_id', tenantId)
-          .eq('fathom_meeting_id', fathomMeetingId)
-          .limit(1)
-          .maybeSingle()
-        if (already.data) {
-          matched++ // ya importada en un sync anterior: no reprocesar, no es un fallo
-          continue
-        }
+      if (!fathomMeetingId) {
+        // Sin identificador estable no hay forma de ser idempotente ni de anotar el caso en la cola
+        // sin duplicarlo en cada pasada, así que se cuenta y se deja fuera.
+        stats.sin_identificador++
+        continue
+      }
+
+      // Si ya está en la cola de revisión, no se vuelve a anotar ni se reprocesa: el humano manda.
+      const enRevision = await sb
+        .from('fathom_match_review')
+        .select('id,status')
+        .eq('tenant_id', tenantId)
+        .eq('fathom_meeting_id', fathomMeetingId)
+        .maybeSingle()
+      if (enRevision.data) {
+        // Una vez en la cola, manda la persona: no se reprocesa ni se reabre si ya la resolvió.
+        stats.ya_en_revision++
+        continue
       }
 
       const invitees = Array.isArray(meeting.calendar_invitees) ? (meeting.calendar_invitees as Json[]) : []
       const external = invitees.find((i) => i.is_external === true) || invitees[0]
-      const email = text(external?.email)?.toLowerCase()
+      const email = text(external?.email)?.toLowerCase() ?? null
       const startedAt = text(meeting.scheduled_start_time) || text(meeting.recording_start_time)
-      if (!email || !startedAt) {
-        unmatched++
+
+      // Candidatas: las citas de ese contacto alrededor de la hora de la reunión. Se consulta una
+      // ventana holgada y es el matcher quien aplica la ventana estricta — así la regla vive en un
+      // solo sitio y se puede probar sin base de datos.
+      let candidates: Array<{ id: string; appointmentDatetime: string; fathomMeetingId?: string | null }> = []
+      if (email && startedAt) {
+        const contact = await sb
+          .from('contacts')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .eq('email', email)
+          .maybeSingle()
+        if (contact.data) {
+          const wide = 12 * 60 * 60 * 1000
+          const { data, error } = await sb
+            .from('appointments')
+            .select('id,appointment_datetime,fathom_meeting_id')
+            .eq('tenant_id', tenantId)
+            .eq('contact_id', (contact.data as { id: string }).id)
+            .gte('appointment_datetime', new Date(new Date(startedAt).getTime() - wide).toISOString())
+            .lte('appointment_datetime', new Date(new Date(startedAt).getTime() + wide).toISOString())
+          if (error) throw error
+          candidates = (data ?? []).map((a) => {
+            const row = a as { id: string; appointment_datetime: string; fathom_meeting_id: string | null }
+            return {
+              id: row.id,
+              appointmentDatetime: row.appointment_datetime,
+              fathomMeetingId: row.fathom_meeting_id,
+            }
+          })
+        }
+      }
+
+      const decision = decideMatch({ fathomMeetingId, startedAt, email }, candidates)
+
+      if (decision.kind === 'ya_importada') {
+        stats.ya_importadas++
         continue
       }
-      const from = new Date(new Date(startedAt).getTime() - 12 * 60 * 60 * 1000).toISOString()
-      const to = new Date(new Date(startedAt).getTime() + 12 * 60 * 60 * 1000).toISOString()
-      const contact = await sb.from('contacts').select('id').eq('tenant_id', tenantId).eq('email', email).maybeSingle()
-      if (!contact.data) {
-        unmatched++
-        continue
-      }
-      // Todas las reuniones del contacto dentro de la ventana horaria — si hay más de una
-      // candidata no se puede saber con certeza cuál fue la llamada real, así que se vincula
-      // la transcripción a TODAS en vez de arriesgar una asociación incorrecta descartando una.
-      const appointments = await sb
-        .from('appointments')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .eq('contact_id', contact.data.id)
-        .gte('appointment_datetime', from)
-        .lte('appointment_datetime', to)
-        .order('appointment_datetime', { ascending: false })
-      if (!appointments.data || appointments.data.length === 0) {
-        unmatched++
-        continue
-      }
-      const summary = meeting.default_summary as Json | undefined
-      const transcript = Array.isArray(meeting.transcript)
-        ? (meeting.transcript as Json[])
-            .map((line) => {
-              const speaker = line.speaker as Json | undefined
-              return `[${text(line.timestamp) || ''}] ${text(speaker?.display_name) || 'Speaker'}: ${text(line.text) || ''}`
+
+      if (decision.kind === 'match') {
+        stats.emparejadas++
+        if (muestra.length < 20) muestra.push({ reunion: fathomMeetingId, decision: `emparejada (${decision.via})` })
+        if (dryRun) continue
+        const summary = meeting.default_summary as Json | undefined
+        const transcript = Array.isArray(meeting.transcript)
+          ? (meeting.transcript as Json[])
+              .map((line) => {
+                const speaker = line.speaker as Json | undefined
+                return `[${text(line.timestamp) || ''}] ${text(speaker?.display_name) || 'Speaker'}: ${text(line.text) || ''}`
+              })
+              .join('\n')
+          : null
+        // .select() para no dar por escrito lo que RLS o un id obsoleto pudieron dejar en 0 filas.
+        const { data: updated, error } = await sb
+          .from('appointments')
+          .update({
+            recording_url: fathomMeetingId,
+            ai_summary: text(summary?.markdown_formatted),
+            transcript,
+            transcript_status: transcript ? 'listo' : 'no_aplica',
+            fathom_meeting_id: fathomMeetingId,
+          })
+          .eq('tenant_id', tenantId)
+          .eq('id', decision.appointmentId)
+          .select('id')
+        if (error) throw error
+        if (!updated || updated.length === 0) {
+          // La cita existía al consultar y no se pudo escribir: no se cuenta como emparejada.
+          stats.emparejadas--
+          stats.a_revision_sin_candidatos++
+          if (!dryRun)
+            await anotarRevision(sb, tenantId, fathomMeetingId, meeting, email, startedAt, {
+              kind: 'sin_candidatos',
+              reason: 'La cita elegida no se pudo actualizar (0 filas afectadas).',
+              candidateIds: [decision.appointmentId],
             })
-            .join('\n')
-        : null
-      const result = await sb
-        .from('appointments')
-        .update({
-          recording_url: text(meeting.share_url) || text(meeting.url),
-          ai_summary: text(summary?.markdown_formatted),
-          transcript,
-          transcript_status: transcript ? 'listo' : 'no_aplica',
-          fathom_meeting_id: fathomMeetingId,
+        }
+        continue
+      }
+
+      // Ambigua o sin candidatos: a la cola, nunca una escritura a ciegas.
+      if (decision.kind === 'ambigua') stats.a_revision_ambiguas++
+      else stats.a_revision_sin_candidatos++
+      if (muestra.length < 20) {
+        muestra.push({ reunion: fathomMeetingId, decision: decision.kind, detalle: decision.reason })
+      }
+      if (!dryRun) {
+        await anotarRevision(sb, tenantId, fathomMeetingId, meeting, email, startedAt, {
+          kind: decision.kind,
+          reason: decision.reason,
+          candidateIds: decision.kind === 'ambigua' ? decision.candidateIds : [],
         })
-        .eq('tenant_id', tenantId)
-        .in(
-          'id',
-          appointments.data.map((a) => a.id as string)
-        )
-      if (result.error) throw result.error
-      matched++
+      }
     }
+
     pages++
     cursor = body.next_cursor || ''
     if (!cursor) break
   }
-  return { provider: 'fathom', pages, matched, unmatched }
+
+  return { provider: 'fathom', dryRun, pages, ...stats, muestra }
+}
+
+// Anota un caso dudoso en la cola. Idempotente por (tenant_id, fathom_meeting_id): un re-sync no
+// añade duplicados, y si la entrada ya estaba resuelta no se reabre.
+async function anotarRevision(
+  sb: SupabaseClient,
+  tenantId: string,
+  fathomMeetingId: string,
+  meeting: Json,
+  email: string | null,
+  startedAt: string | null,
+  info: { kind: 'ambigua' | 'sin_candidatos'; reason: string; candidateIds: string[] }
+) {
+  const { error } = await sb.from('fathom_match_review').upsert(
+    {
+      tenant_id: tenantId,
+      fathom_meeting_id: fathomMeetingId,
+      meeting_started_at: startedAt,
+      invitee_email: email,
+      recording_url: text(meeting.share_url) || text(meeting.url),
+      candidate_appointment_ids: info.candidateIds,
+      reason_kind: info.kind,
+      reason: info.reason,
+    },
+    { onConflict: 'tenant_id,fathom_meeting_id', ignoreDuplicates: true }
+  )
+  if (error) throw error
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
@@ -389,12 +496,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const { tenant } = await params
     const auth = await requireAdmin(tenant)
     if ('error' in auth) return auth.error
-    const body = (await req.json().catch(() => ({}))) as { provider?: string }
+    const body = (await req.json().catch(() => ({}))) as { provider?: string; dryRun?: boolean }
     const cfg = await getTenantConfigWithFallback(auth.tenantId, true)
     const sb = serviceClient()
     if (body.provider === 'ghl') return NextResponse.json(await syncGhl(sb, auth.tenantId, cfg))
     if (body.provider === 'calendly') return NextResponse.json(await syncCalendly(sb, auth.tenantId, cfg))
-    if (body.provider === 'fathom') return NextResponse.json(await syncFathom(sb, auth.tenantId, cfg))
+    if (body.provider === 'fathom')
+      return NextResponse.json(await syncFathom(sb, auth.tenantId, cfg, { dryRun: body.dryRun === true }))
     return NextResponse.json({ error: 'Proveedor no soportado' }, { status: 400 })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 })
