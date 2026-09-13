@@ -264,6 +264,28 @@ async function listMetaAccounts(tenantId: string, tokenSinGuardar?: string): Pro
   }
 }
 
+/**
+ * ¿Conecta Meta sin firmar? Se usa cuando la firma `appsecret_proof` falla, para poder decir si el
+ * problema es SOLO el App Secret guardado.
+ *
+ * Meta exige la firma únicamente si la app tiene activado "Require app secret". Si sin firma responde
+ * bien, la app NO la exige y el secreto guardado es basura que sobra; si sin firma también falla, hay
+ * algo más (token, permisos) y decir "borra el secreto" sería mandar al sitio equivocado. Es la
+ * diferencia entre diagnosticar y adivinar.
+ */
+async function metaConectaSinFirma(token: string, version: string): Promise<boolean> {
+  try {
+    const r = await fetch(
+      `https://graph.facebook.com/${version}/me/adaccounts?limit=1&access_token=${encodeURIComponent(token.trim())}`,
+      { signal: AbortSignal.timeout(15_000) }
+    )
+    const j = (await r.json().catch(() => ({}))) as { error?: unknown }
+    return r.ok && !j.error
+  } catch {
+    return false
+  }
+}
+
 /** Veredicto de una comprobación. `code` es una pista ESTABLE para elegir el arreglo a mostrar. */
 type ProbeResult = { ok: boolean; message: string; code?: string }
 
@@ -350,6 +372,26 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
       }
       const proof = metaProof(token, cfg.META_APP_SECRET)
       const proofQs = proof ? `&appsecret_proof=${proof}` : ''
+      // Si hay App Secret guardado, se comprueba ANTES que la firma que produce sea válida: es el
+      // fallo que más veces bloquea esta integración, y disfrazado de "cuenta desconocida".
+      if (proof) {
+        const conFirma = await fetch(
+          `https://graph.facebook.com/${ver}/me/adaccounts?limit=1&access_token=${encodeURIComponent(token.trim())}${proofQs}`,
+          { signal: AbortSignal.timeout(15_000) }
+        )
+        const cuerpo = (await conFirma.json().catch(() => ({}))) as { error?: { message?: string } }
+        if (/appsecret_proof/i.test(cuerpo.error?.message || '')) {
+          const sinFirma = await metaConectaSinFirma(token, ver)
+          return {
+            ok: false,
+            code: 'proof_invalido',
+            message: sinFirma
+              ? 'El App Secret guardado no es el de la app que generó el token. Sin él la conexión SÍ funciona: tu app de Meta no exige la firma, así que bórralo con el botón "Borrar" que hay junto al campo.'
+              : 'El App Secret guardado no corresponde a la app que generó el token, y sin él Meta tampoco acepta el token: pega el App Secret de la MISMA app desde la que generaste el token.',
+          }
+        }
+      }
+
       const accounts = parseAccountIds(cfg.META_AD_ACCOUNT_ID)
       // Sin cuentas explícitas → modo "todas": descubrir las accesibles por el token.
       if (accounts.length === 0) {

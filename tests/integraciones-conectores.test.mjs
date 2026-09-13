@@ -201,3 +201,30 @@ test('las credenciales de Meta se recortan antes de firmar', () => {
   assert.match(client, /createHmac\('sha256', secret\)\.update\(token\.trim\(\)\)/)
   assert.match(client, /createHmac\('sha256', cfg\.appSecret\.trim\(\)\)\.update\(cfg\.token\.trim\(\)\)/)
 })
+
+// Vaciar el campo de un secreto y guardar NO lo borra: el endpoint ignora los secretos en blanco a
+// propósito (si no, el campo enmascarado los borraría al guardar cualquier otra cosa). Sin un botón
+// de borrar, una credencial mal pegada se queda para siempre y la única salida es "Desconectar", que
+// borra TODAS las de esa integración. Pasó de verdad: bloqueó Meta con un App Secret incorrecto.
+test('un secreto guardado se puede borrar uno a uno', () => {
+  const route = sinComentarios(read(ROUTE))
+  assert.match(route, /if \(secret && val === ''\) continue/, 'cambió el comportamiento de guardado')
+  const page = read('app/[tenant]/settings/integraciones/page.tsx')
+  assert.match(page, /async function clearField/)
+  assert.match(page, /JSON\.stringify\(\{ clear: \[key\] \}\)/, 'el borrado debe afectar a UNA clave')
+  assert.match(page, /Borrar/)
+  // Y lo que viene de una variable de entorno no se puede borrar desde aquí: decir "bórralo" sería
+  // mandar a un botón que no existe.
+  assert.match(page, /viene de una variable de entorno/)
+})
+
+// "Borra el App Secret" solo se puede afirmar si se ha comprobado que sin él conecta. Si sin firma
+// tampoco conecta, el problema es otro y ese consejo manda al sitio equivocado.
+test('el consejo sobre el App Secret se demuestra, no se supone', () => {
+  const route = sinComentarios(read(ROUTE))
+  assert.match(route, /async function metaConectaSinFirma/)
+  assert.match(route, /const sinFirma = await metaConectaSinFirma\(token, ver\)/)
+  const bloque = route.slice(route.indexOf('const sinFirma'))
+  assert.match(bloque.slice(0, 900), /sinFirma\s*\?/, 'el mensaje no depende de la comprobación')
+  assert.match(bloque.slice(0, 900), /MISMA app/, 'falta el caso en el que el secreto sí hace falta')
+})
