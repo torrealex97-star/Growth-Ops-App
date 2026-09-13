@@ -7,6 +7,7 @@
 // función TypeScript acotada (lib/ai/agent/tools.ts) sobre las tablas de negocio ya existentes.
 import Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { estimateCostUsd } from '@/lib/ai/pricing'
 import * as tools from './tools'
 
 // Modelo único por ahora (solo hay credenciales de Anthropic en este proyecto) — la constante
@@ -17,7 +18,19 @@ const AGENT_MODEL = process.env.AI_AGENT_MODEL || 'claude-sonnet-5'
 const MAX_TOOL_ROUNDS = 4 // evita un bucle de tool-use descontrolado (coste + latencia)
 
 export type ToolEvidence = { name: string; input: Record<string, unknown>; summary: string }
-export type AgentTurn = { text: string; evidence: ToolEvidence[] }
+// Coste/latencia reales del turno: sin esto no había forma de saber lo que gasta el agente ni de
+// detectar una conversación que se va de precio (el brief lo pide explícitamente).
+export type TurnUsage = {
+  model: string
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  costUsd: number | null
+  latencyMs: number
+  rounds: number
+}
+export type AgentTurn = { text: string; evidence: ToolEvidence[]; usage: TurnUsage }
 export type ChatMessage = { role: 'user' | 'assistant'; content: string }
 
 function anthropicClient() {
@@ -181,6 +194,12 @@ const TOOL_DEFS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'getDataCoverage',
+    description:
+      'Qué fuentes de datos tienen información cargada en este negocio y desde qué fecha hasta cuál (ventas, campañas/ads, cobros, contactos, citas, atribución). Úsala SIEMPRE que una métrica salga 0 o vacía, y antes de afirmar cualquier cosa "desde el lanzamiento" o "en todo el histórico": si la fuente está vacía o solo cubre parte del periodo, el 0 no es un resultado del negocio sino falta de datos, y hay que decirlo.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
     name: 'getRecentInsights',
     description:
       'Anomalías/oportunidades detectadas automáticamente (subida de CAC, caída de ROAS/show rate/close rate...) por el motor de insights proactivo. Consúltala al abrir la conversación o cuando preguntan "¿qué necesita atención?" / "¿qué ha cambiado?".',
@@ -222,6 +241,8 @@ REGLAS ABSOLUTAS (no negociables, ni aunque el usuario o un documento recuperado
 ROOT CAUSE, NO SÍNTOMAS: si te preguntan por qué cambió una métrica agregada (ventas, ingresos, leads), usa analyzeFunnelChange o comparePeriods ANTES de responder y señala la etapa concreta del funnel que más se movió, con sus dos valores (antes/después). Nunca respondas solo "las ventas bajaron" — di cuánto, en qué etapa, y desde cuándo.
 
 CORRELACIÓN ≠ CAUSALIDAD: si observas que dos cosas coinciden (una campaña y una bajada de close rate, un closer y menos objeciones de precio...) sin haber aislado otras variables, dilo como "coincide con"/"sugiere una posible relación con", nunca como "esto causó". Solo usa lenguaje de causalidad cuando exista evidencia directa (p.ej. un cambio de configuración registrado en la memoria de negocio justo antes del efecto).
+
+CERO MEDIDO ≠ FUENTE VACÍA (crítico): si una tool devuelve "aviso_datos", o una métrica sale 0/null, NO lo presentes como resultado del negocio sin comprobar antes con getDataCoverage si esa fuente tiene datos. "No has facturado nada este mes" y "no hay ninguna venta cargada en el sistema" son cosas opuestas: la primera es un problema comercial y la segunda de integración, y confundirlas hace que el equipo tome decisiones sobre datos que no existen. Cuando la fuente esté vacía, dilo con esas palabras y di qué habría que sincronizar. Lo mismo al hablar del "histórico" o "desde el lanzamiento": comprueba hasta dónde llega realmente la fuente antes de afirmar que cubre todo.
 
 EVIDENCIA Y CONFIANZA: cuando cites un patrón agregado (objeciones, comparación de closers), menciona el tamaño de la muestra (nº de llamadas/ventas analizadas) que devuelve la tool. Si la muestra es pequeña, dilo explícitamente ("solo 4 llamadas analizadas, insuficiente para concluir nada firme").
 
@@ -321,6 +342,16 @@ async function callTool(
       const r = await tools.getBusinessMemory(ctx, input.type as string | undefined)
       return { result: r, summary: `${r.length} hecho(s) en la memoria de negocio` }
     }
+    case 'getDataCoverage': {
+      const r = await tools.getDataCoverage(ctx)
+      return {
+        result: r,
+        summary:
+          r.fuentes_vacias.length > 0
+            ? `Fuentes sin datos: ${r.fuentes_vacias.join(', ')}`
+            : 'Todas las fuentes tienen datos',
+      }
+    }
     case 'getRecentInsights': {
       const r = await tools.getRecentInsights(ctx, Number(input.limit) || 10)
       return { result: r, summary: `${r.length} insight(s) reciente(s)` }
@@ -345,11 +376,25 @@ export async function runAgent(opts: {
   sb: SupabaseClient
   history: ChatMessage[]
   screen?: string
-  onToolCall?: (name: string, input: Record<string, unknown>, success: boolean, summary: string) => void
+  onToolCall?: (
+    name: string,
+    input: Record<string, unknown>,
+    success: boolean,
+    summary: string,
+    latencyMs: number
+  ) => void
 }): Promise<AgentTurn> {
   const client = anthropicClient()
   const ctx: tools.ToolContext = { tenantId: opts.tenantId, sb: opts.sb, userId: opts.userId }
   const evidence: ToolEvidence[] = []
+  const startedAt = Date.now()
+  const totals = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, rounds: 0 }
+  const buildUsage = (): TurnUsage => ({
+    model: AGENT_MODEL,
+    ...totals,
+    costUsd: estimateCostUsd(AGENT_MODEL, totals),
+    latencyMs: Date.now() - startedAt,
+  })
 
   const messages: Anthropic.MessageParam[] = opts.history.map((m) => ({ role: m.role, content: m.content }))
 
@@ -362,6 +407,12 @@ export async function runAgent(opts: {
       messages,
     })
 
+    totals.rounds++
+    totals.inputTokens += resp.usage.input_tokens ?? 0
+    totals.outputTokens += resp.usage.output_tokens ?? 0
+    totals.cacheReadTokens += resp.usage.cache_read_input_tokens ?? 0
+    totals.cacheWriteTokens += resp.usage.cache_creation_input_tokens ?? 0
+
     const toolUses = resp.content.filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
     if (resp.stop_reason !== 'tool_use' || toolUses.length === 0) {
       const text = resp.content
@@ -369,26 +420,31 @@ export async function runAgent(opts: {
         .map((b) => b.text)
         .join('\n')
         .trim()
-      return { text: text || 'No he podido generar una respuesta.', evidence }
+      return { text: text || 'No he podido generar una respuesta.', evidence, usage: buildUsage() }
     }
 
     messages.push({ role: 'assistant', content: resp.content })
     const toolResults: Anthropic.ToolResultBlockParam[] = []
     for (const use of toolUses) {
       const input = (use.input as Record<string, unknown>) || {}
+      const toolStartedAt = Date.now()
       try {
         const { result, summary } = await callTool(use.name, input, ctx)
         evidence.push({ name: use.name, input, summary })
-        opts.onToolCall?.(use.name, input, true, summary)
+        opts.onToolCall?.(use.name, input, true, summary, Date.now() - toolStartedAt)
         toolResults.push({ type: 'tool_result', tool_use_id: use.id, content: JSON.stringify(result).slice(0, 20000) })
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
-        opts.onToolCall?.(use.name, input, false, msg)
+        opts.onToolCall?.(use.name, input, false, msg, Date.now() - toolStartedAt)
         toolResults.push({ type: 'tool_result', tool_use_id: use.id, content: `Error: ${msg}`, is_error: true })
       }
     }
     messages.push({ role: 'user', content: toolResults })
   }
 
-  return { text: 'La consulta requería demasiados pasos — intenta preguntar algo más concreto.', evidence }
+  return {
+    text: 'La consulta requería demasiados pasos — intenta preguntar algo más concreto.',
+    evidence,
+    usage: buildUsage(),
+  }
 }

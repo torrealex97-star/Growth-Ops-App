@@ -33,6 +33,8 @@ const TOOL_LABELS: Record<string, string> = {
   compareClosers: 'Comparativa de closers',
   getBusinessMemory: 'Memoria de negocio',
   recordBusinessFact: 'Hecho registrado',
+  getDataCoverage: 'Cobertura de datos',
+  getRecentInsights: 'Insights detectados',
 }
 
 // Preguntas sugeridas por pantalla (punto 87): nada de "¿cómo puedo ayudarte?" genérico.
@@ -68,6 +70,9 @@ export function AgentLauncher() {
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [insights, setInsights] = useState<Insight[]>([])
+  // Separado de insights.length: la lista sigue visible tras abrir el panel (para poder pulsarla),
+  // pero el badge debe apagarse en cuanto los has visto.
+  const [unseenCount, setUnseenCount] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -82,7 +87,10 @@ export function AgentLauncher() {
     fetch(`/api/${tenant}/evergreen/ai/agent?insights=1`)
       .then((r) => (r.ok ? r.json() : { insights: [] }))
       .then((json) => {
-        if (mounted) setInsights(json.insights || [])
+        if (!mounted) return
+        const list: Insight[] = json.insights || []
+        setInsights(list)
+        setUnseenCount(list.length)
       })
       .catch(() => {})
     return () => {
@@ -99,6 +107,20 @@ export function AgentLauncher() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
+
+  // Los insights pasan a "vistos" solo cuando REALMENTE se han pintado, es decir, con el panel
+  // abierto y en el estado inicial de la conversación (que es donde se listan). Marcarlos al abrir
+  // sin más dejaba enterrada para siempre una anomalía crítica si abrías el chat para otra cosa.
+  useEffect(() => {
+    if (!open || insights.length === 0 || messages.length > 0) return
+    const ids = insights.map((i) => i.id)
+    void fetch(`/api/${tenant}/evergreen/ai/agent`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    }).catch(() => {})
+    setUnseenCount(0)
+  }, [open, insights, messages.length, tenant])
 
   const send = async (text: string) => {
     const q = text.trim()
@@ -133,9 +155,9 @@ export function AgentLauncher() {
         className="fixed bottom-5 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-card text-foreground shadow-lg transition-colors hover:border-brand-500/50 hover:text-brand-400"
       >
         {open ? <X className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
-        {!open && insights.length > 0 && (
+        {!open && unseenCount > 0 && (
           <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
-            {insights.length}
+            {unseenCount}
           </span>
         )}
       </button>

@@ -20,7 +20,7 @@ import { toast } from 'sonner'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { getCustomDateRange, getPreviousPeriodRange, inPeriod, type PeriodRange } from '@/lib/filters/period'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 type PeriodPreset = 'month' | 'today' | 'week' | 'quarter' | 'year' | 'custom'
 
@@ -225,11 +225,14 @@ const emptyEditForm = {
 }
 
 // Extrae el path del objeto dentro del bucket 'facturas' a partir de una URL pública de Supabase Storage
-function extractStoragePath(url: string): string | null {
+// invoice_url guarda ahora la RUTA del objeto (el bucket es privado). Se mantiene la extracción
+// desde URL para filas antiguas que guardaron el enlace público completo.
+function extractStoragePath(pathOrUrl: string): string | null {
+  if (!/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl || null
   const marker = '/object/public/facturas/'
-  const idx = url.indexOf(marker)
+  const idx = pathOrUrl.indexOf(marker)
   if (idx === -1) return null
-  return decodeURIComponent(url.slice(idx + marker.length))
+  return decodeURIComponent(pathOrUrl.slice(idx + marker.length))
 }
 
 // Línea de variación vs el periodo anterior comparable. En gastos, subir es negativo (rojo)
@@ -256,6 +259,7 @@ function KpiDelta({ current, previous, hasPrevious }: { current: number; previou
 
 export default function ExpensesPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [items, setItems] = useState<Expense[]>([])
   const [users, setUsers] = useState<DbUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -519,13 +523,13 @@ export default function ExpensesPage() {
 
       let invoiceUrl: string | null = null
       try {
-        const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${file.name}`
+        // Prefijo tenant_id/: permite que la política de Storage valide pertenencia por la ruta.
+        const path = `${tenantId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${file.name}`
         const { error: uploadError } = await supabase.storage.from('facturas').upload(path, file)
         if (uploadError) {
           return { ok: false, error: `No se pudo subir el archivo: ${uploadError.message}` }
         }
-        const { data: pub } = supabase.storage.from('facturas').getPublicUrl(path)
-        invoiceUrl = pub?.publicUrl || path
+        invoiceUrl = path
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : 'No se pudo subir el archivo' }
       }
@@ -593,17 +597,13 @@ export default function ExpensesPage() {
     setAttachingId(expenseId)
     try {
       const supabase = createClient()
-      const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${file.name}`
+      const path = `${tenantId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${file.name}`
       const { error: uploadError } = await supabase.storage.from('facturas').upload(path, file)
       if (uploadError) {
         toast.error('No se pudo subir la factura', { description: uploadError.message })
         return
       }
-      const { data: pub } = supabase.storage.from('facturas').getPublicUrl(path)
-      const { error } = await supabase
-        .from('expenses')
-        .update({ invoice_url: pub?.publicUrl || path })
-        .eq('id', expenseId)
+      const { error } = await supabase.from('expenses').update({ invoice_url: path }).eq('id', expenseId)
       if (error) {
         toast.error('No se pudo adjuntar la factura', { description: error.message })
         return
@@ -657,13 +657,12 @@ export default function ExpensesPage() {
     let invoiceUrl: string | null = null
     if (aiFile) {
       try {
-        const path = `${Date.now()}-${aiFile.name}`
+        const path = `${tenantId}/${Date.now()}-${aiFile.name}`
         const { error: uploadError } = await supabase.storage.from('facturas').upload(path, aiFile)
         if (uploadError) {
           toast.error('No se pudo subir la factura al storage', { description: uploadError.message })
         } else {
-          const { data: pub } = supabase.storage.from('facturas').getPublicUrl(path)
-          invoiceUrl = pub?.publicUrl || path
+          invoiceUrl = path
         }
       } catch (err) {
         toast.error('No se pudo subir la factura', { description: err instanceof Error ? err.message : undefined })
