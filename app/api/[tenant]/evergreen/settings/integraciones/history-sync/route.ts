@@ -7,6 +7,7 @@ export const runtime = 'nodejs'
 export const maxDuration = 300
 
 import { decideMatch } from '@/lib/fathom/match'
+import { fetchMeetingsPage, meetingId, meetingSummary, meetingTranscript } from '@/lib/fathom/meetings'
 
 type Json = Record<string, unknown>
 
@@ -318,24 +319,10 @@ async function syncFathom(
   const muestra: Array<{ reunion: string; decision: string; detalle?: string }> = []
 
   while (pages < 100) {
-    const url = new URL('https://api.fathom.ai/external/v1/meetings')
-    url.searchParams.set('limit', '100')
-    url.searchParams.set('include_summary', 'true')
-    url.searchParams.set('include_transcript', 'true')
-    if (cursor) url.searchParams.set('cursor', cursor)
-    const response = await fetch(url, {
-      headers: { 'X-Api-Key': key, Accept: 'application/json' },
-      signal: AbortSignal.timeout(20_000),
-    })
-    const body = (await response.json().catch(() => ({}))) as {
-      items?: Json[]
-      next_cursor?: string | null
-      message?: string
-    }
-    if (!response.ok) throw new Error(body.message || `Fathom respondió ${response.status}`)
+    const { items, nextCursor } = await fetchMeetingsPage(key, cursor)
 
-    for (const meeting of body.items ?? []) {
-      const fathomMeetingId = text(meeting.share_url) || text(meeting.url)
+    for (const meeting of items) {
+      const fathomMeetingId = meetingId(meeting)
       if (!fathomMeetingId) {
         // Sin identificador estable no hay forma de ser idempotente ni de anotar el caso en la cola
         // sin duplicarlo en cada pasada, así que se cuenta y se deja fuera.
@@ -404,21 +391,13 @@ async function syncFathom(
         stats.emparejadas++
         if (muestra.length < 20) muestra.push({ reunion: fathomMeetingId, decision: `emparejada (${decision.via})` })
         if (dryRun) continue
-        const summary = meeting.default_summary as Json | undefined
-        const transcript = Array.isArray(meeting.transcript)
-          ? (meeting.transcript as Json[])
-              .map((line) => {
-                const speaker = line.speaker as Json | undefined
-                return `[${text(line.timestamp) || ''}] ${text(speaker?.display_name) || 'Speaker'}: ${text(line.text) || ''}`
-              })
-              .join('\n')
-          : null
+        const transcript = meetingTranscript(meeting)
         // .select() para no dar por escrito lo que RLS o un id obsoleto pudieron dejar en 0 filas.
         const { data: updated, error } = await sb
           .from('appointments')
           .update({
             recording_url: fathomMeetingId,
-            ai_summary: text(summary?.markdown_formatted),
+            ai_summary: meetingSummary(meeting),
             transcript,
             transcript_status: transcript ? 'listo' : 'no_aplica',
             fathom_meeting_id: fathomMeetingId,
@@ -457,7 +436,7 @@ async function syncFathom(
     }
 
     pages++
-    cursor = body.next_cursor || ''
+    cursor = nextCursor
     if (!cursor) break
   }
 
