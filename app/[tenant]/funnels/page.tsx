@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { AlertTriangle, Filter, Info, Loader2, Settings2, TrendingDown } from 'lucide-react'
 import { useTenant } from '@/lib/tenant-context'
 import { FUNNEL_DEFS, FUNNEL_FAMILIES, type FunnelFamily } from '@/lib/funnels/definitions'
@@ -165,6 +166,16 @@ export default function FunnelsPage() {
               <span>
                 Faltan fuentes por configurar ({data.unconfiguredSources.join(', ')}). No hay nada roto: son etapas que
                 todavía no tienen de dónde leer. Cada fila de abajo dice qué le falta.
+                {data.unconfiguredSources.includes('vsl') ? (
+                  <>
+                    {' '}
+                    Las etapas de landing y VSL solo necesitan que digas qué nombre de evento usa tu tracking:{' '}
+                    <Link href={`/${tenant}/funnels/eventos`} className="underline">
+                      mapear eventos
+                    </Link>
+                    .
+                  </>
+                ) : null}
               </span>
             </div>
           )}
