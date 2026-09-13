@@ -154,3 +154,26 @@ test('los webhooks estampan tenant_id al registrar preguntas y no se tragan el e
     assert.match(upsert.slice(0, 900), /qqError/, `${route}: el error del upsert se sigue tragando`)
   }
 })
+
+// Este test existe por un fallo que costó meses de datos perdidos: seis rutas de cron existían y
+// NINGUNA tenía planificador. Ni en vercel.json ni en pg_cron (que no está instalada). No fallaban:
+// simplemente nunca se ejecutaban, y "Meta no sincroniza" parecía un problema de credenciales.
+test('toda ruta de cron con GET está declarada en el catálogo de sincronizaciones', () => {
+  const dir = join(root, 'app/[tenant]/evergreen'.replace('[tenant]/evergreen', 'api/[tenant]/evergreen/cron'))
+  const rutas = readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name)
+    .filter((name) => {
+      const file = join(dir, name, 'route.ts')
+      return existsSync(file) && readFileSync(file, 'utf8').includes('export async function GET')
+    })
+
+  const catalogo = read('lib/ops/sync-health.ts')
+  const sinDeclarar = rutas.filter((name) => !catalogo.includes(`route: 'cron/${name}'`))
+  assert.deepEqual(
+    sinDeclarar,
+    [],
+    `estas rutas de cron no dicen quién las dispara: ${sinDeclarar.join(', ')}. ` +
+      'Añádelas a SYNC_DEFS con su scheduler (y si es manual, con su motivo).'
+  )
+})
