@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useTenantBranding } from '@/lib/tenant-context'
+import { ShaderBackground } from '@/components/ui/mesh-drift-shader'
 import { Loader2, Mail, Lock } from 'lucide-react'
 
 // Next.js 15: `params` pasa a ser una Promise — useParams() de next/navigation sigue siendo
@@ -56,7 +57,15 @@ export default function LoginPage() {
       className="dark relative min-h-screen bg-background flex items-center justify-center p-4 overflow-hidden"
       data-theme="os"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_-10%,rgba(255,255,255,0.06),transparent_70%)]" />
+      {/* Fondo animado (WebGL). aria-hidden + pointer-events-none: es decorativo y no debe
+          interceptar clics del formulario — el shader sigue el puntero desde window, así que la
+          interacción no se pierde. motion-reduce:hidden lo oculta con prefers-reduced-motion, y al
+          quedar en display:none su IntersectionObserver detiene además el bucle de render. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 motion-reduce:hidden">
+        <ShaderBackground className="h-full w-full" />
+      </div>
+      {/* Velo: mantiene legible el formulario sobre un fondo que se mueve y cambia de luminosidad. */}
+      <div className="pointer-events-none absolute inset-0 bg-background/30" />
       <div
         className="pointer-events-none absolute inset-0 opacity-[0.04]"
         style={{
