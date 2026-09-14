@@ -85,9 +85,17 @@ test('registrar ventas desde Stripe escribe solo bajo decisión humana y sin dup
   assert.match(registrar, /payment_intents\/\$\{encodeURIComponent\(paymentId\)\}/)
   assert.match(code, /classifyForBackfill\(intent/, 'hay que reclasificar antes de escribir')
 
-  // Idempotencia: la referencia se añade a las conocidas dentro del bucle, así que un id repetido en
-  // la misma tanda no crea una segunda venta.
-  assert.match(code, /knownReferences\.add\(paymentId\)/)
+  // Idempotencia: la referencia se añade a las conocidas al escribirla, así que un id repetido en la
+  // misma tanda no crea una segunda venta.
+  assert.match(code, /knownReferences\.add\(\w+(\.\w+)?\)/)
+
+  // UNA VENTA POR CLIENTE, NO POR PAGO. Los pagos de la misma persona son los PLAZOS de una venta.
+  // Escribir una venta por pago dejó 48 ventas para 27 clientas en la base real, con el ticket medio
+  // hundido de ~1497€ a 458€ y todas las métricas por venta detrás. Se agrupa por contacto ANTES de
+  // escribir nada, así que la tanda entera se clasifica primero.
+  assert.match(code, /buildSaleFromPayments\(/)
+  assert.match(code, /porContacto/)
+  assert.doesNotMatch(code, /buildSaleFromPayment\(row/, 'no se puede volver a escribir una venta por pago')
 
   // Si el cobro falla, la venta se deshace: una venta sin cobro es facturación sin dinero, y encima
   // volvería a salir como registrable y se duplicaría.
