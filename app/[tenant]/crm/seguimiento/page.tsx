@@ -689,6 +689,9 @@ export default function SeguimientoPage() {
           {selectedAppointment && (
             <div className="mt-6">
               <AppointmentDetail
+                // Misma razón que en Agendas: el Sheet no se desmonta al cambiar de cita, así que sin
+                // key el panel conserva el estado de la anterior y lo guarda en la que está abierta.
+                key={selectedAppointment.id}
                 appointment={selectedAppointment}
                 canChangeStatus={canChangeStatus}
                 currentUserName={currentUserName}

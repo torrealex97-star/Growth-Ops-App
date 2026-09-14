@@ -101,3 +101,43 @@ test('los avisos del servidor llegan a la interfaz', () => {
   assert.match(read(RUTA), /ok: true, avisos/)
   assert.match(read(COMPONENTE), /data\.avisos/)
 })
+
+// ---------------------------------------------------------------------------------------------
+// REGRESIÓN — BUG DE DATOS ENCONTRADO REVISANDO EL TRABAJO DEL MISMO DÍA.
+//
+// El panel vive dentro de un Sheet que NO se desmonta al cambiar de cita: solo cambia el prop. Con
+// `useState(cita)` sin reajuste, el estado se quedaba en la cita ANTERIOR, y como la petición enviaba
+// `local.id`, marcar "Venta" en la llamada B la escribía en la llamada A.
+// ---------------------------------------------------------------------------------------------
+
+test('al cambiar de cita se descarta el estado de la anterior', () => {
+  const src = read(COMPONENTE)
+  assert.match(src, /if \(local\.id !== cita\.id\) \{/)
+  assert.match(src, /setLocal\(cita\)/)
+  // También el indicador de guardado: si no, la cita nueva abre con un spinner de la anterior.
+  assert.match(src, /if \(local\.id !== cita\.id\) \{[\s\S]{0,120}?setGuardando\(null\)/)
+})
+
+// Defensa en profundidad: se escribe SIEMPRE contra el id del prop. Si el reajuste fallara, lo peor
+// sería pintar un valor viejo, nunca escribir un dato financiero en el registro equivocado.
+test('la escritura usa el id del prop, nunca la copia local', () => {
+  const src = read(COMPONENTE)
+  assert.match(src, /appointmentId: cita\.id/)
+  assert.doesNotMatch(src, /appointmentId: local\.id/)
+})
+
+// Y los dos montajes pasan key por id, que es lo que reinicializa TODO el estado del panel —notas,
+// grabación y transcripción incluidas, que tenían el mismo problema de antes.
+test('los dos montajes del panel llevan key por id de cita', () => {
+  for (const pagina of ['app/[tenant]/crm/agendas/page.tsx', 'app/[tenant]/crm/seguimiento/page.tsx']) {
+    assert.match(read(pagina), /key=\{selectedAppointment\.id\}/, pagina)
+  }
+})
+
+// Una reunión cancelada no puede tener asistencia: ofrecer los botones invitaría a crear un 'show'
+// sobre algo que no ocurrió, y ese show entraría en el denominador del Show Rate.
+test('en una reunión cancelada no se ofrece marcar asistencia', () => {
+  const src = read(COMPONENTE)
+  assert.match(src, /const cancelada = .*startsWith\('cancelled'\)/)
+  assert.match(src, /if \(cancelada\) \{\s*\n\s*return \(/)
+})

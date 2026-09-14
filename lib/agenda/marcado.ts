@@ -99,9 +99,16 @@ export function construirParche(m: Marcado): ResultadoMarcado {
     // dato, y dejarlo nulo lo confundiría con "no lo hemos registrado".
     if (oferta === undefined) oferta = false
   }
-  if (m.resultado === 'no_cualificado' && oferta === true) {
+  if (m.resultado === 'no_cualificado') {
     // Cualificada ES haber recibido la oferta, así que las dos cosas juntas se contradicen.
-    return { error: 'Si se le presentó la oferta, la llamada cuenta como cualificada: revisa el resultado.' }
+    if (oferta === true) {
+      return { error: 'Si se le presentó la oferta, la llamada cuenta como cualificada: revisa el resultado.' }
+    }
+    // Y al revés: "no cualificado" ES "no se le lanzó la oferta". Dejarlo sin escribir era un hueco
+    // real — la llamada quedaba con `offered` nulo, o sea "sin medir", cuando el closer acababa de
+    // declarar justo lo contrario. El Coste por Agenda Cualificada la habría excluido del cómputo en
+    // vez de contarla como no cualificada.
+    if (oferta === undefined) oferta = false
   }
 
   if (asistio !== undefined) patch.status = asistio ? 'show' : 'no_show'
