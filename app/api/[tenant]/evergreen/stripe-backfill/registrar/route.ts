@@ -19,7 +19,8 @@ export const maxDuration = 120
 // (NOT NULL) y un pago de Stripe no dice a cuál corresponde. Aquí llegan elegidos.
 //
 // UNA VENTA POR CLIENTE, NO POR PAGO. Los pagos de una misma persona dentro de la tanda son los
-// PLAZOS de una venta, no ventas distintas: se escribe UNA venta con la suma y UN cobro por pago.
+// PLAZOS de una venta, no ventas distintas: se escribe UNA venta por el PRECIO PACTADO del plan y
+// UN cobro por cada pago real.
 // Escribir una venta por pago —lo que hacía antes— dejó 48 ventas para 27 clientas en la base real,
 // con el ticket medio hundido de ~1497€ a 458€ y todas las métricas por venta detrás.
 //
@@ -90,14 +91,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     sb.from('products').select('id').eq('tenant_id', session.tenantId).eq('id', body.productId).maybeSingle(),
     sb
       .from('payment_plans')
-      .select('id,method,cash_collection_ratio')
+      .select('id,method,cash_collection_ratio,gross_price')
       .eq('tenant_id', session.tenantId)
       .eq('id', body.paymentPlanId)
       .maybeSingle(),
   ])
   if (!product.data) return NextResponse.json({ error: 'Ese producto no es de esta subcuenta' }, { status: 400 })
   if (!plan.data) return NextResponse.json({ error: 'Ese plan de pago no es de esta subcuenta' }, { status: 400 })
-  const planRow = plan.data as { id: string; method: string | null; cash_collection_ratio: number | null }
+  const planRow = plan.data as {
+    id: string
+    method: string | null
+    cash_collection_ratio: number | null
+    gross_price: number | null
+  }
 
   const cfg = await getTenantConfigWithFallback(session.tenantId, true)
   const key = cfg.STRIPE_SECRET_KEY
@@ -109,6 +115,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Un plan sin ratio declarado se trata como 1 (todo el bruto comisiona), que es lo que hace el
     // registro manual: inventar otro número cambiaría las comisiones.
     cashCollectionRatio: planRow.cash_collection_ratio ?? 1,
+    // El PRECIO PACTADO del plan. La venta vale esto, no lo que haya entrado todavía: facturación y
+    // cash collected son dos métricas distintas y `collections` ya guarda la segunda.
+    planGrossPrice: planRow.gross_price ?? null,
     paymentMethod: planRow.method,
     tenantId: session.tenantId,
     userId: session.userId,
