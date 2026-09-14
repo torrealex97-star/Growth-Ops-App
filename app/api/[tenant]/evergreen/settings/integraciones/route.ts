@@ -12,6 +12,8 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 import { isDeprecatedMetaVersion, META_API_VERSION } from '@/lib/meta/api-version'
 import { classifyMetaError } from '@/lib/meta/errors'
 import { stripeGet } from '@/lib/stripe/client'
+import { listarModelos, ModelosError, resolverModelo } from '@/lib/ai/modelos'
+import { DEEPSEEK_MODELOS_PREFERIDOS } from '@/lib/ai/provider'
 
 export const runtime = 'nodejs'
 
@@ -193,6 +195,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
   if (body.action === 'test') return runTest(body.group || '', auth.tenantId)
   if (body.action === 'meta-accounts') return listMetaAccounts(auth.tenantId, body.token)
+  if (body.action === 'ia-modelos') return listarModelosIa(auth.tenantId, body.token)
 
   const updates = body.updates || {}
   const clear = body.clear || []
@@ -269,6 +272,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
  * `act_…` por tu cuenta. Acepta un token sin guardar: si el usuario tuviera que guardarlo primero,
  * guardaría uno inválido para descubrir que lo es.
  */
+// Los modelos que la cuenta puede usar DE VERDAD, preguntándoselos al proveedor. Mismo patrón que
+// "Buscar cuentas" de Meta: sin esto el modelo se escribía a mano y una errata —o un modelo que el
+// proveedor retira— dejaba la IA muerta sin que el panel dijera nada.
+async function listarModelosIa(tenantId: string, claveSinGuardar?: string): Promise<NextResponse> {
+  const cfg = await getTenantConfigWithFallback(tenantId, true)
+  const clave = (claveSinGuardar || '').trim() || cfg.DEEPSEEK_API_KEY
+  if (!clave) {
+    return NextResponse.json({ ok: false, message: 'Pega antes la clave de API de DeepSeek.' }, { status: 400 })
+  }
+  try {
+    const modelos = await listarModelos(clave)
+    const { modelo, aviso } = resolverModelo(cfg.DEEPSEEK_MODEL, modelos, DEEPSEEK_MODELOS_PREFERIDOS)
+    return NextResponse.json({ ok: true, modelos, sugerido: modelo, aviso })
+  } catch (e) {
+    const err = e instanceof ModelosError ? e : null
+    return NextResponse.json(
+      { ok: false, code: err?.code, message: err?.message ?? 'No se pudieron leer los modelos.' },
+      { status: err?.code === 'token_invalido' ? 400 : 502 }
+    )
+  }
+}
+
 async function listMetaAccounts(tenantId: string, tokenSinGuardar?: string): Promise<NextResponse> {
   const cfg = await getTenantConfigWithFallback(tenantId, true)
   const token = (tokenSinGuardar || '').trim() || cfg.META_ACCESS_TOKEN
@@ -712,7 +737,10 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
         return { ok: false, message: reason, code: r.status === 402 ? 'sin_saldo' : codeFromStatus(r.status) }
       }
 
-      const configuredModel = cfg.DEEPSEEK_MODEL || 'deepseek-v4-flash'
+      // El modelo a comprobar sale de lo guardado; si no hay nada, del primer preferido. Antes era
+      // una constante escrita aquí, así que la comprobación podía dar verde con un modelo que la
+      // cuenta no tiene y fallar después en cada uso real.
+      const configuredModel = cfg.DEEPSEEK_MODEL || DEEPSEEK_MODELOS_PREFERIDOS[0]
       const models = (j.data ?? []).map((model) => model.id).filter((id): id is string => Boolean(id))
       const modelAvailable = models.length === 0 || models.includes(configuredModel)
       return {

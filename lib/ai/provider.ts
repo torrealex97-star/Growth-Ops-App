@@ -38,8 +38,16 @@ export type TextResult = {
 const ANTHROPIC_FAST = 'claude-haiku-4-5-20251001'
 const ANTHROPIC_SMART = 'claude-sonnet-5'
 
-/** Mismo valor por defecto que declara el catálogo de integraciones para DEEPSEEK_MODEL. */
-export const DEEPSEEK_DEFAULT_MODEL = 'deepseek-v4-flash'
+/**
+ * Orden de preferencia cuando el cliente no ha elegido modelo. NO es una lista de modelos que
+ * existan seguro: se cruza con lo que la API dice tener (ver `resolverModelo`), y si ninguno está,
+ * se usa el primero que el proveedor ofrezca. Escribir aquí un nombre fijo y llamarlo sin comprobar
+ * es lo que dejaba la IA muerta cuando el proveedor retiraba ese modelo.
+ */
+export const DEEPSEEK_MODELOS_PREFERIDOS = ['deepseek-chat', 'deepseek-reasoner'] as const
+
+/** Último recurso si no se pudo consultar la lista de modelos. */
+export const DEEPSEEK_DEFAULT_MODEL = 'deepseek-chat'
 
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions'
 
