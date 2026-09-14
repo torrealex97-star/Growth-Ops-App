@@ -15,6 +15,7 @@ import {
 } from '@/lib/contracts/student'
 import { sendStudentSignedEmail, sendStudentOnboardingEmail } from '@/lib/email/resend'
 import { fireOnboardingWebhook, toCountryISO } from '@/lib/ghl'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 
@@ -255,7 +256,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     // Dispara el webhook de onboarding a GHL SOLO en el contrato de alumno (venta
     // completa). En reserva / tomador queda inerte (no se dan accesos aquí).
     const webhook = firesAccesos
-      ? await fireOnboardingWebhook({
+      ? await fireOnboardingWebhook(await getTenantConfigWithFallback(tenantId), {
           contractId: c.id,
           saleId: c.sale_id,
           contactId: c.contact_id,

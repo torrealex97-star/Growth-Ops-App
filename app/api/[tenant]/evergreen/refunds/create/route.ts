@@ -16,8 +16,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const t = await requireTenant(tenant)
     if ('error' in t) return t.error
 
-    const { saleId, grossRefundAmount, reason, override } = await req.json()
+    const { saleId, grossRefundAmount, reason, override, refundDate, notes } = (await req.json()) as {
+      saleId?: string
+      grossRefundAmount?: number | string | null
+      reason?: string | null
+      override?: boolean
+      refundDate?: string | null
+      notes?: string | null
+    }
     if (!saleId) return NextResponse.json({ error: 'Falta saleId' }, { status: 400 })
+    // Fecha de la devolución: se admite una pasada (asiento contable de algo ya ocurrido) pero
+    // NUNCA futura, que descuadraría el P&L del mes en curso con dinero que aún no ha salido.
+    const hoy = new Date().toISOString().slice(0, 10)
+    if (refundDate && (!/^\d{4}-\d{2}-\d{2}$/.test(refundDate) || refundDate > hoy)) {
+      return NextResponse.json({ error: 'La fecha de devolución no es válida o está en el futuro' }, { status: 400 })
+    }
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const role = t.role
@@ -34,7 +47,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (saleErr || !sale) return NextResponse.json({ error: 'Venta no encontrada' }, { status: 404 })
 
     // Ventana de devolución: 15 días desde la compra (refund_deadline_at)
-    const today = new Date().toISOString().slice(0, 10)
+    const today = refundDate || hoy
     const withinWindow = sale.refund_deadline_at ? today <= sale.refund_deadline_at : false
     if (!withinWindow && !override) {
       return NextResponse.json(
@@ -50,8 +63,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const { data: collections } = await sb
       .from('collections')
       .select('gross_amount, commissionable_amount, status')
+      .eq('tenant_id', t.tenantId)
       .eq('sale_id', saleId)
       .eq('status', 'collected')
+      .limit(10000)
     const totalGross = (collections ?? []).reduce((s, c) => s + Number(c.gross_amount || 0), 0)
     const totalComm = (collections ?? []).reduce((s, c) => s + Number(c.commissionable_amount || 0), 0)
 
@@ -79,6 +94,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         gross_refund_amount: grossRefund,
         commissionable_refund_amount: commRefund,
         reason: reason || null,
+        notes: notes || null,
         status: 'processed',
         created_by: t.userId,
       })
@@ -88,20 +104,44 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: 'Error registrando devolución', detail: refErr?.message }, { status: 500 })
 
     // 2) Comisiones negativas (se restan de las comisiones del rep)
-    const { data: commissions } = await sb.from('commissions').select('*').eq('sale_id', saleId)
+    const { data: commissions } = await sb
+      .from('commissions')
+      .select('*')
+      .eq('tenant_id', t.tenantId)
+      .eq('sale_id', saleId)
     const negatives = calculateNegativeCommissionsForRefund(refund as Refund, (commissions ?? []) as Commission[]).map(
       (n) => ({ ...n, tenant_id: t.tenantId })
     )
-    if (negatives.length) await sb.from('commissions').insert(negatives)
+    if (negatives.length) {
+      const { error } = await sb.from('commissions').insert(negatives)
+      if (error) {
+        return NextResponse.json(
+          { error: `Devolución registrada pero no se pudieron restar las comisiones: ${error.message}` },
+          { status: 500 }
+        )
+      }
+    }
 
     // 3) Marcar la venta como devuelta / parcial
-    await sb
+    const { data: saleUpd, error: saleUpdErr } = await sb
       .from('sales')
       .update({ status: isFull ? 'refunded' : 'partial_refund', updated_by: t.userId })
+      .eq('tenant_id', t.tenantId)
       .eq('id', saleId)
+      .select('id')
+    if (saleUpdErr || !saleUpd || saleUpd.length === 0) {
+      // Sin esto, la venta se quedaba como "active" tras devolverla y la facturación seguía
+      // contándola — una escritura que afecta a 0 filas no devuelve error.
+      return NextResponse.json(
+        {
+          error: `Devolución registrada pero la venta no se marcó como devuelta: ${saleUpdErr?.message ?? 'no se actualizó ninguna fila'}`,
+        },
+        { status: 500 }
+      )
+    }
 
     // 4) Recalcular tramos del rep: al bajar el cash collected puede bajar de nivel de comisión
-    await recomputeRepCommissionTiers(sb, [
+    await recomputeRepCommissionTiers(sb, t.tenantId, [
       { repId: (sale as { setter_id?: string | null }).setter_id, role: 'setter' },
       { repId: (sale as { closer_id?: string | null }).closer_id, role: 'closer' },
     ])
@@ -113,6 +153,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       entity_id: saleId,
       action: 'refund',
       new_values: {
+        refund_date: today,
         gross_refund: grossRefund,
         commissionable_refund: commRefund,
         negativeCommissions: negatives.length,

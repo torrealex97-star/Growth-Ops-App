@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import type { createClient } from '@/lib/supabase/client'
 
 // Regla de negocio "quién puede ocupar cada rol de venta", antes duplicada literalmente entre
@@ -16,4 +17,33 @@ export const isAffiliateRoleKey = (roleKey: string | null | undefined) => roleKe
 // donde mantener la misma query si cambia el shape de `users`.
 export function activeUserNamesQuery(supabase: ReturnType<typeof createClient>) {
   return supabase.from('users').select('id, full_name').eq('is_active', true).order('full_name')
+}
+
+// Nombres de los usuarios activos de UNA subcuenta, para dárselos como contexto a la IA (extraer
+// una factura, repartir tareas de una transcripción…).
+//
+// POR QUÉ EXISTE. Esas dos rutas leían `users` con service-role y sin filtro: mandaban al modelo el
+// nombre de TODOS los usuarios activos de la plataforma, incluidos los de otras subcuentas. Un
+// nombre propio es un dato personal, y la pertenencia vive en `tenant_members`, así que el filtro
+// tiene que pasar por ahí.
+type MemberUser = { id: string; full_name: string | null; is_active: boolean | null }
+
+export type TenantUser = { id: string; full_name: string }
+
+/** Usuarios activos de una subcuenta (id + nombre), resueltos a través de `tenant_members`. */
+export async function tenantActiveUsers(sb: SupabaseClient, tenantId: string): Promise<TenantUser[]> {
+  const { data } = await sb
+    .from('tenant_members')
+    .select('users!inner(id, full_name, is_active)')
+    .eq('tenant_id', tenantId)
+    .limit(5000)
+  const rows = (data ?? []) as unknown as Array<{ users: MemberUser | MemberUser[] | null }>
+  return rows
+    .map((row) => (Array.isArray(row.users) ? row.users[0] : row.users))
+    .filter((u): u is MemberUser => !!u && u.is_active !== false && !!(u.full_name ?? '').trim())
+    .map((u) => ({ id: u.id, full_name: (u.full_name ?? '').trim() }))
+}
+
+export async function tenantActiveUserNames(sb: SupabaseClient, tenantId: string): Promise<string[]> {
+  return (await tenantActiveUsers(sb, tenantId)).map((u) => u.full_name)
 }

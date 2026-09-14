@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { resolveUserIdByTrackingCode } from '@/lib/tracking'
+import { firstMemberOf, resolveUserIdByTrackingCode } from '@/lib/tracking'
 import { isValidWebhookSecret } from '@/lib/webhooks/verifySecret'
 
 // Webhook único de GHL (+ player VSL). Maneja, de forma IDEMPOTENTE, varios eventos:
@@ -78,10 +78,17 @@ function mapStatus(raw: unknown): string | null {
   return null
 }
 
-async function userIdByEmail(sb: SupabaseClient, email?: string | null): Promise<string | null> {
+// Acotado a la subcuenta: `users` es GLOBAL (la pertenencia vive en tenant_members), así que sin el
+// filtro un email resolvía a cualquier usuario de la plataforma y la agenda —con su comisión— podía
+// caer en el closer de otra subcuenta.
+async function userIdByEmail(sb: SupabaseClient, tenantId: string, email?: string | null): Promise<string | null> {
   if (!email) return null
-  const { data } = await sb.from('users').select('id').eq('email', email.toLowerCase().trim()).maybeSingle()
-  return data?.id ?? null
+  const { data } = await sb.from('users').select('id').eq('email', email.toLowerCase().trim()).limit(20)
+  return firstMemberOf(
+    sb,
+    tenantId,
+    (data ?? []).map((u) => (u as { id: string }).id)
+  )
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
@@ -340,13 +347,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // --- 4) Asignación closer/setter ---
     const closerId = await userIdByEmail(
       sb,
+      tenantId,
       pick(payload.closerEmail, payload.closer_email, payload.assignedUserEmail, payload.userEmail) as string
     )
-    let setterId = await userIdByEmail(sb, pick(payload.setterEmail, payload.setter_email) as string)
+    let setterId = await userIdByEmail(sb, tenantId, pick(payload.setterEmail, payload.setter_email) as string)
     // Si GHL no manda el setter por email, atribúyelo por el utm_term del enlace de agenda del setter
     // (utm_term → users.tracking_code), igual que en Calendly, para que su agenda se le contabilice.
     if (!setterId && utm.utm_term) {
-      setterId = await resolveUserIdByTrackingCode(sb, utm.utm_term)
+      setterId = await resolveUserIdByTrackingCode(sb, utm.utm_term, tenantId)
     }
     // Si el lead/agenda viene de un setter, deja constancia del origen en el
     // contacto (sin pisar un origen ya asignado) → marca "De setter" en Leads.

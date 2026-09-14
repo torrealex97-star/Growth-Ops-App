@@ -6,6 +6,7 @@ import { applyVars } from '@/lib/contracts/terms'
 import { studentGenerationVars, DEFAULT_STUDENT_WELCOME, type StudentContractTerms } from '@/lib/contracts/student'
 import { getCompanyProfile } from '@/lib/contracts/company'
 import { sendStudentContractEmail, resendConfigured } from '@/lib/email/resend'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 
@@ -289,6 +290,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     let emailError: string | null = null
     if (send && studentEmail) {
       const r = await sendStudentContractEmail({
+        mail: await getTenantConfigWithFallback(t.tenantId),
         to: studentEmail,
         studentName,
         company,
@@ -324,6 +326,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       })
       if (send && payerEmail) {
         const rp = await sendStudentContractEmail({
+          mail: await getTenantConfigWithFallback(t.tenantId),
           to: payerEmail,
           studentName: payer!.name!,
           company,
@@ -369,7 +372,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       isReservation,
       recipient,
       payer: payerContract ? { signUrl: payerContract.signUrl, emailed: payerEmailed } : null,
-      resendConfigured: resendConfigured(),
+      resendConfigured: resendConfigured(await getTenantConfigWithFallback(t.tenantId)),
       studentEmail,
     })
   } catch (err) {

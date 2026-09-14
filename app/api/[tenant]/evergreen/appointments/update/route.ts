@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { notifyCreatuagente, EVENTO_BY_STATUS } from '@/lib/creatuagente'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // (p.ej. sigue "scheduled"), no hay nada que reenviar todavía.
     if (typeof clean.notes === 'string' && clean.notes && appt.calendly_event_uuid) {
       const evento = EVENTO_BY_STATUS[appt.status] ?? 'cita.completada'
-      await notifyCreatuagente(evento, appt.utm_content, {
+      await notifyCreatuagente(await getTenantConfigWithFallback(t.tenantId), evento, appt.utm_content, {
         idExternoEvento: appt.calendly_event_uuid,
         origen: 'calendly',
         titulo: appt.calendar_name || 'Llamada',

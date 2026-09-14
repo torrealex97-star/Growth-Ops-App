@@ -23,5 +23,22 @@ export async function resolve(specifier, context, nextResolve) {
     }
     throw new Error(`No se pudo resolver el alias '@/' para '${specifier}'`)
   }
+  // Import relativo SIN extensión entre módulos de lib/ ('./calculator'). TypeScript la infiere y
+  // el bundler de Next.js también; Node no, así que un test que importa un módulo que a su vez
+  // importa a un vecino fallaba con ERR_MODULE_NOT_FOUND aunque el alias '@/' sí funcionara.
+  if (specifier.startsWith('./') || specifier.startsWith('../')) {
+    try {
+      return await nextResolve(specifier, context)
+    } catch (err) {
+      for (const ext of ['.ts', '.tsx']) {
+        try {
+          return await nextResolve(specifier + ext, context)
+        } catch {
+          continue
+        }
+      }
+      throw err
+    }
+  }
   return nextResolve(specifier, context)
 }

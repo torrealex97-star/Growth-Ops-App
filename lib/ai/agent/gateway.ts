@@ -33,8 +33,10 @@ export type TurnUsage = {
 export type AgentTurn = { text: string; evidence: ToolEvidence[]; usage: TurnUsage }
 export type ChatMessage = { role: 'user' | 'assistant'; content: string }
 
-function anthropicClient() {
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, maxRetries: 3 })
+// La clave llega de la configuración de la subcuenta (ver lib/config.ts): leerla de `process.env`
+// significaba que el agente de una subcuenta podía consumir la cuenta de Anthropic de otra.
+function anthropicClient(apiKey: string | undefined) {
+  return new Anthropic({ apiKey, maxRetries: 3 })
 }
 
 // Definición de tools en formato Anthropic. input_schema es JSON Schema — el SDK valida que el
@@ -371,6 +373,8 @@ async function callTool(
 
 export async function runAgent(opts: {
   tenantId: string
+  /** Clave de Anthropic de esta subcuenta. */
+  anthropicKey: string | undefined
   tenantName: string
   userId?: string
   sb: SupabaseClient
@@ -384,7 +388,7 @@ export async function runAgent(opts: {
     latencyMs: number
   ) => void
 }): Promise<AgentTurn> {
-  const client = anthropicClient()
+  const client = anthropicClient(opts.anthropicKey)
   const ctx: tools.ToolContext = { tenantId: opts.tenantId, sb: opts.sb, userId: opts.userId }
   const evidence: ToolEvidence[] = []
   const startedAt = Date.now()

@@ -89,7 +89,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       { repId: prev.setter_id, role: 'setter' },
       { repId: prev.closer_id, role: 'closer' },
     ]
-    const result = await reconcileSaleCommissions(sb, saleId, oldReps)
+    const result = await reconcileSaleCommissions(sb, t.tenantId, saleId, oldReps)
 
     await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,

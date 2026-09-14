@@ -132,6 +132,22 @@ test('el rol super_admin no se puede dar desde la pantalla de subcuentas', () =>
   assert.doesNotMatch(sinComentarios(page), /'super_admin'\]/, 'la pantalla tiene su propia lista de roles')
 })
 
+// La guarda de arriba es de APLICACIÓN (camino service-role). El camino expuesto al cliente es la
+// RLS de tenant_members, y solo exigía `is_tenant_admin(tenant_id)`: el admin de una subcuenta de
+// cliente podía insertar en SU propia subcuenta una fila con role='super_admin' y, como
+// `is_super_admin()` no filtra por subcuenta, quedarse con acceso a TODAS. Reproducido y corregido
+// en Postgres 16 local (migración 20260914090000).
+test('la RLS impide que un admin de subcuenta se conceda super_admin', () => {
+  const sql = read('supabase/migrations/20260914090000_block_super_admin_self_grant.sql')
+  assert.match(sql, /DROP POLICY IF EXISTS tenant_members_modify/)
+  // La condición tiene que estar en las DOS mitades: WITH CHECK impide crear/ascender, y USING
+  // impide tocar (degradar o borrar) una fila que ya es super_admin.
+  const condiciones = sql.match(/role <> 'super_admin' OR public\.is_super_admin\(\)/g) ?? []
+  assert.equal(condiciones.length, 2, 'la condición debe estar en USING y en WITH CHECK')
+  assert.match(sql, /USING \(\s*public\.is_tenant_admin\(tenant_id\)/)
+  assert.match(sql, /WITH CHECK \(\s*public\.is_tenant_admin\(tenant_id\)/)
+})
+
 // Dos formas de quedarse fuera sin arreglo posible desde la aplicación: quitarte tu propio acceso, y
 // suspender la subcuenta desde la que estás administrando.
 test('no se puede provocar un bloqueo del que no se pueda salir', () => {

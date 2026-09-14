@@ -13,8 +13,10 @@ import {
   fetchConversationStats,
   refreshOwnMediaUrl,
   type IgConfig,
+  type IgEnv,
 } from './client'
 import { runYoutubeSync } from '@/lib/youtube/backfill'
+import type { YoutubeEnv } from '@/lib/youtube/client'
 
 const today = (): string => new Date().toISOString().slice(0, 10)
 const round2 = (n: number) => Math.round(n * 100) / 100
@@ -30,6 +32,8 @@ export type InstagramSyncResult = {
   conversations: number | null
   youtubeUploaded: number
   at: string
+  /** Escrituras que fallaron. Antes se descartaban y "0 posts" parecía "no hay posts". */
+  failures: string[]
 }
 
 // Núcleo de la sincronización orgánica de Instagram. Lo usan el botón manual
@@ -39,12 +43,16 @@ export type InstagramSyncResult = {
 export async function runInstagramSync(
   sb: SupabaseClient,
   tenantId: string,
+  // IgEnv + YoutubeEnv: la sync también espeja los reels nuevos al canal de YouTube de ESTA
+  // subcuenta, así que necesita ambas credenciales en la misma instantánea.
+  env: IgEnv & YoutubeEnv,
   opts?: { mediaLimit?: number; light?: boolean }
 ): Promise<InstagramSyncResult> {
-  const cfg = getInstagramConfig()
+  const failures: string[] = []
+  const cfg = getInstagramConfig(env)
   if (!cfg) {
     throw new Error(
-      'Faltan credenciales de Instagram. Configura INSTAGRAM_ACCESS_TOKEN (o META_ACCESS_TOKEN) en Vercel.'
+      'Faltan credenciales de Instagram en esta subcuenta. Pega el token en Configuración › Integraciones › Instagram.'
     )
   }
 
@@ -134,7 +142,8 @@ export async function runInstagramSync(
       synced_at: at,
     }
     const { error } = await sb.from('ig_media').upsert(row, { onConflict: 'external_id', ignoreDuplicates: false })
-    if (!error) mediaSynced++
+    if (error) failures.push(`No se pudo guardar el post ${row.external_id}: ${error.message}`)
+    else mediaSynced++
   }
 
   // 4) Facebook: reels cross-posteados a la página vinculada (métricas propias de FB)
@@ -168,7 +177,8 @@ export async function runInstagramSync(
             const { error } = await sb
               .from('fb_media')
               .upsert(row, { onConflict: 'external_id', ignoreDuplicates: false })
-            if (!error) fbReelsSynced++
+            if (error) failures.push(`No se pudo guardar el reel de Facebook ${r.external_id}: ${error.message}`)
+            else fbReelsSynced++
           }
         } catch {
           /* reels de FB no disponibles */
@@ -177,7 +187,7 @@ export async function runInstagramSync(
         // Conversaciones (DMs) — snapshot del día. Requiere ACCESO AVANZADO a
         // instagram_manage_messages (App Review): con acceso estándar, una cuenta
         // con muchos DMs da timeout/error #1. Gate por env hasta tener el permiso.
-        if (process.env.IG_ENABLE_DM_SYNC === '1')
+        if (cfg.enableDmSync)
           try {
             const stats = await fetchConversationStats(cfg, pageId, pat)
             await sb.from('ig_conversations_daily').upsert(
@@ -209,7 +219,7 @@ export async function runInstagramSync(
   try {
     // Solo reels nuevos aquí (backfillLimit 0): el backfill de reels antiguos va por su propio
     // cron 3 veces al día (mañana/mediodía/noche), ver /api/${tenant}/evergreen/cron/youtube-backfill.
-    youtubeUploaded = await runYoutubeSync(sb, cfg, tenantId, { backfillLimit: 0 })
+    youtubeUploaded = await runYoutubeSync(sb, cfg, tenantId, env, { backfillLimit: 0 })
   } catch {
     /* YouTube opcional: un fallo aquí no debe romper el sync de Instagram */
   }
@@ -225,5 +235,6 @@ export async function runInstagramSync(
     conversations,
     youtubeUploaded,
     at,
+    failures,
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getCompanyProfile } from '@/lib/contracts/company'
 import { sendRecoveryEmail, resendConfigured } from '@/lib/email/resend'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 
@@ -19,11 +20,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       .trim()
     if (!email) return NextResponse.json({ error: 'Falta el email' }, { status: 400 })
 
-    // Sin Resend no podemos enviar nosotros el correo → que la página use el flujo de Supabase.
-    if (!resendConfigured()) {
-      return NextResponse.json({ ok: true, fallback: true })
-    }
-
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
@@ -35,6 +31,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       .eq('status', 'active')
       .maybeSingle()
     if (!tenantRow) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
+
+    // Sin Resend no podemos enviar nosotros el correo → que la página use el flujo de Supabase.
+    // Se comprueba DESPUÉS de resolver la subcuenta, con SUS credenciales: antes se miraba solo el
+    // entorno del despliegue, así que una subcuenta con su propia clave de Resend guardada caía al
+    // flujo de Supabase (correo con la plantilla y el remitente genéricos) sin motivo.
+    const mail = await getTenantConfigWithFallback(tenantRow.id)
+    if (!resendConfigured(mail)) {
+      return NextResponse.json({ ok: true, fallback: true })
+    }
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin
     const redirectTo = `${siteUrl}/api/${tenant}/evergreen/auth/callback?next=/${tenant}/settings/password`
@@ -50,7 +55,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     const url = `${siteUrl}/api/${tenant}/evergreen/auth/callback?token_hash=${encodeURIComponent(hashedToken)}&type=recovery&next=/${tenant}/settings/password`
     const company = await getCompanyProfile(sb, tenantRow.id)
-    const sent = await sendRecoveryEmail({ to: email, company, url })
+    const sent = await sendRecoveryEmail({ mail, to: email, company, url })
     // Si Resend falla (p.ej. dominio aún sin verificar), que la página use el
     // flujo estándar de Supabase para que el usuario reciba igualmente el correo.
     return NextResponse.json({ ok: true, fallback: !sent.ok })

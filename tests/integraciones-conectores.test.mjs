@@ -255,6 +255,33 @@ test('toda ruta que sincroniza Meta le pasa la config explícita de su subcuenta
   }
 })
 
+// Instagram tenía el mismo problema que Meta: el cron recorre todas las subcuentas en la misma
+// lambda y `ensureConfig` no limpia process.env entre iteraciones. Y dos rutas (competencia,
+// transcripción) leían las credenciales de process.env SIN cargarlas: en una lambda nueva no había
+// ninguna y respondían "faltan credenciales" teniendo el token guardado.
+test('las rutas de Instagram reciben la config explícita de su subcuenta', () => {
+  const rutas = [
+    'app/api/[tenant]/evergreen/cron/instagram/route.ts',
+    'app/api/[tenant]/evergreen/instagram/sync/route.ts',
+    'app/api/[tenant]/evergreen/instagram/competitors/route.ts',
+    'app/api/[tenant]/evergreen/instagram/transcribe/route.ts',
+    'app/api/[tenant]/evergreen/cron/youtube-backfill/route.ts',
+    'app/api/[tenant]/evergreen/setting-ai/conversations/route.ts',
+  ]
+  for (const ruta of rutas) {
+    const code = sinComentarios(read(ruta))
+    assert.doesNotMatch(code, /ensureConfig\(/, `${ruta} vuelca credenciales en process.env`)
+    assert.match(code, /getTenantConfigWithFallback\(/, `${ruta} no lee la config de su subcuenta`)
+    assert.doesNotMatch(code, /getInstagramConfig\(\)/, `${ruta} lee las credenciales del entorno global`)
+  }
+  const client = sinComentarios(read('lib/instagram/client.ts'))
+  assert.doesNotMatch(client, /process\.env\.(INSTAGRAM|META|IG_)/, 'el cliente de IG lee del entorno')
+  // Y la sync de Instagram deja de tragarse los errores de escritura.
+  const sync = sinComentarios(read('lib/instagram/sync.ts'))
+  assert.doesNotMatch(sync, /if \(!error\) (mediaSynced|fbReelsSynced)\+\+/)
+  assert.match(sync, /failures\.push\(/)
+})
+
 // Las credenciales se leen SOLO de lo que se pasa. Un `process.env.META_*` aquí devuelve el proceso
 // al fallo de arriba, y además hace imposible saber qué se usó al sincronizar.
 test('el cliente y la sync de Meta no leen credenciales del entorno', () => {
@@ -285,11 +312,12 @@ test('la sync de Meta no se traga ningún fallo de escritura', () => {
 test('borrar un campo lo borra de verdad: cuenta filas y retira el valor del proceso', () => {
   const code = sinComentarios(read(ROUTE))
   assert.match(code, /\.in\('key', clearable\)\s*\.select\('key'\)/s, 'un delete sin .select() no sabe si borró algo')
-  assert.match(code, /forgetInjectedKeys\(auth\.tenantId, clearable\)/)
   assert.match(code, /stillInEnv/, 'hay que decirlo si la clave sigue llegando por variable de entorno')
+  // Y la raíz del problema está eliminada: nada vuelca credenciales en process.env, que es global al
+  // proceso y no se limpia entre peticiones de subcuentas distintas.
   const config = sinComentarios(read('lib/config.ts'))
-  assert.match(config, /injectedBy/, 'hay que saber qué clave inyectó cada subcuenta')
-  assert.match(config, /if \(owner && owner !== tenantId\) continue/, 'el valor de otra subcuenta no es entorno')
+  assert.doesNotMatch(config, /export async function ensureConfig/, 'ensureConfig ha vuelto')
+  assert.doesNotMatch(config, /process\.env\[[^\]]+\] = /, 'algo vuelve a escribir en process.env')
 })
 
 // El historial es la pieza que faltaba para que el panel pueda decir la causa. Con cerrojo, para que
@@ -328,4 +356,47 @@ test('una lista de Stripe incompleta no se guarda como sincronización correcta'
   const code = sinComentarios(read('app/api/[tenant]/evergreen/settings/integraciones/stripe-customers/route.ts'))
   assert.match(code, /recordSyncRun\(/)
   assert.match(code, /failures: r\.truncated/)
+})
+
+// Toda credencial que el usuario puede configurar en el panel tiene que USARSE de verdad. El patrón
+// que lo rompía: la librería leía `process.env.X` y el panel comprobaba la de la subcuenta, así que
+// la tarjeta salía en verde y el trabajo real seguía yendo con la clave del despliegue (o sin
+// ninguna). Estas librerías reciben ahora sus credenciales como argumento.
+test('las credenciales configurables no se leen del entorno del proceso', () => {
+  const PROHIBIDO = {
+    'lib/calendly.ts': /process\.env\.CALENDLY_/,
+    'lib/sequra/client.ts': /process\.env\.SEQURA_/,
+    'lib/sequra/syncDelinquents.ts': /process\.env\.SEQURA_/,
+    'lib/youtube/client.ts': /process\.env\.YOUTUBE_/,
+    'lib/instagram/client.ts': /process\.env\.(INSTAGRAM_|IG_|META_)/,
+    'lib/meta/client.ts': /process\.env\.META_/,
+    'lib/reels/generate.ts': /process\.env\.GROQ_/,
+    'lib/ai/groq.ts': /process\.env\.GROQ_/,
+  }
+  for (const [archivo, patron] of Object.entries(PROHIBIDO)) {
+    assert.doesNotMatch(sinComentarios(read(archivo)), patron, `${archivo} vuelve a leer la credencial del entorno`)
+  }
+  // Resend sí admite el entorno como FALLBACK (los flujos públicos de firma no tienen subcuenta
+  // resuelta), pero la clave de la subcuenta tiene prioridad.
+  const resend = sinComentarios(read('lib/email/resend.ts'))
+  assert.match(resend, /mail\?\.RESEND_API_KEY\?\.trim\(\) \|\| process\.env\.RESEND_API_KEY/)
+})
+
+// Una sola implementación de transcribir con Groq: estaba copiada tres veces, con tres variantes
+// distintas (una con timeout y dos sin él, y dos listas de extensiones diferentes).
+test('la transcripción con Groq vive en un solo sitio', () => {
+  const copias = [
+    'app/api/[tenant]/evergreen/ai/call/route.ts',
+    'app/api/[tenant]/evergreen/instagram/transcribe/route.ts',
+    'lib/reels/generate.ts',
+  ]
+  for (const p of copias) {
+    const code = sinComentarios(read(p))
+    assert.doesNotMatch(code, /async function transcribeGroq/, `${p} tiene su propia copia`)
+    assert.doesNotMatch(code, /api\.groq\.com/, `${p} llama a Groq a mano`)
+    assert.match(code, /transcribeAudio\(/, `${p} no usa la implementación compartida`)
+  }
+  const groq = read('lib/ai/groq.ts')
+  assert.match(groq, /AbortSignal\.timeout/)
+  assert.match(groq, /GROQ_LIMIT_BYTES/)
 })

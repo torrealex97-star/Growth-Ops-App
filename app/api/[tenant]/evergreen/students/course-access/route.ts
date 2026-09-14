@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { fireCourseAccessWebhook, onboardingWebhookConfigured } from '@/lib/ghl'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 
@@ -41,7 +42,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const contact = sale.contacts as unknown as { email: string | null; phone: string | null } | null
     const product = sale.products as unknown as { name: string } | null
 
-    const webhookResult = await fireCourseAccessWebhook(action, {
+    const ghlEnv = await getTenantConfigWithFallback(t.tenantId)
+    const webhookResult = await fireCourseAccessWebhook(ghlEnv, action, {
       saleId,
       contactId: sale.contact_id,
       email: contact?.email ?? null,
@@ -75,7 +77,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     return NextResponse.json({
       ok: true,
       sale: updated,
-      webhookConfigured: onboardingWebhookConfigured(),
+      webhookConfigured: onboardingWebhookConfigured(ghlEnv),
       webhookResult,
     })
   } catch (err) {

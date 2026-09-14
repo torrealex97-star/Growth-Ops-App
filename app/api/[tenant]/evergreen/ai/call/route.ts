@@ -3,11 +3,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { analyzeCall } from '@/lib/ai/claude'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { tenantAiEnv } from '@/lib/ai/provider'
+import { GROQ_LIMIT_BYTES, transcribeAudio } from '@/lib/ai/groq'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
-
-const GROQ_LIMIT_BYTES = 25 * 1024 * 1024 // 25MB (tier gratuito Groq)
 
 function driveFileId(url: string): string | null {
   const m = url.match(/\/file\/d\/([^/]+)/) || url.match(/[?&]id=([^&]+)/)
@@ -55,34 +55,6 @@ async function downloadFromDrive(fileId: string): Promise<{ buf: Buffer; type: s
   throw new Error(NOT_PUBLIC)
 }
 
-async function transcribeGroq(buf: Buffer, mime: string): Promise<string> {
-  if (!process.env.GROQ_API_KEY) throw new Error('Falta GROQ_API_KEY')
-  const form = new FormData()
-  const ext =
-    mime.includes('mp4') || mime.includes('video')
-      ? 'mp4'
-      : mime.includes('wav')
-        ? 'wav'
-        : mime.includes('m4a')
-          ? 'm4a'
-          : 'mp3'
-  form.append('file', new Blob([new Uint8Array(buf)], { type: mime }), `call.${ext}`)
-  form.append('model', 'whisper-large-v3-turbo')
-  form.append('language', 'es')
-  form.append('response_format', 'json')
-  const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
-    body: form,
-  })
-  if (!res.ok) {
-    const t = await res.text()
-    throw new Error(`Groq error ${res.status}: ${t.slice(0, 300)}`)
-  }
-  const data = (await res.json()) as { text?: string }
-  return data.text || ''
-}
-
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
     const { tenant } = await params
@@ -127,7 +99,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           { status: 413 }
         )
       }
-      transcript = await transcribeGroq(buf, type)
+      // Clave de Groq de ESTA subcuenta (antes: process.env, así que la del panel no se usaba).
+      const groqKey = (await getTenantConfigWithFallback(t.tenantId)).GROQ_API_KEY
+      transcript = await transcribeAudio(buf, type, groqKey, { filename: 'call' })
       await sb
         .from('appointments')
         .update({ transcript, transcript_status: 'listo' })

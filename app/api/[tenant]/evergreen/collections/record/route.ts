@@ -5,6 +5,7 @@ import { generateCommissionsForCollection, saleNeedsCommissionReview } from '@/l
 import { resolveSaleAttribution } from '@/lib/commissions/attribution'
 import { notifyCreatuagenteVenta, resolveSaleToken } from '@/lib/creatuagente'
 import type { Collection, Sale } from '@/lib/types/database'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 
@@ -18,7 +19,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const t = await requireTenant(tenant)
     if ('error' in t) return t.error
 
-    const { saleId, grossAmount, method, collectedAt, commissionableAmount } = await req.json()
+    const { saleId, grossAmount, method, collectedAt, commissionableAmount, notes, paymentReference } =
+      (await req.json()) as {
+        saleId?: string
+        grossAmount?: number | string
+        method?: string | null
+        collectedAt?: string | null
+        commissionableAmount?: number | string | null
+        notes?: string | null
+        paymentReference?: string | null
+      }
     const amount = Number(grossAmount)
     if (!saleId || !Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json({ error: 'Parámetros inválidos' }, { status: 400 })
@@ -55,7 +65,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Si la venta no tiene setter/afiliado, dedúcelos de la atribución del contacto (utm_term →
     // tracking_code del setter/cold caller, utm_content → affiliate_code) y aplícalo a la venta
     // ANTES de generar comisiones, para que el rep atribuido por UTM cobre su comisión.
-    const attrPatch = await resolveSaleAttribution(sb, sale as unknown as Parameters<typeof resolveSaleAttribution>[1])
+    const attrPatch = await resolveSaleAttribution(
+      sb,
+      sale as unknown as Parameters<typeof resolveSaleAttribution>[1],
+      t.tenantId
+    )
     Object.assign(sale, attrPatch)
 
     const plan = sale.payment_plans as {
@@ -70,7 +84,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     // Plan personalizado: si esta venta ya tiene un cobro elegible previo (p.ej. esta ruta se
     // reutiliza para un segundo adelanto), este cobro queda en revisión en vez de comisionar ya.
-    const needsReview = await saleNeedsCommissionReview(sb, saleId, plan?.method)
+    const needsReview = await saleNeedsCommissionReview(sb, t.tenantId, saleId, plan?.method)
 
     // Antes de insertar: si esta venta no tenía NINGÚN cobro previo, este es el primero
     // (equivale a "venta creada" de cara a creatuagente, que no ve el alta de la venta en sí,
@@ -78,6 +92,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const { count: priorCollections } = await sb
       .from('collections')
       .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', t.tenantId)
       .eq('sale_id', saleId)
     const isFirstCollection = !priorCollections
 
@@ -97,6 +112,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         needs_commission_review: needsReview,
         status: 'collected',
         payment_method: method || null,
+        payment_reference: paymentReference || null,
+        notes: notes || null,
       })
       .select()
       .single()
@@ -107,7 +124,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     const commissionsGenerated = needsReview
       ? 0
-      : await generateCommissionsForCollection(sb, coll as Collection, sale as unknown as Sale)
+      : await generateCommissionsForCollection(sb, t.tenantId, coll as Collection, sale as unknown as Sale)
+
+    // Auditoría del cobro. La hacía la pantalla de "Registrar cobro" por su cuenta y esta ruta no,
+    // así que el mismo hecho de negocio quedaba auditado o no según por dónde entrara.
+    await sb.from('audit_logs').insert({
+      tenant_id: t.tenantId,
+      actor_user_id: t.userId,
+      entity_type: 'collection',
+      entity_id: (coll as { id: string }).id,
+      action: 'create',
+      old_values: null,
+      new_values: {
+        sale_id: saleId,
+        gross_amount: round2(amount),
+        payment_method: method || null,
+        needs_commission_review: needsReview,
+      },
+    })
 
     // Fire-and-forget: no debe tumbar el registro del cobro (ya aplicado arriba) si
     // creatuagente está caído o el lead no tiene token. Un solo evento venta.registrada
@@ -115,7 +149,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // no hay evento confirmado para "cobro adicional").
     if (isFirstCollection) {
       const token = await resolveSaleToken(sb, sale.appointment_id)
-      await notifyCreatuagenteVenta(token, {
+      await notifyCreatuagenteVenta(await getTenantConfigWithFallback(t.tenantId), token, {
         idExterno: saleId,
         importe: round2(amount),
         moneda: 'EUR',
