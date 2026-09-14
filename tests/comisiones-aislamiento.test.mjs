@@ -97,3 +97,40 @@ test('la atribución por código o email exige pertenencia a la subcuenta', () =
     )
   }
 })
+
+// Una sola implementación canónica por operación de negocio. Estas dos pantallas escribían
+// directamente en la base de datos desde el navegador, en paralelo a las rutas que ya hacían lo
+// mismo — y peor: sin tramos, sin atribución por UTM, sin recalcular el nivel del rep y, en el caso
+// de las devoluciones, SIN COMPROBAR LA VENTANA DE 15 DÍAS.
+test('registrar un cobro o una devolución pasa por su ruta canónica', () => {
+  const cobro = sinComentarios(read('app/[tenant]/finanzas/cobros/cobros/new/page.tsx'))
+  assert.match(cobro, /\/evergreen\/collections\/record/)
+  for (const escritura of ["from('collections').insert", "from('commissions').insert"]) {
+    assert.ok(!cobro.includes(escritura), `la pantalla de cobros vuelve a escribir a mano: ${escritura}`)
+  }
+
+  const devolucion = sinComentarios(read('app/[tenant]/finanzas/cobros/devoluciones/page.tsx'))
+  assert.match(devolucion, /\/evergreen\/refunds\/create/)
+  for (const escritura of ["from('refunds').insert", "from('commissions').insert"]) {
+    assert.ok(!devolucion.includes(escritura), `la pantalla de devoluciones vuelve a escribir a mano: ${escritura}`)
+  }
+})
+
+// La ventana de devolución es una regla de negocio, no un aviso: solo se salta con `override`
+// explícito, y la venta tiene que quedar marcada como devuelta de verdad.
+test('la ruta de devoluciones valida plazo, importe y que la venta quede marcada', () => {
+  const code = sinComentarios(read('app/api/[tenant]/evergreen/refunds/create/route.ts'))
+  assert.match(code, /outOfWindow: true/)
+  assert.match(code, /!withinWindow && !override/)
+  assert.match(code, /grossRefund > totalGross \+ 0\.01/)
+  assert.match(code, /refundDate > hoy/, 'una devolución con fecha futura descuadra el P&L')
+  assert.match(code, /from\('sales'\)[\s\S]{0,300}\.select\('id'\)/, 'hay que comprobar que la venta se marcó')
+  assert.match(code, /recomputeRepCommissionTiers\(sb, t\.tenantId/)
+})
+
+// El cobro queda auditado por la ruta, no según por qué pantalla se haya entrado.
+test('la ruta de cobros deja auditoría', () => {
+  const code = sinComentarios(read('app/api/[tenant]/evergreen/collections/record/route.ts'))
+  assert.match(code, /from\('audit_logs'\)\.insert/)
+  assert.match(code, /entity_type: 'collection'/)
+})

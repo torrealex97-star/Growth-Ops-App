@@ -100,7 +100,9 @@ async function postToOnboardingWebhook(
   const url = process.env.GHL_ONBOARDING_WEBHOOK_URL
   if (!url) return { ok: false, skipped: true }
   try {
+    // Timeout: sale desde una petición de usuario; sin él, un GHL lento la bloquea entera.
     const res = await fetch(url, {
+      signal: AbortSignal.timeout(10_000),
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

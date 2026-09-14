@@ -42,8 +42,21 @@ function q(cfg: IgConfig, extra = ''): string {
   return `access_token=${encodeURIComponent(cfg.token)}${proofParam(cfg)}${extra}`
 }
 
+// Timeout duro (15s), igual que lib/meta/client.ts y lib/calendly.ts. Sin esto, una llamada
+// colgada de la Graph API se come toda la ventana del cron de Instagram (maxDuration) — y como
+// `graphGetAll` pagina llamando a esta función en bucle, un solo hueco cuelga la sync entera.
+const IG_TIMEOUT_MS = 15_000
+
 async function graphGet(url: string): Promise<any> {
-  const res = await fetch(url, { cache: 'no-store' })
+  let res: Response
+  try {
+    res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(IG_TIMEOUT_MS) })
+  } catch (err) {
+    if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+      throw new Error('La API de Instagram tardó demasiado en responder (timeout)')
+    }
+    throw err
+  }
   const json = await res.json()
   if (!res.ok || json?.error) {
     const err = json?.error

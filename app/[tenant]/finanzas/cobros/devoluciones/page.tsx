@@ -12,9 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Plus, RotateCcw, Search, Loader2, Download, X } from 'lucide-react'
 import { formatDate, formatCurrency } from '@/lib/utils'
-import { calculateNegativeCommissionsForRefund } from '@/lib/commissions/calculator'
 import { toast } from 'sonner'
-import type { Refund, SaleWithRelations, Commission } from '@/lib/types/database'
+import type { Refund, SaleWithRelations } from '@/lib/types/database'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { getCustomDateRange } from '@/lib/filters/period'
 
@@ -215,11 +214,6 @@ export default function RefundsPage() {
     downloadCSV(`devoluciones_${periodFileTag}.csv`, headers, rows)
   }
 
-  const commissionableRefund =
-    selectedSale && refundAmount
-      ? parseFloat(refundAmount) * (selectedSale.payment_plans?.cash_collection_ratio ?? 1)
-      : 0
-
   const handleSubmit = async () => {
     if (!selectedSale || !refundAmount || !reason) {
       toast.error('Completa todos los campos obligatorios')
@@ -227,72 +221,42 @@ export default function RefundsPage() {
     }
 
     setSubmitting(true)
-    const supabase = createClient()
-    const { data: authUser } = await supabase.auth.getUser()
-
-    const refundPayload = {
-      tenant_id: tenantId,
-      sale_id: selectedSale.id,
-      collection_id: null,
-      refund_date: refundDate,
-      gross_refund_amount: parseFloat(refundAmount),
-      commissionable_refund_amount: commissionableRefund,
-      reason,
-      status: 'processed' as const,
-      created_by: authUser.user?.id ?? '',
-      notes: null,
+    // Por la ruta canónica (POST /refunds/create) en vez de escribir desde el navegador.
+    //
+    // POR QUÉ. Esta pantalla era una SEGUNDA implementación de "registrar una devolución", y se
+    // saltaba reglas que la ruta sí aplica: la VENTANA DE 15 DÍAS (aquí se podía devolver una venta
+    // fuera de plazo sin que nadie lo impidiera), el recálculo del tramo del rep (al bajar el cash
+    // collected puede bajar de nivel y su % debe bajar con él), el tope de "no más de lo cobrado", y
+    // el importe comisionable proporcional calculado sobre los cobros REALES en vez de estimado en
+    // cliente. También marca la venta como devuelta comprobando que la escritura surtió efecto.
+    const res = await fetch(`/api/${tenant}/evergreen/refunds/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        saleId: selectedSale.id,
+        grossRefundAmount: parseFloat(refundAmount),
+        reason,
+        refundDate,
+      }),
+    })
+    const payload = (await res.json().catch(() => ({}))) as {
+      error?: string
+      outOfWindow?: boolean
+      negativeCommissions?: number
     }
-
-    const { data: newRefund, error } = await supabase.from('refunds').insert(refundPayload).select().single()
-
-    if (error || !newRefund) {
-      toast.error('Error al registrar la devolucion', { description: error?.message })
+    if (!res.ok) {
+      toast.error(payload.outOfWindow ? 'Fuera del plazo de devolución' : 'Error al registrar la devolucion', {
+        description: payload.error,
+      })
       setSubmitting(false)
       return
     }
 
-    // Update sale status — vía API con service-role: `sales` en RLS solo tiene políticas de
-    // SELECT e INSERT, ningún rol (ni admin) puede hacer UPDATE directo desde el cliente (0 filas,
-    // sin error). Sin esto, la venta se quedaba como "active" para siempre pese a devolverse.
-    const saleUpdateRes = await fetch(`/api/${tenant}/evergreen/sales/${selectedSale.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'refunded' }),
-    })
-    if (!saleUpdateRes.ok) {
-      const d = await saleUpdateRes.json().catch(() => ({}))
-      toast.error('Devolución registrada, pero no se pudo marcar la venta como devuelta', { description: d?.error })
-    }
-
-    // Get existing commissions for negative mirror
-    const { data: existingCommissions } = await supabase
-      .from('commissions')
-      .select('*')
-      .eq('sale_id', selectedSale.id)
-      .eq('direction', 'positive')
-      .eq('tenant_id', tenantId)
-
-    if (existingCommissions && existingCommissions.length > 0) {
-      const negativeCommissions = calculateNegativeCommissionsForRefund(newRefund, existingCommissions as Commission[])
-      if (negativeCommissions.length > 0) {
-        await supabase.from('commissions').insert(negativeCommissions.map((c) => ({ ...c, tenant_id: tenantId })))
-      }
-    }
-
-    // Audit log
-    if (authUser.user) {
-      await supabase.from('audit_logs').insert({
-        tenant_id: tenantId,
-        actor_user_id: authUser.user.id,
-        entity_type: 'refund',
-        entity_id: newRefund.id,
-        action: 'create',
-        old_values: null,
-        new_values: refundPayload,
-      })
-    }
-
-    toast.success('Devolucion registrada correctamente')
+    toast.success(
+      payload.negativeCommissions
+        ? `Devolución registrada — se han restado ${payload.negativeCommissions} comisiones`
+        : 'Devolución registrada correctamente'
+    )
     setDialogOpen(false)
     fetchRefunds()
     setSubmitting(false)
