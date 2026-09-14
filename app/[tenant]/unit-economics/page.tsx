@@ -8,6 +8,10 @@ import { ACTIVE_SALE_STATUSES } from '@/lib/analytics'
 import { formatCurrency, formatPercent } from '@/lib/utils'
 import { FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 import { buildChannelRows, type CampaignRow, type SaleRow, type ContactRow } from '@/lib/unit-economics'
+import { useTenant } from '@/lib/tenant-context'
+import { useCuentasMetaActivas } from '@/lib/meta/use-cuentas-activas'
+import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
+import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 
 type CollectionRow = {
   gross_amount: number | string | null
@@ -123,8 +127,27 @@ function ratioColor(ratio: number | null): string {
   return 'text-red-400'
 }
 
+// Fila de la serie diaria de campañas: es la que permite acotar por periodo, porque lleva la fecha.
+type DailyRow = {
+  campaign_id: string | null
+  date: string
+  spend: number | null
+  impressions: number | null
+  clicks: number | null
+  leads: number | null
+  account_id: string | null
+}
+
 export default function UnitEconomicsPage() {
+  const tenant = useTenant()
+  // Solo las cuentas elegidas en Integraciones. Sin esto, esta pantalla sumaba las CATORCE cuentas
+  // que ve el token y lo presentaba como si fuera el negocio.
+  const cuentas = useCuentasMetaActivas(tenant)
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all')
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
   const [loading, setLoading] = useState(true)
+  const [daily, setDaily] = useState<DailyRow[]>([])
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([])
   const [sales, setSales] = useState<SaleRow[]>([])
   const [collections, setCollections] = useState<CollectionRow[]>([])
@@ -135,10 +158,10 @@ export default function UnitEconomicsPage() {
     let mounted = true
     async function load() {
       const supabase = createClient()
-      const [campRes, salesRes, collRes, contactsRes, apptRes] = await Promise.all([
+      const [campRes, salesRes, collRes, contactsRes, apptRes, dailyRes] = await Promise.all([
         supabase
           .from('campaigns')
-          .select('id, channel, adspend, leads_generated, impressions, clicks')
+          .select('id, channel, adspend, leads_generated, impressions, clicks, account_id')
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('sales')
@@ -150,6 +173,13 @@ export default function UnitEconomicsPage() {
           .from('appointments')
           .select('id, contact_id, status, appointment_datetime, pipe_value')
           .range(0, FINANCE_QUERY_ROW_CAP),
+        // La serie DIARIA es lo que permite filtrar por periodo. El aviso que había aquí decía que no
+        // se podía porque `campaigns.adspend` es un acumulado — cierto, pero `campaign_daily` existe
+        // y tiene el gasto por día y campaña.
+        supabase
+          .from('campaign_daily')
+          .select('campaign_id, date, spend, impressions, clicks, leads, account_id')
+          .range(0, FINANCE_QUERY_ROW_CAP),
       ])
       if (!mounted) return
       setCampaigns(campRes.data || [])
@@ -157,6 +187,7 @@ export default function UnitEconomicsPage() {
       setCollections(collRes.data || [])
       setContacts(contactsRes.data || [])
       setAppointments(apptRes.data || [])
+      setDaily(dailyRes.data || [])
       setLoading(false)
     }
     load()
@@ -165,14 +196,61 @@ export default function UnitEconomicsPage() {
     }
   }, [])
 
-  const channelRows = useMemo(() => buildChannelRows(campaigns, sales, contacts), [campaigns, sales, contacts])
+  const rango = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
+  const hayPeriodo = periodPreset !== 'all'
+
+  // UN solo punto de verdad para "qué campañas cuentan": las de las cuentas seleccionadas.
+  const campaignsVisibles = useMemo(() => cuentas.filtrar(campaigns), [campaigns, cuentas])
+  const dailyVisible = useMemo(
+    () => cuentas.filtrar(daily).filter((d) => !hayPeriodo || inPeriod(d.date, rango)),
+    [daily, cuentas, hayPeriodo, rango]
+  )
+
+  // Con periodo activo mandan los datos DIARIOS; sin periodo, el acumulado de la campaña. Mezclarlos
+  // daría un gasto que no corresponde a ninguna de las dos cosas.
+  const campanasParaTotales = useMemo(() => {
+    if (!hayPeriodo) return campaignsVisibles
+    const porCampana = new Map<string, { spend: number; impressions: number; clicks: number; leads: number }>()
+    for (const d of dailyVisible) {
+      if (!d.campaign_id) continue
+      const acc = porCampana.get(d.campaign_id) ?? { spend: 0, impressions: 0, clicks: 0, leads: 0 }
+      acc.spend += Number(d.spend ?? 0)
+      acc.impressions += Number(d.impressions ?? 0)
+      acc.clicks += Number(d.clicks ?? 0)
+      acc.leads += Number(d.leads ?? 0)
+      porCampana.set(d.campaign_id, acc)
+    }
+    return campaignsVisibles
+      .filter((c) => porCampana.has(c.id))
+      .map((c) => {
+        const d = porCampana.get(c.id)!
+        return {
+          ...c,
+          adspend: d.spend,
+          impressions: d.impressions,
+          clicks: d.clicks,
+          leads_generated: d.leads,
+        }
+      })
+  }, [hayPeriodo, campaignsVisibles, dailyVisible])
+
+  const ventasVisibles = useMemo(
+    () => (hayPeriodo ? sales.filter((s) => inPeriod(s.sale_date, rango)) : sales),
+    [sales, hayPeriodo, rango]
+  )
+
+  const channelRows = useMemo(
+    () => buildChannelRows(campanasParaTotales, ventasVisibles, contacts),
+    [campanasParaTotales, ventasVisibles, contacts]
+  )
 
   const totals = useMemo(() => {
-    const totalAdspend = campaigns.reduce((a, c) => a + num(c.adspend), 0)
+    const totalAdspend = campanasParaTotales.reduce((a, c) => a + num(c.adspend), 0)
     const totalCashCollected = collections
       .filter((c) => c.status === 'collected')
+      .filter((c) => !hayPeriodo || inPeriod(c.collected_at, rango))
       .reduce((a, c) => a + num(c.gross_amount), 0)
-    const activeSales = sales.filter((s) => ACTIVE_SALE_STATUSES.includes(s.status))
+    const activeSales = ventasVisibles.filter((s) => ACTIVE_SALE_STATUSES.includes(s.status))
     // Clientes ÚNICOS, no nº de ventas — mismo fix que buildChannelRows. Antes dividía por
     // nº de ventas: un cliente que compra 2 veces contaba como "2 clientes", lo que infla el
     // denominador y hace que tanto CAC como "LTV medio" salgan sistemáticamente por debajo de
@@ -186,14 +264,14 @@ export default function UnitEconomicsPage() {
     const ltvCacRatio = cacGlobal && ltvMedio ? ltvMedio / cacGlobal : null
 
     return { totalAdspend, totalCashCollected, totalCustomers, mer, cacGlobal, ltvMedio, ltvCacRatio }
-  }, [campaigns, collections, sales])
+  }, [campanasParaTotales, collections, ventasVisibles, hayPeriodo, rango])
 
   const marketingFunnel = useMemo(
-    () => buildMarketingFunnel(campaigns, contacts, appointments, sales),
-    [campaigns, contacts, appointments, sales]
+    () => buildMarketingFunnel(campanasParaTotales, contacts, appointments, ventasVisibles),
+    [campanasParaTotales, contacts, appointments, ventasVisibles]
   )
 
-  const hasData = campaigns.length > 0 || sales.length > 0
+  const hasData = campaignsVisibles.length > 0 || sales.length > 0
 
   return (
     <div className="p-6 space-y-6">
@@ -206,12 +284,32 @@ export default function UnitEconomicsPage() {
         <p className="text-muted-foreground text-sm mt-1">
           Pasa el ratón por las gráficas para ver el rendimiento mes a mes.
         </p>
-        <p className="text-xs text-amber-400/90 mt-2">
-          Acumulado histórico total desde el origen de los datos — a diferencia de Dashboard/Finanzas, esta pantalla no
-          filtra por mes/periodo (el adspend de campañas se guarda como total acumulado, no por día). No compares estos
-          números directamente contra un mes concreto de otra pantalla.
+        {/* El aviso que había aquí decía que esta pantalla no podía filtrar por periodo porque
+            `campaigns.adspend` es un acumulado. Era cierto a medias: `campaign_daily` guarda el gasto
+            por día y campaña, y es lo que se usa en cuanto se elige un periodo. */}
+        <p className="text-muted-foreground mt-2 text-xs">
+          {cuentas.listo && !cuentas.todas
+            ? `Solo las ${cuentas.seleccionadas.length} cuentas de Meta seleccionadas en Integraciones.`
+            : 'Todas las cuentas de Meta accesibles. Elige cuáles en Integraciones › Meta Ads para acotar estos números.'}
+          {hayPeriodo
+            ? ' El gasto y las métricas de anuncios salen de la serie diaria del periodo elegido.'
+            : ' Sin periodo: acumulado histórico desde el origen de los datos.'}
         </p>
       </div>
+
+      <PeriodFilterBar
+        preset={periodPreset}
+        onPresetChange={setPeriodPreset}
+        customFrom={customFrom}
+        customTo={customTo}
+        onCustomFromChange={setCustomFrom}
+        onCustomToChange={setCustomTo}
+        onClear={() => {
+          setPeriodPreset('all')
+          setCustomFrom('')
+          setCustomTo('')
+        }}
+      />
 
       {/* Top cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
