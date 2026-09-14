@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
@@ -44,14 +45,23 @@ async function runForTenant(sb: SupabaseClient, tenantId: string) {
   const memberIdSet = new Set((memberIds || []).map((m: { user_id: string }) => m.user_id))
   const { data: teamAll } = await sb.from('users').select('id, full_name, base_salary').eq('is_active', true)
   const team = (teamAll || []).filter((u: { id: string }) => memberIdSet.has(u.id))
-  const { data: periodCommissions } = await sb
-    .from('commissions')
-    .select('user_id, commission_amount, direction')
-    .eq('tenant_id', tenantId)
-    .eq('liquidation_month', firstOfMonth)
-    .neq('status', 'cancelled')
+  // Paginado: de aquí sale el gasto de "sueldo + comisión" que se escribe en `expenses`. Con más
+  // de 1.000 comisiones en el mes, PostgREST recortaba la lista sin avisar y el gasto del mes salía
+  // más bajo que el real — un error contable con toda la pinta de dato bueno.
+  const { rows: periodCommissions } = await fetchAllRows<{
+    user_id: string
+    commission_amount: number | string
+    direction: string
+  }>(() =>
+    sb
+      .from('commissions')
+      .select('user_id, commission_amount, direction')
+      .eq('tenant_id', tenantId)
+      .eq('liquidation_month', firstOfMonth)
+      .neq('status', 'cancelled')
+  )
   const commissionByUser = new Map<string, number>()
-  for (const c of periodCommissions || []) {
+  for (const c of periodCommissions) {
     const signed = c.direction === 'negative' ? -Number(c.commission_amount) : Number(c.commission_amount)
     commissionByUser.set(c.user_id, (commissionByUser.get(c.user_id) ?? 0) + signed)
   }
