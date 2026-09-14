@@ -2,6 +2,70 @@
 
 Última actualización: 2026-09-14 (Claude Code)
 
+## SESIÓN 2026-09-14 (brief de Integraciones/Stripe/Métricas/Funnels) — bloques 1 y 2 de 6
+
+Rama: `claude/app-continuation-lpbupf`, empujada, árbol limpio. 151 + 198 tests en verde, typecheck,
+lint, format y `next build` completo.
+
+El brief tiene 58 secciones agrupables en 6 bloques. Se cerraron los dos primeros. **Los bloques
+3-6 NO están empezados**: no hay nada a medias en el árbol.
+
+### Bloque 1 — Meta multi-cuenta (§1-§3) CERRADO
+
+Dos bugs reales, reproducidos en test antes de arreglar:
+
+- La selección de cuenta era `<input type="radio">` con `name` compartido, así que solo se podía
+  sincronizar UNA cuenta, aunque `resolveMetaConfigs` soportaba varias desde siempre.
+- "¿Está seleccionada?" se resolvía con `.includes()` sobre el texto crudo, o sea por substring: con
+  `act_12` guardado, `act_123` salía marcada también.
+
+La lista de cuentas vive ahora en `lib/meta/accounts.ts` (sin `node:crypto`, así que la importan
+tanto la UI como el servidor; `lib/meta/client.ts` reexporta `parseAccountIds`). Una sola definición
+de qué cuentas están seleccionadas para pantalla, sync, crons y filtros.
+
+Ya existía y NO se reescribió: `campaigns.account_id` + índice, el filtro por cuenta en Campañas y
+`AdsTable`, y la capa `lib/funnels/`.
+
+### Bloque 2 — estados canónicos y estabilidad Meta/IG (§7-§12) CERRADO
+
+Causa raíz del "a veces CONNECTED y otras ERROR sin cambio real": Meta tiene TRES sincronizaciones y
+`assessIntegration` pintaba toda la integración en rojo en cuanto una fallaba. Un límite de
+peticiones de la Graph API —reintentable, se arregla solo— mandaba a revisar un token perfecto.
+
+Estado canónico nuevo `parcial` (ámbar), con reglas fijadas por test: todos los fallos reintentables
+y alguna sync sana → parcial; cualquier fallo no reintentable → error; todas fallando → error; sin
+credenciales → sin configurar. El estado lo sigue calculando UN módulo (`lib/integrations/health.ts`
+sobre `lib/ops/sync-health.ts`); §8 ya estaba resuelto y no se tocó. Meta e Instagram ya eran grupos
+separados del catálogo, que es el modelado que pide §11.
+
+### BLOQUEO DURO del entorno — afecta a medio brief
+
+Medido, no supuesto: `graph.facebook.com`, `api.stripe.com` y `api.calendly.com` son inalcanzables
+desde el entorno del agente, y el MCP de Supabase pide reautenticación. Por tanto es **imposible
+desde aquí**: cargar histórico de Stripe (§16, §17, §24), contar filas reales (§26), reconciliar con
+IDs reales (§27), medir cobertura por fuente (§46, §47) y la verificación con datos reales de §54 y
+§58. El código de esos bloques se puede escribir y probar contra un Stripe simulado; **ejecutarlo
+contra el Stripe real lo tiene que lanzar el usuario**, o hace falta un entorno con red.
+
+### Siguiente acción exacta
+
+Bloques pendientes, en este orden (el brief prohíbe abrir varios a la vez): 3. Filtros de periodo globales + estado en URL (§4-§6, §51). 4. Funnels visuales + capa canónica `getFunnel` (§28-§39). Reutilizar `lib/funnels/`, no rehacerla. 5. Stripe canónico: modelo económico, backfill paginado/idempotente/resumible, estados de pago,
+alumnas (§13-§25). Código + tests aquí; ejecución real, el usuario. 6. Data Health cross-source (§48) y golden dataset (§53).
+
+### Lo que TE toca a ti
+
+1. **Aplicar las migraciones pendientes, y esto es urgente**: `20260914130000_contacts_identity_uniques.sql`
+   y `20260914150000_contacts_get_or_create.sql`. El código ya está en `main` y los webhooks de
+   Calendly y GHL llaman a `contacts_get_or_create`; hasta que existan en producción, esos webhooks
+   fallan al resolver el contacto y no entran agendas nuevas. Después:
+   `20260914120000_tenant_scope_provider_uniques.sql` (puede fallar listando referencias de pago
+   duplicadas) y `20260914160000_contacts_email_unique.sql` (puede fallar listando emails a fusionar;
+   que falle no deja ningún bug abierto).
+2. **Rotar el Google Client Secret** que se pegó en el chat.
+3. Borrar la rama remota ya fusionada del PR #40 (el proxy del agente no deja hacer `push --delete`).
+
+---
+
 ## SESIÓN 2026-09-14 (cierre) — los tres pendientes de la ultra review + consolidación con Codex
 
 Rama: `claude/app-continuation-lpbupf`, empujada. 336 tests en verde (151 + 185), typecheck, lint,
