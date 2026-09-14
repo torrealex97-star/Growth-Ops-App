@@ -50,7 +50,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       .eq('id', appointmentId)
       .eq('tenant_id', t.tenantId)
     if (appt.calendly_event_uuid) {
-      await notifyCreatuagente('cita.cancelada', appt.utm_content, {
+      await notifyCreatuagente(await getTenantConfigWithFallback(t.tenantId), 'cita.cancelada', appt.utm_content, {
         idExternoEvento: appt.calendly_event_uuid,
         origen: 'calendly',
         titulo: appt.calendar_name || 'Llamada',

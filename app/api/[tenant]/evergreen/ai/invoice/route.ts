@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { tenantActiveUserNames } from '@/lib/users'
 import { extractInvoice, type InvoiceExtract } from '@/lib/ai/claude'
+import { tenantAiEnv } from '@/lib/ai/provider'
 import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
@@ -53,7 +54,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const teamNames = await tenantActiveUserNames(sb, t.tenantId)
 
     const base64 = fileBase64.includes(',') ? fileBase64.split(',')[1] : fileBase64
-    const extracted = await extractInvoice(base64, mediaType, teamNames)
+    // Con la config de IA de la subcuenta: la factura se lee con SU clave de Anthropic.
+    const extracted = await extractInvoice(base64, mediaType, teamNames, await tenantAiEnv(t.tenantId))
 
     // El resto de la app (importes, totales, informes) asume EUR. Si la factura viene en otra
     // moneda, convertimos aquí para que "amount" siempre sea EUR, y guardamos el original para

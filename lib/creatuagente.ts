@@ -85,9 +85,19 @@ export function addMinutesISO(dateISO: string, minutes: number, timeZone = 'Euro
   return toZonedISO(d.toISOString(), timeZone)
 }
 
-async function postCreatuagente(body: string, logCtx: string): Promise<void> {
-  const url = process.env.CREATUAGENTE_WEBHOOK_URL
-  const secret = process.env.CREATUAGENTE_WEBHOOK_SECRET
+/**
+ * Webhook de creatuagente de la subcuenta. Explícito: leerlo de `process.env` significaba que la URL
+ * y el secreto guardados en Configuración › Integraciones no se usaban, y que los eventos de una
+ * subcuenta podían acabar firmados con el secreto de otra.
+ */
+export type CreatuagenteEnv = {
+  CREATUAGENTE_WEBHOOK_URL?: string
+  CREATUAGENTE_WEBHOOK_SECRET?: string
+}
+
+async function postCreatuagente(env: CreatuagenteEnv, body: string, logCtx: string): Promise<void> {
+  const url = env.CREATUAGENTE_WEBHOOK_URL?.trim()
+  const secret = env.CREATUAGENTE_WEBHOOK_SECRET?.trim()
   if (!url || !secret) return
   const ts = Math.floor(Date.now() / 1000)
   const firma = crypto.createHmac('sha256', secret).update(`${ts}.${body}`).digest('hex')
@@ -120,6 +130,7 @@ async function postCreatuagente(body: string, logCtx: string): Promise<void> {
 // No lanza: un fallo de creatuagente (caído, secreto rotado, red) no debe romper
 // la creación/actualización de la cita en la app, que ya se aplicó antes de llamar aquí.
 export async function notifyCreatuagente(
+  env: CreatuagenteEnv,
   evento: CreatuagenteEvento,
   token: string | null | undefined,
   // El receptor valida los eventos `cita.*` exigiendo esta clave EXACTA ("cita: Required"
@@ -127,17 +138,19 @@ export async function notifyCreatuagente(
   cita: CreatuagenteCita
 ): Promise<void> {
   if (!token) return
-  await postCreatuagente(JSON.stringify({ evento, token, cita }), `${evento} (token=${token})`)
+  await postCreatuagente(env, JSON.stringify({ evento, token, cita }), `${evento} (token=${token})`)
 }
 
 // Envía venta.registrada. Ver el comentario de CreatuagenteVentaRegistrada: el sobre no
 // lleva "token", el identificador de contacto va en idExterno (top-level).
 export async function notifyCreatuagenteVenta(
+  env: CreatuagenteEnv,
   idExternoContacto: string | null | undefined,
   venta: CreatuagenteVentaRegistrada
 ): Promise<void> {
   if (!idExternoContacto) return
   await postCreatuagente(
+    env,
     JSON.stringify({ evento: 'venta.registrada', idExterno: idExternoContacto, venta }),
     `venta.registrada (idExterno=${idExternoContacto}, venta.idExterno=${venta.idExterno})`
   )

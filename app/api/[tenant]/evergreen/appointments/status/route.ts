@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { notifyCreatuagente, EVENTO_BY_STATUS } from '@/lib/creatuagente'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const evento = EVENTO_BY_STATUS[status]
     if (evento && appt.calendly_event_uuid) {
-      await notifyCreatuagente(evento, appt.utm_content, {
+      await notifyCreatuagente(await getTenantConfigWithFallback(t.tenantId), evento, appt.utm_content, {
         idExternoEvento: appt.calendly_event_uuid,
         origen: 'calendly',
         titulo: appt.calendar_name || 'Llamada',

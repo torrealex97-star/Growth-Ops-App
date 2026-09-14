@@ -25,13 +25,15 @@ test('las funciones de texto pasan por el motor configurable, no por Anthropic a
     assert.match(read(file), /completeText\(/, `${file} no usa el motor configurable`)
   }
   const claude = sinComentarios(read('lib/ai/claude.ts'))
-  // Solo puede quedar UNA llamada directa a Anthropic: la de leer facturas.
-  const directas = [...claude.matchAll(/anthropic\(\)\.messages\.create/g)]
+  // Solo puede quedar UNA llamada directa a Anthropic: la de leer facturas (multimodal). Y con la
+  // clave de la SUBCUENTA, no la del entorno del despliegue.
+  const directas = [...claude.matchAll(/anthropic\([^)]*\)\.messages\.create/g)]
+  assert.match(claude, /anthropic\(env\?\.ANTHROPIC_API_KEY/, 'la factura se lee con la clave del entorno')
   assert.equal(directas.length, 1, `hay ${directas.length} llamadas directas a Anthropic en claude.ts`)
   const extract = claude.slice(claude.indexOf('export async function extractInvoice'))
   assert.match(
     extract.slice(0, extract.indexOf('export async function', 10)),
-    /anthropic\(\)\.messages\.create/,
+    /anthropic\([^)]*\)\.messages\.create/,
     'la única llamada directa debería ser la de facturas'
   )
 })

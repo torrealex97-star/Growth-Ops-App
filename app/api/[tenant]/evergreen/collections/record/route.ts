@@ -5,6 +5,7 @@ import { generateCommissionsForCollection, saleNeedsCommissionReview } from '@/l
 import { resolveSaleAttribution } from '@/lib/commissions/attribution'
 import { notifyCreatuagenteVenta, resolveSaleToken } from '@/lib/creatuagente'
 import type { Collection, Sale } from '@/lib/types/database'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 
@@ -148,7 +149,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // no hay evento confirmado para "cobro adicional").
     if (isFirstCollection) {
       const token = await resolveSaleToken(sb, sale.appointment_id)
-      await notifyCreatuagenteVenta(token, {
+      await notifyCreatuagenteVenta(await getTenantConfigWithFallback(t.tenantId), token, {
         idExterno: saleId,
         importe: round2(amount),
         moneda: 'EUR',
