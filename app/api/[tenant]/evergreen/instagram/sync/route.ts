@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { runInstagramSync } from '@/lib/instagram/sync'
-import { ensureConfig } from '@/lib/config'
+import { getTenantConfigWithFallback } from '@/lib/config'
+import { recordSyncRun, SyncBusyError } from '@/lib/integrations/sync-runs'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -44,11 +45,23 @@ async function handle(req: NextRequest, tenantSlug: string) {
     tenantId = t.tenantId
   }
 
-  await ensureConfig(tenantId)
+  const cfg = await getTenantConfigWithFallback(tenantId, true)
   try {
-    const result = await runInstagramSync(sb, tenantId)
+    const result = await recordSyncRun(
+      sb,
+      {
+        tenantId,
+        provider: 'instagram',
+        job: 'instagram',
+        trigger: 'manual',
+        secrets: [cfg.INSTAGRAM_ACCESS_TOKEN, cfg.META_ACCESS_TOKEN, cfg.META_APP_SECRET],
+      },
+      () => runInstagramSync(sb, tenantId, cfg),
+      (r) => ({ rowsWritten: r.mediaSynced, failures: r.failures, detail: { fbReels: r.fbReelsSynced } })
+    )
     return NextResponse.json(result)
   } catch (e) {
+    if (e instanceof SyncBusyError) return NextResponse.json({ error: e.message }, { status: 409 })
     const msg = e instanceof Error ? e.message : 'Error al sincronizar con Instagram'
     return NextResponse.json({ error: msg }, { status: 500 })
   }

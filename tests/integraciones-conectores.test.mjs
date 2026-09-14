@@ -255,6 +255,33 @@ test('toda ruta que sincroniza Meta le pasa la config explícita de su subcuenta
   }
 })
 
+// Instagram tenía el mismo problema que Meta: el cron recorre todas las subcuentas en la misma
+// lambda y `ensureConfig` no limpia process.env entre iteraciones. Y dos rutas (competencia,
+// transcripción) leían las credenciales de process.env SIN cargarlas: en una lambda nueva no había
+// ninguna y respondían "faltan credenciales" teniendo el token guardado.
+test('las rutas de Instagram reciben la config explícita de su subcuenta', () => {
+  const rutas = [
+    'app/api/[tenant]/evergreen/cron/instagram/route.ts',
+    'app/api/[tenant]/evergreen/instagram/sync/route.ts',
+    'app/api/[tenant]/evergreen/instagram/competitors/route.ts',
+    'app/api/[tenant]/evergreen/instagram/transcribe/route.ts',
+    'app/api/[tenant]/evergreen/cron/youtube-backfill/route.ts',
+    'app/api/[tenant]/evergreen/setting-ai/conversations/route.ts',
+  ]
+  for (const ruta of rutas) {
+    const code = sinComentarios(read(ruta))
+    assert.doesNotMatch(code, /ensureConfig\(/, `${ruta} vuelca credenciales en process.env`)
+    assert.match(code, /getTenantConfigWithFallback\(/, `${ruta} no lee la config de su subcuenta`)
+    assert.doesNotMatch(code, /getInstagramConfig\(\)/, `${ruta} lee las credenciales del entorno global`)
+  }
+  const client = sinComentarios(read('lib/instagram/client.ts'))
+  assert.doesNotMatch(client, /process\.env\.(INSTAGRAM|META|IG_)/, 'el cliente de IG lee del entorno')
+  // Y la sync de Instagram deja de tragarse los errores de escritura.
+  const sync = sinComentarios(read('lib/instagram/sync.ts'))
+  assert.doesNotMatch(sync, /if \(!error\) (mediaSynced|fbReelsSynced)\+\+/)
+  assert.match(sync, /failures\.push\(/)
+})
+
 // Las credenciales se leen SOLO de lo que se pasa. Un `process.env.META_*` aquí devuelve el proceso
 // al fallo de arriba, y además hace imposible saber qué se usó al sincronizar.
 test('el cliente y la sync de Meta no leen credenciales del entorno', () => {

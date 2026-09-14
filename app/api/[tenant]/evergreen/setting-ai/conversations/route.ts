@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
-import { ensureConfig } from '@/lib/config'
+import { getTenantConfigWithFallback } from '@/lib/config'
 import {
   getInstagramConfig,
   resolveIgUserId,
@@ -27,8 +27,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     return NextResponse.json({ configured: false, platform, conversations: [] })
   }
 
-  await ensureConfig(t.tenantId)
-  const cfg = getInstagramConfig()
+  const cfg = getInstagramConfig(await getTenantConfigWithFallback(t.tenantId, true))
   if (!cfg) return NextResponse.json({ configured: false, platform, conversations: [] })
 
   try {

@@ -16,19 +16,42 @@ export type IgConfig = {
   igUserId?: string // id de la cuenta IG business (si no, se resuelve por /me/accounts)
   version: string
   appSecret?: string
+  pageId?: string // página de Facebook vinculada (si no, se resuelve por /me/accounts)
+  enableDmSync?: boolean // requiere acceso avanzado a instagram_manage_messages
 }
 
 const GRAPH = 'https://graph.facebook.com'
 
-export function getInstagramConfig(): IgConfig | null {
+/**
+ * Credenciales de Instagram tal y como las guarda la subcuenta. Se pasan EXPLÍCITAMENTE, igual que
+ * en lib/meta/client.ts y por el mismo motivo: `ensureConfig(tenantId)` las vuelca en `process.env`,
+ * que es global al proceso y nunca borra lo anterior. En el cron, que recorre todas las subcuentas
+ * dentro de la misma lambda, la segunda heredaba el token de la primera y se llenaba con SU
+ * Instagram, estampado con su propio tenant_id.
+ */
+export type IgEnv = {
+  INSTAGRAM_ACCESS_TOKEN?: string
+  META_ACCESS_TOKEN?: string
+  IG_USER_ID?: string
+  META_API_VERSION?: string
+  META_APP_SECRET?: string
+  IG_PAGE_ID?: string
+  IG_ENABLE_DM_SYNC?: string
+}
+
+export function getInstagramConfig(env: IgEnv): IgConfig | null {
   // Token propio de IG si existe; si no, el mismo del System User WINNER.
-  const token = process.env.INSTAGRAM_ACCESS_TOKEN || process.env.META_ACCESS_TOKEN
+  const token = env.INSTAGRAM_ACCESS_TOKEN?.trim() || env.META_ACCESS_TOKEN?.trim()
   if (!token) return null
   return {
     token,
-    igUserId: process.env.IG_USER_ID || undefined,
-    version: process.env.META_API_VERSION || META_API_VERSION,
-    appSecret: process.env.META_APP_SECRET || undefined,
+    igUserId: env.IG_USER_ID?.trim() || undefined,
+    version: env.META_API_VERSION || META_API_VERSION,
+    appSecret: env.META_APP_SECRET?.trim() || undefined,
+    // También por config explícita: la página de Facebook vinculada es DE la subcuenta, y leerla de
+    // process.env hacía que una subcuenta pudiera acabar escribiendo los reels de la página de otra.
+    pageId: env.IG_PAGE_ID?.trim() || undefined,
+    enableDmSync: env.IG_ENABLE_DM_SYNC === '1',
   }
 }
 
@@ -352,10 +375,10 @@ export async function fetchMediaComments(cfg: IgConfig, mediaId: string, limit =
 // derivamos su Page Access Token y leemos sus reels con métricas propias de FB
 // (views/likes/comments). Se emparejan con los reels de IG por created_time+caption.
 
-// Devuelve el id de la página de FB vinculada a la cuenta IG. Usa IG_PAGE_ID si
-// está en env; si no, lo busca por /me/accounts casando el instagram_business_account.
+// Devuelve el id de la página de FB vinculada a la cuenta IG. Usa el IG_PAGE_ID configurado en la
+// subcuenta si lo hay; si no, lo busca por /me/accounts casando el instagram_business_account.
 export async function resolveFbPageId(cfg: IgConfig, igUserId: string): Promise<string | null> {
-  if (process.env.IG_PAGE_ID) return process.env.IG_PAGE_ID
+  if (cfg.pageId) return cfg.pageId
   const url = `${GRAPH}/${cfg.version}/me/accounts?fields=instagram_business_account{id}&limit=100&${q(cfg)}`
   const pages = await graphGetAll(url)
   for (const p of pages) {
