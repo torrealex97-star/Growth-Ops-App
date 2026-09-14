@@ -139,7 +139,9 @@ test('la cuenta de Meta se elige de una lista, sin guardar el token antes', () =
 
   const page = read('app/[tenant]/settings/integraciones/page.tsx')
   assert.match(page, /Buscar cuentas/)
-  assert.match(page, /name="meta-account"/, 'no hay dónde elegir la cuenta')
+  // Checkbox, no radio: se pueden elegir VARIAS cuentas (el radio group solo dejaba una).
+  assert.match(page, /type="checkbox"/, 'no hay dónde elegir la cuenta')
+  assert.match(page, /toggleAccountId\(drafts\.META_AD_ACCOUNT_ID, acc\.id\)/)
   // Una cuenta cerrada o con deuda no devuelve datos: se avisa antes de elegirla.
   assert.match(page, /inactiva en Meta/)
 })

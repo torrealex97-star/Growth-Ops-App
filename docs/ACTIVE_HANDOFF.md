@@ -2,6 +2,199 @@
 
 Última actualización: 2026-09-14 (Claude Code)
 
+## SESIÓN 2026-09-14 (brief de Integraciones/Stripe/Métricas/Funnels) — los 6 bloques cerrados
+
+Rama: `claude/app-continuation-lpbupf`, empujada, árbol limpio. 151 + 198 tests en verde, typecheck,
+lint, format y `next build` completo.
+
+El brief tiene 58 secciones agrupables en 6 bloques. **Los seis están cerrados** en todo lo que no
+depende de red a proveedores. No hay nada a medias en el árbol.
+
+### Bloque 6 — Data Health cross-source y golden dataset (§48, §53) CERRADO
+
+Data Health ya miraba duplicados y estado por fuente. Lo que faltaba era lo CRUZADO: no "¿la fuente
+responde?" sino "¿lo que trajo encaja con el resto?". Cada integración puede estar verde y el
+recorrido completo estar roto por la mitad.
+
+`lib/data-health/cross-source.ts` — ocho controles, todos funciones PURAS (reciben los conjuntos ya
+leídos), por eso se pueden verificar con un dataset determinista:
+cuenta de Meta seleccionada sin datos · cliente de Stripe sin venta registrada · venta sin contacto
+válido · cliente sin emparejar · campaña sin nada atribuido · agenda sin contacto · llamada grabada
+sin agenda · fuente sin sincronizar.
+
+DOS REGLAS que gobiernan el módulo y que fija el test:
+
+- **Un hueco no es un cero.** Un conjunto que no se pudo leer llega como `null` y el control devuelve
+  `desconocido`, nunca "0 problemas". Y el resumen tiene estado `incompleto`, que gana a `ok`: no es
+  lo mismo no tener problemas que no haber podido mirar.
+- **Nada se arregla solo.** Los controles nombran el problema y dan hasta cinco ejemplos concretos
+  para ir a mirarlos. Emparejar un cliente o atribuir una venta es una decisión sobre datos del
+  usuario; hay test que impide que un detalle prometa arreglos automáticos.
+
+`tests/metrics/golden-dataset.test.mjs` (§53): universo pequeño y determinista —dos cuentas de Meta,
+tres campañas, cuatro contactos, tres clientes de Stripe, tres ventas, tres agendas, dos llamadas—
+con los fallos puestos a mano y **cada total contado a mano** en la aserción. Incluye el caso sano
+(todo a cero), el caso con conjuntos ilegibles (desconocido, no cero), el umbral de obsolescencia
+justo por dentro y justo por fuera, y la fecha ilegible como obsoleta.
+
+Cableado en `/api/[tenant]/evergreen/settings/data-health`. Las consultas extra NO abortan la
+respuesta: si una falla, su control dice "no se pudo comprobar" y el resto sigue informando — colapsar
+todo a un error dejaría la pantalla en blanco por una tabla.
+
+### Bloque 5 — Stripe (§13-§25) CERRADO en lo que se podía cerrar
+
+DIAGNÓSTICO, que NO era el que parecía. "VENTAS = vacío" y "ALUMNAS = vacío" con Stripe lleno de
+clientes no son dos bugs: son un síntoma con UNA causa, y la causa no es el importador.
+
+Alumnas lee `sales`. `sales` no se llena sola desde Stripe porque `product_id` y `payment_plan_id`
+son NOT NULL y un pago de Stripe no dice a qué producto interno corresponde ni con qué plan. Crear la
+venta automáticamente exigiría elegirlos, y con ellos el importe comisionable y el plazo de
+devolución: inventar datos financieros (tercera regla de AGENTS.md). Por eso el flujo es un INFORME
+que una persona resuelve, en Integraciones › Stripe.
+
+El fallo real era de producto, no de datos: la pantalla decía "No hay ventas" y "Sin alumnos" a
+secas. Quien mira Ventas no tenía forma de saber que hay N clientes de Stripe esperando una decisión
+suya, ni a dónde ir. Un hueco sin explicar se lee como "esto está roto" — y así se leyó.
+
+`components/os/StripePendientesAviso.tsx`: cuenta los clientes de Stripe sincronizados (consulta
+local, `head: true`, sin llamar a Stripe desde la pantalla), explica por qué no se convierten en
+ventas solos y enlaza al buscador de pagos sin registrar. No escribe nada ni adivina ningún producto.
+Si la consulta falla no muestra un 0: no muestra el aviso.
+
+LO QUE YA ESTABA BIEN Y NO SE TOCÓ (se verificó, con test que lo fija):
+
+- §18 doble conteo: el clasificador trabaja sobre `PaymentIntent` —un intent es UN flujo económico— y
+  `knownReferences` lleva intent id Y charge id, así que un pago no entra como intent, cargo y
+  factura. Los estados que no son ingreso están separados por veredicto (`no_es_venta`,
+  `reembolsado`, `sin_contacto`), no colapsados.
+- §25 paginación: las tres lecturas usan `stripeList`, que pagina con `starting_after`/`has_more` y
+  marca `truncated`. El `limit: '100'` es tamaño de página, no tope.
+- §14 matching: por relación de proveedor → stripe customer id → email normalizado, nunca por nombre.
+
+LO QUE NO SE PUDO HACER, y es del entorno, no del código: §16, §17, §24, §26, §27 y §54 piden cargar
+el histórico real, contar filas y reconciliar con IDs reales. `api.stripe.com` es inalcanzable desde
+el entorno del agente y el MCP de Supabase pide reautenticación. **El backfill lo tiene que lanzar el
+usuario** desde Integraciones › Stripe › "Buscar pagos sin registrar", eligiendo producto y plan.
+Hasta que eso ocurra, Ventas y Alumnas seguirán vacías — ahora diciendo por qué.
+
+### Bloque 4 — funnels visuales (§28-§39, §43-§45) CERRADO
+
+CAUSA RAÍZ de "los funnels acordados siguen sin verse": la capa de datos (`lib/funnels/compute.ts`,
+con estado por métrica) y la API (`/api/[tenant]/evergreen/funnels`) ya existían y son buenas. Lo que
+no existía era la REPRESENTACIÓN: la pantalla `/funnels` pintaba una tabla, y el embudo de Ads era
+`FunnelList`, siete filas de texto. Literalmente "otra lista de KPIs haciendo de funnel".
+
+- `components/os/FunnelChart.tsx` (nuevo): embudo donde el ANCHO de cada barra codifica el volumen,
+  centrado, así que la reducción entre etapas se ve. Por etapa: nombre, volumen, % desde la anterior,
+  cuántos se caen, y al enfocar también % del total y coste unitario. Distingue loading /
+  not_connected / error / partial / sin datos. Tabla equivalente opcional.
+- `FunnelList` (embudo de Ads) pasa a llevar barra proporcional por fila, con el MISMO CSS. Para eso
+  cada etapa pasa ahora su número crudo además del formateado.
+- La pantalla `/funnels` pinta el embudo visual ENCIMA de la tabla; la tabla se queda como detalle
+  (coste unitario, fuente, motivo de cada hueco).
+
+UN HUECO NO ES UN CERO: si la fuente de una etapa falló o no está configurada, la barra sale rayada
+con el motivo, nunca a 0. Pintar 0 convierte "la integración está caída" en "esta campaña no
+convierte".
+
+DECISIONES de las que conviene no volver atrás:
+
+- El color sale de `--primary`, el token que `app/[tenant]/layout.tsx` reescribe según `data-accent`.
+  El mismo componente sale rosa en Women Digital Closer y azul en Evergreen sin una línea de color
+  por subcuenta. Un solo tono: el ancho ya codifica la magnitud, el color no la duplica.
+- NO se instaló `framer-motion` ni `@paper-design/shaders-react` (el ejemplo que mandó el usuario los
+  pedía). La animación es CSS: entrada escalonada por fila, 60 ms entre etapas, desactivada con
+  `prefers-reduced-motion`. Razón: §43 del propio brief prohíbe glows y gradientes de infografía —un
+  fondo animado detrás de datos es ruido— y AGENTS.md prohíbe dependencias sin necesidad real. Hay
+  test que impide que esas dependencias entren.
+- El bloque propio de `prefers-reduced-motion` es necesario aunque haya una regla global: esa pone la
+  duración a 0.001ms pero NO anula `animation-delay`.
+- La pantalla `/funnels` tenía su propia copia de los tipos (`StageRow` con `source: string`): ahora
+  usa `FunnelResult` del módulo canónico.
+
+### Bloque 3 — filtros de periodo y estado en URL (§4-§6, §51) CERRADO
+
+`lib/filters/period.ts` ya existía y era sano: se EXTENDIÓ, no se reescribió. Presets nuevos `7d`,
+`30d`, `90d`, `ytd` y `launch`, con dos distinciones que importan y que fija el test:
+
+- Las ventanas móviles duran exactamente lo que dicen (7d = hoy y los seis anteriores; contar siete
+  hacia atrás Y hoy daría ocho días bajo una etiqueta que dice siete).
+- `ytd` va del 1 de enero a HOY, mientras `year` llega al 31 de diciembre: con `year`, el rango
+  incluye meses que no han pasado y el periodo anterior comparativo se calcula sobre 365 días.
+- `launch` acepta la fecha real de arranque; sin ella se queda sin límite inferior (todo lo
+  disponible) en vez de inventarse una.
+
+`PeriodFilterBar` recorre `PERIOD_LABELS`, así que los presets nuevos aparecen a la vez en todas las
+pantallas que la usan, sin tocarlas una por una.
+
+Estado en URL: `lib/filters/url-state.ts` (PURO, testeable) + `lib/filters/use-url-filters.ts` (el
+hook). Cableado en Campañas para `period`, `from`/`to`, `account` y `campaign`. Un filtro en su valor
+por defecto no se escribe (la URL limpia sigue limpia), el orden del query es estable (dos pantallas
+con los mismos filtros dan el mismo enlace) y un valor inventado a mano cae al predeterminado.
+Campañas deriva KPIs, gráficas, funnel y tabla de UN solo `range` — hay test que lo fija contando
+las llamadas a `getPeriodRange`.
+
+OUT_OF_SCOPE_FINDING: `app/[tenant]/comisiones/page.tsx` y `app/[tenant]/ventas/registro/page.tsx`
+tienen su PROPIA copia de `PeriodPreset`, `PERIOD_LABELS` y cálculo de rango, en vez de usar
+`lib/filters/period.ts`. Es el mismo patrón que §5/§39 atacan (mismo filtro, número distinto según la
+pantalla). No se tocó: está fuera de lo que pide el brief y merece su propio cambio acotado.
+
+### Bloque 1 — Meta multi-cuenta (§1-§3) CERRADO
+
+Dos bugs reales, reproducidos en test antes de arreglar:
+
+- La selección de cuenta era `<input type="radio">` con `name` compartido, así que solo se podía
+  sincronizar UNA cuenta, aunque `resolveMetaConfigs` soportaba varias desde siempre.
+- "¿Está seleccionada?" se resolvía con `.includes()` sobre el texto crudo, o sea por substring: con
+  `act_12` guardado, `act_123` salía marcada también.
+
+La lista de cuentas vive ahora en `lib/meta/accounts.ts` (sin `node:crypto`, así que la importan
+tanto la UI como el servidor; `lib/meta/client.ts` reexporta `parseAccountIds`). Una sola definición
+de qué cuentas están seleccionadas para pantalla, sync, crons y filtros.
+
+Ya existía y NO se reescribió: `campaigns.account_id` + índice, el filtro por cuenta en Campañas y
+`AdsTable`, y la capa `lib/funnels/`.
+
+### Bloque 2 — estados canónicos y estabilidad Meta/IG (§7-§12) CERRADO
+
+Causa raíz del "a veces CONNECTED y otras ERROR sin cambio real": Meta tiene TRES sincronizaciones y
+`assessIntegration` pintaba toda la integración en rojo en cuanto una fallaba. Un límite de
+peticiones de la Graph API —reintentable, se arregla solo— mandaba a revisar un token perfecto.
+
+Estado canónico nuevo `parcial` (ámbar), con reglas fijadas por test: todos los fallos reintentables
+y alguna sync sana → parcial; cualquier fallo no reintentable → error; todas fallando → error; sin
+credenciales → sin configurar. El estado lo sigue calculando UN módulo (`lib/integrations/health.ts`
+sobre `lib/ops/sync-health.ts`); §8 ya estaba resuelto y no se tocó. Meta e Instagram ya eran grupos
+separados del catálogo, que es el modelado que pide §11.
+
+### BLOQUEO DURO del entorno — afecta a medio brief
+
+Medido, no supuesto: `graph.facebook.com`, `api.stripe.com` y `api.calendly.com` son inalcanzables
+desde el entorno del agente, y el MCP de Supabase pide reautenticación. Por tanto es **imposible
+desde aquí**: cargar histórico de Stripe (§16, §17, §24), contar filas reales (§26), reconciliar con
+IDs reales (§27), medir cobertura por fuente (§46, §47) y la verificación con datos reales de §54 y
+§58. El código de esos bloques se puede escribir y probar contra un Stripe simulado; **ejecutarlo
+contra el Stripe real lo tiene que lanzar el usuario**, o hace falta un entorno con red.
+
+### Siguiente acción exacta
+
+Bloques pendientes, en este orden (el brief prohíbe abrir varios a la vez): 3. Filtros de periodo globales + estado en URL (§4-§6, §51). 4. Funnels visuales + capa canónica `getFunnel` (§28-§39). Reutilizar `lib/funnels/`, no rehacerla. 5. Stripe canónico: modelo económico, backfill paginado/idempotente/resumible, estados de pago,
+alumnas (§13-§25). Código + tests aquí; ejecución real, el usuario. 6. Data Health cross-source (§48) y golden dataset (§53).
+
+### Lo que TE toca a ti
+
+1. **Aplicar las migraciones pendientes, y esto es urgente**: `20260914130000_contacts_identity_uniques.sql`
+   y `20260914150000_contacts_get_or_create.sql`. El código ya está en `main` y los webhooks de
+   Calendly y GHL llaman a `contacts_get_or_create`; hasta que existan en producción, esos webhooks
+   fallan al resolver el contacto y no entran agendas nuevas. Después:
+   `20260914120000_tenant_scope_provider_uniques.sql` (puede fallar listando referencias de pago
+   duplicadas) y `20260914160000_contacts_email_unique.sql` (puede fallar listando emails a fusionar;
+   que falle no deja ningún bug abierto).
+2. **Rotar el Google Client Secret** que se pegó en el chat.
+3. Borrar la rama remota ya fusionada del PR #40 (el proxy del agente no deja hacer `push --delete`).
+
+---
+
 ## SESIÓN 2026-09-14 (cierre) — los tres pendientes de la ultra review + consolidación con Codex
 
 Rama: `claude/app-continuation-lpbupf`, empujada. 336 tests en verde (151 + 185), typecheck, lint,

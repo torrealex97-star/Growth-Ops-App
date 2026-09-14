@@ -21,6 +21,8 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { getCustomDateRange, getPreviousPeriodRange, inPeriod, type PeriodRange } from '@/lib/filters/period'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { ShareDonut } from '@/components/os/ShareDonut'
+import { TrendChart } from '@/components/os/TrendChart'
 
 type PeriodPreset = 'month' | 'today' | 'week' | 'quarter' | 'year' | 'custom'
 
@@ -385,6 +387,28 @@ export default function ExpensesPage() {
 
   const totals = useMemo(() => computeTotals(monthItems), [monthItems])
 
+  // En qué se va el dinero: reparto del gasto del periodo entre categorías. Un pastel responde bien
+  // aquí porque las partes SUMAN el total y son pocas (siete categorías cerradas).
+  const gastoPorCategoria = useMemo(() => {
+    const porCat = new Map<string, number>()
+    for (const e of monthItems) {
+      const etiqueta = CATEGORIES.find((c) => c.value === e.category)?.label || e.category
+      porCat.set(etiqueta, (porCat.get(etiqueta) ?? 0) + Number(e.amount || 0))
+    }
+    return [...porCat.entries()].map(([label, value]) => ({ label, value }))
+  }, [monthItems])
+
+  // Serie diaria del periodo. Los días SIN gasto se dejan a null y no a 0: la línea se parte en vez
+  // de dibujar una caída que no ocurrió (un día sin facturas no es un día de gasto cero medido).
+  const serieDiaria = useMemo(() => {
+    const porDia = new Map<string, number>()
+    for (const e of monthItems) {
+      const dia = String(e.expense_date).slice(0, 10)
+      porDia.set(dia, (porDia.get(dia) ?? 0) + Number(e.amount || 0))
+    }
+    return [...porDia.keys()].sort().map((date) => ({ date, value: porDia.get(date) ?? null }))
+  }, [monthItems])
+
   // Rango del periodo anterior (misma duración, desplazado hacia atrás) para la comparativa MoM.
   const previousPeriodRange: PeriodRange = useMemo(() => getPreviousPeriodRange(periodRange), [periodRange])
   const hasPreviousPeriod = previousPeriodRange.from !== null && previousPeriodRange.to !== null
@@ -395,6 +419,10 @@ export default function ExpensesPage() {
   }, [items, previousPeriodRange, hasPreviousPeriod])
 
   const previousTotals = useMemo(() => computeTotals(previousItems), [previousItems])
+  const gastoPeriodoAnterior = useMemo(
+    () => (hasPreviousPeriod ? previousTotals.total : null),
+    [hasPreviousPeriod, previousTotals.total]
+  )
 
   // Filas visibles en la tabla según la búsqueda de texto (los totales se mantienen sobre el periodo).
   const visibleItems = useMemo(() => {
@@ -942,6 +970,16 @@ export default function ExpensesPage() {
         </div>
       ) : (
         <>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <TrendChart
+              title="Gasto en el periodo"
+              data={serieDiaria}
+              previousTotal={gastoPeriodoAnterior}
+              format={(n) => formatCurrency(n)}
+            />
+            <ShareDonut data={gastoPorCategoria} totalLabel="Gasto por categoría" format={(n) => formatCurrency(n)} />
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="bg-card/50 border border-border rounded-lg p-4">
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Total gastos</p>

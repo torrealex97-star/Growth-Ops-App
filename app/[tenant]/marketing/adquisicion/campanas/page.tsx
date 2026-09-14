@@ -7,12 +7,19 @@ import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/utils'
 import type { Campaign } from '@/lib/types/database'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
-import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
+import { getPeriodRange, inPeriod, PERIOD_LABELS, type PeriodPreset } from '@/lib/filters/period'
+import { useUrlFilters } from '@/lib/filters/use-url-filters'
+import { readEnum } from '@/lib/filters/url-state'
 import { AdsFunnelPanel, type CampaignTargets } from '@/components/os/AdsFunnelPanel'
 import { DailyMetricsPanel } from '@/components/os/DailyMetricsPanel'
 import { AdsTable } from '@/components/os/AdsTable'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { useTenant } from '@/lib/tenant-context'
+
+// Valores por defecto de los filtros: cuando uno está en su valor por defecto NO se escribe en la
+// URL, así el enlace limpio sigue siendo limpio.
+const FILTROS_POR_DEFECTO = { period: 'all', account: 'all' }
+const PRESETS_VALIDOS = Object.keys(PERIOD_LABELS) as PeriodPreset[]
 
 // Gasto y métricas de ads agregadas por campaña dentro del rango seleccionado (campaign_daily).
 type RangeMetrics = {
@@ -114,11 +121,20 @@ export default function CampaignsPage() {
   const [savingEdit, setSavingEdit] = useState(false)
   const [accountingIds, setAccountingIds] = useState<Record<string, boolean>>({})
   const [postingId, setPostingId] = useState<string | null>(null)
-  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all')
-  const [customFrom, setCustomFrom] = useState('')
-  const [customTo, setCustomTo] = useState('')
-  const [accountFilter, setAccountFilter] = useState<string>('all')
-  const [selectedCampaignIds, setSelectedCampaignIds] = useState<string[]>([])
+  // Los filtros arrancan desde la URL (§6): refrescar o mandar el enlace conserva el contexto, y
+  // antes volvía a "Todo / Todas las cuentas" sin avisar, así que dos personas podían creer que
+  // miraban lo mismo con periodos distintos.
+  const urlFilters = useUrlFilters(FILTROS_POR_DEFECTO)
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>(() =>
+    readEnum(urlFilters.get('period'), PRESETS_VALIDOS, 'all')
+  )
+  const [customFrom, setCustomFrom] = useState(() => urlFilters.get('from') ?? '')
+  const [customTo, setCustomTo] = useState(() => urlFilters.get('to') ?? '')
+  const [accountFilter, setAccountFilter] = useState<string>(() => urlFilters.get('account') ?? 'all')
+  const [selectedCampaignIds, setSelectedCampaignIds] = useState<string[]>(() => {
+    const raw = urlFilters.get('campaign')
+    return raw ? raw.split(',').filter(Boolean) : []
+  })
   const [rangeMap, setRangeMap] = useState<Record<string, RangeMetrics> | null>(null)
   const [role, setRole] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
@@ -142,7 +158,31 @@ export default function CampaignsPage() {
     return times.length ? times.sort().slice(-1)[0] : null
   }, [items])
 
-  const range = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
+  // "Desde el lanzamiento" = la primera fecha con datos reales de esta subcuenta, no una fecha
+  // inventada. Si todavía no hay campañas, se queda sin límite inferior (todo lo disponible).
+  const launchDate = useMemo(() => {
+    const fechas = items.map((c) => c.start_date).filter(Boolean) as string[]
+    return fechas.length ? fechas.sort()[0] : null
+  }, [items])
+
+  // UN solo rango para KPIs, gráficas, funnel y tabla (§5): si cada panel calculara el suyo,
+  // podrían discrepar sin que nada lo delate.
+  const range = useMemo(
+    () => getPeriodRange(periodPreset, customFrom, customTo, { launchDate }),
+    [periodPreset, customFrom, customTo, launchDate]
+  )
+
+  // Escribir los filtros en la URL. Va en un efecto para que también quede reflejado lo que se
+  // cambia desde los paneles, no solo desde la barra.
+  useEffect(() => {
+    urlFilters.set({
+      period: periodPreset,
+      from: periodPreset === 'custom' || periodPreset === 'day' ? customFrom : '',
+      to: periodPreset === 'custom' ? customTo : '',
+      account: accountFilter,
+      campaign: selectedCampaignIds.join(','),
+    })
+  }, [periodPreset, customFrom, customTo, accountFilter, selectedCampaignIds, urlFilters])
 
   // Cuentas publicitarias presentes (para el desplegable de filtro). Solo campañas
   // de Meta traen account_id; las manuales no aparecen aquí. Se muestran por NOMBRE

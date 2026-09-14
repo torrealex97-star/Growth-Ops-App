@@ -10,9 +10,15 @@
 //   · verde  → comprobada contra su API y respondiendo, sin sincronizaciones rotas.
 //   · gris   → no configurada, o configurada y sin comprobar (o con la comprobación caducada).
 //   · roja   → la comprobación falló, o una de sus sincronizaciones no puede funcionar.
+import { isRetryableCode } from '@/lib/integrations/sync-runs'
 import { assessSync, SYNC_DEFS, type HealthFacts, type SyncHealth } from '@/lib/ops/sync-health'
 
-type IntegrationStatus = 'conectada' | 'sin_configurar' | 'error'
+// 'parcial' existe porque sin él la pantalla saltaba de verde a rojo sin que cambiara nada real:
+// Meta tiene TRES sincronizaciones (meta, meta-daily, meta-ads) y bastaba que una topara con el
+// límite de peticiones de la Graph API para pintar toda la integración en rojo; al siguiente cron se
+// recuperaba y volvía a verde. Un fallo reintentable con el resto de sincronizaciones sanas no es
+// "con error": es "parcial", y no hay nada que arreglar salvo esperar.
+type IntegrationStatus = 'conectada' | 'parcial' | 'sin_configurar' | 'error'
 
 /** Resultado de la última comprobación real contra la API, tal y como se guarda. */
 export type LastCheck = {
@@ -108,14 +114,32 @@ export function assessIntegration(
   // La última sincronización FALLÓ. Es rojo aunque las credenciales respondan al comprobarlas: el
   // usuario cree que tiene datos actualizados y no los tiene, y ahora sí sabemos por qué (el motivo
   // se guarda en integration_sync_runs en vez de perderse en los logs de Vercel).
-  const fallida = syncs.find((s) => s.status === 'sync_fallido')
-  if (fallida) {
+  const fallidas = syncs.filter((s) => s.status === 'sync_fallido')
+  if (fallidas.length > 0) {
+    // PARCIAL, no error, cuando se cumplen las dos: queda alguna sincronización sana y TODOS los
+    // fallos son reintentables (límite de peticiones, red, timeout). Ese caso se arregla solo en la
+    // siguiente pasada, y pintarlo rojo manda a revisar credenciales que están perfectas.
+    const sanas = syncs.filter((s) => s.status !== 'sync_fallido')
+    const todosReintentables = fallidas.every((f) => isRetryableCode(f.lastErrorCode))
+    const peor = fallidas.find((f) => !isRetryableCode(f.lastErrorCode)) ?? fallidas[0]
+    if (sanas.length > 0 && todosReintentables) {
+      return {
+        ...base,
+        status: 'parcial',
+        headline: `${fallidas.length} de ${syncs.length} sincronizaciones con problemas temporales`,
+        detail: `${peor.detail} Las otras ${sanas.length} funcionan, así que tus credenciales están bien.`,
+        fix: fixFor(peor.lastErrorCode ?? undefined, group.id),
+      }
+    }
     return {
       ...base,
       status: 'error',
-      headline: 'La última sincronización falló',
-      detail: fallida.detail,
-      fix: fixFor(fallida.lastErrorCode ?? undefined, group.id),
+      headline:
+        fallidas.length === syncs.length
+          ? 'La última sincronización falló'
+          : `${fallidas.length} de ${syncs.length} sincronizaciones fallaron`,
+      detail: peor.detail,
+      fix: fixFor(peor.lastErrorCode ?? undefined, group.id),
     }
   }
 

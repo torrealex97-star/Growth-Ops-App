@@ -127,12 +127,17 @@ export const SYNC_DEFS: SyncDef[] = [
     // corrió y no trajo nada), que es justo lo que no podía decir al no estar declarada.
     id: 'stripe-customers',
     label: 'Stripe — base de clientes y suscripciones',
-    route: null,
+    // La ruta de cron EXISTE (app/api/[tenant]/evergreen/cron/stripe-customers) y se declara aquí
+    // para que no quede huérfana. Sigue siendo `manual` porque NO está en vercel.json: el proyecto
+    // está en plan Hobby y ya hay nueve crons declarados, así que añadir un décimo sin saber cuántos
+    // ejecuta Vercel de verdad podría desplazar Meta, Instagram o los recordatorios. `scheduler`
+    // manda sobre `route` en assessSync, así que declararla no pinta un verde que no le corresponde.
+    route: 'cron/stripe-customers',
     table: 'stripe_customers',
     requiredKeys: ['STRIPE_SECRET_KEY'],
     scheduler: 'manual',
     manualReason:
-      'Se actualiza desde Integraciones › Stripe cuando lo pides: recorre todas las suscripciones y cargos de la cuenta, y programarlo a diario no está decidido todavía.',
+      'Se actualiza desde Integraciones › Stripe cuando lo pides. La ruta de cron ya está escrita: para automatizarla, añade "/api/_/evergreen/cron/stripe-customers" a vercel.json — antes comprueba en Vercel cuántos crons admite el plan, porque ya hay nueve declarados.',
   },
   {
     id: 'youtube-backfill',
