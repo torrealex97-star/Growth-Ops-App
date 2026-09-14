@@ -394,7 +394,15 @@ async function syncDailyOneAccount(
   sinceDays: number,
   failures: string[]
 ): Promise<number> {
-  const daily = await fetchMetaDailyInsights(cfg, sinceDays)
+  const { rows: daily, truncated } = await fetchMetaDailyInsights(cfg, sinceDays)
+  if (truncated) {
+    // Meta tenía más páginas de las que caben en el presupuesto de la llamada. Lo que se escriba es
+    // correcto pero INCOMPLETO, y un histórico a medias presentado como completo es justo lo que
+    // hace que el gasto de un mes viejo parezca menor de lo que fue.
+    failures.push(
+      `El histórico de ${cfg.accountId} se quedó a medias: Meta tenía más páginas de las que cabían. Vuelve a lanzar "Cargar histórico" o pide un rango más corto.`
+    )
+  }
   let huerfanos = 0
   const rows = daily
     .map((d) => {
