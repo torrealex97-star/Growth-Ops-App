@@ -91,3 +91,89 @@ export function buildChannelRows(campaigns: CampaignRow[], sales: SaleRow[], con
 
   return Array.from(agg.values()).sort((a, b) => b.adspend - a.adspend)
 }
+
+// ---------------------------------------------------------------------------------------------
+// MÉTRICAS GLOBALES DE VENTAS — todas, vengan de donde vengan.
+//
+// La diferencia con el embudo de marketing de arriba es deliberada y hay que respetarla: ese mide
+// lo ATRIBUIBLE a los anuncios (impresiones → clics → leads → citas de contactos con campaña), y
+// tiene sentido que deje fuera lo orgánico. Pero las métricas globales del negocio no pueden
+// heredar ese filtro: una agenda que entró por la web o por recomendación es una agenda igual, y
+// dejarla fuera hacía que la pantalla dijera 0 citas con 559 en la base.
+//
+// El origen pasa a ser un FILTRO opcional, no una condición de entrada.
+
+export type AttributionFilter = 'todos' | 'ads' | 'organico'
+
+export type AppointmentLike = {
+  contact_id: string | null
+  status: string
+  appointment_datetime?: string | null
+  pipe_value?: number | string | null
+}
+
+/**
+ * Estados que NO cuentan como cita viva. Están en inglés porque así los escribe Calendly, que es
+ * quien las crea: buscar 'cancelada' devolvía cero canceladas y daba un show-up del 100 %.
+ */
+export const CANCELLED_APPOINTMENT_STATUSES = ['cancelled', 'canceled', 'cancelada', 'no_show_cancel']
+
+export function isCancelled(status: string | null | undefined): boolean {
+  return CANCELLED_APPOINTMENT_STATUSES.includes((status ?? '').trim().toLowerCase())
+}
+
+export type SalesOverview = {
+  agendas: number
+  canceladas: number
+  shows: number
+  ventas: number
+  facturacion: number
+  pipeValue: number
+  /** % de citas no canceladas sobre el total agendado. */
+  tasaAsistencia: number | null
+  /** % de ventas sobre citas con asistencia. */
+  tasaCierre: number | null
+}
+
+/**
+ * `ahora` se inyecta para poder fijarlo en el test. Una cita FUTURA no cuenta como show todavía:
+ * contarla daría una asistencia que aún no ha ocurrido, y esa cifra se usa para decidir.
+ */
+export function buildSalesOverview(
+  appointments: AppointmentLike[],
+  sales: SaleRow[],
+  contacts: ContactRow[],
+  filtro: AttributionFilter = 'todos',
+  ahora: Date = new Date()
+): SalesOverview {
+  const conCampana = new Set(contacts.filter((c) => c.campaign_id).map((c) => c.id))
+  const pasaFiltro = (contactId: string | null) => {
+    if (filtro === 'todos') return true
+    const atribuido = !!contactId && conCampana.has(contactId)
+    return filtro === 'ads' ? atribuido : !atribuido
+  }
+
+  const citas = appointments.filter((a) => pasaFiltro(a.contact_id))
+  const canceladas = citas.filter((a) => isCancelled(a.status))
+  const vivas = citas.filter((a) => !isCancelled(a.status))
+  const yaPasadas = vivas.filter((a) => {
+    if (!a.appointment_datetime) return true
+    const t = Date.parse(a.appointment_datetime)
+    return Number.isNaN(t) || t <= ahora.getTime()
+  })
+
+  const ventasActivas = sales.filter((s) => ACTIVE_SALE_STATUSES.includes(s.status) && pasaFiltro(s.contact_id))
+  const facturacion = ventasActivas.reduce((a, s) => a + num(s.gross_amount), 0)
+  const pipeValue = vivas.reduce((a, s) => a + num(s.pipe_value), 0)
+
+  return {
+    agendas: citas.length,
+    canceladas: canceladas.length,
+    shows: yaPasadas.length,
+    ventas: ventasActivas.length,
+    facturacion,
+    pipeValue,
+    tasaAsistencia: citas.length ? (yaPasadas.length / citas.length) * 100 : null,
+    tasaCierre: yaPasadas.length ? (ventasActivas.length / yaPasadas.length) * 100 : null,
+  }
+}

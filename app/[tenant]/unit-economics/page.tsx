@@ -7,7 +7,14 @@ import { PieChart, Target, Users, TrendingUp, Wallet, Filter, MousePointerClick,
 import { ACTIVE_SALE_STATUSES } from '@/lib/analytics'
 import { formatCurrency, formatPercent } from '@/lib/utils'
 import { FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
-import { buildChannelRows, type CampaignRow, type SaleRow, type ContactRow } from '@/lib/unit-economics'
+import {
+  buildChannelRows,
+  buildSalesOverview,
+  type AttributionFilter,
+  type CampaignRow,
+  type SaleRow,
+  type ContactRow,
+} from '@/lib/unit-economics'
 import { useTenant } from '@/lib/tenant-context'
 import { useCuentasMetaActivas } from '@/lib/meta/use-cuentas-activas'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
@@ -143,6 +150,9 @@ export default function UnitEconomicsPage() {
   // Solo las cuentas elegidas en Integraciones. Sin esto, esta pantalla sumaba las CATORCE cuentas
   // que ve el token y lo presentaba como si fuera el negocio.
   const cuentas = useCuentasMetaActivas(tenant)
+  // De dónde vienen los datos del bloque global. Es un FILTRO, no una condición de entrada: por
+  // defecto se ve todo, venga de ads, de la web o de recomendación.
+  const [origen, setOrigen] = useState<AttributionFilter>('todos')
   const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
@@ -271,7 +281,17 @@ export default function UnitEconomicsPage() {
     [campanasParaTotales, contacts, appointments, ventasVisibles]
   )
 
-  const hasData = campaignsVisibles.length > 0 || sales.length > 0
+  // Citas del periodo elegido, con el mismo rango que el resto de la pantalla.
+  const agendasVisibles = useMemo(
+    () => (hayPeriodo ? appointments.filter((a) => inPeriod(a.appointment_datetime, rango)) : appointments),
+    [appointments, hayPeriodo, rango]
+  )
+  const ventas = useMemo(
+    () => buildSalesOverview(agendasVisibles, ventasVisibles, contacts, origen),
+    [agendasVisibles, ventasVisibles, contacts, origen]
+  )
+
+  const hasData = campaignsVisibles.length > 0 || sales.length > 0 || appointments.length > 0
 
   return (
     <div className="p-6 space-y-6">
@@ -359,12 +379,73 @@ export default function UnitEconomicsPage() {
         </div>
       </div>
 
+      {/* VENTAS Y AGENDAS — todas, vengan de donde vengan. El embudo de marketing de abajo mide lo
+          atribuible a los anuncios y por eso deja fuera lo orgánico; esto NO puede heredar ese
+          filtro, o la pantalla dice 0 citas con cientos en la base. El origen es un desplegable. */}
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-foreground text-lg font-semibold">Ventas y agendas</h2>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Todas las del periodo, vengan de anuncios, de la web o de recomendación.
+            </p>
+          </div>
+          <label className="text-muted-foreground text-xs">
+            Origen
+            <select
+              value={origen}
+              onChange={(e) => setOrigen(e.target.value as AttributionFilter)}
+              className="border-border bg-background/60 text-foreground mt-1 block rounded-lg border px-2 py-1 text-sm"
+            >
+              <option value="todos">Todos los orígenes</option>
+              <option value="ads">Solo atribuido a anuncios</option>
+              <option value="organico">Orgánico y directo</option>
+            </select>
+          </label>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KPICard
+            title="Agendas"
+            value={loading ? '—' : ventas.agendas.toLocaleString('es-ES')}
+            icon={Users}
+            loading={loading}
+            description={`${ventas.canceladas.toLocaleString('es-ES')} canceladas`}
+          />
+          <KPICard
+            title="Shows"
+            value={loading ? '—' : ventas.shows.toLocaleString('es-ES')}
+            icon={Target}
+            loading={loading}
+            // Una cita futura no cuenta como asistencia todavía: contarla daría un show-up que aún
+            // no ha ocurrido, y con esa cifra se decide.
+            description="Citas no canceladas que ya han pasado"
+          />
+          <KPICard
+            title="Ventas"
+            value={loading ? '—' : ventas.ventas.toLocaleString('es-ES')}
+            icon={Wallet}
+            loading={loading}
+            description={
+              ventas.tasaCierre !== null ? `${formatPercent(ventas.tasaCierre)} de cierre sobre shows` : 'Sin shows aún'
+            }
+          />
+          <KPICard
+            title="Facturación"
+            value={loading ? '—' : formatCurrency(ventas.facturacion)}
+            icon={TrendingUp}
+            loading={loading}
+            description={ventas.tasaAsistencia !== null ? `${formatPercent(ventas.tasaAsistencia)} de asistencia` : '—'}
+          />
+        </div>
+      </div>
+
       {/* Embudo de marketing */}
       <div className="space-y-4">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Embudo de marketing</h2>
           <p className="text-muted-foreground text-sm mt-1">
-            Impresiones, clicks y leads de campañas, atribuidos hasta el cierre de venta
+            Impresiones, clicks y leads de campañas, atribuidos hasta el cierre de venta — solo lo que viene de
+            anuncios. Las cifras de todo origen están arriba.
           </p>
         </div>
 
