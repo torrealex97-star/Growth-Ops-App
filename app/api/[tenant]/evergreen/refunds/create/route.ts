@@ -101,7 +101,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       .eq('id', saleId)
 
     // 4) Recalcular tramos del rep: al bajar el cash collected puede bajar de nivel de comisión
-    await recomputeRepCommissionTiers(sb, [
+    await recomputeRepCommissionTiers(sb, t.tenantId, [
       { repId: (sale as { setter_id?: string | null }).setter_id, role: 'setter' },
       { repId: (sale as { closer_id?: string | null }).closer_id, role: 'closer' },
     ])

@@ -45,7 +45,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // (N veces por rep) es trabajo repetido. Se recalcula una sola vez al final, con el cash
     // ya consolidado de TODAS las ventas reconciliadas.
     for (const id of ids) {
-      const r = await reconcileSaleCommissions(sb, id, [], { skipTierRecompute: true })
+      const r = await reconcileSaleCommissions(sb, tenantId, id, [], { skipTierRecompute: true })
       created += r.created
       deleted += r.deleted
       if (r.created || r.deleted) perSale.push({ saleId: id, created: r.created, deleted: r.deleted })
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       if (s.setter_id) affectedPairs.set(`${s.setter_id}|setter`, { repId: s.setter_id, role: 'setter' })
       if (s.closer_id) affectedPairs.set(`${s.closer_id}|closer`, { repId: s.closer_id, role: 'closer' })
     }
-    await recomputeRepCommissionTiers(sb, Array.from(affectedPairs.values()))
+    await recomputeRepCommissionTiers(sb, tenantId, Array.from(affectedPairs.values()))
 
     return NextResponse.json({ ok: true, sales: ids.length, created, deleted, perSale })
   } catch (err) {

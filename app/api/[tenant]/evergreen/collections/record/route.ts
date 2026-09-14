@@ -55,7 +55,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Si la venta no tiene setter/afiliado, dedúcelos de la atribución del contacto (utm_term →
     // tracking_code del setter/cold caller, utm_content → affiliate_code) y aplícalo a la venta
     // ANTES de generar comisiones, para que el rep atribuido por UTM cobre su comisión.
-    const attrPatch = await resolveSaleAttribution(sb, sale as unknown as Parameters<typeof resolveSaleAttribution>[1])
+    const attrPatch = await resolveSaleAttribution(
+      sb,
+      sale as unknown as Parameters<typeof resolveSaleAttribution>[1],
+      t.tenantId
+    )
     Object.assign(sale, attrPatch)
 
     const plan = sale.payment_plans as {
@@ -70,7 +74,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     // Plan personalizado: si esta venta ya tiene un cobro elegible previo (p.ej. esta ruta se
     // reutiliza para un segundo adelanto), este cobro queda en revisión en vez de comisionar ya.
-    const needsReview = await saleNeedsCommissionReview(sb, saleId, plan?.method)
+    const needsReview = await saleNeedsCommissionReview(sb, t.tenantId, saleId, plan?.method)
 
     // Antes de insertar: si esta venta no tenía NINGÚN cobro previo, este es el primero
     // (equivale a "venta creada" de cara a creatuagente, que no ve el alta de la venta en sí,
@@ -107,7 +111,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     const commissionsGenerated = needsReview
       ? 0
-      : await generateCommissionsForCollection(sb, coll as Collection, sale as unknown as Sale)
+      : await generateCommissionsForCollection(sb, t.tenantId, coll as Collection, sale as unknown as Sale)
 
     // Fire-and-forget: no debe tumbar el registro del cobro (ya aplicado arriba) si
     // creatuagente está caído o el lead no tiene token. Un solo evento venta.registrada

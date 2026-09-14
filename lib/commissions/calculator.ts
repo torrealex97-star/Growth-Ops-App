@@ -37,6 +37,9 @@ function pickRuleFromPool(
 }
 
 export function calculateCommissionsForCollection(
+  // La subcuenta va PRIMERO y es obligatoria: `commissions.tenant_id` es NOT NULL, así que una fila
+  // sin él no se puede insertar. Antes no se estampaba y el insert fallaba siempre (en silencio).
+  tenantId: string,
   collection: Collection,
   sale: Sale,
   rules: CommissionRule[],
@@ -75,6 +78,7 @@ export function calculateCommissionsForCollection(
     const rule = getRule('setter', sale.setter_id)
     const percent = rule?.percent ?? 5
     commissions.push({
+      tenant_id: tenantId,
       sale_id: sale.id,
       collection_id: collection.id,
       refund_id: null,
@@ -96,6 +100,7 @@ export function calculateCommissionsForCollection(
     const rule = getRule('closer', sale.closer_id)
     const percent = rule?.percent ?? 10
     commissions.push({
+      tenant_id: tenantId,
       sale_id: sale.id,
       collection_id: collection.id,
       refund_id: null,
@@ -116,6 +121,7 @@ export function calculateCommissionsForCollection(
   if (sale.affiliate_id && sale.affiliate_commission_percent) {
     const percent = sale.affiliate_commission_percent
     commissions.push({
+      tenant_id: tenantId,
       sale_id: sale.id,
       collection_id: collection.id,
       refund_id: null,
@@ -173,6 +179,8 @@ export function calculateNegativeCommissionsForRefund(
   for (const existing of positiveCommissions) {
     // Proportionally scale the negative commission based on refund amount vs original base
     const negativeCommission: InsertCommission = {
+      // La subcuenta la hereda de la comisión que está espejando: es la misma venta.
+      tenant_id: existing.tenant_id,
       sale_id: refund.sale_id,
       collection_id: existing.collection_id,
       refund_id: refund.id,
