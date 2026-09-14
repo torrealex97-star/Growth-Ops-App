@@ -425,6 +425,9 @@ export default function IntegracionesPage() {
   const [importChoice, setImportChoice] = useState<{ productId: string; planId: string }>({ productId: '', planId: '' })
   const [importing, setImporting] = useState(false)
   const [metaAccounts, setMetaAccounts] = useState<{ id: string; name: string; active: boolean }[] | null>(null)
+  // Modelos que la clave de IA puede usar DE VERDAD, preguntados al proveedor.
+  const [modelosIa, setModelosIa] = useState<{ id: string }[] | null>(null)
+  const [buscandoModelos, setBuscandoModelos] = useState(false)
   const [findingAccounts, setFindingAccounts] = useState(false)
 
   const load = useCallback(async () => {
@@ -570,6 +573,31 @@ export default function IntegracionesPage() {
 
   // Busca las cuentas que ve el token ANTES de guardar nada: si hubiera que guardar primero, se
   // guardaría un token inválido para descubrir que lo es.
+  async function buscarModelosIa() {
+    setBuscandoModelos(true)
+    try {
+      const r = await fetch(`/api/${tenant}/evergreen/settings/integraciones`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'ia-modelos', token: drafts.DEEPSEEK_API_KEY || undefined }),
+      })
+      const j = await r.json()
+      if (!j.ok) {
+        setModelosIa([])
+        toast.error(j.message || 'No se pudieron leer los modelos')
+        return
+      }
+      setModelosIa(j.modelos)
+      // Si el modelo guardado ya no existe en la cuenta, se avisa en vez de dejarlo fallar en cada uso.
+      if (j.aviso) toast.warning(j.aviso)
+      else if (!drafts.DEEPSEEK_MODEL && j.sugerido) setDrafts({ ...drafts, DEEPSEEK_MODEL: j.sugerido })
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error de conexión')
+    } finally {
+      setBuscandoModelos(false)
+    }
+  }
+
   async function findMetaAccounts() {
     setFindingAccounts(true)
     try {
@@ -1206,6 +1234,48 @@ export default function IntegracionesPage() {
                                     onChange={(v) => setDrafts({ ...drafts, [f.key]: v })}
                                   />
                                 ))}
+                              {/* El modelo de IA NO se escribe a mano: se pregunta al proveedor cuáles
+                                  puede usar esta clave. Un nombre inventado o retirado deja la IA
+                                  muerta y el panel en verde. */}
+                              {g.id === 'ai' ? (
+                                <div className="border-border/60 rounded-lg border border-dashed p-3">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <p className="text-muted-foreground text-xs">Modelos disponibles en tu cuenta</p>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={buscarModelosIa}
+                                      disabled={buscandoModelos}
+                                    >
+                                      {buscandoModelos ? (
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <Search className="mr-2 h-4 w-4" />
+                                      )}
+                                      Buscar modelos
+                                    </Button>
+                                  </div>
+                                  {modelosIa?.length === 0 ? (
+                                    <p className="text-muted-foreground mt-2 text-xs">
+                                      Esa clave no puede listar modelos.
+                                    </p>
+                                  ) : null}
+                                  {modelosIa && modelosIa.length > 0 ? (
+                                    <select
+                                      value={drafts.DEEPSEEK_MODEL ?? ''}
+                                      onChange={(e) => setDrafts({ ...drafts, DEEPSEEK_MODEL: e.target.value })}
+                                      className="border-border bg-background/60 text-foreground mt-2 block w-full rounded-lg border px-2 py-1 text-sm"
+                                    >
+                                      <option value="">Automático (el primero disponible)</option>
+                                      {modelosIa.map((m) => (
+                                        <option key={m.id} value={m.id}>
+                                          {m.id}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  ) : null}
+                                </div>
+                              ) : null}
                             </div>
                           </details>
                         ) : null}
