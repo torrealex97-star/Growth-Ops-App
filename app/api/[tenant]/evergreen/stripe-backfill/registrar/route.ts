@@ -169,10 +169,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       // salir como registrable (la referencia vive en el cobro) → se duplicaría en la siguiente
       // tanda. Se deshace la venta y se reporta.
       await sb.from('sales').delete().eq('tenant_id', session.tenantId).eq('id', saleId)
+      // 23505 en `collections` = el unique (tenant_id, payment_reference) de
+      // 20260914120000 ha parado un DOBLE REGISTRO del mismo pago: otra petición
+      // (doble clic, reintento del navegador) ya lo había registrado entre medias. No es un
+      // error del usuario ni un fallo: es exactamente lo que tiene que pasar, y el mensaje lo dice
+      // así en vez de soltarle una violación de constraint.
+      const yaRegistrado = collection.error?.code === '23505'
       resultados.push({
         paymentId,
         ok: false,
-        motivo: `No se pudo registrar el cobro (${collection.error?.message || '0 filas'}), así que se deshizo la venta.`,
+        motivo: yaRegistrado
+          ? 'Este pago ya se había registrado (otra petición llegó antes). No se ha duplicado nada.'
+          : `No se pudo registrar el cobro (${collection.error?.message || '0 filas'}), así que se deshizo la venta.`,
       })
       continue
     }

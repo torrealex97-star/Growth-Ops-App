@@ -132,7 +132,7 @@ export async function fetchAdAccounts(
   const url =
     `${GRAPH}/${version}/me/adaccounts` +
     `?fields=name,account_status&limit=500&access_token=${encodeURIComponent(token)}${proof}`
-  const rows = await graphGetAll(url)
+  const { rows } = await graphGetAll(url)
   return rows.map((r: any) => ({
     id: String(r.id), // Meta ya devuelve el prefijo act_
     name: String(r.name || r.id),
@@ -248,23 +248,37 @@ async function graphGet(url: string): Promise<any> {
 }
 
 // Sigue la paginación de la Graph API (data + paging.next) acumulando resultados.
-async function graphGetAll(firstUrl: string): Promise<any[]> {
+// Sigue la paginación de la Graph API acumulando resultados, con un tope de páginas para no
+// quedarse dando vueltas.
+//
+// DEVUELVE SI SE QUEDÓ A MEDIAS. Antes el tope (50 páginas) se aplicaba en silencio y la función
+// devolvía el trozo leído como si fuera todo. Con `limit=500` eso son 25.000 filas: suficiente para
+// el día a día, pero NO para una carga de histórico con `time_increment=1` (una fila por campaña y
+// día: 37 meses × unas decenas de campañas se pasan de largo). El resultado era un histórico
+// incompleto presentado como completo — el peor tipo de fallo de esta base de datos.
+const DEFAULT_MAX_PAGES = 50
+
+async function graphGetAll(
+  firstUrl: string,
+  maxPages = DEFAULT_MAX_PAGES
+): Promise<{ rows: any[]; truncated: boolean }> {
   const out: any[] = []
   let url: string | null = firstUrl
   let guard = 0
-  while (url && guard < 50) {
+  while (url) {
+    if (guard >= maxPages) return { rows: out, truncated: true }
     const json: any = await graphGet(url)
     if (Array.isArray(json?.data)) out.push(...json.data)
     url = json?.paging?.next || null
     guard++
   }
-  return out
+  return { rows: out, truncated: false }
 }
 
 export async function fetchMetaCampaigns(cfg: MetaConfig): Promise<MetaCampaign[]> {
   const fields = 'id,name,status,effective_status,objective,start_time,stop_time,daily_budget,lifetime_budget'
   const url = `${GRAPH}/${cfg.version}/${cfg.accountId}/campaigns?fields=${fields}&limit=200&access_token=${encodeURIComponent(cfg.token)}${proofParam(cfg)}`
-  const rows = await graphGetAll(url)
+  const { rows } = await graphGetAll(url)
   return rows as MetaCampaign[]
 }
 
@@ -326,7 +340,7 @@ export async function fetchMetaInsights(
     `${GRAPH}/${cfg.version}/${cfg.accountId}/insights` +
     `?level=campaign&fields=${fields}&date_preset=${datePreset}&limit=500` +
     `&access_token=${encodeURIComponent(cfg.token)}${proofParam(cfg)}`
-  const rows = await graphGetAll(url)
+  const { rows } = await graphGetAll(url)
   return rows.map((r: any) => ({
     campaign_id: String(r.campaign_id),
     campaign_name: String(r.campaign_name || ''),
@@ -360,7 +374,9 @@ function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export async function fetchMetaDailyInsights(cfg: MetaConfig, sinceDays = 180): Promise<MetaDailyInsight[]> {
+export type MetaDailyInsightsResult = { rows: MetaDailyInsight[]; truncated: boolean }
+
+export async function fetchMetaDailyInsights(cfg: MetaConfig, sinceDays = 180): Promise<MetaDailyInsightsResult> {
   const until = new Date()
   const since = new Date()
   since.setDate(since.getDate() - Math.max(1, sinceDays))
@@ -370,8 +386,12 @@ export async function fetchMetaDailyInsights(cfg: MetaConfig, sinceDays = 180): 
     `${GRAPH}/${cfg.version}/${cfg.accountId}/insights` +
     `?level=campaign&fields=${fields}&time_increment=1&time_range=${timeRange}&limit=500` +
     `&access_token=${encodeURIComponent(cfg.token)}${proofParam(cfg)}`
-  const rows = await graphGetAll(url)
-  return rows.map((r: any) => ({
+  // Presupuesto de páginas proporcional al rango pedido: una carga de 37 meses necesita muchas más
+  // que un sync rutinario de 180 días, y quedarse corto aquí es exactamente lo que dejaba el
+  // histórico a medias sin decirlo.
+  const maxPages = Math.max(DEFAULT_MAX_PAGES, Math.ceil(sinceDays / 5))
+  const { rows, truncated } = await graphGetAll(url, maxPages)
+  const mapped = rows.map((r: any) => ({
     campaign_id: String(r.campaign_id),
     date: String(r.date_start || '').slice(0, 10),
     spend: Number(r.spend) || 0,
@@ -382,6 +402,7 @@ export async function fetchMetaDailyInsights(cfg: MetaConfig, sinceDays = 180): 
     linkClicks: Number(r.inline_link_clicks) || 0,
     landingViews: sumAction(r.actions, 'landing_page_view'),
   }))
+  return { rows: mapped, truncated }
 }
 
 // Lista los ANUNCIOS de la cuenta (metadatos, sin métricas). Una sola llamada
@@ -389,7 +410,7 @@ export async function fetchMetaDailyInsights(cfg: MetaConfig, sinceDays = 180): 
 export async function fetchMetaAds(cfg: MetaConfig): Promise<MetaAd[]> {
   const fields = 'id,name,status,effective_status,adset{name},campaign{id}'
   const url = `${GRAPH}/${cfg.version}/${cfg.accountId}/ads?fields=${fields}&limit=200&access_token=${encodeURIComponent(cfg.token)}${proofParam(cfg)}`
-  const rows = await graphGetAll(url)
+  const { rows } = await graphGetAll(url)
   return rows.map((r: any) => ({
     id: String(r.id),
     name: String(r.name || ''),
@@ -410,7 +431,7 @@ export async function fetchMetaAdInsights(
     `${GRAPH}/${cfg.version}/${cfg.accountId}/insights` +
     `?level=ad&fields=${fields}&date_preset=${datePreset}&limit=500` +
     `&access_token=${encodeURIComponent(cfg.token)}${proofParam(cfg)}`
-  const rows = await graphGetAll(url)
+  const { rows } = await graphGetAll(url)
   return rows.map((r: any) => ({
     ad_id: String(r.ad_id),
     campaign_id: String(r.campaign_id || ''),

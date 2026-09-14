@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { TrendingUp, Users, Percent, ExternalLink, X, Download } from 'lucide-react'
+import { TrendingUp, Users, Percent, ExternalLink, X, Download, Wrench, Loader2 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
@@ -227,6 +227,61 @@ export default function CommissionsPage() {
     }
   }
 
+  // Reparación: reconstruye las comisiones de TODAS las ventas a partir de sus cobros reales.
+  //
+  // POR QUÉ HAY UN BOTÓN. Las comisiones se insertaban sin `tenant_id` (columna NOT NULL) y el error
+  // se descartaba, así que TODO cobro anterior al arreglo dejó su comisión sin escribir. Arreglar el
+  // código no rellena lo perdido: hay que reconciliar. La ruta existía pero solo se podía disparar a
+  // mano con un fetch desde la consola del navegador, que no es sitio para una reparación contable.
+  //
+  // Es idempotente: no toca comisiones liquidadas ni las negativas de devoluciones, así que se puede
+  // pulsar las veces que haga falta (y hay que hacerlo si se corta por el límite de 60s de la
+  // función: continúa donde estaba).
+  const [reconciling, setReconciling] = useState(false)
+
+  const handleReconcileAll = async () => {
+    setReconciling(true)
+    try {
+      const res = await fetch(`/api/${tenant}/evergreen/sales/reconcile-all`, { method: 'POST' })
+      const d = (await res.json().catch(() => ({}))) as {
+        error?: string
+        sales?: number
+        created?: number
+        deleted?: number
+      }
+      if (!res.ok) {
+        // 502/504 = la función agotó sus 60s. Parte del trabajo SÍ se aplicó (cada venta se
+        // reconcilia y se guarda por separado), así que decir solo "error" mandaría a pensar que no
+        // se hizo nada. Al ser idempotente, volver a pulsar continúa donde se quedó.
+        if (res.status === 504 || res.status === 502) {
+          toast.warning('Se reparó una parte y se agotó el tiempo', {
+            description: 'Vuelve a pulsar para continuar: no duplica nada.',
+          })
+          fetchCommissions()
+          fetchFuture()
+          return
+        }
+        toast.error('No se pudo reparar', { description: d?.error })
+        return
+      }
+      const creadas = d.created ?? 0
+      const borradas = d.deleted ?? 0
+      if (creadas === 0 && borradas === 0) {
+        toast.success(`Nada que reparar: las ${d.sales ?? 0} ventas ya cuadran`)
+      } else {
+        toast.success(`Reparadas ${d.sales ?? 0} ventas`, {
+          description: `${creadas} comisiones reconstruidas${borradas ? `, ${borradas} recalculadas` : ''}`,
+        })
+      }
+      fetchCommissions()
+      fetchFuture()
+    } catch (err) {
+      toast.error('No se pudo reparar', { description: err instanceof Error ? err.message : undefined })
+    } finally {
+      setReconciling(false)
+    }
+  }
+
   // Meses disponibles (a partir de liquidation_month) para el select de filtro
   const availableMonths = useMemo(() => {
     const set = new Set<string>()
@@ -399,12 +454,30 @@ export default function CommissionsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Comisiones</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          {canApprove ? 'Gestion de comisiones del equipo' : 'Tus comisiones'}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Comisiones</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            {canApprove ? 'Gestion de comisiones del equipo' : 'Tus comisiones'}
+          </p>
+        </div>
+        {canApprove && (
+          <Button variant="outline" size="sm" onClick={handleReconcileAll} disabled={reconciling}>
+            {reconciling ? (
+              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <Wrench className="w-3.5 h-3.5 mr-1.5" />
+            )}
+            {reconciling ? 'Reparando…' : 'Reparar comisiones'}
+          </Button>
+        )}
       </div>
+      {canApprove && (
+        <p className="text-muted-foreground -mt-4 text-xs">
+          &quot;Reparar comisiones&quot; reconstruye las comisiones de todas las ventas a partir de sus cobros reales.
+          Úsalo si un cobro no generó su comisión. No toca las ya liquidadas y se puede repetir sin duplicar nada.
+        </p>
+      )}
 
       {/* Facturas de comisiones: el comercial adjunta la suya; admin ve todas */}
       {currentUserId && (
