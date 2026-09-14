@@ -77,7 +77,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       // Si esta venta ya tiene un cobro elegible previo (reserva/entrada u otra cuota ya aprobada),
       // esta cuota se registra pero queda en REVISIÓN manual de cobros: no genera comisión real
       // hasta que el equipo la apruebe (ver /api/${tenant}/evergreen/collections/approve-review).
-      const needsReview = await saleNeedsCommissionReview(sb, inst.sale_id, plan?.method)
+      const needsReview = await saleNeedsCommissionReview(sb, t.tenantId, inst.sale_id, plan?.method)
 
       // Registrar el cobro
       const { data: newCollection, error: collErr } = await sb
@@ -127,11 +127,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         const { data: saleFull } = await sb
           .from('sales')
           .select('id, setter_id, closer_id, affiliate_id, affiliate_commission_percent')
+          .eq('tenant_id', t.tenantId)
           .eq('id', inst.sale_id)
-          .single()
+          .maybeSingle()
         if (saleFull) {
           commissionsGenerated = await generateCommissionsForCollection(
             sb,
+            t.tenantId,
             newCollection as Collection,
             saleFull as Sale
           )

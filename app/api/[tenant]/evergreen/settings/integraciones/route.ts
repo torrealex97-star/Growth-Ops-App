@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
-import {
-  decryptSecret,
-  encryptSecret,
-  invalidateConfigCache,
-  forgetInjectedKeys,
-  getTenantConfigWithFallback,
-} from '@/lib/config'
+import { decryptSecret, encryptSecret, invalidateConfigCache, getTenantConfigWithFallback } from '@/lib/config'
 import { ALL_FIELDS, SECRET_KEYS, isKnownKey, INTEGRATION_ONLY_GROUPS } from '@/lib/integrations-catalog'
 import { assessIntegration, SYNCS_BY_GROUP, type LastCheck } from '@/lib/integrations/health'
 import { SYNC_DEFS } from '@/lib/ops/sync-health'
@@ -237,11 +231,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const { error } = await client.from('integration_settings').upsert(rows, { onConflict: 'tenant_id,key' })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
-  // Borrar de verdad: (1) contar las filas borradas en vez de dar por hecho que se fueron —una
-  // escritura bloqueada por RLS afecta a 0 filas SIN error—, y (2) retirar el valor de process.env
-  // si lo inyectó `ensureConfig`. Sin (2), el secreto borrado seguía vivo en la memoria del proceso
-  // el resto de la vida de la lambda y la comprobación seguía fallando por el mismo motivo: era
-  // exactamente el "he borrado el App Secret y no cambia nada".
+  // Borrar de verdad: se cuentan las filas borradas en vez de dar por hecho que se fueron (una
+  // escritura bloqueada por RLS afecta a 0 filas SIN error). Ya no hace falta retirar nada de
+  // process.env: `ensureConfig` —lo que volcaba las credenciales ahí y hacía que un secreto borrado
+  // siguiera vivo el resto de la vida de la lambda— se ha eliminado; ahora la configuración se pasa
+  // como argumento a cada integración.
   let cleared: string[] = []
   const clearable = clear.filter(isKnownKey)
   if (clearable.length) {
@@ -256,16 +250,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   }
 
   invalidateConfigCache(auth.tenantId)
-  const forgotten = clearable.length ? forgetInjectedKeys(auth.tenantId, clearable) : []
   // Una clave que sigue en el entorno de Vercel no se puede borrar desde aquí: decirlo es lo único
-  // honesto, porque el valor seguirá usándose.
+  // honesto, porque el valor seguirá usándose como fallback.
   const enEntorno = clearable.filter((k) => !!process.env[k])
   return NextResponse.json({
     ok: true,
     saved: rows.length,
     cleared: cleared.length,
     clearedKeys: cleared,
-    forgotten,
     stillInEnv: enEntorno,
   })
 }

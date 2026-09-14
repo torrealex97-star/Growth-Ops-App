@@ -563,6 +563,8 @@ export type InsertCommissionRule = Omit<CommissionRule, 'id' | 'created_at' | 'u
 // ==================== COMMISSIONS ====================
 export type Commission = {
   id: string
+  /** Subcuenta propietaria. NOT NULL en base de datos: sin él el insert no entra. */
+  tenant_id: string
   sale_id: string
   collection_id: string | null
   refund_id: string | null

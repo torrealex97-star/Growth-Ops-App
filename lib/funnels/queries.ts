@@ -5,6 +5,7 @@
 // motivo, no un 0 y tampoco un error rojo. Inventar un vocabulario de eventos o rellenar huecos con
 // ceros es precisamente lo que haría que esta pantalla mintiera.
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import { ACTIVE_SALE_STATUSES } from '@/lib/analytics'
 import { type FunnelFamily, stagesOf } from '@/lib/funnels/definitions'
 import { type EventMap, namesFor } from '@/lib/funnels/event-map'
@@ -69,15 +70,25 @@ async function crmStages(sb: SupabaseClient, tenantId: string, range: DateRange)
 // ── Etapas de Meta: campaign_daily es la fuente por día ya sincronizada ─────
 
 async function metaStages(sb: SupabaseClient, tenantId: string, range: DateRange) {
-  const { data, error } = await sb
-    .from('campaign_daily')
-    .select('impressions,link_clicks,reach,spend,date')
-    .eq('tenant_id', tenantId)
-    .gte('date', range.from)
-    .lte('date', range.to)
-    .not('date', 'is', null)
+  // Paginado: `campaign_daily` tiene una fila por campaña y día, así que unos meses de histórico
+  // pasan de las 1.000 filas que devuelve PostgREST como máximo. Sin paginar, el gasto y las
+  // impresiones del embudo salían recortados sin ningún aviso — más bajos que los reales.
+  const { rows: data, error } = await fetchAllRows<{
+    impressions: number | null
+    link_clicks: number | null
+    reach: number | null
+    spend: number | null
+  }>(() =>
+    sb
+      .from('campaign_daily')
+      .select('impressions,link_clicks,reach,spend,date')
+      .eq('tenant_id', tenantId)
+      .gte('date', range.from)
+      .lte('date', range.to)
+      .not('date', 'is', null)
+  )
   if (error) {
-    const fail = { rows: null as number | null, error: error.message }
+    const fail = { rows: null as number | null, error }
     return {
       impresiones: fromCount(fail.rows, 'meta', { error: fail.error }),
       clics: fromCount(fail.rows, 'meta', { error: fail.error }),
@@ -85,12 +96,7 @@ async function metaStages(sb: SupabaseClient, tenantId: string, range: DateRange
       inversion: null as number | null,
     }
   }
-  const rows = (data ?? []) as Array<{
-    impressions: number | null
-    link_clicks: number | null
-    reach: number | null
-    spend: number | null
-  }>
+  const rows = data
   const sum = (k: 'impressions' | 'link_clicks' | 'reach' | 'spend') =>
     rows.reduce((a, r) => a + (Number(r[k]) || 0), 0)
   return {

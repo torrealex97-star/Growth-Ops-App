@@ -69,14 +69,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
         return [c.sales.setter_id, c.sales.closer_id]
       }),
     ]
-    const tramoByRep = await tramoIdByReps(sb, repIdsForTramo)
+    const tramoByRep = await tramoIdByReps(sb, t.tenantId, repIdsForTramo)
 
     const now = new Date()
     const rateCache = new Map<string, number>() // `${rep}|${role}` -> percent
     const getRate = async (repId: string, r: 'setter' | 'closer') => {
       const key = `${repId}|${r}`
       if (rateCache.has(key)) return rateCache.get(key)!
-      const total = await repNetCash(sb, repId, r)
+      const total = await repNetCash(sb, t.tenantId, repId, r)
       const rule = pickCommissionRule(rules, r, repId, now, total, tramoByRep[repId] ?? null)
       const percent = rule?.percent ?? (r === 'setter' ? 5 : 10)
       rateCache.set(key, percent)

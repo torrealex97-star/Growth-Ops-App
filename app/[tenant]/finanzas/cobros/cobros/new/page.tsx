@@ -175,6 +175,7 @@ export default function NewCollectionPage() {
   const previewCommissions =
     selectedSale && grossAmount && !needsCommissionReview
       ? calculateCommissionsForCollection(
+          tenantId,
           {
             id: 'preview',
             sale_id: selectedSale.id,
@@ -216,62 +217,34 @@ export default function NewCollectionPage() {
     }
 
     setSubmitting(true)
-    const supabase = createClient()
-    const { data: authUser } = await supabase.auth.getUser()
-
-    const collectionPayload = {
-      tenant_id: tenantId,
-      sale_id: selectedSale.id,
-      expected_installment_id: null,
-      collected_at: new Date(collectedAt).toISOString(),
-      gross_amount: parseFloat(grossAmount),
-      commissionable_amount: commissionableAmount,
-      processing_fee: processingFee,
-      payment_method: paymentMethod,
-      payment_provider: null,
-      payment_reference: paymentReference || null,
-      is_confirmed: true,
-      is_eligible_for_commission: isEligible,
-      eligible_at: isEligible ? new Date(collectedAt).toISOString() : null,
-      needs_commission_review: needsCommissionReview,
-      status: 'collected' as const,
-      notes: notes || null,
-    }
-
-    const { data: newCollection, error } = await supabase
-      .from('collections')
-      .insert(collectionPayload)
-      .select()
-      .single()
-
-    if (error || !newCollection) {
-      toast.error('Error al registrar el cobro', { description: error?.message })
+    // Por la ruta canónica (POST /collections/record) en vez de insertar desde el navegador.
+    //
+    // POR QUÉ. Esta pantalla era una SEGUNDA implementación de "registrar un cobro", y peor: no
+    // pasaba los tramos a la calculadora (así que un rep con regla por tramo cobraba el % genérico),
+    // no recalculaba los tramos después, no resolvía la atribución por UTM (un setter atribuido por
+    // enlace se quedaba sin comisión) y no avisaba a creatuagente. El mismo hecho de negocio daba
+    // resultados distintos según por dónde entrara.
+    const res = await fetch(`/api/${tenant}/evergreen/collections/record`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        saleId: selectedSale.id,
+        grossAmount: parseFloat(grossAmount),
+        commissionableAmount,
+        method: paymentMethod,
+        collectedAt: new Date(collectedAt).toISOString(),
+        notes: notes || null,
+        paymentReference: paymentReference || null,
+      }),
+    })
+    const payload = (await res.json().catch(() => ({}))) as { error?: string; needsReview?: boolean }
+    if (!res.ok) {
+      toast.error('Error al registrar el cobro', { description: payload.error })
       setSubmitting(false)
       return
     }
-
-    // Generar comisiones (pendientes) para este cobro — siempre, sin esperar al plazo de
-    // devolución. La aprobación/liquidación es manual; una devolución las resta con negativas.
-    // Excepción: cuotas 2+ de un plan personalizado, que van a revisión manual de cobros y NO
-    // generan comisión real hasta que el equipo las apruebe.
-    if (!needsCommissionReview) {
-      const commissions = calculateCommissionsForCollection(newCollection, selectedSale, rules, cashByRep)
-      if (commissions.length > 0) {
-        await supabase.from('commissions').insert(commissions.map((c) => ({ ...c, tenant_id: tenantId })))
-      }
-    }
-
-    // Audit log
-    if (authUser.user) {
-      await supabase.from('audit_logs').insert({
-        tenant_id: tenantId,
-        actor_user_id: authUser.user.id,
-        entity_type: 'collection',
-        entity_id: newCollection.id,
-        action: 'create',
-        old_values: null,
-        new_values: collectionPayload,
-      })
+    if (payload.needsReview) {
+      toast.info('El cobro queda en revisión de cobros: es una cuota posterior de un plan personalizado')
     }
 
     toast.success('Cobro registrado correctamente')

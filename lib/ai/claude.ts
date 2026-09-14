@@ -6,8 +6,8 @@ import { completeText, type TextRequest } from '@/lib/ai/provider'
 // lib/ai/provider, que respeta el motor elegido en Integraciones.
 // maxRetries alto porque Anthropic devuelve "overloaded_error" (529) con cierta frecuencia en picos
 // de carga; el default del SDK (2) no siempre aguanta hasta que se libera capacidad.
-function anthropic() {
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, maxRetries: 6 })
+function anthropic(apiKey: string | undefined) {
+  return new Anthropic({ apiKey, maxRetries: 6 })
 }
 
 const MODEL_FAST = 'claude-haiku-4-5-20251001'
@@ -44,7 +44,9 @@ export type InvoiceExtract = {
 export async function extractInvoice(
   base64: string,
   mediaType: string,
-  teamNames: string[] = []
+  teamNames: string[] = [],
+  /** Configuración de IA de la subcuenta: de ahí sale la clave con la que se factura. */
+  env?: AiEnv
 ): Promise<InvoiceExtract> {
   const isPdf = mediaType === 'application/pdf'
   const source = isPdf
@@ -60,7 +62,7 @@ Devuelve SOLO un objeto JSON con estas claves exactas:
 - Si en la factura aparece el nombre de un miembro del equipo de esta lista, ponlo en suggested_person; si no, null. Equipo: ${teamNames.join(', ') || '(desconocido)'}.
 - Usa punto decimal. No inventes datos: si algo no aparece, usa null.`
 
-  const msg = await anthropic().messages.create({
+  const msg = await anthropic(env?.ANTHROPIC_API_KEY ?? process.env.ANTHROPIC_API_KEY).messages.create({
     model: MODEL_FAST,
     max_tokens: 700,
     system,

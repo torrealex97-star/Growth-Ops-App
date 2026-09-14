@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 
@@ -43,8 +44,11 @@ async function runForTenant(sb: SupabaseClient, tenantId: string) {
   // Reintenta cancelar en Calendly los eventos antiguos que quedaron huérfanos tras una
   // reprogramación cuya cancelación falló (ver app/api/${tenant}/evergreen/appointments/reschedule).
   // Sin esto, un fallo transitorio de Calendly deja un duplicado permanente en Google Calendar.
+  // Token de ESTA subcuenta: el cron recorre todas, y cada una tiene (o no) su propia cuenta de
+  // Calendly. Con el token del entorno se reintentaba cancelar en la cuenta equivocada.
+  const calendlyToken = (await getTenantConfigWithFallback(tenantId)).CALENDLY_API_TOKEN
   let calendlyCleanedUp = 0
-  if (process.env.CALENDLY_API_TOKEN) {
+  if (calendlyToken) {
     const { data: pending } = await sb
       .from('appointments')
       .select('id, calendly_cleanup_event_uuid')
@@ -58,7 +62,7 @@ async function runForTenant(sb: SupabaseClient, tenantId: string) {
           `https://api.calendly.com/scheduled_events/${appt.calendly_cleanup_event_uuid}/cancellation`,
           {
             method: 'POST',
-            headers: { Authorization: `Bearer ${process.env.CALENDLY_API_TOKEN}`, 'Content-Type': 'application/json' },
+            headers: { Authorization: `Bearer ${calendlyToken}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ reason: 'Reprogramada desde la app (reintento automático)' }),
           }
         )

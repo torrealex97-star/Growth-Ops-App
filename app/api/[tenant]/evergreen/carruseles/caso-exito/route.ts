@@ -10,7 +10,7 @@ import {
   MAX_CONTENT_SLIDES,
   type CasoExitoSpec,
 } from '@/lib/carruseles/caso-exito'
-import { ensureConfig } from '@/lib/config'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -122,9 +122,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const user = await getCarruselUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  await ensureConfig(t.tenantId).catch(() => {})
-  if (!process.env.ANTHROPIC_API_KEY)
-    return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada' }, { status: 503 })
+  // Clave de ESTA subcuenta, en una instantánea (ver carruseles/chat): process.env es global al
+  // proceso y no se limpia entre peticiones de subcuentas distintas.
+  const cfg = await getTenantConfigWithFallback(t.tenantId, true)
+  const anthropicKey = cfg.ANTHROPIC_API_KEY
+  if (!anthropicKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada' }, { status: 503 })
 
   const body = await req.json().catch(() => ({}))
   const name: string = typeof body.name === 'string' ? body.name.trim() : ''
@@ -140,7 +142,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     )
   if (story.length > 60000) return NextResponse.json({ error: 'El relato es demasiado largo' }, { status: 400 })
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  const client = new Anthropic({ apiKey: anthropicKey })
 
   let spec: CasoExitoSpec | null = null
   try {

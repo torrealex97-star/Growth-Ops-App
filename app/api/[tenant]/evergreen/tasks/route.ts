@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getCompanyProfile } from '@/lib/contracts/company'
 import { sendTaskAssignedEmail } from '@/lib/email/resend'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 
@@ -68,6 +69,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         const u = byId.get(c.assignee_id)
         if (!u?.email) continue
         const r = await sendTaskAssignedEmail({
+          mail: await getTenantConfigWithFallback(t.tenantId),
           to: u.email,
           assigneeName: u.full_name || 'equipo',
           company,

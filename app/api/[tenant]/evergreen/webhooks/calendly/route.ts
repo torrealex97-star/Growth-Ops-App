@@ -1,10 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
-import { resolveUserIdByTrackingCode } from '@/lib/tracking'
+import { firstMemberOf, resolveUserIdByTrackingCode } from '@/lib/tracking'
 import { sql } from '@/lib/vsl/db'
 import { mapKey, slugify } from '@/lib/qualification'
 import { notifyCreatuagente, toZonedISO, addMinutesISO } from '@/lib/creatuagente'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 
@@ -327,7 +328,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           // Cancelación real (no reprogramación: esa se notifica como cita.reprogramada
           // en el lado del invitee.created nuevo, donde sí conocemos la hora nueva).
           if (p.rescheduled !== true && eventUuid) {
-            await notifyCreatuagente('cita.cancelada', utm.utm_content, {
+            await notifyCreatuagente(await getTenantConfigWithFallback(tenantId), 'cita.cancelada', utm.utm_content, {
               idExternoEvento: eventUuid,
               origen: 'calendly',
             })
@@ -352,11 +353,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         .from('users')
         .select('id')
         .or(`email.eq.${ownerEmail},calendly_email.eq.${ownerEmail}`)
-        .maybeSingle()
-      closerId = data?.id ?? null
+        .limit(20)
+      // `users` es GLOBAL (la pertenencia vive en tenant_members): sin acotar a la subcuenta, el
+      // closer de otra podía quedarse la agenda — y con ella su comisión. Y `.maybeSingle()` devolvía
+      // null en silencio si dos usuarios de subcuentas distintas compartían el email de Calendly.
+      closerId = await firstMemberOf(
+        sb,
+        tenantId,
+        (data ?? []).map((u) => (u as { id: string }).id)
+      )
     }
     if (utm.utm_term) {
-      setterId = await resolveUserIdByTrackingCode(sb, utm.utm_term)
+      setterId = await resolveUserIdByTrackingCode(sb, utm.utm_term, tenantId)
     }
 
     const apptFields = {
@@ -450,7 +458,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         })
       }
       if (migratedReschedule && eventUuid && startTime) {
-        await notifyCreatuagente('cita.reprogramada', utm.utm_content, {
+        await notifyCreatuagente(await getTenantConfigWithFallback(tenantId), 'cita.reprogramada', utm.utm_content, {
           idExternoEvento: eventUuid,
           origen: 'calendly',
           inicio: toZonedISO(startTime),
@@ -499,7 +507,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       },
     })
     if (eventUuid && startTime) {
-      await notifyCreatuagente('cita.agendada', utm.utm_content, {
+      await notifyCreatuagente(await getTenantConfigWithFallback(tenantId), 'cita.agendada', utm.utm_content, {
         idExternoEvento: eventUuid,
         origen: 'calendly',
         inicio: toZonedISO(startTime),

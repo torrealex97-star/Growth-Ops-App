@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { refreshOwnMediaUrl, type IgConfig } from '@/lib/instagram/client'
-import { isYoutubeConfigured, uploadReelToYoutube, fetchVideoStats } from './client'
+import { isYoutubeConfigured, uploadReelToYoutube, fetchVideoStats, type YoutubeEnv } from './client'
 
 type PendingMedia = {
   caption: string | null
@@ -48,7 +48,13 @@ async function loadPendingRows(sb: SupabaseClient, tenantId: string): Promise<Pe
   }))
 }
 
-async function uploadOne(sb: SupabaseClient, cfg: IgConfig, tenantId: string, row: PendingRow): Promise<boolean> {
+async function uploadOne(
+  sb: SupabaseClient,
+  cfg: IgConfig,
+  tenantId: string,
+  row: PendingRow,
+  env: YoutubeEnv
+): Promise<boolean> {
   const media = row.ig_media
   if (!media) return false
   try {
@@ -57,7 +63,7 @@ async function uploadOne(sb: SupabaseClient, cfg: IgConfig, tenantId: string, ro
     if (!freshUrl) throw new Error('Sin media_url disponible')
     const caption = media.caption || ''
     const title = caption.split('\n')[0]?.slice(0, 90) || 'Nuevo Reel'
-    const result = await uploadReelToYoutube(freshUrl, title, `${caption}\n\nOriginal: ${media.permalink ?? ''}`)
+    const result = await uploadReelToYoutube(freshUrl, title, `${caption}\n\nOriginal: ${media.permalink ?? ''}`, env)
     await sb
       .from('youtube_uploads')
       .update({
@@ -84,8 +90,8 @@ async function uploadOne(sb: SupabaseClient, cfg: IgConfig, tenantId: string, ro
 }
 
 // Refresca views/likes/comments de los vídeos ya publicados, para poder mostrarlas en la app.
-export async function refreshYoutubeStats(sb: SupabaseClient, tenantId: string): Promise<void> {
-  if (!isYoutubeConfigured()) return
+export async function refreshYoutubeStats(sb: SupabaseClient, tenantId: string, env: YoutubeEnv): Promise<void> {
+  if (!isYoutubeConfigured(env)) return
   try {
     const { data: uploadedRows } = await sb
       .from('youtube_uploads')
@@ -95,7 +101,7 @@ export async function refreshYoutubeStats(sb: SupabaseClient, tenantId: string):
       .not('youtube_video_id', 'is', null)
     const ids = (uploadedRows ?? []).map((r) => r.youtube_video_id as string)
     if (!ids.length) return
-    const stats = await fetchVideoStats(ids)
+    const stats = await fetchVideoStats(ids, env)
     const syncedAt = new Date().toISOString()
     for (const s of stats) {
       await sb
@@ -123,9 +129,10 @@ export async function runYoutubeSync(
   sb: SupabaseClient,
   cfg: IgConfig,
   tenantId: string,
+  env: YoutubeEnv,
   opts: { backfillLimit: number }
 ): Promise<number> {
-  if (!isYoutubeConfigured()) return 0
+  if (!isYoutubeConfigured(env)) return 0
 
   const { data: marker } = await sb
     .from('app_settings')
@@ -148,9 +155,9 @@ export async function runYoutubeSync(
 
   let uploaded = 0
   for (const row of [...newOnes, ...backfillOnes]) {
-    if (await uploadOne(sb, cfg, tenantId, row)) uploaded++
+    if (await uploadOne(sb, cfg, tenantId, row, env)) uploaded++
   }
 
-  await refreshYoutubeStats(sb, tenantId)
+  await refreshYoutubeStats(sb, tenantId, env)
   return uploaded
 }

@@ -5,17 +5,29 @@
 import { google } from 'googleapis'
 import { Readable } from 'stream'
 
-export function isYoutubeConfigured(): boolean {
-  return !!(process.env.YOUTUBE_CLIENT_ID && process.env.YOUTUBE_CLIENT_SECRET && process.env.YOUTUBE_REFRESH_TOKEN)
+/**
+ * Credenciales de YouTube de UNA subcuenta. Explícitas, como en Meta e Instagram: leerlas de
+ * `process.env` significaba subir los reels de una subcuenta al canal de otra (lo que hubiera dejado
+ * ahí la última llamada a `ensureConfig`), o no subir nada en una lambda recién arrancada aunque las
+ * credenciales estuvieran guardadas en Integraciones.
+ */
+export type YoutubeEnv = {
+  YOUTUBE_CLIENT_ID?: string
+  YOUTUBE_CLIENT_SECRET?: string
+  YOUTUBE_REFRESH_TOKEN?: string
 }
 
-function getAuthClient() {
+export function isYoutubeConfigured(env: YoutubeEnv): boolean {
+  return !!(env.YOUTUBE_CLIENT_ID && env.YOUTUBE_CLIENT_SECRET && env.YOUTUBE_REFRESH_TOKEN)
+}
+
+function getAuthClient(env: YoutubeEnv) {
   const oauth2Client = new google.auth.OAuth2(
-    process.env.YOUTUBE_CLIENT_ID,
-    process.env.YOUTUBE_CLIENT_SECRET,
+    env.YOUTUBE_CLIENT_ID,
+    env.YOUTUBE_CLIENT_SECRET,
     'https://developers.google.com/oauthplayground' // redirect_uri: solo se usa para el refresh, no hace falta que sea real
   )
-  oauth2Client.setCredentials({ refresh_token: process.env.YOUTUBE_REFRESH_TOKEN })
+  oauth2Client.setCredentials({ refresh_token: env.YOUTUBE_REFRESH_TOKEN })
   return oauth2Client
 }
 
@@ -25,15 +37,19 @@ export type YoutubeUploadResult = { videoId: string; url: string }
 export async function uploadReelToYoutube(
   videoUrl: string,
   title: string,
-  description: string
+  description: string,
+  env: YoutubeEnv
 ): Promise<YoutubeUploadResult> {
-  if (!isYoutubeConfigured()) throw new Error('Faltan credenciales de YouTube (YOUTUBE_CLIENT_ID/SECRET/REFRESH_TOKEN)')
+  if (!isYoutubeConfigured(env))
+    throw new Error('Faltan credenciales de YouTube (YOUTUBE_CLIENT_ID/SECRET/REFRESH_TOKEN)')
 
-  const videoRes = await fetch(videoUrl)
+  // Timeout: es una descarga de vídeo, así que es holgado — pero sin ninguno, un CDN colgado
+  // bloquea la subida y el backfill se queda a medias sin decir por qué.
+  const videoRes = await fetch(videoUrl, { signal: AbortSignal.timeout(60_000) })
   if (!videoRes.ok || !videoRes.body) throw new Error(`No se pudo descargar el vídeo de Instagram (${videoRes.status})`)
   const buffer = Buffer.from(await videoRes.arrayBuffer())
 
-  const youtube = google.youtube({ version: 'v3', auth: getAuthClient() })
+  const youtube = google.youtube({ version: 'v3', auth: getAuthClient(env) })
   const res = await youtube.videos.insert({
     part: ['snippet', 'status'],
     requestBody: {
@@ -56,9 +72,9 @@ export type YoutubeVideoStats = { videoId: string; views: number; likes: number;
 
 // Estadísticas actuales de vídeos ya subidos, para reflejarlas en la app junto a las de Instagram.
 // La API acepta hasta 50 ids por llamada.
-export async function fetchVideoStats(videoIds: string[]): Promise<YoutubeVideoStats[]> {
-  if (!isYoutubeConfigured() || videoIds.length === 0) return []
-  const youtube = google.youtube({ version: 'v3', auth: getAuthClient() })
+export async function fetchVideoStats(videoIds: string[], env: YoutubeEnv): Promise<YoutubeVideoStats[]> {
+  if (!isYoutubeConfigured(env) || videoIds.length === 0) return []
+  const youtube = google.youtube({ version: 'v3', auth: getAuthClient(env) })
   const out: YoutubeVideoStats[] = []
   for (let i = 0; i < videoIds.length; i += 50) {
     const batch = videoIds.slice(i, i + 50)

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { tenantActiveUsers } from '@/lib/users'
 import { completeText, tenantAiEnv } from '@/lib/ai/provider'
 import { requireTenant } from '@/lib/auth/requireTenant'
 
@@ -23,8 +24,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { data: users } = await sb.from('users').select('id, full_name').eq('is_active', true)
-    const roster = (users || []).map((u) => u.full_name).join(', ')
+    // Solo el equipo de ESTA subcuenta: mandar al modelo los nombres de los usuarios de otras
+    // subcuentas es filtrar datos personales a un tercero.
+    const users = await tenantActiveUsers(sb, t.tenantId)
+    const roster = users.map((u) => u.full_name).join(', ')
 
     // Por el motor configurado en Integraciones (DeepSeek si la subcuenta lo tiene puesto, Anthropic
     // si no). Antes fijaba a mano un modelo concreto, así que ni respetaba esa elección ni se
@@ -53,7 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
     const proposals = (parsed.tasks || []).map((t) => {
       const match = t.assignee_name
-        ? (users || []).find(
+        ? users.find(
             (u) =>
               norm(u.full_name) === norm(t.assignee_name!) ||
               norm(u.full_name).startsWith(norm(t.assignee_name!.split(' ')[0]))

@@ -25,13 +25,23 @@ export class CalendlyError extends Error {
   }
 }
 
-function token(): string {
-  const t = process.env.CALENDLY_API_TOKEN
-  if (!t) throw new CalendlyError(500, { message: 'CALENDLY_API_TOKEN no configurado' })
+/**
+ * Token de Calendly de la subcuenta que hace la llamada. Se pasa EXPLÍCITAMENTE: leerlo de
+ * `process.env` significaba ignorar el token que el usuario había guardado en Configuración ›
+ * Integraciones (el panel lo daba por conectado, pero agendar seguía usando el del entorno de
+ * Vercel… o el de otra subcuenta, si `ensureConfig` lo había volcado antes en el mismo proceso).
+ */
+export function requireCalendlyToken(configured: string | undefined | null): string {
+  const t = (configured ?? '').trim()
+  if (!t) {
+    throw new CalendlyError(400, {
+      message: 'Falta el API Token de Calendly en Configuración › Integraciones.',
+    })
+  }
   return t
 }
 
-async function cf<T = unknown>(path: string, init?: RequestInit): Promise<T> {
+async function cf<T = unknown>(token: string, path: string, init?: RequestInit): Promise<T> {
   const url = path.startsWith('http') ? path : `${API}${path}`
   // Timeout duro: sin esto, si Calendly va lento la petición se cuelga hasta el
   // límite de la función (~60s) y en la UI el botón se queda "cargando" eternamente.
@@ -43,7 +53,7 @@ async function cf<T = unknown>(path: string, init?: RequestInit): Promise<T> {
       ...init,
       signal: controller.signal,
       headers: {
-        Authorization: `Bearer ${token()}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
         ...(init?.headers || {}),
       },
@@ -92,33 +102,38 @@ export type CalendlyEventType = {
 
 export type CalendlySlot = { start_time: string; status: string; scheduling_url?: string }
 
-let cachedMe: Me['resource'] | null = null
-async function me(): Promise<Me['resource']> {
-  if (cachedMe) return cachedMe
-  const d = await cf<Me>('/users/me')
-  cachedMe = d.resource
-  return cachedMe
+// Caché POR TOKEN. Antes era un único `cachedMe` de módulo: con dos subcuentas y dos cuentas de
+// Calendly distintas, la segunda recibía el "yo" de la primera y buscaba a sus closers en la
+// organización equivocada.
+const cachedMeByToken = new Map<string, Me['resource']>()
+async function me(token: string): Promise<Me['resource']> {
+  const hit = cachedMeByToken.get(token)
+  if (hit) return hit
+  const d = await cf<Me>(token, '/users/me')
+  cachedMeByToken.set(token, d.resource)
+  return d.resource
 }
 
 // Resuelve el URI del usuario de Calendly del closer a partir de su email,
 // buscándolo entre los miembros de la organización madre.
-async function findUserUriByEmail(email: string): Promise<string | null> {
-  const org = (await me()).current_organization
+async function findUserUriByEmail(token: string, email: string): Promise<string | null> {
+  const org = (await me(token)).current_organization
   const q = `/organization_memberships?organization=${encodeURIComponent(org)}&email=${encodeURIComponent(email)}&count=1`
-  const d = await cf<{ collection: Array<{ user: { uri: string; email: string } }> }>(q)
+  const d = await cf<{ collection: Array<{ user: { uri: string; email: string } }> }>(token, q)
   const m = d.collection?.[0]
   if (m?.user?.uri) return m.user.uri
   // Fallback: la cuenta madre puede ser el propio closer (owner del token).
-  const self = await me()
+  const self = await me(token)
   if (self.email?.toLowerCase() === email.toLowerCase()) return self.uri
   return null
 }
 
 // Devuelve el event type activo del closer (con el detalle de location).
-export async function resolveCloserEventType(email: string): Promise<CalendlyEventType | null> {
-  const userUri = await findUserUriByEmail(email)
+export async function resolveCloserEventType(token: string, email: string): Promise<CalendlyEventType | null> {
+  const userUri = await findUserUriByEmail(token, email)
   if (!userUri) return null
   const d = await cf<{ collection: CalendlyEventType[] }>(
+    token,
     `/event_types?user=${encodeURIComponent(userUri)}&active=true&count=100`
   )
   const list = (d.collection || []).filter((t) => t.active && !t.secret)
@@ -127,7 +142,7 @@ export async function resolveCloserEventType(email: string): Promise<CalendlyEve
   // Traemos el detalle para conocer location_configurations.
   const uuid = chosen.uri.split('/').pop()
   try {
-    const detail = await cf<{ resource: CalendlyEventType }>(`/event_types/${uuid}`)
+    const detail = await cf<{ resource: CalendlyEventType }>(token, `/event_types/${uuid}`)
     return { ...chosen, ...detail.resource }
   } catch {
     return chosen
@@ -136,6 +151,7 @@ export async function resolveCloserEventType(email: string): Promise<CalendlyEve
 
 // Huecos disponibles del event type entre start y end (máx 7 días por petición).
 export async function getAvailableTimes(
+  token: string,
   eventTypeUri: string,
   startISO: string,
   endISO: string
@@ -143,7 +159,7 @@ export async function getAvailableTimes(
   const q =
     `/event_type_available_times?event_type=${encodeURIComponent(eventTypeUri)}` +
     `&start_time=${encodeURIComponent(startISO)}&end_time=${encodeURIComponent(endISO)}`
-  const d = await cf<{ collection: CalendlySlot[] }>(q)
+  const d = await cf<{ collection: CalendlySlot[] }>(token, q)
   return (d.collection || []).filter((s) => s.status === 'available')
 }
 
@@ -209,6 +225,7 @@ export type CreateInviteeResult = {
 // Crea la reserva (invitee) en Calendly. Coloca el evento en el calendario del
 // host y dispara el webhook invitee.created.
 export async function createInvitee(params: {
+  token: string
   eventType: CalendlyEventType
   startTimeISO: string
   invitee: { name: string; email: string; timezone?: string; phone?: string | null }
@@ -224,7 +241,7 @@ export async function createInvitee(params: {
   // placeholders que luego pisarían la cualificación real del lead.
   priorAnswers?: Array<{ q: string; a: string }>
 }): Promise<CreateInviteeResult> {
-  const { eventType, startTimeISO, invitee, utm, priorAnswers } = params
+  const { token, eventType, startTimeISO, invitee, utm, priorAnswers } = params
   const location = buildLocation(eventType, invitee)
   const body: Record<string, unknown> = {
     event_type: eventType.uri,
@@ -263,6 +280,7 @@ export async function createInvitee(params: {
     }))
   }
   const d = await cf<{ resource: { uri: string; event: string; reschedule_url?: string; cancel_url?: string } }>(
+    token,
     '/invitees',
     { method: 'POST', body: JSON.stringify(body) }
   )

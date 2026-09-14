@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { generateDraftForMedia, type CompetitorMediaRow } from '@/lib/reels/generate'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -24,6 +25,9 @@ async function runForTenant(
   startedAt: number
 ): Promise<{ created: number; skipped: number; errors: number; note?: string }> {
   const today = new Date().toISOString().slice(0, 10)
+  // Clave de Groq de ESTA subcuenta: antes la transcripción la leía de process.env, así que la clave
+  // guardada en Integraciones no se usaba y el gasto podía cargarse a la cuenta de otra subcuenta.
+  const groqKey = (await getTenantConfigWithFallback(tenantId)).GROQ_API_KEY
 
   const { count: todaysCount } = await sb
     .from('reel_drafts')
@@ -92,7 +96,8 @@ async function runForTenant(
       candidate,
       usernameOf.get(candidate.competitor_id) || '',
       undefined,
-      tenantId
+      tenantId,
+      groqKey
     )
     if (result.ok) created++
     else errors++

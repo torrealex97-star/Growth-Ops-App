@@ -5,7 +5,7 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 import { getBrand, getProject, addSlide, updateSlide, deleteSlide, updateProject } from '@/lib/carruseles/store'
 import { buildSystemPrompt, type BrandAsset } from '@/lib/carruseles/system-prompt'
 import { MAX_SLIDES } from '@/lib/carruseles/types'
-import { ensureConfig } from '@/lib/config'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -171,10 +171,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const user = await getCarruselUser()
   if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-  await ensureConfig(t.tenantId).catch(() => {})
-
-  if (!process.env.ANTHROPIC_API_KEY)
-    return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada' }, { status: 503 })
+  // Clave de ESTA subcuenta, en una instantánea. `ensureConfig` la volcaba en process.env, que es
+  // global al proceso y no se limpia: la siguiente petición de OTRA subcuenta atendida por la misma
+  // lambda generaba con la clave —y a cuenta— de la primera.
+  const cfg = await getTenantConfigWithFallback(t.tenantId, true)
+  const anthropicKey = cfg.ANTHROPIC_API_KEY
+  if (!anthropicKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada' }, { status: 503 })
 
   const body = await req.json().catch(() => ({}))
   const message: string = typeof body.message === 'string' ? body.message : ''
@@ -190,7 +192,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const brand = await getBrand(t.tenantId)
   const brandAssets = parseBrandAssets(process.env.IG_BRAND_ASSETS)
   const system = buildSystemPrompt(brand, project, process.env.IG_BUSINESS_CONTEXT, brandAssets)
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  const client = new Anthropic({ apiKey: anthropicKey })
 
   // Construye el historial (solo texto) + mensaje actual con imágenes de referencia/marca.
   const messages: Anthropic.MessageParam[] = []

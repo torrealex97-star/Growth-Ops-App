@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { fetchAllRows } from '@/lib/supabase/paginate'
 import {
   resolveMetaConfigs,
   fetchMetaCampaigns,
@@ -110,22 +111,32 @@ export async function runMetaSync(sb: SupabaseClient, tenantId: string, env: Met
 
   // Cargar atribuciones para el cruce de LEADS FUNNEL (una sola consulta, común a
   // todas las cuentas), acotadas al tenant.
-  const { data: attribs } = await sb
-    .from('contact_attributions')
-    .select(
-      'contact_id, utm_source, utm_campaign, first_utm_source, first_utm_campaign, last_utm_source, last_utm_campaign'
-    )
-    .eq('tenant_id', tenantId)
+  //
+  // PAGINADO: estas tres tablas se leen COMPLETAS para cruzarlas por contacto, y PostgREST devuelve
+  // como máximo 1.000 filas sin avisar de que ha recortado. Pasado ese punto, los leads/agendas/
+  // cierres atribuidos a cada campaña salían más bajos que los reales y parecían un dato bueno.
+  const { rows: attribs } = await fetchAllRows<Record<string, unknown>>(() =>
+    sb
+      .from('contact_attributions')
+      .select(
+        'contact_id, utm_source, utm_campaign, first_utm_source, first_utm_campaign, last_utm_source, last_utm_campaign'
+      )
+      .eq('tenant_id', tenantId)
+  )
 
   // CRM: agendas y ventas por contacto, para el funnel (Agendas → Llamadas →
   // Cierres). Se atribuyen a la campaña por el mismo contacto que ya casó por UTM.
-  const { data: apptRows } = await sb.from('appointments').select('contact_id, status').eq('tenant_id', tenantId)
-  const { data: saleRows } = await sb.from('sales').select('contact_id, status, gross_amount').eq('tenant_id', tenantId)
+  const { rows: apptRows } = await fetchAllRows<ApptRow>(() =>
+    sb.from('appointments').select('contact_id, status').eq('tenant_id', tenantId)
+  )
+  const { rows: saleRows } = await fetchAllRows<SaleRow>(() =>
+    sb.from('sales').select('contact_id, status, gross_amount').eq('tenant_id', tenantId)
+  )
 
   const crm: CrmIndex = {
-    appointmentsByContact: groupBy(apptRows || [], (r) => String(r.contact_id)),
+    appointmentsByContact: groupBy(apptRows, (r) => String(r.contact_id)),
     salesByContact: groupBy(
-      (saleRows || []).filter((s) => SALE_CLOSED_STATUSES.has(String(s.status))),
+      saleRows.filter((s) => SALE_CLOSED_STATUSES.has(String(s.status))),
       (r) => String(r.contact_id)
     ),
   }
@@ -157,7 +168,7 @@ export async function runMetaSync(sb: SupabaseClient, tenantId: string, env: Met
   }
 
   for (const cfg of configs) {
-    await syncOneAccount(sb, tenantId, cfg, attribs || [], crm, existingByExt, at, period, totals, failures)
+    await syncOneAccount(sb, tenantId, cfg, attribs, crm, existingByExt, at, period, totals, failures)
   }
 
   return {

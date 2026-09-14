@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { generateDraftForMedia } from '@/lib/reels/generate'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
@@ -61,7 +62,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       .eq('id', media.competitor_id)
       .eq('tenant_id', t.tenantId)
       .single()
-    const result = await generateDraftForMedia(sb, media, comp?.username || draft.source_account || '', id, t.tenantId)
+    const groqKey = (await getTenantConfigWithFallback(t.tenantId)).GROQ_API_KEY
+    const result = await generateDraftForMedia(
+      sb,
+      media,
+      comp?.username || draft.source_account || '',
+      id,
+      t.tenantId,
+      groqKey
+    )
     if (!result.ok) return NextResponse.json({ error: result.error || 'No se pudo regenerar' }, { status: 500 })
 
     const { data: updated } = await sb.from('reel_drafts').select('*').eq('id', id).eq('tenant_id', t.tenantId).single()

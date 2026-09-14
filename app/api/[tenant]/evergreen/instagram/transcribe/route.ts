@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { analyzeReel } from '@/lib/ai/claude'
+import { getTenantConfigWithFallback } from '@/lib/config'
 import { getInstagramConfig, resolveIgUserId, refreshOwnMediaUrl, fetchBusinessDiscovery } from '@/lib/instagram/client'
 import { tenantAiEnv } from '@/lib/ai/provider'
+import { GROQ_LIMIT_BYTES, transcribeAudio } from '@/lib/ai/groq'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
 
-const GROQ_LIMIT_BYTES = 25 * 1024 * 1024 // 25MB (tier gratuito Groq)
 const ALLOWED_ROLES = ['admin', 'director', 'manager', 'marketing', 'editor']
 const VIDEO_BUCKET = 'ig-competitor-reels'
 
@@ -41,24 +42,6 @@ async function persistToStorage(
     console.error('[transcribe] persistToStorage falló:', e instanceof Error ? e.message : e)
     return null
   }
-}
-
-async function transcribeGroq(buf: Buffer, mime: string): Promise<string> {
-  if (!process.env.GROQ_API_KEY) throw new Error('Falta GROQ_API_KEY')
-  const form = new FormData()
-  const ext = mime.includes('mp4') || mime.includes('video') ? 'mp4' : mime.includes('m4a') ? 'm4a' : 'mp3'
-  form.append('file', new Blob([new Uint8Array(buf)], { type: mime || 'video/mp4' }), `reel.${ext}`)
-  form.append('model', 'whisper-large-v3-turbo')
-  form.append('language', 'es')
-  form.append('response_format', 'json')
-  const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
-    body: form,
-  })
-  if (!res.ok) throw new Error(`Groq error ${res.status}: ${(await res.text()).slice(0, 300)}`)
-  const data = (await res.json()) as { text?: string }
-  return data.text || ''
 }
 
 // Transcribe un reel (baja su media_url → Groq Whisper) y lo analiza con Claude
@@ -153,7 +136,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const tryRefresh = async (): Promise<{ url: string | null; reason: 'not_in_recent' | 'no_media_url' | null }> => {
       if (!externalId) return { url: null, reason: null }
       try {
-        const cfg = getInstagramConfig()
+        // Credenciales de ESTA subcuenta (antes: process.env sin cargar, así que en una lambda
+        // nueva no había ninguna y el refresco del enlace fallaba siempre).
+        const cfg = getInstagramConfig(await getTenantConfigWithFallback(t.tenantId, true))
         if (!cfg) {
           console.error('[transcribe] refresh: sin credenciales de Instagram (getInstagramConfig null)')
           return { url: null, reason: null }
@@ -271,7 +256,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         const persisted = await persistToStorage(sb, table, rowId, buf, mime)
         if (persisted) await sb.from(table).update({ media_url: persisted }).eq('id', rowId).eq('tenant_id', t.tenantId)
       }
-      transcript = await transcribeGroq(buf, mime)
+      // Clave de Groq de ESTA subcuenta (antes: process.env, así que la del panel no se usaba).
+      const groqKey = (await getTenantConfigWithFallback(t.tenantId)).GROQ_API_KEY
+      transcript = await transcribeAudio(buf, mime, groqKey, { filename: 'reel' })
     }
 
     if (!transcript || transcript.trim().length < 10) {

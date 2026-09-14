@@ -1,8 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { resolveCloserEventType, createInvitee, CalendlyError } from '@/lib/calendly'
+import { resolveCloserEventType, createInvitee, requireCalendlyToken, CalendlyError } from '@/lib/calendly'
 import { formatDateTime } from '@/lib/utils'
 import { notifyCreatuagente, toZonedISO, addMinutesISO } from '@/lib/creatuagente'
+import { getTenantConfigWithFallback } from '@/lib/config'
 import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
@@ -115,7 +116,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         .maybeSingle()
       if (!closer?.email) return NextResponse.json({ error: 'El closer no tiene email' }, { status: 400 })
 
-      const et = await resolveCloserEventType(closer.calendly_email || closer.email)
+      // Token de Calendly de ESTA subcuenta (Configuración › Integraciones). Antes lib/calendly.ts lo
+      // leía de process.env, así que el token guardado en el panel no se usaba nunca.
+      const calendlyToken = requireCalendlyToken((await getTenantConfigWithFallback(t.tenantId)).CALENDLY_API_TOKEN)
+      const et = await resolveCloserEventType(calendlyToken, closer.calendly_email || closer.email)
       if (!et) {
         return NextResponse.json(
           { error: `${closer.full_name} no tiene un event type en la cuenta madre de Calendly` },
@@ -126,6 +130,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       let result
       try {
         result = await createInvitee({
+          token: calendlyToken,
           eventType: et,
           startTimeISO: newDatetimeISO,
           invitee: {
@@ -175,7 +180,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         .eq('tenant_id', t.tenantId)
       if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 })
 
-      await notifyCreatuagente('cita.reprogramada', appt.utm_content, {
+      await notifyCreatuagente(await getTenantConfigWithFallback(t.tenantId), 'cita.reprogramada', appt.utm_content, {
         idExternoEvento: result.eventUuid || oldEventUuid,
         origen: 'calendly',
         inicio: toZonedISO(newDatetimeISO),
@@ -188,7 +193,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       // vivo en Calendly → doble reserva, recordatorios de la hora antigua y confusión que acaba
       // provocando reagendas que dejan la fila "huérfana". Por eso ya no la tragamos sin más.
       let calendlyCanceled = false
-      if (process.env.CALENDLY_API_TOKEN && oldEventUuid) {
+      if (calendlyToken && oldEventUuid) {
         // Backoff entre intentos: los fallos de Calendly aquí suelen ser transitorios
         // (rate limit / red), y sin espera los 3 intentos fallan casi siempre por la misma
         // razón. Esta cancelación es lo único que evita el duplicado en Google Calendar
@@ -200,7 +205,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
             const r = await fetch(`https://api.calendly.com/scheduled_events/${oldEventUuid}/cancellation`, {
               method: 'POST',
               headers: {
-                Authorization: `Bearer ${process.env.CALENDLY_API_TOKEN}`,
+                Authorization: `Bearer ${calendlyToken}`,
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({ reason: 'Reprogramada desde la app' }),
@@ -277,7 +282,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 })
 
     if (appt.calendly_event_uuid) {
-      await notifyCreatuagente('cita.reprogramada', appt.utm_content, {
+      await notifyCreatuagente(await getTenantConfigWithFallback(t.tenantId), 'cita.reprogramada', appt.utm_content, {
         idExternoEvento: appt.calendly_event_uuid,
         origen: 'calendly',
         inicio: toZonedISO(newDatetimeISO),

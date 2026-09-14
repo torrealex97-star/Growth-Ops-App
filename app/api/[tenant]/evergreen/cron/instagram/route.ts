@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { runInstagramSync } from '@/lib/instagram/sync'
-import { ensureConfig } from '@/lib/config'
+import { getTenantConfigWithFallback } from '@/lib/config'
+import { recordSyncRun, SyncBusyError } from '@/lib/integrations/sync-runs'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -32,8 +33,33 @@ export async function GET(req: NextRequest) {
     // se refrescan siempre. El backfill completo se hace en local.
     const perTenant: Record<string, unknown> = {}
     for (const tn of tenants || []) {
-      await ensureConfig(tn.id)
-      perTenant[tn.slug] = await runInstagramSync(sb, tn.id, { mediaLimit: 25, light: true })
+      // Config EXPLÍCITA por subcuenta: ensureConfig() volcaba las credenciales en process.env y no
+      // borraba las anteriores, así que en este mismo bucle una subcuenta sin token de Instagram
+      // heredaba el de la anterior y se llenaba con SU contenido, estampado con su propio tenant_id.
+      const cfg = await getTenantConfigWithFallback(tn.id, true)
+      try {
+        perTenant[tn.slug] = await recordSyncRun(
+          sb,
+          {
+            tenantId: tn.id,
+            provider: 'instagram',
+            job: 'instagram',
+            trigger: 'cron',
+            secrets: [cfg.INSTAGRAM_ACCESS_TOKEN, cfg.META_ACCESS_TOKEN, cfg.META_APP_SECRET],
+          },
+          () => runInstagramSync(sb, tn.id, cfg, { mediaLimit: 25, light: true }),
+          (r) => ({
+            rowsWritten: r.mediaSynced,
+            failures: r.failures,
+            detail: { fbReels: r.fbReelsSynced, seguidores: r.followers, youtube: r.youtubeUploaded },
+          })
+        )
+      } catch (e) {
+        perTenant[tn.slug] = {
+          error: e instanceof Error ? e.message : 'Error al sincronizar',
+          omitida: e instanceof SyncBusyError,
+        }
+      }
     }
     return NextResponse.json({ ok: true, tenants: perTenant })
   } catch (e) {
