@@ -34,8 +34,8 @@ export type OnboardingWebhookPayload = {
 
 import { normalizePhoneE164, dialCodeForCountryISO } from './phone'
 
-export function onboardingWebhookConfigured(): boolean {
-  return !!process.env.GHL_ONBOARDING_WEBHOOK_URL
+export function onboardingWebhookConfigured(env: GhlEnv): boolean {
+  return !!env.GHL_ONBOARDING_WEBHOOK_URL?.trim()
 }
 
 // GHL exige el país en código ISO 3166-1 alpha-2 (ej. "ES"), no el nombre completo
@@ -93,11 +93,22 @@ export function toCountryISO(country: string | null | undefined): string | null 
   return COUNTRY_ISO[raw.toLowerCase()] ?? null
 }
 
+/**
+ * Webhook de onboarding de la subcuenta. Explícito por el mismo motivo que el resto: leerlo de
+ * `process.env` ignoraba la URL guardada en Configuración › Integraciones.
+ */
+export type GhlEnv = {
+  GHL_ONBOARDING_WEBHOOK_URL?: string
+  GHL_ONBOARDING_WEBHOOK_SECRET?: string
+}
+
 async function postToOnboardingWebhook(
+  env: GhlEnv,
   event: string,
   payload: Record<string, unknown>
 ): Promise<{ ok: boolean; skipped?: boolean; status?: number; error?: string }> {
-  const url = process.env.GHL_ONBOARDING_WEBHOOK_URL
+  const url = env.GHL_ONBOARDING_WEBHOOK_URL?.trim()
+  const secret = env.GHL_ONBOARDING_WEBHOOK_SECRET?.trim()
   if (!url) return { ok: false, skipped: true }
   try {
     // Timeout: sale desde una petición de usuario; sin él, un GHL lento la bloquea entera.
@@ -107,9 +118,7 @@ async function postToOnboardingWebhook(
       headers: {
         'Content-Type': 'application/json',
         // Cabecera opcional por si la automatización de GHL quiere validar origen.
-        ...(process.env.GHL_ONBOARDING_WEBHOOK_SECRET
-          ? { 'x-onboarding-secret': process.env.GHL_ONBOARDING_WEBHOOK_SECRET }
-          : {}),
+        ...(secret ? { 'x-onboarding-secret': secret } : {}),
       },
       body: JSON.stringify({ event, ...payload }),
     })
@@ -121,6 +130,7 @@ async function postToOnboardingWebhook(
 }
 
 export async function fireOnboardingWebhook(
+  env: GhlEnv,
   payload: OnboardingWebhookPayload
 ): Promise<{ ok: boolean; skipped?: boolean; status?: number; error?: string }> {
   // Red de seguridad: normaliza el teléfono a E.164 (usa el país si el número no
@@ -128,7 +138,7 @@ export async function fireOnboardingWebhook(
   const safePhone = payload.phone
     ? normalizePhoneE164(payload.phone, dialCodeForCountryISO(payload.country))
     : payload.phone
-  return postToOnboardingWebhook('contract.signed', { ...payload, phone: safePhone })
+  return postToOnboardingWebhook(env, 'contract.signed', { ...payload, phone: safePhone })
 }
 
 // Control de accesos al curso desde la plataforma: reutiliza el MISMO webhook saliente de
@@ -136,8 +146,9 @@ export async function fireOnboardingWebhook(
 // Grant/revoke real lo ejecuta la automatización de GHL al recibir el evento; aquí solo lo
 // disparamos y registramos cuándo se pidió.
 export async function fireCourseAccessWebhook(
+  env: GhlEnv,
   action: 'grant' | 'revoke',
   payload: { saleId: string; contactId: string | null; email: string | null; phone: string | null; product: string }
 ): Promise<{ ok: boolean; skipped?: boolean; status?: number; error?: string }> {
-  return postToOnboardingWebhook(`course_access.${action}`, payload)
+  return postToOnboardingWebhook(env, `course_access.${action}`, payload)
 }

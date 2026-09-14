@@ -180,7 +180,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         .eq('tenant_id', t.tenantId)
       if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 })
 
-      await notifyCreatuagente('cita.reprogramada', appt.utm_content, {
+      await notifyCreatuagente(await getTenantConfigWithFallback(t.tenantId), 'cita.reprogramada', appt.utm_content, {
         idExternoEvento: result.eventUuid || oldEventUuid,
         origen: 'calendly',
         inicio: toZonedISO(newDatetimeISO),
@@ -282,7 +282,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 })
 
     if (appt.calendly_event_uuid) {
-      await notifyCreatuagente('cita.reprogramada', appt.utm_content, {
+      await notifyCreatuagente(await getTenantConfigWithFallback(t.tenantId), 'cita.reprogramada', appt.utm_content, {
         idExternoEvento: appt.calendly_event_uuid,
         origen: 'calendly',
         inicio: toZonedISO(newDatetimeISO),

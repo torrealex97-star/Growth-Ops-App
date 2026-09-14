@@ -5,6 +5,7 @@ import { firstMemberOf, resolveUserIdByTrackingCode } from '@/lib/tracking'
 import { sql } from '@/lib/vsl/db'
 import { mapKey, slugify } from '@/lib/qualification'
 import { notifyCreatuagente, toZonedISO, addMinutesISO } from '@/lib/creatuagente'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 
@@ -327,7 +328,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           // Cancelación real (no reprogramación: esa se notifica como cita.reprogramada
           // en el lado del invitee.created nuevo, donde sí conocemos la hora nueva).
           if (p.rescheduled !== true && eventUuid) {
-            await notifyCreatuagente('cita.cancelada', utm.utm_content, {
+            await notifyCreatuagente(await getTenantConfigWithFallback(tenantId), 'cita.cancelada', utm.utm_content, {
               idExternoEvento: eventUuid,
               origen: 'calendly',
             })
@@ -457,7 +458,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         })
       }
       if (migratedReschedule && eventUuid && startTime) {
-        await notifyCreatuagente('cita.reprogramada', utm.utm_content, {
+        await notifyCreatuagente(await getTenantConfigWithFallback(tenantId), 'cita.reprogramada', utm.utm_content, {
           idExternoEvento: eventUuid,
           origen: 'calendly',
           inicio: toZonedISO(startTime),
@@ -506,7 +507,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       },
     })
     if (eventUuid && startTime) {
-      await notifyCreatuagente('cita.agendada', utm.utm_content, {
+      await notifyCreatuagente(await getTenantConfigWithFallback(tenantId), 'cita.agendada', utm.utm_content, {
         idExternoEvento: eventUuid,
         origen: 'calendly',
         inicio: toZonedISO(startTime),
