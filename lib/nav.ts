@@ -111,6 +111,16 @@ export const NAV_SECTIONS: NavSection[] = [
             roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'],
           },
           {
+            // El pipeline comercial. No es una pantalla nueva: es la vista kanban que ya vivía en
+            // Seguimiento, sobre appointments.followup_stage. Se enlaza directa con ?view=kanban y
+            // se coloca detrás de Agendas porque ese es el recorrido del día: qué tengo hoy, y en
+            // qué estado está cada oportunidad. Contactos es una consulta, así que va después.
+            label: 'Pipeline',
+            href: '/crm/seguimiento?view=kanban',
+            icon: ClipboardList,
+            roles: [...LEAD, 'setter', 'closer', 'cold_caller'],
+          },
+          {
             label: 'Contactos',
             href: '/crm/contactos',
             icon: UserRound,
@@ -121,12 +131,6 @@ export const NAV_SECTIONS: NavSection[] = [
             href: '/crm/contactos?view=leads',
             icon: Inbox,
             roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'],
-          },
-          {
-            label: 'Seguimiento',
-            href: '/crm/seguimiento',
-            icon: ClipboardList,
-            roles: [...LEAD, 'setter', 'closer', 'cold_caller'],
           },
           {
             // Cola de reuniones de Fathom que el sync no pudo atribuir sin adivinar. Está en el menú
@@ -140,18 +144,9 @@ export const NAV_SECTIONS: NavSection[] = [
         ],
       },
       {
-        label: 'Ventas & Cobros',
-        href: '/ventas/registro',
-        icon: ShoppingCart,
-        roles: [...LEAD, 'setter', 'closer', 'cobros'],
-        children: [
-          { label: 'Registro', href: '/ventas/registro', icon: ShoppingCart, roles: [...LEAD, 'setter', 'closer'] },
-          { label: 'Pagos', href: '/ventas/pagos', icon: Wallet, roles: [...LEAD, 'setter', 'closer', 'cobros'] },
-          { label: 'Reservas', href: '/ventas/reservas', icon: CreditCard, roles: [...LEAD, 'setter', 'closer'] },
-        ],
-      },
-      {
-        label: 'Analítica de ventas',
+        // Primero lo analítico: entrar en Ventas debe responder "¿cómo vamos y dónde está el
+        // cuello de botella?". El registro y los cobros son la operativa y quedan justo debajo.
+        label: 'Métricas y KPIs',
         href: '/analitica/embudo',
         icon: BarChart3,
         roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'],
@@ -180,6 +175,17 @@ export const NAV_SECTIONS: NavSection[] = [
             icon: ClipboardList,
             roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'],
           },
+        ],
+      },
+      {
+        label: 'Ventas & Cobros',
+        href: '/ventas/registro',
+        icon: ShoppingCart,
+        roles: [...LEAD, 'setter', 'closer', 'cobros'],
+        children: [
+          { label: 'Registro', href: '/ventas/registro', icon: ShoppingCart, roles: [...LEAD, 'setter', 'closer'] },
+          { label: 'Pagos', href: '/ventas/pagos', icon: Wallet, roles: [...LEAD, 'setter', 'closer', 'cobros'] },
+          { label: 'Reservas', href: '/ventas/reservas', icon: CreditCard, roles: [...LEAD, 'setter', 'closer'] },
         ],
       },
       { label: 'Comisiones', href: '/comisiones', icon: TrendingUp, roles: [...LEAD, 'setter', 'closer', 'affiliate'] },
@@ -222,21 +228,25 @@ export const NAV_SECTIONS: NavSection[] = [
     dept: 'marketing',
     items: [
       {
-        label: 'Adquisición',
+        // "Adquisición" no decía qué se encontraba dentro: es el bloque ANALÍTICO de marketing, y
+        // entrar en la sección tiene que responder "de dónde vienen los resultados", no listar
+        // anuncios. La vista operativa de Campañas NO se renombra ni se mueve de sitio: sigue
+        // existiendo tal cual, como segunda entrada, porque es otra cosa y se usa para otra cosa.
+        label: 'Métricas y KPIs',
         href: '/marketing/adquisicion',
-        icon: Radio,
+        icon: BarChart3,
         roles: [...LEAD, 'marketing', 'adscripcion', 'editor'],
         children: [
-          {
-            label: 'Campañas',
-            href: '/marketing/adquisicion/campanas',
-            icon: Radio,
-            roles: [...LEAD, 'marketing', 'adscripcion'],
-          },
           {
             label: 'Atribución',
             href: '/marketing/adquisicion/atribucion',
             icon: Megaphone,
+            roles: [...LEAD, 'marketing', 'adscripcion'],
+          },
+          {
+            label: 'Campañas',
+            href: '/marketing/adquisicion/campanas',
+            icon: Radio,
             roles: [...LEAD, 'marketing', 'adscripcion'],
           },
           { label: 'VSL', href: '/marketing/adquisicion/vsl', icon: Video, roles: [...LEAD, 'marketing', 'editor'] },

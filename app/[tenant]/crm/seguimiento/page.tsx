@@ -11,6 +11,8 @@ import { AppointmentDetail } from '@/components/appointments/AppointmentDetail'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ClipboardList, MessageSquare, Table2, LayoutGrid, User as UserIcon, Clock, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { useSearchParams } from 'next/navigation'
+import { readEnum } from '@/lib/filters/url-state'
 import type { AppointmentWithRelations, AppointmentStatus } from '@/lib/types/database'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import { getQualificationEntries, type Qualification } from '@/lib/appointments/qualification'
@@ -92,7 +94,13 @@ function timeAgo(dateStr: string | null | undefined): string {
 export default function SeguimientoPage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
-  const [view, setView] = useState<'tabla' | 'kanban'>('tabla')
+  // La vista se puede fijar desde la URL (?view=kanban). El menú del CRM entra directo al kanban,
+  // que es el pipeline comercial, sin obligar a pulsar el toggle en cada visita. Se lee con el mismo
+  // helper que el resto de filtros de la app en vez de parsear el parámetro a mano.
+  const searchParams = useSearchParams()
+  const [view, setView] = useState<'tabla' | 'kanban'>(() =>
+    readEnum(searchParams.get('view'), ['tabla', 'kanban'] as const, 'tabla')
+  )
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([])
   const [users, setUsers] = useState<{ id: string; full_name: string; roles?: { key?: string } }[]>([])
   const [loading, setLoading] = useState(true)
