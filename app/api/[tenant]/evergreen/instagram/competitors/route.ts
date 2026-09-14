@@ -206,7 +206,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       if (persistedUrl) row_.media_url = persistedUrl
       const { data: row, error } = await sb
         .from('ig_competitor_media')
-        .upsert(row_, { onConflict: 'external_id', ignoreDuplicates: false })
+        .upsert(row_, { onConflict: 'tenant_id,external_id', ignoreDuplicates: false })
         .select('id')
         .single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -233,7 +233,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (rows.length) {
       const { error } = await sb
         .from('ig_competitor_media')
-        .upsert(rows, { onConflict: 'external_id', ignoreDuplicates: false })
+        .upsert(rows, { onConflict: 'tenant_id,external_id', ignoreDuplicates: false })
       if (!error) synced = rows.length
     }
 
