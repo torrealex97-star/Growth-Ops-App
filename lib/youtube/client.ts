@@ -29,7 +29,9 @@ export async function uploadReelToYoutube(
 ): Promise<YoutubeUploadResult> {
   if (!isYoutubeConfigured()) throw new Error('Faltan credenciales de YouTube (YOUTUBE_CLIENT_ID/SECRET/REFRESH_TOKEN)')
 
-  const videoRes = await fetch(videoUrl)
+  // Timeout: es una descarga de vídeo, así que es holgado — pero sin ninguno, un CDN colgado
+  // bloquea la subida y el backfill se queda a medias sin decir por qué.
+  const videoRes = await fetch(videoUrl, { signal: AbortSignal.timeout(60_000) })
   if (!videoRes.ok || !videoRes.body) throw new Error(`No se pudo descargar el vídeo de Instagram (${videoRes.status})`)
   const buffer = Buffer.from(await videoRes.arrayBuffer())
 

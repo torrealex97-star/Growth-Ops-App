@@ -18,7 +18,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const t = await requireTenant(tenant)
     if ('error' in t) return t.error
 
-    const { saleId, grossAmount, method, collectedAt, commissionableAmount } = await req.json()
+    const { saleId, grossAmount, method, collectedAt, commissionableAmount, notes, paymentReference } =
+      (await req.json()) as {
+        saleId?: string
+        grossAmount?: number | string
+        method?: string | null
+        collectedAt?: string | null
+        commissionableAmount?: number | string | null
+        notes?: string | null
+        paymentReference?: string | null
+      }
     const amount = Number(grossAmount)
     if (!saleId || !Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json({ error: 'Parámetros inválidos' }, { status: 400 })
@@ -82,6 +91,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const { count: priorCollections } = await sb
       .from('collections')
       .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', t.tenantId)
       .eq('sale_id', saleId)
     const isFirstCollection = !priorCollections
 
@@ -101,6 +111,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         needs_commission_review: needsReview,
         status: 'collected',
         payment_method: method || null,
+        payment_reference: paymentReference || null,
+        notes: notes || null,
       })
       .select()
       .single()
@@ -112,6 +124,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const commissionsGenerated = needsReview
       ? 0
       : await generateCommissionsForCollection(sb, t.tenantId, coll as Collection, sale as unknown as Sale)
+
+    // Auditoría del cobro. La hacía la pantalla de "Registrar cobro" por su cuenta y esta ruta no,
+    // así que el mismo hecho de negocio quedaba auditado o no según por dónde entrara.
+    await sb.from('audit_logs').insert({
+      tenant_id: t.tenantId,
+      actor_user_id: t.userId,
+      entity_type: 'collection',
+      entity_id: (coll as { id: string }).id,
+      action: 'create',
+      old_values: null,
+      new_values: {
+        sale_id: saleId,
+        gross_amount: round2(amount),
+        payment_method: method || null,
+        needs_commission_review: needsReview,
+      },
+    })
 
     // Fire-and-forget: no debe tumbar el registro del cobro (ya aplicado arriba) si
     // creatuagente está caído o el lead no tiene token. Un solo evento venta.registrada

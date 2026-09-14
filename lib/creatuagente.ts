@@ -92,7 +92,10 @@ async function postCreatuagente(body: string, logCtx: string): Promise<void> {
   const ts = Math.floor(Date.now() / 1000)
   const firma = crypto.createHmac('sha256', secret).update(`${ts}.${body}`).digest('hex')
   try {
+    // Timeout: esto sale desde el handler que cambia el estado de una agenda, así que un
+    // creatuagente colgado dejaría esperando al usuario que acaba de pulsar el botón.
     const res = await fetch(url, {
+      signal: AbortSignal.timeout(10_000),
       method: 'POST',
       headers: {
         'content-type': 'application/json',

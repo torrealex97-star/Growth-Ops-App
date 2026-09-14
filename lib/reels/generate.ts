@@ -34,10 +34,13 @@ async function transcribeGroq(buf: Buffer, mime: string): Promise<string> {
   form.append('model', 'whisper-large-v3-turbo')
   form.append('language', 'es')
   form.append('response_format', 'json')
+  // Timeout generoso (una transcripción tarda), pero acotado: sin él, un Groq colgado consume
+  // la ventana entera del cron de reels y ningún borrador se genera.
   const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
     body: form,
+    signal: AbortSignal.timeout(60_000),
   })
   if (!res.ok) throw new Error(`Groq error ${res.status}: ${(await res.text()).slice(0, 300)}`)
   const data = (await res.json()) as { text?: string }
@@ -47,7 +50,7 @@ async function transcribeGroq(buf: Buffer, mime: string): Promise<string> {
 // Descarga el media_url y lo transcribe con Groq Whisper. Lanza si no hay vídeo
 // o si supera el límite gratuito de 25MB.
 async function transcribeMediaUrl(mediaUrl: string): Promise<string> {
-  const r = await fetch(mediaUrl)
+  const r = await fetch(mediaUrl, { signal: AbortSignal.timeout(45_000) })
   if (!r.ok) throw new Error('El enlace del vídeo ha caducado (vuelve a sincronizar Competencia)')
   const buf = Buffer.from(await r.arrayBuffer())
   const mime = r.headers.get('content-type') || 'video/mp4'
