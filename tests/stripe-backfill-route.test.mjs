@@ -97,3 +97,31 @@ test('registrar ventas desde Stripe escribe solo bajo decisión humana y sin dup
   // Cada venta creada queda auditada.
   assert.match(code, /entity_type: 'sale'/)
 })
+
+// El OTRO backfill (admin/backfill-stripe-sales) sí escribe ventas, pero a PRECIO FIJO y buscando un
+// producto por nombre: se escribió para la migración puntual de una subcuenta concreta. Ejecutarlo en
+// cualquier otra subcuenta inventa importes financieros que además parecen reales.
+const ADMIN_ROUTE = 'app/api/[tenant]/evergreen/admin/backfill-stripe-sales/route.ts'
+
+test('el backfill de precio fijo solo corre en la subcuenta para la que se escribió', () => {
+  const route = read(ADMIN_ROUTE)
+  assert.match(route, /const TENANT_DISEÑADO = 'women-digital-closer'/)
+  // La comprobación va por slug de la URL y responde 400 antes de leer nada de Stripe.
+  assert.match(route, /if \(tenant !== TENANT_DISEÑADO\)/)
+  const gate = route.slice(route.indexOf('if (tenant !== TENANT_DISEÑADO)'))
+  assert.match(gate.slice(0, 800), /status: 400/)
+  // Y la puerta está antes de resolver producto, cliente de Stripe o cualquier insert.
+  assert.ok(
+    route.indexOf('if (tenant !== TENANT_DISEÑADO)') < route.indexOf('getTenantConfigWithFallback(auth.tenantId)'),
+    'la puerta por subcuenta debe ir antes de leer la configuración de Stripe'
+  )
+})
+
+test('la respuesta declara que el importe de la venta es fijo, no el de Stripe', () => {
+  const route = read(ADMIN_ROUTE)
+  // Quien mira el dryRun tiene que verlo sin leer el código.
+  assert.match(route, /politicaDePrecio/)
+  assert.match(route, /precio FIJO/)
+  // Y el dryRun sigue siendo el valor por defecto: escribir exige pedirlo explícitamente.
+  assert.match(route, /const dryRun = body\.dryRun !== false/)
+})
