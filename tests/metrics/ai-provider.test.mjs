@@ -30,8 +30,6 @@ test('el modelo sale de la configuración de la subcuenta, con un defecto declar
   assert.equal(deepseekModel({ DEEPSEEK_MODEL: 'deepseek-reasoner' }), 'deepseek-reasoner')
 })
 
-// El mismo defecto que declara el catálogo de integraciones: si se separan, la comprobación de
-// conexión valida un modelo y las peticiones reales usan otro.
 // Este test fijaba que el catálogo nombrara el modelo por defecto. Ese contrato CAMBIÓ a propósito:
 // el modelo ya no se escribe a mano ni se promete uno concreto en la ayuda, porque un nombre fijo
 // deja la IA muerta en cuanto el proveedor lo retira. Ahora el catálogo manda a buscar los modelos
@@ -39,9 +37,16 @@ test('el modelo sale de la configuración de la subcuenta, con un defecto declar
 // —que a su vez se cruzan con lo que la API dice tener antes de usarse.
 test('el catálogo manda a buscar modelos reales en vez de prometer uno concreto', async () => {
   const catalog = await import('../../lib/integrations-catalog.ts')
-  const deepseek = catalog.INTEGRATION_GROUPS.find((g) => g.id === 'deepseek')
-  assert.ok(deepseek, 'no existe el grupo deepseek en el catálogo')
-  const modelField = deepseek.fields.find((f) => f.key === 'DEEPSEEK_MODEL')
+  // Y DeepSeek dejó de tener tarjeta propia: se configura dentro del módulo de IA, con Anthropic y
+  // Groq, porque es un motor más de los que la plataforma puede usar.
+  const ia = catalog.INTEGRATION_GROUPS.find((g) => g.id === 'ai')
+  assert.ok(ia, 'no existe el grupo de IA en el catálogo')
+  assert.ok(
+    !catalog.INTEGRATION_GROUPS.some((g) => g.id === 'deepseek'),
+    'DeepSeek no debe volver a ser una integración aparte'
+  )
+  const modelField = ia.fields.find((f) => f.key === 'DEEPSEEK_MODEL')
+  assert.ok(modelField, 'el modelo de DeepSeek debe estar en el módulo de IA')
   assert.match(modelField.help, /Buscar modelos/)
   assert.ok(
     DEEPSEEK_MODELOS_PREFERIDOS.includes(DEEPSEEK_DEFAULT_MODEL),

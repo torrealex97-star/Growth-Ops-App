@@ -71,19 +71,28 @@ test('Integraciones usa tarjetas, panel accesible y estados no engañosos', () =
   assert.match(page, /h\.fix/, 'no se pinta cómo arreglarlo')
 })
 
-test('DeepSeek se configura por tenant como secreto y admite prueba de conexión', () => {
+// DeepSeek dejó de ser una tarjeta aparte: es UN MOTOR MÁS dentro del módulo de IA. Tenerlo separado
+// obligaba a configurar la inteligencia artificial en dos sitios y escondía que ambos hacen el mismo
+// trabajo; además, el selector de modelos quedaba en un grupo y el campo en otro, así que no se
+// mostraba nunca.
+test('DeepSeek se configura DENTRO del módulo de IA, como un motor más', () => {
   const catalog = read('lib/integrations-catalog.ts')
   const route = read('app/api/[tenant]/evergreen/settings/integraciones/route.ts')
   const page = read('app/[tenant]/settings/integraciones/page.tsx')
 
-  assert.match(catalog, /id: 'deepseek'/)
-  assert.match(catalog, /key: 'DEEPSEEK_API_KEY'[\s\S]*?secret: true/)
-  assert.match(catalog, /key: 'DEEPSEEK_MODEL'[\s\S]*?secret: false/)
-  assert.match(route, /group === 'deepseek'/)
-  assert.match(route, /https:\/\/api\.deepseek\.com\/models/)
-  assert.match(route, /AbortSignal\.timeout\(10_000\)/)
-  assert.match(page, /deepseek: \{/)
-  assert.match(page, /https:\/\/api-docs\.deepseek\.com\//)
+  assert.ok(!/id: 'deepseek'/.test(catalog), 'DeepSeek no debe ser un grupo propio')
+  assert.ok(!/group === 'deepseek'/.test(route), 'su prueba de conexión va con la del grupo de IA')
+  assert.ok(!/^ {2}deepseek: \{/m.test(page), 'no debe quedar su tarjeta suelta en la documentación')
+
+  // Sus campos viven en el grupo `ai`, y siguen siendo secreto / no secreto como corresponde.
+  const grupoAi = catalog.slice(catalog.indexOf("id: 'ai'"), catalog.indexOf("id: 'youtube'"))
+  assert.match(grupoAi, /key: 'DEEPSEEK_API_KEY'[\s\S]*?secret: true/)
+  assert.match(grupoAi, /key: 'DEEPSEEK_MODEL'[\s\S]*?secret: false/)
+  assert.match(grupoAi, /ANTHROPIC_API_KEY/)
+
+  // Es OPCIONAL: sin clave, la tarjeta de IA no falla — simplemente atiende Anthropic.
+  assert.match(route, /DeepSeek no está configurado \(opcional\)/)
+  assert.ok(!/required: \['ANTHROPIC_API_KEY', 'GROQ_API_KEY', 'DEEPSEEK_API_KEY'\]/.test(catalog))
 })
 
 test('la asistencia vive en Notificaciones y el widget positivo ya no se sirve', () => {
