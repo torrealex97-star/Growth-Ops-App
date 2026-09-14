@@ -15,6 +15,7 @@ import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { getCustomDateRange, inPeriod } from '@/lib/filters/period'
 import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
+import { StripePendientesAviso } from '@/components/os/StripePendientesAviso'
 
 const STATUS_LABELS: Record<SaleStatus, string> = {
   active: 'Activa',
@@ -432,6 +433,9 @@ export default function SalesPage() {
             <Plus className="w-4 h-4 mr-2" />
             Nueva Venta
           </Button>
+          {/* Si hay clientes de Stripe sincronizados, este vacío tiene una explicación concreta y un
+              sitio al que ir. Sin esto, "No hay ventas" se lee como "el importador no funciona". */}
+          <StripePendientesAviso tenant={tenant} contexto="ventas" />
         </div>
       ) : (
         <>

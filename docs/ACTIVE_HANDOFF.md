@@ -2,13 +2,49 @@
 
 Última actualización: 2026-09-14 (Claude Code)
 
-## SESIÓN 2026-09-14 (brief de Integraciones/Stripe/Métricas/Funnels) — bloques 1-4 de 6
+## SESIÓN 2026-09-14 (brief de Integraciones/Stripe/Métricas/Funnels) — bloques 1-5 de 6
 
 Rama: `claude/app-continuation-lpbupf`, empujada, árbol limpio. 151 + 198 tests en verde, typecheck,
 lint, format y `next build` completo.
 
-El brief tiene 58 secciones agrupables en 6 bloques. Se cerraron los cuatro primeros. **Los bloques
-5-6 NO están empezados**: no hay nada a medias en el árbol.
+El brief tiene 58 secciones agrupables en 6 bloques. Se cerraron los cinco primeros. **El bloque 6
+(Data Health cross-source y golden dataset, §48 y §53) NO está empezado**: no hay nada a medias.
+
+### Bloque 5 — Stripe (§13-§25) CERRADO en lo que se podía cerrar
+
+DIAGNÓSTICO, que NO era el que parecía. "VENTAS = vacío" y "ALUMNAS = vacío" con Stripe lleno de
+clientes no son dos bugs: son un síntoma con UNA causa, y la causa no es el importador.
+
+Alumnas lee `sales`. `sales` no se llena sola desde Stripe porque `product_id` y `payment_plan_id`
+son NOT NULL y un pago de Stripe no dice a qué producto interno corresponde ni con qué plan. Crear la
+venta automáticamente exigiría elegirlos, y con ellos el importe comisionable y el plazo de
+devolución: inventar datos financieros (tercera regla de AGENTS.md). Por eso el flujo es un INFORME
+que una persona resuelve, en Integraciones › Stripe.
+
+El fallo real era de producto, no de datos: la pantalla decía "No hay ventas" y "Sin alumnos" a
+secas. Quien mira Ventas no tenía forma de saber que hay N clientes de Stripe esperando una decisión
+suya, ni a dónde ir. Un hueco sin explicar se lee como "esto está roto" — y así se leyó.
+
+`components/os/StripePendientesAviso.tsx`: cuenta los clientes de Stripe sincronizados (consulta
+local, `head: true`, sin llamar a Stripe desde la pantalla), explica por qué no se convierten en
+ventas solos y enlaza al buscador de pagos sin registrar. No escribe nada ni adivina ningún producto.
+Si la consulta falla no muestra un 0: no muestra el aviso.
+
+LO QUE YA ESTABA BIEN Y NO SE TOCÓ (se verificó, con test que lo fija):
+
+- §18 doble conteo: el clasificador trabaja sobre `PaymentIntent` —un intent es UN flujo económico— y
+  `knownReferences` lleva intent id Y charge id, así que un pago no entra como intent, cargo y
+  factura. Los estados que no son ingreso están separados por veredicto (`no_es_venta`,
+  `reembolsado`, `sin_contacto`), no colapsados.
+- §25 paginación: las tres lecturas usan `stripeList`, que pagina con `starting_after`/`has_more` y
+  marca `truncated`. El `limit: '100'` es tamaño de página, no tope.
+- §14 matching: por relación de proveedor → stripe customer id → email normalizado, nunca por nombre.
+
+LO QUE NO SE PUDO HACER, y es del entorno, no del código: §16, §17, §24, §26, §27 y §54 piden cargar
+el histórico real, contar filas y reconciliar con IDs reales. `api.stripe.com` es inalcanzable desde
+el entorno del agente y el MCP de Supabase pide reautenticación. **El backfill lo tiene que lanzar el
+usuario** desde Integraciones › Stripe › "Buscar pagos sin registrar", eligiendo producto y plan.
+Hasta que eso ocurra, Ventas y Alumnas seguirán vacías — ahora diciendo por qué.
 
 ### Bloque 4 — funnels visuales (§28-§39, §43-§45) CERRADO
 

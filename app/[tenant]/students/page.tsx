@@ -9,6 +9,7 @@ import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { useTenant } from '@/lib/tenant-context'
+import { StripePendientesAviso } from '@/components/os/StripePendientesAviso'
 
 type EngagementScore = 'bajo' | 'medio' | 'alto'
 type PromiseFulfilled = 'si' | 'no' | 'en_proceso'
@@ -596,6 +597,9 @@ export default function StudentsPage() {
               <tr>
                 <td colSpan={12} className="p-8 text-center text-muted-foreground">
                   Sin alumnos.
+                  {/* Una alumna aparece cuando tiene una venta registrada: si hay clientes de Stripe
+                      sincronizados, el vacío se explica y se enlaza a donde se resuelve. */}
+                  <StripePendientesAviso tenant={tenant} contexto="alumnas" />
                 </td>
               </tr>
             ) : (
