@@ -141,7 +141,9 @@ export async function runInstagramSync(
       engagement_rate: engagement,
       synced_at: at,
     }
-    const { error } = await sb.from('ig_media').upsert(row, { onConflict: 'external_id', ignoreDuplicates: false })
+    const { error } = await sb
+      .from('ig_media')
+      .upsert(row, { onConflict: 'tenant_id,external_id', ignoreDuplicates: false })
     if (error) failures.push(`No se pudo guardar el post ${row.external_id}: ${error.message}`)
     else mediaSynced++
   }
@@ -176,7 +178,7 @@ export async function runInstagramSync(
             }
             const { error } = await sb
               .from('fb_media')
-              .upsert(row, { onConflict: 'external_id', ignoreDuplicates: false })
+              .upsert(row, { onConflict: 'tenant_id,external_id', ignoreDuplicates: false })
             if (error) failures.push(`No se pudo guardar el reel de Facebook ${r.external_id}: ${error.message}`)
             else fbReelsSynced++
           }

@@ -531,7 +531,7 @@ async function syncAdsOneAccount(
     const batch = adRows.slice(i, i + CHUNK)
     const { error } = await sb
       .from('campaign_ads')
-      .upsert(batch, { onConflict: 'external_id', ignoreDuplicates: false })
+      .upsert(batch, { onConflict: 'tenant_id,external_id', ignoreDuplicates: false })
     if (error) failures.push(`No se pudieron guardar los anuncios de ${cfg.accountId}: ${error.message}`)
     else synced += batch.length
   }
