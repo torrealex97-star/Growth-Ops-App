@@ -4,12 +4,28 @@ import type { CompanyProfile } from '@/lib/contracts/company'
 // Envío de emails con Resend. Requiere RESEND_API_KEY.
 // RESEND_FROM: remitente verificado, p.ej. "Tu Empresa <contratos@tudominio.com>".
 // Si no hay dominio verificado, Resend permite pruebas con "onboarding@resend.dev".
-export function resendConfigured(): boolean {
-  return !!process.env.RESEND_API_KEY
+//
+// LAS CREDENCIALES SE PASAN (`mail`). Antes se leían solo de `process.env`: la clave que el usuario
+// guardaba en Configuración › Integraciones no se usaba nunca —el panel la daba por conectada y los
+// correos salían con la del entorno de Vercel, o no salían— y el remitente de una subcuenta podía
+// acabar firmando los correos de otra. `process.env` queda como fallback para los flujos públicos
+// (firma de contratos por enlace) que no tienen subcuenta resuelta.
+export type MailEnv = {
+  RESEND_API_KEY?: string
+  RESEND_FROM?: string
 }
 
-function fromAddress(company: CompanyProfile): string {
-  if (process.env.RESEND_FROM) return process.env.RESEND_FROM
+function resendKey(mail?: MailEnv): string | undefined {
+  return mail?.RESEND_API_KEY?.trim() || process.env.RESEND_API_KEY
+}
+
+export function resendConfigured(mail?: MailEnv): boolean {
+  return !!resendKey(mail)
+}
+
+function fromAddress(company: CompanyProfile, mail?: MailEnv): string {
+  const from = mail?.RESEND_FROM?.trim() || process.env.RESEND_FROM
+  if (from) return from
   // Fallback de pruebas de Resend (sustituir por dominio propio en producción).
   return `${company.name} <onboarding@resend.dev>`
 }
@@ -72,16 +88,18 @@ function inviteEmailHtml(opts: {
 
 // Envía el email de invitación (crear contraseña) al nuevo miembro.
 export async function sendInviteEmail(opts: {
+  /** Credenciales de la subcuenta; si no se pasan, se usa el entorno del despliegue. */
+  mail?: MailEnv
   to: string
   fullName: string
   company: CompanyProfile
   url: string
 }): Promise<{ ok: boolean; error?: string }> {
-  if (!resendConfigured()) return { ok: false, error: 'RESEND_API_KEY no configurada' }
+  if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY)
+    const resend = new Resend(resendKey(opts.mail))
     const { error } = await resend.emails.send({
-      from: fromAddress(opts.company),
+      from: fromAddress(opts.company, opts.mail),
       to: opts.to,
       subject: `${opts.company.name} · Crea tu contraseña para acceder`,
       html: inviteEmailHtml({
@@ -100,13 +118,15 @@ export async function sendInviteEmail(opts: {
 
 // Envía el email de restablecer contraseña (recovery) con plantilla propia.
 export async function sendRecoveryEmail(opts: {
+  /** Credenciales de la subcuenta; si no se pasan, se usa el entorno del despliegue. */
+  mail?: MailEnv
   to: string
   company: CompanyProfile
   url: string
 }): Promise<{ ok: boolean; error?: string }> {
-  if (!resendConfigured()) return { ok: false, error: 'RESEND_API_KEY no configurada' }
+  if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY)
+    const resend = new Resend(resendKey(opts.mail))
     const html = `<!doctype html>
 <html><body style="margin:0;background:#f4f4f5;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#18181b">
   <div style="max-width:560px;margin:0 auto;padding:32px 16px">
@@ -123,7 +143,7 @@ export async function sendRecoveryEmail(opts: {
   </div>
 </body></html>`
     const { error } = await resend.emails.send({
-      from: fromAddress(opts.company),
+      from: fromAddress(opts.company, opts.mail),
       to: opts.to,
       subject: `${opts.company.name} · Restablecer contraseña`,
       html,
@@ -168,6 +188,8 @@ function signedContractEmailHtml(opts: {
 // Envía una copia del contrato YA FIRMADO (PDF adjunto) al colaborador.
 // `to` = correo de empresa; `cc` = correo personal (recibe la misma copia).
 export async function sendSignedContractEmail(opts: {
+  /** Credenciales de la subcuenta; si no se pasan, se usa el entorno del despliegue. */
+  mail?: MailEnv
   to: string
   cc?: string | string[] | null
   memberName: string
@@ -175,9 +197,9 @@ export async function sendSignedContractEmail(opts: {
   pdfUrl: string | null
   pdfBytes?: Uint8Array | null
 }): Promise<{ ok: boolean; error?: string }> {
-  if (!resendConfigured()) return { ok: false, error: 'RESEND_API_KEY no configurada' }
+  if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY)
+    const resend = new Resend(resendKey(opts.mail))
     const norm = (s: string) => s.trim().toLowerCase()
     const to = norm(opts.to)
     const ccList = (Array.isArray(opts.cc) ? opts.cc : opts.cc ? [opts.cc] : [])
@@ -188,7 +210,7 @@ export async function sendSignedContractEmail(opts: {
       ? [{ filename: 'contrato-firmado.pdf', content: Buffer.from(opts.pdfBytes) }]
       : undefined
     const { error } = await resend.emails.send({
-      from: fromAddress(opts.company),
+      from: fromAddress(opts.company, opts.mail),
       to: opts.to,
       ...(cc.length ? { cc } : {}),
       subject: `${opts.company.name} · Copia de tu contrato firmado`,
@@ -211,6 +233,8 @@ export async function sendSignedContractEmail(opts: {
 
 // Aviso al responsable de que se le ha asignado una tarea nueva.
 export async function sendTaskAssignedEmail(opts: {
+  /** Credenciales de la subcuenta; si no se pasan, se usa el entorno del despliegue. */
+  mail?: MailEnv
   to: string
   assigneeName: string
   company: CompanyProfile
@@ -220,9 +244,9 @@ export async function sendTaskAssignedEmail(opts: {
   priority?: string | null
   url: string
 }): Promise<{ ok: boolean; error?: string }> {
-  if (!resendConfigured()) return { ok: false, error: 'RESEND_API_KEY no configurada' }
+  if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY)
+    const resend = new Resend(resendKey(opts.mail))
     const meta = [
       opts.priority ? `Prioridad: ${esc(opts.priority)}` : '',
       opts.dueDate ? `Vence: ${esc(opts.dueDate)}` : '',
@@ -248,7 +272,7 @@ export async function sendTaskAssignedEmail(opts: {
   </div>
 </body></html>`
     const { error } = await resend.emails.send({
-      from: fromAddress(opts.company),
+      from: fromAddress(opts.company, opts.mail),
       to: opts.to,
       subject: `${opts.company.name} · Nueva tarea: ${opts.taskTitle}`,
       html,
@@ -289,17 +313,19 @@ function studentContractEmailHtml(opts: {
 
 // Envía al ALUMNO el contrato para aceptar ("Bienvenido Winner…" + enlace cortafuegos).
 export async function sendStudentContractEmail(opts: {
+  /** Credenciales de la subcuenta; si no se pasan, se usa el entorno del despliegue. */
+  mail?: MailEnv
   to: string
   studentName: string
   company: CompanyProfile
   signUrl: string
   welcome: string
 }): Promise<{ ok: boolean; error?: string }> {
-  if (!resendConfigured()) return { ok: false, error: 'RESEND_API_KEY no configurada' }
+  if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY)
+    const resend = new Resend(resendKey(opts.mail))
     const { error } = await resend.emails.send({
-      from: fromAddress(opts.company),
+      from: fromAddress(opts.company, opts.mail),
       to: opts.to,
       subject: `${opts.company.name} · ¡Bienvenida! Acepta tus condiciones`,
       html: studentContractEmailHtml({
@@ -348,16 +374,18 @@ function studentOnboardingEmailHtml(opts: {
 // Envía al ALUMNO el correo de onboarding con los pasos + enlace a la landing de accesos.
 // Se dispara automáticamente cuando el webhook de accesos (GHL) se ha completado.
 export async function sendStudentOnboardingEmail(opts: {
+  /** Credenciales de la subcuenta; si no se pasan, se usa el entorno del despliegue. */
+  mail?: MailEnv
   to: string
   studentName: string
   company: CompanyProfile
   landingUrl?: string
 }): Promise<{ ok: boolean; error?: string }> {
-  if (!resendConfigured()) return { ok: false, error: 'RESEND_API_KEY no configurada' }
+  if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY)
+    const resend = new Resend(resendKey(opts.mail))
     const { error } = await resend.emails.send({
-      from: fromAddress(opts.company),
+      from: fromAddress(opts.company, opts.mail),
       to: opts.to,
       subject: `${opts.company.name} · Tus accesos están listos — empieza aquí`,
       html: studentOnboardingEmailHtml({
@@ -376,20 +404,22 @@ export async function sendStudentOnboardingEmail(opts: {
 
 // Envía al ALUMNO la copia (PDF) del contrato firmado.
 export async function sendStudentSignedEmail(opts: {
+  /** Credenciales de la subcuenta; si no se pasan, se usa el entorno del despliegue. */
+  mail?: MailEnv
   to: string
   studentName: string
   company: CompanyProfile
   pdfUrl: string | null
   pdfBytes?: Uint8Array | null
 }): Promise<{ ok: boolean; error?: string }> {
-  if (!resendConfigured()) return { ok: false, error: 'RESEND_API_KEY no configurada' }
+  if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY)
+    const resend = new Resend(resendKey(opts.mail))
     const attachments = opts.pdfBytes
       ? [{ filename: 'contrato-firmado.pdf', content: Buffer.from(opts.pdfBytes) }]
       : undefined
     const { error } = await resend.emails.send({
-      from: fromAddress(opts.company),
+      from: fromAddress(opts.company, opts.mail),
       to: opts.to,
       subject: `${opts.company.name} · Copia de tu contrato firmado`,
       html: signedContractEmailHtml({
@@ -411,15 +441,17 @@ export async function sendStudentSignedEmail(opts: {
 // `to` puede ser el correo de empresa; `cc` recibe una copia (p.ej. el correo
 // personal del colaborador). Se deduplican y se ignoran vacíos.
 export async function sendContractEmail(opts: {
+  /** Credenciales de la subcuenta; si no se pasan, se usa el entorno del despliegue. */
+  mail?: MailEnv
   to: string
   cc?: string | string[] | null
   memberName: string
   company: CompanyProfile
   signUrl: string
 }): Promise<{ ok: boolean; error?: string }> {
-  if (!resendConfigured()) return { ok: false, error: 'RESEND_API_KEY no configurada' }
+  if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
-    const resend = new Resend(process.env.RESEND_API_KEY)
+    const resend = new Resend(resendKey(opts.mail))
     const norm = (s: string) => s.trim().toLowerCase()
     const to = norm(opts.to)
     const ccList = (Array.isArray(opts.cc) ? opts.cc : opts.cc ? [opts.cc] : [])
@@ -427,7 +459,7 @@ export async function sendContractEmail(opts: {
       .filter((c) => c && c !== to)
     const cc = Array.from(new Set(ccList))
     const { error } = await resend.emails.send({
-      from: fromAddress(opts.company),
+      from: fromAddress(opts.company, opts.mail),
       to: opts.to,
       ...(cc.length ? { cc } : {}),
       subject: `${opts.company.name} · Contrato para firmar`,

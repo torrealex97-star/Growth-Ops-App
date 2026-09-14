@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { resolveCloserEventType, getAvailableTimes, CalendlyError } from '@/lib/calendly'
+import { resolveCloserEventType, getAvailableTimes, requireCalendlyToken, CalendlyError } from '@/lib/calendly'
+import { getTenantConfigWithFallback } from '@/lib/config'
 import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
@@ -38,7 +39,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
       .maybeSingle()
     if (!closer?.email) return NextResponse.json({ error: 'El closer no tiene email' }, { status: 400 })
 
-    const et = await resolveCloserEventType(closer.calendly_email || closer.email)
+    // Token de Calendly de ESTA subcuenta (Configuración › Integraciones). Antes lib/calendly.ts lo
+    // leía de process.env, así que el token guardado en el panel no se usaba nunca.
+    const calendlyToken = requireCalendlyToken((await getTenantConfigWithFallback(t.tenantId)).CALENDLY_API_TOKEN)
+    const et = await resolveCloserEventType(calendlyToken, closer.calendly_email || closer.email)
     if (!et) {
       return NextResponse.json({
         hasCalendly: false,
@@ -60,7 +64,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
       })
     }
 
-    const slots = await getAvailableTimes(et.uri, startDate.toISOString(), dayEnd.toISOString())
+    const slots = await getAvailableTimes(calendlyToken, et.uri, startDate.toISOString(), dayEnd.toISOString())
     return NextResponse.json({
       hasCalendly: true,
       eventType: { uri: et.uri, name: et.name, duration: et.duration, scheduling_url: et.scheduling_url },

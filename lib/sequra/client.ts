@@ -10,9 +10,19 @@ const SEQURA_MCP_URL = 'https://simba.sequra.com/mcp'
 
 class SequraApiError extends Error {}
 
-async function callTool(name: string, args: Record<string, unknown>): Promise<string> {
-  const token = process.env.SEQURA_MCP_TOKEN
-  if (!token) throw new SequraApiError('Falta SEQURA_MCP_TOKEN')
+/**
+ * Credenciales de SeQura de la subcuenta. Explícitas: el token se leía de `process.env`, así que el
+ * que el usuario guardaba en Configuración › Integraciones no se usaba nunca (el panel lo daba por
+ * conectado y el cron seguía yendo con el del entorno de Vercel, o con ninguno).
+ */
+export type SequraEnv = {
+  SEQURA_MCP_TOKEN?: string
+  SEQURA_MERCHANT_REFERENCE?: string
+}
+
+async function callTool(env: SequraEnv, name: string, args: Record<string, unknown>): Promise<string> {
+  const token = env.SEQURA_MCP_TOKEN?.trim()
+  if (!token) throw new SequraApiError('Falta el token de SeQura en Configuración › Integraciones')
 
   // Timeout duro: sin esto, si el MCP de sequra se cuelga, el cron consume toda su ventana
   // (maxDuration) en esta única llamada — mismo patrón que lib/calendly.ts.
@@ -72,14 +82,14 @@ const SUMMARY_LINE_RE = /^\d+\.\s+(\S+)\s+-\s+[\d.]+\s+\S+\s+\([\d-]+\)\s+\[(\w+
 const TOTAL_RE = /of\s+(\d+)\s+total/
 
 // Pagina automáticamente hasta traer todos los pedidos del merchant.
-export async function searchAllOrders(merchantReference: string): Promise<SequraOrderSummary[]> {
+export async function searchAllOrders(env: SequraEnv, merchantReference: string): Promise<SequraOrderSummary[]> {
   const orders: SequraOrderSummary[] = []
   const limit = 100
   let offset = 0
   let total = Infinity
 
   while (offset < total) {
-    const text = await callTool('search_orders_tool', {
+    const text = await callTool(env, 'search_orders_tool', {
       merchant_reference: merchantReference,
       from_date: '2000-01-01',
       limit,
@@ -114,8 +124,8 @@ export type SequraOrderDetail = {
   balanceCents: number
 }
 
-export async function showOrder(primaryReference: string): Promise<SequraOrderDetail> {
-  const text = await callTool('show_order_tool', { primary_reference: primaryReference })
+export async function showOrder(env: SequraEnv, primaryReference: string): Promise<SequraOrderDetail> {
+  const text = await callTool(env, 'show_order_tool', { primary_reference: primaryReference })
   const parsed = JSON.parse(text) as { order: Record<string, unknown> }
   const o = parsed.order
   const cartItems = (o.cart_items as { name?: string }[] | undefined) ?? []

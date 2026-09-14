@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { notifyCreatuagente } from '@/lib/creatuagente'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 
@@ -30,11 +31,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       .single()
     if (!appt) return NextResponse.json({ error: 'Agenda no encontrada' }, { status: 404 })
 
+    // Token de la subcuenta, no del entorno: cancelar con el token de Vercel (o con el de otra
+    // subcuenta) no cancela nada y el evento se queda vivo en el calendario del closer.
+    const calendlyToken = (await getTenantConfigWithFallback(t.tenantId)).CALENDLY_API_TOKEN
     let calendlyCanceled = false
-    if (appt.external_source === 'calendly' && appt.calendly_event_uuid && process.env.CALENDLY_API_TOKEN) {
+    if (appt.external_source === 'calendly' && appt.calendly_event_uuid && calendlyToken) {
       const r = await fetch(`https://api.calendly.com/scheduled_events/${appt.calendly_event_uuid}/cancellation`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.CALENDLY_API_TOKEN}`, 'Content-Type': 'application/json' },
+        headers: { Authorization: `Bearer ${calendlyToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: reason || 'Cancelada desde la app' }),
       })
       calendlyCanceled = r.ok

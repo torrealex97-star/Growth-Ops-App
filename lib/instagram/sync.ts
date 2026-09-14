@@ -16,6 +16,7 @@ import {
   type IgEnv,
 } from './client'
 import { runYoutubeSync } from '@/lib/youtube/backfill'
+import type { YoutubeEnv } from '@/lib/youtube/client'
 
 const today = (): string => new Date().toISOString().slice(0, 10)
 const round2 = (n: number) => Math.round(n * 100) / 100
@@ -42,7 +43,9 @@ export type InstagramSyncResult = {
 export async function runInstagramSync(
   sb: SupabaseClient,
   tenantId: string,
-  env: IgEnv,
+  // IgEnv + YoutubeEnv: la sync también espeja los reels nuevos al canal de YouTube de ESTA
+  // subcuenta, así que necesita ambas credenciales en la misma instantánea.
+  env: IgEnv & YoutubeEnv,
   opts?: { mediaLimit?: number; light?: boolean }
 ): Promise<InstagramSyncResult> {
   const failures: string[] = []
@@ -216,7 +219,7 @@ export async function runInstagramSync(
   try {
     // Solo reels nuevos aquí (backfillLimit 0): el backfill de reels antiguos va por su propio
     // cron 3 veces al día (mañana/mediodía/noche), ver /api/${tenant}/evergreen/cron/youtube-backfill.
-    youtubeUploaded = await runYoutubeSync(sb, cfg, tenantId, { backfillLimit: 0 })
+    youtubeUploaded = await runYoutubeSync(sb, cfg, tenantId, env, { backfillLimit: 0 })
   } catch {
     /* YouTube opcional: un fallo aquí no debe romper el sync de Instagram */
   }

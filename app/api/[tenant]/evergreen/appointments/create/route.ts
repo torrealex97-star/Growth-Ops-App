@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { resolveCloserEventType, createInvitee, CalendlyError } from '@/lib/calendly'
+import { resolveCloserEventType, createInvitee, requireCalendlyToken, CalendlyError } from '@/lib/calendly'
+import { getTenantConfigWithFallback } from '@/lib/config'
 import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
@@ -92,7 +93,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       setterTrackingCode = setter?.tracking_code || null
     }
 
-    const et = await resolveCloserEventType(closer.calendly_email || closer.email)
+    // Token de Calendly de ESTA subcuenta (Configuración › Integraciones). Antes lib/calendly.ts lo
+    // leía de process.env, así que el token guardado en el panel no se usaba nunca.
+    const calendlyToken = requireCalendlyToken((await getTenantConfigWithFallback(t.tenantId)).CALENDLY_API_TOKEN)
+    const et = await resolveCloserEventType(calendlyToken, closer.calendly_email || closer.email)
     if (!et) {
       return NextResponse.json(
         { error: `${closer.full_name} no tiene un event type en la cuenta madre de Calendly` },
@@ -101,6 +105,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
 
     const result = await createInvitee({
+      token: calendlyToken,
       eventType: et,
       startTimeISO: new Date(startTime).toISOString(),
       invitee: {

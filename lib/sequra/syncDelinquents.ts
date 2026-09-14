@@ -1,9 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
-import { searchAllOrders, showOrder } from './client'
+import { searchAllOrders, showOrder, type SequraEnv } from './client'
 
-// Identificador de comercio en SeQura — es una cuenta real de terceros, no una marca:
-// configúralo con tu propia referencia de comercio SeQura (SEQURA_MERCHANT_REFERENCE).
-const MERCHANT_REFERENCE = process.env.SEQURA_MERCHANT_REFERENCE || '[tenant]'
+// Identificador de comercio en SeQura — es una cuenta real de terceros, no una marca. Se lee de la
+// configuración de CADA subcuenta: antes era una constante de módulo resuelta al arrancar el
+// proceso, así que todas las subcuentas sincronizaban el mismo comercio (el del entorno de Vercel)
+// por mucho que cada una tuviera el suyo guardado en Integraciones.
+const DEFAULT_MERCHANT_REFERENCE = '[tenant]'
 
 // Mora real = cuota vencida sin pagar (overdue_days > 0), no cuotas futuras
 // normales de un pago aplazado (eso simplemente da debt > 0).
@@ -18,10 +20,11 @@ export type SyncResult = {
   recovered: number
 }
 
-export async function syncSequraDelinquents(tenantId: string): Promise<SyncResult> {
+export async function syncSequraDelinquents(tenantId: string, env: SequraEnv): Promise<SyncResult> {
   const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const merchantReference = env.SEQURA_MERCHANT_REFERENCE?.trim() || DEFAULT_MERCHANT_REFERENCE
 
-  const orders = (await searchAllOrders(MERCHANT_REFERENCE)).filter((o) => o.status !== 'cancelled')
+  const orders = (await searchAllOrders(env, merchantReference)).filter((o) => o.status !== 'cancelled')
 
   let checked = 0
   let delinquentFound = 0
@@ -29,8 +32,8 @@ export async function syncSequraDelinquents(tenantId: string): Promise<SyncResul
 
   for (const order of orders) {
     checked++
-    const detail = await showOrder(order.reference)
-    if (detail.merchantReference !== MERCHANT_REFERENCE) continue // cinturón y tirantes junto al CHECK de BBDD
+    const detail = await showOrder(env, order.reference)
+    if (detail.merchantReference !== merchantReference) continue // cinturón y tirantes junto al CHECK de BBDD
     if (!isRealDelinquent(detail.overdueDays)) continue
 
     delinquentFound++
@@ -40,7 +43,7 @@ export async function syncSequraDelinquents(tenantId: string): Promise<SyncResul
       {
         tenant_id: tenantId,
         order_reference: detail.primaryReference,
-        merchant_reference: MERCHANT_REFERENCE,
+        merchant_reference: merchantReference,
         customer_name: detail.customerName,
         customer_email: detail.customerEmail,
         product_name: detail.productName,
