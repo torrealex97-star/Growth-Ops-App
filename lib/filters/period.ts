@@ -11,6 +11,7 @@ export type PeriodPreset =
   | 'year'
   // Ventanas móviles: terminan HOY y cuentan hacia atrás. No son lo mismo que 'month' o 'year',
   // que son el mes/año natural: el día 2 de mes, 'month' son dos días y '30d' son treinta.
+  | '3d'
   | '7d'
   | '30d'
   | '90d'
@@ -29,6 +30,7 @@ export const PERIOD_LABELS: Record<PeriodPreset, string> = {
   month: 'Este mes',
   quarter: 'Este trimestre',
   year: 'Este año',
+  '3d': 'Últimos 3 días',
   '7d': 'Últimos 7 días',
   '30d': 'Últimos 30 días',
   '90d': 'Últimos 90 días',
@@ -39,6 +41,41 @@ export const PERIOD_LABELS: Record<PeriodPreset, string> = {
 
 /** Los presets que el brief pide como mínimo en Métricas y Campañas, en orden de menor a mayor. */
 export const PERIOD_PRESETS_DASHBOARD: PeriodPreset[] = ['7d', '30d', '90d', 'ytd', 'launch', 'custom']
+
+/**
+ * El juego ESTÁNDAR: el que debe ofrecer cualquier pantalla con métricas, para que el mismo filtro
+ * signifique lo mismo en todas. Antes siete pantallas llevaban su propia copia del tipo, de las
+ * etiquetas y del cálculo — idénticas entre sí, pero sin ventanas móviles y condenadas a divergir en
+ * cuanto alguien tocara una.
+ */
+export const PERIOD_PRESETS_BAR: PeriodPreset[] = [
+  'all',
+  'today',
+  'day',
+  '3d',
+  '7d',
+  '30d',
+  '90d',
+  'week',
+  'month',
+  'quarter',
+  'year',
+  'ytd',
+  'launch',
+  'custom',
+]
+
+export const PERIOD_PRESETS_STANDARD: PeriodPreset[] = [
+  'all',
+  'today',
+  '3d',
+  '7d',
+  '30d',
+  'month',
+  'quarter',
+  'year',
+  'custom',
+]
 
 export type PeriodRange = { from: Date | null; to: Date | null }
 
@@ -113,6 +150,8 @@ export function getPeriodRange(
 ): PeriodRange {
   const now = new Date()
   switch (preset) {
+    case '3d':
+      return rollingWindow(now, 3)
     case '7d':
       return rollingWindow(now, 7)
     case '30d':

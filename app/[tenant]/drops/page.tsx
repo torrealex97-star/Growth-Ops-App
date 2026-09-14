@@ -11,63 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getCustomDateRange } from '@/lib/filters/period'
-
-type PeriodPreset = 'all' | 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom'
-
-const PERIOD_LABELS: Record<PeriodPreset, string> = {
-  all: 'Todo',
-  today: 'Hoy',
-  week: 'Esta semana',
-  month: 'Este mes',
-  quarter: 'Este trimestre',
-  year: 'Este año',
-  custom: 'Personalizado',
-}
-
-function getPeriodRange(
-  preset: PeriodPreset,
-  customFrom: string,
-  customTo: string
-): { from: Date | null; to: Date | null } {
-  const now = new Date()
-  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0)
-  const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
-
-  switch (preset) {
-    case 'today': {
-      return { from: startOfDay(now), to: endOfDay(now) }
-    }
-    case 'week': {
-      const day = now.getDay() === 0 ? 7 : now.getDay() // lunes = inicio de semana
-      const monday = new Date(now)
-      monday.setDate(now.getDate() - day + 1)
-      const sunday = new Date(monday)
-      sunday.setDate(monday.getDate() + 6)
-      return { from: startOfDay(monday), to: endOfDay(sunday) }
-    }
-    case 'month': {
-      const from = new Date(now.getFullYear(), now.getMonth(), 1)
-      const to = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-      return { from: startOfDay(from), to: endOfDay(to) }
-    }
-    case 'quarter': {
-      const q = Math.floor(now.getMonth() / 3)
-      const from = new Date(now.getFullYear(), q * 3, 1)
-      const to = new Date(now.getFullYear(), q * 3 + 3, 0)
-      return { from: startOfDay(from), to: endOfDay(to) }
-    }
-    case 'year': {
-      const from = new Date(now.getFullYear(), 0, 1)
-      const to = new Date(now.getFullYear(), 11, 31)
-      return { from: startOfDay(from), to: endOfDay(to) }
-    }
-    case 'custom': {
-      return getCustomDateRange(customFrom, customTo)
-    }
-    default:
-      return { from: null, to: null }
-  }
-}
+import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
 
 function csvEscape(value: string): string {
   if (value == null) return ''
@@ -370,7 +314,7 @@ export default function DropsPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-card border-border">
-                {(Object.keys(PERIOD_LABELS) as PeriodPreset[]).map((p) => (
+                {PERIOD_PRESETS_STANDARD.map((p) => (
                   <SelectItem key={p} value={p}>
                     {PERIOD_LABELS[p]}
                   </SelectItem>

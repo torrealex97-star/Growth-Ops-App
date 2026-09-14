@@ -286,3 +286,30 @@ label[for] {
     transition: none;
   }
 }
+
+/* Paleta CATEGÓRICA para gráficas con varias series (pastel, barras apiladas).
+   No se inventó a ojo: estos seis tonos pasan los seis checks del validador —banda de luminosidad,
+   suelo de croma, separación para daltonismo (protan/deuteran/tritan), suelo de visión normal y
+   contraste contra la superficie— en claro Y en oscuro, medidos, no supuestos.
+   Se asignan SIEMPRE en este orden y nunca se ciclan: el color identifica a la categoría, así que
+   filtrar la lista no puede repintar a las que quedan. Con más de seis categorías, el resto se
+   agrupa en "Otros" en vez de generar un séptimo tono.
+   OJO: esto es para IDENTIDAD (categorías). Para magnitud (el ancho del embudo, una rampa) se usa
+   --primary, que además lleva el acento de la subcuenta. */
+:root {
+  --serie-1: 211 68% 51%;
+  --serie-2: 18 70% 53%;
+  --serie-3: 162 74% 40%;
+  --serie-4: 41 100% 46%;
+  --serie-5: 340 63% 58%;
+  --serie-6: 254 40% 44%;
+}
+
+.dark {
+  --serie-1: 211 76% 56%;
+  --serie-2: 18 70% 50%;
+  --serie-3: 162 72% 36%;
+  --serie-4: 40 100% 39%;
+  --serie-5: 340 61% 58%;
+  --serie-6: 246 68% 72%;
+}

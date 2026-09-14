@@ -3,7 +3,9 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import {
   PERIOD_LABELS,
+  PERIOD_PRESETS_BAR,
   PERIOD_PRESETS_DASHBOARD,
+  PERIOD_PRESETS_STANDARD,
   getPeriodRange,
   getPreviousPeriodRange,
   inPeriod,
@@ -125,9 +127,44 @@ test('Campañas deriva TODA la pantalla del mismo rango y guarda los filtros en 
   assert.match(page, /getPeriodRange\(periodPreset, customFrom, customTo, \{ launchDate \}\)/)
 })
 
-test('la barra de periodo ofrece los presets nuevos en todas las pantallas que la usan', () => {
+test('la barra de periodo y las pantallas toman los presets del módulo canónico', () => {
   const bar = readFileSync(new URL('../../components/os/PeriodFilterBar.tsx', import.meta.url), 'utf8')
-  // Recorre PERIOD_LABELS, así que añadir un preset al módulo canónico lo publica en todas las
-  // pantallas a la vez en vez de tener que tocarlas una por una.
-  assert.match(bar, /Object\.keys\(PERIOD_LABELS\) as PeriodPreset\[\]/)
+  // Listas explícitas y no Object.keys: una pantalla sin selector de día no debe ofrecer el preset
+  // 'day', que sin ese selector deja el rango vacío. Añadir un preset sigue siendo un cambio en un
+  // solo archivo.
+  assert.match(bar, /\{PERIOD_PRESETS_BAR\.map\(\(p\) => \(/)
+  for (const p of ['today', '3d', '7d', 'month', 'quarter', 'year', 'custom']) {
+    assert.ok(PERIOD_PRESETS_BAR.includes(p), `la barra debe ofrecer ${p}`)
+    assert.ok(PERIOD_LABELS[p], `falta la etiqueta de ${p}`)
+  }
+})
+
+test('las siete pantallas con métricas comparten el MISMO filtro de periodo', () => {
+  // Cada una llevaba su copia del tipo, de las etiquetas y del cálculo — idénticas entre sí (1.890
+  // caracteres calcados), sin ventanas móviles y condenadas a divergir en cuanto alguien tocara una.
+  const pantallas = [
+    'app/[tenant]/comisiones/page.tsx',
+    'app/[tenant]/ventas/registro/page.tsx',
+    'app/[tenant]/ventas/pagos/page.tsx',
+    'app/[tenant]/finanzas/cobros/cobros/page.tsx',
+    'app/[tenant]/finanzas/cobros/devoluciones/page.tsx',
+    'app/[tenant]/drops/page.tsx',
+  ]
+  for (const rel of pantallas) {
+    const page = readFileSync(new URL(`../../${rel}`, import.meta.url), 'utf8')
+    assert.ok(!/^type PeriodPreset = /m.test(page), `${rel} mantiene una copia del tipo`)
+    assert.ok(!/^function getPeriodRange\(/m.test(page), `${rel} mantiene su propio cálculo de rango`)
+    assert.match(page, /from '@\/lib\/filters\/period'/, `${rel} no importa el módulo canónico`)
+    assert.match(page, /PERIOD_PRESETS_STANDARD\.map/, `${rel} no ofrece el juego estándar`)
+  }
+})
+
+test('el juego estándar incluye los presets que pidió el usuario', () => {
+  // "del día, últimos 3 días, últimos 7, mes, trimestre, año y custom".
+  for (const p of ['today', '3d', '7d', 'month', 'quarter', 'year', 'custom']) {
+    assert.ok(PERIOD_PRESETS_STANDARD.includes(p), `falta ${p} en el juego estándar`)
+  }
+  // Y 3d dura tres días, no dos ni cuatro.
+  const r = getPeriodRange('3d', '', '')
+  assert.equal(Math.round((r.to.getTime() - r.from.getTime() + 1) / 86400000), 3)
 })
