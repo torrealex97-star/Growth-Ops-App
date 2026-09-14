@@ -134,3 +134,20 @@ test('la ruta de cobros deja auditoría', () => {
   assert.match(code, /from\('audit_logs'\)\.insert/)
   assert.match(code, /entity_type: 'collection'/)
 })
+
+// La reparación contable no puede vivir en la consola del navegador. Las comisiones de todo cobro
+// anterior al arreglo del tenant_id nunca se escribieron, y arreglar el código no las rellena: hay
+// que reconciliar. El botón dispara la ruta canónica, solo para quien puede aprobar comisiones.
+test('reparar comisiones es un botón de la app, no un fetch a mano', () => {
+  const page = read('app/[tenant]/comisiones/page.tsx')
+  const code = sinComentarios(page)
+  assert.match(code, /\/evergreen\/sales\/reconcile-all/, 'no llama a la ruta canónica')
+  assert.match(code, /canApprove && \(/, 'el botón no está limitado a admin/director')
+  assert.match(page, /Reparar comisiones/)
+  // Y es honesto cuando la función agota su ventana: parte del trabajo sí se aplicó.
+  assert.match(code, /res\.status === 504/, 'un timeout no puede leerse como "no se hizo nada"')
+  // La ruta sigue exigiendo rol financiero y acota por subcuenta.
+  const route = sinComentarios(read('app/api/[tenant]/evergreen/sales/reconcile-all/route.ts'))
+  assert.match(route, /\['admin', 'director'\]\.includes\(role \|\| ''\)/)
+  assert.match(route, /reconcileSaleCommissions\(sb, tenantId, id/)
+})
