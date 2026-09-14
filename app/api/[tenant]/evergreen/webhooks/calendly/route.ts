@@ -6,6 +6,7 @@ import { sql } from '@/lib/vsl/db'
 import { mapKey, slugify } from '@/lib/qualification'
 import { notifyCreatuagente, toZonedISO, addMinutesISO } from '@/lib/creatuagente'
 import { getTenantConfigWithFallback } from '@/lib/config'
+import { upsertContactByIdentity } from '@/lib/contacts/upsert'
 
 export const runtime = 'nodejs'
 
@@ -170,22 +171,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     qualification.respuestas = respuestas
 
     // --- Resolver / crear contacto ---
-    let contact: { id: string } | null = null
-    if (email) {
-      const { data } = await sb.from('contacts').select('id').eq('email', email).eq('tenant_id', tenantId).maybeSingle()
-      contact = data
-    }
-    if (!contact && phone) {
-      const { data } = await sb.from('contacts').select('id').eq('phone', phone).eq('tenant_id', tenantId).maybeSingle()
-      contact = data
-    }
-    if (!contact) {
-      if (!email && !phone) return NextResponse.json({ error: 'Sin email ni teléfono' }, { status: 400 })
-      const parts = (fullName || '').split(' ')
-      const { data, error } = await sb
-        .from('contacts')
-        .insert({
-          tenant_id: tenantId,
+    if (!email && !phone) return NextResponse.json({ error: 'Sin email ni teléfono' }, { status: 400 })
+    const parts = (fullName || '').split(' ')
+    let contact: { id: string }
+    try {
+      const saved = await upsertContactByIdentity(
+        sb,
+        tenantId,
+        {
           full_name: fullName || 'Sin nombre',
           first_name: parts[0] || null,
           last_name: parts.slice(1).join(' ') || null,
@@ -196,22 +189,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           lead_status: 'agendado',
           first_seen_at: now,
           last_seen_at: now,
-        })
-        .select('id')
-        .single()
-      if (error) return NextResponse.json({ error: 'Error creando contacto', detail: error.message }, { status: 500 })
-      contact = data
-    } else {
-      await sb
-        .from('contacts')
-        .update({
-          last_seen_at: now,
-          ...(phone ? { phone } : {}),
-          ...(instagramFromForm ? { instagram: instagramFromForm } : {}),
-          ...(ageFromForm != null ? { age: ageFromForm } : {}),
-        })
-        .eq('id', contact.id)
-        .eq('tenant_id', tenantId)
+        },
+        'id'
+      )
+      contact = { id: saved.data.id as string }
+      if (!saved.created) {
+        const { error } = await sb
+          .from('contacts')
+          .update({
+            last_seen_at: now,
+            ...(phone ? { phone } : {}),
+            ...(instagramFromForm ? { instagram: instagramFromForm } : {}),
+            ...(ageFromForm != null ? { age: ageFromForm } : {}),
+          })
+          .eq('id', contact.id)
+          .eq('tenant_id', tenantId)
+        if (error) throw error
+      }
+    } catch (error) {
+      return NextResponse.json(
+        { error: 'Error guardando contacto', detail: error instanceof Error ? error.message : String(error) },
+        { status: 500 }
+      )
     }
 
     // --- Cualificación efectiva (arrastre en reprogramaciones) ---
