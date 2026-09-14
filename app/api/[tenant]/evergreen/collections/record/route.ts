@@ -119,6 +119,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       .single()
 
     if (collErr || !coll) {
+      // 23505 = el unique (tenant_id, payment_reference) de 20260914120000. Significa que ya hay un
+      // cobro activo con esa misma referencia: o es un doble envío, o se ha escrito a mano una
+      // referencia que ya existe. Decirlo así evita que el usuario vea una violación de constraint
+      // en crudo y crea que la app está rota.
+      if (collErr?.code === '23505' && paymentReference) {
+        return NextResponse.json(
+          {
+            error: `Ya hay un cobro registrado con la referencia "${paymentReference}". Si es un pago distinto, usa su propia referencia; si es el mismo, ya está registrado.`,
+          },
+          { status: 409 }
+        )
+      }
       return NextResponse.json({ error: collErr?.message || 'No se pudo registrar el cobro' }, { status: 500 })
     }
 
