@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { DEEPSEEK_DEFAULT_MODEL, deepseekModel, selectEngine } from '../../lib/ai/provider.ts'
+import {
+  DEEPSEEK_DEFAULT_MODEL,
+  DEEPSEEK_MODELOS_PREFERIDOS,
+  deepseekModel,
+  selectEngine,
+} from '../../lib/ai/provider.ts'
 
 // Conectar DeepSeek en Integraciones tiene que CAMBIAR quién atiende las peticiones. Antes las
 // funciones de IA llamaban a Anthropic directamente, así que la integración daba verde y no movía
@@ -27,13 +32,19 @@ test('el modelo sale de la configuración de la subcuenta, con un defecto declar
 
 // El mismo defecto que declara el catálogo de integraciones: si se separan, la comprobación de
 // conexión valida un modelo y las peticiones reales usan otro.
-test('el modelo por defecto coincide con el que declara el catálogo', async () => {
+// Este test fijaba que el catálogo nombrara el modelo por defecto. Ese contrato CAMBIÓ a propósito:
+// el modelo ya no se escribe a mano ni se promete uno concreto en la ayuda, porque un nombre fijo
+// deja la IA muerta en cuanto el proveedor lo retira. Ahora el catálogo manda a buscar los modelos
+// reales de la cuenta, y lo que se comprueba es que el valor por defecto esté entre los preferidos
+// —que a su vez se cruzan con lo que la API dice tener antes de usarse.
+test('el catálogo manda a buscar modelos reales en vez de prometer uno concreto', async () => {
   const catalog = await import('../../lib/integrations-catalog.ts')
   const deepseek = catalog.INTEGRATION_GROUPS.find((g) => g.id === 'deepseek')
   assert.ok(deepseek, 'no existe el grupo deepseek en el catálogo')
   const modelField = deepseek.fields.find((f) => f.key === 'DEEPSEEK_MODEL')
+  assert.match(modelField.help, /Buscar modelos/)
   assert.ok(
-    modelField.help.includes(DEEPSEEK_DEFAULT_MODEL) || modelField.placeholder?.includes(DEEPSEEK_DEFAULT_MODEL),
-    `el catálogo no menciona ${DEEPSEEK_DEFAULT_MODEL} como valor por defecto`
+    DEEPSEEK_MODELOS_PREFERIDOS.includes(DEEPSEEK_DEFAULT_MODEL),
+    'el último recurso debe ser uno de los modelos preferidos'
   )
 })
