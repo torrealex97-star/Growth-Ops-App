@@ -6,6 +6,7 @@ import { sql } from '@/lib/vsl/db'
 import { mapKey, slugify } from '@/lib/qualification'
 import { notifyCreatuagente, toZonedISO, addMinutesISO } from '@/lib/creatuagente'
 import { getTenantConfigWithFallback } from '@/lib/config'
+import { getOrCreateContact } from '@/lib/contacts/resolve'
 
 export const runtime = 'nodejs'
 
@@ -170,38 +171,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     qualification.respuestas = respuestas
 
     // --- Resolver / crear contacto ---
-    let contact: { id: string } | null = null
-    if (email) {
-      const { data } = await sb.from('contacts').select('id').eq('email', email).eq('tenant_id', tenantId).maybeSingle()
-      contact = data
+    // Atómico en la base de datos: Calendly reintenta la misma entrega, y el check-then-insert que
+    // había aquí creaba dos contactos para el mismo lead cuando dos entregas se solapaban.
+    if (!email && !phone) return NextResponse.json({ error: 'Sin email ni teléfono' }, { status: 400 })
+    const parts = (fullName || '').split(' ')
+    const resolved = await getOrCreateContact(sb, tenantId, {
+      email,
+      phone,
+      fullName,
+      firstName: parts[0] || null,
+      lastName: parts.slice(1).join(' ') || null,
+      instagram: instagramFromForm,
+      age: ageFromForm,
+      leadStatus: 'agendado',
+      seenAt: now,
+    })
+    if (!resolved.ok) {
+      return NextResponse.json({ error: 'Error creando contacto', detail: resolved.error }, { status: 500 })
     }
-    if (!contact && phone) {
-      const { data } = await sb.from('contacts').select('id').eq('phone', phone).eq('tenant_id', tenantId).maybeSingle()
-      contact = data
-    }
-    if (!contact) {
-      if (!email && !phone) return NextResponse.json({ error: 'Sin email ni teléfono' }, { status: 400 })
-      const parts = (fullName || '').split(' ')
-      const { data, error } = await sb
-        .from('contacts')
-        .insert({
-          tenant_id: tenantId,
-          full_name: fullName || 'Sin nombre',
-          first_name: parts[0] || null,
-          last_name: parts.slice(1).join(' ') || null,
-          email,
-          phone,
-          instagram: instagramFromForm,
-          age: ageFromForm,
-          lead_status: 'agendado',
-          first_seen_at: now,
-          last_seen_at: now,
-        })
-        .select('id')
-        .single()
-      if (error) return NextResponse.json({ error: 'Error creando contacto', detail: error.message }, { status: 500 })
-      contact = data
-    } else {
+    const contact = resolved.contact
+    if (!resolved.created) {
       await sb
         .from('contacts')
         .update({

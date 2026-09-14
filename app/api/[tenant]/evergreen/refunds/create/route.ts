@@ -4,6 +4,7 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 import { calculateNegativeCommissionsForRefund } from '@/lib/commissions/calculator'
 import { recomputeRepCommissionTiers } from '@/lib/commissions/generate'
 import type { Refund, Commission } from '@/lib/types/database'
+import { businessToday } from '@/lib/dates/business'
 
 export const runtime = 'nodejs'
 
@@ -27,7 +28,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (!saleId) return NextResponse.json({ error: 'Falta saleId' }, { status: 400 })
     // Fecha de la devolución: se admite una pasada (asiento contable de algo ya ocurrido) pero
     // NUNCA futura, que descuadraría el P&L del mes en curso con dinero que aún no ha salido.
-    const hoy = new Date().toISOString().slice(0, 10)
+    // Hoy en hora del negocio: con la fecha UTC, entre las 22:00/23:00 y medianoche el plazo de
+    // devolución se comparaba contra el día anterior.
+    const hoy = businessToday()
     if (refundDate && (!/^\d{4}-\d{2}-\d{2}$/.test(refundDate) || refundDate > hoy)) {
       return NextResponse.json({ error: 'La fecha de devolución no es válida o está en el futuro' }, { status: 400 })
     }

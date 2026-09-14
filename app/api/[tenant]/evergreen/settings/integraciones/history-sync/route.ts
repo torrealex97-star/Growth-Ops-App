@@ -9,7 +9,7 @@ export const maxDuration = 300
 import { decideMatch } from '@/lib/fathom/match'
 import { recordSyncRun, SyncBusyError } from '@/lib/integrations/sync-runs'
 import { HISTORY_CAPABILITIES } from '@/lib/integrations/history'
-import { runMetaDailySync, runMetaSync } from '@/lib/meta/sync'
+import { runMetaAdsSync, runMetaDailySync, runMetaSync } from '@/lib/meta/sync'
 import { fetchMeetingsPage, meetingId, meetingSummary, meetingTranscript } from '@/lib/fathom/meetings'
 
 type Json = Record<string, unknown>
@@ -503,7 +503,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         () => runMetaDailySync(sb, auth.tenantId, cfg, dias),
         (r) => ({ rowsWritten: r.daysSynced, failures: r.failures, detail: { cuentas: r.accounts, dias } })
       )
-      return NextResponse.json({ provider: 'meta', campañas, diario, sinceDays: dias })
+      const anuncios = await recordSyncRun(
+        sb,
+        { tenantId: auth.tenantId, provider: 'meta', job: 'meta-ads', trigger: 'historico', secrets },
+        () => runMetaAdsSync(sb, auth.tenantId, cfg),
+        (r) => ({ rowsWritten: r.adsSynced, failures: r.failures, detail: { cuentas: r.accounts } })
+      )
+      return NextResponse.json({ provider: 'meta', campañas, diario, anuncios, sinceDays: dias })
     }
     if (body.provider === 'ghl') return NextResponse.json(await syncGhl(sb, auth.tenantId, cfg))
     if (body.provider === 'calendly') return NextResponse.json(await syncCalendly(sb, auth.tenantId, cfg))

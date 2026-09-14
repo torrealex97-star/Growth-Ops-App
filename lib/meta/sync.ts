@@ -370,7 +370,7 @@ export async function runMetaDailySync(
   const failures: string[] = []
   const perAccount = await Promise.all(
     configs.map((cfg) =>
-      syncDailyOneAccount(sb, tenantId, cfg, campaignByExt, sinceDays, failures).catch((err) => {
+      syncDailyOneAccount(sb, tenantId, cfg, campaignByExt, sinceDays, at, failures).catch((err) => {
         // Antes este catch devolvía 0 y se comía el motivo: una cuenta que falla entera se leía
         // como "esta cuenta no gastó nada".
         failures.push(`Cuenta ${cfg.accountId}: ${err instanceof Error ? err.message : 'error desconocido'}`)
@@ -392,6 +392,7 @@ async function syncDailyOneAccount(
   cfg: MetaConfig,
   campaignByExt: Map<string, string>,
   sinceDays: number,
+  at: string,
   failures: string[]
 ): Promise<number> {
   const { rows: daily, truncated } = await fetchMetaDailyInsights(cfg, sinceDays)
@@ -402,6 +403,43 @@ async function syncDailyOneAccount(
     failures.push(
       `El histórico de ${cfg.accountId} se quedó a medias: Meta tenía más páginas de las que cabían. Vuelve a lanzar "Cargar histórico" o pide un rango más corto.`
     )
+  }
+  // Meta puede devolver gasto histórico de campañas archivadas/eliminadas que ya no aparecen en
+  // `/{ad_account}/campaigns`. Esas filas no son inventadas: el propio insight trae el id y nombre
+  // canónicos. Materializamos la campaña mínima para conservar el gasto y evitar huérfanos.
+  const missingCampaigns = Array.from(
+    new Map(
+      daily
+        .filter((d) => d.campaign_id && !campaignByExt.has(d.campaign_id))
+        .map((d) => [d.campaign_id, d.campaign_name || d.campaign_id])
+    )
+  )
+  for (const [externalId, name] of missingCampaigns) {
+    const { data, error } = await sb
+      .from('campaigns')
+      .upsert(
+        {
+          tenant_id: tenantId,
+          provider: 'meta',
+          external_id: externalId,
+          account_id: cfg.accountId,
+          account_name: cfg.accountName || null,
+          name,
+          channel: 'meta_ads',
+          status: 'finalizada',
+          synced_at: at,
+        },
+        { onConflict: 'tenant_id,provider,external_id' }
+      )
+      .select('id')
+      .single()
+    if (error || !data) {
+      failures.push(
+        `No se pudo recuperar la campaña histórica "${name}" de ${cfg.accountId}: ${error?.message || 'sin fila'}`
+      )
+      continue
+    }
+    campaignByExt.set(externalId, data.id as string)
   }
   let huerfanos = 0
   const rows = daily

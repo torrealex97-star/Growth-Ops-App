@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { getOrCreateContact } from '@/lib/contacts/resolve'
 import { firstMemberOf, resolveUserIdByTrackingCode } from '@/lib/tracking'
 import { isValidWebhookSecret } from '@/lib/webhooks/verifySecret'
 
@@ -201,60 +202,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // --- 1) Resolver/crear contacto ---
     // Matching por prioridad: ghl_contact_id → email → teléfono. Así leads, contactos
     // y agendas comparten el MISMO contacto (fuente única) y el estado se sincroniza solo.
-    let contact: { id: string; full_name: string | null; ghl_contact_id: string | null } | null = null
-    if (ghlContactId) {
-      const { data } = await sb
-        .from('contacts')
-        .select('id, full_name, ghl_contact_id')
-        .eq('ghl_contact_id', ghlContactId)
-        .eq('tenant_id', tenantId)
-        .maybeSingle()
-      contact = data
+    // Atómico en la base de datos: el check-then-insert que había aquí creaba dos contactos para el
+    // mismo lead cuando dos entregas (reintento de GHL, o GHL y Calendly a la vez) se solapaban.
+    if (!email && !phone && !ghlContactId) {
+      return NextResponse.json(
+        { error: 'Falta email, teléfono o ID de contacto para identificar el contacto' },
+        { status: 400 }
+      )
     }
-    if (!contact && email) {
-      const { data } = await sb
-        .from('contacts')
-        .select('id, full_name, ghl_contact_id')
-        .eq('email', email)
-        .eq('tenant_id', tenantId)
-        .maybeSingle()
-      contact = data
+    const parts = (fullName || '').split(' ')
+    const resolved = await getOrCreateContact(sb, tenantId, {
+      email,
+      phone,
+      ghlContactId,
+      fullName,
+      firstName: parts[0] || null,
+      lastName: parts.slice(1).join(' ') || null,
+      seenAt: now,
+    })
+    if (!resolved.ok) {
+      return NextResponse.json({ error: 'Error creando contacto', detail: resolved.error }, { status: 500 })
     }
-    if (!contact && phone) {
-      const { data } = await sb
-        .from('contacts')
-        .select('id, full_name, ghl_contact_id')
-        .eq('phone', phone)
-        .eq('tenant_id', tenantId)
-        .maybeSingle()
-      contact = data
-    }
-    if (!contact) {
-      if (!email && !phone && !ghlContactId) {
-        return NextResponse.json(
-          { error: 'Falta email, teléfono o ID de contacto para identificar el contacto' },
-          { status: 400 }
-        )
-      }
-      const parts = (fullName || '').split(' ')
-      const { data, error } = await sb
-        .from('contacts')
-        .insert({
-          tenant_id: tenantId,
-          full_name: fullName || 'Sin nombre',
-          first_name: parts[0] || null,
-          last_name: parts.slice(1).join(' ') || null,
-          email,
-          phone,
-          ghl_contact_id: ghlContactId,
-          first_seen_at: now,
-          last_seen_at: now,
-        })
-        .select('id, full_name, ghl_contact_id')
-        .single()
-      if (error) return NextResponse.json({ error: 'Error creando contacto', detail: error.message }, { status: 500 })
-      contact = data
-    } else {
+    const contact = resolved.contact
+    if (!resolved.created) {
       await sb
         .from('contacts')
         .update({

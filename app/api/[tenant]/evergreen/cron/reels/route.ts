@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { generateDraftForMedia, type CompetitorMediaRow } from '@/lib/reels/generate'
 import { getTenantConfigWithFallback } from '@/lib/config'
+import { businessToday } from '@/lib/dates/business'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -24,7 +25,8 @@ async function runForTenant(
   tenantId: string,
   startedAt: number
 ): Promise<{ created: number; skipped: number; errors: number; note?: string }> {
-  const today = new Date().toISOString().slice(0, 10)
+  // Hoy en hora del negocio: el cupo diario de borradores se cuenta por el día que ve el equipo.
+  const today = businessToday()
   // Clave de Groq de ESTA subcuenta: antes la transcripción la leía de process.env, así que la clave
   // guardada en Integraciones no se usaba y el gasto podía cargarse a la cuenta de otra subcuenta.
   const groqKey = (await getTenantConfigWithFallback(tenantId)).GROQ_API_KEY
