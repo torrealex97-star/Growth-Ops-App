@@ -2,6 +2,71 @@
 
 Última actualización: 2026-09-14 (Claude Code)
 
+## SESIÓN 2026-09-14 (cierre) — los tres pendientes de la ultra review + consolidación con Codex
+
+Rama: `claude/app-continuation-lpbupf`, empujada. 336 tests en verde (151 + 185), typecheck, lint,
+format, knip y `next build` completo.
+
+### Qué se cerró
+
+1. **Fecha del negocio, no de UTC.** `lib/dates/business.ts` (`businessToday` / `businessYm`,
+   Europe/Madrid) aplicado en los crons de recordatorios y reels, la ruta de reels y la creación de
+   devoluciones. Entre las 22:00/23:00 y medianoche el servidor seguía en el día anterior: una cuota
+   vencía o un borrador contaba en el día que no toca, y el tramo del rep se medía con el mes
+   equivocado dos horas al mes (en Nochevieja, con el año equivocado).
+2. **`admin/backfill-stripe-sales` acotado a su subcuenta.** Aplica un precio FIJO (1497/1997 según
+   la fecha) y busca el producto por nombre: se escribió para la migración puntual de
+   `women-digital-closer`. Cualquier admin o director de otra subcuenta podía ejecutarlo y llenarse
+   las ventas de importes inventados que encima parecen reales. Ahora hay puerta por slug antes de
+   tocar Stripe, con un 400 que apunta al importador correcto, y la respuesta declara la política de
+   precio para que quien mire el dryRun no tenga que leer el código.
+3. **Carrera de contactos duplicados cerrada.** Ver abajo: había dos soluciones al mismo bug y se
+   unificaron.
+
+### Consolidación con el trabajo de Codex (commit `3f0c87c`)
+
+Codex y esta sesión atacaron la misma carrera (los webhooks de Calendly y GHL hacían check-then-insert,
+así que dos entregas concurrentes del mismo lead creaban dos contactos y partían su historial). No se
+descartó nada: se unificaron en una sola solución.
+
+- **Se conserva de Codex**: las columnas generadas `email_normalized` / `phone_normalized` (una sola
+  definición de "mismo email"/"mismo teléfono", en la base de datos) y el UNIQUE parcial sobre
+  `(tenant_id, email_normalized)` con su guardián, que lista los duplicados históricos en vez de
+  fusionar por su cuenta.
+- **Cambia**: el UNIQUE del email pasa a su propia migración y la última
+  (`20260914160000_contacts_email_unique.sql`), porque puede no poder crearse todavía; separado, su
+  fallo dice exactamente qué fusionar y no bloquea al resto. Se retira el UNIQUE sobre el teléfono
+  —un número compartido es legítimo (una pareja, una familia, el fijo de una empresa)— y queda un
+  índice no único para el encaje.
+- **La atomicidad se resuelve en la base de datos**, no reaccionando al 23505:
+  `contacts_get_or_create` (`20260914150000`) serializa la ventana con un advisory lock de
+  transacción por clave de identidad (subcuenta + email / teléfono / id de GHL). No necesita datos
+  limpios, y cubre también el encaje por teléfono y por id de GHL, que no tienen UNIQUE. Reproducido
+  en Postgres 16 local con dos sesiones solapadas: la lógica antigua deja 2 filas, la función 1.
+- De paso, una coincidencia ya fusionada sigue el puntero `merged_into` hasta el primario: antes una
+  cita nueva de un lead fusionado aterrizaba en el duplicado muerto y volvía a partir el historial
+  recién unificado.
+
+### Lo que TE toca a ti (además de lo de la sesión anterior, más abajo)
+
+1. **Aplicar, en este orden**: `20260914120000_tenant_scope_provider_uniques.sql`,
+   `20260914130000_contacts_identity_uniques.sql`, `20260914150000_contacts_get_or_create.sql`,
+   `20260914160000_contacts_email_unique.sql`.
+   - La de `20260914120000` puede fallar listando referencias de pago duplicadas (dinero): hay que
+     resolverlas a mano.
+   - La de `20260914160000` puede fallar listando contactos que comparten email: se fusionan en
+     Configuración → Data Health → "Fusionar duplicados" y se vuelve a aplicar. **Que falle no deja
+     el bug abierto**: la carrera ya la cierra `20260914150000`.
+2. **Rotar el Google Client Secret** que se pegó en el chat.
+
+### Límite conocido
+
+La normalización del teléfono quita símbolos, no reescribe prefijos: `+34612345678` y `0034612345678`
+siguen siendo dos identidades distintas para el encaje. No se toca sin ver datos reales — reescribir
+prefijos a ciegas fusiona contactos que no son la misma persona.
+
+---
+
 ## SESIÓN 2026-09-14 — barrido de bugs por toda la app
 
 Rama: `claude/app-continuation-lpbupf`. Árbol limpio, todo empujado. 314 tests en verde (138 + 176),

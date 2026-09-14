@@ -307,6 +307,18 @@ test('la sync de Meta no se traga ningún fallo de escritura', () => {
   assert.match(code, /failures,\s*\}/)
 })
 
+test('el histórico de Meta recupera campañas archivadas y sincroniza también anuncios', () => {
+  const sync = sinComentarios(read('lib/meta/sync.ts'))
+  const client = sinComentarios(read('lib/meta/client.ts'))
+  const history = sinComentarios(read('app/api/[tenant]/evergreen/settings/integraciones/history-sync/route.ts'))
+
+  assert.match(client, /campaign_id,campaign_name,spend/, 'el gasto diario no trae el nombre canónico')
+  assert.match(sync, /missingCampaigns/, 'las campañas que solo aparecen en insights siguen huérfanas')
+  assert.match(sync, /onConflict: 'tenant_id,provider,external_id'/, 'el rescate no es idempotente por tenant')
+  assert.match(history, /runMetaAdsSync/, 'Cargar histórico sigue dejando campaign_ads vacía')
+  assert.match(history, /job: 'meta-ads'/, 'los anuncios no quedan registrados en el historial')
+})
+
 // "He borrado el App Secret y sigue dando el mismo error": el valor borrado de la base de datos
 // seguía vivo en process.env el resto de la vida de la lambda, porque ensureConfig lo había volcado.
 test('borrar un campo lo borra de verdad: cuenta filas y retira el valor del proceso', () => {

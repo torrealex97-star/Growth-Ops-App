@@ -16,6 +16,14 @@ export const maxDuration = 300
 //   es exacto. Idempotente: si ya existe un collection con esa referencia de Stripe, se salta.
 // - Se omiten los contactos de Stripe que YA tienen alguna venta registrada en la app (evita
 //   duplicar ingresos/comisiones de algo ya registrado a mano).
+// ACOTADO A LA SUBCUENTA PARA LA QUE SE ESCRIBIÓ. Este backfill NO usa el importe real de Stripe:
+// aplica un precio fijo (1497/1997 según la fecha) y busca un producto cuyo nombre case con
+// "women digital closer". Eso es correcto para la migración puntual de WDC —se pidió así— y es
+// inventar datos financieros en cualquier otra subcuenta. Un admin de otra subcuenta que lo
+// ejecutara se llenaría las ventas con precios que no son los suyos, y encima parecerían reales.
+// Se comprueba por slug, que es lo que identifica la subcuenta en la URL.
+const TENANT_DISEÑADO = 'women-digital-closer'
+
 const PRICE_CUTOFF = new Date('2026-08-01T00:00:00Z').getTime()
 const PRICE_BEFORE = 1497
 const PRICE_FROM = 1997
@@ -137,6 +145,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   if ('error' in auth) return auth.error
   if (!auth.isSuperAdmin && !['admin', 'director'].includes(auth.role ?? '')) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
+  if (tenant !== TENANT_DISEÑADO) {
+    return NextResponse.json(
+      {
+        error: `Este backfill aplica un precio FIJO (${PRICE_BEFORE}€ / ${PRICE_FROM}€) en vez del importe real de Stripe, y busca un producto de "${TENANT_DISEÑADO}". Ejecutarlo en "${tenant}" inventaría importes. Para importar pagos de Stripe como ventas usa Integraciones › Stripe › "Buscar pagos sin registrar", que usa el importe real y te deja elegir producto y plan.`,
+      },
+      { status: 400 }
+    )
   }
 
   const body = (await req.json().catch(() => ({}))) as { ownerEmail?: string; dryRun?: boolean }
@@ -303,5 +319,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
   }
 
-  return NextResponse.json(results)
+  // La política de precio va EN LA RESPUESTA: quien mire el dryRun tiene que ver, sin leer el
+  // código, que los importes de las ventas son fijos y no los de Stripe (los cobros sí son reales).
+  return NextResponse.json({
+    ...results,
+    politicaDePrecio: `Venta a precio FIJO: ${PRICE_BEFORE}€ si el primer pago es anterior a 2026-08, ${PRICE_FROM}€ desde entonces. Los COBROS sí usan el importe real de cada pago de Stripe.`,
+  })
 }

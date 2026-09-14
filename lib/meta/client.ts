@@ -360,6 +360,7 @@ export async function fetchMetaInsights(
 // el gasto por rango real (este mes, este trimestre…) en vez de mostrar el total histórico.
 export type MetaDailyInsight = {
   campaign_id: string
+  campaign_name: string
   date: string // YYYY-MM-DD
   spend: number
   impressions: number
@@ -381,7 +382,7 @@ export async function fetchMetaDailyInsights(cfg: MetaConfig, sinceDays = 180): 
   const since = new Date()
   since.setDate(since.getDate() - Math.max(1, sinceDays))
   const timeRange = encodeURIComponent(JSON.stringify({ since: ymd(since), until: ymd(until) }))
-  const fields = 'campaign_id,spend,impressions,clicks,inline_link_clicks,reach,actions'
+  const fields = 'campaign_id,campaign_name,spend,impressions,clicks,inline_link_clicks,reach,actions'
   const url =
     `${GRAPH}/${cfg.version}/${cfg.accountId}/insights` +
     `?level=campaign&fields=${fields}&time_increment=1&time_range=${timeRange}&limit=500` +
@@ -393,6 +394,7 @@ export async function fetchMetaDailyInsights(cfg: MetaConfig, sinceDays = 180): 
   const { rows, truncated } = await graphGetAll(url, maxPages)
   const mapped = rows.map((r: any) => ({
     campaign_id: String(r.campaign_id),
+    campaign_name: String(r.campaign_name || r.campaign_id),
     date: String(r.date_start || '').slice(0, 10),
     spend: Number(r.spend) || 0,
     impressions: Number(r.impressions) || 0,

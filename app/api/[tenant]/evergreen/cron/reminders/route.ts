@@ -1,13 +1,16 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getTenantConfigWithFallback } from '@/lib/config'
+import { businessToday } from '@/lib/dates/business'
 
 export const runtime = 'nodejs'
 
 // Corre los tres pasos del cron de recordatorios para UNA subcuenta (todas las
 // lecturas/escrituras van filtradas por tenant_id).
 async function runForTenant(sb: SupabaseClient, tenantId: string) {
-  const today = new Date().toISOString().slice(0, 10)
+  // Hoy EN HORA DEL NEGOCIO: con la fecha UTC, una cuota que vence hoy en España se marcaba
+  // vencida (o no) según la hora a la que corriera el cron.
+  const today = businessToday()
   const { data, error } = await sb
     .from('sale_expected_installments')
     .update({ status: 'overdue' })
