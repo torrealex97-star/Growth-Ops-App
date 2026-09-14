@@ -111,6 +111,16 @@ export const NAV_SECTIONS: NavSection[] = [
             roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'],
           },
           {
+            // El pipeline comercial. No es una pantalla nueva: es la vista kanban que ya vivía en
+            // Seguimiento, sobre appointments.followup_stage. Se enlaza directa con ?view=kanban y
+            // se coloca detrás de Agendas porque ese es el recorrido del día: qué tengo hoy, y en
+            // qué estado está cada oportunidad. Contactos es una consulta, así que va después.
+            label: 'Pipeline',
+            href: '/crm/seguimiento?view=kanban',
+            icon: ClipboardList,
+            roles: [...LEAD, 'setter', 'closer', 'cold_caller'],
+          },
+          {
             label: 'Contactos',
             href: '/crm/contactos',
             icon: UserRound,
@@ -121,12 +131,6 @@ export const NAV_SECTIONS: NavSection[] = [
             href: '/crm/contactos?view=leads',
             icon: Inbox,
             roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'],
-          },
-          {
-            label: 'Seguimiento',
-            href: '/crm/seguimiento',
-            icon: ClipboardList,
-            roles: [...LEAD, 'setter', 'closer', 'cold_caller'],
           },
           {
             // Cola de reuniones de Fathom que el sync no pudo atribuir sin adivinar. Está en el menú

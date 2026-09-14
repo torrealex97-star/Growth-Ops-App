@@ -71,3 +71,26 @@ test('el CRM sigue abriendo en Agendas y Contactos no es el destino por defecto'
   assert.match(src, /\/crm\/agendas/)
   assert.doesNotMatch(src, /redirect\(`\/\$\{tenant\}\/crm\/contactos`\)/)
 })
+
+// El pipeline comercial NO es una pantalla nueva: es la vista kanban que ya existía en Seguimiento,
+// sobre appointments.followup_stage. El menú entra directo a ella. Si alguien construyera un segundo
+// pipeline, este test lo caza: el enlace tiene que seguir apuntando a la pantalla que ya existe.
+test('el Pipeline del CRM reutiliza el kanban de Seguimiento y va detrás de Agendas', () => {
+  const nav = read('lib/nav.ts')
+  const crm = nav.slice(nav.indexOf("label: 'CRM'"), nav.indexOf("label: 'Ventas & Cobros'"))
+  assert.match(crm, /label: 'Pipeline',\n\s+href: '\/crm\/seguimiento\?view=kanban'/)
+
+  const agendas = crm.indexOf("label: 'Agendas'")
+  const pipeline = crm.indexOf("label: 'Pipeline'")
+  const contactos = crm.indexOf("label: 'Contactos'")
+  assert.ok(agendas > -1 && pipeline > -1 && contactos > -1, 'faltan entradas del CRM')
+  assert.ok(agendas < pipeline, 'Agendas debe ser la primera vista del CRM')
+  assert.ok(pipeline < contactos, 'Pipeline debe ir antes que Contactos')
+})
+
+// Y la pantalla tiene que respetar el ?view=kanban del enlace: si no, el menú prometería el pipeline
+// y entregaría la tabla.
+test('Seguimiento abre en la vista que pide la URL', () => {
+  const src = read('app/[tenant]/crm/seguimiento/page.tsx')
+  assert.match(src, /readEnum\(searchParams\.get\('view'\), \['tabla', 'kanban'\] as const, 'tabla'\)/)
+})
