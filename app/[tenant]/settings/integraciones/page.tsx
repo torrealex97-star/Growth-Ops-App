@@ -1344,6 +1344,36 @@ export default function IntegracionesPage() {
                                             ? `Hay ${otros.length} que necesitan otra cosa (sin contacto, reembolsados o no completados).`
                                             : ''}
                                         </p>
+                                      ) : (catalogo?.products ?? []).length === 0 ||
+                                        (catalogo?.plans ?? []).length === 0 ? (
+                                        // SIN CATÁLOGO NO SE PUEDE REGISTRAR, y antes eso se veía como
+                                        // dos desplegables vacíos y un botón que no se activaba nunca,
+                                        // sin decir por qué. Una venta necesita producto Y plan de pago:
+                                        // el plan es el que fija el precio, el nº de cuotas y qué parte
+                                        // del bruto genera comisión.
+                                        <div className="border-border bg-card/60 rounded-lg border p-3">
+                                          <p className="text-foreground text-xs font-medium">
+                                            Faltan datos de catálogo en esta subcuenta
+                                          </p>
+                                          <p className="text-muted-foreground mt-1 text-xs">
+                                            Hay {registrables.length} pagos listos para registrar, pero una venta
+                                            necesita un producto y un plan de pago, y aquí{' '}
+                                            {(catalogo?.products ?? []).length === 0 &&
+                                            (catalogo?.plans ?? []).length === 0
+                                              ? 'no hay ninguno de los dos'
+                                              : (catalogo?.products ?? []).length === 0
+                                                ? 'no hay ningún producto'
+                                                : 'no hay ningún plan de pago'}
+                                            . El plan es el que fija el precio, el número de cuotas y qué parte del
+                                            bruto genera comisión: por eso no se puede elegir por ti.
+                                          </p>
+                                          <a
+                                            href={`/${tenant}/settings/products`}
+                                            className="text-primary mt-2 inline-block text-xs hover:underline"
+                                          >
+                                            Crear producto y plan de pago →
+                                          </a>
+                                        </div>
                                       ) : (
                                         <>
                                           <div className="flex flex-wrap items-end gap-2">

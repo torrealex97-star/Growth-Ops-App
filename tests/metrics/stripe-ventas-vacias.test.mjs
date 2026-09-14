@@ -88,3 +88,19 @@ test('el cron de Stripe existe, está protegido y NO está programado todavía',
   assert.match(bloque, /scheduler: 'manual'/)
   assert.match(bloque, /manualReason/)
 })
+
+test('sin producto o plan, el importador DICE qué falta en vez de un botón muerto', () => {
+  const ui = read('../../app/[tenant]/settings/integraciones/page.tsx')
+  // El botón "Registrar N ventas" exige producto Y plan. En una subcuenta sin planes de pago, el
+  // desplegable solo tenía "Elige…" y el botón no se activaba nunca, sin explicar por qué: se lee
+  // como "la app está rota".
+  assert.match(ui, /Faltan datos de catálogo en esta subcuenta/)
+  assert.match(
+    ui,
+    /\(catalogo\?\.products \?\? \[\]\)\.length === 0 \|\|\s*\n?\s*\(catalogo\?\.plans \?\? \[\]\)\.length === 0/
+  )
+  // Y se dice POR QUÉ no se puede elegir por el usuario: el plan fija precio, cuotas y comisión.
+  assert.match(ui, /qué parte del\s*\n?\s*bruto genera comisión/)
+  // Con enlace a donde se crean, que existe.
+  assert.match(ui, /\/settings\/products/)
+})
