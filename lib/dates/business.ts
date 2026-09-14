@@ -11,7 +11,7 @@
 // Es la zona del NEGOCIO, no la del contacto: para mandar horas a un lead en LatAm está
 // `lib/timezone.ts`, que la adivina por su teléfono. Aquí se trata de "qué día/mes es para la
 // empresa", que es siempre España.
-export const BUSINESS_TIMEZONE = 'Europe/Madrid'
+const BUSINESS_TIMEZONE = 'Europe/Madrid'
 
 // en-CA formatea como YYYY-MM-DD, así que la fecha ya convertida a la zona sale lista para comparar
 // con una columna DATE de Postgres y para cortarla por caracteres.

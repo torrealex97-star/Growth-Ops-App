@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { getOrCreateContact } from '@/lib/contacts/resolve'
 import { firstMemberOf, resolveUserIdByTrackingCode } from '@/lib/tracking'
 import { isValidWebhookSecret } from '@/lib/webhooks/verifySecret'
-import { upsertContactByIdentity } from '@/lib/contacts/upsert'
 
 // Webhook único de GHL (+ player VSL). Maneja, de forma IDEMPOTENTE, varios eventos:
 //   - lead opt-in (solo contacto + atribución, sin agenda)
@@ -202,6 +202,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // --- 1) Resolver/crear contacto ---
     // Matching por prioridad: ghl_contact_id → email → teléfono. Así leads, contactos
     // y agendas comparten el MISMO contacto (fuente única) y el estado se sincroniza solo.
+    // Atómico en la base de datos: el check-then-insert que había aquí creaba dos contactos para el
+    // mismo lead cuando dos entregas (reintento de GHL, o GHL y Calendly a la vez) se solapaban.
     if (!email && !phone && !ghlContactId) {
       return NextResponse.json(
         { error: 'Falta email, teléfono o ID de contacto para identificar el contacto' },
@@ -209,42 +211,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       )
     }
     const parts = (fullName || '').split(' ')
-    let contact: { id: string; full_name: string | null; ghl_contact_id: string | null }
-    try {
-      const saved = await upsertContactByIdentity(
-        sb,
-        tenantId,
-        {
-          full_name: fullName || 'Sin nombre',
-          first_name: parts[0] || null,
-          last_name: parts.slice(1).join(' ') || null,
-          email,
-          phone,
-          ghl_contact_id: ghlContactId,
-          first_seen_at: now,
+    const resolved = await getOrCreateContact(sb, tenantId, {
+      email,
+      phone,
+      ghlContactId,
+      fullName,
+      firstName: parts[0] || null,
+      lastName: parts.slice(1).join(' ') || null,
+      seenAt: now,
+    })
+    if (!resolved.ok) {
+      return NextResponse.json({ error: 'Error creando contacto', detail: resolved.error }, { status: 500 })
+    }
+    const contact = resolved.contact
+    if (!resolved.created) {
+      await sb
+        .from('contacts')
+        .update({
           last_seen_at: now,
-        },
-        'id, full_name, ghl_contact_id'
-      )
-      contact = saved.data as typeof contact
-      if (!saved.created) {
-        const { error } = await sb
-          .from('contacts')
-          .update({
-            last_seen_at: now,
-            ...(fullName && !contact.full_name ? { full_name: fullName } : {}),
-            ...(phone ? { phone } : {}),
-            ...(ghlContactId && !contact.ghl_contact_id ? { ghl_contact_id: ghlContactId } : {}),
-          })
-          .eq('id', contact.id)
-          .eq('tenant_id', tenantId)
-        if (error) throw error
-      }
-    } catch (error) {
-      return NextResponse.json(
-        { error: 'Error guardando contacto', detail: error instanceof Error ? error.message : String(error) },
-        { status: 500 }
-      )
+          ...(fullName && !contact.full_name ? { full_name: fullName } : {}),
+          ...(phone ? { phone } : {}),
+          // Backfill del ID de GHL si aún no lo teníamos
+          ...(ghlContactId && !contact.ghl_contact_id ? { ghl_contact_id: ghlContactId } : {}),
+        })
+        .eq('id', contact.id)
+        .eq('tenant_id', tenantId)
     }
 
     // --- Cualificación del formulario (si GHL la reenvía) ---

@@ -1,5 +1,8 @@
--- Identidades normalizadas por subcuenta. Las columnas generadas conservan el valor original para
--- presentación, pero ofrecen una clave estable para webhooks concurrentes y formatos equivalentes.
+-- Identidades normalizadas por subcuenta. Las columnas originales conservan el valor tal como llegó
+-- (para presentación); las generadas dan una clave estable para comparar: "  Alex@Example.COM " y
+-- "alex@example.com" son la misma persona, y "+34 612-345-678" y "34612345678" el mismo teléfono.
+-- Antes cada webhook comparaba el valor crudo, así que la misma persona entraba dos veces por venir
+-- escrita distinta.
 ALTER TABLE public.contacts
   ADD COLUMN IF NOT EXISTS email_normalized text
   GENERATED ALWAYS AS (NULLIF(lower(btrim(email)), '')) STORED;
@@ -8,41 +11,18 @@ ALTER TABLE public.contacts
   ADD COLUMN IF NOT EXISTS phone_normalized text
   GENERATED ALWAYS AS (NULLIF(regexp_replace(phone, '[^0-9]', '', 'g'), '')) STORED;
 
-DO $$
-DECLARE
-  duplicates text;
-BEGIN
-  SELECT string_agg(format('%s/%s (%s)', tenant_id, email_normalized, n), ', ')
-    INTO duplicates
-    FROM (
-      SELECT tenant_id, email_normalized, count(*) AS n
-      FROM public.contacts
-      WHERE email_normalized IS NOT NULL
-      GROUP BY tenant_id, email_normalized
-      HAVING count(*) > 1
-    ) d;
-  IF duplicates IS NOT NULL THEN
-    RAISE EXCEPTION 'Contactos duplicados por email normalizado: %', duplicates;
-  END IF;
-
-  SELECT string_agg(format('%s/%s (%s)', tenant_id, phone_normalized, n), ', ')
-    INTO duplicates
-    FROM (
-      SELECT tenant_id, phone_normalized, count(*) AS n
-      FROM public.contacts
-      WHERE phone_normalized IS NOT NULL
-      GROUP BY tenant_id, phone_normalized
-      HAVING count(*) > 1
-    ) d;
-  IF duplicates IS NOT NULL THEN
-    RAISE EXCEPTION 'Contactos duplicados por teléfono normalizado: %', duplicates;
-  END IF;
-END $$;
-
-CREATE UNIQUE INDEX IF NOT EXISTS contacts_tenant_email_normalized_key
+-- Índices por subcuenta para el encaje de contacto de los webhooks (contacts_get_or_create).
+CREATE INDEX IF NOT EXISTS contacts_tenant_email_normalized_idx
   ON public.contacts (tenant_id, email_normalized)
   WHERE email_normalized IS NOT NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS contacts_tenant_phone_normalized_key
+CREATE INDEX IF NOT EXISTS contacts_tenant_phone_normalized_idx
   ON public.contacts (tenant_id, phone_normalized)
   WHERE phone_normalized IS NOT NULL;
+
+-- NO se pone UNIQUE sobre el teléfono normalizado, ni ahora ni después. Un teléfono compartido es
+-- legítimo y frecuente (una pareja, una familia apuntando a dos niños, el fijo de una empresa con
+-- dos interlocutores): un UNIQUE ahí rechazaría contactos reales. El teléfono sirve para ENCAJAR un
+-- lead, no para afirmar que dos personas con el mismo número son la misma.
+-- El UNIQUE sobre el email normalizado sí va, en su propia migración
+-- (20260914160000_contacts_email_unique.sql), porque exige que el histórico esté limpio primero.
