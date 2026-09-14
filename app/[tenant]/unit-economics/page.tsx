@@ -11,6 +11,7 @@ import {
   buildChannelRows,
   buildSalesOverview,
   type AttributionFilter,
+  type FathomSinCita,
   type CampaignRow,
   type SaleRow,
   type ContactRow,
@@ -158,6 +159,8 @@ export default function UnitEconomicsPage() {
   const [customTo, setCustomTo] = useState('')
   const [loading, setLoading] = useState(true)
   const [daily, setDaily] = useState<DailyRow[]>([])
+  // Reuniones grabadas en Fathom que no casaron con ninguna cita: son llamadas que ocurrieron.
+  const [fathomSueltas, setFathomSueltas] = useState<FathomSinCita[]>([])
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([])
   const [sales, setSales] = useState<SaleRow[]>([])
   const [collections, setCollections] = useState<CollectionRow[]>([])
@@ -168,7 +171,7 @@ export default function UnitEconomicsPage() {
     let mounted = true
     async function load() {
       const supabase = createClient()
-      const [campRes, salesRes, collRes, contactsRes, apptRes, dailyRes] = await Promise.all([
+      const [campRes, salesRes, collRes, contactsRes, apptRes, dailyRes, fathomRes] = await Promise.all([
         supabase
           .from('campaigns')
           .select('id, channel, adspend, leads_generated, impressions, clicks, account_id')
@@ -190,6 +193,11 @@ export default function UnitEconomicsPage() {
           .from('campaign_daily')
           .select('campaign_id, date, spend, impressions, clicks, leads, account_id')
           .range(0, FINANCE_QUERY_ROW_CAP),
+        supabase
+          .from('fathom_match_review')
+          .select('meeting_started_at, invitee_email')
+          .eq('status', 'pendiente')
+          .range(0, FINANCE_QUERY_ROW_CAP),
       ])
       if (!mounted) return
       setCampaigns(campRes.data || [])
@@ -198,6 +206,7 @@ export default function UnitEconomicsPage() {
       setContacts(contactsRes.data || [])
       setAppointments(apptRes.data || [])
       setDaily(dailyRes.data || [])
+      setFathomSueltas(fathomRes.data || [])
       setLoading(false)
     }
     load()
@@ -286,9 +295,13 @@ export default function UnitEconomicsPage() {
     () => (hayPeriodo ? appointments.filter((a) => inPeriod(a.appointment_datetime, rango)) : appointments),
     [appointments, hayPeriodo, rango]
   )
+  const fathomVisible = useMemo(
+    () => (hayPeriodo ? fathomSueltas.filter((f) => inPeriod(f.meeting_started_at, rango)) : fathomSueltas),
+    [fathomSueltas, hayPeriodo, rango]
+  )
   const ventas = useMemo(
-    () => buildSalesOverview(agendasVisibles, ventasVisibles, contacts, origen),
-    [agendasVisibles, ventasVisibles, contacts, origen]
+    () => buildSalesOverview(agendasVisibles, ventasVisibles, contacts, origen, new Date(), fathomVisible),
+    [agendasVisibles, ventasVisibles, contacts, origen, fathomVisible]
   )
 
   const hasData = campaignsVisibles.length > 0 || sales.length > 0 || appointments.length > 0
@@ -418,7 +431,11 @@ export default function UnitEconomicsPage() {
             loading={loading}
             // Una cita futura no cuenta como asistencia todavía: contarla daría un show-up que aún
             // no ha ocurrido, y con esa cifra se decide.
-            description="Citas no canceladas que ya han pasado"
+            description={
+              ventas.llamadasSinCita > 0
+                ? `Incluye ${ventas.llamadasSinCita.toLocaleString('es-ES')} llamadas grabadas en Fathom sin cita asociada`
+                : 'Citas no canceladas que ya han pasado'
+            }
           />
           <KPICard
             title="Ventas"

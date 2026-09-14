@@ -76,9 +76,56 @@ test('la pantalla separa lo global de lo atribuido a anuncios', () => {
   const page = readFileSync(new URL('../../app/[tenant]/unit-economics/page.tsx', import.meta.url), 'utf8')
   assert.match(page, /Ventas y agendas/)
   assert.match(page, /Todos los orígenes/)
-  assert.match(page, /buildSalesOverview\(agendasVisibles, ventasVisibles, contacts, origen\)/)
+  assert.match(
+    page,
+    /buildSalesOverview\(agendasVisibles, ventasVisibles, contacts, origen, new Date\(\), fathomVisible\)/
+  )
+  // Las llamadas de Fathom sin cita se leen de la cola de revisión, no de una tabla inventada.
+  assert.match(page, /from\('fathom_match_review'\)/)
+  assert.match(page, /\.eq\('status', 'pendiente'\)/)
   // El embudo de marketing sigue siendo el atribuido, y ahora lo dice.
   // Se normalizan los espacios: el ancho de línea lo decide prettier, no el test.
   const texto = page.replace(/\s+/g, ' ')
   assert.match(texto, /solo lo que viene de anuncios/)
+})
+
+test('las llamadas de Fathom sin cita cuentan como llamadas reales', () => {
+  // Están grabadas y transcritas: ocurrieron. Que no casaran con una cita de Calendly no las borra.
+  const fathom = [{ meeting_started_at: '2026-09-01T10:00:00Z' }, { meeting_started_at: '2026-09-02T10:00:00Z' }]
+  const r = buildSalesOverview([cita('scheduled', -1, 'c1')], [], [], 'todos', AHORA, fathom)
+  assert.equal(r.shows, 3, '1 cita pasada + 2 llamadas de Fathom')
+  assert.equal(r.llamadasSinCita, 2, 'se ven aparte, no escondidas dentro del total')
+})
+
+test('no se les inventa un origen: solo suman cuando se miran todos', () => {
+  // Sin contacto no hay campaña que mirar, así que meterlas en "solo anuncios" sería atribuirles una
+  // procedencia que no tienen.
+  const fathom = [{ meeting_started_at: '2026-09-01T10:00:00Z' }]
+  const contactos = [{ id: 'c1', campaign_id: 'camp1' }]
+  const ads = buildSalesOverview([cita('scheduled', -1, 'c1')], [], contactos, 'ads', AHORA, fathom)
+  assert.equal(ads.llamadasSinCita, 0)
+  assert.equal(ads.shows, 1, 'solo la cita atribuida')
+})
+
+test('la asistencia no puede pasar del 100 % por sumar llamadas no agendadas', () => {
+  // El numerador de asistencia mide lo AGENDADO que se presentó; las llamadas sin cita nunca se
+  // agendaron, así que entran en shows pero no en esa tasa.
+  const fathom = Array.from({ length: 50 }, () => ({ meeting_started_at: '2026-09-01T10:00:00Z' }))
+  const r = buildSalesOverview([cita('scheduled', -1, 'c1')], [], [], 'todos', AHORA, fathom)
+  assert.equal(r.shows, 51)
+  assert.equal(r.tasaAsistencia, 100, 'una cita agendada, una presentada')
+  assert.ok(r.tasaAsistencia <= 100)
+})
+
+test('con los datos reales: 329 shows de citas + 177 de Fathom', () => {
+  const citas = [
+    ...Array.from({ length: 213 }, (_, i) => cita('cancelled', -1, `x${i}`)),
+    ...Array.from({ length: 329 }, (_, i) => cita('scheduled', -1, `a${i}`)),
+    ...Array.from({ length: 17 }, (_, i) => cita('scheduled', +3, `b${i}`)),
+  ]
+  const fathom = Array.from({ length: 177 }, () => ({ meeting_started_at: '2026-09-01T10:00:00Z' }))
+  const r = buildSalesOverview(citas, [], [], 'todos', AHORA, fathom)
+  assert.equal(r.agendas, 559)
+  assert.equal(r.shows, 506, '329 citas presentadas + 177 llamadas grabadas sin cita')
+  assert.equal(r.llamadasSinCita, 177)
 })

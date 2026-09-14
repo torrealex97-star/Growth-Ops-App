@@ -122,10 +122,18 @@ export function isCancelled(status: string | null | undefined): boolean {
   return CANCELLED_APPOINTMENT_STATUSES.includes((status ?? '').trim().toLowerCase())
 }
 
+/**
+ * Reunión grabada en Fathom que NO se pudo emparejar con ninguna cita del CRM (la cola de revisión).
+ * Son llamadas que OCURRIERON —están grabadas y transcritas— de gente que no tenía cita en Calendly.
+ */
+export type FathomSinCita = { meeting_started_at: string | null; invitee_email?: string | null }
+
 export type SalesOverview = {
   agendas: number
   canceladas: number
   shows: number
+  /** Llamadas de Fathom sin cita asociada, contadas dentro de `shows` pero visibles aparte. */
+  llamadasSinCita: number
   ventas: number
   facturacion: number
   pipeValue: number
@@ -144,7 +152,8 @@ export function buildSalesOverview(
   sales: SaleRow[],
   contacts: ContactRow[],
   filtro: AttributionFilter = 'todos',
-  ahora: Date = new Date()
+  ahora: Date = new Date(),
+  fathomSinCita: FathomSinCita[] = []
 ): SalesOverview {
   const conCampana = new Set(contacts.filter((c) => c.campaign_id).map((c) => c.id))
   const pasaFiltro = (contactId: string | null) => {
@@ -162,6 +171,12 @@ export function buildSalesOverview(
     return Number.isNaN(t) || t <= ahora.getTime()
   })
 
+  // Las reuniones de Fathom sin cita son llamadas que ocurrieron: están grabadas. NO se pueden
+  // atribuir a un origen (no hay contacto con el que mirar la campaña), así que solo cuentan cuando
+  // se está mirando el total. Sumarlas en "solo anuncios" sería inventarles una procedencia.
+  const llamadasSinCita = filtro === 'todos' ? fathomSinCita.length : 0
+  const showsTotales = yaPasadas.length + llamadasSinCita
+
   const ventasActivas = sales.filter((s) => ACTIVE_SALE_STATUSES.includes(s.status) && pasaFiltro(s.contact_id))
   const facturacion = ventasActivas.reduce((a, s) => a + num(s.gross_amount), 0)
   const pipeValue = vivas.reduce((a, s) => a + num(s.pipe_value), 0)
@@ -169,11 +184,14 @@ export function buildSalesOverview(
   return {
     agendas: citas.length,
     canceladas: canceladas.length,
-    shows: yaPasadas.length,
+    shows: showsTotales,
+    llamadasSinCita,
     ventas: ventasActivas.length,
     facturacion,
     pipeValue,
+    // La asistencia se mide SOLO sobre lo agendado: meter en el numerador llamadas que nunca se
+    // agendaron daría porcentajes por encima del 100 %.
     tasaAsistencia: citas.length ? (yaPasadas.length / citas.length) * 100 : null,
-    tasaCierre: yaPasadas.length ? (ventasActivas.length / yaPasadas.length) * 100 : null,
+    tasaCierre: showsTotales ? (ventasActivas.length / showsTotales) * 100 : null,
   }
 }
