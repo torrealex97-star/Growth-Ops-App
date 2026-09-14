@@ -37,6 +37,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTenant } from '@/lib/tenant-context'
+import { isAccountSelected, parseAccountIds, serializeAccountIds, toggleAccountId } from '@/lib/meta/accounts'
 import { brandFor, type Brand } from '@/components/integrations/brands'
 import { historyFor } from '@/lib/integrations/history'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -1016,7 +1017,9 @@ export default function IntegracionesPage() {
                             {metaAccounts && metaAccounts.length > 0 ? (
                               <div className="space-y-1">
                                 {metaAccounts.map((acc) => {
-                                  const elegida = (drafts.META_AD_ACCOUNT_ID ?? '').includes(acc.id)
+                                  // Comparación por id (no por substring: "act_12" hacía salir marcada
+                                  // también a "act_123") y con la MISMA función que usa el servidor.
+                                  const elegida = isAccountSelected(drafts.META_AD_ACCOUNT_ID, acc.id)
                                   return (
                                     <label
                                       key={acc.id}
@@ -1024,11 +1027,16 @@ export default function IntegracionesPage() {
                                         elegida ? 'border-primary/60 bg-primary/5' : 'border-border hover:bg-muted/40'
                                       }`}
                                     >
+                                      {/* Checkbox, no radio: se pueden elegir varias cuentas. */}
                                       <input
-                                        type="radio"
-                                        name="meta-account"
+                                        type="checkbox"
                                         checked={elegida}
-                                        onChange={() => setDrafts({ ...drafts, META_AD_ACCOUNT_ID: acc.id })}
+                                        onChange={() =>
+                                          setDrafts({
+                                            ...drafts,
+                                            META_AD_ACCOUNT_ID: toggleAccountId(drafts.META_AD_ACCOUNT_ID, acc.id),
+                                          })
+                                        }
                                       />
                                       <span className="flex-1">{acc.name}</span>
                                       {/* Una cuenta cerrada o con deuda no devuelve datos: mejor
@@ -1040,8 +1048,35 @@ export default function IntegracionesPage() {
                                     </label>
                                   )
                                 })}
+                                <div className="flex items-center gap-3 pt-1">
+                                  <button
+                                    type="button"
+                                    className="text-primary text-xs hover:underline"
+                                    onClick={() =>
+                                      setDrafts({
+                                        ...drafts,
+                                        META_AD_ACCOUNT_ID: serializeAccountIds(metaAccounts.map((a) => a.id)),
+                                      })
+                                    }
+                                  >
+                                    Seleccionar todas
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="text-muted-foreground text-xs hover:underline"
+                                    onClick={() => setDrafts({ ...drafts, META_AD_ACCOUNT_ID: '' })}
+                                  >
+                                    Ninguna
+                                  </button>
+                                  <span className="text-muted-foreground ml-auto text-xs">
+                                    {parseAccountIds(drafts.META_AD_ACCOUNT_ID).length === 0
+                                      ? 'Sin marcar: se sincronizan TODAS las que vea el token'
+                                      : `${parseAccountIds(drafts.META_AD_ACCOUNT_ID).length} de ${metaAccounts.length} seleccionadas`}
+                                  </span>
+                                </div>
                                 <p className="text-muted-foreground text-xs">
-                                  Déjalas todas sin marcar para sincronizar todas las que vea el token.
+                                  Puedes marcar varias. Déjalas todas sin marcar para sincronizar todas las que vea el
+                                  token. Solo las cuentas seleccionadas alimentan métricas, campañas y los crons.
                                 </p>
                               </div>
                             ) : null}

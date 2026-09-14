@@ -9,6 +9,7 @@ import { createHmac } from 'crypto'
 import { META_API_VERSION } from '@/lib/meta/api-version'
 import { classifyMetaError, MetaError } from '@/lib/meta/errors'
 import { isRetryableCode } from '@/lib/integrations/sync-runs'
+import { parseAccountIds } from '@/lib/meta/accounts'
 
 export type MetaConfig = {
   token: string
@@ -79,22 +80,7 @@ const GRAPH = 'https://graph.facebook.com'
 // Presets válidos de Meta para date_preset. 'maximum' = histórico completo.
 export type MetaDatePreset = 'maximum' | 'this_month' | 'last_month' | 'today' | 'this_year' | 'last_90d' | 'last_30d'
 
-// Normaliza un id de cuenta: acepta "act_123" o "123" → "act_123".
-function normalizeAccountId(raw: string): string {
-  const id = raw.trim()
-  return id.startsWith('act_') ? id : `act_${id}`
-}
-
-// Parte la config de cuentas en una lista. Admite varias cuentas separadas por
-// comas, saltos de línea, espacios o punto y coma. Todas comparten el MISMO token.
-export function parseAccountIds(raw: string | undefined): string[] {
-  if (!raw) return []
-  return raw
-    .split(/[\s,;]+/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map(normalizeAccountId)
-}
+export { parseAccountIds } from '@/lib/meta/accounts'
 
 /**
  * Credenciales de Meta tal y como las guarda la subcuenta. Se pasan EXPLÍCITAMENTE en vez de leerse
