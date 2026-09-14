@@ -54,7 +54,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     let commissionsGenerated = 0
     if (updated && sale) {
-      commissionsGenerated = await generateCommissionsForCollection(sb, updated as Collection, sale as Sale)
+      commissionsGenerated = await generateCommissionsForCollection(sb, t.tenantId, updated as Collection, sale as Sale)
     }
 
     await sb.from('audit_logs').insert({

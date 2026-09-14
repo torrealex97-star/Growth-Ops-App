@@ -116,7 +116,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
     if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 })
 
     // Reconcilia comisiones (positivas no liquidadas) de la venta con los cobros actuales.
-    const recon = await reconcileSaleCommissions(sb, coll.sale_id)
+    const recon = await reconcileSaleCommissions(sb, t.tenantId, coll.sale_id)
 
     await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
@@ -176,7 +176,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     await syncInstallmentStatus(sb, coll.expected_installment_id)
 
     // Reconcilia comisiones de la venta con los cobros restantes (recalcula tramos de los reps).
-    const recon = await reconcileSaleCommissions(sb, coll.sale_id)
+    const recon = await reconcileSaleCommissions(sb, t.tenantId, coll.sale_id)
 
     await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,

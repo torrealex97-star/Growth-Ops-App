@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { tenantActiveUserNames } from '@/lib/users'
 import { extractInvoice, type InvoiceExtract } from '@/lib/ai/claude'
 import { requireTenant } from '@/lib/auth/requireTenant'
 
@@ -47,8 +48,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
-    const { data: team } = await sb.from('users').select('full_name').eq('is_active', true)
-    const teamNames = (team || []).map((u) => u.full_name)
+    // Solo el equipo de ESTA subcuenta: antes se mandaban al modelo los nombres de todos los
+    // usuarios activos de la plataforma, los de otras subcuentas incluidos.
+    const teamNames = await tenantActiveUserNames(sb, t.tenantId)
 
     const base64 = fileBase64.includes(',') ? fileBase64.split(',')[1] : fileBase64
     const extracted = await extractInvoice(base64, mediaType, teamNames)

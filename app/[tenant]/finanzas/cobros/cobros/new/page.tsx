@@ -175,6 +175,7 @@ export default function NewCollectionPage() {
   const previewCommissions =
     selectedSale && grossAmount && !needsCommissionReview
       ? calculateCommissionsForCollection(
+          tenantId,
           {
             id: 'preview',
             sale_id: selectedSale.id,
@@ -255,7 +256,7 @@ export default function NewCollectionPage() {
     // Excepción: cuotas 2+ de un plan personalizado, que van a revisión manual de cobros y NO
     // generan comisión real hasta que el equipo las apruebe.
     if (!needsCommissionReview) {
-      const commissions = calculateCommissionsForCollection(newCollection, selectedSale, rules, cashByRep)
+      const commissions = calculateCommissionsForCollection(tenantId, newCollection, selectedSale, rules, cashByRep)
       if (commissions.length > 0) {
         await supabase.from('commissions').insert(commissions.map((c) => ({ ...c, tenant_id: tenantId })))
       }

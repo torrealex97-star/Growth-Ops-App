@@ -6,11 +6,25 @@ import type { Collection, Sale, CommissionRule, InsertCommission } from '@/lib/t
 
 type Role = 'setter' | 'closer'
 
+// TODA función de este módulo recibe el `tenantId` y lo aplica a cada lectura y cada escritura.
+//
+// POR QUÉ, con nombres y apellidos. Este módulo se quedó fuera de la migración multi-tenant: no
+// aparecía `tenant_id` ni una vez. Con un cliente service-role (que salta RLS) eso significaba:
+//   · las comisiones se INSERTABAN sin tenant_id, y como la columna es NOT NULL el insert fallaba
+//     siempre… con el error descartado (`await sb.from('commissions').insert(...)` sin comprobarlo).
+//     La ruta devolvía `commissionsGenerated: 3` habiendo escrito CERO filas. Dinero que el equipo
+//     ve prometido en pantalla y no existe en la base de datos.
+//   · `commission_rules` se leía de TODAS las subcuentas: el % de una se aplicaba a las ventas de otra.
+//   · `recomputeRepCommissionTiers` hacía UPDATE de comisiones por `user_id` sin acotar subcuenta:
+//     podía reescribir el % de comisiones ajenas.
+//   · el cash collected que decide el tramo sumaba cobros de todas las subcuentas.
+
 // Plan personalizado: solo el primer pago que adelanta el cliente (reserva/entrada) comisiona al
 // instante. Cualquier cobro posterior de la misma venta, si ya existe un cobro elegible previo,
 // debe quedar en revisión manual de cobros en vez de generar comisión real de inmediato.
 export async function saleNeedsCommissionReview(
   sb: SupabaseClient,
+  tenantId: string,
   saleId: string,
   planMethod: string | null | undefined
 ): Promise<boolean> {
@@ -18,6 +32,7 @@ export async function saleNeedsCommissionReview(
   const { data: existingEligible } = await sb
     .from('collections')
     .select('id')
+    .eq('tenant_id', tenantId)
     .eq('sale_id', saleId)
     .eq('is_eligible_for_commission', true)
     .neq('status', 'reversed')
@@ -29,13 +44,15 @@ export async function saleNeedsCommissionReview(
 // Es el "Cash Collected" que el equipo ve en el dashboard (collections.gross_amount) y el que
 // determina el TRAMO de comisión (min_cash / max_cash de commission_rules). Se resta lo devuelto
 // para que, si un cliente devuelve y el rep baja de tramo, el % se recalcule a la baja.
-export async function repNetCash(sb: SupabaseClient, repId: string, role: Role): Promise<number> {
+export async function repNetCash(sb: SupabaseClient, tenantId: string, repId: string, role: Role): Promise<number> {
   const col = role === 'setter' ? 'setter_id' : 'closer_id'
   const { data: colls } = await sb
     .from('collections')
     .select(`gross_amount, sales!inner(${col})`)
+    .eq('tenant_id', tenantId)
     .eq('status', 'collected')
     .eq(`sales.${col}`, repId)
+    .limit(10000)
   const gross = (colls ?? []).reduce(
     (s: number, c: { gross_amount: number | string }) => s + Number(c.gross_amount || 0),
     0
@@ -43,7 +60,9 @@ export async function repNetCash(sb: SupabaseClient, repId: string, role: Role):
   const { data: refs } = await sb
     .from('refunds')
     .select(`gross_refund_amount, sales!inner(${col})`)
+    .eq('tenant_id', tenantId)
     .eq(`sales.${col}`, repId)
+    .limit(10000)
   const refunded = (refs ?? []).reduce(
     (s: number, r: { gross_refund_amount: number | string }) => s + Number(r.gross_refund_amount || 0),
     0
@@ -58,10 +77,10 @@ export async function repNetCash(sb: SupabaseClient, repId: string, role: Role):
 // venta, así que quedan fuera de los tramos.
 export async function recomputeRepCommissionTiers(
   sb: SupabaseClient,
+  tenantId: string,
   pairs: { repId: string | null | undefined; role: Role }[]
 ): Promise<void> {
-  const { data: rulesData } = await sb.from('commission_rules').select('*').eq('is_active', true)
-  const rules = (rulesData ?? []) as CommissionRule[]
+  const rules = await activeRules(sb, tenantId)
   const now = new Date()
   const seen = new Set<string>()
 
@@ -69,7 +88,7 @@ export async function recomputeRepCommissionTiers(
   // tramoIdByReps(sb, [repId]) dentro del loop, recargando la config de tramos —
   // sales_tramos + sales_tramos_config — en cada iteración en vez de una sola vez).
   const uniqueRepIds = Array.from(new Set(pairs.map((p) => p.repId).filter((x): x is string => !!x)))
-  const tramoMap = await tramoIdByReps(sb, uniqueRepIds)
+  const tramoMap = await tramoIdByReps(sb, tenantId, uniqueRepIds)
 
   for (const { repId, role } of pairs) {
     if (!repId) continue
@@ -77,13 +96,14 @@ export async function recomputeRepCommissionTiers(
     if (seen.has(key)) continue
     seen.add(key)
 
-    const total = await repNetCash(sb, repId, role)
+    const total = await repNetCash(sb, tenantId, repId, role)
     const rule = pickCommissionRule(rules, role, repId, now, total, tramoMap[repId] ?? null)
     const percent = rule?.percent ?? (role === 'setter' ? 5 : 10)
 
     const { data: comms } = await sb
       .from('commissions')
       .select('id, base_amount, percent')
+      .eq('tenant_id', tenantId)
       .eq('user_id', repId)
       .eq('participant_type', role)
       .eq('direction', 'positive')
@@ -96,9 +116,19 @@ export async function recomputeRepCommissionTiers(
       .filter((cm) => Number(cm.percent) !== percent)
       .map((cm) => ({ id: cm.id, percent, commission_amount: Math.round(Number(cm.base_amount) * percent) / 100 }))
     if (toUpdate.length) {
-      await sb.from('commissions').upsert(toUpdate)
+      // El upsert por PK necesita tenant_id: la fila se reescribe completa y la columna es NOT NULL,
+      // así que sin él este "recalcular tramos" fallaba entero y el % se quedaba como estaba.
+      const { error } = await sb.from('commissions').upsert(toUpdate.map((u) => ({ ...u, tenant_id: tenantId })))
+      if (error) throw new Error(`No se pudo recalcular el tramo de comisión: ${error.message}`)
     }
   }
+}
+
+/** Reglas de comisión ACTIVAS de esta subcuenta. Leerlas sin filtrar aplicaba el % de otra. */
+async function activeRules(sb: SupabaseClient, tenantId: string): Promise<CommissionRule[]> {
+  const { data, error } = await sb.from('commission_rules').select('*').eq('tenant_id', tenantId).eq('is_active', true)
+  if (error) throw new Error(`No se pudieron leer las reglas de comisión: ${error.message}`)
+  return (data ?? []) as CommissionRule[]
 }
 
 // Genera las comisiones (setter/closer/afiliado) para un cobro concreto y las inserta como
@@ -108,6 +138,7 @@ export async function recomputeRepCommissionTiers(
 // automática pasada la ventana de devolución (cron) salvo que se marque una devolución.
 export async function generateCommissionsForCollection(
   sb: SupabaseClient,
+  tenantId: string,
   collection: Collection,
   sale: Sale
 ): Promise<number> {
@@ -116,29 +147,34 @@ export async function generateCommissionsForCollection(
     return 0
   }
 
-  const { data: rulesData } = await sb.from('commission_rules').select('*').eq('is_active', true)
-  const rules = (rulesData ?? []) as CommissionRule[]
+  const rules = await activeRules(sb, tenantId)
 
   // Cash collected BRUTO acumulado por rep (para elegir el tramo correcto). Neto de devoluciones.
   const cashByRep: Record<string, number> = {}
-  if (sale.setter_id) cashByRep[sale.setter_id] = await repNetCash(sb, sale.setter_id, 'setter')
-  if (sale.closer_id) cashByRep[sale.closer_id] = await repNetCash(sb, sale.closer_id, 'closer')
+  if (sale.setter_id) cashByRep[sale.setter_id] = await repNetCash(sb, tenantId, sale.setter_id, 'setter')
+  if (sale.closer_id) cashByRep[sale.closer_id] = await repNetCash(sb, tenantId, sale.closer_id, 'closer')
 
   // Tramo/nivel actual por rep (para reglas de comisión enlazadas a un tramo).
-  const tramoByRep = await tramoIdByReps(sb, [sale.setter_id, sale.closer_id])
+  const tramoByRep = await tramoIdByReps(sb, tenantId, [sale.setter_id, sale.closer_id])
 
-  const commissions = calculateCommissionsForCollection(collection, sale, rules, cashByRep, tramoByRep)
+  const commissions = calculateCommissionsForCollection(tenantId, collection, sale, rules, cashByRep, tramoByRep)
+  // Se devuelven las filas ESCRITAS, no las calculadas, y un fallo se propaga. Antes se devolvía
+  // `commissions.length` con el error del insert descartado: la pantalla decía "3 comisiones
+  // generadas" con cero filas en la base de datos.
+  let inserted = 0
   if (commissions.length > 0) {
-    await sb.from('commissions').insert(commissions)
+    const { data, error } = await sb.from('commissions').insert(commissions).select('id')
+    if (error) throw new Error(`No se pudieron generar las comisiones: ${error.message}`)
+    inserted = data?.length ?? 0
   }
 
   // Recalcula los tramos de todas las comisiones no liquidadas del rep (modelo tiempo real)
-  await recomputeRepCommissionTiers(sb, [
+  await recomputeRepCommissionTiers(sb, tenantId, [
     { repId: sale.setter_id, role: 'setter' },
     { repId: sale.closer_id, role: 'closer' },
   ])
 
-  return commissions.length
+  return inserted
 }
 
 // Reconcilia las comisiones de UNA venta a partir de la verdad (sus cobros reales + los reps
@@ -153,28 +189,34 @@ export async function generateCommissionsForCollection(
 //  - Recalcula los tramos (%) de los reps afectados (nuevos y, vía `alsoRecompute`, los antiguos).
 export async function reconcileSaleCommissions(
   sb: SupabaseClient,
+  tenantId: string,
   saleId: string,
   alsoRecompute: { repId: string | null | undefined; role: Role }[] = [],
   opts: { skipTierRecompute?: boolean } = {}
 ): Promise<{ created: number; deleted: number; keptLiquidated: number }> {
-  const { data: sale } = await sb.from('sales').select('*').eq('id', saleId).single()
+  const { data: sale } = await sb.from('sales').select('*').eq('tenant_id', tenantId).eq('id', saleId).maybeSingle()
   if (!sale) return { created: 0, deleted: 0, keptLiquidated: 0 }
   const s = sale as Sale
 
   // Si le falta setter/afiliado, dedúcelos de la atribución (UTM) del contacto antes de reconciliar,
   // para que el rep atribuido por utm_term/utm_content reciba su comisión (también en reparación masiva).
-  const attrPatch = await resolveSaleAttribution(sb, s)
+  const attrPatch = await resolveSaleAttribution(sb, s, tenantId)
   Object.assign(s, attrPatch)
 
   const { data: collsData } = await sb
     .from('collections')
     .select('*')
+    .eq('tenant_id', tenantId)
     .eq('sale_id', saleId)
     .eq('status', 'collected')
     .eq('needs_commission_review', false)
   const colls = (collsData ?? []) as Collection[]
 
-  const { data: existingData } = await sb.from('commissions').select('*').eq('sale_id', saleId)
+  const { data: existingData } = await sb
+    .from('commissions')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .eq('sale_id', saleId)
   const existing = (existingData ?? []) as {
     id: string
     collection_id: string | null
@@ -194,38 +236,45 @@ export async function reconcileSaleCommissions(
   // Borra las positivas ligadas a cobro que NO estén liquidadas (se reconstruyen abajo).
   // Las negativas (devoluciones) y las liquidadas quedan fuera.
   const toDelete = existing.filter((c) => c.direction === 'positive' && c.status !== 'liquidated' && c.collection_id)
+  let deleted = 0
   if (toDelete.length) {
-    await sb
+    const { data: gone, error } = await sb
       .from('commissions')
       .delete()
+      .eq('tenant_id', tenantId)
       .in(
         'id',
         toDelete.map((c) => c.id)
       )
+      .select('id')
+    if (error) throw new Error(`No se pudieron limpiar las comisiones a reconstruir: ${error.message}`)
+    deleted = gone?.length ?? 0
   }
 
-  const { data: rulesData } = await sb.from('commission_rules').select('*').eq('is_active', true)
-  const rules = (rulesData ?? []) as CommissionRule[]
+  const rules = await activeRules(sb, tenantId)
 
   // Cash acumulado por rep para elegir el tramo (independiente de las comisiones: sale de collections)
   const cashByRep: Record<string, number> = {}
-  if (s.setter_id) cashByRep[s.setter_id] = await repNetCash(sb, s.setter_id, 'setter')
-  if (s.closer_id) cashByRep[s.closer_id] = await repNetCash(sb, s.closer_id, 'closer')
+  if (s.setter_id) cashByRep[s.setter_id] = await repNetCash(sb, tenantId, s.setter_id, 'setter')
+  if (s.closer_id) cashByRep[s.closer_id] = await repNetCash(sb, tenantId, s.closer_id, 'closer')
 
   // Tramo/nivel actual por rep (para reglas de comisión enlazadas a un tramo).
-  const tramoByRep = await tramoIdByReps(sb, [s.setter_id, s.closer_id])
+  const tramoByRep = await tramoIdByReps(sb, tenantId, [s.setter_id, s.closer_id])
 
   const toInsert: InsertCommission[] = []
   for (const col of colls) {
-    const rows = calculateCommissionsForCollection(col, s, rules, cashByRep, tramoByRep)
+    const rows = calculateCommissionsForCollection(tenantId, col, s, rules, cashByRep, tramoByRep)
     for (const r of rows) {
       const key = `${r.collection_id}|${r.user_id}|${r.participant_type}`
       if (liqKeys.has(key)) continue // ya pagada, no duplicar
       toInsert.push(r)
     }
   }
+  let created = 0
   if (toInsert.length) {
-    await sb.from('commissions').insert(toInsert)
+    const { data, error } = await sb.from('commissions').insert(toInsert).select('id')
+    if (error) throw new Error(`No se pudieron reconstruir las comisiones: ${error.message}`)
+    created = data?.length ?? 0
   }
 
   // Recalcula tramos: reps actuales de la venta + los que se indiquen (p.ej. reps anteriores al cambio).
@@ -234,12 +283,12 @@ export async function reconcileSaleCommissions(
   // es trabajo repetido — recomputeRepCommissionTiers es idempotente, así que el resultado final
   // es el mismo, pero recalculándolo N veces por rep en vez de 1 es el N+1 real de ese endpoint.
   if (!opts.skipTierRecompute) {
-    await recomputeRepCommissionTiers(sb, [
+    await recomputeRepCommissionTiers(sb, tenantId, [
       { repId: s.setter_id, role: 'setter' },
       { repId: s.closer_id, role: 'closer' },
       ...alsoRecompute,
     ])
   }
 
-  return { created: toInsert.length, deleted: toDelete.length, keptLiquidated: liqKeys.size }
+  return { created, deleted, keptLiquidated: liqKeys.size }
 }
