@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { analyzeReel } from '@/lib/ai/claude'
+import { getTenantConfigWithFallback } from '@/lib/config'
 import { getInstagramConfig, resolveIgUserId, refreshOwnMediaUrl, fetchBusinessDiscovery } from '@/lib/instagram/client'
 import { tenantAiEnv } from '@/lib/ai/provider'
 
@@ -153,7 +154,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const tryRefresh = async (): Promise<{ url: string | null; reason: 'not_in_recent' | 'no_media_url' | null }> => {
       if (!externalId) return { url: null, reason: null }
       try {
-        const cfg = getInstagramConfig()
+        // Credenciales de ESTA subcuenta (antes: process.env sin cargar, así que en una lambda
+        // nueva no había ninguna y el refresco del enlace fallaba siempre).
+        const cfg = getInstagramConfig(await getTenantConfigWithFallback(t.tenantId, true))
         if (!cfg) {
           console.error('[transcribe] refresh: sin credenciales de Instagram (getInstagramConfig null)')
           return { url: null, reason: null }

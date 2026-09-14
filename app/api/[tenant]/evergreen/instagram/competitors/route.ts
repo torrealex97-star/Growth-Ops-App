@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { getTenantConfigWithFallback } from '@/lib/config'
 import { getInstagramConfig, resolveIgUserId, fetchBusinessDiscovery } from '@/lib/instagram/client'
 
 export const runtime = 'nodejs'
@@ -135,8 +136,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   }
   if (!username || !String(username).trim()) return NextResponse.json({ error: 'Falta el usuario' }, { status: 400 })
 
-  const cfg = getInstagramConfig()
-  if (!cfg) return NextResponse.json({ error: 'Faltan credenciales de Instagram' }, { status: 500 })
+  // Credenciales de ESTA subcuenta. Antes se leían de process.env sin cargarlas: en una lambda
+  // nueva no había nada y respondía "faltan credenciales" con el token guardado en la base de
+  // datos, y en una lambda ya usada podía coger el de otra subcuenta.
+  const cfg = getInstagramConfig(await getTenantConfigWithFallback(auth.tenantId, true))
+  if (!cfg) {
+    return NextResponse.json(
+      { error: 'Faltan credenciales de Instagram en Configuración › Integraciones' },
+      { status: 400 }
+    )
+  }
 
   try {
     const { id: igUserId } = await resolveIgUserId(cfg)

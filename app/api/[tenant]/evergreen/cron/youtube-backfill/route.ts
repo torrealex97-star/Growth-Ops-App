@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getInstagramConfig } from '@/lib/instagram/client'
 import { runYoutubeSync } from '@/lib/youtube/backfill'
-import { ensureConfig } from '@/lib/config'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 export const maxDuration = 120
@@ -30,8 +30,9 @@ export async function GET(req: NextRequest) {
 
     const perTenant: Record<string, number | null> = {}
     for (const tn of tenants || []) {
-      await ensureConfig(tn.id)
-      const cfg = getInstagramConfig()
+      // Config explícita por subcuenta (ver cron/instagram): process.env no se limpia entre
+      // iteraciones y la segunda subcuenta heredaba el token de la primera.
+      const cfg = getInstagramConfig(await getTenantConfigWithFallback(tn.id, true))
       if (!cfg) {
         perTenant[tn.slug] = null
         continue
