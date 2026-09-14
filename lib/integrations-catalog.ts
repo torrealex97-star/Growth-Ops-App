@@ -289,9 +289,12 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
   {
     id: 'ai',
     title: 'Inteligencia artificial',
-    description: 'Generación de contenido, análisis, roleplays y transcripción de llamadas y reels.',
+    description:
+      'Motores de la plataforma: generación de contenido, análisis de llamadas, guiones, tareas y transcripción. DeepSeek es uno más — cuando su clave está puesta, atiende el texto; si no, lo hace Anthropic.',
     category: 'ia',
     test: true,
+    // DeepSeek NO es obligatorio: es opcional y por eso no entra en `required`. Si no está, la
+    // plataforma sigue funcionando con Anthropic exactamente igual que antes.
     required: ['ANTHROPIC_API_KEY', 'GROQ_API_KEY'],
     fields: [
       {
@@ -311,40 +314,32 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         help: 'Necesaria para transcribir llamadas y reels.',
       },
       {
+        // DeepSeek vive AQUÍ y no en su propia tarjeta: es un motor más de los que la plataforma
+        // puede usar, no una integración aparte. Tenerlo separado obligaba a configurar la IA en dos
+        // sitios y escondía que ambos hacen el mismo trabajo.
+        key: 'DEEPSEEK_API_KEY',
+        label: 'DeepSeek API Key',
+        type: 'password',
+        secret: true,
+        placeholder: 'sk-…',
+        help: 'Opcional. Si la pones, DeepSeek pasa a ser el motor de texto de esta subcuenta. Se guarda cifrada y solo se usa en el servidor.',
+      },
+      {
+        key: 'DEEPSEEK_MODEL',
+        advanced: true,
+        label: 'Modelo de DeepSeek',
+        type: 'text',
+        secret: false,
+        placeholder: 'Automático',
+        help: 'Opcional. Pulsa "Buscar modelos" para elegir entre los que tu clave puede usar de verdad. Vacío = el primero disponible.',
+      },
+      {
         key: 'GOOGLE_API_KEY',
         advanced: true,
         label: 'Google API Key (Drive)',
         type: 'password',
         secret: true,
         help: 'Opcional; permite descargar grabaciones públicas de Google Drive por ID.',
-      },
-    ],
-  },
-  {
-    id: 'deepseek',
-    title: 'DeepSeek',
-    description:
-      'Motor de IA de la subcuenta: análisis de llamadas, guiones, tareas desde transcripción y variables de contrato.',
-    category: 'ia',
-    test: true,
-    required: ['DEEPSEEK_API_KEY'],
-    fields: [
-      {
-        key: 'DEEPSEEK_API_KEY',
-        label: 'DeepSeek API Key',
-        type: 'password',
-        secret: true,
-        placeholder: 'sk-…',
-        help: 'Crea la clave en la plataforma de DeepSeek. Se guarda cifrada y solo se utiliza en el servidor.',
-      },
-      {
-        key: 'DEEPSEEK_MODEL',
-        advanced: true,
-        label: 'Modelo predeterminado',
-        type: 'text',
-        secret: false,
-        placeholder: 'Se busca en tu cuenta',
-        help: 'Opcional. Pulsa "Buscar modelos" para ver los que tu clave puede usar de verdad; si queda vacío se usa el primero disponible. Escribir un nombre a mano que el proveedor no tenga deja la IA muerta sin avisar.',
       },
     ],
   },

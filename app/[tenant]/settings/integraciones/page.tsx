@@ -191,18 +191,10 @@ const GROUP_META: Record<string, { icon: typeof Plug; tone: string; steps: strin
     icon: Sparkles,
     tone: 'from-pink-500/20 to-violet-500/5',
     steps: [
-      'Crea la clave en el proveedor de IA elegido.',
-      'Pega únicamente una clave de servidor.',
-      'Guarda y verifica; la clave queda cifrada y nunca llega al navegador.',
-    ],
-  },
-  deepseek: {
-    icon: Sparkles,
-    tone: 'from-sky-500/20 to-blue-700/5',
-    steps: [
-      'Abre la plataforma de DeepSeek y entra en API keys.',
-      'Crea una clave de servidor y cópiala; no la incluyas nunca en código del navegador.',
-      'Guarda la clave y usa “Probar conexión” para validar el acceso y el modelo elegido.',
+      'Anthropic y Groq son los motores base: pega sus claves de servidor.',
+      'DeepSeek es opcional. Si pones su clave, pasa a atender el texto de esta subcuenta.',
+      'Con DeepSeek puesto, pulsa “Buscar modelos” y elige el que quieras; vacío = automático.',
+      'Guarda y verifica; las claves quedan cifradas y nunca llegan al navegador.',
     ],
     docs: 'https://api-docs.deepseek.com/',
   },

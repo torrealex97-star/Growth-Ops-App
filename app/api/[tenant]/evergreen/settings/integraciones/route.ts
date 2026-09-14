@@ -709,46 +709,32 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
           message: `Anthropic: ${anthropic.ok ? 'OK' : anthropic.status}; Groq: ${groq.ok ? 'OK' : groq.status}.`,
         }
       }
-      return { ok: true, message: 'Anthropic y Groq conectados.' }
-    }
-    if (group === 'deepseek') {
-      const key = cfg.DEEPSEEK_API_KEY
-      if (!key) return { ok: false, message: 'Falta la API key de DeepSeek.' }
 
-      const r = await fetch('https://api.deepseek.com/models', {
-        headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' },
-        signal: AbortSignal.timeout(10_000),
-      })
-      const j = (await r.json().catch(() => ({}))) as {
-        data?: Array<{ id?: string }>
-        error?: { message?: string }
+      // DeepSeek se comprueba AQUÍ, dentro de la IA, porque es un motor más de los que la plataforma
+      // puede usar. Es OPCIONAL: sin clave, la tarjeta no falla — simplemente atiende Anthropic.
+      if (!cfg.DEEPSEEK_API_KEY) {
+        return { ok: true, message: 'Anthropic y Groq conectados. DeepSeek no está configurado (opcional).' }
       }
-      if (!r.ok) {
-        const reason =
-          r.status === 401
-            ? 'La API key no es válida.'
-            : r.status === 402
-              ? 'La cuenta de DeepSeek no tiene saldo disponible.'
-              : r.status === 429
-                ? 'DeepSeek ha limitado temporalmente las solicitudes. Inténtalo de nuevo en unos minutos.'
-                : j.error?.message || `DeepSeek respondió ${r.status}.`
-        // 402 (sin saldo) tiene su propio arreglo: decirle que rote la clave sería mandarlo al sitio
-        // equivocado, porque la clave está perfecta.
-        return { ok: false, message: reason, code: r.status === 402 ? 'sin_saldo' : codeFromStatus(r.status) }
-      }
-
-      // El modelo a comprobar sale de lo guardado; si no hay nada, del primer preferido. Antes era
-      // una constante escrita aquí, así que la comprobación podía dar verde con un modelo que la
-      // cuenta no tiene y fallar después en cada uso real.
-      const configuredModel = cfg.DEEPSEEK_MODEL || DEEPSEEK_MODELOS_PREFERIDOS[0]
-      const models = (j.data ?? []).map((model) => model.id).filter((id): id is string => Boolean(id))
-      const modelAvailable = models.length === 0 || models.includes(configuredModel)
-      return {
-        ok: modelAvailable,
-        message: modelAvailable
-          ? `DeepSeek conectado. Modelo predeterminado: ${configuredModel}.`
-          : `La conexión funciona, pero el modelo ${configuredModel} no está disponible para esta cuenta.`,
-        code: modelAvailable ? undefined : 'modelo_no_disponible',
+      try {
+        const modelos = await listarModelos(cfg.DEEPSEEK_API_KEY)
+        // El modelo NO se compara contra un nombre escrito en el código: se resuelve contra lo que la
+        // cuenta tiene de verdad. Comprobar contra una constante hacía fallar la tarjeta con una
+        // clave perfecta solo porque el id por defecto no coincidía con el catálogo del proveedor.
+        const { modelo, aviso } = resolverModelo(cfg.DEEPSEEK_MODEL, modelos, DEEPSEEK_MODELOS_PREFERIDOS)
+        if (!modelo) {
+          return { ok: false, message: aviso ?? 'El modelo guardado no está disponible.', code: 'modelo_no_disponible' }
+        }
+        return {
+          ok: true,
+          message: `Anthropic, Groq y DeepSeek conectados. DeepSeek usará ${modelo}${cfg.DEEPSEEK_MODEL ? '' : ' (automático)'}.`,
+        }
+      } catch (e) {
+        const err = e instanceof ModelosError ? e : null
+        return {
+          ok: false,
+          message: `Anthropic y Groq van bien, pero DeepSeek falló: ${err?.message ?? 'no se pudo comprobar'}`,
+          code: err?.code === 'token_invalido' ? 'token_invalido' : err?.code === 'red' ? 'red' : undefined,
+        }
       }
     }
     if (group === 'youtube') {
