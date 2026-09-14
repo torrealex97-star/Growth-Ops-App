@@ -148,3 +148,70 @@ test('la versión de la API se toma de la config de la subcuenta', async () => {
     f.restore()
   }
 })
+
+// El tope de páginas de la paginación se aplicaba EN SILENCIO: `graphGetAll` devolvía el trozo
+// leído como si fuera todo. Con limit=500 son 25.000 filas — de sobra para el día a día, pero no
+// para un histórico con time_increment=1 (una fila por campaña y día). El histórico se quedaba a
+// medias y se presentaba como completo.
+test('una paginación que se queda a medias lo DICE, no devuelve el trozo como si fuera todo', async () => {
+  const { fetchMetaDailyInsights } = await import('../../lib/meta/client.ts')
+  const cfg = { token: 'tok', accountId: 'act_1', version: 'v25.0' }
+
+  // Meta siempre ofrece otra página: el tope tiene que saltar y marcar truncated.
+  const infinito = stubFetch(() => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      data: [{ campaign_id: '1', date_start: '2026-01-01', spend: '1' }],
+      paging: { next: 'https://graph.facebook.com/next' },
+    }),
+  }))
+  try {
+    const r = await fetchMetaDailyInsights(cfg, 30)
+    assert.equal(r.truncated, true, 'no avisa de que se quedó a medias')
+    assert.ok(r.rows.length > 0, 'se conserva lo leído')
+  } finally {
+    infinito.restore()
+  }
+
+  // Y cuando Meta deja de ofrecer páginas, no se marca nada.
+  const completo = stubFetch(() => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ data: [{ campaign_id: '1', date_start: '2026-01-01', spend: '3' }] }),
+  }))
+  try {
+    const r = await fetchMetaDailyInsights(cfg, 30)
+    assert.equal(r.truncated, false)
+    assert.equal(r.rows.length, 1)
+    assert.equal(r.rows[0].spend, 3)
+  } finally {
+    completo.restore()
+  }
+})
+
+// Un rango largo necesita más páginas que un sync rutinario: si el presupuesto no crece con el
+// rango, "Cargar histórico" (37 meses) se corta siempre por el mismo sitio.
+test('el presupuesto de páginas crece con el rango pedido', async () => {
+  const { fetchMetaDailyInsights } = await import('../../lib/meta/client.ts')
+  const cfg = { token: 'tok', accountId: 'act_1', version: 'v25.0' }
+  const contar = async (sinceDays) => {
+    const f = stubFetch(() => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: [{ campaign_id: '1', date_start: '2026-01-01' }],
+        paging: { next: 'https://x/next' },
+      }),
+    }))
+    try {
+      await fetchMetaDailyInsights(cfg, sinceDays)
+      return f.calls.length
+    } finally {
+      f.restore()
+    }
+  }
+  const corto = await contar(30)
+  const largo = await contar(1125)
+  assert.ok(largo > corto, `el histórico largo pidió ${largo} páginas y el corto ${corto}`)
+})

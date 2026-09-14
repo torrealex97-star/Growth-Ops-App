@@ -9,7 +9,29 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 export type TramoConfig = { metric: 'sales' | 'cash_collected'; period: 'month' | 'all' }
 export type TramoRow = { id: string; threshold: number; sort_order: number }
 
-const nowYm = () => new Date().toISOString().slice(0, 7)
+// Mes en curso EN LA ZONA DEL NEGOCIO, no en UTC.
+//
+// POR QUÉ IMPORTA. Este módulo existe para que "el nivel que el closer ve en el dashboard" y "el
+// nivel que decide su comisión" sean el mismo (ver cabecera). El dashboard lo calcula en el
+// navegador, o sea en hora de España; esto lo calculaba con `toISOString()`, que es UTC. Entre las
+// 23:00 (invierno) o 22:00 (verano) y medianoche del último día de mes, el servidor seguía en el
+// mes anterior: contaba las ventas del mes que acaba y dejaba fuera la que se acaba de cerrar. Dos
+// horas al mes en las que el tramo —y por tanto el % de comisión— se calcula con el mes equivocado.
+const BUSINESS_TIMEZONE = 'Europe/Madrid'
+
+export function businessYm(now = new Date()): string {
+  // en-CA da YYYY-MM-DD, así que los 7 primeros caracteres son el año-mes ya convertido a la zona.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: BUSINESS_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+    .format(now)
+    .slice(0, 7)
+}
+
+const nowYm = () => businessYm()
 
 // Carga la config global + los tramos activos ordenados por umbral. Devuelve null si no hay tramos
 // definidos (o la tabla no existe): en ese caso las comisiones caen al modelo por cash collected.
