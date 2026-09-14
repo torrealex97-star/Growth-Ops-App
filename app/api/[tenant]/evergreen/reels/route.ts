@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { businessToday } from '@/lib/dates/business'
 
 export const runtime = 'nodejs'
 
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   if (day) {
     query = query.eq('draft_day', day)
   } else {
-    const today = new Date().toISOString().slice(0, 10)
+    const today = businessToday()
     query = query.eq('draft_day', today)
   }
   if (status) query = query.eq('status', status)
