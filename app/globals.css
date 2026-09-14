@@ -253,3 +253,36 @@ label[for] {
   animation: shimmer 1.5s infinite;
   border-radius: 8px;
 }
+
+/* Funnel visual (components/os/FunnelChart.tsx). La entrada es escalonada por fila para que se lea
+   el estrechamiento, no para decorar: las barras crecen de arriba abajo, que es el orden en que se
+   lee el embudo. Va en CSS y no en una librería de animación porque una transición de ancho no
+   justifica una dependencia nueva. */
+@keyframes funnel-bar-in {
+  from {
+    opacity: 0;
+    transform: scaleX(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+.funnel-chart .funnel-bar {
+  transform-origin: center;
+  animation: funnel-bar-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* --fila la pone el componente por barra: 60 ms de separación entre etapas. */
+  animation-delay: calc(var(--fila, 0) * 60ms);
+}
+
+/* Quien pide menos movimiento ve el embudo ya montado, sin animación NI RETARDO. Hace falta este
+   bloque propio aunque más arriba ya haya una regla global de prefers-reduced-motion: esa pone la
+   duración a 0.001ms pero no anula `animation-delay`, así que la última barra seguiría tardando
+   300 ms en aparecer para quien pidió justamente no ver movimiento. */
+@media (prefers-reduced-motion: reduce) {
+  .funnel-chart .funnel-bar {
+    animation: none;
+    transition: none;
+  }
+}

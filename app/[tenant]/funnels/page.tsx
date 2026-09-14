@@ -6,27 +6,14 @@ import { AlertTriangle, Filter, Info, Loader2, Settings2, TrendingDown } from 'l
 import { useTenant } from '@/lib/tenant-context'
 import { FUNNEL_DEFS, FUNNEL_FAMILIES, type FunnelFamily } from '@/lib/funnels/definitions'
 import { STATUS_LABELS, type MetricStatus } from '@/lib/funnels/types'
+import type { FunnelResult } from '@/lib/funnels/compute'
 import { formatCurrency } from '@/lib/utils'
+import { FunnelChart } from '@/components/os/FunnelChart'
 
-type StageRow = {
-  stage: { id: string; label: string; source: string; counts: 'personas' | 'eventos' }
-  count: { value: number | null; status: MetricStatus; source: string; lastSync: string | null; error?: string }
-  conversionFromPrevious: number | null
-  conversionFromTop: number | null
-  costPerUnit: number | null
-  blockedBy?: 'error_fuente' | 'no_configurada' | 'unidades_incompatibles'
-}
-
-type FunnelResponse = {
-  family: FunnelFamily
-  label: string
-  stages: StageRow[]
-  inversion: number | null
-  incomplete: boolean
-  failedSources: string[]
-  unconfiguredSources: string[]
-  range: { from: string; to: string }
-}
+// La respuesta ES el FunnelResult que calcula `lib/funnels/compute.ts`, más el rango que se pidió.
+// Antes esta pantalla mantenía su propia copia de los tipos, con `source: string` en vez del union
+// de fuentes: una copia que se desincroniza en silencio del módulo que de verdad calcula el funnel.
+type FunnelResponse = FunnelResult & { range: { from: string; to: string } }
 
 // Los cuatro estados se pintan DISTINTO a propósito. Si "sin datos" y "no se pudo leer" se vieran
 // igual, toda la capa canónica que los distingue no serviría de nada en pantalla.
@@ -179,6 +166,11 @@ export default function FunnelsPage() {
               </span>
             </div>
           )}
+
+          {/* El embudo VISUAL va primero: la caída entre etapas se ve, y la tabla de debajo queda
+              como el detalle (coste unitario, fuente, motivo de cada hueco). La tabla interna del
+              componente se apaga aquí para no repetir la que ya hay. */}
+          <FunnelChart result={data} tabla={false} className="mb-4" />
 
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full min-w-[760px] text-sm">

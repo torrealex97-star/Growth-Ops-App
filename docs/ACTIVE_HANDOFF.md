@@ -2,13 +2,48 @@
 
 Última actualización: 2026-09-14 (Claude Code)
 
-## SESIÓN 2026-09-14 (brief de Integraciones/Stripe/Métricas/Funnels) — bloques 1, 2 y 3 de 6
+## SESIÓN 2026-09-14 (brief de Integraciones/Stripe/Métricas/Funnels) — bloques 1-4 de 6
 
 Rama: `claude/app-continuation-lpbupf`, empujada, árbol limpio. 151 + 198 tests en verde, typecheck,
 lint, format y `next build` completo.
 
-El brief tiene 58 secciones agrupables en 6 bloques. Se cerraron los tres primeros. **Los bloques
-4-6 NO están empezados**: no hay nada a medias en el árbol.
+El brief tiene 58 secciones agrupables en 6 bloques. Se cerraron los cuatro primeros. **Los bloques
+5-6 NO están empezados**: no hay nada a medias en el árbol.
+
+### Bloque 4 — funnels visuales (§28-§39, §43-§45) CERRADO
+
+CAUSA RAÍZ de "los funnels acordados siguen sin verse": la capa de datos (`lib/funnels/compute.ts`,
+con estado por métrica) y la API (`/api/[tenant]/evergreen/funnels`) ya existían y son buenas. Lo que
+no existía era la REPRESENTACIÓN: la pantalla `/funnels` pintaba una tabla, y el embudo de Ads era
+`FunnelList`, siete filas de texto. Literalmente "otra lista de KPIs haciendo de funnel".
+
+- `components/os/FunnelChart.tsx` (nuevo): embudo donde el ANCHO de cada barra codifica el volumen,
+  centrado, así que la reducción entre etapas se ve. Por etapa: nombre, volumen, % desde la anterior,
+  cuántos se caen, y al enfocar también % del total y coste unitario. Distingue loading /
+  not_connected / error / partial / sin datos. Tabla equivalente opcional.
+- `FunnelList` (embudo de Ads) pasa a llevar barra proporcional por fila, con el MISMO CSS. Para eso
+  cada etapa pasa ahora su número crudo además del formateado.
+- La pantalla `/funnels` pinta el embudo visual ENCIMA de la tabla; la tabla se queda como detalle
+  (coste unitario, fuente, motivo de cada hueco).
+
+UN HUECO NO ES UN CERO: si la fuente de una etapa falló o no está configurada, la barra sale rayada
+con el motivo, nunca a 0. Pintar 0 convierte "la integración está caída" en "esta campaña no
+convierte".
+
+DECISIONES de las que conviene no volver atrás:
+
+- El color sale de `--primary`, el token que `app/[tenant]/layout.tsx` reescribe según `data-accent`.
+  El mismo componente sale rosa en Women Digital Closer y azul en Evergreen sin una línea de color
+  por subcuenta. Un solo tono: el ancho ya codifica la magnitud, el color no la duplica.
+- NO se instaló `framer-motion` ni `@paper-design/shaders-react` (el ejemplo que mandó el usuario los
+  pedía). La animación es CSS: entrada escalonada por fila, 60 ms entre etapas, desactivada con
+  `prefers-reduced-motion`. Razón: §43 del propio brief prohíbe glows y gradientes de infografía —un
+  fondo animado detrás de datos es ruido— y AGENTS.md prohíbe dependencias sin necesidad real. Hay
+  test que impide que esas dependencias entren.
+- El bloque propio de `prefers-reduced-motion` es necesario aunque haya una regla global: esa pone la
+  duración a 0.001ms pero NO anula `animation-delay`.
+- La pantalla `/funnels` tenía su propia copia de los tipos (`StageRow` con `source: string`): ahora
+  usa `FunnelResult` del módulo canónico.
 
 ### Bloque 3 — filtros de periodo y estado en URL (§4-§6, §51) CERRADO
 

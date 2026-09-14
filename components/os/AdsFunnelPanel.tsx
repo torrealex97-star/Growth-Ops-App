@@ -61,26 +61,46 @@ function HeroRow({ stats }: { stats: HeroStat[] }) {
 // Una etapa del funnel: cantidad + coste por unidad + conversión respecto a la etapa anterior
 // (drop-off implícito: 100% - conversión). Fila de texto, no card — el funnel se lee de arriba
 // abajo como un embudo real, no como cifras sueltas.
-type FunnelStage = { label: string; count: string; cost?: string; conversion?: string; alert?: AlertState }
+// `value` es el número CRUDO de la etapa: `count` ya viene formateado para leer, pero para dibujar
+// la barra hace falta el número. Sin él esto eran siete filas de texto — una lista de KPIs haciendo
+// de embudo, donde la caída entre etapas había que deducirla leyendo cifras.
+type FunnelStage = {
+  label: string
+  count: string
+  value: number | null
+  cost?: string
+  conversion?: string
+  alert?: AlertState
+}
 
 function FunnelList({ stages }: { stages: FunnelStage[] }) {
+  // La cima es el 100 %. Suelo del 6 % para que una etapa con poco volumen siga siendo visible.
+  const cima = stages.find((s) => s.value != null && s.value > 0)?.value ?? 0
+  const ancho = (v: number | null) => (v == null || !cima ? 100 : Math.max(6, (v / cima) * 100))
   return (
-    <div className="divide-y divide-border/60">
+    <div className="funnel-chart divide-border/60 divide-y">
       {stages.map((s, i) => (
-        <div key={s.label} className="flex items-center gap-3 py-2.5 text-sm">
-          <span className="w-5 text-xs text-muted-foreground tabular-nums">{i + 1}</span>
-          <span className="flex-1 text-foreground">{s.label}</span>
+        <div key={s.label} className="relative flex items-center gap-3 py-2.5 text-sm">
+          {/* La barra vive DETRÁS de la fila: el ancho codifica el volumen, así que la reducción
+              entre etapas se ve de un vistazo, y las cifras siguen alineadas y legibles. */}
+          <span
+            className="funnel-bar bg-primary/15 pointer-events-none absolute inset-y-1 left-0 rounded-md"
+            style={{ width: `${ancho(s.value)}%`, ['--fila' as string]: String(i) }}
+            aria-hidden
+          />
+          <span className="text-muted-foreground relative w-5 text-xs tabular-nums">{i + 1}</span>
+          <span className="text-foreground relative flex-1">{s.label}</span>
           {s.conversion && (
-            <span className="text-xs text-muted-foreground w-24 text-right tabular-nums">{s.conversion}</span>
+            <span className="text-muted-foreground relative w-24 text-right text-xs tabular-nums">{s.conversion}</span>
           )}
           {s.cost && (
             <span
-              className={`text-xs w-20 text-right tabular-nums ${s.alert ? alertText[s.alert] : 'text-muted-foreground'}`}
+              className={`relative w-20 text-right text-xs tabular-nums ${s.alert ? alertText[s.alert] : 'text-muted-foreground'}`}
             >
               {s.cost}
             </span>
           )}
-          <span className="font-semibold text-foreground w-20 text-right tabular-nums">{s.count}</span>
+          <span className="text-foreground relative w-20 text-right font-semibold tabular-nums">{s.count}</span>
         </div>
       ))}
     </div>
@@ -164,17 +184,25 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
   ]
 
   const funnelStages: FunnelStage[] = [
-    { label: 'Impresiones', count: fmtNum(f.impresiones), cost: fmtEur(f.cpm) + '/mil' },
-    { label: 'Clics en el enlace', count: fmtNum(f.linkClicks), cost: fmtEur(f.cpc), conversion: fmtPct(f.ctr) },
+    { label: 'Impresiones', count: fmtNum(f.impresiones), value: f.impresiones, cost: fmtEur(f.cpm) + '/mil' },
+    {
+      label: 'Clics en el enlace',
+      count: fmtNum(f.linkClicks),
+      value: f.linkClicks,
+      cost: fmtEur(f.cpc),
+      conversion: fmtPct(f.ctr),
+    },
     {
       label: 'Visitas a la página',
       count: fmtNum(f.visitas),
+      value: f.visitas,
       cost: fmtEur(f.costeVisita),
       conversion: fmtPct(f.pctCarga),
     },
     {
       label: 'Leads',
       count: fmtNum(f.leads),
+      value: f.leads,
       cost: fmtEur(f.cpl),
       conversion: fmtPct(f.pctRegistro),
       alert: cplAlert,
@@ -182,13 +210,15 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
     {
       label: 'Agendas',
       count: fmtNum(f.agendas),
+      value: f.agendas,
       cost: fmtEur(f.costeAgenda),
       conversion: fmtPct(f.pctConversionVSL),
     },
-    { label: 'Llamadas (show up)', count: fmtNum(f.llamadas), conversion: fmtPct(f.pctShowUp) },
+    { label: 'Llamadas (show up)', count: fmtNum(f.llamadas), value: f.llamadas, conversion: fmtPct(f.pctShowUp) },
     {
       label: 'Cierres',
       count: fmtNum(f.cierres),
+      value: f.cierres,
       cost: fmtEur(f.cpa),
       conversion: fmtPct(f.pctCierre),
       alert: cacAlert,
