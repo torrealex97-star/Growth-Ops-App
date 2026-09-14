@@ -2,13 +2,44 @@
 
 Última actualización: 2026-09-14 (Claude Code)
 
-## SESIÓN 2026-09-14 (brief de Integraciones/Stripe/Métricas/Funnels) — bloques 1-5 de 6
+## SESIÓN 2026-09-14 (brief de Integraciones/Stripe/Métricas/Funnels) — los 6 bloques cerrados
 
 Rama: `claude/app-continuation-lpbupf`, empujada, árbol limpio. 151 + 198 tests en verde, typecheck,
 lint, format y `next build` completo.
 
-El brief tiene 58 secciones agrupables en 6 bloques. Se cerraron los cinco primeros. **El bloque 6
-(Data Health cross-source y golden dataset, §48 y §53) NO está empezado**: no hay nada a medias.
+El brief tiene 58 secciones agrupables en 6 bloques. **Los seis están cerrados** en todo lo que no
+depende de red a proveedores. No hay nada a medias en el árbol.
+
+### Bloque 6 — Data Health cross-source y golden dataset (§48, §53) CERRADO
+
+Data Health ya miraba duplicados y estado por fuente. Lo que faltaba era lo CRUZADO: no "¿la fuente
+responde?" sino "¿lo que trajo encaja con el resto?". Cada integración puede estar verde y el
+recorrido completo estar roto por la mitad.
+
+`lib/data-health/cross-source.ts` — ocho controles, todos funciones PURAS (reciben los conjuntos ya
+leídos), por eso se pueden verificar con un dataset determinista:
+cuenta de Meta seleccionada sin datos · cliente de Stripe sin venta registrada · venta sin contacto
+válido · cliente sin emparejar · campaña sin nada atribuido · agenda sin contacto · llamada grabada
+sin agenda · fuente sin sincronizar.
+
+DOS REGLAS que gobiernan el módulo y que fija el test:
+
+- **Un hueco no es un cero.** Un conjunto que no se pudo leer llega como `null` y el control devuelve
+  `desconocido`, nunca "0 problemas". Y el resumen tiene estado `incompleto`, que gana a `ok`: no es
+  lo mismo no tener problemas que no haber podido mirar.
+- **Nada se arregla solo.** Los controles nombran el problema y dan hasta cinco ejemplos concretos
+  para ir a mirarlos. Emparejar un cliente o atribuir una venta es una decisión sobre datos del
+  usuario; hay test que impide que un detalle prometa arreglos automáticos.
+
+`tests/metrics/golden-dataset.test.mjs` (§53): universo pequeño y determinista —dos cuentas de Meta,
+tres campañas, cuatro contactos, tres clientes de Stripe, tres ventas, tres agendas, dos llamadas—
+con los fallos puestos a mano y **cada total contado a mano** en la aserción. Incluye el caso sano
+(todo a cero), el caso con conjuntos ilegibles (desconocido, no cero), el umbral de obsolescencia
+justo por dentro y justo por fuera, y la fecha ilegible como obsoleta.
+
+Cableado en `/api/[tenant]/evergreen/settings/data-health`. Las consultas extra NO abortan la
+respuesta: si una falla, su control dice "no se pudo comprobar" y el resto sigue informando — colapsar
+todo a un error dejaría la pantalla en blanco por una tabla.
 
 ### Bloque 5 — Stripe (§13-§25) CERRADO en lo que se podía cerrar
 
