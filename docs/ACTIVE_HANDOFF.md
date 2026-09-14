@@ -1,6 +1,53 @@
 # Relevo activo
 
-Última actualización: 2026-09-13 (Claude Code)
+Última actualización: 2026-09-14 (Claude Code)
+
+## SESIÓN 2026-09-14 — barrido de bugs por toda la app
+
+Rama: `claude/app-continuation-lpbupf`. Árbol limpio, todo empujado. 314 tests en verde (138 + 176),
+typecheck, lint, format y `next build` completo.
+
+### Lo que se arregló (todo verificado con tests; la BBDD, con dry-run en Postgres 16 local)
+
+| Qué                                  | El fallo real                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Comisiones sin `tenant_id`**       | `lib/commissions/` se quedó fuera de la migración multi-tenant. El insert fallaba SIEMPRE (columna NOT NULL) con el error descartado, y se devolvía el nº de comisiones CALCULADAS: la pantalla decía "3 generadas" con 0 filas escritas. Además las reglas de comisión se leían de TODAS las subcuentas.                       |
+| **Escalada de privilegios**          | La RLS de `tenant_members` dejaba a un admin de subcuenta insertar una fila `role='super_admin'` en su propia subcuenta, e `is_super_admin()` no filtra por subcuenta → acceso a todas. Reproducido y cerrado (migración `20260914090000`).                                                                                     |
+| **Dos pantallas escribiendo dinero** | "Registrar cobro" y "Registrar devolución" escribían desde el navegador en paralelo a sus rutas, sin tramos, sin atribución por UTM, sin recalcular el nivel del rep y —la de devoluciones— **sin comprobar la ventana de 15 días**. Ahora pasan por la ruta canónica.                                                          |
+| **Sumas sobre 1.000 filas**          | PostgREST corta a 1.000 filas sin avisar. El gasto/impresiones del embudo, el cruce de la sync de Meta y el gasto de "sueldo + comisión" del cron mensual se calculaban sobre un trozo. Nuevo `lib/supabase/paginate.ts`.                                                                                                       |
+| **Credenciales entre subcuentas**    | `ensureConfig()` volcaba las credenciales en `process.env` (global al proceso, nunca se limpia): en los crons que recorren subcuentas, la segunda heredaba las de la primera. **Eliminado.** Meta, Instagram, YouTube, Calendly, SeQura, Resend, Groq, creatuagente, GHL y la IA reciben ahora su configuración como argumento. |
+| **Lo configurado no se usaba**       | Media docena de librerías leían su clave de `process.env`, así que el token guardado en el panel no se usaba nunca (y la tarjeta salía verde igual). Ya no queda ninguna clave del catálogo leyéndose del entorno.                                                                                                              |
+| **Transcripción duplicada ×3**       | `transcribeGroq` copiada en tres archivos con tres variantes (una con timeout, dos sin él). Ahora `lib/ai/groq.ts`.                                                                                                                                                                                                             |
+| **Llamadas salientes sin timeout**   | Instagram Graph API (paginando en bucle), webhooks de creatuagente y GHL, Groq y descargas de vídeo.                                                                                                                                                                                                                            |
+| **Atribución entre subcuentas**      | `users` es global: resolver un utm_term, un email de Calendly o un affiliate_code sin comprobar `tenant_members` atribuía la agenda —y su comisión— a alguien de otra subcuenta.                                                                                                                                                |
+| **PII a la IA**                      | `ai/invoice` y `tasks/from-transcript` mandaban al modelo los nombres de TODOS los usuarios de la plataforma.                                                                                                                                                                                                                   |
+
+### Lo que TE toca a ti
+
+1. **Aplicar dos migraciones**: `20260913190000_integration_sync_runs.sql` (historial de ejecuciones) y
+   `20260914090000_block_super_admin_self_grant.sql` (cierra la escalada de privilegios). La segunda
+   es de seguridad: hasta que se aplique, el agujero sigue abierto en producción.
+2. Meta e Instagram: **Comprobar** y **Cargar histórico** en Integraciones, y mirar el historial de
+   ejecuciones (ahora sí guarda el motivo de cada fallo).
+
+### Lo que queda pendiente, a propósito y documentado
+
+- **Sin verificar contra proveedores reales**: `graph.facebook.com` está bloqueado desde el entorno
+  del agente y el MCP de Supabase pide reautenticación. Todo lo de arriba está `inspeccionado` y
+  `probado` (tests + dry-run de SQL en Postgres local), **no `verificado` en producción**.
+- `CALENDLY_WEBHOOK_SECRET` y `GHL_WEBHOOK_SECRET` (verificación de webhooks ENTRANTES) siguen
+  leyéndose del entorno del despliegue: cambiarlo mal deja de aceptar webhooks y para las agendas, así
+  que no se ha tocado sin poder probarlo contra los proveedores.
+- `GOOGLE_API_KEY`, `IG_BUSINESS_CONTEXT`, `IG_BRAND_ASSETS`, `ONBOARDING_*` y `TRACKING_INGEST_KEY`
+  siguen igual (mismo motivo: nadie las ha reportado como rotas y no se pueden probar aquí).
+- Stripe no tiene cron: la sync de clientes se lanza a mano desde Integraciones. Programarla es una
+  decisión tuya (ocupa un slot de cron de Vercel Hobby).
+- Quedan 67 avisos de `react-hooks/exhaustive-deps`. Se revisaron: son `tenant`/`tenantId`, que vienen
+  del contexto y no cambian mientras la página vive. Tocarlos es churn con riesgo y sin beneficio.
+- Algunas proyecciones (`commissions/future`, algunas pantallas de Analítica) siguen sin paginar. No
+  escriben nada y su volumen hoy está lejos de 1.000 filas; quedan anotadas, no arregladas.
+
+---
 
 ## CIERRE DE SESIÓN 2026-09-13 — estado real y qué decide quién
 
