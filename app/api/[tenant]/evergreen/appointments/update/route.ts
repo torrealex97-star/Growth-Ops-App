@@ -3,12 +3,21 @@ import { NextRequest, NextResponse } from 'next/server'
 import { notifyCreatuagente, EVENTO_BY_STATUS } from '@/lib/creatuagente'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { getTenantConfigWithFallback } from '@/lib/config'
+import { construirParche, type Marcado } from '@/lib/agenda/marcado'
 
 export const runtime = 'nodejs'
 
 const LEADERSHIP = ['admin', 'director', 'manager']
 // Campos que un closer/setter puede editar en SU agenda (notas + enlaces de la llamada).
 const ALLOWED = ['notes', 'recording_url', 'transcript_drive_url', 'transcript'] as const
+
+// MARCADO RÁPIDO DEL RESULTADO DE LA LLAMADA (asistencia, oferta, desenlace, seguimiento).
+//
+// Entra por `marcado` y NO por `patch`: `patch` escribe el campo que le den, y aquí las reglas del
+// negocio deducen unos campos de otros y rechazan combinaciones imposibles (una oferta en una llamada
+// a la que nadie asistió, una venta sin oferta). Si estos campos entraran por la lista de permitidos
+// de `patch`, la UI podría escribir `offered: true` con `status: 'no_show'` y el Pitch Rate saldría
+// por encima del 100%. Las reglas viven en lib/agenda/marcado.ts, probadas aparte.
 
 // Edita campos de una agenda (notas / enlaces de la llamada). Va por service role porque la RLS de
 // appointments solo deja UPDATE a admin/director; aquí el closer/setter puede editar LO SUYO.
@@ -44,7 +53,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: 'Solo puedes gestionar tus propias agendas' }, { status: 403 })
     }
 
-    const clean: Record<string, string | null | boolean> = {}
+    // El marcado se traduce ANTES de tocar nada: si la combinación es imposible, se responde 422 y no
+    // se escribe una parte del parche dejando la cita en un estado que no puede existir.
+    let desdeMarcado: Record<string, string | boolean> = {}
+    const avisos: string[] = []
+    if (patch.marcado && typeof patch.marcado === 'object') {
+      const resultado = construirParche(patch.marcado as Marcado)
+      if ('error' in resultado) return NextResponse.json({ error: resultado.error }, { status: 422 })
+      desdeMarcado = resultado.patch as Record<string, string | boolean>
+      avisos.push(...resultado.avisos)
+    }
+
+    const clean: Record<string, string | null | boolean> = { ...desdeMarcado }
     for (const k of ALLOWED) {
       if (k in patch) {
         const v = patch[k]
@@ -72,7 +92,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       })
     }
 
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, avisos })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }

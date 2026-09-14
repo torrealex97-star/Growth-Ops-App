@@ -10,6 +10,7 @@ import { Loader2, Trash2, Phone } from 'lucide-react'
 import { formatDateTime, formatDate } from '@/lib/utils'
 import { fireConfetti, cheerMessage } from '@/lib/confetti'
 import { toast } from 'sonner'
+import { MarcadoRapido } from '@/components/appointments/MarcadoRapido'
 import type { AppointmentWithRelations, AppointmentStatus } from '@/lib/types/database'
 import { STATUS_COLORS, STATUS_LABELS } from '@/lib/appointments/status'
 import { getQualificationEntries, type Qualification } from '@/lib/appointments/qualification'
@@ -663,6 +664,23 @@ export function AppointmentDetail({
           </Button>
         )}
       </div>
+
+      {/* MARCADO DEL RESULTADO. Va arriba, antes de las acciones y de los datos del contacto, porque es
+          lo que hay que rellenar al colgar: si estuviera al final del panel, no se rellenaría. De aquí
+          salen Show Rate, Pitch Rate, Close Rate y BAMFAM; por eso lo ven los mismos que pueden
+          cambiar el estado de la cita — es la misma autoridad sobre el mismo dato. */}
+      {canChangeStatus && (
+        <MarcadoRapido
+          tenant={tenant}
+          cita={appointment}
+          onMarcado={(id, cambios) => {
+            // El padre mantiene la fila de la tabla; se le avisa con lo que de verdad ha cambiado en
+            // vez de obligarle a recargar la lista entera.
+            if (cambios.status) onStatusChange?.(id, cambios.status as AppointmentStatus)
+            if (typeof cambios.needs_followup === 'boolean') onFollowUpChange?.(id, cambios.needs_followup)
+          }}
+        />
+      )}
 
       {/* Acciones: unirse / reprogramar / cancelar */}
       <div className="flex flex-wrap gap-2">
