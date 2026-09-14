@@ -4,7 +4,7 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 import { getTenantConfigWithFallback } from '@/lib/config'
 import { stripeGet } from '@/lib/stripe/client'
 import { classifyForBackfill, type BackfillRow } from '@/lib/finance/stripeBackfill'
-import { buildCollection, buildSaleFromPayment, type ImportChoice } from '@/lib/finance/stripeImport'
+import { buildCollection, buildSaleFromPayments, type ImportChoice } from '@/lib/finance/stripeImport'
 import type { StripeIntent } from '@/lib/finance/stripeReconciliation'
 
 export const runtime = 'nodejs'
@@ -17,6 +17,15 @@ export const maxDuration = 120
 //
 // LO QUE NO SE AUTOMATIZA. El producto y el plan de pago los elige la persona: `sales` los exige
 // (NOT NULL) y un pago de Stripe no dice a cuál corresponde. Aquí llegan elegidos.
+//
+// UNA VENTA POR CLIENTE, NO POR PAGO. Los pagos de una misma persona dentro de la tanda son los
+// PLAZOS de una venta, no ventas distintas: se escribe UNA venta con la suma y UN cobro por pago.
+// Escribir una venta por pago —lo que hacía antes— dejó 48 ventas para 27 clientas en la base real,
+// con el ticket medio hundido de ~1497€ a 458€ y todas las métricas por venta detrás.
+//
+// SI EL CONTACTO YA TIENE VENTA, se registra igualmente la venta de esta tanda y se AVISA en el
+// resultado. Fusionar contra una venta anterior daría por hecho que no hubo segunda compra, y un
+// upsell o una renovación son ventas de verdad: lo decide una persona, no esta ruta.
 
 function serviceClient(): SupabaseClient {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
@@ -131,6 +140,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const resultados: { paymentId: string; ok: boolean; saleId?: string; motivo?: string }[] = []
   let registradas = 0
 
+  // PASO 1 — releer y clasificar TODOS los pagos antes de escribir nada. Hace falta la tanda entera
+  // para saber qué pagos son del mismo cliente: agrupar sobre la marcha crearía la primera venta
+  // antes de saber que el segundo pago era su plazo.
+  const clasificados = new Map<string, BackfillRow>()
   for (const paymentId of paymentIds) {
     // Cada pago se relee de Stripe por su id: es la fuente de la verdad sobre importe y estado, y
     // así el importe escrito no puede venir manipulado desde el navegador.
@@ -146,28 +159,66 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       continue
     }
 
-    const row: BackfillRow = classifyForBackfill(intent, { knownReferences, contactsByEmail })
-    const built = buildSaleFromPayment(row, choice)
+    clasificados.set(paymentId, classifyForBackfill(intent, { knownReferences, contactsByEmail }))
+  }
+
+  // PASO 2 — agrupar por contacto. Un pago sin contacto identificado no agrupa con nadie: se
+  // reporta con el motivo que trae la clasificación, igual que antes.
+  const porContacto = new Map<string, BackfillRow[]>()
+  for (const [paymentId, row] of clasificados) {
+    if (row.verdict !== 'registrable' || !row.contactId) {
+      resultados.push({
+        paymentId,
+        ok: false,
+        motivo: row.reason || `El pago ${paymentId} ya no es registrable (${row.verdict}).`,
+      })
+      continue
+    }
+    const grupo = porContacto.get(row.contactId)
+    if (grupo) grupo.push(row)
+    else porContacto.set(row.contactId, [row])
+  }
+
+  // Qué contactos YA tenían una venta antes de esta tanda. No cambia lo que se escribe: se avisa,
+  // porque una segunda venta del mismo cliente puede ser un upsell legítimo o un doble registro, y
+  // solo quien conoce el caso lo sabe.
+  const conVentaPrevia = new Set<string>()
+  if (porContacto.size > 0) {
+    const previas = await sb
+      .from('sales')
+      .select('contact_id')
+      .eq('tenant_id', session.tenantId)
+      .in('contact_id', [...porContacto.keys()])
+    if (previas.error) return NextResponse.json({ error: previas.error.message }, { status: 500 })
+    for (const v of previas.data ?? []) conVentaPrevia.add((v as { contact_id: string }).contact_id)
+  }
+
+  // PASO 3 — una venta por contacto, con todos sus cobros.
+  let ventasCreadas = 0
+  for (const [contactId, filas] of porContacto) {
+    const built = buildSaleFromPayments(filas, choice)
     if ('error' in built) {
-      resultados.push({ paymentId, ok: false, motivo: built.error })
+      for (const f of filas) resultados.push({ paymentId: f.paymentId, ok: false, motivo: built.error })
       continue
     }
 
     const inserted = await sb.from('sales').insert(built.sale).select('id')
     if (inserted.error || !inserted.data || inserted.data.length === 0) {
-      resultados.push({ paymentId, ok: false, motivo: inserted.error?.message || 'No se pudo crear la venta' })
+      const motivo = inserted.error?.message || 'No se pudo crear la venta'
+      for (const f of filas) resultados.push({ paymentId: f.paymentId, ok: false, motivo })
       continue
     }
     const saleId = (inserted.data[0] as { id: string }).id
 
     const collection = await sb
       .from('collections')
-      .insert(buildCollection(row, saleId, choice))
+      .insert(filas.map((f) => buildCollection(f, saleId, choice)))
       .select('id')
-    if (collection.error || !collection.data || collection.data.length === 0) {
-      // La venta sin su cobro sería facturación sin dinero asociado, y además el pago volvería a
-      // salir como registrable (la referencia vive en el cobro) → se duplicaría en la siguiente
-      // tanda. Se deshace la venta y se reporta.
+    const escritos = collection.data?.length ?? 0
+    if (collection.error || escritos !== filas.length) {
+      // La venta sin TODOS sus cobros sería facturación descuadrada, y los pagos sin cobro volverían
+      // a salir como registrables (la referencia vive en el cobro) → se duplicarían en la siguiente
+      // tanda. Se deshace la venta entera —los cobros caen con ella por la FK— y se reporta.
       await sb.from('sales').delete().eq('tenant_id', session.tenantId).eq('id', saleId)
       // 23505 en `collections` = el unique (tenant_id, payment_reference) de
       // 20260914120000 ha parado un DOBLE REGISTRO del mismo pago: otra petición
@@ -175,21 +226,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       // error del usuario ni un fallo: es exactamente lo que tiene que pasar, y el mensaje lo dice
       // así en vez de soltarle una violación de constraint.
       const yaRegistrado = collection.error?.code === '23505'
-      resultados.push({
-        paymentId,
-        ok: false,
-        motivo: yaRegistrado
-          ? 'Este pago ya se había registrado (otra petición llegó antes). No se ha duplicado nada.'
-          : `No se pudo registrar el cobro (${collection.error?.message || '0 filas'}), así que se deshizo la venta.`,
-      })
+      const motivo = yaRegistrado
+        ? 'Alguno de estos pagos ya se había registrado (otra petición llegó antes). No se ha duplicado nada.'
+        : `No se pudieron registrar los cobros (${collection.error?.message || `${escritos} de ${filas.length}`}), así que se deshizo la venta.`
+      for (const f of filas) resultados.push({ paymentId: f.paymentId, ok: false, motivo })
       continue
     }
 
-    // Ya registrada: se añade a las referencias conocidas para que un id repetido en la misma tanda
-    // no cree una segunda venta.
-    knownReferences.add(paymentId)
-    registradas++
-    resultados.push({ paymentId, ok: true, saleId })
+    ventasCreadas++
+    const aviso = conVentaPrevia.has(contactId)
+      ? 'Este cliente ya tenía una venta registrada. Se ha creado otra: revisa si era un upsell o un duplicado.'
+      : undefined
+    for (const f of filas) {
+      // Ya registrado: se añade a las referencias conocidas para que un id repetido en la misma
+      // tanda no cree una segunda venta.
+      knownReferences.add(f.paymentId)
+      registradas++
+      resultados.push({ paymentId: f.paymentId, ok: true, saleId, motivo: aviso })
+    }
 
     await sb.from('audit_logs').insert({
       tenant_id: session.tenantId,
@@ -197,9 +251,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       entity_id: saleId,
       action: 'create',
       actor_user_id: session.userId,
-      new_values: { origen: 'stripe_backfill', payment_reference: paymentId, gross_amount: built.sale.gross_amount },
+      new_values: {
+        origen: 'stripe_backfill',
+        payment_references: built.references,
+        gross_amount: built.sale.gross_amount,
+      },
     })
   }
 
-  return NextResponse.json({ ok: true, registradas, total: paymentIds.length, resultados })
+  return NextResponse.json({
+    ok: true,
+    registradas,
+    ventasCreadas,
+    total: paymentIds.length,
+    resultados,
+  })
 }

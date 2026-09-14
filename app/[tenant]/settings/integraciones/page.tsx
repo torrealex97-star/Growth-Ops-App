@@ -640,7 +640,15 @@ export default function IntegracionesPage() {
       toast.error('Elige antes producto y plan de pago')
       return
     }
-    if (!window.confirm(`Se van a registrar ${pagos.length} ventas con su cobro. ¿Continuar?`)) return
+    // Los pagos de una misma persona son los PLAZOS de una venta, así que el servidor agrupa por
+    // cliente: N pagos pueden salir como menos ventas. El aviso lo dice para que el número final no
+    // sorprenda.
+    if (
+      !window.confirm(
+        `Se van a registrar ${pagos.length} pagos como ventas (los plazos de una misma persona se agrupan en una sola venta). ¿Continuar?`
+      )
+    )
+      return
     setImporting(true)
     try {
       const r = await fetch(`/api/${tenant}/evergreen/stripe-backfill/registrar`, {
@@ -658,7 +666,8 @@ export default function IntegracionesPage() {
         return
       }
       const fallos = (j.resultados ?? []).filter((x: { ok: boolean }) => !x.ok)
-      toast.success(`${j.registradas} de ${j.total} ventas registradas`, {
+      const ventas = typeof j.ventasCreadas === 'number' ? j.ventasCreadas : j.registradas
+      toast.success(`${j.registradas} de ${j.total} pagos registrados en ${ventas} ventas`, {
         description: fallos.length ? `${fallos.length} sin registrar: ${fallos[0].motivo}` : 'Ya aparecen en Ventas.',
       })
       await loadBackfill()
