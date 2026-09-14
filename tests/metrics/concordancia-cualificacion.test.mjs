@@ -21,11 +21,32 @@ test('el juicio de ventas sale de lo que ya marca el closer, sin campo nuevo', (
   assert.equal(cualificacionVentas({ status: 'show', offered: true }), true)
 })
 
-// No lanzar la oferta puede ser falta de tiempo o un reagendado, no un descarte. Convertirlo en `false`
-// castigaría a ventas por llamadas que se quedaron a medias.
-test('no haber lanzado la oferta no equivale a descartar al prospecto', () => {
-  assert.equal(cualificacionVentas({ status: 'show', offered: false, result: 'seguimiento' }), null)
-  assert.equal(cualificacionVentas({ status: 'show' }), null)
+// CONTRATO CAMBIADO POR DECISIÓN DE NEGOCIO: "si el closer no marca que NO hizo la oferta, es que la
+// hizo". Antes, una llamada celebrada sin marcar se quedaba sin juicio de ventas; ahora cuenta como
+// prospecto cualificado. Es la regla que hace que la gente marque solo las excepciones.
+test('una llamada celebrada sin marcar cuenta como prospecto cualificado', () => {
+  assert.equal(cualificacionVentas({ status: 'show' }), true)
+  assert.equal(cualificacionVentas({ status: 'completed' }), true)
+})
+
+// Y el `false` explícito ahora SÍ descarta: con la suposición activa, marcar que no hubo oferta es un
+// acto deliberado —el closer se ha salido de lo normal para decirlo—, y es exactamente la regla del
+// negocio: "si asiste y no se le lanza la oferta, es que no estaba cualificada".
+test('marcar explícitamente que no hubo oferta sí descarta al prospecto', () => {
+  assert.equal(cualificacionVentas({ status: 'show', offered: false, result: 'seguimiento' }), false)
+})
+
+// Pero un `false` DERIVADO de que no hubo llamada no descalifica a nadie: no llegó a haber ocasión de
+// juzgarlo. Meterlo como descarte culparía a ventas de los no-shows.
+test('un no-show no descarta al prospecto: no hubo ocasión de juzgarlo', () => {
+  assert.equal(cualificacionVentas({ status: 'no_show' }), null)
+  assert.equal(cualificacionVentas({ status: 'cancelled' }), null)
+})
+
+// La suposición se puede apagar por configuración: en un equipo donde presentar la oferta NO sea la
+// norma, inflaría el Pitch Rate sistemáticamente.
+test('con la suposición apagada, lo no marcado vuelve a quedar sin juicio', () => {
+  assert.equal(cualificacionVentas({ status: 'show' }, { asumirOfertaEnLlamadaAsistida: false }), null)
 })
 
 // ---------------------------------------------------------------------------------------------

@@ -22,6 +22,7 @@
 // número intermedio no lo responde nadie.
 
 import type { Veredicto } from '@/lib/metrics/cualificacion'
+import { resolverOferta, type ConfigOferta, CONFIG_OFERTA_POR_DEFECTO } from '@/lib/metrics/oferta'
 
 /**
  * `concuerdan_si` / `concuerdan_no` — las dos coinciden. Es lo normal y lo deseable.
@@ -56,14 +57,30 @@ export type EvaluacionConcordancia = {
  * `offered === false` con un resultado que NO es 'no_cualificado' se queda en `null` a propósito: no
  * lanzar la oferta puede ser falta de tiempo o un reagendado, no un descarte. Convertirlo en `false`
  * castigaría a ventas por llamadas que se quedaron a medias.
+ *
+ * LA OFERTA SE RESUELVE, NO SE LEE EN CRUDO. El negocio declara que "si el closer no marca que NO hizo
+ * la oferta, es que la hizo", así que una llamada celebrada sin marcar cuenta como oferta presentada.
+ * Eso se decide en `resolverOferta()` y no aquí, para que la suposición viva en un único sitio y se
+ * pueda apagar por configuración sin tocar esta función.
+ *
+ * Consecuencia que conviene tener presente: con la suposición activa, casi toda llamada celebrada
+ * cuenta como prospecto cualificado por ventas mientras nadie marque excepciones. El resumen de
+ * concordancia lo refleja porque `resumirOferta()` expone cuánto se está asumiendo.
  */
-export function cualificacionVentas(cita: {
-  status?: string | null
-  offered?: boolean | null
-  result?: string | null
-}): Veredicto {
+export function cualificacionVentas(
+  cita: {
+    status?: string | null
+    offered?: boolean | null
+    result?: string | null
+  },
+  configOferta: ConfigOferta = CONFIG_OFERTA_POR_DEFECTO
+): Veredicto {
   if (cita.result === 'no_cualificado') return false
-  if (cita.offered === true) return true
+  const oferta = resolverOferta(cita, configOferta)
+  // Solo una oferta AFIRMADA (declarada o asumida) confirma al prospecto. Un `false` derivado de que
+  // no hubo llamada no descalifica a nadie: no llegó a haber ocasión de juzgarlo.
+  if (oferta.valor === true) return true
+  if (oferta.valor === false && oferta.origen === 'declarado') return false
   return null
 }
 
