@@ -62,3 +62,29 @@ test('las tres lecturas de Stripe paginan de verdad', () => {
   assert.match(cliente, /has_more/)
   assert.match(cliente, /truncated/)
 })
+
+test('el cron de Stripe existe, está protegido y NO está programado todavía', () => {
+  const ruta = read('../../app/api/[tenant]/evergreen/cron/stripe-customers/route.ts')
+  // Mismo patrón que el resto: GET global protegido por CRON_SECRET que recorre las subcuentas.
+  assert.match(ruta, /auth !== `Bearer \$\{process\.env\.CRON_SECRET\}`/)
+  assert.match(ruta, /from\('tenants'\)[\s\S]{0,80}eq\('status', 'active'\)/)
+  // Config explícita por subcuenta: la clave de Stripe de una no puede sincronizar la cuenta de otra.
+  assert.match(ruta, /getTenantConfigWithFallback\(tn\.id, true\)/)
+  // Una lista truncada NO se guarda como éxito.
+  assert.match(ruta, /r\.truncated\s*\n?\s*\?/)
+
+  // Y NO está en vercel.json a propósito: plan Hobby con nueve crons ya declarados. Añadir un décimo
+  // sin saber cuántos ejecuta Vercel podría desplazar Meta, Instagram o los recordatorios.
+  const vercel = JSON.parse(read('../../vercel.json'))
+  const paths = vercel.crons.map((c) => c.path)
+  assert.ok(!paths.includes('/api/_/evergreen/cron/stripe-customers'), 'no debe programarse sin decidirlo')
+  // Mientras no esté programada, el catálogo la declara manual con su motivo, así que el panel no
+  // pinta un verde que no le corresponde.
+  const defs = read('../../lib/ops/sync-health.ts')
+  const inicio = defs.indexOf("id: 'stripe-customers'")
+  // Hasta el cierre de la entrada, no una ventana de caracteres: los comentarios que explican una
+  // decisión no deberían poder romper un test.
+  const bloque = defs.slice(inicio, defs.indexOf('\n  },', inicio))
+  assert.match(bloque, /scheduler: 'manual'/)
+  assert.match(bloque, /manualReason/)
+})
