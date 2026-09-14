@@ -1,7 +1,25 @@
 // Filtro de periodo reutilizable para todos los dashboards.
 // Día / Semana / Mes / Trimestre / Año / Personalizado, + helpers de rango y CSV.
 
-export type PeriodPreset = 'all' | 'today' | 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom'
+export type PeriodPreset =
+  | 'all'
+  | 'today'
+  | 'day'
+  | 'week'
+  | 'month'
+  | 'quarter'
+  | 'year'
+  // Ventanas móviles: terminan HOY y cuentan hacia atrás. No son lo mismo que 'month' o 'year',
+  // que son el mes/año natural: el día 2 de mes, 'month' son dos días y '30d' son treinta.
+  | '7d'
+  | '30d'
+  | '90d'
+  // Del 1 de enero a HOY. Distinto de 'year', que llega al 31 de diciembre: con 'year', el rango
+  // incluye meses que todavía no han pasado, y el "periodo anterior" comparativo se calcula sobre
+  // una duración de 365 días en vez de sobre lo transcurrido.
+  | 'ytd'
+  | 'launch'
+  | 'custom'
 
 export const PERIOD_LABELS: Record<PeriodPreset, string> = {
   all: 'Todo',
@@ -11,8 +29,16 @@ export const PERIOD_LABELS: Record<PeriodPreset, string> = {
   month: 'Este mes',
   quarter: 'Este trimestre',
   year: 'Este año',
+  '7d': 'Últimos 7 días',
+  '30d': 'Últimos 30 días',
+  '90d': 'Últimos 90 días',
+  ytd: 'Lo que va de año',
+  launch: 'Desde el lanzamiento',
   custom: 'Rango personalizado',
 }
+
+/** Los presets que el brief pide como mínimo en Métricas y Campañas, en orden de menor a mayor. */
+export const PERIOD_PRESETS_DASHBOARD: PeriodPreset[] = ['7d', '30d', '90d', 'ytd', 'launch', 'custom']
 
 export type PeriodRange = { from: Date | null; to: Date | null }
 
@@ -56,9 +82,49 @@ export function getCustomDateRange(fromValue: string, toValue: string): PeriodRa
   return { from, to }
 }
 
-export function getPeriodRange(preset: PeriodPreset, customFrom: string, customTo: string): PeriodRange {
+/**
+ * `launchDate` es la fecha desde la que esta subcuenta tiene datos. Se pasa desde la pantalla porque
+ * depende de la fuente (Meta empieza antes que Stripe, Stripe antes que Fathom). Si no se conoce,
+ * 'launch' se queda sin límite inferior: mostrar todo lo disponible es honesto; inventarse una fecha
+ * de arranque no lo sería.
+ */
+export type PeriodOptions = { launchDate?: Date | string | null }
+
+function asDate(value: Date | string | null | undefined): Date | null {
+  if (!value) return null
+  if (value instanceof Date) return isNaN(value.getTime()) ? null : value
+  const parsed = parseDateInput(value) ?? new Date(value)
+  return isNaN(parsed.getTime()) ? null : parsed
+}
+
+// Ventana móvil de N días que TERMINA hoy. Incluye hoy, así que '7d' son hoy y los seis anteriores:
+// contar 7 días hacia atrás Y además hoy daría ocho días de datos bajo una etiqueta que dice siete.
+function rollingWindow(now: Date, days: number): PeriodRange {
+  const from = new Date(now)
+  from.setDate(now.getDate() - (days - 1))
+  return { from: startOfDay(from), to: endOfDay(now) }
+}
+
+export function getPeriodRange(
+  preset: PeriodPreset,
+  customFrom: string,
+  customTo: string,
+  opts: PeriodOptions = {}
+): PeriodRange {
   const now = new Date()
   switch (preset) {
+    case '7d':
+      return rollingWindow(now, 7)
+    case '30d':
+      return rollingWindow(now, 30)
+    case '90d':
+      return rollingWindow(now, 90)
+    case 'ytd':
+      return { from: startOfDay(new Date(now.getFullYear(), 0, 1)), to: endOfDay(now) }
+    case 'launch': {
+      const desde = asDate(opts.launchDate)
+      return { from: desde ? startOfDay(desde) : null, to: endOfDay(now) }
+    }
     case 'today':
       return { from: startOfDay(now), to: endOfDay(now) }
     case 'day': {
@@ -124,6 +190,7 @@ export function inPeriod(date: string | Date | null | undefined, range: PeriodRa
 // Etiqueta corta para nombres de fichero de export
 export function periodFileTag(preset: PeriodPreset, customFrom: string, customTo: string): string {
   if (preset === 'all') return 'todas'
+  if (preset === 'launch') return 'desde_lanzamiento'
   if (preset === 'day') return customFrom || 'dia'
   if (preset === 'custom') return `${customFrom || 'inicio'}_a_${customTo || 'fin'}`
   return preset

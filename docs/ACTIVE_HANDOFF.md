@@ -2,13 +2,40 @@
 
 Última actualización: 2026-09-14 (Claude Code)
 
-## SESIÓN 2026-09-14 (brief de Integraciones/Stripe/Métricas/Funnels) — bloques 1 y 2 de 6
+## SESIÓN 2026-09-14 (brief de Integraciones/Stripe/Métricas/Funnels) — bloques 1, 2 y 3 de 6
 
 Rama: `claude/app-continuation-lpbupf`, empujada, árbol limpio. 151 + 198 tests en verde, typecheck,
 lint, format y `next build` completo.
 
-El brief tiene 58 secciones agrupables en 6 bloques. Se cerraron los dos primeros. **Los bloques
-3-6 NO están empezados**: no hay nada a medias en el árbol.
+El brief tiene 58 secciones agrupables en 6 bloques. Se cerraron los tres primeros. **Los bloques
+4-6 NO están empezados**: no hay nada a medias en el árbol.
+
+### Bloque 3 — filtros de periodo y estado en URL (§4-§6, §51) CERRADO
+
+`lib/filters/period.ts` ya existía y era sano: se EXTENDIÓ, no se reescribió. Presets nuevos `7d`,
+`30d`, `90d`, `ytd` y `launch`, con dos distinciones que importan y que fija el test:
+
+- Las ventanas móviles duran exactamente lo que dicen (7d = hoy y los seis anteriores; contar siete
+  hacia atrás Y hoy daría ocho días bajo una etiqueta que dice siete).
+- `ytd` va del 1 de enero a HOY, mientras `year` llega al 31 de diciembre: con `year`, el rango
+  incluye meses que no han pasado y el periodo anterior comparativo se calcula sobre 365 días.
+- `launch` acepta la fecha real de arranque; sin ella se queda sin límite inferior (todo lo
+  disponible) en vez de inventarse una.
+
+`PeriodFilterBar` recorre `PERIOD_LABELS`, así que los presets nuevos aparecen a la vez en todas las
+pantallas que la usan, sin tocarlas una por una.
+
+Estado en URL: `lib/filters/url-state.ts` (PURO, testeable) + `lib/filters/use-url-filters.ts` (el
+hook). Cableado en Campañas para `period`, `from`/`to`, `account` y `campaign`. Un filtro en su valor
+por defecto no se escribe (la URL limpia sigue limpia), el orden del query es estable (dos pantallas
+con los mismos filtros dan el mismo enlace) y un valor inventado a mano cae al predeterminado.
+Campañas deriva KPIs, gráficas, funnel y tabla de UN solo `range` — hay test que lo fija contando
+las llamadas a `getPeriodRange`.
+
+OUT_OF_SCOPE_FINDING: `app/[tenant]/comisiones/page.tsx` y `app/[tenant]/ventas/registro/page.tsx`
+tienen su PROPIA copia de `PeriodPreset`, `PERIOD_LABELS` y cálculo de rango, en vez de usar
+`lib/filters/period.ts`. Es el mismo patrón que §5/§39 atacan (mismo filtro, número distinto según la
+pantalla). No se tocó: está fuera de lo que pide el brief y merece su propio cambio acotado.
 
 ### Bloque 1 — Meta multi-cuenta (§1-§3) CERRADO
 
