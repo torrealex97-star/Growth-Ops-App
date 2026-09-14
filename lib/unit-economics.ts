@@ -11,6 +11,8 @@ export type CampaignRow = {
   leads_generated: number | string | null
   impressions?: number | string | null
   clicks?: number | string | null
+  /** Cuenta publicitaria de origen (act_XXX). Es lo que permite mostrar SOLO las seleccionadas. */
+  account_id?: string | null
 }
 export type SaleRow = {
   id: string
