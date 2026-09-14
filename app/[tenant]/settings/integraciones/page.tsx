@@ -37,6 +37,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTenant } from '@/lib/tenant-context'
+import { isAccountSelected, parseAccountIds, serializeAccountIds, toggleAccountId } from '@/lib/meta/accounts'
 import { brandFor, type Brand } from '@/components/integrations/brands'
 import { historyFor } from '@/lib/integrations/history'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -277,7 +278,7 @@ const GROUP_META: Record<string, { icon: typeof Plug; tone: string; steps: strin
 // contra su API y respondiendo; gris = sin configurar o sin comprobar; roja = error o sin sincronizar.
 type IntegrationHealth = {
   id: string
-  status: 'conectada' | 'sin_configurar' | 'error'
+  status: 'conectada' | 'parcial' | 'sin_configurar' | 'error'
   headline: string
   detail: string
   fix?: string
@@ -310,6 +311,9 @@ function BrandMark({ brand, className, ...rest }: { brand: Brand; className?: st
 
 const LUZ: Record<IntegrationHealth['status'], { dot: string; text: string }> = {
   conectada: { dot: 'bg-emerald-400', text: 'text-emerald-400' },
+  // Ámbar: funciona, pero una parte va con retraso. Ni verde (mentiría) ni rojo (no hay nada que
+  // arreglar). Sin este estado la pantalla saltaba de verde a rojo sin cambio real.
+  parcial: { dot: 'bg-amber-400', text: 'text-amber-400' },
   sin_configurar: { dot: 'bg-zinc-500', text: 'text-muted-foreground' },
   error: { dot: 'bg-red-400', text: 'text-red-400' },
 }
@@ -825,7 +829,7 @@ export default function IntegracionesPage() {
                       <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-4">
                         <span className="text-foreground inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs font-medium transition-colors group-hover:bg-white/10">
                           <Settings2 className="h-3.5 w-3.5" />
-                          {h?.status === 'conectada' ? 'Ver' : 'Configurar'}
+                          {h?.status === 'conectada' || h?.status === 'parcial' ? 'Ver' : 'Configurar'}
                         </span>
                         <span className="flex items-center gap-2 text-xs font-medium">
                           {/* La luz y el texto dicen lo mismo: el color por sí solo no sirve a quien
@@ -844,7 +848,11 @@ export default function IntegracionesPage() {
                               {brand ? <BrandMark brand={brand} className="h-6 w-6" /> : <Icon className="h-6 w-6" />}
                             </div>
                             <div>
-                              <SheetTitle>{h?.status === 'conectada' ? g.title : `Configurar ${g.title}`}</SheetTitle>
+                              <SheetTitle>
+                                {h?.status === 'conectada' || h?.status === 'parcial'
+                                  ? g.title
+                                  : `Configurar ${g.title}`}
+                              </SheetTitle>
                               <p className="flex items-center gap-2 text-xs font-medium">
                                 <span className={`h-2 w-2 shrink-0 rounded-full ${luz.dot}`} aria-hidden />
                                 <span className={statusClass}>{status}</span>
@@ -864,7 +872,9 @@ export default function IntegracionesPage() {
                                 ? 'border-emerald-500/30 bg-emerald-500/5'
                                 : h.status === 'error'
                                   ? 'border-red-500/30 bg-red-500/5'
-                                  : 'border-border bg-muted/30'
+                                  : h.status === 'parcial'
+                                    ? 'border-amber-500/30 bg-amber-500/5'
+                                    : 'border-border bg-muted/30'
                             }`}
                           >
                             <p className="flex items-start gap-2">
@@ -1016,7 +1026,9 @@ export default function IntegracionesPage() {
                             {metaAccounts && metaAccounts.length > 0 ? (
                               <div className="space-y-1">
                                 {metaAccounts.map((acc) => {
-                                  const elegida = (drafts.META_AD_ACCOUNT_ID ?? '').includes(acc.id)
+                                  // Comparación por id (no por substring: "act_12" hacía salir marcada
+                                  // también a "act_123") y con la MISMA función que usa el servidor.
+                                  const elegida = isAccountSelected(drafts.META_AD_ACCOUNT_ID, acc.id)
                                   return (
                                     <label
                                       key={acc.id}
@@ -1024,11 +1036,16 @@ export default function IntegracionesPage() {
                                         elegida ? 'border-primary/60 bg-primary/5' : 'border-border hover:bg-muted/40'
                                       }`}
                                     >
+                                      {/* Checkbox, no radio: se pueden elegir varias cuentas. */}
                                       <input
-                                        type="radio"
-                                        name="meta-account"
+                                        type="checkbox"
                                         checked={elegida}
-                                        onChange={() => setDrafts({ ...drafts, META_AD_ACCOUNT_ID: acc.id })}
+                                        onChange={() =>
+                                          setDrafts({
+                                            ...drafts,
+                                            META_AD_ACCOUNT_ID: toggleAccountId(drafts.META_AD_ACCOUNT_ID, acc.id),
+                                          })
+                                        }
                                       />
                                       <span className="flex-1">{acc.name}</span>
                                       {/* Una cuenta cerrada o con deuda no devuelve datos: mejor
@@ -1040,8 +1057,35 @@ export default function IntegracionesPage() {
                                     </label>
                                   )
                                 })}
+                                <div className="flex items-center gap-3 pt-1">
+                                  <button
+                                    type="button"
+                                    className="text-primary text-xs hover:underline"
+                                    onClick={() =>
+                                      setDrafts({
+                                        ...drafts,
+                                        META_AD_ACCOUNT_ID: serializeAccountIds(metaAccounts.map((a) => a.id)),
+                                      })
+                                    }
+                                  >
+                                    Seleccionar todas
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="text-muted-foreground text-xs hover:underline"
+                                    onClick={() => setDrafts({ ...drafts, META_AD_ACCOUNT_ID: '' })}
+                                  >
+                                    Ninguna
+                                  </button>
+                                  <span className="text-muted-foreground ml-auto text-xs">
+                                    {parseAccountIds(drafts.META_AD_ACCOUNT_ID).length === 0
+                                      ? 'Sin marcar: se sincronizan TODAS las que vea el token'
+                                      : `${parseAccountIds(drafts.META_AD_ACCOUNT_ID).length} de ${metaAccounts.length} seleccionadas`}
+                                  </span>
+                                </div>
                                 <p className="text-muted-foreground text-xs">
-                                  Déjalas todas sin marcar para sincronizar todas las que vea el token.
+                                  Puedes marcar varias. Déjalas todas sin marcar para sincronizar todas las que vea el
+                                  token. Solo las cuentas seleccionadas alimentan métricas, campañas y los crons.
                                 </p>
                               </div>
                             ) : null}

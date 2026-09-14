@@ -6,7 +6,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { X, Download } from 'lucide-react'
-import { isDateRangeInvalid, PERIOD_LABELS, toDateInputValue, type PeriodPreset } from '@/lib/filters/period'
+import {
+  isDateRangeInvalid,
+  PERIOD_LABELS,
+  PERIOD_PRESETS_BAR,
+  toDateInputValue,
+  type PeriodPreset,
+} from '@/lib/filters/period'
 
 export type PeriodFilterMember = { id: string; full_name: string }
 
@@ -102,7 +108,7 @@ export function PeriodFilterBar({
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-card border-border">
-              {(Object.keys(PERIOD_LABELS) as PeriodPreset[]).map((p) => (
+              {PERIOD_PRESETS_BAR.map((p) => (
                 <SelectItem key={p} value={p}>
                   {PERIOD_LABELS[p]}
                 </SelectItem>
