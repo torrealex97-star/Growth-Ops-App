@@ -21,6 +21,13 @@ export type ImportChoice = {
   paymentPlanId: string
   /** `cash_collection_ratio` del plan elegido: la parte del bruto que genera comisión. */
   cashCollectionRatio: number
+  /**
+   * `gross_price` del plan elegido: el PRECIO PACTADO del producto. Es lo que vale la venta, y no
+   * tiene por qué coincidir con lo cobrado hasta hoy: una clienta a mitad de un plan de 10 plazos ya
+   * compró el producto entero. 0 o null = plan sin precio fijo (personalizado), y entonces lo único
+   * que se sabe del importe es lo que ha entrado.
+   */
+  planGrossPrice: number | null
   paymentMethod: string | null
   tenantId: string
   userId: string
@@ -81,11 +88,17 @@ export function addDaysIso(iso: string, days: number): string {
  * propio plan, y fusionarla contra una venta anterior sería inventar que no hubo segunda compra.
  * La ruta avisa cuando el contacto ya tenía venta, para que lo decida una persona.
  *
+ * FACTURACIÓN NO ES CASH COLLECTED. `sales.gross_amount` es el PRECIO PACTADO —lo que la app llama
+ * revenue: `SUM(sales.gross_amount)`— y el dinero que ha entrado de verdad vive en `collections`
+ * (`cash_collected`). Una clienta a mitad de un plan de 10 plazos ya compró el producto entero: su
+ * venta vale 1997€, aunque en la cuenta haya 399,40€. Sumar los pagos aquí mezclaba las dos métricas
+ * y hundía la facturación a la mitad.
+ *
  * - `sale_date` es la del PRIMER pago: es cuando se cerró la venta. Usar el último movería la venta
  *   de mes cada vez que entra un plazo.
- * - `gross_amount` es la SUMA de los pagos de la tanda. Es lo cobrado, no lo prometido: si faltan
- *   plazos por venir, la venta crece cuando entren, que es exactamente lo que hace el registro
- *   manual con los cobros pendientes.
+ * - `gross_amount` es el `gross_price` del plan elegido. Solo cuando el plan no tiene precio fijo
+ *   (personalizado, `gross_price` 0) se cae a la suma de lo cobrado: es lo único que se sabe, y
+ *   es mejor que escribir un cero.
  *
  * Devuelve error en vez de filas cuando algún pago no es registrable: la ruta vuelve a clasificar
  * antes de escribir, así que esto es la última red — pero una red que devuelve "no" es mejor que
@@ -111,7 +124,9 @@ export function buildSaleFromPayments(
 
   const ordenados = [...rows].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
   const saleDate = ordenados[0].createdAt.slice(0, 10)
-  const total = money(ordenados.reduce((acc, r) => acc + r.amount, 0))
+  const cobrado = money(ordenados.reduce((acc, r) => acc + r.amount, 0))
+  // El precio pactado manda. La suma de lo cobrado solo entra cuando el plan no declara precio.
+  const total = choice.planGrossPrice && choice.planGrossPrice > 0 ? money(choice.planGrossPrice) : cobrado
   const references = ordenados.map((r) => r.paymentId)
 
   return {
@@ -130,8 +145,8 @@ export function buildSaleFromPayments(
       created_by: choice.userId,
       notes:
         references.length === 1
-          ? `Registrada desde Stripe (${references[0]}).`
-          : `Registrada desde Stripe: ${references.length} pagos (${references.join(', ')}).`,
+          ? `Registrada desde Stripe (${references[0]}). Cobrado hasta la fecha: ${cobrado}.`
+          : `Registrada desde Stripe: ${references.length} pagos (${references.join(', ')}). Cobrado hasta la fecha: ${cobrado}.`,
     },
   }
 }
