@@ -6,6 +6,7 @@
 // rompía el build en cuanto la validación de rutas lo miraba. La lógica no era de la ruta: es de
 // negocio, y las dos rutas la usan.
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { transcribeAudio } from '@/lib/ai/groq'
 import { generateScript, type ReelAnalysis } from '@/lib/ai/claude'
 import { tenantAiEnv } from '@/lib/ai/provider'
 import { readStylePrompt, readBusinessContext } from '@/lib/app-settings'
@@ -24,40 +25,14 @@ export type CompetitorMediaRow = {
 }
 
 const DEFAULT_CTA = 'CLASE'
-const GROQ_LIMIT_BYTES = 25 * 1024 * 1024 // 25MB (tier gratuito Groq)
-
-async function transcribeGroq(buf: Buffer, mime: string): Promise<string> {
-  if (!process.env.GROQ_API_KEY) throw new Error('Falta GROQ_API_KEY')
-  const form = new FormData()
-  const ext = mime.includes('mp4') || mime.includes('video') ? 'mp4' : mime.includes('m4a') ? 'm4a' : 'mp3'
-  form.append('file', new Blob([new Uint8Array(buf)], { type: mime || 'video/mp4' }), `reel.${ext}`)
-  form.append('model', 'whisper-large-v3-turbo')
-  form.append('language', 'es')
-  form.append('response_format', 'json')
-  // Timeout generoso (una transcripción tarda), pero acotado: sin él, un Groq colgado consume
-  // la ventana entera del cron de reels y ningún borrador se genera.
-  const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
-    body: form,
-    signal: AbortSignal.timeout(60_000),
-  })
-  if (!res.ok) throw new Error(`Groq error ${res.status}: ${(await res.text()).slice(0, 300)}`)
-  const data = (await res.json()) as { text?: string }
-  return data.text || ''
-}
-
 // Descarga el media_url y lo transcribe con Groq Whisper. Lanza si no hay vídeo
 // o si supera el límite gratuito de 25MB.
-async function transcribeMediaUrl(mediaUrl: string): Promise<string> {
+async function transcribeMediaUrl(mediaUrl: string, groqKey: string | undefined): Promise<string> {
   const r = await fetch(mediaUrl, { signal: AbortSignal.timeout(45_000) })
   if (!r.ok) throw new Error('El enlace del vídeo ha caducado (vuelve a sincronizar Competencia)')
   const buf = Buffer.from(await r.arrayBuffer())
   const mime = r.headers.get('content-type') || 'video/mp4'
-  if (buf.byteLength > GROQ_LIMIT_BYTES) {
-    throw new Error(`El vídeo pesa ${(buf.byteLength / 1024 / 1024).toFixed(1)}MB y supera el límite de 25MB`)
-  }
-  const transcript = await transcribeGroq(buf, mime)
+  const transcript = await transcribeAudio(buf, mime, groqKey, { filename: 'reel' })
   if (!transcript || transcript.trim().length < 10) throw new Error('No se pudo extraer texto del reel (¿sin voz?)')
   return transcript
 }
@@ -91,13 +66,15 @@ export async function generateDraftForMedia(
   media: CompetitorMediaRow,
   accountUsername: string,
   draftId: string | undefined,
-  tenantId: string
+  tenantId: string,
+  /** Clave de Groq de ESTA subcuenta (Configuración › Integraciones). */
+  groqKey: string | undefined
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     let transcript = media.transcript || ''
     if (!transcript) {
       if (!media.media_url) throw new Error('Este contenido no tiene vídeo descargable')
-      transcript = await transcribeMediaUrl(media.media_url)
+      transcript = await transcribeMediaUrl(media.media_url, groqKey)
       await sb.from('ig_competitor_media').update({ transcript }).eq('id', media.id).eq('tenant_id', tenantId)
     }
 

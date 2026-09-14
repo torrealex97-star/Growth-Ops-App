@@ -5,6 +5,7 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 import { applyVars, generationVars, type ContractTerms } from '@/lib/contracts/terms'
 import { getCompanyProfile } from '@/lib/contracts/company'
 import { sendContractEmail, resendConfigured } from '@/lib/email/resend'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 
@@ -146,7 +147,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const primary = member.email || personalEmail
     if (primary) {
       const cc = member.email ? personalEmail : null
-      const r = await sendContractEmail({ to: primary, cc, memberName: member.full_name, company, signUrl })
+      const mail = await getTenantConfigWithFallback(t.tenantId)
+      const r = await sendContractEmail({ mail, to: primary, cc, memberName: member.full_name, company, signUrl })
       emailed = r.ok
       emailError = r.ok ? null : (r.error ?? null)
       if (r.ok)
@@ -168,7 +170,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       signUrl,
       emailed,
       emailError,
-      resendConfigured: resendConfigured(),
+      resendConfigured: resendConfigured(await getTenantConfigWithFallback(t.tenantId)),
       memberEmail: member.email,
       personalEmail,
     })

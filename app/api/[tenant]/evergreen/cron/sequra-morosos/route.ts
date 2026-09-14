@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { syncSequraDelinquents } from '@/lib/sequra/syncDelinquents'
+import { getTenantConfigWithFallback } from '@/lib/config'
 import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
@@ -52,7 +53,9 @@ async function handle(req: NextRequest, tenantSlug: string) {
       if (tenantsErr) throw new Error(tenantsErr.message)
       const perTenant: Record<string, unknown> = {}
       for (const tn of tenants || []) {
-        perTenant[tn.slug] = await syncSequraDelinquents(tn.id)
+        // Credenciales y comercio de CADA subcuenta: antes el token y la referencia de comercio
+        // salían del entorno del proceso, así que todas sincronizaban el mismo comercio.
+        perTenant[tn.slug] = await syncSequraDelinquents(tn.id, await getTenantConfigWithFallback(tn.id, true))
       }
       return NextResponse.json({ ok: true, tenants: perTenant })
     } catch (err) {
@@ -64,7 +67,7 @@ async function handle(req: NextRequest, tenantSlug: string) {
   const t = await requireTenant(tenantSlug)
   if ('error' in t) return t.error
   try {
-    const result = await syncSequraDelinquents(t.tenantId)
+    const result = await syncSequraDelinquents(t.tenantId, await getTenantConfigWithFallback(t.tenantId, true))
     return NextResponse.json({ ok: true, ...result })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })

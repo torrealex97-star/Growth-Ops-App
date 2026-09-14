@@ -4,6 +4,7 @@ import { generateUniqueTrackingCode } from '@/lib/tracking'
 import { getCompanyProfile } from '@/lib/contracts/company'
 import { sendInviteEmail, resendConfigured } from '@/lib/email/resend'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 
@@ -129,7 +130,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const company = await getCompanyProfile(supabase, t.tenantId)
     let emailed = false
     let emailError: string | null = null
-    const r = await sendInviteEmail({ to: email, fullName: fullName || email, company, url: inviteUrl })
+    const mail = await getTenantConfigWithFallback(t.tenantId)
+    const r = await sendInviteEmail({ mail, to: email, fullName: fullName || email, company, url: inviteUrl })
     emailed = r.ok
     emailError = r.ok ? null : (r.error ?? null)
 
@@ -139,7 +141,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       inviteUrl,
       emailed,
       emailError,
-      resendConfigured: resendConfigured(),
+      resendConfigured: resendConfigured(await getTenantConfigWithFallback(t.tenantId)),
     })
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 })
