@@ -21,7 +21,7 @@ import { getPeriodRange, type PeriodPreset } from '@/lib/filters/period'
 import { isPaidSource } from '@/lib/ads/funnel'
 import { QUALIFICATION_KEYS, labelFor, type QualificationAnswer } from '@/lib/qualification'
 import { countryISOForPhone, countryNameForISO } from '@/lib/phone'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { normalizeText } from '@/components/ui/search-box'
 
 type FunnelRow = { source: string; leads: number; appointments: number; sales: number; gross: number }
@@ -143,6 +143,7 @@ function BarList({
 
 export default function AttributionPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<FunnelRow[]>([])
   const [loadingTouch, setLoadingTouch] = useState(true)
@@ -171,7 +172,7 @@ export default function AttributionPage() {
     async function loadGlobal() {
       const supabase = createClient()
       const [funnelRes, touchRes] = await Promise.all([
-        supabase.rpc('attribution_funnel'),
+        supabase.rpc('attribution_funnel_for_tenant', { p_tenant_id: tenantId }),
         supabase
           .from('contact_attributions')
           .select(
@@ -213,7 +214,7 @@ export default function AttributionPage() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [tenantId])
 
   // Agendas — se recargan cuando cambia el rango de fechas (el filtro de campaña/fuente
   // se aplica en cliente sobre lo cargado).
