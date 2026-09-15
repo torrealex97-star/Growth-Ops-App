@@ -17,8 +17,7 @@ import {
   Handshake,
   Building,
 } from 'lucide-react'
-import { useTenant } from '@/lib/tenant-context'
-import { createClient } from '@/lib/supabase/client'
+import { useSesion, useTenant } from '@/lib/tenant-context'
 
 // `manageOnly: false` = visible para cualquiera que llegue a Configuración. El resto son de
 // gestión (admin/director/manager), igual que filtraba la barra de pestañas que esta rejilla
@@ -130,28 +129,27 @@ const SETTINGS_CARDS = [
 export default function SettingsPage() {
   const tenant = useTenant()
   const router = useRouter()
+  // Sesión ya resuelta por el layout: evita repetir auth.getUser() + from('users') aquí.
+  const sesion = useSesion()
   // Arranca en null (= "todavía no se sabe") en vez de true: asumir que puede gestionar pintaría
   // por un instante tarjetas que no le corresponden.
   const [canManage, setCanManage] = useState<boolean | null>(null)
   // Igual que `canManage`: arranca en null para no pintar la tarjeta de plataforma antes de saberlo.
   const [isSuperAdmin, setIsSuperAdmin] = useState<boolean | null>(null)
 
+  // TRES VIAJES DE RED A CERO. Esta pantalla hacía `auth.getUser()`, luego `users` para el rol y luego
+  // `rpc('is_super_admin')`, los tres EN SERIE, y los tres los había hecho ya el layout para decidir si
+  // dejar entrar aquí. Con la sesión publicada no hace falta ninguno.
   useEffect(() => {
-    const sb = createClient()
-    void sb.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) {
-        setCanManage(false)
-        return
-      }
-      const { data } = await sb.from('users').select('roles(key)').eq('id', user.id).single()
-      const role = (data?.roles as { key?: string } | null)?.key
-      setCanManage(role === 'admin' || role === 'director' || role === 'manager')
-      // Super admin de plataforma no es un rol de `users`: es la función de base que usan las
-      // políticas de RLS, así que se pregunta a ella y no se deduce del rol.
-      const { data: superAdmin } = await sb.rpc('is_super_admin')
-      setIsSuperAdmin(!!superAdmin)
-    })
-  }, [])
+    if (!sesion) {
+      setCanManage(false)
+      return
+    }
+    setCanManage(sesion.rol === 'admin' || sesion.rol === 'director' || sesion.rol === 'manager')
+    // super_admin de plataforma no es un rol de `users`: lo resuelve el layout preguntando a la función
+    // de base que usan las políticas de RLS, no deduciéndolo del rol.
+    setIsSuperAdmin(sesion.isSuperAdmin)
+  }, [sesion])
 
   const cards = SETTINGS_CARDS.filter((card) => {
     if ('superAdminOnly' in card && card.superAdminOnly) return isSuperAdmin === true

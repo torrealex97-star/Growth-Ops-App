@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -71,4 +71,80 @@ test('el scoping propio del dashboard se mantiene', () => {
   assert.match(codigo, /if \(!isLeadership\(rk\) && userData\.data_scope === 'own'\)/)
   assert.match(codigo, /setSelfScoped\(true\)/)
   assert.match(codigo, /setMember\(sesion\.userId\)/)
+})
+
+// ---------------------------------------------------------------------------------------------
+// LAS PANTALLAS MIGRADAS. Cada una tenía el mismo par en serie —`auth.getUser()` y después releer su
+// propia fila de `users`— antes de poder pedir el dato que la persona venía a ver.
+// ---------------------------------------------------------------------------------------------
+
+const MIGRADAS = [
+  'app/[tenant]/dashboard/page.tsx',
+  'app/[tenant]/crm/agendas/page.tsx',
+  'app/[tenant]/crm/seguimiento/page.tsx',
+  'app/[tenant]/comisiones/page.tsx',
+  'app/[tenant]/settings/page.tsx',
+  'app/[tenant]/settings/socios/page.tsx',
+  'app/[tenant]/settings/commission-rules/page.tsx',
+  'app/[tenant]/marketing/afiliados/afiliados/page.tsx',
+  'app/[tenant]/marketing/afiliados/campanas/page.tsx',
+  'app/[tenant]/recursos/enlaces/page.tsx',
+  'components/kpi/KPIReportPanel.tsx',
+  'components/settings/AiEnginePanel.tsx',
+]
+
+test('ninguna pantalla migrada vuelve a leer su propia fila de users', () => {
+  // El patrón exacto: from('users') ... .eq('id', <el propio usuario>) ... .single()
+  const relectura =
+    /from\('users'\)[\s\S]{0,300}?\.eq\('id',\s*(?:auth)?[Uu]ser(?:\.user)?\.id\)[\s\S]{0,40}?\.(single|maybeSingle)\(\)/
+  for (const f of MIGRADAS) {
+    assert.doesNotMatch(sinComentarios(leer(f)), relectura, f)
+  }
+})
+
+test('todas usan la sesión del layout', () => {
+  for (const f of MIGRADAS) {
+    const codigo = sinComentarios(leer(f))
+    assert.match(codigo, /useSesion\(\)/, f)
+  }
+})
+
+// Sin `sesion` en las dependencias, la carga se quedaría con el valor capturado en el primer render.
+test('las cargas migradas dependen de la sesión', () => {
+  for (const f of MIGRADAS) {
+    const codigo = sinComentarios(leer(f))
+    assert.match(codigo, /\}, \[[^\]]*sesion[^\]]*\]\)/, `${f} no reacciona a la sesión`)
+  }
+})
+
+// KPIReportPanel tenía además el bug del loader colgado: setLoading(true) y un return sin apagarlo.
+test('KPIReportPanel apaga el loader al salir sin sesión', () => {
+  const codigo = sinComentarios(leer('components/kpi/KPIReportPanel.tsx'))
+  assert.match(codigo, /if \(!sesion\) \{\s*setLoading\(false\)\s*return\s*\}/)
+})
+
+// settings/page.tsx hacía TRES llamadas en serie, incluida rpc('is_super_admin'), que el layout ya hace.
+test('settings ya no repite la llamada de super admin', () => {
+  const codigo = sinComentarios(leer('app/[tenant]/settings/page.tsx'))
+  assert.doesNotMatch(codigo, /rpc\('is_super_admin'\)/)
+  assert.match(codigo, /setIsSuperAdmin\(sesion\.isSuperAdmin\)/)
+})
+
+// ---------------------------------------------------------------------------------------------
+// NINGÚN CATCH VACÍO SIN EXPLICACIÓN. Un catch vacío sin motivo escrito es indistinguible de un bug:
+// nadie sabe si se traga el error a propósito o por descuido.
+// ---------------------------------------------------------------------------------------------
+
+test('no queda ningún catch vacío en la aplicación', () => {
+  const dirs = ['app', 'components', 'lib']
+  const vacios = []
+  const walk = (d) => {
+    for (const e of readdirSync(join(root, d), { withFileTypes: true })) {
+      const p = `${d}/${e.name}`
+      if (e.isDirectory()) walk(p)
+      else if (/\.tsx?$/.test(e.name) && /catch\s*(\([^)]*\))?\s*\{\s*\}/.test(leer(p))) vacios.push(p)
+    }
+  }
+  dirs.forEach(walk)
+  assert.deepEqual(vacios, [], 'un catch vacío tiene que decir por qué se ignora el error')
 })

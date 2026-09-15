@@ -8,6 +8,11 @@ export async function GET() {
   const site = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
   const origin = site.replace(/\/$/, '')
 
+  // NOTA SOBRE LOS `catch` DE ESTE SCRIPT. Se ejecuta en la landing del cliente, que es OTRO dominio, y
+  // habla con el iframe del VSL por postMessage. Todas las operaciones de aquí pueden fallar por motivos
+  // normales y ajenos: el iframe aún no ha cargado, `contentWindow` no es accesible por origen cruzado,
+  // o el widget de Calendly todavía no está en el DOM. Son señales OPCIONALES: si no llegan, el vídeo y
+  // el formulario funcionan igual. Por eso se ignoran, y por eso se dice aquí una vez en vez de repetirlo.
   const js = `(function(){
   var ORIGIN = ${JSON.stringify(origin)};
   var pending = null;
@@ -22,7 +27,7 @@ export async function GET() {
   }
   function send(payload){
     frames().forEach(function(f){
-      try { f.contentWindow.postMessage(Object.assign({ __tccvsl: 'identify' }, payload), '*'); } catch(e){}
+      try { f.contentWindow.postMessage(Object.assign({ __tccvsl: 'identify' }, payload), '*'); } catch (_) { /* opcional: ver la nota del fichero */ }
     });
   }
   function bad(v){ return !v || v.indexOf('{{') !== -1 || v.indexOf('}}') !== -1; }
@@ -64,15 +69,15 @@ export async function GET() {
   // Reenvía a iframes que carguen después (cuando avisan 'ready') y capta el anonId.
   window.addEventListener('message', function(e){
     if (!e.data || e.data.__tccvsl !== 'ready') return;
-    if (e.data.anonId){ anonId = e.data.anonId; try { decorateCalendly(); } catch(_){} }
-    if (pending) { try { e.source.postMessage(Object.assign({ __tccvsl: 'identify' }, pending), '*'); } catch(_){} }
+    if (e.data.anonId){ anonId = e.data.anonId; try { decorateCalendly(); } catch (_) { /* opcional: ver la nota del fichero */ } }
+    if (pending) { try { e.source.postMessage(Object.assign({ __tccvsl: 'identify' }, pending), '*'); } catch (_) { /* opcional: ver la nota del fichero */ } }
   });
   // Re-decora si Calendly se inyecta después (widgets que cargan async).
   try {
     var mo = new MutationObserver(function(){ decorateCalendly(); });
     if (document.body) mo.observe(document.body, { childList: true, subtree: true });
     else document.addEventListener('DOMContentLoaded', function(){ mo.observe(document.body, { childList: true, subtree: true }); });
-  } catch(_){}
+  } catch (_) { /* opcional: ver la nota del fichero */ }
   // AUTO-captura: combina window.tccVSLLead (si sus valores son válidos) con los
   // parámetros de la URL del funnel. Si tccVSLLead trae merge fields sin resolver
   // ("{{contact.email}}"), se ignoran y se cae a la URL igualmente.
@@ -85,7 +90,7 @@ export async function GET() {
       var q = new URLSearchParams(window.location.search);
       if (!email) email = q.get('email') || q.get('lead_email') || q.get('contact_email') || q.get('e');
       if (!name)  name  = q.get('name')  || q.get('first_name') || q.get('full_name') || q.get('fname');
-    } catch(_){}
+    } catch (_) { /* opcional: ver la nota del fichero */ }
     if (email || name) window.tccVSL.identify({ email: email || undefined, name: name || undefined });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', autoCapture);

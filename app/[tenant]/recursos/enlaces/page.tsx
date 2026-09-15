@@ -28,7 +28,7 @@ import {
 import { toast } from 'sonner'
 import { PERMISSIONS, ROLE_LABELS, type AppRole } from '@/lib/auth/permissions'
 import type { LinkTemplate, ResourceLink, ResourceLinkDivision } from '@/lib/types/database'
-import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 
 type CurrentUser = {
   id: string
@@ -61,6 +61,8 @@ function buildTrackedUrl(baseUrl: string, role: AppRole, code: string): string {
 export default function EnlacesPage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
+  // Sesión ya resuelta por el layout: evita repetir auth.getUser() + from('users') aquí.
+  const sesion = useSesion()
   const [user, setUser] = useState<CurrentUser | null>(null)
   const [templates, setTemplates] = useState<LinkTemplate[]>([])
   const [allTemplates, setAllTemplates] = useState<LinkTemplate[]>([])
@@ -106,29 +108,21 @@ export default function EnlacesPage() {
 
   const fetchAll = useCallback(async () => {
     const supabase = createClient()
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser()
-    if (!authUser) {
+    // DOS VIAJES DE RED MENOS, en serie. El `select('*')` del layout ya trae `tracking_code` y
+    // `affiliate_code`, así que no hay que volver a la tabla para leerlos.
+    if (!sesion) {
       setLoading(false)
       return
     }
-
-    const { data: profile, error: profileError } = await supabase
-      .from('users')
-      .select('id, tracking_code, affiliate_code, roles(key)')
-      .eq('id', authUser.id)
-      .single()
-
-    if (profileError || !profile) {
-      toast.error('Error al cargar el usuario')
-      setLoading(false)
-      return
+    const profile = sesion.user as {
+      tracking_code?: string | null
+      affiliate_code?: string | null
+      roles?: { key?: string } | null
     }
 
-    const role = (profile as unknown as { roles: { key: string } }).roles?.key as AppRole
+    const role = profile.roles?.key as AppRole
     const current: CurrentUser = {
-      id: profile.id,
+      id: sesion.userId,
       role,
       tracking_code: (profile as unknown as { tracking_code: string | null }).tracking_code,
       affiliate_code: (profile as unknown as { affiliate_code: string | null }).affiliate_code,
@@ -220,7 +214,10 @@ export default function EnlacesPage() {
     }
 
     setLoading(false)
-  }, [tenantId])
+    // `sesion` entra en las dependencias: sin ella, la carga se quedaría con el valor capturado en el
+    // primer render. Está memorizada en el layout, así que no provoca bucle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId, sesion])
 
   useEffect(() => {
     fetchAll()
