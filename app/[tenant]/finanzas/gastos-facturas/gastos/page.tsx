@@ -17,7 +17,7 @@ import {
   Download,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { getCustomDateRange, getPreviousPeriodRange, inPeriod, type PeriodRange } from '@/lib/filters/period'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
@@ -193,7 +193,12 @@ function currencyConversionNote(extracted: AiExtracted): string | null {
     typeof extracted.amount !== 'number'
   )
     return null
-  return `Factura original en ${extracted.original_currency} ${extracted.original_amount.toFixed(2)} · convertido a ${extracted.amount.toFixed(2)} € (tasa ${extracted.fx_rate?.toFixed(4) ?? '?'})`
+  const original = formatNumber(extracted.original_amount, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const rate =
+    extracted.fx_rate == null
+      ? '?'
+      : formatNumber(extracted.fx_rate, { minimumFractionDigits: 4, maximumFractionDigits: 4 })
+  return `Factura original en ${extracted.original_currency} ${original} · convertido a ${formatCurrency(extracted.amount)} (tasa ${rate})`
 }
 
 function currentMonth(): string {

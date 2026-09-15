@@ -25,7 +25,8 @@ test('el donut responde la pregunta en el centro y nunca depende solo del color'
   assert.match(donut, /resaltada \? resaltada\.value : total/)
   // Leyenda siempre, con valor y porcentaje.
   assert.match(donut, /<ul className=/)
-  assert.match(donut, /\{a\.pct < 10 \? a\.pct\.toFixed\(1\) : Math\.round\(a\.pct\)\}%/)
+  assert.match(donut, /formatPercent\(a\.pct, a\.pct < 10 \? 1 : 0\)/)
+  assert.doesNotMatch(donut, /toFixed\(/, 'los porcentajes visibles deben respetar el formato español')
   // Hueco de separación entre porciones, para que los bloques no se peguen.
   assert.match(donut, /fraccion \* CIRCUNFERENCIA - 1\.5/)
   // Sin datos se dice; no se pinta un pastel vacío.

@@ -11,6 +11,7 @@ import { estimateCostUsd } from '@/lib/ai/pricing'
 import { autorizarTool, construirSystemPrompt, type ContextoNegocio } from '@/lib/ai/agent/growth-operator'
 import { avisoRespuestaCortada, serializarResultadoTool } from '@/lib/ai/agent/serializar'
 import * as tools from './tools'
+import { formatCurrency, formatPercent } from '@/lib/utils'
 
 // Modelo único por ahora (solo hay credenciales de Anthropic en este proyecto) — la constante
 // vive en un solo sitio para no hardcodear el id en varios ficheros, y consultar la política de
@@ -291,7 +292,7 @@ async function callTool(
         { from: input.from as string, to: input.to as string },
         Number(input.limit) || 20
       )
-      return { result: r, summary: `${r.total_ventas} ventas, ${r.ingresos.toFixed(0)}€ en el periodo` }
+      return { result: r, summary: `${r.total_ventas} ventas, ${formatCurrency(r.ingresos)} en el periodo` }
     }
     case 'getMetricDefinition': {
       const r = tools.getMetricDefinition(String(input.name || ''))
@@ -303,7 +304,10 @@ async function callTool(
         { from: input.currentFrom as string, to: input.currentTo as string },
         { from: input.previousFrom as string, to: input.previousTo as string }
       )
-      return { result: r, summary: `Comparación de periodos: ${r.delta.ingresos_pct?.toFixed(1) ?? '—'}% en ingresos` }
+      return {
+        result: r,
+        summary: `Comparación de periodos: ${formatPercent(r.delta.ingresos_pct, 1)} en ingresos`,
+      }
     }
     case 'analyzeFunnelChange': {
       const r = await tools.analyzeFunnelChange(
@@ -314,7 +318,7 @@ async function callTool(
       return {
         result: r,
         summary: r.etapa_mas_afectada
-          ? `Mayor cambio en: ${r.etapa_mas_afectada.stage} (${r.etapa_mas_afectada.pct_change?.toFixed(1)}%)`
+          ? `Mayor cambio en: ${r.etapa_mas_afectada.stage} (${formatPercent(r.etapa_mas_afectada.pct_change, 1)})`
           : 'Sin cambios significativos detectados',
       }
     }

@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { FileText, Upload, Loader2, CheckCircle2, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTenantId } from '@/lib/tenant-context'
+import { formatCurrency } from '@/lib/utils'
 
 type SimpleMember = { id: string; full_name: string }
 
@@ -268,9 +269,7 @@ export function CommissionInvoicePanel({
                     <tr key={inv.id} className="border-b border-border/60">
                       <td className="py-2 pr-3 text-foreground">{memberName(inv.user_id)}</td>
                       <td className="py-2 pr-3 text-foreground">{monthLabel(inv.period_month)}</td>
-                      <td className="py-2 pr-3 text-foreground">
-                        {inv.amount != null ? `${inv.amount.toLocaleString('es-ES')} €` : '—'}
-                      </td>
+                      <td className="py-2 pr-3 text-foreground">{formatCurrency(inv.amount)}</td>
                       <td className="py-2 pr-3">
                         <span className={inv.status === 'pagada' ? 'text-emerald-400' : 'text-amber-400'}>
                           {inv.status === 'pagada' ? 'Pagada' : 'Recibida'}

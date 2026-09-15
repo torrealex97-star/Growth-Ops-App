@@ -1,7 +1,7 @@
 'use client'
 
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatNumber } from '@/lib/utils'
 
 const COLORS = [
   'hsl(var(--brand-500))',
@@ -127,7 +127,7 @@ export function FinanceEvolution({
               tickLine={false}
               width={52}
               tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-              tickFormatter={(v: number) => new Intl.NumberFormat('es-ES', { notation: 'compact' }).format(v)}
+              tickFormatter={(v: number) => formatNumber(v, { notation: 'compact' })}
             />
             <Tooltip
               contentStyle={tooltipStyle}

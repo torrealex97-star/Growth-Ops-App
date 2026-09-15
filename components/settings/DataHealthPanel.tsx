@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import type { DataHealthSummary } from '@/lib/types/tracking'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { formatPercent } from '@/lib/utils'
 
 type EventRow = {
   id: string
@@ -457,13 +458,13 @@ export function DataHealthPanel() {
           />
           <Metric
             label="Match rate"
-            value={matchRate == null ? '—' : `${matchRate.toFixed(1)}%`}
+            value={formatPercent(matchRate, 1)}
             detail={matchRate == null ? 'Sin eventos todavía' : 'Identidad utilizable / eventos'}
             tone={matchRate != null && matchRate < 70 ? 'warn' : 'good'}
           />
           <Metric
             label="Delivery rate"
-            value={deliveryRate == null ? '—' : `${deliveryRate.toFixed(1)}%`}
+            value={formatPercent(deliveryRate, 1)}
             detail={deliveryRate == null ? 'Sin intentos todavía' : 'Aceptados / intentos'}
             tone={deliveryRate != null && deliveryRate < 90 ? 'warn' : 'good'}
           />

@@ -44,6 +44,7 @@ import { brandFor, type Brand } from '@/components/integrations/brands'
 import { historyFor } from '@/lib/integrations/history'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { CATEGORY_LABELS, type IntegrationCategory } from '@/lib/integrations-catalog'
+import { formatNumber } from '@/lib/utils'
 
 type Field = {
   key: string
@@ -1388,7 +1389,7 @@ export default function IntegracionesPage() {
                                           </td>
                                           <td className="p-2">{row.customer || row.email || 'Sin identificar'}</td>
                                           <td className="p-2 whitespace-nowrap">
-                                            {row.amount.toLocaleString('es-ES', {
+                                            {formatNumber(row.amount, {
                                               style: 'currency',
                                               currency: row.currency,
                                             })}
@@ -1396,7 +1397,7 @@ export default function IntegracionesPage() {
                                           <td className="p-2 whitespace-nowrap">
                                             {row.internalAmount == null
                                               ? '—'
-                                              : row.internalAmount.toLocaleString('es-ES', {
+                                              : formatNumber(row.internalAmount, {
                                                   style: 'currency',
                                                   currency: row.currency,
                                                 })}
@@ -1557,7 +1558,7 @@ export default function IntegracionesPage() {
                                                     </td>
                                                     <td className="p-2">{b.email || 'sin email'}</td>
                                                     <td className="p-2 text-right whitespace-nowrap">
-                                                      {b.amount.toLocaleString('es-ES', {
+                                                      {formatNumber(b.amount, {
                                                         style: 'currency',
                                                         currency: b.currency || 'EUR',
                                                       })}

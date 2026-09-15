@@ -7,7 +7,7 @@ import { useTenant } from '@/lib/tenant-context'
 import { FUNNEL_DEFS, FUNNEL_FAMILIES, type FunnelFamily } from '@/lib/funnels/definitions'
 import { STATUS_LABELS, type MetricStatus } from '@/lib/funnels/types'
 import type { FunnelResult } from '@/lib/funnels/compute'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatNumber } from '@/lib/utils'
 import { FunnelChart } from '@/components/os/FunnelChart'
 import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
 
@@ -25,7 +25,7 @@ const STATUS_STYLES: Record<MetricStatus, { dot: string; text: string }> = {
   no_configurada: { dot: 'bg-amber-400', text: 'text-amber-400' },
 }
 
-const num = (n: number) => n.toLocaleString('es-ES')
+const num = (n: number) => formatNumber(n)
 const pctText = (n: number | null) => (n === null ? '—' : `${n.toFixed(1)} %`)
 
 function todayIso() {

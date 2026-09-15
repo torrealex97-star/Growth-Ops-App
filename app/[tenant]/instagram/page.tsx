@@ -26,6 +26,7 @@ import {
   Clock,
 } from 'lucide-react'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar } from 'recharts'
+import { formatNumber } from '@/lib/utils'
 
 type Media = {
   id: string
@@ -88,7 +89,7 @@ type Tab = 'reels' | 'crecimiento' | 'captacion' | 'conversaciones'
 type SortKey = 'views' | 'reach' | 'engagement_rate' | 'saved' | 'follows' | 'published_at'
 type Platform = 'all' | 'instagram' | 'facebook' | 'youtube'
 
-const nf = (n: number | null | undefined) => new Intl.NumberFormat('es-ES').format(Math.round(n || 0))
+const nf = (n: number | null | undefined) => formatNumber(Math.round(n || 0))
 const fecha = (s: string | null) =>
   s ? new Date(s).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : '—'
 

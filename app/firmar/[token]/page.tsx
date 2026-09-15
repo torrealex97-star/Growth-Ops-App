@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { formatNumber } from '@/lib/utils'
 
 type Tier = { label: string | null; min_cash: number; max_cash: number | null; percent: number }
 type Terms = {
@@ -27,7 +28,7 @@ type ContractData = {
   signedPdfUrl: string | null
 }
 
-const eur = (n: number) => new Intl.NumberFormat('es-ES').format(n)
+const eur = (n: number) => formatNumber(n)
 const tierText = (t: Tier) =>
   `${t.max_cash != null ? `${eur(t.min_cash)} – ${eur(t.max_cash)} €` : `${eur(t.min_cash)} €+`}${
     t.label ? ` (${t.label})` : ''

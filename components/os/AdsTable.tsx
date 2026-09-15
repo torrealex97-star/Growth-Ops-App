@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import type { Campaign, CampaignAd } from '@/lib/types/database'
 import { Megaphone, X } from 'lucide-react'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
@@ -152,9 +152,7 @@ export function AdsTable({ campaigns, accounts, version }: Props) {
       <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border rounded-lg border border-border bg-card/30">
         <div className="px-4 py-3">
           <p className="text-xs text-muted-foreground">Anuncios</p>
-          <p className="mt-1 text-xl font-semibold text-foreground tabular-nums">
-            {filtered.length.toLocaleString('es-ES')}
-          </p>
+          <p className="mt-1 text-xl font-semibold text-foreground tabular-nums">{formatNumber(filtered.length)}</p>
         </div>
         <div className="px-4 py-3">
           <p className="text-xs text-muted-foreground">Gasto</p>
@@ -162,9 +160,7 @@ export function AdsTable({ campaigns, accounts, version }: Props) {
         </div>
         <div className="px-4 py-3">
           <p className="text-xs text-muted-foreground">Seguidores</p>
-          <p className="mt-1 text-xl font-semibold text-foreground tabular-nums">
-            {totalFollowers.toLocaleString('es-ES')}
-          </p>
+          <p className="mt-1 text-xl font-semibold text-foreground tabular-nums">{formatNumber(totalFollowers)}</p>
         </div>
         <div className="px-4 py-3">
           <p className="text-xs text-muted-foreground">€ / Seguidor</p>
@@ -235,11 +231,9 @@ export function AdsTable({ campaigns, accounts, version }: Props) {
                     <td className="px-4 py-3 text-right text-foreground tabular-nums">
                       {formatCurrency(a.spend || 0)}
                     </td>
+                    <td className="px-4 py-3 text-right text-foreground tabular-nums">{formatNumber(a.leads || 0)}</td>
                     <td className="px-4 py-3 text-right text-foreground tabular-nums">
-                      {(a.leads || 0).toLocaleString('es-ES')}
-                    </td>
-                    <td className="px-4 py-3 text-right text-foreground tabular-nums">
-                      {(a.followers || 0) > 0 ? (a.followers || 0).toLocaleString('es-ES') : '—'}
+                      {(a.followers || 0) > 0 ? formatNumber(a.followers || 0) : '—'}
                     </td>
                     <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">
                       {cpf === null ? '—' : formatCurrency(cpf)}
@@ -248,7 +242,7 @@ export function AdsTable({ campaigns, accounts, version }: Props) {
                       {cpc === null ? '—' : formatCurrency(cpc)}
                     </td>
                     <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">
-                      {ctr === null ? '—' : `${(ctr * 100).toFixed(2)}%`}
+                      {formatPercent(ctr === null ? null : ctr * 100, 2)}
                     </td>
                   </tr>
                 )

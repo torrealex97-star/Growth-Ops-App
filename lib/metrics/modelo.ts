@@ -14,6 +14,8 @@
 // Por eso `higherIsBetter` es obligatorio en cada métrica y no tiene valor por defecto: olvidarlo
 // tiene que ser un error de compilación, no un semáforo al revés que nadie mira dos veces.
 
+import { formatCurrency, formatNumber } from '@/lib/utils'
+
 /** Familias de la jerarquía, de lo final del negocio a lo diagnóstico. */
 type CategoriaMetrica = 'global' | 'sales' | 'marketing' | 'product' | 'finance'
 
@@ -222,7 +224,7 @@ export function medir(
 /** El texto del objetivo para el tooltip. `null` cuando no hay objetivo declarado. */
 export function textoObjetivo(def: DefinicionMetrica): string | null {
   const fmt = (n: number) =>
-    def.unit === 'eur' ? `${n.toLocaleString('es-ES')} €` : def.unit === 'porcentaje' ? `${n}%` : String(n)
+    def.unit === 'eur' ? formatCurrency(n) : def.unit === 'porcentaje' ? `${formatNumber(n)}%` : formatNumber(n)
   switch (def.targetType) {
     case 'minimo':
       return def.target === undefined ? null : `≥ ${fmt(def.target)}`

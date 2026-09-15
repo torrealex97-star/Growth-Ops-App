@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
+import { formatNumber } from '@/lib/utils'
 
 // Estado y disparo manual del pipeline de IA. Existe porque los dos jobs que lo alimentan
 // (análisis de llamadas e insights) no están registrados como cron: el plan de Vercel es Hobby y
@@ -119,7 +120,7 @@ export function AiEnginePanel() {
           <div key={kpi.label} className="bg-card px-4 py-3">
             <p className="text-xs text-muted-foreground">{kpi.label}</p>
             <p className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
-              {loading ? '—' : kpi.value.toLocaleString('es-ES')}
+              {loading ? '—' : formatNumber(kpi.value)}
             </p>
           </div>
         ))}

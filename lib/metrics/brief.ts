@@ -14,6 +14,7 @@ import type { Alerta } from './alertas'
 import { priorizar } from './alertas'
 import type { Diagnostico, VeredictoEscalado } from './cuello-botella'
 import type { SaludNegocio } from './salud'
+import { formatCurrency, formatNumber } from '@/lib/utils'
 
 export type GrowthBrief = {
   /** Una línea con la nota de salud y su cobertura. */
@@ -52,7 +53,7 @@ export function construirBrief(e: EntradaBrief): GrowthBrief {
   // volumen con el que estimarlo es inventar el número más peligroso del panel.
   const impacto = p?.impacto
     ? {
-        texto: `${p.impacto.eurosAdicionales !== null ? `~${p.impacto.eurosAdicionales} € ` : ''}${p.impacto.unidadesAdicionales !== null ? `(~${p.impacto.unidadesAdicionales} unidades) ` : ''}si se llevara ${p.nombre} a su objetivo. ${p.impacto.metodo}`,
+        texto: `${p.impacto.eurosAdicionales !== null ? `~${formatCurrency(p.impacto.eurosAdicionales)} ` : ''}${p.impacto.unidadesAdicionales !== null ? `(~${formatNumber(p.impacto.unidadesAdicionales)} unidades) ` : ''}si se llevara ${p.nombre} a su objetivo. ${p.impacto.metodo}`,
         esEstimacion: true,
       }
     : {

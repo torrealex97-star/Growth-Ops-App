@@ -17,7 +17,7 @@
 import { ArrowDown, ArrowRight, ArrowUp } from 'lucide-react'
 import { MetricTooltip } from '@/components/metrics/MetricTooltip'
 import { esMejora, textoObjetivo, type EstadoSemaforo, type MetricaMedida } from '@/lib/metrics/modelo'
-import { cn } from '@/lib/utils'
+import { cn, formatNumber } from '@/lib/utils'
 
 /**
  * Un punto de color, no un fondo de color. El fondo teñido de una tarjeta entera compite con la cifra
@@ -43,17 +43,17 @@ export function formatearValor(valor: number | null, unidad: MetricaMedida['unit
   if (valor === null || !Number.isFinite(valor)) return '—'
   switch (unidad) {
     case 'eur':
-      return valor.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+      return formatNumber(valor, { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
     case 'porcentaje':
-      return `${valor.toLocaleString('es-ES', { maximumFractionDigits: 1 })}%`
+      return `${formatNumber(valor, { maximumFractionDigits: 1 })}%`
     case 'ratio':
-      return `${valor.toLocaleString('es-ES', { maximumFractionDigits: 2 })}x`
+      return `${formatNumber(valor, { maximumFractionDigits: 2 })}x`
     case 'minutos':
-      return `${valor.toLocaleString('es-ES', { maximumFractionDigits: 0 })} min`
+      return `${formatNumber(valor, { maximumFractionDigits: 0 })} min`
     case 'dias':
-      return `${valor.toLocaleString('es-ES', { maximumFractionDigits: 0 })} d`
+      return `${formatNumber(valor, { maximumFractionDigits: 0 })} d`
     default:
-      return valor.toLocaleString('es-ES', { maximumFractionDigits: 0 })
+      return formatNumber(valor, { maximumFractionDigits: 0 })
   }
 }
 
@@ -133,7 +133,7 @@ export function KpiCard({
               <ArrowDown className="h-3 w-3" />
             )}
             {metrica.percentageChange !== null
-              ? `${Math.abs(metrica.percentageChange).toLocaleString('es-ES', { maximumFractionDigits: 1 })}%`
+              ? `${formatNumber(Math.abs(metrica.percentageChange), { maximumFractionDigits: 1 })}%`
               : formatearValor(Math.abs(metrica.absoluteChange), metrica.unit)}
             <span className="text-muted-foreground">{etiquetaPeriodoAnterior}</span>
           </span>

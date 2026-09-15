@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Trophy, Plus, Trash2, Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTenantId } from '@/lib/tenant-context'
+import { formatNumber } from '@/lib/utils'
 
 type Tramo = {
   id: string
@@ -204,7 +205,7 @@ export default function TramosSettingsPage() {
                 </div>
                 <span className="text-sm text-amber-300 font-semibold whitespace-nowrap">
                   {metric === 'cash_collected'
-                    ? `${Number(t.threshold).toLocaleString('es-ES')} €`
+                    ? `${formatNumber(Number(t.threshold))} €`
                     : `${Number(t.threshold)} ventas`}
                 </span>
                 <span className="text-xs text-muted-foreground w-6 text-center">#{i + 1}</span>

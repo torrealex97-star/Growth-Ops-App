@@ -1,4 +1,5 @@
 import { Fragment } from 'react'
+import { formatNumber, formatPercent } from '@/lib/utils'
 
 export interface ConnectedFunnelStage {
   label: string
@@ -23,10 +24,7 @@ export function ConnectedFunnel({ stages, loading = false }: { stages: Connected
           className="flex h-64 items-center"
           style={{
             minWidth:
-              stages.reduce(
-                (sum, stage) => sum + Math.max(130, stage.value.toLocaleString('es-ES').length * 18 + 40),
-                0
-              ) +
+              stages.reduce((sum, stage) => sum + Math.max(130, formatNumber(stage.value).length * 18 + 40), 0) +
               (stages.length - 1) * 64,
           }}
         >
@@ -46,9 +44,7 @@ export function ConnectedFunnel({ stages, loading = false }: { stages: Connected
                     />
                   </svg>
                   <div className="relative text-center text-slate-950">
-                    <p className="text-sm font-semibold tabular-nums">
-                      {stage.conversion == null ? '—' : `${stage.conversion.toFixed(1)}%`}
-                    </p>
+                    <p className="text-sm font-semibold tabular-nums">{formatPercent(stage.conversion, 1)}</p>
                     <span className="text-2xl" aria-hidden="true">
                       →
                     </span>
@@ -59,13 +55,13 @@ export function ConnectedFunnel({ stages, loading = false }: { stages: Connected
                 className="flex min-w-0 flex-1 flex-col justify-center px-5 text-slate-950 first:rounded-l-lg last:rounded-r-lg"
                 style={{
                   height: height(index),
-                  minWidth: Math.max(130, stage.value.toLocaleString('es-ES').length * 18 + 40),
+                  minWidth: Math.max(130, formatNumber(stage.value).length * 18 + 40),
                   backgroundColor: `color-mix(in srgb, hsl(var(--brand-300)) ${100 - index * 8}%, hsl(var(--brand-500)))`,
                 }}
               >
                 <p className="text-sm font-semibold">{stage.label}</p>
                 <p className="mt-2 font-display text-2xl 2xl:text-3xl font-semibold tracking-tight tabular-nums">
-                  {stage.value.toLocaleString('es-ES')}
+                  {formatNumber(stage.value)}
                 </p>
               </div>
             </Fragment>
@@ -78,7 +74,7 @@ export function ConnectedFunnel({ stages, loading = false }: { stages: Connected
             {index > 0 && (
               <p className="py-2 text-xs font-medium text-muted-foreground tabular-nums">
                 <span aria-hidden="true">↓ </span>
-                {stage.conversion == null ? '—' : `${stage.conversion.toFixed(1)}%`}
+                {formatPercent(stage.conversion, 1)}
               </p>
             )}
             <div
@@ -89,9 +85,7 @@ export function ConnectedFunnel({ stages, loading = false }: { stages: Connected
               }}
             >
               <span className="text-sm font-semibold">{stage.label}</span>
-              <span className="font-display text-2xl font-semibold tabular-nums">
-                {stage.value.toLocaleString('es-ES')}
-              </span>
+              <span className="font-display text-2xl font-semibold tabular-nums">{formatNumber(stage.value)}</span>
             </div>
           </li>
         ))}

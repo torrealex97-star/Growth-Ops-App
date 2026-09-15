@@ -17,6 +17,7 @@
 // · Las etiquetas van con tokens de texto, nunca con el color de la porción.
 
 import { useMemo, useState } from 'react'
+import { formatNumber, formatPercent } from '@/lib/utils'
 
 type ShareSlice = { label: string; value: number }
 
@@ -31,7 +32,6 @@ type Props = {
   className?: string
 }
 
-const nf = new Intl.NumberFormat('es-ES')
 const COLORES = [1, 2, 3, 4, 5, 6].map((i) => `hsl(var(--serie-${i}))`)
 const RADIO = 52
 const GROSOR = 18
@@ -39,7 +39,7 @@ const CIRCUNFERENCIA = 2 * Math.PI * RADIO
 
 export function ShareDonut({ data, totalLabel = 'Total', format, maxSlices = 6, className }: Props) {
   const [activa, setActiva] = useState<string | null>(null)
-  const fmt = format ?? ((n: number) => nf.format(Math.round(n)))
+  const fmt = format ?? ((n: number) => formatNumber(Math.round(n)))
 
   const { porciones, total } = useMemo(() => {
     const positivas = data.filter((d) => d.value > 0).sort((a, b) => b.value - a.value)
@@ -123,7 +123,7 @@ export function ShareDonut({ data, totalLabel = 'Total', format, maxSlices = 6, 
               <span className="text-foreground flex-1 truncate">{a.label}</span>
               <span className="text-muted-foreground tabular-nums">{fmt(a.value)}</span>
               <span className="text-muted-foreground w-10 text-right tabular-nums">
-                {a.pct < 10 ? a.pct.toFixed(1) : Math.round(a.pct)}%
+                {formatPercent(a.pct, a.pct < 10 ? 1 : 0)}
               </span>
             </li>
           ))}
