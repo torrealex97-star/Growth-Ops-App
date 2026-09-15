@@ -38,7 +38,7 @@
 // con nueve llamadas medidas hace perder más tiempo del que ahorra.
 
 /** Los niveles de la jerarquía, de lo más posterior a lo más anterior. */
-export type NivelDiagnostico = 'economia' | 'caja' | 'ventas' | 'oportunidades' | 'funnel' | 'trafico'
+type NivelDiagnostico = 'economia' | 'caja' | 'ventas' | 'oportunidades' | 'funnel' | 'trafico'
 
 /** Orden de prioridad. Menor índice = más posterior = se mira antes. */
 const ORDEN_NIVEL: Record<NivelDiagnostico, number> = {
@@ -57,11 +57,11 @@ const ORDEN_NIVEL: Record<NivelDiagnostico, number> = {
  * `posible` — fuera de objetivo pero con poca muestra. Podría ser ruido.
  * `requiere_investigacion` — no hay dato para juzgarlo. NO es un problema; es un hueco.
  */
-export type Certeza = 'probable' | 'posible' | 'requiere_investigacion'
+type Certeza = 'probable' | 'posible' | 'requiere_investigacion'
 
 export type Confianza = 'alta' | 'media' | 'baja'
 
-export type Severidad = 'critico' | 'aviso' | 'ok'
+type Severidad = 'critico' | 'aviso' | 'ok'
 
 /** Lo que se le pasa al motor por cada métrica. */
 export type EntradaMetrica = {
@@ -82,7 +82,7 @@ export type EntradaMetrica = {
   investigar: string[]
 }
 
-export type ImpactoEstimado = {
+type ImpactoEstimado = {
   /** Unidades de negocio que se ganarían al alcanzar el objetivo (ventas, clientes…). */
   unidadesAdicionales: number | null
   /** Euros estimados, cuando hay un ticket con el que multiplicar. */
@@ -91,7 +91,7 @@ export type ImpactoEstimado = {
   metodo: string
 }
 
-export type Restriccion = {
+type Restriccion = {
   key: string
   nombre: string
   nivel: NivelDiagnostico

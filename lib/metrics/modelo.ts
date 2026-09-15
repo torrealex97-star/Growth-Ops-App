@@ -15,12 +15,12 @@
 // tiene que ser un error de compilación, no un semáforo al revés que nadie mira dos veces.
 
 /** Familias de la jerarquía, de lo final del negocio a lo diagnóstico. */
-export type CategoriaMetrica = 'global' | 'sales' | 'marketing' | 'product' | 'finance'
+type CategoriaMetrica = 'global' | 'sales' | 'marketing' | 'product' | 'finance'
 
-export type SubcategoriaMetrica =
+type SubcategoriaMetrica =
   'organic_instagram' | 'organic_tiktok' | 'organic_youtube' | 'paid_meta' | 'funnel' | 'delivery' | 'cash' | 'team'
 
-export type UnidadMetrica = 'eur' | 'porcentaje' | 'numero' | 'ratio' | 'dias' | 'minutos'
+type UnidadMetrica = 'eur' | 'porcentaje' | 'numero' | 'ratio' | 'dias' | 'minutos'
 
 /**
  * `minimo` — el objetivo es un suelo (Close Rate ≥ 25%).
@@ -28,7 +28,7 @@ export type UnidadMetrica = 'eur' | 'porcentaje' | 'numero' | 'ratio' | 'dias' |
  * `rango` — hay banda buena por arriba y por abajo (Show Rate 65-70%).
  * `ninguno` — no hay objetivo declarado. La métrica se muestra sin semáforo, no en gris de alarma.
  */
-export type TipoObjetivo = 'minimo' | 'maximo' | 'rango' | 'ninguno'
+type TipoObjetivo = 'minimo' | 'maximo' | 'rango' | 'ninguno'
 
 /**
  * GREEN dentro o por encima del objetivo · YELLOW cerca, vigilar · RED claramente fuera ·
@@ -48,9 +48,9 @@ export type Fiabilidad = 'alta' | 'media' | 'baja'
 /** Estado del dato en sí, separado del semáforo de rendimiento. Un hueco nunca es un cero. */
 export type EstadoDato = 'ok' | 'sin_datos' | 'fuente_no_conectada' | 'no_medido' | 'parcial' | 'error'
 
-export type TipoGrafico = 'barras' | 'linea' | 'area' | 'embudo' | 'ninguno'
+type TipoGrafico = 'barras' | 'linea' | 'area' | 'embudo' | 'ninguno'
 
-export type Granularidad = 'dia' | 'semana' | 'mes'
+type Granularidad = 'dia' | 'semana' | 'mes'
 
 /** La DEFINICIÓN de una métrica: lo que no cambia con el periodo ni con los datos. */
 export type DefinicionMetrica = {

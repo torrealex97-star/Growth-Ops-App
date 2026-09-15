@@ -18,7 +18,7 @@
 
 export type PuntoSerie = { fecha: string; valor: number }
 
-export type PuntoPrevisto = {
+type PuntoPrevisto = {
   fecha: string
   valor: number
   tipo: 'real' | 'previsto'

@@ -11,9 +11,9 @@
 // hueco, no como 0% de consecución.
 
 /** Qué clase de objetivo es, porque decide si el ritmo tiene sentido. */
-export type ClaseObjetivo = 'acumulativa' | 'tasa'
+type ClaseObjetivo = 'acumulativa' | 'tasa'
 
-export type PeriodoObjetivo = 'mes' | 'trimestre' | 'año' | 'permanente'
+type PeriodoObjetivo = 'mes' | 'trimestre' | 'año' | 'permanente'
 
 export type Objetivo = {
   key: string
@@ -25,9 +25,9 @@ export type Objetivo = {
   unidad?: string
 }
 
-export type Ritmo = 'por_delante' | 'en_linea' | 'por_detras'
+type Ritmo = 'por_delante' | 'en_linea' | 'por_detras'
 
-export type Tendencia = 'mejora' | 'empeora' | 'plano' | 'sin_comparable'
+type Tendencia = 'mejora' | 'empeora' | 'plano' | 'sin_comparable'
 
 export type ObjetivoMedido = {
   key: string

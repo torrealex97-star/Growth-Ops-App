@@ -7,7 +7,7 @@ import { formatCurrency } from '@/lib/utils'
 // puramente presentacional, el padre sigue calculando setterMetrics/closerMetrics vía useMemo y
 // posee el estado del filtro de periodo. Sin cambio de comportamiento respecto al bloque original.
 
-export type SetterMetricRow = {
+type SetterMetricRow = {
   id: string
   name: string
   agendas: number
@@ -18,7 +18,7 @@ export type SetterMetricRow = {
   showRate: number | null
 }
 
-export type CloserMetricRow = {
+type CloserMetricRow = {
   id: string
   name: string
   asignadas: number

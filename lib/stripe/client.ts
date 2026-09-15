@@ -16,7 +16,7 @@ export type StripeAuth = {
 
 export type StripeErrorInfo = { code: string; message: string }
 
-export class StripeError extends Error {
+class StripeError extends Error {
   readonly code: string
   constructor(info: StripeErrorInfo) {
     super(info.message)

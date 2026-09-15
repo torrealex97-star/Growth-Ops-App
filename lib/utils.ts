@@ -1,4 +1,4 @@
-export function formatNumber(n: number): string {
+function formatNumber(n: number): string {
   return n.toLocaleString('es-ES')
 }
 
@@ -55,16 +55,6 @@ export function slugify(text: string): string {
     .replace(/(^-|-$)/g, '')
 }
 
-// Genera un slug alfanumérico (sin guiones, sin acentos) para usar como
-// tracking_code / affiliate_code, ej: "[tenant]" -> "[tenant]"
-export function slugifyTrackingCode(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]/g, '')
-}
-
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—'
   try {
@@ -88,12 +78,6 @@ export function formatDate(dateStr: string | null | undefined): string {
   } catch {
     return dateStr
   }
-}
-
-export function scoreColor(score: number): string {
-  if (score >= 70) return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-  if (score >= 40) return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
-  return 'bg-red-500/20 text-red-400 border-red-500/30'
 }
 
 export function truncate(str: string, maxLen: number): string {

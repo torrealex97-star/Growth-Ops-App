@@ -43,7 +43,7 @@ export const SIGNER_FIELDS: { key: keyof SignerData; label: string; required: bo
 ]
 
 // Mapea un rol al participant_type de las reglas de comisión.
-export function participantTypeForRole(roleKey?: string | null): string | null {
+function participantTypeForRole(roleKey?: string | null): string | null {
   if (roleKey === 'setter') return 'setter'
   if (roleKey === 'closer') return 'closer'
   if (roleKey === 'affiliate') return 'affiliate'

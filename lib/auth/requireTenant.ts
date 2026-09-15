@@ -1,6 +1,8 @@
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
+import { CABECERA_REQUEST_ID, CABECERA_RUTA } from '@/lib/observability/peticion'
+import { tagRequestScope } from '@/lib/observability/sentry'
 import { leerRolMembresia, resolverRol } from './rol-efectivo'
 import type { AppRole } from './permissions'
 
@@ -28,6 +30,11 @@ export async function requireTenant(tenantSlug: string): Promise<
       rolGlobal: string | null
       /** ¿Administra ESTA subcuenta? (tenant_members.role en admin/super_admin, o super_admin de plataforma) */
       administraTenant: boolean
+      /**
+       * Id de esta petición, puesto por el middleware. Va también en Sentry y en la cabecera de
+       * respuesta: es lo que permite atar el error que ve la persona con el que hay que arreglar.
+       */
+      requestId: string
     }
   | { error: NextResponse }
 > {
@@ -73,6 +80,17 @@ export async function requireTenant(tenantSlug: string): Promise<
 
   // Resuelto aquí una sola vez para que las ~40 rutas que necesitan el rol del caller
   // (para decidir admin/director/manager-only) no repitan el mismo lookup a `users` por su cuenta.
+  // OBSERVABILIDAD, en el único embudo por el que pasan las 158 rutas. Sentry estaba configurado pero
+  // `tagRequestScope` no lo llamaba nadie: los errores llegaban sin saber de qué subcuenta ni de qué ruta.
+  // Solo se etiquetan tenant_id (UUID interno, no identifica a una persona), la ruta ya normalizada y el
+  // id de petición. Ni tokens, ni cookies, ni cuerpos, ni PII.
+  const cabeceras = await headers()
+  const requestId = tagRequestScope({
+    tenantId: tenant.id,
+    route: cabeceras.get(CABECERA_RUTA) || 'desconocida',
+    requestId: cabeceras.get(CABECERA_REQUEST_ID) || undefined,
+  })
+
   const { data: callerRow } = await authed.from('users').select('roles(key)').eq('id', user.id).single()
   const rolGlobal = ((callerRow?.roles as { key?: string } | null)?.key ?? null) as AppRole | null
 
@@ -88,5 +106,6 @@ export async function requireTenant(tenantSlug: string): Promise<
     role: resuelto.rol,
     rolGlobal: resuelto.rolGlobal,
     administraTenant: resuelto.administraTenant,
+    requestId,
   }
 }

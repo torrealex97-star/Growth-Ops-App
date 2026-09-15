@@ -6,7 +6,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { reconcileStripePayments } from './stripeReconciliation'
 
-export type ConciliacionPlatform = 'stripe' | 'sequra' | 'transferencia' | 'bizum' | 'paypal' | 'otro'
+type ConciliacionPlatform = 'stripe' | 'sequra' | 'transferencia' | 'bizum' | 'paypal' | 'otro'
 export type ConciliacionStatus = 'conciliado' | 'descuadre' | 'pendiente'
 
 export type ConciliacionRow = {

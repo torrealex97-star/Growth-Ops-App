@@ -42,7 +42,7 @@ export function mappableStages(): { key: string; family: FunnelFamily; familyLab
 }
 
 export const MAX_NAMES_PER_STAGE = 20
-export const MAX_NAME_LENGTH = 200
+const MAX_NAME_LENGTH = 200
 
 /**
  * Lee el mapeo guardado. Tolerante por diseño: lo que hay guardado puede ser de una versión

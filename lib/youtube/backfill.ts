@@ -90,7 +90,7 @@ async function uploadOne(
 }
 
 // Refresca views/likes/comments de los vídeos ya publicados, para poder mostrarlas en la app.
-export async function refreshYoutubeStats(sb: SupabaseClient, tenantId: string, env: YoutubeEnv): Promise<void> {
+async function refreshYoutubeStats(sb: SupabaseClient, tenantId: string, env: YoutubeEnv): Promise<void> {
   if (!isYoutubeConfigured(env)) return
   try {
     const { data: uploadedRows } = await sb

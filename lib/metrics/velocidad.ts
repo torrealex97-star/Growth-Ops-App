@@ -16,7 +16,7 @@
 export type EtapaPipeline =
   'lead_a_reserva' | 'reserva_a_llamada' | 'llamada_a_cierre' | 'cierre_a_primer_pago' | 'lead_a_cash'
 
-export const NOMBRE_ETAPA: Record<EtapaPipeline, string> = {
+const NOMBRE_ETAPA: Record<EtapaPipeline, string> = {
   lead_a_reserva: 'Lead → Reserva',
   reserva_a_llamada: 'Reserva → Llamada',
   llamada_a_cierre: 'Llamada → Cierre',

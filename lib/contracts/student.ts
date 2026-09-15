@@ -33,7 +33,7 @@ export type StudentSignerData = {
   phone?: string | null
 }
 
-export type SignerFieldType = 'text' | 'select'
+type SignerFieldType = 'text' | 'select'
 export type SignerField = {
   key: keyof StudentSignerData
   label: string
@@ -76,7 +76,7 @@ export const DEFAULT_STUDENT_WELCOME =
 const fmtEur = (n: number) =>
   new Intl.NumberFormat('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n)
 
-export function durationLabel(months: number | null): string {
+function durationLabel(months: number | null): string {
   if (!months) return 'la indicada en el programa'
   if (months === 12) return '12 meses (1 año)'
   return `${months} meses`

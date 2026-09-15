@@ -38,7 +38,7 @@ export type Fallo = {
   reintentable: boolean
 }
 
-export type Exito<T> = { ok: true; data: T; status: number }
+type Exito<T> = { ok: true; data: T; status: number }
 
 export type Resultado<T> = Exito<T> | Fallo
 

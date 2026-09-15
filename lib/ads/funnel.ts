@@ -10,7 +10,7 @@ export const div = (a: number, b: number): number | null => (b > 0 ? a / b : nul
 export const pct = (a: number, b: number): number | null => (b > 0 ? (a / b) * 100 : null)
 
 // Totales brutos sumados sobre un conjunto de campañas.
-export type AdTotals = {
+type AdTotals = {
   inversion: number
   alcance: number
   impresiones: number
@@ -44,7 +44,7 @@ export type AdFunnel = AdTotals & {
   costeSeguidor: number | null // inversión / seguidores conseguidos
 }
 
-export function sumTotals(campaigns: Campaign[]): AdTotals {
+function sumTotals(campaigns: Campaign[]): AdTotals {
   const t: AdTotals = {
     inversion: 0,
     alcance: 0,
@@ -74,7 +74,7 @@ export function sumTotals(campaigns: Campaign[]): AdTotals {
   return t
 }
 
-export function funnelFromTotals(t: AdTotals): AdFunnel {
+function funnelFromTotals(t: AdTotals): AdFunnel {
   return {
     ...t,
     cpm: t.impresiones > 0 ? (t.inversion / t.impresiones) * 1000 : null,
@@ -191,7 +191,7 @@ export function sumDailyRows(rows: DailyFunnelInput[]): DailyFunnelRow {
 }
 
 // Fuentes UTM que consideramos "tráfico pago" (Meta) al contar agendas por día.
-export const PAID_UTM_SOURCES = new Set([
+const PAID_UTM_SOURCES = new Set([
   'facebook',
   'fb',
   'meta',

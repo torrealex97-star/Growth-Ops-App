@@ -7,8 +7,8 @@ import { businessYm } from '@/lib/dates/business'
 // Se usa para enlazar los tramos con las reglas de comisión: una regla con `tramo_id` aplica su %
 // cuando el rep está en ese tramo.
 
-export type TramoConfig = { metric: 'sales' | 'cash_collected'; period: 'month' | 'all' }
-export type TramoRow = { id: string; threshold: number; sort_order: number }
+type TramoConfig = { metric: 'sales' | 'cash_collected'; period: 'month' | 'all' }
+type TramoRow = { id: string; threshold: number; sort_order: number }
 
 // Mes en curso EN LA ZONA DEL NEGOCIO, no en UTC (ver lib/dates/business.ts): este módulo existe
 // para que "el nivel que el closer ve en el dashboard" y "el nivel que decide su comisión" sean el
@@ -17,7 +17,7 @@ const nowYm = () => businessYm()
 
 // Carga la config global + los tramos activos ordenados por umbral. Devuelve null si no hay tramos
 // definidos (o la tabla no existe): en ese caso las comisiones caen al modelo por cash collected.
-export async function loadTramoContext(
+async function loadTramoContext(
   sb: SupabaseClient,
   tenantId: string
 ): Promise<{ config: TramoConfig; tramos: TramoRow[] } | null> {
@@ -52,7 +52,7 @@ export async function loadTramoContext(
 
 // Valor actual del rep para medir su tramo: nº de ventas completadas o cash collected, en el periodo
 // configurado (mes en curso o histórico). "Venta completada" = activa que NO sea reserva abierta.
-export async function repTramoValue(
+async function repTramoValue(
   sb: SupabaseClient,
   tenantId: string,
   repId: string,
@@ -102,7 +102,7 @@ export async function repTramoValue(
 }
 
 // Id del tramo más alto cuyo umbral alcanza el rep (o null si no llega ni al primero).
-export function currentTramoId(value: number, tramos: TramoRow[]): string | null {
+function currentTramoId(value: number, tramos: TramoRow[]): string | null {
   let cur: string | null = null
   for (const t of tramos) if (value >= t.threshold) cur = t.id
   return cur

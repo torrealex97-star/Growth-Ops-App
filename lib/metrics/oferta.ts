@@ -24,7 +24,7 @@
 import type { Veredicto } from '@/lib/metrics/cualificacion'
 
 /** De dónde sale el valor. Es lo que permite saber cuánto del número es suposición. */
-export type OrigenOferta =
+type OrigenOferta =
   /** El closer lo marcó explícitamente. */
   | 'declarado'
   /** Nadie lo marcó y se aplicó la suposición del negocio. */

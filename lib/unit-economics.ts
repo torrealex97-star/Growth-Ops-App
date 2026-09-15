@@ -116,7 +116,7 @@ export type AppointmentLike = {
  * Estados que NO cuentan como cita viva. Están en inglés porque así los escribe Calendly, que es
  * quien las crea: buscar 'cancelada' devolvía cero canceladas y daba un show-up del 100 %.
  */
-export const CANCELLED_APPOINTMENT_STATUSES = ['cancelled', 'canceled', 'cancelada', 'no_show_cancel']
+const CANCELLED_APPOINTMENT_STATUSES = ['cancelled', 'canceled', 'cancelada', 'no_show_cancel']
 
 export function isCancelled(status: string | null | undefined): boolean {
   return CANCELLED_APPOINTMENT_STATUSES.includes((status ?? '').trim().toLowerCase())
