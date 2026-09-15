@@ -142,6 +142,65 @@ test('la barra de periodo y las pantallas toman los presets del módulo canónic
     assert.ok(PERIOD_PRESETS_BAR.includes(p), `la barra debe ofrecer ${p}`)
     assert.ok(PERIOD_LABELS[p], `falta la etiqueta de ${p}`)
   }
+  assert.match(bar, /<DateRangeCalendarPopover/)
+  assert.doesNotMatch(bar, /type="date"/, 'la barra global no debe volver a los inputs de fecha nativos')
+})
+
+test('el selector visual de rango mantiene selección, navegación y accesibilidad', () => {
+  const calendar = readFileSync(new URL('../../components/ui/calendar-popover.tsx', import.meta.url), 'utf8')
+  assert.match(calendar, /export function DateRangeCalendarPopover/)
+  assert.match(calendar, /isWithinInterval/)
+  assert.match(calendar, /Mes anterior/)
+  assert.match(calendar, /Mes siguiente/)
+  assert.match(calendar, /aria-pressed=/)
+  assert.match(calendar, /hidden sm:block/, 'en móvil debe mostrar un mes, no dos calendarios apretados')
+})
+
+test('las vistas operativas reutilizan el mismo selector visual de rango', () => {
+  const pantallas = [
+    'app/[tenant]/crm/agendas/page.tsx',
+    'app/[tenant]/crm/seguimiento/page.tsx',
+    'app/[tenant]/ventas/registro/page.tsx',
+    'app/[tenant]/ventas/pagos/page.tsx',
+    'app/[tenant]/comisiones/page.tsx',
+    'app/[tenant]/finanzas/cobros/cobros/page.tsx',
+    'app/[tenant]/finanzas/cobros/devoluciones/page.tsx',
+    'app/[tenant]/finanzas/gastos-facturas/gastos/page.tsx',
+    'app/[tenant]/drops/page.tsx',
+    'app/[tenant]/funnels/page.tsx',
+    'app/[tenant]/audit/page.tsx',
+  ]
+  for (const rel of pantallas) {
+    const page = readFileSync(new URL(`../../${rel}`, import.meta.url), 'utf8')
+    assert.match(page, /DateRangeCalendarPopover/, `${rel} no usa el selector visual compartido`)
+  }
+})
+
+test('los filtros de un solo día también usan el calendario visual compartido', () => {
+  for (const rel of ['components/kpi/KPIReportPanel.tsx', 'app/[tenant]/instagram/reels/page.tsx']) {
+    const page = readFileSync(new URL(`../../${rel}`, import.meta.url), 'utf8')
+    assert.match(page, /CalendarPopover/, `${rel} no usa el calendario visual compartido`)
+    assert.doesNotMatch(page, /type="date"/, `${rel} conserva un filtro de fecha nativo`)
+  }
+})
+
+test('Instagram acota todas sus lecturas directas a la subcuenta y enseña el fallo de sync', () => {
+  const page = readFileSync(new URL('../../app/[tenant]/instagram/page.tsx', import.meta.url), 'utf8')
+  assert.match(page, /useTenantId\(\)/)
+  for (const table of [
+    'ig_media',
+    'ig_account_daily',
+    'ig_audience',
+    'ig_conversations_daily',
+    'fb_media',
+    'youtube_uploads',
+    'integration_sync_runs',
+  ]) {
+    const query = new RegExp(`from\\('${table}'\\)[\\s\\S]{0,500}?\\.eq\\('tenant_id', tenantId\\)`)
+    assert.match(page, query, `${table} no queda acotada al tenant activo`)
+  }
+  assert.match(page, /Instagram necesita atención/)
+  assert.match(page, /lastSync\?\.error_message/)
 })
 
 test('las siete pantallas con métricas comparten el MISMO filtro de periodo', () => {

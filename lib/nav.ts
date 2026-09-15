@@ -228,25 +228,23 @@ export const NAV_SECTIONS: NavSection[] = [
     dept: 'marketing',
     items: [
       {
-        // "Adquisición" no decía qué se encontraba dentro: es el bloque ANALÍTICO de marketing, y
-        // entrar en la sección tiene que responder "de dónde vienen los resultados", no listar
-        // anuncios. La vista operativa de Campañas NO se renombra ni se mueve de sitio: sigue
-        // existiendo tal cual, como segunda entrada, porque es otra cosa y se usa para otra cosa.
+        // Campañas es la portada operativa de Marketing; Atribución queda como lectura analítica
+        // secundaria con URL propia.
         label: 'Métricas y KPIs',
-        href: '/marketing/adquisicion',
+        href: '/marketing/adquisicion/campanas',
         icon: BarChart3,
         roles: [...LEAD, 'marketing', 'adscripcion', 'editor'],
         children: [
           {
-            label: 'Atribución',
-            href: '/marketing/adquisicion/atribucion',
-            icon: Megaphone,
-            roles: [...LEAD, 'marketing', 'adscripcion'],
-          },
-          {
             label: 'Campañas',
             href: '/marketing/adquisicion/campanas',
             icon: Radio,
+            roles: [...LEAD, 'marketing', 'adscripcion'],
+          },
+          {
+            label: 'Atribución',
+            href: '/marketing/adquisicion/atribucion',
+            icon: Megaphone,
             roles: [...LEAD, 'marketing', 'adscripcion'],
           },
           { label: 'VSL', href: '/marketing/adquisicion/vsl', icon: Video, roles: [...LEAD, 'marketing', 'editor'] },

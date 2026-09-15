@@ -1,5 +1,32 @@
 # Relevo activo
 
+## Filtros visuales, embudo de ventas e Instagram — 2026-09-15
+
+Rama única: `codex/filters-instagram-closer`, creada desde `main` limpio (`3b87ff6`). No había PR
+abierta ni otra rama de trabajo que continuar.
+
+- Los filtros de periodo reutilizan un selector visual de rango tipo hotel: intervalo resaltado,
+  navegación mensual, dos meses en escritorio y uno en móvil, limpieza y foco accesible. Se aplicó
+  al filtro global y a las vistas operativas con pares Desde/Hasta; las fechas de formularios de
+  negocio se conservaron como campos simples.
+- Marketing abre en Campañas, tanto desde la raíz de Adquisición como desde el menú; Atribución se
+  mantiene como pestaña disponible.
+- El embudo de Ventas dejó el mosaico de tarjetas repetidas y agrupa estado, conversión, funnel,
+  volúmenes, tasas y regiones en superficies coherentes sin cambiar cálculos ni consultas.
+- Instagram ahora acota todas las lecturas directas por `tenant_id`, evita `select('*')`, muestra el
+  último fallo real de sincronización y conserva códigos accionables de Meta. Se retiraron acciones
+  de migración/cron obsoletas de la pantalla. En producción WDC tiene datos diarios pero cero medios;
+  el último sync falla con Meta `(#10) Application does not have permission for this action`. Requiere
+  reconectar el token con permisos de cuenta profesional, página enlazada y acceso a media/insights.
+- Acción de datos ejecutada y verificada en producción para WDC: La closer principal quedó asignada
+  como closer solo donde estaba vacío — 559/559 agendas y 27/27 ventas. `contacts` no tiene columna
+  owner/closer; los leads quedan vinculados a [tenant] mediante sus agendas, sin inventar esquema.
+
+Validación local: **format PASS; lint PASS con warnings heredados; typecheck PASS; suite general
+345/345 PASS; métricas 652/652 PASS; build limpio de producción PASS**. Pendiente al escribir este bloque:
+revisión visual de Preview en escritorio/móvil, CI, merge, smoke de producción y confirmar que el
+usuario renueva el permiso/token de Meta para que Instagram vuelva a traer históricos.
+
 ## Auditoría visual local — 2026-09-15
 
 El usuario autorizó publicar estos ajustes una vez superado el gate y la revisión de Preview.

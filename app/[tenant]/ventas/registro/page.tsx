@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { SalesTable } from '@/components/sales/SalesTable'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Plus, Download, ShoppingCart } from 'lucide-react'
 import { toast } from 'sonner'
@@ -16,6 +15,7 @@ import { getCustomDateRange, inPeriod } from '@/lib/filters/period'
 import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 import { StripePendientesAviso } from '@/components/os/StripePendientesAviso'
+import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
 
 const STATUS_LABELS: Record<SaleStatus, string> = {
   active: 'Activa',
@@ -310,22 +310,13 @@ export default function SalesPage() {
         </Select>
 
         {periodPreset === 'custom' && (
-          <>
-            <Input
-              type="date"
-              value={customFrom}
-              onChange={(e) => setCustomFrom(e.target.value)}
-              className="w-40 bg-card border-border"
-              placeholder="Periodo desde"
-            />
-            <Input
-              type="date"
-              value={customTo}
-              onChange={(e) => setCustomTo(e.target.value)}
-              className="w-40 bg-card border-border"
-              placeholder="Periodo hasta"
-            />
-          </>
+          <DateRangeCalendarPopover
+            from={customFrom}
+            to={customTo}
+            onFromChange={setCustomFrom}
+            onToChange={setCustomTo}
+            className="w-full sm:w-72"
+          />
         )}
 
         {periodPreset !== 'all' && (
@@ -395,19 +386,12 @@ export default function SalesPage() {
           </SelectContent>
         </Select>
 
-        <Input
-          type="date"
-          value={dateFrom}
-          max={dateTo || undefined}
-          onChange={(e) => setDateFrom(e.target.value)}
-          className="w-40 bg-card border-border"
-        />
-        <Input
-          type="date"
-          value={dateTo}
-          min={dateFrom || undefined}
-          onChange={(e) => setDateTo(e.target.value)}
-          className="w-40 bg-card border-border"
+        <DateRangeCalendarPopover
+          from={dateFrom}
+          to={dateTo}
+          onFromChange={setDateFrom}
+          onToChange={setDateTo}
+          className="w-full sm:w-72"
         />
       </div>
 

@@ -286,6 +286,14 @@ test('las rutas de Instagram reciben la config explícita de su subcuenta', () =
   assert.match(sync, /failures\.push\(/)
 })
 
+test('Instagram conserva un código accionable cuando Meta rechaza la sincronización', () => {
+  const client = sinComentarios(read('lib/instagram/client.ts'))
+  assert.match(client, /providerCode === 10\) return 'sin_permisos'/)
+  assert.match(client, /providerCode === 190[^\n]*expir\|caduc/)
+  assert.match(client, /throw new InstagramApiError/)
+  assert.match(client, /readonly code: InstagramErrorCode/)
+})
+
 // Las credenciales se leen SOLO de lo que se pasa. Un `process.env.META_*` aquí devuelve el proceso
 // al fallo de arriba, y además hace imposible saber qué se usó al sincronizar.
 test('el cliente y la sync de Meta no leen credenciales del entorno', () => {
