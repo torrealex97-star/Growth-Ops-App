@@ -99,11 +99,16 @@ test('el guardián es RESTRICTIVE, así que solo puede quitar permiso, nunca dar
   assert.doesNotMatch(sql, /create policy[^;]*as permissive/i)
 })
 
-// No se toca la lectura a propósito: decidir si un `member` ve las finanzas es producto, no seguridad.
-test('el guardián no restringe SELECT', () => {
+// La lectura NO se cierra en bloque: decidir si un `member` ve las finanzas es producto, no seguridad.
+// Solo se cierra donde el rol funcional GLOBAL concedía lectura de más (ver el análisis tabla por tabla
+// al final de la migración). Y nunca con `for all`, que arrastraría el SELECT de todas ellas.
+test('el guardián no cierra la lectura en bloque', () => {
   const sql = leer(MIGRACION)
-  assert.doesNotMatch(sql, /restrictive for select/i)
   assert.doesNotMatch(sql, /restrictive for all/i)
+  // Una sola política de SELECT, y es la de commission_invoices.
+  const selects = sql.match(/as restrictive for select/gi) || []
+  assert.equal(selects.length, 1)
+  assert.match(sql, /commission_invoices\n?\s*as restrictive for select/)
 })
 
 test('deniega exactamente el caso de escalada: las tres condiciones a la vez', () => {
@@ -149,4 +154,55 @@ test('cubre las tablas con escritura directa desde el navegador', () => {
 test('las funciones son STABLE: se llaman por fila dentro de la política', () => {
   const sql = leer(MIGRACION)
   assert.equal((sql.match(/^stable$/gm) || []).length, 2)
+})
+
+// ---------------------------------------------------------------------------------------------
+// LA LECTURA. Se revisó tabla por tabla antes de tocarla, porque "cerrar la lectura a los miembros" y
+// "cerrar una escalada" no son lo mismo: lo primero es una decisión de producto.
+// ---------------------------------------------------------------------------------------------
+
+test('solo se restringe la lectura donde el rol global la concedía de más', () => {
+  const sql = leer(MIGRACION)
+  // commission_invoices se lee con `user_id = auth.uid() OR is_admin_or_director()`, y esa segunda
+  // mitad usa el rol funcional GLOBAL: un director invitado como miembro leía cuánto cobra cada
+  // persona del equipo del cliente.
+  assert.match(sql, /commission_invoices_rol_acotado_select/)
+  assert.match(sql, /as restrictive for select/)
+  // Su propia factura la sigue viendo: el guardián solo quita lo que el OR añadía de más.
+  assert.match(sql, /using \(user_id = auth\.uid\(\) or not public\.rol_recortado_en\(tenant_id\)\)/)
+})
+
+test('no se restringe la lectura donde un rol recortado leería igualmente', () => {
+  const sql = leer(MIGRACION)
+  // expenses ('admin','director','manager') y contracts (…,'manager',…) los lee un `manager`, así que
+  // el tope no cambia nada ahí: una restricción sería una regla nueva, no una corrección.
+  for (const t of ['expenses', 'contracts', 'sales', 'collections', 'payment_plans']) {
+    assert.doesNotMatch(
+      sql,
+      new RegExp(`${t}_rol_acotado_select`),
+      `${t}: restringir su lectura sería inventar una política, no cerrar una escalada`
+    )
+  }
+})
+
+// ---------------------------------------------------------------------------------------------
+// EL GUARDIÁN MÁS DÉBIL. `requireCaller()` solo comprobaba que hubiera sesión, sin membresía ni rol.
+// Las siete rutas de setting-ai usan `requireTenant()`, que lo subsume. Dejarlo era una trampa: un
+// guardián con nombre de guardián invita a usarlo pensando que basta.
+// ---------------------------------------------------------------------------------------------
+
+test('requireCaller ya no existe, y ninguna ruta se quedó sin guardián', async () => {
+  const core = leer('lib/setting-ai/core.ts')
+  assert.doesNotMatch(core, /export async function requireCaller/)
+  assert.match(core, /requireTenant/, 'el motivo del borrado tiene que quedar escrito')
+
+  const { readdirSync } = await import('node:fs')
+  const dir = 'app/api/[tenant]/evergreen/setting-ai'
+  const rutas = readdirSync(join(root, dir), { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => `${dir}/${e.name}/route.ts`)
+  assert.equal(rutas.length, 7)
+  for (const r of rutas) {
+    assert.match(leer(r), /requireTenant\(/, `${r} se quedaría sin comprobación de subcuenta`)
+  }
 })
