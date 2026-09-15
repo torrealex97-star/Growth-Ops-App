@@ -101,7 +101,7 @@ export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }
   return (
     <div className="space-y-6">
       {/* LA RESTRICCIÓN, PRIMERO Y EN UNA FRASE. */}
-      <section className="rounded-lg border border-border bg-card p-5">
+      <section className="dashboard-card p-5">
         <div className="flex items-start gap-3">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" aria-hidden="true" />
           <div className="min-w-0 space-y-3">
@@ -140,7 +140,7 @@ export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }
 
       <div className="grid gap-4 sm:grid-cols-2">
         {/* SALUD, CON SUS PARTES A LA VISTA. Una nota que no se puede descomponer no se puede discutir. */}
-        <section className="rounded-lg border border-border bg-card p-5">
+        <section className="dashboard-card p-5">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Salud del negocio</h2>
@@ -166,7 +166,7 @@ export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }
         </section>
 
         {/* AVISOS. Máximo tres, que es lo que el motor deja pasar al foco. */}
-        <section className="rounded-lg border border-border bg-card p-5">
+        <section className="dashboard-card p-5">
           <div className="flex items-center gap-2">
             <Target className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">

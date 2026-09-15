@@ -568,10 +568,10 @@ export default function CampaignsPage() {
   const activeCount = displayItems.filter((c) => c.status === 'activa').length
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-surface space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground flex items-center gap-2">
             <Radio className="w-6 h-6 text-brand-400" /> Campañas
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
@@ -589,9 +589,9 @@ export default function CampaignsPage() {
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center xl:w-auto xl:justify-end">
           {isAdmin && (
-            <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
+            <div className="flex w-full min-w-0 items-center gap-1 overflow-x-auto rounded-lg border border-border bg-card p-1 sm:w-auto">
               <button
                 onClick={runSync}
                 disabled={syncing}
@@ -651,7 +651,7 @@ export default function CampaignsPage() {
           )}
           <button
             onClick={() => setShowNew(true)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-500"
+            className="flex w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm text-white hover:bg-brand-500 sm:w-auto"
           >
             <Plus className="w-4 h-4" /> Nueva campaña
           </button>
@@ -674,33 +674,35 @@ export default function CampaignsPage() {
       </div>
 
       {view === 'campaigns' && (
-        <div className="flex flex-wrap items-center gap-3">
-          <PeriodFilterBar
-            preset={periodPreset}
-            onPresetChange={setPeriodPreset}
-            customFrom={customFrom}
-            customTo={customTo}
-            onCustomFromChange={setCustomFrom}
-            onCustomToChange={setCustomTo}
-            onClear={() => {
-              setPeriodPreset('all')
-              setCustomFrom('')
-              setCustomTo('')
-              setAccountFilter('all')
-              setSelectedCampaignIds([])
-            }}
-            hasActiveFilters={periodPreset !== 'all' || accountFilter !== 'all' || selectedCampaignIds.length > 0}
-          />
+        <PeriodFilterBar
+          preset={periodPreset}
+          onPresetChange={setPeriodPreset}
+          customFrom={customFrom}
+          customTo={customTo}
+          onCustomFromChange={setCustomFrom}
+          onCustomToChange={setCustomTo}
+          onClear={() => {
+            setPeriodPreset('all')
+            setCustomFrom('')
+            setCustomTo('')
+            setAccountFilter('all')
+            setSelectedCampaignIds([])
+          }}
+          hasActiveFilters={periodPreset !== 'all' || accountFilter !== 'all' || selectedCampaignIds.length > 0}
+        >
           {accounts.length > 1 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Cuenta publicitaria</span>
+            <div className="space-y-1.5">
+              <label htmlFor="campaign-account-filter" className="block text-xs text-muted-foreground">
+                Cuenta publicitaria
+              </label>
               <select
+                id="campaign-account-filter"
                 value={accountFilter}
                 onChange={(e) => {
                   setAccountFilter(e.target.value)
                   setSelectedCampaignIds([])
                 }}
-                className="text-sm rounded-lg border border-border bg-muted px-3 py-2 text-foreground focus:outline-none focus:border-brand-500"
+                className="h-9 w-full rounded-lg border border-border bg-muted px-3 text-sm text-foreground focus:border-brand-500 focus:outline-none"
               >
                 <option value="all">Todas ({accounts.length})</option>
                 {accounts.map((a) => (
@@ -711,17 +713,19 @@ export default function CampaignsPage() {
               </select>
             </div>
           )}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Campañas</span>
+          <div className="min-w-0 space-y-1.5">
+            <span className="block text-xs text-muted-foreground">Campañas</span>
             <MultiSelect
               options={campaignOptions}
               value={selectedCampaignIds}
               onChange={setSelectedCampaignIds}
+              placeholder="Campañas"
               allLabel={`Todas (${campaignOptions.length})`}
               searchPlaceholder="Buscar campaña…"
+              className="h-9 w-full min-w-0"
             />
           </div>
-        </div>
+        </PeriodFilterBar>
       )}
 
       {view === 'ads' && <AdsTable campaigns={items} accounts={accounts} version={adsVersion} />}
@@ -734,7 +738,7 @@ export default function CampaignsPage() {
             {/* Solo lo que el embudo de abajo no cuenta: desfase Meta vs Funnel, y cuántas
                 campañas están activas ahora. Inversión/Leads/CPL/ROAS ya son el hero del embudo
                 — repetirlos aquí sería la misma cifra dos veces en dos cards distintas. */}
-            <div className="flex flex-wrap items-center gap-6 text-sm border-b border-border pb-4">
+            <div className="dashboard-card flex flex-wrap items-center gap-x-8 gap-y-3 p-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Leads Meta </span>
                 <span className="font-semibold text-foreground tabular-nums">
@@ -774,7 +778,7 @@ export default function CampaignsPage() {
                 </p>
               </div>
             ) : (
-              <div className="bg-card/50 border border-border rounded-lg overflow-x-auto">
+              <div className="dashboard-card overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="sticky top-0 z-10 bg-card border-b border-border text-left text-muted-foreground text-xs uppercase">

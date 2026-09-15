@@ -105,12 +105,12 @@ export default function CohortsPage() {
       <div>
         <div className="flex items-center gap-2">
           <CalendarRange className="w-5 h-5 text-brand-400" />
-          <h1 className="text-2xl font-bold text-foreground">Cohortes</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">Cohortes</h1>
         </div>
         <p className="text-muted-foreground text-sm mt-1">Cobro por cohorte de venta a 30/60/90/180 días</p>
       </div>
 
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
+      <div className="dashboard-card overflow-hidden">
         {loading ? (
           <div className="p-5 space-y-3">
             {Array.from({ length: 6 }).map((_, i) => (

@@ -30,7 +30,7 @@ const shortDate = (d: string) => (d.length >= 10 ? `${d.slice(8, 10)}/${d.slice(
 const ymd = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-const chartBox = 'bg-card/50 border border-border rounded-lg p-4'
+const chartBox = 'dashboard-card p-5'
 
 const ChartTooltip = ({
   active,
@@ -187,8 +187,118 @@ export function DailyMetricsPanel({ from, to }: { from?: string | null; to?: str
         </div>
       </div>
 
+      {/* Gráficos diarios */}
+      {chartData.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* % Registro vs % Conversión VSL (diario) */}
+          <div className={chartBox}>
+            <h3 className="text-xs font-medium text-muted-foreground mb-3">
+              Rendimiento diario · % Registro vs % Conversión VSL
+            </h3>
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} margin={{ top: 5, right: 8, bottom: 0, left: 0 }}>
+                  <CartesianGrid
+                    strokeDasharray="3 6"
+                    strokeOpacity={0.4}
+                    stroke="hsl(var(--border))"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="short"
+                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval="preserveStartEnd"
+                    minTickGap={16}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `${v}%`}
+                  />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Line
+                    dataKey="tasaRegistro"
+                    name="% Registro"
+                    stroke="hsl(var(--brand-500))"
+                    strokeWidth={2}
+                    dot={false}
+                    connectNulls
+                  />
+                  <Line
+                    dataKey="tasaConversionVSL"
+                    name="% Conversión VSL"
+                    stroke="hsl(var(--brand-300))"
+                    strokeWidth={2}
+                    dot={false}
+                    connectNulls
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Agendas tráfico pago vs Coste por agenda (diario) */}
+          <div className={chartBox}>
+            <h3 className="text-xs font-medium text-muted-foreground mb-3">
+              Rendimiento diario · Agendas (tráfico pago) vs Coste por agenda
+            </h3>
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={chartData} margin={{ top: 5, right: 8, bottom: 0, left: 0 }}>
+                  <CartesianGrid
+                    strokeDasharray="3 6"
+                    strokeOpacity={0.4}
+                    stroke="hsl(var(--border))"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="short"
+                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval="preserveStartEnd"
+                    minTickGap={16}
+                  />
+                  <YAxis
+                    yAxisId="l"
+                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
+                  <YAxis
+                    yAxisId="r"
+                    orientation="right"
+                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => `${v}€`}
+                  />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(16, 185, 129, 0.08)' }} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar yAxisId="l" dataKey="agendas" name="Agendas" fill="#10b981" radius={[7, 7, 0, 0]} />
+                  <Line
+                    yAxisId="r"
+                    dataKey="costeAgenda"
+                    name="Coste/Agenda"
+                    stroke="#f59e0b"
+                    strokeWidth={2}
+                    dot={false}
+                    connectNulls
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabla por fecha */}
-      <div className="bg-card/50 border border-border rounded-lg overflow-x-auto">
+      <div className="dashboard-card overflow-x-auto max-h-[480px]">
         {loading ? (
           <div className="h-48 animate-pulse bg-card" />
         ) : rows.length === 0 ? (
@@ -197,7 +307,7 @@ export function DailyMetricsPanel({ from, to }: { from?: string | null; to?: str
           </p>
         ) : (
           <table className="w-full text-sm whitespace-nowrap">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b border-border text-left text-muted-foreground text-[11px] uppercase">
                 <th className="px-3 py-2.5 sticky left-0 bg-card/50">Fecha</th>
                 {COLS.map((c) => (
@@ -234,106 +344,6 @@ export function DailyMetricsPanel({ from, to }: { from?: string | null; to?: str
           </table>
         )}
       </div>
-
-      {/* Gráficos diarios */}
-      {chartData.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* % Registro vs % Conversión VSL (diario) */}
-          <div className={chartBox}>
-            <h3 className="text-xs font-medium text-muted-foreground mb-3">
-              Rendimiento diario · % Registro vs % Conversión VSL
-            </h3>
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 5, right: 8, bottom: 0, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis
-                    dataKey="short"
-                    tick={{ fontSize: 10, fill: '#71717a' }}
-                    axisLine={false}
-                    tickLine={false}
-                    interval="preserveStartEnd"
-                    minTickGap={16}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 10, fill: '#71717a' }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v) => `${v}%`}
-                  />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Line
-                    dataKey="tasaRegistro"
-                    name="% Registro"
-                    stroke="#3b82f6"
-                    strokeWidth={2}
-                    dot={false}
-                    connectNulls
-                  />
-                  <Line
-                    dataKey="tasaConversionVSL"
-                    name="% Conversión VSL"
-                    stroke="#ec4899"
-                    strokeWidth={2}
-                    dot={false}
-                    connectNulls
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Agendas tráfico pago vs Coste por agenda (diario) */}
-          <div className={chartBox}>
-            <h3 className="text-xs font-medium text-muted-foreground mb-3">
-              Rendimiento diario · Agendas (tráfico pago) vs Coste por agenda
-            </h3>
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData} margin={{ top: 5, right: 8, bottom: 0, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis
-                    dataKey="short"
-                    tick={{ fontSize: 10, fill: '#71717a' }}
-                    axisLine={false}
-                    tickLine={false}
-                    interval="preserveStartEnd"
-                    minTickGap={16}
-                  />
-                  <YAxis
-                    yAxisId="l"
-                    tick={{ fontSize: 10, fill: '#71717a' }}
-                    axisLine={false}
-                    tickLine={false}
-                    allowDecimals={false}
-                  />
-                  <YAxis
-                    yAxisId="r"
-                    orientation="right"
-                    tick={{ fontSize: 10, fill: '#71717a' }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v) => `${v}€`}
-                  />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(16, 185, 129, 0.08)' }} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar yAxisId="l" dataKey="agendas" name="Agendas" fill="#10b981" radius={[3, 3, 0, 0]} />
-                  <Line
-                    yAxisId="r"
-                    dataKey="costeAgenda"
-                    name="Coste/Agenda"
-                    stroke="#f59e0b"
-                    strokeWidth={2}
-                    dot={false}
-                    connectNulls
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -52,7 +52,7 @@ function fmt(sec: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-const BLUE = '#2563EB' // azul eléctrico (marca)
+const BLUE = 'hsl(var(--brand-500))' // acento del tenant
 
 export function VslDashboard() {
   const tenant = useTenant()
@@ -112,11 +112,13 @@ export function VslDashboard() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="dashboard-surface mx-auto max-w-6xl space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">VSL / Vídeos</h1>
-          <p className="text-sm text-[#94a3b8]">Aloja tu VSL, incrústalo en la landing y trackea toda la retención.</p>
+          <p className="text-sm text-muted-foreground">
+            Aloja tu VSL, incrústalo en la landing y trackea toda la retención.
+          </p>
         </div>
         <Button onClick={() => setEditing({ config: { ...DEFAULT_CONFIG } })} style={{ backgroundColor: BLUE }}>
           <Plus className="mr-1 h-4 w-4" /> Nuevo vídeo
@@ -125,22 +127,22 @@ export function VslDashboard() {
 
       {/* Selector de vídeos */}
       <div className="flex flex-wrap gap-2">
-        {loading && <Loader2 className="h-5 w-5 animate-spin text-[#94a3b8]" />}
+        {loading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
         {videos.map((v) => (
           <button
             key={v.id}
             onClick={() => setSelected(v.slug)}
             className={`rounded-lg border px-3 py-2 text-sm transition ${
               selected === v.slug
-                ? 'border-[#2563EB] bg-[#2563EB]/15 text-foreground'
-                : 'border-white/10 bg-white/5 text-[#cbd5e1] hover:border-white/20'
+                ? 'border-brand-500 bg-brand-500/15 text-foreground'
+                : 'dashboard-card text-foreground hover:border-white/20'
             }`}
           >
             {v.name}
           </button>
         ))}
         {!loading && videos.length === 0 && (
-          <p className="text-sm text-[#94a3b8]">Aún no hay vídeos. Crea el primero.</p>
+          <p className="text-sm text-muted-foreground">Aún no hay vídeos. Crea el primero.</p>
         )}
       </div>
 
@@ -159,7 +161,7 @@ export function VslDashboard() {
       {selected && metrics && (
         <>
           {/* Snippet de embed */}
-          <Card className="border-white/10 bg-white/5">
+          <Card className="dashboard-card">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-base text-foreground">Código para la landing</CardTitle>
               <div className="flex gap-2">
@@ -180,7 +182,7 @@ export function VslDashboard() {
               </div>
             </CardHeader>
             <CardContent>
-              <pre className="overflow-x-auto rounded-lg bg-black/40 p-3 text-xs text-[#cbd5e1]">{snippet}</pre>
+              <pre className="overflow-x-auto rounded-lg bg-black/40 p-3 text-xs text-foreground">{snippet}</pre>
             </CardContent>
           </Card>
 
@@ -203,7 +205,7 @@ export function VslDashboard() {
           </div>
 
           {/* Curva de retención */}
-          <Card className="border-white/10 bg-white/5">
+          <Card className="dashboard-card">
             <CardHeader className="pb-2">
               <CardTitle className="text-base text-foreground">Retención (cuánta gente sigue viendo)</CardTitle>
             </CardHeader>
@@ -234,35 +236,35 @@ export function VslDashboard() {
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <p className="py-8 text-center text-sm text-[#94a3b8]">Sin datos de visionado todavía.</p>
+                <p className="py-8 text-center text-sm text-muted-foreground">Sin datos de visionado todavía.</p>
               )}
             </CardContent>
           </Card>
 
           <div className="grid gap-4 md:grid-cols-2">
             {/* Puntos de caída */}
-            <Card className="border-white/10 bg-white/5">
+            <Card className="dashboard-card">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base text-foreground">Mayores caídas</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {metrics.drops.length === 0 && <p className="text-sm text-[#94a3b8]">Sin caídas relevantes.</p>}
+                {metrics.drops.length === 0 && <p className="text-sm text-muted-foreground">Sin caídas relevantes.</p>}
                 {metrics.drops.map((d, i) => (
                   <div key={i} className="flex items-center justify-between rounded-lg bg-black/30 px-3 py-2 text-sm">
-                    <span className="text-[#cbd5e1]">
+                    <span className="text-foreground">
                       Min <span className="font-semibold text-foreground">{fmt(d.sec)}</span>
                     </span>
-                    <span className="text-[#94a3b8]">
+                    <span className="text-muted-foreground">
                       {d.from}% → {d.to}%
                     </span>
-                    <span className="font-semibold text-[#2563EB]">−{d.delta}%</span>
+                    <span className="font-semibold text-brand-400">−{d.delta}%</span>
                   </div>
                 ))}
               </CardContent>
             </Card>
 
             {/* Dispositivos */}
-            <Card className="border-white/10 bg-white/5">
+            <Card className="dashboard-card">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base text-foreground">Dispositivos</CardTitle>
               </CardHeader>
@@ -272,7 +274,7 @@ export function VslDashboard() {
                   const w = Math.round((d.n / totalDev) * 100)
                   return (
                     <div key={d.device}>
-                      <div className="mb-1 flex justify-between text-xs text-[#cbd5e1]">
+                      <div className="mb-1 flex justify-between text-xs text-foreground">
                         <span className="capitalize">{d.device}</span>
                         <span>
                           {d.n} ({w}%)
@@ -289,23 +291,23 @@ export function VslDashboard() {
           </div>
 
           {/* Leads identificados */}
-          <Card className="border-white/10 bg-white/5">
+          <Card className="dashboard-card">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-base text-foreground">
                 <Users className="mr-1 inline h-4 w-4" /> Leads y dónde se quedan
               </CardTitle>
-              <span className="text-xs text-[#94a3b8]">{metrics.leads.length} identificados</span>
+              <span className="text-xs text-muted-foreground">{metrics.leads.length} identificados</span>
             </CardHeader>
             <CardContent>
               {metrics.leads.length === 0 ? (
-                <p className="text-sm text-[#94a3b8]">
-                  Nadie identificado aún. Llama a <code className="text-[#2563EB]">tccVSL.identify(email)</code> al
+                <p className="text-sm text-muted-foreground">
+                  Nadie identificado aún. Llama a <code className="text-brand-400">tccVSL.identify(email)</code> al
                   enviar el form.
                 </p>
               ) : (
                 <div className="max-h-96 overflow-y-auto">
                   <table className="w-full text-sm">
-                    <thead className="text-left text-xs text-[#94a3b8]">
+                    <thead className="text-left text-xs text-muted-foreground">
                       <tr>
                         <th className="pb-2">Lead</th>
                         <th className="pb-2">Visto</th>
@@ -317,7 +319,7 @@ export function VslDashboard() {
                         <tr key={i} className="border-t border-white/5">
                           <td className="py-2">
                             <div className="text-[#e2e8f0]">{l.email}</div>
-                            {l.name && <div className="text-xs text-[#94a3b8]">{l.name}</div>}
+                            {l.name && <div className="text-xs text-muted-foreground">{l.name}</div>}
                           </td>
                           <td className="py-2">
                             <div className="flex items-center gap-2">
@@ -327,10 +329,10 @@ export function VslDashboard() {
                                   style={{ width: `${l.pct}%`, backgroundColor: l.reachedEnd ? '#22c55e' : BLUE }}
                                 />
                               </div>
-                              <span className="text-xs text-[#cbd5e1]">{l.pct}%</span>
+                              <span className="text-xs text-foreground">{l.pct}%</span>
                             </div>
                           </td>
-                          <td className="py-2 text-right text-[#cbd5e1]">
+                          <td className="py-2 text-right text-foreground">
                             {l.reachedEnd ? '✅ Final' : fmt(l.maxPosition)}
                           </td>
                         </tr>
@@ -363,14 +365,14 @@ export function VslDashboard() {
 
 function Kpi({ icon: Icon, label, value, sub }: { icon: any; label: string; value: any; sub?: string }) {
   return (
-    <Card className="border-white/10 bg-white/5">
+    <Card className="dashboard-card">
       <CardContent className="p-4">
-        <div className="flex items-center gap-2 text-xs text-[#94a3b8]">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Icon className="h-4 w-4" />
           {label}
         </div>
         <div className="mt-1 text-2xl font-bold text-foreground">{value}</div>
-        {sub && <div className="text-xs text-[#94a3b8]">{sub}</div>}
+        {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
       </CardContent>
     </Card>
   )
@@ -456,13 +458,13 @@ function VideoForm({
   }
 
   return (
-    <Card className="border-[#2563EB]/40 bg-white/5">
+    <Card className="dashboard-card">
       <CardHeader className="pb-2">
         <CardTitle className="text-base text-foreground">{initial.id ? 'Editar vídeo' : 'Nuevo vídeo'}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
-          <Label className="text-[#cbd5e1]">Nombre</Label>
+          <Label className="text-foreground">Nombre</Label>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -473,9 +475,9 @@ function VideoForm({
 
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <Label className="text-[#cbd5e1]">Vídeo</Label>
+            <Label className="text-foreground">Vídeo</Label>
             <div className="mt-1 flex items-center gap-2">
-              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-[#cbd5e1] hover:border-white/30">
+              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-foreground hover:border-white/30">
                 {uploading === 'video' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                 Subir archivo
                 <input
@@ -492,13 +494,13 @@ function VideoForm({
               placeholder="…o pega una URL (.mp4 o .m3u8 de Bunny)"
               className="mt-2 bg-black/30 text-xs"
             />
-            {duration > 0 && <p className="mt-1 text-xs text-[#94a3b8]">Duración: {fmt(duration)}</p>}
+            {duration > 0 && <p className="mt-1 text-xs text-muted-foreground">Duración: {fmt(duration)}</p>}
           </div>
 
           <div>
-            <Label className="text-[#cbd5e1]">Miniatura (carga instantánea)</Label>
+            <Label className="text-foreground">Miniatura (carga instantánea)</Label>
             <div className="mt-1 flex items-center gap-2">
-              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-[#cbd5e1] hover:border-white/30">
+              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-foreground hover:border-white/30">
                 {uploading === 'poster' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                 Subir imagen
                 <input
@@ -521,7 +523,7 @@ function VideoForm({
         {/* Config del reproductor */}
         <div className="grid gap-4 rounded-lg bg-black/20 p-3 md:grid-cols-2">
           <div className="flex items-center gap-3">
-            <Label className="text-[#cbd5e1]">Color de la barra</Label>
+            <Label className="text-foreground">Color de la barra</Label>
             <input
               type="color"
               value={config.barColor}
@@ -530,7 +532,7 @@ function VideoForm({
             />
           </div>
           <div className="flex items-center gap-3">
-            <Label className="text-[#cbd5e1]">Color del botón</Label>
+            <Label className="text-foreground">Color del botón</Label>
             <input
               type="color"
               value={config.primaryColor}
@@ -538,49 +540,49 @@ function VideoForm({
               className="h-8 w-12 cursor-pointer rounded bg-transparent"
             />
           </div>
-          <label className="flex items-center gap-2 text-sm text-[#cbd5e1]">
+          <label className="flex items-center gap-2 text-sm text-foreground">
             <Checkbox checked={config.showBar} onCheckedChange={(v) => setCfg('showBar', !!v)} /> Mostrar barra de
             progreso
           </label>
-          <label className="flex items-center gap-2 text-sm text-[#cbd5e1]">
+          <label className="flex items-center gap-2 text-sm text-foreground">
             <Checkbox checked={config.autoplay} onCheckedChange={(v) => setCfg('autoplay', !!v)} /> Autoplay
             (silenciado)
           </label>
-          <label className="flex items-center gap-2 text-sm text-[#cbd5e1]">
+          <label className="flex items-center gap-2 text-sm text-foreground">
             <Checkbox checked={config.tryAudioAutoplay} onCheckedChange={(v) => setCfg('tryAudioAutoplay', !!v)} />{' '}
             Intentar autoplay con sonido (fallback a mute en Chrome)
           </label>
-          <label className="flex items-center gap-2 text-sm text-[#cbd5e1]">
+          <label className="flex items-center gap-2 text-sm text-foreground">
             <Checkbox checked={config.restartOnUnmute} onCheckedChange={(v) => setCfg('restartOnUnmute', !!v)} />{' '}
             Reiniciar desde el inicio al activar el sonido (no perder el hook)
           </label>
-          <label className="flex items-center gap-2 text-sm text-[#cbd5e1]">
+          <label className="flex items-center gap-2 text-sm text-foreground">
             <Checkbox checked={config.lockSeek} onCheckedChange={(v) => setCfg('lockSeek', !!v)} /> Impedir adelantar el
             vídeo
           </label>
-          <label className="flex items-center gap-2 text-sm text-[#cbd5e1]">
+          <label className="flex items-center gap-2 text-sm text-foreground">
             <Checkbox checked={config.fakeProgress} onCheckedChange={(v) => setCfg('fakeProgress', !!v)} /> Barra
             acelerada (sensación de que queda poco)
           </label>
-          <label className="flex items-center gap-2 text-sm text-[#cbd5e1]">
+          <label className="flex items-center gap-2 text-sm text-foreground">
             <Checkbox checked={config.loop} onCheckedChange={(v) => setCfg('loop', !!v)} /> Repetir en bucle al terminar
           </label>
 
           {/* Prueba social */}
           <div className="md:col-span-2 border-t border-white/10 pt-3">
-            <Label className="text-[#cbd5e1]">Contador de prueba social</Label>
+            <Label className="text-foreground">Contador de prueba social</Label>
             <div className="mt-1 flex flex-wrap items-center gap-3">
               <select
                 value={config.socialProof}
                 onChange={(e) => setCfg('socialProof', e.target.value)}
-                className="rounded-md border border-white/15 bg-black/30 px-2 py-1.5 text-sm text-[#cbd5e1]"
+                className="rounded-md border border-white/15 bg-black/30 px-2 py-1.5 text-sm text-foreground"
               >
                 <option value="off">Desactivado</option>
                 <option value="fake">Inventado (para el VSL)</option>
                 <option value="real">Real (para la app / herramienta)</option>
               </select>
               {config.socialProof === 'fake' && (
-                <div className="flex flex-wrap items-center gap-2 text-xs text-[#94a3b8]">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   <span>Viendo ahora:</span>
                   <Input
                     type="number"
@@ -605,7 +607,7 @@ function VideoForm({
                 </div>
               )}
               {config.socialProof === 'real' && (
-                <span className="text-xs text-[#94a3b8]">
+                <span className="text-xs text-muted-foreground">
                   Usa sesiones reales del propio VSL (viendo ahora = actividad de los últimos 15s).
                 </span>
               )}
@@ -614,7 +616,7 @@ function VideoForm({
 
           {/* Gancho de recuperación (idea 6) */}
           <div className="md:col-span-2 border-t border-white/10 pt-3">
-            <label className="flex items-center gap-2 text-sm text-[#cbd5e1]">
+            <label className="flex items-center gap-2 text-sm text-foreground">
               <Checkbox checked={config.exitHook} onCheckedChange={(v) => setCfg('exitHook', !!v)} /> Gancho al pausar /
               intentar salir (recuperación)
             </label>

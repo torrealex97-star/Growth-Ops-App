@@ -337,13 +337,13 @@ export default function ProspectingPage() {
   )
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-surface space-y-5">
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
             <PhoneCall className="w-6 h-6 text-brand-400" />
-            <h1 className="text-2xl font-bold text-foreground">Prospección</h1>
+            <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">Prospección</h1>
           </div>
           <p className="text-muted-foreground text-sm mt-1">
             Outreach y actividad diaria de setters, cold callers y triagers
@@ -473,7 +473,7 @@ export default function ProspectingPage() {
           </div>
 
           {/* Leaderboard */}
-          <div className="bg-card border border-border rounded-lg p-5">
+          <div className="dashboard-card p-5">
             <h3 className="text-sm font-semibold text-foreground mb-4">Leaderboard de prospección</h3>
             {memberRows.length === 0 ? (
               <p className="text-sm text-muted-foreground py-6 text-center">Sin datos por miembro este mes.</p>

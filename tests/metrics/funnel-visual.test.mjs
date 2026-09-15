@@ -111,7 +111,7 @@ test('el embudo de Ads también es visual, no una lista de cifras', () => {
   // Ahora cada fila lleva su barra proporcional, con el MISMO lenguaje visual y el mismo CSS que
   // FunnelChart (una sola hoja de estilo para los dos embudos).
   assert.match(panel, /className="funnel-chart divide-border\/60 divide-y"/)
-  assert.match(panel, /funnel-bar bg-primary\/15/)
+  assert.match(panel, /funnel-bar bg-brand-500\/20/)
   assert.match(panel, /width: `\$\{ancho\(s\.value\)\}%`/)
   assert.match(panel, /\['--fila' as string\]: String\(i\)/)
   // El número crudo viaja junto al formateado: sin él no se puede dibujar nada.
@@ -136,6 +136,12 @@ test('los dos embudos comparten el suelo de visibilidad y el color de marca', ()
   assert.match(chart, /Math\.max\(6,/)
   // Color de marca por token, no hardcodeado (bg-primary/15 sale del accent del tenant).
   assert.ok(!/#[0-9a-fA-F]{6}/.test(panel.slice(panel.indexOf('function FunnelList'), panel.indexOf('const chartBox'))))
+})
+
+test('los gráficos de Ads conservan todos los puntos sin amontonar sus etiquetas', () => {
+  const panel = read('../../components/os/AdsFunnelPanel.tsx')
+  assert.match(panel, /const xAxisInterval = Math\.max\(0, Math\.ceil\(points\.length \/ 6\) - 1\)/)
+  assert.equal((panel.match(/interval=\{xAxisInterval\}/g) ?? []).length, 3)
 })
 
 test('la pantalla de Funnels pinta el embudo visual, y la tabla queda como detalle', () => {

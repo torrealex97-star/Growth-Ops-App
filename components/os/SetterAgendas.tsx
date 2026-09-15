@@ -6,7 +6,7 @@ import type { SetterAgendaRow } from '@/lib/analytics'
 export function SetterAgendas({ rows }: { rows: SetterAgendaRow[] }) {
   const withData = rows.filter((r) => r.total > 0)
   return (
-    <div className="bg-card border border-border rounded-lg p-5">
+    <div className="dashboard-card p-5">
       <div className="flex items-center gap-2 mb-4">
         <CalendarCheck className="w-4 h-4 text-amber-400" />
         <h3 className="text-sm font-semibold text-foreground">Agendas por setter</h3>

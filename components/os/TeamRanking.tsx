@@ -42,7 +42,7 @@ function RankList({ rows }: { rows: RankRow[] }) {
 export function TeamRanking({ closers, setters }: { closers: RankRow[]; setters: RankRow[] }) {
   const [tab, setTab] = useState<'closer' | 'setter'>('closer')
   return (
-    <div className="bg-card border border-border rounded-lg p-5">
+    <div className="dashboard-card p-5">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Trophy className="w-4 h-4 text-amber-400" />

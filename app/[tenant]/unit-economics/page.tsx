@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { PieChart, Target, Users, TrendingUp, Wallet, Filter, MousePointerClick, Megaphone } from 'lucide-react'
 import { ACTIVE_SALE_STATUSES } from '@/lib/analytics'
@@ -307,7 +308,7 @@ export default function UnitEconomicsPage() {
   const hasData = campaignsVisibles.length > 0 || sales.length > 0 || appointments.length > 0
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="dashboard-surface p-4 sm:p-6 space-y-5">
       {/* Header */}
       <div>
         <div className="flex items-center gap-2">
@@ -315,7 +316,7 @@ export default function UnitEconomicsPage() {
           <h1 className="text-2xl font-semibold text-foreground">Métricas y KPIs</h1>
         </div>
         <p className="text-muted-foreground text-sm mt-1">
-          Pasa el ratón por las gráficas para ver el rendimiento mes a mes.
+          Rentabilidad, ventas y conversión de tu negocio en el periodo seleccionado.
         </p>
         {/* El aviso que había aquí decía que esta pantalla no podía filtrar por periodo porque
             `campaigns.adspend` es un acumulado. Era cierto a medias: `campaign_daily` guarda el gasto
@@ -344,6 +345,26 @@ export default function UnitEconomicsPage() {
         }}
       />
 
+      <section className="dashboard-card p-5 sm:p-6">
+        <h2 className="font-display text-xl font-semibold">Embudo de marketing</h2>
+        <p className="mt-1 mb-5 text-sm text-muted-foreground">
+          De las impresiones al cierre. Solo contactos y ventas atribuidos a anuncios, en el periodo seleccionado.
+        </p>
+        <ConnectedFunnel
+          loading={loading}
+          stages={[
+            { label: 'Impresiones', value: marketingFunnel.impressions },
+            { label: 'Clicks', value: marketingFunnel.clicks },
+            { label: 'Leads', value: marketingFunnel.leads },
+            { label: 'Sales Calls', value: marketingFunnel.salesCallsBooked },
+            { label: 'Closes', value: marketingFunnel.dealsClosed },
+          ].map((stage, index, stages) => ({
+            ...stage,
+            conversion: index > 0 ? safeDiv(stage.value * 100, stages[index - 1].value) : null,
+          }))}
+        />
+      </section>
+
       {/* Top cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
@@ -367,7 +388,7 @@ export default function UnitEconomicsPage() {
           loading={loading}
           description="Facturación activa / clientes únicos"
         />
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_8px_24px_rgba(0,0,0,0.3)]">
+        <div className="dashboard-card p-5">
           <div className="flex items-start justify-between mb-4">
             <p className="text-sm font-medium text-muted-foreground">LTV:CAC ratio</p>
             <div className="w-9 h-9 rounded-lg border border-border bg-background flex items-center justify-center">
@@ -459,14 +480,13 @@ export default function UnitEconomicsPage() {
       {/* Embudo de marketing */}
       <div className="space-y-4">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Embudo de marketing</h2>
+          <h2 className="text-lg font-semibold text-foreground">Detalle de adquisición</h2>
           <p className="text-muted-foreground text-sm mt-1">
             Impresiones, clicks y leads de campañas, atribuidos hasta el cierre de venta — solo lo que viene de
             anuncios. Las cifras de todo origen están arriba.
           </p>
         </div>
 
-        {/* Cards de tráfico y coste */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard
             title="Impressions"
@@ -494,31 +514,33 @@ export default function UnitEconomicsPage() {
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KPICard
-            title="CPM"
-            value={loading ? '—' : marketingFunnel.cpm !== null ? formatCurrency(marketingFunnel.cpm) : '—'}
-            loading={loading}
-            description="Coste por mil impresiones"
-          />
-          <KPICard
-            title="CTR"
-            value={loading ? '—' : formatPercent(marketingFunnel.ctr)}
-            loading={loading}
-            description="Clicks / impresiones"
-          />
-          <KPICard
-            title="CPC"
-            value={loading ? '—' : marketingFunnel.cpc !== null ? formatCurrency(marketingFunnel.cpc) : '—'}
-            loading={loading}
-            description="Coste por click"
-          />
-          <KPICard
-            title="CPL"
-            value={loading ? '—' : marketingFunnel.cpl !== null ? formatCurrency(marketingFunnel.cpl) : '—'}
-            loading={loading}
-            description="Coste por lead"
-          />
+        <div className="grid gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <KPICard
+              title="CPM"
+              value={loading ? '—' : marketingFunnel.cpm !== null ? formatCurrency(marketingFunnel.cpm) : '—'}
+              loading={loading}
+              description="Coste por mil impresiones"
+            />
+            <KPICard
+              title="CTR"
+              value={loading ? '—' : formatPercent(marketingFunnel.ctr)}
+              loading={loading}
+              description="Clicks / impresiones"
+            />
+            <KPICard
+              title="CPC"
+              value={loading ? '—' : marketingFunnel.cpc !== null ? formatCurrency(marketingFunnel.cpc) : '—'}
+              loading={loading}
+              description="Coste por click"
+            />
+            <KPICard
+              title="CPL"
+              value={loading ? '—' : marketingFunnel.cpl !== null ? formatCurrency(marketingFunnel.cpl) : '—'}
+              loading={loading}
+              description="Coste por lead"
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -576,50 +598,10 @@ export default function UnitEconomicsPage() {
             description="Valor de pipeline en citas atribuidas"
           />
         </div>
-
-        {/* Mini-embudo visual */}
-        <div className="rounded-2xl border border-border bg-card p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">
-            Impresiones → Clicks → Leads → Sales Calls → Closes
-          </h3>
-          {loading ? (
-            <div className="h-24 w-full bg-muted animate-pulse rounded" />
-          ) : (
-            // El scroll horizontal queda contenido aquí (no en la página): a ~640-768px, 5 tarjetas
-            // de ancho mínimo real no caben sin overflow-x-auto propio, y sin él el overflow subía
-            // al contenedor de la página y arrastraba la cabecera con él.
-            <div className="overflow-x-auto -mx-1 px-1">
-              <div className="flex flex-col sm:flex-row items-stretch gap-2 sm:min-w-[560px]">
-                {[
-                  { label: 'Impresiones', value: marketingFunnel.impressions },
-                  { label: 'Clicks', value: marketingFunnel.clicks },
-                  { label: 'Leads', value: marketingFunnel.leads },
-                  { label: 'Sales Calls', value: marketingFunnel.salesCallsBooked },
-                  { label: 'Closes', value: marketingFunnel.dealsClosed },
-                ].map((stage, i, arr) => {
-                  const prev = i > 0 ? arr[i - 1].value : null
-                  const pct = prev !== null ? safeDiv(stage.value * 100, prev) : null
-                  return (
-                    <div key={stage.label} className="flex items-center gap-2 flex-1 min-w-0">
-                      <div className="flex-1 min-w-0 rounded-2xl border border-border bg-background p-4 text-center">
-                        <p className="text-xs text-muted-foreground uppercase tracking-wider">{stage.label}</p>
-                        <p className="text-xl font-bold text-foreground mt-1">{stage.value.toLocaleString('es-ES')}</p>
-                        {pct !== null && <p className="text-xs text-white mt-1">{pct.toFixed(1)}% vs. anterior</p>}
-                      </div>
-                      {i < arr.length - 1 && (
-                        <span className="text-muted-foreground text-lg shrink-0 hidden sm:block">→</span>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Tabla por canal */}
-      <div className="rounded-2xl border border-border bg-card p-5">
+      <div className="dashboard-card p-5">
         <h3 className="text-sm font-semibold text-foreground mb-4">Unit economics por canal</h3>
         {loading ? (
           <div className="space-y-2">
