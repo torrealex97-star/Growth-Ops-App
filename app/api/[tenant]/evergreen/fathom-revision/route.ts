@@ -7,7 +7,7 @@ import { findMeetingById, meetingSummary, meetingTranscript } from '@/lib/fathom
 export const runtime = 'nodejs'
 // Resolver puede tener que recorrer varias páginas de la API de Fathom para recuperar la
 // transcripción de una reunión antigua, así que no vale el timeout por defecto.
-export const maxDuration = 120
+export const maxDuration = 60
 
 // Cola de revisión de reuniones de Fathom que el sync NO pudo emparejar sin adivinar.
 //

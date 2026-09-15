@@ -5,7 +5,7 @@ import { getTenantConfigWithFallback } from '@/lib/config'
 import { recordSyncRun, SyncBusyError } from '@/lib/integrations/sync-runs'
 
 export const runtime = 'nodejs'
-export const maxDuration = 300
+export const maxDuration = 60
 
 // Cron de la base de clientes de Stripe. Mismo patrón que los demás: un GET global protegido por
 // CRON_SECRET que recorre TODAS las subcuentas activas, porque Vercel Cron pega a una URL estática.

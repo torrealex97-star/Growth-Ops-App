@@ -6,7 +6,7 @@ import { getTenantConfigWithFallback } from '@/lib/config'
 import { recordSyncRun, SyncBusyError } from '@/lib/integrations/sync-runs'
 
 export const runtime = 'nodejs'
-export const maxDuration = 300
+export const maxDuration = 60
 
 const ALLOWED_ROLES = ['admin', 'director', 'manager', 'marketing']
 

@@ -1,5 +1,75 @@
 # Relevo activo
 
+## Incidencia de carga intermitente — corregida y validada (2026-09-15)
+
+Se reprodujo una pestaña del navegador en estado `This page crashed`, mientras una pestaña limpia
+contra producción cargó correctamente Dashboard, Unit Economics, Agendas, Integraciones y Ventas
+con datos reales y sin errores de consola. Producción también respondió por HTTP durante la
+comprobación; no hay evidencia de una caída permanente de Vercel.
+
+Sí se encontró una carrera real en `app/[tenant]/layout.tsx`: el timeout de 12 segundos abortaba la
+petición de contrato, pero no las consultas de sesión, tenant, rol, perfil ni branding. Al pulsar
+Reintentar, esas operaciones antiguas podían seguir vivas y competir con el intento nuevo. Ahora:
+
+- `auth.getUser()` se espera con cancelación lógica y su resultado tardío se descarta;
+- las consultas PostgREST/RPC reciben `AbortSignal` y se cancelan al vencer, reintentar o desmontar;
+- ninguna operación cancelada puede escribir estado antiguo;
+- el observador que recupera `pointer-events` mantiene un solo timer y lo limpia al desmontar;
+- el fetch de branding captura fallos y conserva el fallback local.
+
+Pruebas de regresión añadidas a `tests/loader-sin-cuelgue.test.mjs`. Validación ejecutada sobre el
+árbol combinado de Claude + Codex: **format PASS; lint PASS con warnings heredados; typecheck PASS;
+general 322/322 PASS; métricas 643/643 PASS; regresión focal 74/74 PASS; Next production build PASS**.
+El build solo emitió warnings ya existentes de hooks, `<img>`, trazado de raíz local y la
+instrumentación dinámica de Sentry.
+
+## Estado consolidado Codex + Claude Code — 2026-09-15
+
+Fuente revisada: `origin/main` en `08bf522` y única rama remota de trabajo
+`claude/app-continuation-lpbupf` en `4cf441a`. No se creó otra rama.
+
+### Mapa de las 24 tareas
+
+| # | Tarea | Estado comprobado en Git |
+| --- | --- | --- |
+| 1 | Causa raíz y sistema de carga | **HECHO EN MAIN** (`78602a8`) |
+| 2 | Rol acotado a la subcuenta | **HECHO EN MAIN** (`5d7577b`, `91dd890`) |
+| 3 | Cascada de red: primeras 12 pantallas | **HECHO EN MAIN** (`5d7577b`, `4679909`) |
+| 4 | `request_id` en rutas | **HECHO EN MAIN** (`1303b6f`) |
+| 5 | Limpieza con evidencia | **HECHO EN MAIN** (`1303b6f`, `2045026`) |
+| 6 | Capa de consulta con datos reales | **HECHO EN MAIN** (`8efb0d2`) |
+| 7 | Montar KPI cards, brief y alertas | **HECHO EN RAMA ACTIVA** (`2cae4e2`) |
+| 8 | Agendas: respuestas del formulario | **HECHO EN RAMA ACTIVA** (`eddd936`) |
+| 9 | Atribución: propagar campaign/UTM | **HECHO EN RAMA ACTIVA** (`4cf441a`) |
+| 10 | Cascada de sesión en pantallas restantes | **PENDIENTE DE AUDITORÍA/CIERRE** |
+| 11 | `any` restantes | **PENDIENTE DE AUDITORÍA/CIERRE**; no sustituir por casts inseguros |
+| 12 | Medir LCP / INP / CLS reales | **PENDIENTE**; no hay instrumentación Web Vitals encontrada |
+| 13 | Decidir sobre el 89% de `use client` | **PENDIENTE DE DECISIÓN ARQUITECTÓNICA**; medir antes de migrar en masa |
+| 14 | Rellenar contexto de negocio | **CÓDIGO HECHO / DATOS PENDIENTES**; tabla/API existen, falta contenido real y confirmar migración en producción |
+| 15 | Webhook Stripe y Google Client Secret | **WEBHOOK HECHO** (`7b15aab`); **ROTACIÓN DE SECRET PENDIENTE DEL USUARIO** |
+| 16 | 49.1 agregados puros | **HECHO EN MAIN** |
+| 17 | 49.2 lectura paginada/tenant | **HECHO EN MAIN** |
+| 18 | 49.3 puente a niveles/dimensiones/objetivos | **HECHO EN MAIN** |
+| 19 | 49.4 ruta `/metricas/brief` | **HECHO EN MAIN** |
+| 20 | 49.5 cuatro huecos declarados | **PENDIENTE DE REVISIÓN CONTRA EL REGISTRO ACTUAL** |
+| 21 | 50.1 cuello de botella + Business Health | **HECHO EN MAIN Y MONTADO EN RAMA** (`0ee2be7`, `2cae4e2`) |
+| 22 | 50.2 objetivos, previsión y capacidad | **HECHO EN MAIN Y MONTADO EN RAMA** (`ec3b61f`, `2cae4e2`) |
+| 23 | 50.3 alertas/notificaciones/anotaciones | **PARCIAL**: motor y panel existen; falta verificar anotaciones en todos los gráficos/notificaciones |
+| 24 | 50.4 Growth Brief inicial del agente | **HECHO EN RAMA ACTIVA** (`8248749`) |
+
+Claude Code puede retomar los puntos 10–15, 20 y 23 cuando se restablezcan sus límites. Antes debe
+comprobar si esta rama ya se fusionó y continuar desde `main` si así fuera.
+
+### Bloque Free Tier de Codex
+
+La auditoría y las decisiones completas están en `docs/FREE_TIER_OPERATIONS.md`. Los cambios de
+código se mantienen acotados a límites, timeouts, caché segura, pooling documentado y prevención de
+builds prescindibles. No se consolidaron crons ni se añadió retención destructiva.
+
+Validación completada antes de publicar este bloque: format PASS; lint PASS con warnings heredados;
+typecheck PASS; suite general 322/322 PASS; métricas 643/643 PASS; guardarraíles focales 74/74 PASS;
+build de producción PASS.
+
 Última actualización: 2026-09-14 (Claude Code)
 
 ## SESIÓN 2026-09-14 (brief de Integraciones/Stripe/Métricas/Funnels) — los 6 bloques cerrados

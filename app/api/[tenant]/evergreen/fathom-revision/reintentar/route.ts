@@ -4,7 +4,7 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 import { decideMatch, MATCH_WINDOW_MINUTES, type Candidate } from '@/lib/fathom/match'
 
 export const runtime = 'nodejs'
-export const maxDuration = 120
+export const maxDuration = 60
 
 // REINTENTAR EL EMPAREJAMIENTO DE LA COLA DE FATHOM, sin decidir nada a mano.
 //

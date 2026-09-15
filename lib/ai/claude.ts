@@ -7,7 +7,7 @@ import { completeText, type TextRequest } from '@/lib/ai/provider'
 // maxRetries alto porque Anthropic devuelve "overloaded_error" (529) con cierta frecuencia en picos
 // de carga; el default del SDK (2) no siempre aguanta hasta que se libera capacidad.
 function anthropic(apiKey: string | undefined) {
-  return new Anthropic({ apiKey, maxRetries: 6 })
+  return new Anthropic({ apiKey, maxRetries: 1, timeout: 45_000 })
 }
 
 const MODEL_FAST = 'claude-haiku-4-5-20251001'

@@ -8,7 +8,7 @@ import { getTestimonio, listTestimonios, testimonioForPrompt } from '@/lib/testi
 import { tenantAiEnv } from '@/lib/ai/provider'
 
 export const runtime = 'nodejs'
-export const maxDuration = 120
+export const maxDuration = 60
 
 const ALLOWED_ROLES = ['admin', 'director', 'manager', 'marketing', 'editor']
 

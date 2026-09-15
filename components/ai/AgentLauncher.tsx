@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Sparkles, X, ArrowUp, Loader2 } from 'lucide-react'
 import { useTenant } from '@/lib/tenant-context'
+import { GrowthBriefCabecera } from '@/components/ai/GrowthBriefCabecera'
 
 type Evidence = { name: string; input: Record<string, unknown>; summary: string }
 type ChatMsg = { role: 'user' | 'assistant'; content: string; evidence?: Evidence[] }
@@ -201,8 +202,12 @@ export function AgentLauncher() {
             )}
             {messages.length === 0 && (
               <div className="space-y-2">
+                {/* Lo primero NO es un cuadro de texto vacío: un chat en blanco traslada a la persona el
+                    trabajo de saber qué preguntar, y entonces no se usa. El agente abre diciendo lo que
+                    ya sabe. */}
+                <GrowthBriefCabecera onPreguntar={send} />
                 <p className="text-xs text-muted-foreground">
-                  Pregunta sobre tu negocio con datos reales, por ejemplo:
+                  O pregunta sobre tu negocio con datos reales, por ejemplo:
                 </p>
                 {suggestionsFor(relPath).map((s) => (
                   <button

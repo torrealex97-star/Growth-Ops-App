@@ -14,6 +14,8 @@ import { MarcadoRapido } from '@/components/appointments/MarcadoRapido'
 import type { AppointmentWithRelations, AppointmentStatus } from '@/lib/types/database'
 import { STATUS_COLORS, STATUS_LABELS, isNoShow } from '@/lib/appointments/status'
 import { getQualificationEntries, type Qualification } from '@/lib/appointments/qualification'
+import { extraerRespuestas } from '@/lib/metrics/respuestas-formulario'
+import { evaluarCualificacion } from '@/lib/metrics/cualificacion'
 import { guessContactTimezone, TIMEZONE_OPTIONS } from '@/lib/timezone'
 import { useTenant } from '@/lib/tenant-context'
 
@@ -592,7 +594,22 @@ export function AppointmentDetail({
   }
 
   const qualification = appointment.qualification as Qualification | null
+  // LA COLUMNA `qualification` ESTÁ VACÍA EN LA PRÁCTICA: 0 de 559 citas en producción. Las respuestas
+  // del formulario viven en `raw_payload` (473 de 559), que es lo que manda el proveedor. Por eso esta
+  // sección no aparecía nunca: leía la columna estructurada que nadie rellena, y la persona tenía que
+  // desplegar el JSON crudo para ver lo que el lead había contestado.
+  //
+  // Se mira primero la columna, por si algún día se rellena, y si no se leen las respuestas del payload.
+  const respuestasDelPayload = extraerRespuestas(appointment.raw_payload, appointment.external_source)
   const qualificationEntries = getQualificationEntries(qualification)
+  const entradasFormulario =
+    qualificationEntries.length > 0
+      ? qualificationEntries
+      : respuestasDelPayload.map((r) => ({ label: r.pregunta, value: r.respuesta }))
+
+  // El veredicto de cualificación de MARKETING, con sus motivos. Es el que entra en el CPQBC, así que
+  // enseñarlo aquí permite que quien llama vea lo mismo que cuenta el panel —y lo discuta si se equivoca.
+  const veredicto = respuestasDelPayload.length > 0 ? evaluarCualificacion(respuestasDelPayload) : null
 
   const isCancelled = CANCELLED_STATUSES.includes(appointment.status)
 
@@ -1002,13 +1019,37 @@ export function AppointmentDetail({
       </dl>
 
       {/* Formulario / Cualificación (Calendly) */}
-      {qualificationEntries.length > 0 && (
+      {entradasFormulario.length > 0 && (
         <>
           <Separator className="bg-muted" />
           <div>
             <h4 className="text-sm font-medium text-muted-foreground mb-3">Formulario / Cualificación</h4>
+            {veredicto && (
+              <div className="mb-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
+                <p className="text-foreground">
+                  {/* `null` no es "no cualificada": es que el formulario no da para decidirlo. Pintarlo
+                      como un "no" metería en el numerario de las no cualificadas a todo el que no contestó. */}
+                  Cualificación de marketing:{' '}
+                  <span className="font-medium">
+                    {veredicto.cualificada === true
+                      ? 'sí'
+                      : veredicto.cualificada === false
+                        ? 'no'
+                        : 'no se puede saber con lo que contestó'}
+                  </span>
+                  <span className="ml-1 text-muted-foreground">(fiabilidad {veredicto.fiabilidad})</span>
+                </p>
+                {veredicto.motivos.length > 0 && (
+                  <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                    {veredicto.motivos.map((m, i) => (
+                      <li key={i}>· {m}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
             <dl className="space-y-3">
-              {qualificationEntries.map((entry, i) => (
+              {entradasFormulario.map((entry, i) => (
                 <div key={i} className="space-y-0.5">
                   <dt className="text-xs text-muted-foreground">{entry.label}</dt>
                   <dd className="text-sm text-foreground">{entry.value}</dd>

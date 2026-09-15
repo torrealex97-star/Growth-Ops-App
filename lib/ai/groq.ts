@@ -46,7 +46,7 @@ export async function transcribeAudio(
     method: 'POST',
     headers: { Authorization: `Bearer ${key}` },
     body: form,
-    signal: AbortSignal.timeout(opts.timeoutMs ?? 60_000),
+    signal: AbortSignal.timeout(opts.timeoutMs ?? 45_000),
   })
   if (!res.ok) throw new Error(`Groq error ${res.status}: ${(await res.text()).slice(0, 300)}`)
   const data = (await res.json()) as { text?: string }

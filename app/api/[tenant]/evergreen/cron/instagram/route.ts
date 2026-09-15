@@ -5,7 +5,7 @@ import { getTenantConfigWithFallback } from '@/lib/config'
 import { recordSyncRun, SyncBusyError } from '@/lib/integrations/sync-runs'
 
 export const runtime = 'nodejs'
-export const maxDuration = 300
+export const maxDuration = 60
 
 // Cron diario → sincroniza el Instagram orgánico. Se dispara por Supabase pg_cron
 // (Vercel es Hobby = solo crons diarios), igual que el cron de Meta.
