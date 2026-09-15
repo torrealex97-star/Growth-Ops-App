@@ -51,11 +51,12 @@ import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { getPeriodRange, getPreviousPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 import {
+  CATEGORY_BADGE_CLASSES,
+  CATEGORY_BLOCK_CLASSES,
+  CATEGORY_LABELS,
   STATUS_LABELS,
   getAppointmentCategory,
-  CATEGORY_LABELS,
-  CATEGORY_BLOCK_CLASSES,
-  CATEGORY_BADGE_CLASSES,
+  isNoShow,
 } from '@/lib/appointments/status'
 
 const cls =
@@ -1050,7 +1051,7 @@ export default function AppointmentsPage() {
                   Seguimiento
                 </Badge>
               ) : null}
-              {row.original.rescheduled_from_status === 'no_show' && (
+              {isNoShow(row.original.rescheduled_from_status) && (
                 <Badge className="border text-xs bg-red-500/10 text-red-400 border-red-500/30">
                   Reagenda / No show
                 </Badge>

@@ -148,3 +148,45 @@ test('no queda ningún catch vacío en la aplicación', () => {
   dirs.forEach(walk)
   assert.deepEqual(vacios, [], 'un catch vacío tiene que decir por qué se ignora el error')
 })
+
+// ---------------------------------------------------------------------------------------------
+// EL HELPER CANÓNICO DE NO-SHOW, USADO DONDE TOCA — Y NO DONDE NO TOCA.
+//
+// `isNoShow()` existe para no repetir el literal, pero tres vocabularios distintos usan la MISMA
+// palabra 'no_show': `appointments.status`, `csm_events.status` y el `result` del marcado. Unificarlos
+// porque coinciden en el literal ataría cálculos que no tienen nada que ver.
+// ---------------------------------------------------------------------------------------------
+
+test('el status de la cita se pregunta con el helper, no con el literal', () => {
+  const ficheros = [
+    'lib/analytics.ts',
+    'app/[tenant]/analitica/ranking/page.tsx',
+    'lib/metrics/oferta.ts',
+    'app/[tenant]/crm/agendas/page.tsx',
+    'app/[tenant]/crm/contactos/[id]/page.tsx',
+    'components/appointments/AppointmentDetail.tsx',
+  ]
+  for (const f of ficheros) {
+    const codigo = sinComentarios(leer(f))
+    assert.doesNotMatch(codigo, /\.status === 'no_show'/, `${f} compara el status a mano`)
+    assert.doesNotMatch(codigo, /rescheduled_from_status === 'no_show'/, f)
+    assert.match(codigo, /isNoShow\(/, f)
+  }
+})
+
+// Lo que NO se unificó, y por qué. Si estas notas desaparecen, el siguiente pase de limpieza las
+// "arreglará" y romperá dos cálculos distintos.
+test('los vocabularios que solo comparten el literal quedan explicados', () => {
+  const csm = leer('app/[tenant]/csm-events/page.tsx')
+  assert.match(csm, /NO `appointments\.status`/)
+  assert.match(csm, /NO usar aquí `isNoShow\(\)`/)
+  const oferta = leer('lib/metrics/oferta.ts')
+  assert.match(oferta, /vocabulario del MARCADO/)
+  assert.match(oferta, /aquí NO va `isNoShow\(\)`/)
+})
+
+test('csm-events y el marcado siguen usando su propio literal', () => {
+  // Que la nota exista no basta: el código tiene que seguir comparando su propio vocabulario.
+  assert.match(leer('app/[tenant]/csm-events/page.tsx'), /e\.status === 'no_show'/)
+  assert.match(leer('lib/metrics/oferta.ts'), /cita\.result === 'no_show'/)
+})

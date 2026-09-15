@@ -27,7 +27,7 @@ import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import type { Target } from '@/lib/types/database'
 import { CONTACTED_LEAD_STATUSES } from '@/lib/lead-status'
-import { isAttended } from '@/lib/appointments/status'
+import { isAttended, isNoShow } from '@/lib/appointments/status'
 
 type ContactRow = {
   id: string
@@ -88,7 +88,7 @@ function roleRanking(
     if (a.offered === true || a.result === 'offer_made' || isAttended(a.status)) {
       row.qualified += 1
     }
-    if (a.status === 'no_show') row.noShows += 1
+    if (isNoShow(a.status)) row.noShows += 1
   }
   map.forEach((r) => {
     r.qualifiedRate = r.total ? (r.qualified / r.total) * 100 : 0

@@ -12,7 +12,7 @@ import { fireConfetti, cheerMessage } from '@/lib/confetti'
 import { toast } from 'sonner'
 import { MarcadoRapido } from '@/components/appointments/MarcadoRapido'
 import type { AppointmentWithRelations, AppointmentStatus } from '@/lib/types/database'
-import { STATUS_COLORS, STATUS_LABELS } from '@/lib/appointments/status'
+import { STATUS_COLORS, STATUS_LABELS, isNoShow } from '@/lib/appointments/status'
 import { getQualificationEntries, type Qualification } from '@/lib/appointments/qualification'
 import { guessContactTimezone, TIMEZONE_OPTIONS } from '@/lib/timezone'
 import { useTenant } from '@/lib/tenant-context'
@@ -621,7 +621,7 @@ export function AppointmentDetail({
         <Badge className={`border text-sm px-3 py-1 ${STATUS_COLORS[appointment.status]}`}>
           {STATUS_LABELS[appointment.status]}
         </Badge>
-        {appointment.rescheduled_from_status === 'no_show' && (
+        {isNoShow(appointment.rescheduled_from_status) && (
           <Badge className="border text-sm px-3 py-1 bg-red-500/10 text-red-400 border-red-500/30">
             Reagenda / No show
           </Badge>

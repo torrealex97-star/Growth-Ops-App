@@ -22,6 +22,7 @@
 // hubo nada que presentar, y ahí el valor es `false` por hecho, no por suposición.
 
 import type { Veredicto } from '@/lib/metrics/cualificacion'
+import { isNoShow } from '@/lib/appointments/status'
 
 /** De dónde sale el valor. Es lo que permite saber cuánto del número es suposición. */
 type OrigenOferta =
@@ -86,11 +87,14 @@ export function resolverOferta(cita: CitaOferta, config: ConfigOferta = CONFIG_O
       motivo: 'El closer la marcó como no cualificada, así que no hubo oferta.',
     }
   }
+  // `result` es el vocabulario del MARCADO (lib/agenda/marcado.ts), no `appointments.status`. Los dos
+  // tienen un valor 'no_show' y significan cosas distintas: uno es lo que el closer marcó, el otro el
+  // estado de la cita. Por eso aquí NO va `isNoShow()`, que pregunta por el segundo.
   if (cita.result === 'no_show') {
     return { valor: false, origen: 'derivado', motivo: 'No se presentó nadie, así que no hubo oferta.' }
   }
 
-  if (cancelada(cita) || cita.status === 'no_show') {
+  if (cancelada(cita) || isNoShow(cita.status)) {
     return { valor: false, origen: 'derivado', motivo: 'La llamada no se celebró, así que no hubo oferta.' }
   }
 

@@ -66,6 +66,15 @@ const sevColor: Record<string, string> = {
   baja: 'bg-muted text-muted-foreground',
 }
 
+// `catch (e: any)` + `e.message` compila aunque lo lanzado NO sea un Error —un string, un objeto de
+// fetch, lo que sea—, y entonces la pantalla enseña "Error: undefined", que es peor que no enseñar nada.
+// Con `unknown` el compilador obliga a comprobarlo, y esto da el mensaje real o algo legible.
+function mensajeDeError(e: unknown): string {
+  if (e instanceof Error) return e.message
+  if (typeof e === 'string') return e
+  return 'fallo inesperado'
+}
+
 export default function SettingAIPage() {
   const [topTab, setTopTab] = useState<'entrenamiento' | 'conversaciones'>('entrenamiento')
   return (
@@ -210,8 +219,8 @@ function EntrenamientoTab() {
       setConv(() => withAgent)
       setTyping('')
       if (autocorrect) await autoCorrect(withAgent)
-    } catch (e: any) {
-      setStatus('Error: ' + e.message)
+    } catch (e: unknown) {
+      setStatus('Error: ' + mensajeDeError(e))
       setTyping('')
     }
   }
@@ -240,8 +249,8 @@ function EntrenamientoTab() {
       })
       if (add.length) setCorrections((c) => [...c, ...add])
       setStatus(add.length ? `🔍 ${add.length} autocorrección(es) añadida(s).` : '🔍 Respuesta correcta, sin fallos.')
-    } catch (e: any) {
-      setStatus('Crítico falló: ' + e.message)
+    } catch (e: unknown) {
+      setStatus('Crítico falló: ' + mensajeDeError(e))
     }
   }
   async function sendLead() {
@@ -264,8 +273,8 @@ function EntrenamientoTab() {
       const next = [...conv, { who: 'lead' as Who, text: r.text, id: nid() }]
       setConv(() => next)
       await agentReply(next)
-    } catch (e: any) {
-      setStatus('Error: ' + e.message)
+    } catch (e: unknown) {
+      setStatus('Error: ' + mensajeDeError(e))
       setTyping('')
     }
   }
@@ -360,9 +369,9 @@ function EntrenamientoTab() {
       setImproveTitle(err ? '⚠️ Error al generar' : `✅ Prompt mejorado (${secs}s) — listo para pegar`)
       setImproveDone(true)
       setStatus('Prompt mejorado generado.')
-    } catch (e: any) {
+    } catch (e: unknown) {
       setImproveTitle('⚠️ Error')
-      setImproveText((t) => t || 'Error: ' + e.message)
+      setImproveText((t) => t || 'Error: ' + mensajeDeError(e))
       setImproveDone(true)
     }
   }
@@ -405,10 +414,10 @@ function EntrenamientoTab() {
           setAtImproved(e.improved || '')
           setAtStatus(`✅ hecho · ${(e.corrections || []).length} mejoras`)
           setAtSubTab('prompt')
-        } else if (e.type === 'error') setAtStatus('Error: ' + e.message)
+        } else if (e.type === 'error') setAtStatus('Error: ' + mensajeDeError(e))
       })
-    } catch (e: any) {
-      setAtStatus('Error: ' + e.message)
+    } catch (e: unknown) {
+      setAtStatus('Error: ' + mensajeDeError(e))
     }
     setAtRunning(false)
   }
