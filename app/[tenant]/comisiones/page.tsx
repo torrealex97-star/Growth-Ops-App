@@ -16,7 +16,7 @@ import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import type { CommissionWithRelations, ParticipantType } from '@/lib/types/database'
-import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { getCustomDateRange, inPeriod } from '@/lib/filters/period'
 import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
 
@@ -69,6 +69,8 @@ function downloadCSV(filename: string, headers: string[], rows: (string | number
 export default function CommissionsPage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
+  // Sesión ya resuelta por el layout: evita repetir auth.getUser() + from('users') aquí.
+  const sesion = useSesion()
   const [commissions, setCommissions] = useState<CommissionWithRelations[]>([])
   const [future, setFuture] = useState<FutureRow[]>([])
   const [members, setMembers] = useState<SimpleMember[]>([])
@@ -90,16 +92,13 @@ export default function CommissionsPage() {
   const fetchCommissions = async () => {
     const supabase = createClient()
 
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser()
-    if (!authUser) return
-
-    const { data: userData } = await supabase.from('users').select('*, roles(key)').eq('id', authUser.id).single()
-
-    const role = (userData as { roles?: { key?: string } })?.roles?.key ?? ''
+    // DOS VIAJES DE RED MENOS. `auth.getUser()` y la relectura de la propia fila de `users` los acaba de
+    // hacer app/[tenant]/layout.tsx para decidir si dejar entrar aquí, y los dos iban EN SERIE antes de
+    // poder pedir las comisiones.
+    if (!sesion) return
+    const role = (sesion.user as { roles?: { key?: string } | null })?.roles?.key ?? ''
     setCurrentUserRole(role)
-    setCurrentUserId(authUser.id)
+    setCurrentUserId(sesion.userId)
 
     const canSeeAll = ['admin', 'director'].includes(role)
 
@@ -112,7 +111,7 @@ export default function CommissionsPage() {
       .order('created_at', { ascending: false })
 
     if (!canSeeAll) {
-      query = query.eq('user_id', authUser.id)
+      query = query.eq('user_id', sesion.userId)
     }
 
     const { data, error } = await query
@@ -143,7 +142,9 @@ export default function CommissionsPage() {
   useEffect(() => {
     fetchCommissions()
     fetchFuture()
-  }, [])
+    // `sesion` está memorizada en el layout: esto no entra en bucle, solo recarga si cambia de verdad.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sesion])
 
   const canApprove = ['admin', 'director'].includes(currentUserRole)
   // Aprobar cuotas en revisión (plan personalizado): mismo alcance que payments/mark (cobros incluido).
@@ -379,11 +380,10 @@ export default function CommissionsPage() {
 
   const handleApprove = async (ids: string[]) => {
     const supabase = createClient()
-    const { data: authUser } = await supabase.auth.getUser()
-
+    // Quién aprueba ya lo sabe la sesión: no hace falta un viaje extra a Auth para firmarlo.
     const { error } = await supabase
       .from('commissions')
-      .update({ status: 'approved', approved_by: authUser.user?.id })
+      .update({ status: 'approved', approved_by: sesion?.userId })
       .in('id', ids)
       .eq('tenant_id', tenantId)
 

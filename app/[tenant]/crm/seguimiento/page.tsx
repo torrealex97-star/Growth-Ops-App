@@ -16,7 +16,7 @@ import { readEnum } from '@/lib/filters/url-state'
 import type { AppointmentWithRelations, AppointmentStatus } from '@/lib/types/database'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import { getQualificationEntries, type Qualification } from '@/lib/appointments/qualification'
-import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 import { getCustomDateRange, inPeriod } from '@/lib/filters/period'
 
@@ -94,6 +94,8 @@ function timeAgo(dateStr: string | null | undefined): string {
 export default function SeguimientoPage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
+  // Sesión ya resuelta por el layout: evita repetir auth.getUser() + from('users') aquí.
+  const sesion = useSesion()
   // La vista se puede fijar desde la URL (?view=kanban). El menú del CRM entra directo al kanban,
   // que es el pipeline comercial, sin obligar a pulsar el toggle en cada visita. Se lee con el mismo
   // helper que el resto de filtros de la app en vez de parsear el parámetro a mano.
@@ -123,24 +125,17 @@ export default function SeguimientoPage() {
 
   const fetchData = async () => {
     const supabase = createClient()
-    const { data: authUser } = await supabase.auth.getUser()
-
+    // DOS VIAJES DE RED MENOS, en serie y antes de poder pedir los seguimientos: los hacía ya el layout.
     let role = ''
     let scope = 'own'
     let userId = ''
-    if (authUser.user) {
-      userId = authUser.user.id
-      const { data: userData } = await supabase
-        .from('users')
-        .select('*, roles(key)')
-        .eq('id', authUser.user.id)
-        .single()
-      if (userData) {
-        role = (userData as { roles?: { key?: string } }).roles?.key ?? ''
-        scope = (userData as { data_scope?: string }).data_scope ?? 'own'
-        setCurrentUserRole(role)
-        setCurrentUserName((userData as { full_name?: string }).full_name ?? '')
-      }
+    if (sesion) {
+      userId = sesion.userId
+      const userData = sesion.user as { data_scope?: string; full_name?: string; roles?: { key?: string } | null }
+      role = userData.roles?.key ?? ''
+      scope = userData.data_scope ?? 'own'
+      setCurrentUserRole(role)
+      setCurrentUserName(userData.full_name ?? '')
     }
 
     let query = supabase
@@ -174,7 +169,9 @@ export default function SeguimientoPage() {
 
   useEffect(() => {
     fetchData()
-  }, [])
+    // `sesion` está memorizada en el layout: esto no entra en bucle, solo recarga si cambia de verdad.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sesion])
 
   const setters = useMemo(() => users.filter((u) => u.roles?.key === 'setter'), [users])
   const closers = useMemo(() => users.filter((u) => u.roles?.key === 'closer' || u.roles?.key === 'admin'), [users])

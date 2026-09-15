@@ -1,6 +1,7 @@
 // Agregaciones puras para el centro de mando (dashboard, ranking, atribución, objetivos).
 // Sin I/O: reciben filas crudas de Supabase y devuelven datos listos para pintar.
 
+import { isNoShow } from '@/lib/appointments/status'
 export type SaleRow = {
   id: string
   gross_amount: number | string
@@ -89,14 +90,6 @@ export function revenueByMonth(sales: SaleRow[], months: string[]) {
     amount: sales
       .filter((s) => isActiveSale(s) && ymOf(s.sale_date) === ym)
       .reduce((acc, s) => acc + num(s.gross_amount), 0),
-  }))
-}
-export function cashByMonth(collections: CollectionRow[], months: string[]) {
-  return months.map((ym) => ({
-    date: monthLabel(ym),
-    amount: collections
-      .filter((c) => isCollected(c) && ymOf(c.collected_at) === ym)
-      .reduce((acc, c) => acc + num(c.gross_amount), 0),
   }))
 }
 
@@ -204,7 +197,7 @@ export function setterAgendaStats(appointments: AppointmentRow[], users: UserRow
         .get(a.setter_id)!
     row.total += 1
     if (a.status === 'show') row.shows += 1
-    if (a.status === 'no_show') row.noShows += 1
+    if (isNoShow(a.status)) row.noShows += 1
   }
   map.forEach((r) => {
     r.showRate = r.total ? (r.shows / r.total) * 100 : 0
@@ -294,7 +287,7 @@ export type TargetLike = {
 }
 
 export type TargetData = { sales: SaleRow[]; collections: CollectionRow[]; appointments: AppointmentRow[] }
-export type TargetWindow = { start: string; end: string; label: string }
+type TargetWindow = { start: string; end: string; label: string }
 
 // --- Utilidades de fecha sobre cadenas 'YYYY-MM-DD' (UTC, sin deriva de zona horaria) ---
 const pad2 = (n: number) => String(n).padStart(2, '0')
@@ -319,7 +312,7 @@ const MONTHS_ES_LONG = [
 const dayLabel = (d: Date) => `${d.getUTCDate()} ${MONTHS_ES[d.getUTCMonth()]}`
 
 // Devuelve la ventana calendario (unidad) del tipo de periodo que contiene a `dayStr`.
-export function targetUnitBounds(periodType: string | null | undefined, dayStr: string): TargetWindow {
+function targetUnitBounds(periodType: string | null | undefined, dayStr: string): TargetWindow {
   const d = parseYmd(dayStr)
   const y = d.getUTCFullYear()
   const m = d.getUTCMonth()
@@ -354,7 +347,7 @@ export function targetUnitBounds(periodType: string | null | undefined, dayStr: 
 
 // Ventana que corresponde a "ahora" (la unidad que contiene a `today`), acotada a la validez del objetivo.
 // state: 'upcoming' (aún no empieza), 'active' (en curso), 'ended' (ya terminó su rango de validez).
-export function targetCurrentWindow(
+function targetCurrentWindow(
   t: TargetLike,
   today: string
 ): { window: TargetWindow; state: 'upcoming' | 'active' | 'ended' } {
@@ -365,7 +358,7 @@ export function targetCurrentWindow(
 }
 
 // Todas las ventanas (unidades) del objetivo desde period_start hasta period_end. Para el historial.
-export function targetWindows(t: TargetLike): TargetWindow[] {
+function targetWindows(t: TargetLike): TargetWindow[] {
   const pt = t.period_type || 'daily'
   const wins: TargetWindow[] = []
   let cursor = t.period_start
@@ -382,7 +375,7 @@ export function targetWindows(t: TargetLike): TargetWindow[] {
 }
 
 // Valor de la métrica del objetivo dentro de una ventana [start, end] concreta.
-export function targetValueBetween(t: TargetLike, data: TargetData, start: string, end: string): number {
+function targetValueBetween(t: TargetLike, data: TargetData, start: string, end: string): number {
   const inWindow = (d: string | null | undefined) => {
     const day = dayOf(d)
     return !!day && day >= start && day <= end
@@ -428,29 +421,4 @@ export function targetCurrentValue(t: TargetLike, data: TargetData, today?: stri
   if (!today) return targetValueBetween(t, data, t.period_start, t.period_end)
   const { window } = targetCurrentWindow(t, today)
   return targetValueBetween(t, data, window.start, window.end)
-}
-
-// Historial: cada unidad de periodo con su valor, objetivo, y si se cumplió.
-// Las ventanas futuras (start > today) quedan como 'pending'.
-export function targetHistory(
-  t: TargetLike & { target_value: number | string },
-  data: TargetData,
-  today: string
-): {
-  window: TargetWindow
-  value: number
-  goal: number
-  met: boolean
-  status: 'met' | 'missed' | 'current' | 'pending'
-}[] {
-  const goal = num(t.target_value)
-  return targetWindows(t).map((window) => {
-    const value = targetValueBetween(t, data, window.start, window.end)
-    const met = goal > 0 && value >= goal
-    let status: 'met' | 'missed' | 'current' | 'pending'
-    if (today >= window.start && today <= window.end) status = 'current'
-    else if (window.start > today) status = 'pending'
-    else status = met ? 'met' : 'missed'
-    return { window, value, goal, met, status }
-  })
 }

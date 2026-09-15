@@ -5,7 +5,7 @@ import { Brain, Loader2, PlayCircle, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 
 // Estado y disparo manual del pipeline de IA. Existe porque los dos jobs que lo alimentan
 // (análisis de llamadas e insights) no están registrados como cron: el plan de Vercel es Hobby y
@@ -17,6 +17,8 @@ type Stats = { transcripciones: number; analizadas: number; insightsNuevos: numb
 export function AiEnginePanel() {
   const tenant = useTenant()
   const tenantId = useTenantId()
+  // Sesión ya resuelta por el layout: evita repetir auth.getUser() + from('users') aquí.
+  const sesion = useSesion()
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState<'calls' | 'insights' | null>(null)
@@ -24,15 +26,11 @@ export function AiEnginePanel() {
   // exigen admin/director: sin esto, esos roles veían botones que solo podían devolver 401.
   const [canRun, setCanRun] = useState(false)
 
+  // DOS VIAJES DE RED MENOS. Leer el propio rol era `auth.getUser()` + `from('users')` en serie, y el
+  // layout acaba de hacer exactamente eso para decidir si dejar entrar aquí.
   useEffect(() => {
-    const sb = createClient()
-    void sb.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) return
-      const { data } = await sb.from('users').select('roles(key)').eq('id', user.id).single()
-      const role = (data?.roles as { key?: string } | null)?.key
-      setCanRun(role === 'admin' || role === 'director')
-    })
-  }, [])
+    setCanRun(sesion?.rol === 'admin' || sesion?.rol === 'director')
+  }, [sesion])
 
   const load = useCallback(async () => {
     setLoading(true)

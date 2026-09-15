@@ -2,7 +2,7 @@
 // Importable tanto desde componentes cliente como desde el servidor.
 
 // Prueba social: 'off' = sin contador · 'fake' = números inventados (VSL) · 'real' = datos reales (app/herramienta)
-export type SocialProofMode = 'off' | 'fake' | 'real'
+type SocialProofMode = 'off' | 'fake' | 'real'
 
 export interface VslConfig {
   showBar: boolean // mostrar barra de progreso
@@ -28,8 +28,8 @@ export interface VslConfig {
 }
 
 // Azul eléctrico (marca)
-export const BRAND_BLUE = '#2563EB' // botón / acentos
-export const BRAND_BLUE_BAR = '#3B82F6' // barra de progreso (un punto más brillante)
+const BRAND_BLUE = '#2563EB' // botón / acentos
+const BRAND_BLUE_BAR = '#3B82F6' // barra de progreso (un punto más brillante)
 
 export const DEFAULT_CONFIG: VslConfig = {
   showBar: true,

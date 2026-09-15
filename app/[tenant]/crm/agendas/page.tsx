@@ -1,5 +1,5 @@
 'use client'
-import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
@@ -51,11 +51,12 @@ import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { getPeriodRange, getPreviousPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 import {
+  CATEGORY_BADGE_CLASSES,
+  CATEGORY_BLOCK_CLASSES,
+  CATEGORY_LABELS,
   STATUS_LABELS,
   getAppointmentCategory,
-  CATEGORY_LABELS,
-  CATEGORY_BLOCK_CLASSES,
-  CATEGORY_BADGE_CLASSES,
+  isNoShow,
 } from '@/lib/appointments/status'
 
 const cls =
@@ -117,6 +118,8 @@ function isSameDay(a: Date, b: Date): boolean {
 export default function AppointmentsPage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
+  // La sesión que el layout ya resolvió: dos consultas menos antes de poder pedir las agendas.
+  const sesion = useSesion()
   const router = useRouter()
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([])
   const [users, setUsers] = useState<User[]>([])
@@ -199,24 +202,21 @@ export default function AppointmentsPage() {
   const fetchData = async () => {
     const supabase = createClient()
 
-    const [{ data: authUser }] = await Promise.all([supabase.auth.getUser()])
-
+    // DOS VIAJES DE RED MENOS, EN SERIE. Aquí había un `auth.getUser()` (envuelto en un Promise.all de
+    // un solo elemento, que no paraleliza nada) y después un `from('users')`, los dos releyendo lo que
+    // app/[tenant]/layout.tsx acababa de traer para decidir si dejar entrar a esta pantalla. Y los dos
+    // ANTES de poder pedir las agendas, que es el dato que la persona ha venido a ver.
     let role = ''
     let scope = 'own'
-    if (authUser.user) {
-      const { data: userData } = await supabase
-        .from('users')
-        .select('*, roles(key)')
-        .eq('id', authUser.user.id)
-        .single()
-      if (userData) {
-        role = (userData as { roles?: { key?: string } }).roles?.key ?? ''
-        scope = (userData as { data_scope?: string }).data_scope ?? 'own'
-        setCurrentUserRole(role)
-        setCurrentUserScope(scope)
-        setCurrentUserName((userData as { full_name?: string }).full_name ?? '')
-      }
-      setCurrentUserId(authUser.user.id)
+    const userId = sesion?.userId ?? null
+    if (sesion) {
+      const userData = sesion.user as { data_scope?: string; full_name?: string; roles?: { key?: string } | null }
+      role = userData.roles?.key ?? ''
+      scope = userData.data_scope ?? 'own'
+      setCurrentUserRole(role)
+      setCurrentUserScope(scope)
+      setCurrentUserName(userData.full_name ?? '')
+      setCurrentUserId(sesion.userId)
     }
 
     let appointmentsQuery = supabase
@@ -228,11 +228,11 @@ export default function AppointmentsPage() {
     // Filtro por rol: liderazgo y quien tiene visibilidad de equipo (data_scope='team') ven todo;
     // el resto (scope 'own') solo lo suyo. Coherente con la RLS de SELECT y con los endpoints de
     // gestión/reprogramación, que ya respetan el scope 'team'.
-    if (authUser.user && role && !isLeadership(role as AppRole) && scope !== 'team') {
+    if (userId && role && !isLeadership(role as AppRole) && scope !== 'team') {
       if (role === 'closer') {
-        appointmentsQuery = appointmentsQuery.eq('closer_id', authUser.user.id)
+        appointmentsQuery = appointmentsQuery.eq('closer_id', userId)
       } else if (role === 'setter') {
-        appointmentsQuery = appointmentsQuery.eq('setter_id', authUser.user.id)
+        appointmentsQuery = appointmentsQuery.eq('setter_id', userId)
       }
     }
 
@@ -283,7 +283,10 @@ export default function AppointmentsPage() {
 
   useEffect(() => {
     fetchData()
-  }, [])
+    // `sesion` está memorizada en el layout, así que esto no entra en bucle: solo se vuelve a cargar si
+    // de verdad cambia la sesión (cambio de subcuenta, relogin).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sesion])
 
   useEffect(() => {
     if (!showNewModal) return
@@ -1048,7 +1051,7 @@ export default function AppointmentsPage() {
                   Seguimiento
                 </Badge>
               ) : null}
-              {row.original.rescheduled_from_status === 'no_show' && (
+              {isNoShow(row.original.rescheduled_from_status) && (
                 <Badge className="border text-xs bg-red-500/10 text-red-400 border-red-500/30">
                   Reagenda / No show
                 </Badge>

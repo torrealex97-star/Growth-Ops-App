@@ -54,7 +54,7 @@ export function decryptSecret(stored: string): string {
   return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8')
 }
 
-export function isEncrypted(stored: string | null | undefined): boolean {
+function isEncrypted(stored: string | null | undefined): boolean {
   return !!stored && stored.startsWith(ENC_PREFIX)
 }
 

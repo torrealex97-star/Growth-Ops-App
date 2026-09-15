@@ -10,7 +10,7 @@
 // el hecho: un intento pendiente, fallido o cancelado no es dinero, y un reembolso total tampoco.
 import type { StripeIntent } from '@/lib/finance/stripeReconciliation'
 
-export type BackfillVerdict =
+type BackfillVerdict =
   | 'ya_registrado' // ya hay un cobro interno para este pago
   | 'registrable' // pago bueno y contacto identificado: falta decidir producto y plan
   | 'sin_contacto' // pago bueno pero no hay contacto interno con ese email

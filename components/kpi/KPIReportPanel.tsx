@@ -16,7 +16,7 @@ import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { buildAutoValues, autoFieldKeys } from '@/lib/kpi/auto'
 import { Sparkles } from 'lucide-react'
-import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 
 type MemberOption = { id: string; full_name: string }
 type KpiDailyReportWithUser = KpiDailyReport & { users?: { full_name: string } | null }
@@ -24,6 +24,8 @@ type KpiDailyReportWithUser = KpiDailyReport & { users?: { full_name: string } |
 export function KPIReportPanel() {
   const tenant = useTenant()
   const tenantId = useTenantId()
+  // Sesión ya resuelta por el layout: evita repetir auth.getUser() + from('users') aquí.
+  const sesion = useSesion()
   const [templates, setTemplates] = useState<KpiFormTemplate[]>([])
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [existingReport, setExistingReport] = useState<KpiDailyReport | null>(null)
@@ -56,16 +58,16 @@ export function KPIReportPanel() {
     setLoading(true)
     const supabase = createClient()
 
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser()
-    if (!authUser) return
+    // DOS VIAJES DE RED MENOS, en serie: el layout ya trajo la sesión y la fila de `users`.
+    // Y este `return` ahora apaga el loader: antes salía sin apagarlo después de un setLoading(true),
+    // que es la misma forma exacta del bug de la pantalla colgada.
+    if (!sesion) {
+      setLoading(false)
+      return
+    }
 
-    setCurrentUserId(authUser.id)
-
-    const { data: userData } = await supabase.from('users').select('*, roles(key)').eq('id', authUser.id).single()
-
-    const role = (userData as { roles?: { key?: string } })?.roles?.key ?? ''
+    setCurrentUserId(sesion.userId)
+    const role = sesion.rol ?? ''
     setCurrentRoleKey(role)
     const lead = role ? isLeadership(role as AppRole) : false
     setIsLead(lead)
@@ -82,7 +84,7 @@ export function KPIReportPanel() {
         .from('kpi_daily_reports')
         .select('*')
         .eq('tenant_id', tenantId)
-        .eq('user_id', authUser.id)
+        .eq('user_id', sesion.userId)
         .eq('report_date', date)
         .single(),
       lead
@@ -96,7 +98,7 @@ export function KPIReportPanel() {
             .from('kpi_daily_reports')
             .select('*')
             .eq('tenant_id', tenantId)
-            .eq('user_id', authUser.id)
+            .eq('user_id', sesion.userId)
             .order('report_date', { ascending: false })
             .limit(14),
       lead ? supabase.from('users').select('id, full_name').eq('is_active', true) : Promise.resolve({ data: null }),
@@ -128,7 +130,7 @@ export function KPIReportPanel() {
       // Rol 100% automático (closer): se genera y sincroniza solo con los datos
       // actuales cada vez que se abre; la persona no rellena nada.
       const payload = {
-        user_id: authUser.id,
+        user_id: sesion.userId,
         role_key: role,
         report_date: date,
         data: { ...(reportRes.data?.data as Record<string, unknown> | undefined), ...auto },
@@ -157,7 +159,10 @@ export function KPIReportPanel() {
 
   useEffect(() => {
     fetchData(selectedDate)
-  }, [selectedDate, tenantId])
+    // `sesion` entra en las dependencias: sin ella, la carga se quedaría con el valor capturado en el
+    // primer render. Está memorizada en el layout, así que no provoca bucle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, tenantId, sesion])
 
   const filteredReports = useMemo(() => {
     return recentReports

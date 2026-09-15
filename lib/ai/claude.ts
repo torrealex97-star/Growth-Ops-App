@@ -128,7 +128,7 @@ Devuelve SOLO el texto resultante, sin explicaciones ni comillas de código.`
   return out
 }
 
-export type CallTask = { title: string; description?: string }
+type CallTask = { title: string; description?: string }
 export type CallAnalysis = {
   call_score: number // 1-10 calidad de la llamada del comercial
   lead_score: number // 1-10 temperatura/calidad del lead

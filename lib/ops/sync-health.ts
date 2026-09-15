@@ -11,7 +11,7 @@
 
 import type { SyncRunSummary } from '@/lib/integrations/sync-runs'
 
-export type Scheduler = 'vercel' | 'pg_cron' | 'manual'
+type Scheduler = 'vercel' | 'pg_cron' | 'manual'
 
 export type SyncDef = {
   id: string
@@ -150,7 +150,7 @@ export const SYNC_DEFS: SyncDef[] = [
   },
 ]
 
-export type SyncStatus =
+type SyncStatus =
   | 'ok' // credenciales, planificador y datos
   | 'sin_credenciales' // no puede ni intentarlo
   | 'sin_planificador' // credenciales puestas y NADIE la dispara: el fallo silencioso

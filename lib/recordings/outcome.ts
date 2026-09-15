@@ -45,10 +45,3 @@ export function deriveCallOutcome(input: OutcomeInput): CallOutcome {
   //    respuesta" es una decisión comercial, no un hecho, y el que decide es el equipo.
   return 'pendiente'
 }
-
-export const OUTCOME_LABELS: Record<CallOutcome, string> = {
-  ganada: 'Ganada',
-  perdida: 'Perdida',
-  pendiente: 'Pendiente',
-  no_ocurrio: 'No ocurrió',
-}

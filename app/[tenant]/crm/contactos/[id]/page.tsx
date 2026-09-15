@@ -37,6 +37,7 @@ import type { Qualification, QualificationAnswer } from '@/lib/qualification'
 import { LEAD_STATUS_COLORS, LEAD_STATUS_LABELS } from '@/lib/lead-status'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { buildContactTimeline, type TimelineEventType } from '@/lib/contact-timeline'
+import { isNoShow } from '@/lib/appointments/status'
 
 type ContactNote = {
   id: string
@@ -703,7 +704,7 @@ export default function ContactDetailPage() {
                             <Badge className={`border text-xs ${APPOINTMENT_STATUS_COLORS[appt.status] ?? ''}`}>
                               {APPOINTMENT_STATUS_LABELS[appt.status] ?? appt.status}
                             </Badge>
-                            {appt.rescheduled_from_status === 'no_show' && (
+                            {isNoShow(appt.rescheduled_from_status) && (
                               <Badge className="border text-xs bg-red-500/10 text-red-400 border-red-500/30">
                                 Reagenda / No show
                               </Badge>

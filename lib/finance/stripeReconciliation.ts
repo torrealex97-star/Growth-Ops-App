@@ -26,7 +26,7 @@ export type StripeIntent = {
     | null
 }
 
-export type StripeReconciliationRow = {
+type StripeReconciliationRow = {
   paymentId: string
   chargeId: string | null
   createdAt: string

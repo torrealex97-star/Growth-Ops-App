@@ -84,7 +84,7 @@ const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(
 
 // Los inputs date entregan YYYY-MM-DD. Construir la fecha por partes evita que
 // JavaScript la interprete como UTC y desplace el día según la zona horaria.
-export function parseDateInput(value: string): Date | null {
+function parseDateInput(value: string): Date | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
   if (!match) return null
   const year = Number(match[1])

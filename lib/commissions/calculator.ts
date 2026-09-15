@@ -8,7 +8,7 @@ export function getLiquidationMonth(collectedAt: Date): string {
   return firstDay.toISOString().split('T')[0]
 }
 
-export function getCurrentLiquidationMonth(): string {
+function getCurrentLiquidationMonth(): string {
   // First day of CURRENT month
   const firstDay = startOfMonth(new Date())
   return firstDay.toISOString().split('T')[0]
@@ -201,7 +201,7 @@ export function calculateNegativeCommissionsForRefund(
   return negativeCommissions
 }
 
-export function calculateExpectedInstallments(
+function calculateExpectedInstallments(
   saleId: string,
   grossAmount: number,
   commissionableAmount: number,

@@ -11,7 +11,7 @@ export type MetricDefinition = {
   notes?: string
 }
 
-export const METRIC_REGISTRY: Record<string, MetricDefinition> = {
+const METRIC_REGISTRY: Record<string, MetricDefinition> = {
   lead: {
     name: 'Lead',
     definition: 'Persona que ha dejado sus datos de contacto a través de un formulario o anuncio.',
@@ -124,8 +124,4 @@ export function getMetricDefinition(key: string): MetricDefinition | null {
     .toLowerCase()
     .replace(/[\s-]+/g, '_')
   return METRIC_REGISTRY[k] || null
-}
-
-export function listMetricNames(): string[] {
-  return Object.values(METRIC_REGISTRY).map((m) => m.name)
 }

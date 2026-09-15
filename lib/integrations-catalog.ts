@@ -1,7 +1,7 @@
 // Catálogo de claves configurables desde el panel Configuración → Integraciones.
 // `secret: true` => se cifra en BBDD y se muestra enmascarado. `secret: false` => texto plano.
 
-export type FieldType = 'text' | 'password' | 'textarea' | 'boolean'
+type FieldType = 'text' | 'password' | 'textarea' | 'boolean'
 
 export type IntegrationField = {
   key: string
