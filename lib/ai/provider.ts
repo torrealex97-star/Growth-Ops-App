@@ -11,8 +11,8 @@
 // LO QUE NO PASA POR AQUÍ, y no es un olvido:
 //   · `extractInvoice` lee imágenes y PDFs. Los modelos de texto de DeepSeek no ven documentos:
 //     mandarles una factura devolvería una respuesta inventada sobre un archivo que no han leído.
-//   · El agente conversacional (lib/ai/agent) usa el protocolo de herramientas de Anthropic, que no
-//     es el mismo. Portarlo es otro trabajo, no un cambio de constante.
+// El agente conversacional usa este mismo selector, pero conserva su adaptador de herramientas en
+// lib/ai/agent/gateway.ts porque allí hay que traducir el protocolo de tool-use de cada proveedor.
 import Anthropic from '@anthropic-ai/sdk'
 import { getTenantConfigWithFallback } from '@/lib/config'
 
@@ -23,6 +23,17 @@ export type TextRequest = {
   user: string
   maxTokens: number
   /** true = tarea de razonamiento (análisis, guiones). false = extracción simple y barata. */
+  smart?: boolean
+}
+
+export type AiMessage = { role: 'user' | 'assistant'; content: string }
+export type ConversationRequest = {
+  system: string
+  messages: AiMessage[]
+  maxTokens: number
+  temperature?: number
+  /** Modelo Anthropic elegido por una pantalla legacy. DeepSeek usa el modelo de la subcuenta. */
+  anthropicModel?: string
   smart?: boolean
 }
 
@@ -44,21 +55,17 @@ const ANTHROPIC_SMART = 'claude-sonnet-5'
  * se usa el primero que el proveedor ofrezca. Escribir aquí un nombre fijo y llamarlo sin comprobar
  * es lo que dejaba la IA muerta cuando el proveedor retiraba ese modelo.
  */
-export const DEEPSEEK_MODELOS_PREFERIDOS = ['deepseek-chat', 'deepseek-reasoner'] as const
+export const DEEPSEEK_MODELOS_PREFERIDOS = ['deepseek-flash', 'deepseek-v4-pro'] as const
 
 /** Último recurso si no se pudo consultar la lista de modelos. */
-export const DEEPSEEK_DEFAULT_MODEL = 'deepseek-chat'
+export const DEEPSEEK_DEFAULT_MODEL = 'deepseek-flash'
 
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions'
 
-type Env = Record<string, string | undefined>
+export type AiEnv = Record<string, string | undefined>
 
-/**
- * Motor elegido para esta subcuenta. La configuración llega por `process.env` porque `ensureConfig`
- * vuelca ahí los ajustes del tenant antes de cada petición de integración: no hay estado global
- * compartido entre subcuentas más allá de esa llamada.
- */
-export function selectEngine(env: Env = process.env): AiEngine {
+/** Motor elegido para la instantánea de configuración recibida. */
+export function selectEngine(env: AiEnv = process.env): AiEngine {
   return env.DEEPSEEK_API_KEY?.trim() ? 'deepseek' : 'anthropic'
 }
 
@@ -73,11 +80,11 @@ export function selectEngine(env: Env = process.env): AiEngine {
  * comparten peticiones concurrentes de subcuentas distintas): así la clave de un cliente no puede
  * atender la petición de otro.
  */
-export async function tenantAiEnv(tenantId: string): Promise<Env> {
+export async function tenantAiEnv(tenantId: string): Promise<AiEnv> {
   return getTenantConfigWithFallback(tenantId)
 }
 
-export function deepseekModel(env: Env = process.env): string {
+export function deepseekModel(env: AiEnv = process.env): string {
   return env.DEEPSEEK_MODEL?.trim() || DEEPSEEK_DEFAULT_MODEL
 }
 
@@ -86,25 +93,43 @@ export function deepseekModel(env: Env = process.env): string {
  * falla y contesta Anthropic, el que llama puede decirlo en vez de presentar el resultado como si lo
  * hubiera producido el motor configurado.
  */
-export async function completeText(req: TextRequest, env: Env = process.env): Promise<TextResult> {
+export async function completeText(req: TextRequest, env: AiEnv = process.env): Promise<TextResult> {
+  return completeConversation(
+    {
+      system: req.system,
+      messages: [{ role: 'user', content: req.user }],
+      maxTokens: req.maxTokens,
+      smart: req.smart,
+    },
+    env
+  )
+}
+
+/**
+ * Conversación de texto multi-turno para Setting AI y el resto de pantallas que conservan historial.
+ * Centralizarla aquí evita que esas rutas vuelvan a leer una clave global de Vercel y se salten la
+ * configuración cifrada de la subcuenta.
+ */
+export async function completeConversation(req: ConversationRequest, env: AiEnv = process.env): Promise<TextResult> {
   const engine = selectEngine(env)
   if (engine === 'deepseek') {
     try {
-      return await deepseekText(req, env)
+      return await deepseekConversation(req, env)
     } catch (e) {
       const reason = e instanceof Error ? e.message : String(e)
       // Sin Anthropic de repuesto no hay nada que hacer: se propaga el error real de DeepSeek en vez
       // de devolver un texto vacío que el llamante interpretaría como "la IA no encontró nada".
       if (!env.ANTHROPIC_API_KEY?.trim()) throw e
       console.warn(`[ai] DeepSeek falló (${reason}); respondiendo con Anthropic.`)
-      const result = await anthropicText(req, env)
+      const result = await anthropicConversation(req, env)
       return { ...result, fallbackReason: reason }
     }
   }
-  return anthropicText(req, env)
+  return anthropicConversation(req, env)
 }
 
-async function deepseekText(req: TextRequest, env: Env): Promise<TextResult> {
+async function deepseekConversation(req: ConversationRequest, env: AiEnv): Promise<TextResult> {
+  if (!env.DEEPSEEK_API_KEY?.trim()) throw new Error('DeepSeek no está configurado para esta subcuenta')
   const model = deepseekModel(env)
   const response = await fetch(DEEPSEEK_URL, {
     method: 'POST',
@@ -115,10 +140,8 @@ async function deepseekText(req: TextRequest, env: Env): Promise<TextResult> {
     body: JSON.stringify({
       model,
       max_tokens: req.maxTokens,
-      messages: [
-        { role: 'system', content: req.system },
-        { role: 'user', content: req.user },
-      ],
+      temperature: req.temperature,
+      messages: [{ role: 'system', content: req.system }, ...req.messages],
     }),
     signal: AbortSignal.timeout(45_000),
   })
@@ -136,8 +159,11 @@ async function deepseekText(req: TextRequest, env: Env): Promise<TextResult> {
   return { text, engine: 'deepseek', model }
 }
 
-async function anthropicText(req: TextRequest, env: Env): Promise<TextResult> {
-  const model = req.smart ? ANTHROPIC_SMART : ANTHROPIC_FAST
+async function anthropicConversation(req: ConversationRequest, env: AiEnv): Promise<TextResult> {
+  if (!env.ANTHROPIC_API_KEY?.trim()) {
+    throw new Error('Configura una clave de DeepSeek o Anthropic para esta subcuenta')
+  }
+  const model = req.anthropicModel || (req.smart ? ANTHROPIC_SMART : ANTHROPIC_FAST)
   // maxRetries alto porque Anthropic devuelve 529 (overloaded) en picos y el default del SDK (2) no
   // siempre aguanta hasta que se libera capacidad.
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 1, timeout: 45_000 })
@@ -145,7 +171,8 @@ async function anthropicText(req: TextRequest, env: Env): Promise<TextResult> {
     model,
     max_tokens: req.maxTokens,
     system: req.system,
-    messages: [{ role: 'user', content: req.user }],
+    messages: req.messages,
+    temperature: req.temperature,
   })
   const text = msg.content
     .filter((b) => b.type === 'text')

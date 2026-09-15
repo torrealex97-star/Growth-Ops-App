@@ -26,6 +26,8 @@ export type SyncDef = {
   table: string
   /** Claves de configuración mínimas. Sin ellas no puede ni intentarlo. */
   requiredKeys: string[]
+  /** Alternativas de proveedor: basta con una de estas claves. */
+  requiredAny?: string[]
   /** Quién la dispara según el DISEÑO. Si el planificador no existe, la sincronización no corre. */
   scheduler: Scheduler
   /** Por qué es manual, cuando lo es. Obliga a justificarlo en vez de dejarlo sin programar por olvido. */
@@ -77,7 +79,8 @@ export const SYNC_DEFS: SyncDef[] = [
     label: 'Análisis de llamadas con IA',
     route: 'cron/analyze-calls',
     table: 'appointments',
-    requiredKeys: ['ANTHROPIC_API_KEY'],
+    requiredKeys: [],
+    requiredAny: ['DEEPSEEK_API_KEY', 'ANTHROPIC_API_KEY'],
     scheduler: 'vercel',
   },
   {
@@ -236,7 +239,12 @@ export function assessDataState(
 }
 
 export function assessSync(def: SyncDef, facts: HealthFacts, now = Date.now()): SyncHealth {
-  const missingKeys = def.requiredKeys.filter((k) => !facts.configuredKeys.has(k))
+  const alternatives = def.requiredAny ?? []
+  const hasAlternative = alternatives.length === 0 || alternatives.some((k) => facts.configuredKeys.has(k))
+  const missingKeys = [
+    ...def.requiredKeys.filter((k) => !facts.configuredKeys.has(k)),
+    ...(hasAlternative ? [] : alternatives),
+  ]
   const rows = facts.rowCounts[def.table] ?? null
   const lastRun = facts.lastRuns?.[def.id] ?? null
   const dataState = assessDataState(missingKeys, rows, lastRun, now)

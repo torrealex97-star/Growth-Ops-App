@@ -40,6 +40,19 @@ test('faltar credenciales pesa más que faltar planificador: no puede ni intenta
   assert.deepEqual(r.missingKeys, ['NO_ESTA'])
 })
 
+test('una sincronización acepta uno de varios motores alternativos', () => {
+  const ai = def({ requiredAny: ['DEEPSEEK_API_KEY', 'ANTHROPIC_API_KEY'] })
+  const conDeepSeek = assessSync(
+    ai,
+    facts({ configuredKeys: new Set(['DEEPSEEK_API_KEY']), vercelScheduled: new Set(['cron/x']) })
+  )
+  assert.deepEqual(conDeepSeek.missingKeys, [])
+
+  const sinMotor = assessSync(ai, facts({ configuredKeys: new Set() }))
+  assert.equal(sinMotor.status, 'sin_credenciales')
+  assert.deepEqual(sinMotor.missingKeys, ['DEEPSEEK_API_KEY', 'ANTHROPIC_API_KEY'])
+})
+
 test('programada y con datos es ok', () => {
   const r = assessSync(def(), facts({ vercelScheduled: new Set(['cron/x']), rowCounts: { tabla_x: 1234 } }))
   assert.equal(r.status, 'ok')

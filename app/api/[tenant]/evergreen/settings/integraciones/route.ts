@@ -164,7 +164,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
   }
   const health = INTEGRATION_ONLY_GROUPS.map((g) =>
     assessIntegration(
-      { id: g.id, required: g.required, testable: g.test === true },
+      { id: g.id, required: g.required, requiredAny: g.requiredAny, testable: g.test === true },
       { facts, lastCheck: lastChecks[g.id] }
     )
   )
@@ -706,48 +706,60 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
         : { ok: false, message: j.message || `Whop respondió ${r.status}.`, code: codeFromStatus(r.status) }
     }
     if (group === 'ai') {
-      const missing = [!cfg.ANTHROPIC_API_KEY && 'Anthropic', !cfg.GROQ_API_KEY && 'Groq'].filter(Boolean)
-      if (missing.length) return { ok: false, message: `Falta configurar: ${missing.join(', ')}.` }
-      const [anthropic, groq] = await Promise.all([
-        probeFetch('https://api.anthropic.com/v1/models?limit=1', {
-          headers: { 'x-api-key': cfg.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-        }),
-        probeFetch('https://api.groq.com/openai/v1/models', {
-          headers: { Authorization: `Bearer ${cfg.GROQ_API_KEY}` },
-        }),
-      ])
-      if (!anthropic.ok || !groq.ok) {
-        return {
-          ok: false,
-          message: `Anthropic: ${anthropic.ok ? 'OK' : anthropic.status}; Groq: ${groq.ok ? 'OK' : groq.status}.`,
+      if (!cfg.DEEPSEEK_API_KEY && !cfg.ANTHROPIC_API_KEY) {
+        return { ok: false, message: 'Configura al menos un motor de texto: DeepSeek o Anthropic.' }
+      }
+
+      const motores: string[] = []
+      if (cfg.DEEPSEEK_API_KEY) {
+        try {
+          const modelos = await listarModelos(cfg.DEEPSEEK_API_KEY)
+          const { modelo, aviso } = resolverModelo(cfg.DEEPSEEK_MODEL, modelos, DEEPSEEK_MODELOS_PREFERIDOS)
+          if (!modelo) {
+            return {
+              ok: false,
+              message: aviso ?? 'El modelo guardado no está disponible.',
+              code: 'modelo_no_disponible',
+            }
+          }
+          motores.push(`DeepSeek (${modelo}${cfg.DEEPSEEK_MODEL ? '' : ', automático'})`)
+        } catch (e) {
+          const err = e instanceof ModelosError ? e : null
+          return {
+            ok: false,
+            message: `DeepSeek falló: ${err?.message ?? 'no se pudo comprobar'}`,
+            code: err?.code === 'token_invalido' ? 'token_invalido' : err?.code === 'red' ? 'red' : undefined,
+          }
         }
       }
 
-      // DeepSeek se comprueba AQUÍ, dentro de la IA, porque es un motor más de los que la plataforma
-      // puede usar. Es OPCIONAL: sin clave, la tarjeta no falla — simplemente atiende Anthropic.
-      if (!cfg.DEEPSEEK_API_KEY) {
-        return { ok: true, message: 'Anthropic y Groq conectados. DeepSeek no está configurado (opcional).' }
+      if (cfg.ANTHROPIC_API_KEY) {
+        const anthropic = await probeFetch('https://api.anthropic.com/v1/models?limit=1', {
+          headers: { 'x-api-key': cfg.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        })
+        if (!anthropic.ok) {
+          return {
+            ok: false,
+            message: `Anthropic respondió ${anthropic.status}.`,
+            code: codeFromStatus(anthropic.status),
+          }
+        }
+        motores.push('Anthropic')
       }
-      try {
-        const modelos = await listarModelos(cfg.DEEPSEEK_API_KEY)
-        // El modelo NO se compara contra un nombre escrito en el código: se resuelve contra lo que la
-        // cuenta tiene de verdad. Comprobar contra una constante hacía fallar la tarjeta con una
-        // clave perfecta solo porque el id por defecto no coincidía con el catálogo del proveedor.
-        const { modelo, aviso } = resolverModelo(cfg.DEEPSEEK_MODEL, modelos, DEEPSEEK_MODELOS_PREFERIDOS)
-        if (!modelo) {
-          return { ok: false, message: aviso ?? 'El modelo guardado no está disponible.', code: 'modelo_no_disponible' }
+
+      if (cfg.GROQ_API_KEY) {
+        const groq = await probeFetch('https://api.groq.com/openai/v1/models', {
+          headers: { Authorization: `Bearer ${cfg.GROQ_API_KEY}` },
+        })
+        if (!groq.ok) {
+          return { ok: false, message: `Groq respondió ${groq.status}.`, code: codeFromStatus(groq.status) }
         }
-        return {
-          ok: true,
-          message: `Anthropic, Groq y DeepSeek conectados. DeepSeek usará ${modelo}${cfg.DEEPSEEK_MODEL ? '' : ' (automático)'}.`,
-        }
-      } catch (e) {
-        const err = e instanceof ModelosError ? e : null
-        return {
-          ok: false,
-          message: `Anthropic y Groq van bien, pero DeepSeek falló: ${err?.message ?? 'no se pudo comprobar'}`,
-          code: err?.code === 'token_invalido' ? 'token_invalido' : err?.code === 'red' ? 'red' : undefined,
-        }
+        motores.push('Groq (transcripción)')
+      }
+
+      return {
+        ok: true,
+        message: `${motores.join(' y ')} conectado${motores.length > 1 ? 's' : ''}.${cfg.GROQ_API_KEY ? '' : ' Groq no está configurado: el agente funciona, pero no la transcripción.'}`,
       }
     }
     if (group === 'youtube') {

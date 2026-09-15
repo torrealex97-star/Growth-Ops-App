@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { completeConversation, selectEngine, type AiEnv, type AiMessage } from '@/lib/ai/provider'
 
 // ---------- Modelos ----------
 const MODELS: Record<string, string> = {
@@ -22,48 +22,42 @@ export function modelFrom(key?: string): string {
 // que basta, y lo que se obtiene es autenticación SIN aislamiento por subcuenta. No se borra por
 // limpieza, se borra porque su existencia es una trampa.
 
-// ---------- Cliente Anthropic ----------
-export function getClient(): Anthropic {
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
-}
-
-// Llamada de texto con fallback de modelo.
-export async function callText(opts: {
-  model: string
-  system: string
-  messages: Anthropic.MessageParam[]
-  max_tokens?: number
-  temperature?: number
-}): Promise<string> {
-  const client = getClient()
+// Llamada de texto multi-turno por el motor configurado en ESTA subcuenta.
+export async function callText(
+  opts: {
+    model: string
+    system: string
+    messages: AiMessage[]
+    max_tokens?: number
+    temperature?: number
+  },
+  env: AiEnv
+): Promise<string> {
   const params = {
-    model: opts.model,
-    max_tokens: opts.max_tokens ?? 1000,
     system: opts.system,
     messages: opts.messages,
+    maxTokens: opts.max_tokens ?? 1000,
     temperature: opts.temperature ?? 1,
+    anthropicModel: opts.model,
   }
   try {
-    const r = await client.messages.create(params as Anthropic.MessageCreateParamsNonStreaming)
-    return textOf(r)
+    return (await completeConversation(params, env)).text
   } catch (e) {
-    // Fallback al modelo por defecto si el id no existe.
-    if (opts.model !== DEFAULT_MODEL) {
-      const r = await client.messages.create({
-        ...params,
-        model: DEFAULT_MODEL,
-      } as Anthropic.MessageCreateParamsNonStreaming)
-      return textOf(r)
+    // El fallback de modelo es solo para Anthropic. En DeepSeek el modelo lo fija la integración;
+    // repetir con un nombre Claude no cambiaría nada y duplicaría coste/latencia.
+    if (selectEngine(env) === 'anthropic' && opts.model !== DEFAULT_MODEL) {
+      return (
+        await completeConversation(
+          {
+            ...params,
+            anthropicModel: DEFAULT_MODEL,
+          },
+          env
+        )
+      ).text
     }
     throw e
   }
-}
-function textOf(r: Anthropic.Message): string {
-  return r.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map((b) => b.text)
-    .join('\n')
-    .trim()
 }
 
 // ---------- Tipos ----------
@@ -80,17 +74,17 @@ export interface Persona {
   extra?: string
 }
 
-export function toAgentMessages(conv: ConvMsg[]): Anthropic.MessageParam[] {
+export function toAgentMessages(conv: ConvMsg[]): AiMessage[] {
   return conv
     .filter((m) => m.text && m.text.trim())
     .map((m) => ({ role: m.who === 'lead' ? 'user' : 'assistant', content: m.text }))
 }
-export function toLeadMessages(conv: ConvMsg[]): Anthropic.MessageParam[] {
+export function toLeadMessages(conv: ConvMsg[]): AiMessage[] {
   return conv
     .filter((m) => m.text && m.text.trim())
     .map((m) => ({ role: m.who === 'agent' ? 'user' : 'assistant', content: m.text }))
 }
-export function ensureStartsUser(msgs: Anthropic.MessageParam[], seed: string): Anthropic.MessageParam[] {
+export function ensureStartsUser(msgs: AiMessage[], seed: string): AiMessage[] {
   if (msgs.length === 0 || msgs[0].role !== 'user') return [{ role: 'user', content: seed }, ...msgs]
   return msgs
 }
@@ -176,19 +170,22 @@ function parseJSONLoose<T = Critique>(txt: string): T | null {
     return null
   }
 }
-export async function critique(conv: ConvMsg[], model: string): Promise<Critique> {
+export async function critique(conv: ConvMsg[], model: string, env: AiEnv): Promise<Critique> {
   const recent = conv.slice(-8)
   const convText = recent.map((m) => (m.who === 'lead' ? 'LEAD' : 'AGENTE') + ': ' + m.text).join('\n')
   const lastAgent = [...conv].reverse().find((m) => m.who === 'agent')?.text || ''
   if (!lastAgent) return { ok: true, issues: [] }
   const user = `CONVERSACIÓN RECIENTE:\n${convText}\n\nEVALÚA EL ÚLTIMO MENSAJE DEL AGENTE:\n"${lastAgent}"\n\nDevuelve SOLO el JSON.`
-  const txt = await callText({
-    model,
-    system: CRITIC_SYSTEM,
-    messages: [{ role: 'user', content: user }],
-    max_tokens: 800,
-    temperature: 0,
-  })
+  const txt = await callText(
+    {
+      model,
+      system: CRITIC_SYSTEM,
+      messages: [{ role: 'user', content: user }],
+      max_tokens: 800,
+      temperature: 0,
+    },
+    env
+  )
   return parseJSONLoose(txt) || { ok: true, issues: [] }
 }
 
@@ -283,20 +280,27 @@ export interface ConversationAnalysis {
   recomendaciones?: string[]
 }
 
-export async function analyzeConversation(conv: ConvMsg[], model: string): Promise<ConversationAnalysis | null> {
+export async function analyzeConversation(
+  conv: ConvMsg[],
+  model: string,
+  env: AiEnv
+): Promise<ConversationAnalysis | null> {
   const convText = conv
     .filter((m) => m.text && m.text.trim())
     .map((m) => (m.who === 'lead' ? 'LEAD' : 'AGENTE') + ': ' + m.text)
     .join('\n')
   if (!convText) return null
   const user = `CONVERSACIÓN COMPLETA:\n${convText}\n\nDevuelve SOLO el JSON del análisis.`
-  const txt = await callText({
-    model,
-    system: ANALYSIS_SYSTEM,
-    messages: [{ role: 'user', content: user }],
-    max_tokens: 1200,
-    temperature: 0.3,
-  })
+  const txt = await callText(
+    {
+      model,
+      system: ANALYSIS_SYSTEM,
+      messages: [{ role: 'user', content: user }],
+      max_tokens: 1200,
+      temperature: 0.3,
+    },
+    env
+  )
   return parseJSONLoose<ConversationAnalysis>(txt)
 }
 
