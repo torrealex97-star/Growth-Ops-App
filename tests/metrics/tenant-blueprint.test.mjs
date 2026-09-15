@@ -4,54 +4,28 @@ import {
   MANUAL_STEPS,
   NAME_MAX,
   PROVISION_STEPS,
-  RESERVED_SLUGS,
-  SLUG_MAX,
-  SLUG_MIN,
+  createTenantIdentity,
   initialSettings,
-  normalizeSlug,
   validateTenantInput,
 } from '../../lib/tenants/blueprint.ts'
 
-test('el slug se deriva del nombre sin dejar nada que rompa una URL', () => {
-  assert.equal(normalizeSlug('Women Digital Closer'), 'women-digital-closer')
-  assert.equal(normalizeSlug('  Formación  Élite  '), 'formacion-elite')
-  assert.equal(normalizeSlug('IA Winners!! 2026'), 'ia-winners-2026')
-  assert.equal(normalizeSlug('---a---b---'), 'a-b')
-  assert.equal(normalizeSlug('###'), '')
-  // Idempotente: normalizar un slug ya normalizado no lo cambia.
-  assert.equal(normalizeSlug(normalizeSlug('Hayat’s Chocolate Factory')), normalizeSlug('Hayat’s Chocolate Factory'))
+test('la URL de una subcuenta nueva usa exactamente su UUID interno', () => {
+  const first = createTenantIdentity()
+  const second = createTenantIdentity()
+  assert.equal(first.slug, first.id)
+  assert.match(first.id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+  assert.notEqual(first.id, second.id)
 })
 
-// El primer segmento de la URL ES la subcuenta, así que una subcuenta llamada 'api' o 'embed' taparía
-// rutas reales de la aplicación. Y no daría ningún error al crearla: simplemente dejaría de funcionar
-// una parte del producto para todo el mundo.
-test('no se puede crear una subcuenta que tape una ruta de la aplicación', () => {
-  // Cada reservado tiene que estar en su forma normalizada: '_next' o 'favicon.ico' serían entradas
-  // muertas, porque el guion bajo y el punto desaparecen al normalizar y jamás saldrían de
-  // `normalizeSlug`. Este bucle encontró exactamente ese fallo.
-  for (const reservado of RESERVED_SLUGS) {
-    assert.equal(normalizeSlug(reservado), reservado, `el reservado "${reservado}" nunca podría coincidir`)
-  }
-  for (const reservado of ['api', 'embed', 'firmar', 'firmar-alumno', 'next', 'platform', 'login']) {
-    assert.ok(RESERVED_SLUGS.includes(reservado), `${reservado} debería estar reservado`)
-    const r = validateTenantInput({ name: reservado })
-    assert.ok('error' in r, `se ha permitido el slug reservado ${reservado}`)
-  }
-})
-
-test('el nombre es obligatorio y el slug se normaliza siempre', () => {
+test('el nombre es obligatorio pero no determina la identidad ni la URL', () => {
   assert.ok('error' in validateTenantInput({}))
   assert.ok('error' in validateTenantInput({ name: '   ' }))
   assert.ok('error' in validateTenantInput({ name: 'x'.repeat(NAME_MAX + 1) }))
-  // Demasiado corto tras normalizar: 'A!' se queda en 'a'.
-  assert.ok('error' in validateTenantInput({ name: 'A!' }))
-  assert.ok('error' in validateTenantInput({ name: 'ok', slug: 'x'.repeat(SLUG_MAX + 1) }))
 
-  const r = validateTenantInput({ name: '  Mi Academia  ', slug: 'Mi ACADEMIA' })
+  const r = validateTenantInput({ name: '  Mi Academia  ' })
   assert.ok('input' in r)
-  assert.equal(r.input.slug, 'mi-academia', 'un slug con mayúsculas o espacios rompería sus URLs para siempre')
   assert.equal(r.input.name, 'Mi Academia')
-  assert.ok(r.input.slug.length >= SLUG_MIN)
+  assert.equal('slug' in r.input, false, 'el nombre o el cliente no deben poder elegir el slug')
 })
 
 test('el acento de marca solo puede ser uno de los soportados', () => {
