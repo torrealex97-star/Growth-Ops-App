@@ -38,7 +38,7 @@
 // con nueve llamadas medidas hace perder más tiempo del que ahorra.
 
 /** Los niveles de la jerarquía, de lo más posterior a lo más anterior. */
-type NivelDiagnostico = 'economia' | 'caja' | 'ventas' | 'oportunidades' | 'funnel' | 'trafico'
+export type NivelDiagnostico = 'economia' | 'caja' | 'ventas' | 'oportunidades' | 'funnel' | 'trafico'
 
 /** Orden de prioridad. Menor índice = más posterior = se mira antes. */
 const ORDEN_NIVEL: Record<NivelDiagnostico, number> = {
