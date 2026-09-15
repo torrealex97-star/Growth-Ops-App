@@ -404,35 +404,36 @@ export default function FinanzasPage() {
             </div>
           </div>
 
-          {/* Desglose de gastos + gráfica 6 meses */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="dashboard-card p-5">
-              <h3 className="text-sm font-semibold text-foreground mb-4">Gastos por categoría — {monthLabel(ym)}</h3>
-              {cur.categories.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-6 text-center">Sin gastos registrados este mes.</p>
-              ) : (
-                <div className="space-y-4">
-                  {cur.categories.map((c) => (
-                    <div key={c.category}>
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-foreground">{c.label}</span>
-                        <span className="text-muted-foreground">{fmt(c.amount)}</span>
-                      </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-brand-500"
-                          style={{ width: `${(c.amount / maxCategoryAmount) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="lg:col-span-2 space-y-4">
+          {/* Evolución y desglose: panel principal con resumen financiero lateral. */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+            <div className="lg:col-span-2">
               <FinanceEvolution data={series} />
-              <div className="grid gap-4 sm:grid-cols-2">
+            </div>
+            <div className="space-y-4">
+              <div className="dashboard-card p-5">
+                <h3 className="text-sm font-semibold text-foreground mb-4">Gastos por categoría — {monthLabel(ym)}</h3>
+                {cur.categories.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-6 text-center">Sin gastos registrados este mes.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {cur.categories.map((c) => (
+                      <div key={c.category}>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="text-foreground">{c.label}</span>
+                          <span className="text-muted-foreground">{fmt(c.amount)}</span>
+                        </div>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-brand-500"
+                            style={{ width: `${(c.amount / maxCategoryAmount) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
                 <KPICard
                   title="Devoluciones del mes"
                   value={`− ${fmt(cur.totalRefunds)}`}

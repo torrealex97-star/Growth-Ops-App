@@ -420,7 +420,7 @@ export default function AttributionPage() {
   const hasApptFilters = periodPreset !== 'all' || !!campaignFilter.trim() || sourceFilter !== 'all'
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-surface space-y-5">
       <div>
         <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground flex items-center gap-2">
           <Megaphone className="w-6 h-6 text-cyan-400" /> Atribución

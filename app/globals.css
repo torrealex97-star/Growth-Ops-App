@@ -404,3 +404,46 @@ label[for] {
 .dashboard-ads-funnel .funnel-chart {
   min-width: 30rem;
 }
+
+@layer components {
+  .dashboard-surface .dashboard-period-filter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+  }
+  .dashboard-surface .dashboard-period-filter > div:first-child {
+    min-height: 2.25rem;
+    gap: 1rem;
+  }
+  .dashboard-surface .dashboard-period-filter > div:last-child {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0;
+    flex: 1;
+  }
+  .dashboard-surface .dashboard-period-filter > div:last-child > div {
+    min-width: 10rem;
+  }
+}
+
+/* El funnel responde al ancho de su panel, no al de toda la ventana. */
+.connected-funnel {
+  container-type: inline-size;
+}
+.connected-funnel-horizontal {
+  display: none;
+}
+.connected-funnel-vertical {
+  display: block;
+}
+@container (min-width: 620px) {
+  .connected-funnel-horizontal {
+    display: block;
+  }
+  .connected-funnel-vertical {
+    display: none;
+  }
+}

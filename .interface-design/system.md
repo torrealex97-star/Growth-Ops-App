@@ -16,3 +16,7 @@ Dirección acordada el 2026-09-15: dashboards oscuros con tarjetas suaves, gráf
 
 - Entrada de paneles: 240ms, 6px vertical, ease-out; gráficos 280ms. Solo con `prefers-reduced-motion: no-preference`.
 - Revisiones siempre sobre las rutas reales de Growth Ops y sus datos; no presentar fixtures como entregable.
+
+- Corrección de referencia: el funnel protagonista es una silueta horizontal continua, con etapas rectangulares unidas por transiciones inclinadas; cifras dentro y conversión en las conexiones. No sustituirlo por barras independientes. Geometría esquemática señalada, cantidades y conversiones reales. `ConnectedFunnel` compartido por Métricas y Dashboard.
+
+- Auditoría: funnel inicial en Dashboard con comisiones laterales y KPI debajo. `ConnectedFunnel` usa container query a 620px para alternar silueta horizontal y etapas apiladas legibles; no forzar scroll horizontal en móvil. Finanzas prioriza evolución con resúmenes laterales.

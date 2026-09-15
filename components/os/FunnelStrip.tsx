@@ -1,3 +1,4 @@
+import { ConnectedFunnel } from './ConnectedFunnel'
 import type { FunnelTotals } from '@/lib/analytics'
 
 interface FunnelStripProps {
@@ -42,38 +43,13 @@ export function FunnelStrip({ totals, loading }: FunnelStripProps) {
           Lead → Venta <span className="font-semibold text-foreground">{pct(totals.leadToSale)}</span>
         </span>
       </div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
-        {STEPS.map((step, i) => {
-          const value = totals[step.key]
-          const ratio = step.fromKey ? totals[step.fromKey] : null
-          return (
-            <div key={step.key} className="flex flex-1 items-center gap-3">
-              <div className="min-w-0 flex-1 rounded-xl bg-muted/30 px-4 py-3">
-                <p className="text-xs text-muted-foreground">{step.label}</p>
-                <p className="mt-1 font-display text-2xl font-semibold tabular-nums text-foreground">{value}</p>
-                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
-                  <div
-                    className="h-full rounded-full bg-brand-500"
-                    style={{
-                      width: `${(value / Math.max(totals.leads, totals.appointments, totals.sales, 1)) * 100}%`,
-                    }}
-                  />
-                </div>
-                {ratio !== null && (
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {pct(ratio)} {step.fromLabel}
-                  </p>
-                )}
-              </div>
-              {i < STEPS.length - 1 && (
-                <span aria-hidden className="hidden text-muted-foreground sm:block">
-                  →
-                </span>
-              )}
-            </div>
-          )
-        })}
-      </div>
+      <ConnectedFunnel
+        stages={STEPS.map((step) => ({
+          label: step.label,
+          value: totals[step.key],
+          conversion: step.fromKey ? totals[step.fromKey] : null,
+        }))}
+      />
     </div>
   )
 }

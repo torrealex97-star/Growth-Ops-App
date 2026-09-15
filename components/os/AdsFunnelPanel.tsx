@@ -22,7 +22,7 @@ const fmtEur = (n: number | null) => (n === null ? '—' : formatCurrency(n))
 const fmtPct = (n: number | null) => (n === null ? '—' : `${n.toFixed(1)}%`)
 
 // Nombre corto de campaña para los ejes de los gráficos.
-const short = (name: string) => (name.length > 18 ? `${name.slice(0, 17)}…` : name)
+const short = (name: string) => (name.length > 11 ? `${name.slice(0, 10)}…` : name)
 
 type AlertState = 'ok' | 'warn' | 'bad' | null
 
@@ -83,7 +83,7 @@ function FunnelList({ stages }: { stages: FunnelStage[] }) {
           {/* La barra vive DETRÁS de la fila: el ancho codifica el volumen, así que la reducción
               entre etapas se ve de un vistazo, y las cifras siguen alineadas y legibles. */}
           <span
-            className="funnel-bar bg-primary/15 pointer-events-none absolute inset-y-1 left-0 rounded-md"
+            className="funnel-bar bg-brand-500/20 pointer-events-none absolute inset-y-1 left-0 rounded-md"
             style={{ width: `${ancho(s.value)}%`, ['--fila' as string]: String(i) }}
             aria-hidden
           />
@@ -160,6 +160,9 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
         .map((p) => ({ ...p, short: short(p.name) })),
     [campaigns]
   )
+  // Conservamos todos los puntos y su tooltip, pero limitamos las etiquetas visibles del eje.
+  // Con históricos amplios, dibujar un nombre por campaña vuelve el gráfico ilegible.
+  const xAxisInterval = Math.max(0, Math.ceil(points.length / 6) - 1)
 
   const cplAlert = targetAlert(f.cpl, targets?.target_cpl ?? null, 'max')
   const cacAlert = targetAlert(f.cpa, targets?.target_cac ?? null, 'max')
@@ -236,8 +239,8 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
       <HeroRow stats={heroStats} />
 
       <div className="dashboard-ads-funnel dashboard-card p-5 overflow-x-auto">
-        <div className="flex items-center justify-between text-xs text-muted-foreground mb-1 pl-8">
-          <span />
+        <div className="flex items-center justify-between text-xs text-muted-foreground mb-1 px-3">
+          <span className="flex-1" />
           <span className="w-24 text-right">% conversión</span>
           <span className="w-20 text-right">Coste/ud.</span>
           <span className="w-20 text-right">Cantidad</span>
@@ -270,19 +273,24 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
                   />
                   <XAxis
                     dataKey="short"
-                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                     axisLine={false}
                     tickLine={false}
-                    interval={0}
-                    angle={-15}
-                    textAnchor="end"
-                    height={50}
+                    interval={xAxisInterval}
+                    minTickGap={36}
+                    tickMargin={10}
+                    height={40}
                   />
-                  <YAxis yAxisId="l" tick={{ fontSize: 10, fill: '#71717a' }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    yAxisId="l"
+                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
                   <YAxis
                     yAxisId="r"
                     orientation="right"
-                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(v) => `${v}€`}
@@ -291,12 +299,13 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Bar yAxisId="l" dataKey="leads" name="Leads" fill="hsl(var(--brand-500))" radius={[7, 7, 0, 0]} />
                   <Line
+                    type="monotone"
                     yAxisId="r"
                     dataKey="cpl"
                     name="CPL"
-                    stroke="#f59e0b"
+                    stroke="hsl(var(--brand-300))"
                     strokeWidth={2}
-                    dot={{ r: 3 }}
+                    dot={points.length < 20 ? { r: 3 } : false}
                     connectNulls
                   />
                 </ComposedChart>
@@ -318,19 +327,24 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
                   />
                   <XAxis
                     dataKey="short"
-                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                     axisLine={false}
                     tickLine={false}
-                    interval={0}
-                    angle={-15}
-                    textAnchor="end"
-                    height={50}
+                    interval={xAxisInterval}
+                    minTickGap={36}
+                    tickMargin={10}
+                    height={40}
                   />
-                  <YAxis yAxisId="l" tick={{ fontSize: 10, fill: '#71717a' }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    yAxisId="l"
+                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
                   <YAxis
                     yAxisId="r"
                     orientation="right"
-                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(v) => `${v}€`}
@@ -339,12 +353,13 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Bar yAxisId="l" dataKey="agendas" name="Agendas" fill="#10b981" radius={[7, 7, 0, 0]} />
                   <Line
+                    type="monotone"
                     yAxisId="r"
                     dataKey="costeAgenda"
                     name="Coste/Agenda"
-                    stroke="#f59e0b"
+                    stroke="hsl(var(--brand-300))"
                     strokeWidth={2}
-                    dot={{ r: 3 }}
+                    dot={points.length < 20 ? { r: 3 } : false}
                     connectNulls
                   />
                 </ComposedChart>
@@ -366,16 +381,16 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
                   />
                   <XAxis
                     dataKey="short"
-                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                     axisLine={false}
                     tickLine={false}
-                    interval={0}
-                    angle={-15}
-                    textAnchor="end"
-                    height={50}
+                    interval={xAxisInterval}
+                    minTickGap={36}
+                    tickMargin={10}
+                    height={40}
                   />
                   <YAxis
-                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(v) => `${v}%`}
@@ -383,19 +398,21 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
                   <Tooltip content={<ChartTooltip />} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   <Line
+                    type="monotone"
                     dataKey="pctRegistro"
                     name="% Registro"
                     stroke="hsl(var(--brand-500))"
                     strokeWidth={2}
-                    dot={{ r: 3 }}
+                    dot={points.length < 20 ? { r: 3 } : false}
                     connectNulls
                   />
                   <Line
+                    type="monotone"
                     dataKey="pctConversionVSL"
                     name="% Conversión VSL"
                     stroke="hsl(var(--brand-300))"
                     strokeWidth={2}
-                    dot={{ r: 3 }}
+                    dot={points.length < 20 ? { r: 3 } : false}
                     connectNulls
                   />
                 </LineChart>

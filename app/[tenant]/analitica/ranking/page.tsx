@@ -1,5 +1,7 @@
 'use client'
 
+import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
+
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -126,29 +128,6 @@ function formatMinutes(mins: number | null): string {
 function formatDays(days: number | null): string {
   if (days === null) return '—'
   return `${days.toFixed(1)} días`
-}
-
-function FunnelStep({
-  label,
-  value,
-  pct,
-  icon: Icon,
-}: {
-  label: string
-  value: number
-  pct: number | null
-  icon: React.ElementType
-}) {
-  return (
-    <div className="flex-1 min-w-[140px] dashboard-card p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <Icon className="w-4 h-4 text-brand-400" />
-        <span className="text-xs uppercase tracking-wider text-muted-foreground">{label}</span>
-      </div>
-      <div className="font-display text-2xl font-semibold tracking-tight text-foreground">{value}</div>
-      {pct !== null && <div className="text-xs text-muted-foreground mt-1">{pct.toFixed(1)}% desde etapa anterior</div>}
-    </div>
-  )
 }
 
 function KPICardSimple({
@@ -428,7 +407,7 @@ export default function PipelinePage() {
   const hasData = contacts.length > 0 || appointments.length > 0 || sales.length > 0
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-surface space-y-5">
       {/* Header */}
       <div>
         <div className="flex items-center gap-2">
@@ -521,31 +500,15 @@ export default function PipelinePage() {
           {/* Funnel */}
           <div>
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Embudo de conversión</h2>
-            <div className="flex flex-wrap gap-3">
-              <FunnelStep label="Leads" value={funnel.leads} pct={null} icon={Users} />
-              <FunnelStep
-                label="Contactado"
-                value={funnel.contacted}
-                pct={pctOf(funnel.contacted, funnel.leads)}
-                icon={PhoneCall}
-              />
-              <FunnelStep
-                label="Cita"
-                value={funnel.citas}
-                pct={pctOf(funnel.citas, funnel.contacted)}
-                icon={CalendarCheck}
-              />
-              <FunnelStep
-                label="Oferta"
-                value={funnel.ofertas}
-                pct={pctOf(funnel.ofertas, funnel.citas)}
-                icon={HandCoins}
-              />
-              <FunnelStep
-                label="Cierre"
-                value={funnel.cierres}
-                pct={pctOf(funnel.cierres, funnel.ofertas)}
-                icon={Trophy}
+            <div className="dashboard-card p-5">
+              <ConnectedFunnel
+                stages={[
+                  { label: 'Leads', value: funnel.leads, conversion: null },
+                  { label: 'Contactado', value: funnel.contacted, conversion: pctOf(funnel.contacted, funnel.leads) },
+                  { label: 'Cita', value: funnel.citas, conversion: pctOf(funnel.citas, funnel.contacted) },
+                  { label: 'Oferta', value: funnel.ofertas, conversion: pctOf(funnel.ofertas, funnel.citas) },
+                  { label: 'Cierre', value: funnel.cierres, conversion: pctOf(funnel.cierres, funnel.ofertas) },
+                ]}
               />
             </div>
             <p className="text-xs text-muted-foreground mt-2">

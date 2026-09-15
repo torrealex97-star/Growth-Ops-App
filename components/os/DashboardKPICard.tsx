@@ -37,8 +37,8 @@ export function KPICard({
       <div className="flex items-start justify-between mb-4">
         <p className="text-sm font-medium text-muted-foreground">{title}</p>
         {Icon && (
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-muted/50">
-            <Icon className="w-4 h-4 text-muted-foreground" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-400/15">
+            <Icon className="w-4 h-4 text-brand-300" />
           </div>
         )}
       </div>

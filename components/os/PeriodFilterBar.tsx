@@ -1,6 +1,6 @@
 'use client'
 
-import { useId } from 'react'
+import { useId, type ReactNode } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -41,6 +41,7 @@ type Props = {
   onClear?: () => void
   hasActiveFilters?: boolean
   className?: string
+  children?: ReactNode
 }
 
 // Barra de filtros unificada: Día/Semana/Mes/Trimestre/Año/Personalizado + persona/equipo + export.
@@ -65,6 +66,7 @@ export function PeriodFilterBar({
   onClear,
   hasActiveFilters,
   className = '',
+  children,
 }: Props) {
   const id = useId()
   const invalidRange = preset === 'custom' && isDateRangeInvalid(customFrom, customTo)
@@ -75,7 +77,7 @@ export function PeriodFilterBar({
   }
 
   return (
-    <div className={`rounded-lg border border-border bg-card/50 p-4 space-y-3 ${className}`}>
+    <div className={`dashboard-period-filter rounded-lg border border-border bg-card/50 p-4 space-y-3 ${className}`}>
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-foreground">Filtros</span>
         <div className="flex items-center gap-2">
@@ -202,6 +204,8 @@ export function PeriodFilterBar({
             </Select>
           </div>
         )}
+
+        {children}
       </div>
       {invalidRange && (
         <p role="alert" className="text-xs text-amber-400">

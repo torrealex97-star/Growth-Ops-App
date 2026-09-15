@@ -589,9 +589,9 @@ export default function CampaignsPage() {
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 xl:w-auto xl:justify-end">
           {isAdmin && (
-            <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
+            <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-border bg-card p-1">
               <button
                 onClick={runSync}
                 disabled={syncing}
@@ -651,7 +651,7 @@ export default function CampaignsPage() {
           )}
           <button
             onClick={() => setShowNew(true)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-brand-600 text-white hover:bg-brand-500"
+            className="flex shrink-0 items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm text-white hover:bg-brand-500"
           >
             <Plus className="w-4 h-4" /> Nueva campaña
           </button>
@@ -674,33 +674,35 @@ export default function CampaignsPage() {
       </div>
 
       {view === 'campaigns' && (
-        <div className="flex flex-wrap items-center gap-3">
-          <PeriodFilterBar
-            preset={periodPreset}
-            onPresetChange={setPeriodPreset}
-            customFrom={customFrom}
-            customTo={customTo}
-            onCustomFromChange={setCustomFrom}
-            onCustomToChange={setCustomTo}
-            onClear={() => {
-              setPeriodPreset('all')
-              setCustomFrom('')
-              setCustomTo('')
-              setAccountFilter('all')
-              setSelectedCampaignIds([])
-            }}
-            hasActiveFilters={periodPreset !== 'all' || accountFilter !== 'all' || selectedCampaignIds.length > 0}
-          />
+        <PeriodFilterBar
+          preset={periodPreset}
+          onPresetChange={setPeriodPreset}
+          customFrom={customFrom}
+          customTo={customTo}
+          onCustomFromChange={setCustomFrom}
+          onCustomToChange={setCustomTo}
+          onClear={() => {
+            setPeriodPreset('all')
+            setCustomFrom('')
+            setCustomTo('')
+            setAccountFilter('all')
+            setSelectedCampaignIds([])
+          }}
+          hasActiveFilters={periodPreset !== 'all' || accountFilter !== 'all' || selectedCampaignIds.length > 0}
+        >
           {accounts.length > 1 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Cuenta publicitaria</span>
+            <div className="space-y-1.5">
+              <label htmlFor="campaign-account-filter" className="block text-xs text-muted-foreground">
+                Cuenta publicitaria
+              </label>
               <select
+                id="campaign-account-filter"
                 value={accountFilter}
                 onChange={(e) => {
                   setAccountFilter(e.target.value)
                   setSelectedCampaignIds([])
                 }}
-                className="text-sm rounded-lg border border-border bg-muted px-3 py-2 text-foreground focus:outline-none focus:border-brand-500"
+                className="h-9 w-full rounded-lg border border-border bg-muted px-3 text-sm text-foreground focus:border-brand-500 focus:outline-none"
               >
                 <option value="all">Todas ({accounts.length})</option>
                 {accounts.map((a) => (
@@ -711,17 +713,19 @@ export default function CampaignsPage() {
               </select>
             </div>
           )}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Campañas</span>
+          <div className="min-w-0 space-y-1.5">
+            <span className="block text-xs text-muted-foreground">Campañas</span>
             <MultiSelect
               options={campaignOptions}
               value={selectedCampaignIds}
               onChange={setSelectedCampaignIds}
+              placeholder="Campañas"
               allLabel={`Todas (${campaignOptions.length})`}
               searchPlaceholder="Buscar campaña…"
+              className="h-9 w-full min-w-0"
             />
           </div>
-        </div>
+        </PeriodFilterBar>
       )}
 
       {view === 'ads' && <AdsTable campaigns={items} accounts={accounts} version={adsVersion} />}

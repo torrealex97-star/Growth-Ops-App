@@ -1,5 +1,23 @@
 # Relevo activo
 
+## Auditoría visual local — 2026-09-15
+
+El usuario autorizó publicar estos ajustes una vez superado el gate y la revisión de Preview.
+
+- Revisión autenticada de las páginas reales de WDC: Dashboard, Métricas, Analítica,
+  Ventas (embudo/ranking/actividad), Marketing (campañas/atribución/VSL), Finanzas
+  (resumen/proyección/P&L/cohortes). Comparación visual con las referencias aprobadas.
+- Ajustes: funnels conectados compartidos y responsive, KPIs principales antes de widgets secundarios,
+  filtros compactos, etiquetas de campañas sin solapamiento, acento del tenant y altura de
+  tarjetas financieras corregida. Se mantienen datos, controles y cálculos existentes.
+- Móvil a 390 px: Métricas, Ventas, Campañas y Resumen financiero sin desbordamiento de página.
+  Tablas y navegación extensa conservan desplazamiento interno. Viewport restaurado.
+- VSL, Actividad y Proyección muestran estados vacíos con la selección actual; no se
+  ha validado su apariencia poblada con datos inventados.
+- Validación: quality PASS (343 pruebas generales + 648 métricas), typecheck final PASS,
+  diff-check PASS y build de producción PASS en copia aislada
+  para no interrumpir el servidor local de puerto 3100.
+
 ## Diseño de dashboards Growth Ops — 2026-09-15
 
 Rama local: `codex/dashboard-visual-design`, desde `3a0cc28` (PR #55).
