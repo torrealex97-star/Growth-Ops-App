@@ -86,7 +86,7 @@ type DashboardFilters = {
 }
 
 const DEFAULT_FILTERS: DashboardFilters = {
-  periodPreset: 'all',
+  periodPreset: '30d',
   customFrom: '',
   customTo: '',
   role: 'all',
@@ -136,7 +136,7 @@ export default function DashboardPage() {
   const [role, setRole] = useState('all')
 
   // --- Filtro unificado de periodo + persona (barra superior) ---
-  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all')
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>(DEFAULT_FILTERS.periodPreset)
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
   const [member, setMember] = useState('all')
@@ -384,15 +384,23 @@ export default function DashboardPage() {
     [filteredContactIds, attributions, filteredSales, filteredAppointments]
   )
 
-  // Clientes únicos del periodo (mismo criterio que CAC en Unit Economics: contact_id distinto
-  // con al menos una venta activa) — denominador del CAC de Eficiencia de marketing.
-  const periodCustomers = useMemo(() => {
-    const seen = new Set<string>()
-    for (const s of filteredSales) {
-      if (isActiveSale(s) && s.contact_id) seen.add(s.contact_id)
-    }
-    return seen.size
-  }, [filteredSales])
+  // Ingresos y clientes del MISMO periodo que el gasto. Aún no se acotan por campaña porque el
+  // histórico importado no tiene contacts.campaign_id; hacerlo fingiría 0 € de ingresos. El gasto
+  // sí queda acotado a las cuentas seleccionadas en Integraciones desde el endpoint server-side.
+  const periodRevenue = useMemo(
+    () => filteredSales.filter(isActiveSale).reduce((total, sale) => total + Number(sale.gross_amount || 0), 0),
+    [filteredSales]
+  )
+  const periodCustomers = useMemo(
+    () =>
+      new Set(
+        filteredSales
+          .filter(isActiveSale)
+          .map((sale) => sale.contact_id)
+          .filter(Boolean)
+      ).size,
+    [filteredSales]
+  )
 
   const setterAgendas = useMemo(
     () => setterAgendaStats(filteredAppointments, usersWithRole),
@@ -465,7 +473,7 @@ export default function DashboardPage() {
   const currentFilters: DashboardFilters = { periodPreset, customFrom, customTo, role, member }
 
   function applyFilters(f: Partial<DashboardFilters>) {
-    setPeriodPreset(f.periodPreset ?? 'all')
+    setPeriodPreset(f.periodPreset ?? DEFAULT_FILTERS.periodPreset)
     setCustomFrom(f.customFrom ?? '')
     setCustomTo(f.customTo ?? '')
     setRole(f.role ?? 'all')
@@ -564,9 +572,11 @@ export default function DashboardPage() {
         member={member}
         onMemberChange={selfScoped ? () => {} : setMember}
         memberLabel={role === 'all' ? 'Persona' : (FILTER_ROLES.find((r) => r.key === role)?.label ?? 'Persona')}
-        hasActiveFilters={periodPreset !== 'all' || (!selfScoped && (member !== 'all' || role !== 'all'))}
+        hasActiveFilters={
+          periodPreset !== DEFAULT_FILTERS.periodPreset || (!selfScoped && (member !== 'all' || role !== 'all'))
+        }
         onClear={() => {
-          setPeriodPreset('all')
+          setPeriodPreset(DEFAULT_FILTERS.periodPreset)
           if (!selfScoped) {
             setMember('all')
             setRole('all')
@@ -791,7 +801,7 @@ export default function DashboardPage() {
         <MarketingEfficiencyCard
           loading={adSpendLoading}
           spend={adSpend}
-          revenue={cur.gross}
+          revenue={periodRevenue}
           customers={periodCustomers}
         />
       )}
