@@ -4,13 +4,14 @@ import { calcularAgregados, dividir, porcentaje } from '../../lib/metrics/agrega
 import { TODAS_LAS_METRICAS } from '../../lib/metrics/registro.ts'
 
 const P = { desde: '2026-09-01', hasta: '2026-09-30' }
-const vacio = { ventas: [], cobros: [], citas: [], campanas: [], periodo: P }
+const vacio = { ventas: [], cobros: [], citas: [], campanas: [], contactos: [], periodo: P }
 const con = (over) => calcularAgregados({ ...vacio, ...over })
 
 const venta = (o = {}) => ({ sale_date: '2026-09-10', gross_amount: 1997, status: 'active', ...o })
 const cobro = (o = {}) => ({ collected_at: '2026-09-10T10:00:00Z', gross_amount: 199.7, is_confirmed: true, ...o })
 const cita = (o = {}) => ({ appointment_datetime: '2026-09-10T10:00:00Z', status: 'show', ...o })
 const dia = (o = {}) => ({ date: '2026-09-10', spend: 100, impressions: 10_000, clicks: 200, leads: 10, ...o })
+const contacto = (o = {}) => ({ created_at: '2026-09-10T10:00:00Z', first_contact_at: null, ...o })
 
 // =============================================================================================
 // LAS CLAVES TIENEN QUE COINCIDIR CON EL REGISTRO. Si aquí se escribe `close_rate` y el registro dice
@@ -222,13 +223,59 @@ test('el CPQBC se calcula sobre las cualificadas por formulario', () => {
 // LOS HUECOS DECLARADOS. Un panel al que le falta una métrica sin decirlo parece completo y no lo está.
 // =============================================================================================
 
-test('las métricas que aún no se pueden medir se declaran como huecos, no se omiten', () => {
+test('LTGP:CAC sigue declarado como hueco mientras no exista margen bruto por cliente', () => {
   const m = con({ ventas: [venta()], cobros: [cobro()], citas: [cita()], campanas: [dia()] })
-  for (const clave of ['ltgp_cac', 'speed_to_lead', 'bamfam_rate', 'tasa_concordancia_cualificacion']) {
-    assert.ok(clave in m, `${clave} debería aparecer como hueco declarado`)
-    assert.equal(m[clave].valor, null)
-    assert.ok(m[clave].motivo.length > 20, `${clave} tiene que decir qué falta para poder medirla`)
-  }
+  assert.equal(m.ltgp_cac.valor, null)
+  assert.match(m.ltgp_cac.motivo, /margen bruto por cliente/)
+})
+
+test('speed to lead usa la mediana de pares válidos y no deja que un extremo arrastre el dato', () => {
+  const m = con({
+    contactos: [
+      contacto({ first_contact_at: '2026-09-10T10:02:00Z' }),
+      contacto({ first_contact_at: '2026-09-10T10:06:00Z' }),
+      contacto({ first_contact_at: '2026-09-12T10:00:00Z' }),
+      contacto({ first_contact_at: null }),
+    ],
+  })
+  assert.equal(m.speed_to_lead.valor, 6)
+  assert.equal(m.speed_to_lead.muestra, 3)
+  assert.match(m.speed_to_lead.motivo, /3 de 4 contactos/)
+})
+
+test('speed to lead no convierte contactos sin hora válida en cero minutos', () => {
+  const m = con({ contactos: [contacto(), contacto({ first_contact_at: '2026-09-10T09:59:00Z' })] })
+  assert.equal(m.speed_to_lead.valor, null)
+  assert.match(m.speed_to_lead.motivo, /ninguno tiene una hora de primer contacto válida/)
+})
+
+test('BAMFAM solo mide llamadas asistidas sin venta y usa el marcado de siguiente reunión', () => {
+  const m = con({
+    citas: [
+      cita({ result: 'seguimiento', needs_followup: true }),
+      cita({ result: 'no_interesado', needs_followup: false }),
+      cita({ result: 'venta', needs_followup: false }),
+      cita({ status: 'no_show', result: 'seguimiento', needs_followup: true }),
+    ],
+  })
+  assert.equal(m.bamfam_rate.valor, 50)
+  assert.equal(m.bamfam_rate.muestra, 2)
+})
+
+test('la concordancia compara formulario y juicio del closer solo cuando ambos existen', () => {
+  const formCualificado = formulario('Entre 3.000 y 5.000 €', '8')
+  const formNoCualificado = formulario('Menos de 1.000 €', '2')
+  const m = con({
+    citas: [
+      cita({ raw_payload: formCualificado, offered: true }),
+      cita({ raw_payload: formCualificado, offered: false }),
+      cita({ raw_payload: formNoCualificado, offered: false }),
+      cita({ raw_payload: {}, offered: true }),
+    ],
+  })
+  assert.equal(m.tasa_concordancia_cualificacion.valor, 66.67)
+  assert.equal(m.tasa_concordancia_cualificacion.muestra, 3)
+  assert.match(m.tasa_concordancia_cualificacion.motivo, /3 de 4 agendas/)
 })
 
 // =============================================================================================
