@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter, usePathname, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Sidebar } from '@/components/os/Sidebar'
@@ -276,10 +276,21 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
     }
   }, [user, relPathname, relLocation, router, contractGate, isSuperAdmin, tenant])
 
+  // La sesión que las pantallas van a reutilizar. Se construye de lo que este layout YA cargó para
+  // decidir si dejarlas entrar: sin esto, cada pantalla repetía `auth.getUser()` + `from('users')` para
+  // releer lo mismo, en serie y antes de pedir sus propios datos.
+  // useMemo NO es cosmético aquí: las pantallas ponen `sesion` en las dependencias de su efecto de
+  // carga, y un objeto nuevo en cada render del layout sería una referencia nueva cada vez → el efecto
+  // se volvería a disparar sin parar y la pantalla recargaría en bucle.
+  const sesion = useMemo(
+    () => (user ? { userId: user.id, user, rol: user.roles?.key ?? null, isSuperAdmin } : null),
+    [user, isSuperAdmin]
+  )
+
   // Auth pages render without sidebar
   if (isAuthRoute) {
     return (
-      <TenantProvider tenant={tenant} tenantId={tenantId} branding={branding}>
+      <TenantProvider tenant={tenant} tenantId={tenantId} branding={branding} sesion={sesion}>
         <div className="dark">{children}</div>
       </TenantProvider>
     )
@@ -428,7 +439,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   }
 
   return (
-    <TenantProvider tenant={tenant} tenantId={tenantId} branding={branding}>
+    <TenantProvider tenant={tenant} tenantId={tenantId} branding={branding} sesion={sesion}>
       <ScriptQueueProvider>
         <div className="flex h-screen bg-background text-foreground overflow-hidden" data-theme="os">
           <Sidebar user={user} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
