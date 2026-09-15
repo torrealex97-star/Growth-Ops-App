@@ -134,31 +134,9 @@ begin
   end loop;
 end $$;
 
--- ---------------------------------------------------------------------------------------------
--- 3) LA LECTURA: solo donde de verdad hay escalada, y no como política nueva de producto.
+-- NOTA — LA LECTURA NO SE TOCA EN ESTE FICHERO, Y NO ES UN OLVIDO.
 --
--- Se revisaron las políticas de SELECT de las tablas de dinero una por una, porque "cerrar la lectura
--- a los miembros" y "cerrar una escalada" no son lo mismo, y confundirlos habría metido una decisión de
--- producto disfrazada de corrección de seguridad. Lo que hay:
---
---   sales, collections, payment_plans → `get_my_role() IS NOT NULL`: las lee cualquiera del equipo.
---   expenses  → ('admin','director','manager')  ·  contracts → (…, 'manager', 'gestoria', 'csm')
---     En todas ellas, un rol recortado a `manager` SIGUE leyendo. Añadir aquí una restricción no
---     cerraría ninguna escalada: inventaría una regla nueva. NO se toca.
---   commissions → solo las propias (`user_id = auth.uid()`). Nada que cerrar.
---
---   commission_invoices → `user_id = auth.uid() OR public.is_admin_or_director()`.
---     AQUÍ SÍ. `is_admin_or_director()` lee el rol funcional GLOBAL, así que alguien con rol `director`
---     en su subcuenta, invitado a otra solo como miembro, lee las facturas de comisión de TODO el
---     equipo de esa otra subcuenta: cuánto cobra cada persona del cliente. Eso no lo concede su
---     membresía, se lo concede un rol que ejerce en otro sitio. Es la misma escalada que las
---     escrituras de arriba, y se cierra igual.
---
---     Su propia factura la sigue viendo: el guardián solo quita lo que el `OR is_admin_or_director()`
---     añadía de más. Por eso la condición incluye `user_id = auth.uid()`.
--- ---------------------------------------------------------------------------------------------
-
-drop policy if exists commission_invoices_rol_acotado_select on public.commission_invoices;
-create policy commission_invoices_rol_acotado_select on public.commission_invoices
-  as restrictive for select
-  using (user_id = auth.uid() or not public.rol_recortado_en(tenant_id));
+-- Esta migración ya está APLICADA en producción (versión 20260915130000). Añadirle nada después haría
+-- que el fichero dejara de describir lo que la base de datos tiene: drift, y del que no avisa nadie.
+-- El guardián de lectura de `commission_invoices` vive por eso en su propia migración posterior,
+-- 20260915140000_commission_invoices_lectura_acotada.sql.

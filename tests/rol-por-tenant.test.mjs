@@ -89,6 +89,9 @@ test('super_admin no es asignable desde la UI de subcuentas', () => {
 // ---------------------------------------------------------------------------------------------
 
 const MIGRACION = 'supabase/migrations/20260915130000_rol_acotado_por_subcuenta.sql'
+// El guardián de lectura va en su propio fichero: el de arriba ya está aplicado en producción y
+// ampliarlo lo dejaría describiendo algo distinto de lo que la base tiene.
+const MIGRACION_LECTURA = 'supabase/migrations/20260915140000_commission_invoices_lectura_acotada.sql'
 
 test('el guardián es RESTRICTIVE, así que solo puede quitar permiso, nunca darlo', () => {
   const sql = leer(MIGRACION)
@@ -103,12 +106,12 @@ test('el guardián es RESTRICTIVE, así que solo puede quitar permiso, nunca dar
 // Solo se cierra donde el rol funcional GLOBAL concedía lectura de más (ver el análisis tabla por tabla
 // al final de la migración). Y nunca con `for all`, que arrastraría el SELECT de todas ellas.
 test('el guardián no cierra la lectura en bloque', () => {
-  const sql = leer(MIGRACION)
+  assert.doesNotMatch(leer(MIGRACION), /restrictive for all/i)
+  const sql = leer(MIGRACION_LECTURA)
   assert.doesNotMatch(sql, /restrictive for all/i)
-  // Una sola política de SELECT, y es la de commission_invoices.
-  const selects = sql.match(/as restrictive for select/gi) || []
-  assert.equal(selects.length, 1)
-  assert.match(sql, /commission_invoices\n?\s*as restrictive for select/)
+  // Una sola política de SELECT en toda la corrección, y es la de commission_invoices.
+  assert.equal((sql.match(/as restrictive for select/gi) || []).length, 1)
+  assert.match(sql, /on public\.commission_invoices\n?\s*as restrictive for select/)
 })
 
 test('deniega exactamente el caso de escalada: las tres condiciones a la vez', () => {
@@ -162,7 +165,7 @@ test('las funciones son STABLE: se llaman por fila dentro de la política', () =
 // ---------------------------------------------------------------------------------------------
 
 test('solo se restringe la lectura donde el rol global la concedía de más', () => {
-  const sql = leer(MIGRACION)
+  const sql = leer(MIGRACION_LECTURA)
   // commission_invoices se lee con `user_id = auth.uid() OR is_admin_or_director()`, y esa segunda
   // mitad usa el rol funcional GLOBAL: un director invitado como miembro leía cuánto cobra cada
   // persona del equipo del cliente.
@@ -173,7 +176,7 @@ test('solo se restringe la lectura donde el rol global la concedía de más', ()
 })
 
 test('no se restringe la lectura donde un rol recortado leería igualmente', () => {
-  const sql = leer(MIGRACION)
+  const sql = leer(MIGRACION) + leer(MIGRACION_LECTURA)
   // expenses ('admin','director','manager') y contracts (…,'manager',…) los lee un `manager`, así que
   // el tope no cambia nada ahí: una restricción sería una regla nueva, no una corrección.
   for (const t of ['expenses', 'contracts', 'sales', 'collections', 'payment_plans']) {
@@ -205,4 +208,38 @@ test('requireCaller ya no existe, y ninguna ruta se quedó sin guardián', async
   for (const r of rutas) {
     assert.match(leer(r), /requireTenant\(/, `${r} se quedaría sin comprobación de subcuenta`)
   }
+})
+
+// ---------------------------------------------------------------------------------------------
+// LA VISIBILIDAD DE LAS VENTAS AJENAS ES UNA DECISIÓN, NO UN DESCUIDO.
+//
+// `sales` y `collections` tienen DOS políticas permisivas de SELECT, y las permisivas se combinan con
+// OR: la laxa (`get_my_role() IS NOT NULL`) hace decorativa a la que limitaba por `my_data_scope()`.
+// Parece un bug y está decidido que se queda así. Este test existe para que nadie lo "arregle" sin
+// enterarse de que rompería el ranking del equipo.
+// ---------------------------------------------------------------------------------------------
+
+test('la decisión sobre ver ventas ajenas está documentada y localizable', () => {
+  const adr = leer('docs/ADR-ventas-visibilidad.md')
+  assert.match(adr, /Estado:\*\* aceptada/)
+  assert.match(adr, /se combinan con \*\*OR\*\*/)
+  // Tiene que decir qué se rompería al revertirla, o la próxima persona lo revierte a ciegas.
+  assert.match(adr, /ranking del equipo/)
+  // Y dejar claro que el aislamiento ENTRE subcuentas no depende de esto.
+  assert.match(adr, /tenant_isolation/)
+})
+
+test('la migración de lectura acotada apunta a la decisión en vez de contradecirla', () => {
+  const sql = leer('supabase/migrations/20260915140000_commission_invoices_lectura_acotada.sql')
+  assert.match(sql, /INTENCIONAL/)
+  assert.match(sql, /ADR-ventas-visibilidad/)
+})
+
+// El fichero ya aplicado en producción no puede seguir creciendo: si crece, deja de describir lo que la
+// base tiene y el drift no lo avisa nadie.
+test('la migración ya aplicada no contiene el guardián de lectura', () => {
+  const aplicada = leer(MIGRACION)
+  assert.doesNotMatch(aplicada, /restrictive for select/i)
+  assert.match(aplicada, /ya está APLICADA en producción/)
+  assert.match(aplicada, /20260915140000_commission_invoices_lectura_acotada\.sql/)
 })
