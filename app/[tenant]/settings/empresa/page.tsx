@@ -10,6 +10,7 @@ import { Building2, Loader2, Save } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTenantId } from '@/lib/tenant-context'
 import { BusinessContextCard } from '@/components/settings/BusinessContextCard'
+import { GrowthContextForm } from '@/components/settings/GrowthContextForm'
 
 type Company = {
   name: string
@@ -57,7 +58,7 @@ export default function EmpresaSettingsPage() {
           setC({ ...EMPTY, ...Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v ?? ''])) } as Company)
         setLoading(false)
       })
-  }, [])
+  }, [tenantId])
 
   const set = (k: keyof Company) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setC((prev) => ({ ...prev, [k]: e.target.value }))
@@ -147,6 +148,8 @@ export default function EmpresaSettingsPage() {
           </Button>
         </div>
       </div>
+
+      <GrowthContextForm />
 
       {/* El contexto de negocio y los assets de marca estaban en Integraciones, donde no pintaban
           nada: no son una integración. Aquí quedan junto al resto de la identidad de la empresa. */}

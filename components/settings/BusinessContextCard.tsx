@@ -117,7 +117,7 @@ export function BusinessContextCard() {
           <Sparkles className="w-4.5 h-4.5 text-violet-400" />
         </div>
         <div>
-          <h2 className="font-semibold text-foreground">Contexto de negocio y marca</h2>
+          <h2 className="font-semibold text-foreground">Voz, público y assets de marca</h2>
           <p className="text-sm text-muted-foreground">
             Lo usa la IA al generar guiones, carruseles y flyers para que suenen y se vean como tu marca.
           </p>
@@ -125,7 +125,7 @@ export function BusinessContextCard() {
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="business-context">Contexto de negocio</Label>
+        <Label htmlFor="business-context">Voz de marca, público y funnel</Label>
         <Textarea
           id="business-context"
           value={context}

@@ -1,9 +1,29 @@
 # Relevo activo
 
+## Contexto estratégico editable — 2026-09-15
+
+Rama única: `codex/growth-context-ui`, iniciada después de fusionar y desplegar la PR #54.
+
+- Configuración → Datos de empresa monta el contexto estructurado que ya consumían el Growth Brief
+  y el agente: tipo de negocio, oferta/precio, ciclo, objetivos de facturación/Cash ROAS/LTGP:CAC,
+  capacidad y notas.
+- No se inventan valores: vacío se envía como `null`. La UI usa el cliente `pedir` con timeout,
+  cancelación, error visible y reintento; lectura para el equipo y campos desactivados para quien no
+  dirige.
+- Se corrigió `puedeEditar` para que el `super_admin` de plataforma no reciba una interfaz de solo
+  lectura pese a que el PUT sí lo autorizaba.
+- `cargarContextoNegocio` dejó de usar `select('*')`: pide solo las diez columnas que consume.
+- El antiguo texto libre se conserva sin migrar ni duplicar datos, renombrado en UI como voz,
+  público y funnel para distinguirlo del contexto estratégico.
+
+Validación local ejecutada: **format PASS; lint PASS con warnings heredados; typecheck PASS; suite
+general 343/343 PASS; métricas 647/647 PASS; dead-code informativo PASS; build limpio de producción
+PASS**. Pendiente al escribir este relevo: push, CI/Preview, comprobación visual, merge y smoke.
+
 ## Endurecimiento operativo e invitaciones multi-tenant — 2026-09-15
 
-Rama única: `codex/operational-hardening`, iniciada desde `main` limpio (`63b382d`) al no existir
-otra rama ni PR de trabajo activa.
+Fusionado en `main` mediante la PR #54 (`f36c6fe`) y desplegado correctamente en Vercel. La rama
+remota fue eliminada; el smoke de producción cargó Usuarios con datos reales y sin errores de consola.
 
 - La pantalla Usuarios dejó de llamar a `admin/migrate-page-overrides` en cada montaje. Abrir una
   vista ya no dispara DDL administrativo ni consume una función/consulta innecesaria.
@@ -15,11 +35,9 @@ otra rama ni PR de trabajo activa.
   `outputFileTracingRoot` al repositorio para no inferir `/Documents` por el lockfile ajeno.
 - Pruebas de regresión: `tests/invite-consistency.test.mjs` y `tests/ci-runtime.test.mjs`.
 
-Validación local ejecutada: **format PASS; lint PASS con warnings heredados; typecheck PASS; suite
-general PASS; métricas 647/647 PASS; dead-code informativo PASS; build limpio de producción PASS**.
-Pendiente al escribir este relevo: push, CI/Preview, merge y smoke de producción. La verificación
-directa de datos/migraciones en Supabase sigue requiriendo conectar el complemento de Supabase;
-no se considera probada contra datos reales desde este entorno.
+Validación: **local PASS; PR CI PASS; Preview Vercel PASS; main CI PASS; deploy Vercel PASS; smoke
+Usuarios PASS**. La escritura de una invitación no se ejecutó contra datos reales para evitar crear
+un usuario de prueba adicional; ese recorrido sigue cubierto por regresión estática y revisión de RLS.
 
 ## Métricas reales restantes + alertas en Notificaciones — 2026-09-15
 
