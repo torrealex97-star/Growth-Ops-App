@@ -80,7 +80,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
   const sb = await createClient()
   try {
     const contexto = await cargarContextoNegocio(sb, auth.tenantId)
-    return NextResponse.json({ contexto, puedeEditar: ROLES_ESCRITURA.includes(auth.role || '') })
+    return NextResponse.json({
+      contexto,
+      puedeEditar: auth.isSuperAdmin || ROLES_ESCRITURA.includes(auth.role || ''),
+    })
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error de contexto' }, { status: 500 })
   }
