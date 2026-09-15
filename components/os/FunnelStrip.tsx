@@ -1,3 +1,4 @@
+import { ConnectedFunnel } from './ConnectedFunnel'
 import type { FunnelTotals } from '@/lib/analytics'
 
 interface FunnelStripProps {
@@ -20,7 +21,7 @@ const pct = (n: number) => `${n < 10 ? n.toFixed(1) : Math.round(n)}%`
 export function FunnelStrip({ totals, loading }: FunnelStripProps) {
   if (loading) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-5">
+      <div className="dashboard-card p-5">
         <div className="h-24 animate-pulse rounded-lg bg-muted" />
       </div>
     )
@@ -35,37 +36,20 @@ export function FunnelStrip({ totals, loading }: FunnelStripProps) {
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-5">
+    <div className="dashboard-card p-5">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-sm font-medium text-muted-foreground">Funnel del periodo</h3>
         <span className="text-xs text-muted-foreground">
           Lead → Venta <span className="font-semibold text-foreground">{pct(totals.leadToSale)}</span>
         </span>
       </div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
-        {STEPS.map((step, i) => {
-          const value = totals[step.key]
-          const ratio = step.fromKey ? totals[step.fromKey] : null
-          return (
-            <div key={step.key} className="flex flex-1 items-center gap-3">
-              <div className="flex-1 rounded-xl border border-border bg-muted/30 px-4 py-3">
-                <p className="text-xs text-muted-foreground">{step.label}</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{value}</p>
-                {ratio !== null && (
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {pct(ratio)} {step.fromLabel}
-                  </p>
-                )}
-              </div>
-              {i < STEPS.length - 1 && (
-                <span aria-hidden className="hidden text-muted-foreground sm:block">
-                  →
-                </span>
-              )}
-            </div>
-          )
-        })}
-      </div>
+      <ConnectedFunnel
+        stages={STEPS.map((step) => ({
+          label: step.label,
+          value: totals[step.key],
+          conversion: step.fromKey ? totals[step.fromKey] : null,
+        }))}
+      />
     </div>
   )
 }

@@ -137,7 +137,7 @@ export default function PnlPage() {
   const money = (v: number) => formatCurrency(v)
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="dashboard-surface space-y-5 max-w-3xl">
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -145,7 +145,9 @@ export default function PnlPage() {
             <Receipt className="w-5 h-5 text-brand-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">I&amp;G — Ingresos y Gastos</h1>
+            <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">
+              I&amp;G — Ingresos y Gastos
+            </h1>
             <p className="text-muted-foreground text-sm mt-1">Cuenta de resultados mensual</p>
           </div>
         </div>
@@ -166,13 +168,13 @@ export default function PnlPage() {
       </div>
 
       {loading ? (
-        <div className="bg-card border border-border rounded-lg p-6 space-y-3">
+        <div className="dashboard-card p-6 space-y-3">
           {Array.from({ length: 14 }).map((_, i) => (
             <div key={i} className="h-5 bg-muted rounded animate-pulse" style={{ width: `${60 + (i % 5) * 8}%` }} />
           ))}
         </div>
       ) : (
-        <div className="bg-card border border-border rounded-lg p-6 divide-y divide-border">
+        <div className="dashboard-card p-6 divide-y divide-border">
           <Line label="Contracted Revenue" value={money(pnl.contractedRevenue)} />
           <Line label="Gross Revenue (Cash Collected, bruto)" value={money(pnl.grossRevenue)} />
           <PctLine label="Realized CR" value={pct(pnl.realizedCr)} />

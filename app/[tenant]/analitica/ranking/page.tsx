@@ -1,5 +1,7 @@
 'use client'
 
+import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
+
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -128,29 +130,6 @@ function formatDays(days: number | null): string {
   return `${days.toFixed(1)} días`
 }
 
-function FunnelStep({
-  label,
-  value,
-  pct,
-  icon: Icon,
-}: {
-  label: string
-  value: number
-  pct: number | null
-  icon: React.ElementType
-}) {
-  return (
-    <div className="flex-1 min-w-[140px] bg-card border border-border rounded-lg p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <Icon className="w-4 h-4 text-brand-400" />
-        <span className="text-xs uppercase tracking-wider text-muted-foreground">{label}</span>
-      </div>
-      <div className="text-2xl font-bold text-foreground">{value}</div>
-      {pct !== null && <div className="text-xs text-muted-foreground mt-1">{pct.toFixed(1)}% desde etapa anterior</div>}
-    </div>
-  )
-}
-
 function KPICardSimple({
   title,
   value,
@@ -163,12 +142,12 @@ function KPICardSimple({
   description?: string
 }) {
   return (
-    <div className="bg-card border border-border rounded-lg p-5">
+    <div className="dashboard-card p-5">
       <div className="flex items-center gap-2 mb-3">
         <Icon className="w-4 h-4 text-brand-400" />
         <span className="text-xs uppercase tracking-wider text-muted-foreground">{title}</span>
       </div>
-      <div className="text-2xl font-bold text-foreground">{value}</div>
+      <div className="font-display text-2xl font-semibold tracking-tight text-foreground">{value}</div>
       {description && <p className="text-xs text-muted-foreground mt-1">{description}</p>}
     </div>
   )
@@ -428,12 +407,12 @@ export default function PipelinePage() {
   const hasData = contacts.length > 0 || appointments.length > 0 || sales.length > 0
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-surface space-y-5">
       {/* Header */}
       <div>
         <div className="flex items-center gap-2">
           <Gauge className="w-6 h-6 text-brand-400" />
-          <h1 className="text-2xl font-bold text-foreground">Ranking</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">Ranking</h1>
         </div>
         <p className="text-muted-foreground text-sm mt-1">Ranking del equipo, objetivos y velocidad de conversión</p>
       </div>
@@ -472,9 +451,7 @@ export default function PipelinePage() {
           <div className="h-64 animate-pulse bg-card rounded-lg" />
         </div>
       ) : !hasData ? (
-        <div className="bg-card border border-border rounded-lg p-10 text-center text-muted-foreground">
-          Sin datos todavía.
-        </div>
+        <div className="dashboard-card p-10 text-center text-muted-foreground">Sin datos todavía.</div>
       ) : (
         <>
           {/* Objetivos */}
@@ -483,7 +460,7 @@ export default function PipelinePage() {
               <TargetIcon className="w-3.5 h-3.5" /> Objetivos
             </h2>
             {targetProgress.length === 0 ? (
-              <div className="bg-card border border-border rounded-lg p-6 text-center text-muted-foreground text-sm">
+              <div className="dashboard-card p-6 text-center text-muted-foreground text-sm">
                 No hay objetivos definidos (créalos en Objetivos)
               </div>
             ) : (
@@ -499,7 +476,7 @@ export default function PipelinePage() {
                         ? `${v.toFixed(1)}%`
                         : v.toFixed(0)
                   return (
-                    <div key={t.id} className="bg-card border border-border rounded-lg p-4">
+                    <div key={t.id} className="dashboard-card p-4">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium text-foreground truncate">{t.name}</span>
                         <span className={`text-xs font-semibold ${textColor}`}>{pct.toFixed(0)}%</span>
@@ -523,31 +500,15 @@ export default function PipelinePage() {
           {/* Funnel */}
           <div>
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Embudo de conversión</h2>
-            <div className="flex flex-wrap gap-3">
-              <FunnelStep label="Leads" value={funnel.leads} pct={null} icon={Users} />
-              <FunnelStep
-                label="Contactado"
-                value={funnel.contacted}
-                pct={pctOf(funnel.contacted, funnel.leads)}
-                icon={PhoneCall}
-              />
-              <FunnelStep
-                label="Cita"
-                value={funnel.citas}
-                pct={pctOf(funnel.citas, funnel.contacted)}
-                icon={CalendarCheck}
-              />
-              <FunnelStep
-                label="Oferta"
-                value={funnel.ofertas}
-                pct={pctOf(funnel.ofertas, funnel.citas)}
-                icon={HandCoins}
-              />
-              <FunnelStep
-                label="Cierre"
-                value={funnel.cierres}
-                pct={pctOf(funnel.cierres, funnel.ofertas)}
-                icon={Trophy}
+            <div className="dashboard-card p-5">
+              <ConnectedFunnel
+                stages={[
+                  { label: 'Leads', value: funnel.leads, conversion: null },
+                  { label: 'Contactado', value: funnel.contacted, conversion: pctOf(funnel.contacted, funnel.leads) },
+                  { label: 'Cita', value: funnel.citas, conversion: pctOf(funnel.citas, funnel.contacted) },
+                  { label: 'Oferta', value: funnel.ofertas, conversion: pctOf(funnel.ofertas, funnel.citas) },
+                  { label: 'Cierre', value: funnel.cierres, conversion: pctOf(funnel.cierres, funnel.ofertas) },
+                ]}
               />
             </div>
             <p className="text-xs text-muted-foreground mt-2">
@@ -604,7 +565,7 @@ export default function PipelinePage() {
 
           {/* Leaderboard */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-card border border-border rounded-lg p-5">
+            <div className="dashboard-card p-5">
               <h3 className="text-sm font-semibold text-foreground mb-4">Ranking Closers</h3>
               {closers.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-6 text-center">Sin datos todavía.</p>
@@ -632,7 +593,7 @@ export default function PipelinePage() {
               )}
             </div>
 
-            <div className="bg-card border border-border rounded-lg p-5">
+            <div className="dashboard-card p-5">
               <h3 className="text-sm font-semibold text-foreground mb-4">Ranking Setters</h3>
               {setterAgendas.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-6 text-center">Sin datos todavía.</p>
@@ -665,7 +626,7 @@ export default function PipelinePage() {
 
           {/* Ranking Triager y Cold Caller */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-card border border-border rounded-lg p-5">
+            <div className="dashboard-card p-5">
               <h3 className="text-sm font-semibold text-foreground mb-4">Ranking Triager</h3>
               {triagerRanking.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-6 text-center">Sin datos todavía.</p>
@@ -697,7 +658,7 @@ export default function PipelinePage() {
               )}
             </div>
 
-            <div className="bg-card border border-border rounded-lg p-5">
+            <div className="dashboard-card p-5">
               <h3 className="text-sm font-semibold text-foreground mb-4">Ranking Cold Caller</h3>
               {coldCallerRanking.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-6 text-center">Sin datos todavía.</p>
@@ -732,7 +693,7 @@ export default function PipelinePage() {
 
           {/* Setters ranking por ventas (referencia adicional) */}
           {setters.length > 0 && (
-            <div className="bg-card border border-border rounded-lg p-5">
+            <div className="dashboard-card p-5">
               <h3 className="text-sm font-semibold text-foreground mb-4">Ventas atribuidas a Setters</h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">

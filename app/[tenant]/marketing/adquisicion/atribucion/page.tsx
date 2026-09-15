@@ -420,9 +420,9 @@ export default function AttributionPage() {
   const hasApptFilters = periodPreset !== 'all' || !!campaignFilter.trim() || sourceFilter !== 'all'
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-surface space-y-5">
       <div>
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+        <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground flex items-center gap-2">
           <Megaphone className="w-6 h-6 text-cyan-400" /> Atribución
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
@@ -444,7 +444,7 @@ export default function AttributionPage() {
 
       {/* Top campañas First / Last touch */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-card border border-border rounded-lg p-5">
+        <div className="dashboard-card p-5">
           <h3 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
             <Target className="w-4 h-4 text-brand-400" /> Top anuncios / campañas (First-touch)
           </h3>
@@ -452,7 +452,7 @@ export default function AttributionPage() {
           <BarList bars={firstCampaignBars} total={firstCampaignTotal} color="violet" loading={loadingTouch} />
         </div>
 
-        <div className="bg-card border border-border rounded-lg p-5">
+        <div className="dashboard-card p-5">
           <h3 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
             <Target className="w-4 h-4 text-cyan-400" /> Top campañas (Last-touch)
           </h3>
@@ -463,7 +463,7 @@ export default function AttributionPage() {
 
       {/* Top fuentes */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-card border border-border rounded-lg p-5">
+        <div className="dashboard-card p-5">
           <h3 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
             <Layers className="w-4 h-4 text-emerald-400" /> Top fuentes
           </h3>
@@ -471,7 +471,7 @@ export default function AttributionPage() {
           <BarList bars={sourceBars} total={sourceTotal} color="emerald" loading={loadingTouch} />
         </div>
 
-        <div className="bg-card border border-border rounded-lg p-5">
+        <div className="dashboard-card p-5">
           <h3 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
             <Globe className="w-4 h-4 text-violet-400" /> Top países
           </h3>
@@ -487,7 +487,7 @@ export default function AttributionPage() {
       </div>
 
       {/* Embudo por fuente (RPC) */}
-      <div className="bg-card border border-border rounded-lg p-5">
+      <div className="dashboard-card p-5">
         <h3 className="text-sm font-semibold text-foreground mb-4">Embudo por fuente / anuncio</h3>
         {loading ? (
           <div className="h-40 animate-pulse bg-muted rounded" />
@@ -587,7 +587,7 @@ export default function AttributionPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-card border border-border rounded-lg p-5">
+        <div className="dashboard-card p-5">
           <h3 className="text-sm font-semibold text-foreground mb-1">Agendas por fuente</h3>
           <p className="text-xs text-muted-foreground mb-4">
             {loadingAppts ? '—' : `${apptSourceTotal} agenda${apptSourceTotal === 1 ? '' : 's'} en total`}
@@ -595,7 +595,7 @@ export default function AttributionPage() {
           <BarList bars={apptSourceBars} total={apptSourceTotal} color="violet" loading={loadingAppts} />
         </div>
 
-        <div className="bg-card border border-border rounded-lg p-5">
+        <div className="dashboard-card p-5">
           <h3 className="text-sm font-semibold text-foreground mb-1">Agendas por campaña</h3>
           <p className="text-xs text-muted-foreground mb-4">
             {loadingAppts ? '—' : `${apptCampaignTotal} agenda${apptCampaignTotal === 1 ? '' : 's'} en total`}
@@ -605,7 +605,7 @@ export default function AttributionPage() {
       </div>
 
       {/* Agendas por FECHA (desglose diario, no global) */}
-      <div className="bg-card border border-border rounded-lg p-5">
+      <div className="dashboard-card p-5">
         <h3 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
           <Calendar className="w-4 h-4 text-emerald-400" /> Agendas por fecha
         </h3>
@@ -633,7 +633,7 @@ export default function AttributionPage() {
         </p>
       </div>
 
-      <div className="bg-card border border-border rounded-lg p-5">
+      <div className="dashboard-card p-5">
         {loadingTouch ? (
           <div className="h-40 animate-pulse bg-muted rounded" />
         ) : touchRows.length === 0 ? (
@@ -680,7 +680,7 @@ export default function AttributionPage() {
         </p>
       </div>
 
-      <div className="bg-card border border-border rounded-lg p-5">
+      <div className="dashboard-card p-5">
         <div className="flex flex-wrap items-center gap-2 mb-4">
           <select
             value={qualSource}

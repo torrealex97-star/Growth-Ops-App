@@ -94,13 +94,13 @@ export function QualificationInsights() {
       {loading ? (
         <div className="h-48 animate-pulse bg-muted rounded-lg" />
       ) : rows.length === 0 ? (
-        <div className="bg-card border border-border rounded-lg p-8 text-center text-sm text-muted-foreground">
+        <div className="dashboard-card p-8 text-center text-sm text-muted-foreground">
           Sin respuestas de formulario todavía.
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {distributions.map((d) => (
-            <div key={d.key} className="bg-card border border-border rounded-lg p-4">
+            <div key={d.key} className="dashboard-card p-4">
               <h3 className="text-sm font-medium text-foreground mb-3">{labelFor(d.key)}</h3>
               <div className="space-y-2">
                 {d.bars.map((b) => {
@@ -126,7 +126,7 @@ export function QualificationInsights() {
           ))}
 
           {motivos.length > 0 && (
-            <div className="bg-card border border-border rounded-lg p-4 lg:col-span-2">
+            <div className="dashboard-card p-4 lg:col-span-2">
               <h3 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
                 <MessageSquareQuote className="w-4 h-4 text-muted-foreground" /> Últimos motivos (por qué quieren la
                 llamada)

@@ -112,14 +112,14 @@ export default function ProyeccionPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="dashboard-surface space-y-5 max-w-4xl">
       <div className="flex items-end justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-brand-500/10 flex items-center justify-center">
             <TrendingUp className="w-5 h-5 text-brand-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Proyección de caja</h1>
+            <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">Proyección de caja</h1>
             <p className="text-muted-foreground text-sm mt-1">
               Cobros previstos a 30/60/90 días desde cuotas pendientes
             </p>
@@ -149,7 +149,7 @@ export default function ProyeccionPage() {
           )}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {proj.buckets.map((b) => (
-              <div key={b.w} className="bg-card border border-border rounded-lg p-4">
+              <div key={b.w} className="dashboard-card p-4">
                 <p className="text-xs uppercase tracking-wider text-muted-foreground">Próximos {b.w} días</p>
                 <p className="text-2xl font-bold text-emerald-400 mt-2">{formatCurrency(b.cobros)}</p>
                 <p className="text-xs text-muted-foreground mt-1">Cobros previstos</p>
@@ -168,7 +168,7 @@ export default function ProyeccionPage() {
           </div>
 
           {installments.length === 0 && (
-            <div className="bg-card border border-border rounded-lg p-10 text-center">
+            <div className="dashboard-card p-10 text-center">
               <TrendingUp className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
               <p className="text-muted-foreground">No hay cuotas pendientes registradas.</p>
               <p className="text-muted-foreground text-sm mt-1">

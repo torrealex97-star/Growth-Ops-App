@@ -1,5 +1,7 @@
 'use client'
 
+import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
+
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -112,47 +114,13 @@ function KPICard({
   description?: string
 }) {
   return (
-    <div className="bg-card border border-border rounded-lg p-4">
+    <div className="dashboard-card p-4">
       <div className="flex items-center gap-2 mb-2">
         <Icon className="w-4 h-4 text-brand-400" />
         <span className="text-xs uppercase tracking-wider text-muted-foreground">{title}</span>
       </div>
-      <div className="text-xl font-bold text-foreground">{value}</div>
+      <div className="font-display text-2xl font-semibold tracking-tight tabular-nums text-foreground">{value}</div>
       {description && <p className="text-xs text-muted-foreground mt-1">{description}</p>}
-    </div>
-  )
-}
-
-function FunnelStep({
-  label,
-  value,
-  pctFromPrev,
-  icon: Icon,
-  isLast,
-}: {
-  label: string
-  value: string
-  pctFromPrev: string | null
-  icon: React.ElementType
-  isLast?: boolean
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="flex-1 min-w-[130px] bg-card border border-border rounded-lg p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Icon className="w-4 h-4 text-brand-400" />
-          <span className="text-xs uppercase tracking-wider text-muted-foreground">{label}</span>
-        </div>
-        <div className="text-2xl font-bold text-foreground">{value}</div>
-      </div>
-      {!isLast && (
-        <div className="flex flex-col items-center text-muted-foreground shrink-0">
-          <ArrowRight className="w-5 h-5" />
-          {pctFromPrev !== null && (
-            <span className="text-xs text-muted-foreground mt-1 whitespace-nowrap">{pctFromPrev}</span>
-          )}
-        </div>
-      )}
     </div>
   )
 }
@@ -402,13 +370,13 @@ export default function VentasMetricasPage() {
   const hasData = appointments.length > 0 || sales.length > 0 || collections.length > 0
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-surface space-y-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <BarChart3 className="w-6 h-6 text-brand-400" />
-            <h1 className="text-2xl font-bold text-foreground">Métricas de ventas</h1>
+            <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">Métricas de ventas</h1>
           </div>
           <p className="text-muted-foreground text-sm mt-1">
             Embudo granular de Demos y Sales Calls, con tasas de conversión y ratios de valor
@@ -472,9 +440,7 @@ export default function VentasMetricasPage() {
           <div className="h-64 animate-pulse bg-card rounded-lg" />
         </div>
       ) : !hasData ? (
-        <div className="bg-card border border-border rounded-lg p-10 text-center text-muted-foreground">
-          Sin datos todavía.
-        </div>
+        <div className="dashboard-card p-10 text-center text-muted-foreground">Sin datos todavía.</div>
       ) : (
         <>
           {eventTypeCoverage < 50 && (
@@ -484,6 +450,28 @@ export default function VentasMetricasPage() {
               se cuentan como Sales Call).
             </div>
           )}
+
+          {/* Embudo visual */}
+          <div>
+            <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Embudo — Sales Calls</h2>
+            <div className="dashboard-card p-5">
+              <ConnectedFunnel
+                stages={[
+                  { label: 'Booked', value: metrics.bookedSalesCalls, conversion: null },
+                  {
+                    label: 'Live',
+                    value: metrics.liveSalesCalls,
+                    conversion: pctVal(metrics.liveSalesCalls, metrics.bookedSalesCalls),
+                  },
+                  { label: 'Offer', value: metrics.offers, conversion: pctVal(metrics.offers, metrics.liveSalesCalls) },
+                  { label: 'Close', value: metrics.closes, conversion: pctVal(metrics.closes, metrics.offers) },
+                ]}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              Conversión global Booked → Close: {pct(metrics.closes, metrics.bookedSalesCalls)}
+            </p>
+          </div>
 
           {/* Volúmenes */}
           <div>
@@ -620,77 +608,23 @@ export default function VentasMetricasPage() {
             </div>
           </div>
 
-          {/* Embudo visual */}
-          <div>
-            <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Embudo — Sales Calls</h2>
-            <div className="flex flex-wrap items-center gap-2">
-              <FunnelStep
-                label="Booked"
-                value={String(metrics.bookedSalesCalls)}
-                pctFromPrev={null}
-                icon={CalendarCheck}
-              />
-              <FunnelStep
-                label="Live"
-                value={String(metrics.liveSalesCalls)}
-                pctFromPrev={
-                  pctVal(metrics.liveSalesCalls, metrics.bookedSalesCalls) !== null
-                    ? `${formatPercent(pctVal(metrics.liveSalesCalls, metrics.bookedSalesCalls)!, 1)}`
-                    : null
-                }
-                icon={PhoneCall}
-              />
-              <FunnelStep
-                label="Offer"
-                value={String(metrics.offers)}
-                pctFromPrev={
-                  pctVal(metrics.offers, metrics.liveSalesCalls) !== null
-                    ? `${formatPercent(pctVal(metrics.offers, metrics.liveSalesCalls)!, 1)}`
-                    : null
-                }
-                icon={HandCoins}
-              />
-              <FunnelStep
-                label="Close"
-                value={String(metrics.closes)}
-                pctFromPrev={
-                  pctVal(metrics.closes, metrics.offers) !== null
-                    ? `${formatPercent(pctVal(metrics.closes, metrics.offers)!, 1)}`
-                    : null
-                }
-                icon={Trophy}
-                isLast
-              />
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">
-              Conversión global Booked → Close: {pct(metrics.closes, metrics.bookedSalesCalls)}
-            </p>
-          </div>
-
           <div>
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Embudo — Demos</h2>
-            <div className="flex flex-wrap items-center gap-2">
-              <FunnelStep label="Booked" value={String(metrics.bookedDemos)} pctFromPrev={null} icon={CalendarCheck} />
-              <FunnelStep
-                label="Live"
-                value={String(metrics.liveDemos)}
-                pctFromPrev={
-                  pctVal(metrics.liveDemos, metrics.bookedDemos) !== null
-                    ? `${formatPercent(pctVal(metrics.liveDemos, metrics.bookedDemos)!, 1)}`
-                    : null
-                }
-                icon={Video}
-              />
-              <FunnelStep
-                label="Good Demo"
-                value={String(metrics.goodDemos)}
-                pctFromPrev={
-                  pctVal(metrics.goodDemos, metrics.liveDemos) !== null
-                    ? `${formatPercent(pctVal(metrics.goodDemos, metrics.liveDemos)!, 1)}`
-                    : null
-                }
-                icon={ThumbsUp}
-                isLast
+            <div className="dashboard-card p-5">
+              <ConnectedFunnel
+                stages={[
+                  { label: 'Booked', value: metrics.bookedDemos, conversion: null },
+                  {
+                    label: 'Live',
+                    value: metrics.liveDemos,
+                    conversion: pctVal(metrics.liveDemos, metrics.bookedDemos),
+                  },
+                  {
+                    label: 'Good Demo',
+                    value: metrics.goodDemos,
+                    conversion: pctVal(metrics.goodDemos, metrics.liveDemos),
+                  },
+                ]}
               />
             </div>
           </div>
@@ -701,11 +635,11 @@ export default function VentasMetricasPage() {
               Ventas por fuente — {monthLabel(ym)}
             </h2>
             {salesBySource.length === 0 ? (
-              <div className="bg-card border border-border rounded-lg p-6 text-center text-sm text-muted-foreground">
+              <div className="dashboard-card p-6 text-center text-sm text-muted-foreground">
                 Sin ventas en este periodo.
               </div>
             ) : (
-              <div className="bg-card border border-border rounded-lg overflow-hidden">
+              <div className="dashboard-card overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
@@ -742,7 +676,7 @@ export default function VentasMetricasPage() {
               <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
                 Comparativa de equipo — {usingPeriodPreset ? 'periodo seleccionado' : monthLabel(ym)}
               </h2>
-              <div className="bg-card border border-border rounded-lg overflow-x-auto">
+              <div className="dashboard-card overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-foreground">

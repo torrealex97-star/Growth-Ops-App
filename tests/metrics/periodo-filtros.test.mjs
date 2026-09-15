@@ -125,6 +125,11 @@ test('Campañas deriva TODA la pantalla del mismo rango y guarda los filtros en 
   // "Desde el lanzamiento" usa la primera fecha con datos, no una inventada.
   assert.match(page, /launchDate/)
   assert.match(page, /getPeriodRange\(periodPreset, customFrom, customTo, \{ launchDate \}\)/)
+  // Periodo, cuenta y campañas forman una sola superficie responsive; antes los dos últimos
+  // quedaban fuera del panel y el botón de alta se cortaba a 400 px.
+  assert.match(page, /<PeriodFilterBar[\s\S]*<select[\s\S]*<MultiSelect[\s\S]*<\/PeriodFilterBar>/)
+  assert.match(page, /flex w-full flex-col items-stretch gap-2/)
+  assert.match(page, /w-full shrink-0 items-center justify-center/)
 })
 
 test('la barra de periodo y las pantallas toman los presets del módulo canónico', () => {

@@ -33,12 +33,12 @@ export function KPICard({
   spark,
 }: KPICardProps) {
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_8px_24px_rgba(0,0,0,0.3)] transition-colors hover:bg-muted/40">
+    <div className="group relative overflow-hidden dashboard-card p-5">
       <div className="flex items-start justify-between mb-4">
         <p className="text-sm font-medium text-muted-foreground">{title}</p>
         {Icon && (
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-background">
-            <Icon className="w-4 h-4 text-muted-foreground" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-400/15">
+            <Icon className="w-4 h-4 text-brand-300" />
           </div>
         )}
       </div>
@@ -50,10 +50,12 @@ export function KPICard({
         </div>
       ) : (
         <>
-          <div className="flex items-end justify-between gap-3">
+          <div className="flex flex-wrap items-end justify-between gap-3">
             <div className="flex items-baseline gap-1">
               {prefix && <span className="text-lg text-muted-foreground">{prefix}</span>}
-              <span className="text-[30px] font-semibold tracking-tight text-foreground tabular-nums">{value}</span>
+              <span className="font-display text-[clamp(1.4rem,2.2vw,1.875rem)] font-semibold tracking-tight text-foreground tabular-nums">
+                {value}
+              </span>
               {suffix && <span className="text-lg text-muted-foreground">{suffix}</span>}
             </div>
             {spark && <div className="h-10 w-20 shrink-0">{spark}</div>}

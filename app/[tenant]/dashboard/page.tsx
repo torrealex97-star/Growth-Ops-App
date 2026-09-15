@@ -532,19 +532,16 @@ export default function DashboardPage() {
   const fmt = (n: number) => formatCurrency(n)
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="dashboard-surface p-4 sm:p-6 space-y-5">
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">
             Hola de nuevo{userName ? `, ${userName.split(' ')[0]}` : ''} 👋
           </h1>
           <p className="text-muted-foreground text-sm mt-1">Todo tu negocio, de un vistazo.</p>
         </div>
       </div>
-
-      <DailyQuoteWidget />
-      {userId && <KaizenWidget userId={userId} />}
 
       <PeriodFilterBar
         preset={periodPreset}
@@ -616,53 +613,25 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Facturación del mes seleccionado (live) */}
-      {myFijo && (
-        <div className="rounded-lg border border-brand-500/30 bg-gradient-to-br from-brand-500/10 to-zinc-900 p-5">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-wider text-brand-300/80">Tu retribución de {monthLabel(ym)}</p>
-              <p className="text-3xl font-bold text-foreground mt-1">{loading ? '—' : fmt(myFijo.total)}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Fijo {myFijo.unlocked ? fmt(myFijo.fijo) : `${fmt(0)} (bloqueado)`} · Comisiones{' '}
-                {fmt(myFijo.comisiones)}
-              </p>
-            </div>
-            {myFijo.target > 0 && (
-              <div className="min-w-[220px] flex-1 max-w-sm">
-                <div className="flex items-center justify-between text-xs mb-1">
-                  <span className="text-muted-foreground">Desbloqueo del fijo</span>
-                  <span className={myFijo.unlocked ? 'text-emerald-400 font-semibold' : 'text-amber-400 font-semibold'}>
-                    {myFijo.byRevenue
-                      ? `${fmt(myFijo.revenue)} / ${fmt(myFijo.target)}`
-                      : `${myFijo.salesCount}/${myFijo.target} ventas`}
-                  </span>
-                </div>
-                <div className="h-2.5 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${myFijo.unlocked ? 'bg-emerald-500' : 'bg-amber-500'}`}
-                    style={{ width: `${Math.min(myFijo.current / myFijo.target, 1) * 100}%` }}
-                  />
-                </div>
-                <p className="text-xs mt-1.5">
-                  {myFijo.unlocked ? (
-                    <span className="text-emerald-400">🎉 ¡Fijo desbloqueado! Ya cuenta en tu total.</span>
-                  ) : myFijo.byRevenue ? (
-                    <span className="text-amber-400">
-                      Te faltan {fmt(myFijo.remaining)} de facturación para desbloquear tu fijo de {fmt(myFijo.fijo)}.
-                    </span>
-                  ) : (
-                    <span className="text-amber-400">
-                      Te {myFijo.remaining === 1 ? 'falta' : 'faltan'} {myFijo.remaining} venta
-                      {myFijo.remaining === 1 ? '' : 's'} para desbloquear tu fijo de {fmt(myFijo.fijo)}.
-                    </span>
-                  )}
-                </p>
-              </div>
-            )}
-          </div>
+      <div className={`grid grid-cols-1 ${adSpendAllowed ? 'xl:grid-cols-[2fr_1fr]' : ''} gap-4 items-start`}>
+        {adSpendAllowed && <FunnelStrip totals={funnelTotals} loading={loading} />}
+        <div className={`grid grid-cols-1 sm:grid-cols-2 ${adSpendAllowed ? 'xl:grid-cols-1' : ''} gap-4`}>
+          <KPICard
+            title="Comisión ganada"
+            value={loading ? '—' : fmt(commissionKpis.ganada)}
+            icon={Coins}
+            loading={loading}
+            description="cash collected · sin liquidar"
+          />
+          <KPICard
+            title="Comisión futura"
+            value={loading ? '—' : fmt(commissionKpis.futura)}
+            icon={Percent}
+            loading={loading}
+            description="esperada · cuotas por cobrar"
+          />
         </div>
-      )}
+      </div>
 
       <div>
         <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Facturación de {monthLabel(ym)}</h2>
@@ -723,30 +692,14 @@ export default function DashboardPage() {
             {...delta(cur.avgTicket, prev.avgTicket)}
           />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-          <KPICard
-            title="Comisión ganada"
-            value={loading ? '—' : fmt(commissionKpis.ganada)}
-            icon={Coins}
-            loading={loading}
-            description="cash collected · sin liquidar"
-          />
-          <KPICard
-            title="Comisión futura"
-            value={loading ? '—' : fmt(commissionKpis.futura)}
-            icon={Percent}
-            loading={loading}
-            description="esperada · cuotas por cobrar"
-          />
-        </div>
       </div>
 
       {/* Evolución + Objetivos */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2">
           <SalesChart data={series} title="Facturación últimos 6 meses" />
         </div>
-        <div className="rounded-2xl border border-border bg-card p-5">
+        <div className="dashboard-card p-5">
           <div className="flex items-center gap-2 mb-4">
             <TargetIcon className="w-4 h-4 text-brand-400" />
             <h3 className="text-sm font-semibold text-foreground">Objetivos de empresa</h3>
@@ -786,17 +739,61 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Eficiencia de marketing + Funnel del periodo */}
-      {adSpendAllowed && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <MarketingEfficiencyCard
-            loading={adSpendLoading}
-            spend={adSpend}
-            revenue={cur.gross}
-            customers={periodCustomers}
-          />
-          <FunnelStrip totals={funnelTotals} loading={loading} />
+      {/* Facturación del mes seleccionado (live) */}
+      {myFijo && (
+        <div className="rounded-lg border border-brand-500/30 bg-gradient-to-br from-brand-500/10 to-zinc-900 p-5">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-wider text-brand-300/80">Tu retribución de {monthLabel(ym)}</p>
+              <p className="text-3xl font-bold text-foreground mt-1">{loading ? '—' : fmt(myFijo.total)}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Fijo {myFijo.unlocked ? fmt(myFijo.fijo) : `${fmt(0)} (bloqueado)`} · Comisiones{' '}
+                {fmt(myFijo.comisiones)}
+              </p>
+            </div>
+            {myFijo.target > 0 && (
+              <div className="min-w-[220px] flex-1 max-w-sm">
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-muted-foreground">Desbloqueo del fijo</span>
+                  <span className={myFijo.unlocked ? 'text-emerald-400 font-semibold' : 'text-amber-400 font-semibold'}>
+                    {myFijo.byRevenue
+                      ? `${fmt(myFijo.revenue)} / ${fmt(myFijo.target)}`
+                      : `${myFijo.salesCount}/${myFijo.target} ventas`}
+                  </span>
+                </div>
+                <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${myFijo.unlocked ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                    style={{ width: `${Math.min(myFijo.current / myFijo.target, 1) * 100}%` }}
+                  />
+                </div>
+                <p className="text-xs mt-1.5">
+                  {myFijo.unlocked ? (
+                    <span className="text-emerald-400">🎉 ¡Fijo desbloqueado! Ya cuenta en tu total.</span>
+                  ) : myFijo.byRevenue ? (
+                    <span className="text-amber-400">
+                      Te faltan {fmt(myFijo.remaining)} de facturación para desbloquear tu fijo de {fmt(myFijo.fijo)}.
+                    </span>
+                  ) : (
+                    <span className="text-amber-400">
+                      Te {myFijo.remaining === 1 ? 'falta' : 'faltan'} {myFijo.remaining} venta
+                      {myFijo.remaining === 1 ? '' : 's'} para desbloquear tu fijo de {fmt(myFijo.fijo)}.
+                    </span>
+                  )}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
+      )}
+
+      {adSpendAllowed && (
+        <MarketingEfficiencyCard
+          loading={adSpendLoading}
+          spend={adSpend}
+          revenue={cur.gross}
+          customers={periodCustomers}
+        />
       )}
 
       {/* Ranking + Agendas por setter */}
@@ -810,6 +807,10 @@ export default function DashboardPage() {
 
       {/* Qué responde la gente (respuestas del formulario) */}
       <QualificationInsights />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <DailyQuoteWidget />
+        {userId && <KaizenWidget userId={userId} />}
+      </div>
     </div>
   )
 }

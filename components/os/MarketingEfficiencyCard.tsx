@@ -21,7 +21,7 @@ export function MarketingEfficiencyCard({ loading, spend, revenue, customers }: 
 
   if (loading) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-5">
+      <div className="dashboard-card p-5">
         <div className="h-24 animate-pulse rounded-lg bg-muted" />
       </div>
     )
@@ -50,7 +50,7 @@ export function MarketingEfficiencyCard({ loading, spend, revenue, customers }: 
   const cac = spend > 0 && customers > 0 ? spend / customers : null
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-5">
+    <div className="dashboard-card p-5">
       <div className="mb-4 flex items-center gap-2 text-sm font-medium text-muted-foreground">
         <Megaphone className="h-4 w-4" /> Eficiencia de marketing · periodo
       </div>
