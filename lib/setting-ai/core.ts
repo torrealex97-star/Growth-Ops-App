@@ -1,6 +1,4 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 
 // ---------- Modelos ----------
 const MODELS: Record<string, string> = {
@@ -14,22 +12,15 @@ export function modelFrom(key?: string): string {
   return MODELS[key] || key
 }
 
-// ---------- Auth (sesión Supabase) ----------
-export async function requireCaller(): Promise<{ id: string } | null> {
-  const cookieStore = await cookies()
-  const authed = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll()
-      },
-      setAll() {},
-    },
-  })
-  const {
-    data: { user },
-  } = await authed.auth.getUser()
-  return user ? { id: user.id } : null
-}
+// ---------- Auth ----------
+// Aquí vivía `requireCaller()`, que solo comprobaba que hubiera sesión. Se ha eliminado: las SIETE
+// rutas de setting-ai usan `requireTenant()` (lib/auth/requireTenant.ts), que es estrictamente más
+// fuerte —autentica, comprueba la membresía en ESTA subcuenta y resuelve el rol ya acotado—, así que
+// no protegía nada que estuviera sin proteger.
+//
+// Y dejarlo ahí era el riesgo: un guardián más débil con nombre de guardián invita a usarlo pensando
+// que basta, y lo que se obtiene es autenticación SIN aislamiento por subcuenta. No se borra por
+// limpieza, se borra porque su existencia es una trampa.
 
 // ---------- Cliente Anthropic ----------
 export function getClient(): Anthropic {
