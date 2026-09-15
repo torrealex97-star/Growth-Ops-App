@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { createClient } from '@/lib/supabase/server'
 import { cargarContextoNegocio } from '@/lib/ai/agent/contexto'
+import { construirBrief } from '@/lib/metrics/brief'
+import { consultarMetricas } from '@/lib/metrics/consulta'
+import { diagnosticarCuelloBotella, evaluarEscalado } from '@/lib/metrics/cuello-botella'
+import { entradasDiagnostico, entradasSalud } from '@/lib/metrics/entradas'
+import { calcularSalud } from '@/lib/metrics/salud'
 import { runAgent, type ChatMessage } from '@/lib/ai/agent/gateway'
 import { getTenantConfigWithFallback } from '@/lib/config'
 
@@ -73,6 +78,43 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   }
   const history: ChatMessage[] = [...((priorMessages || []) as ChatMessage[]), { role: 'user', content: message }]
 
+  // EL BRIEF, SOLO AL EMPEZAR LA CONVERSACIÓN. Se le da al agente el estado del negocio ya calculado para
+  // que no gaste rondas de herramientas en averiguar lo que el panel acaba de decir, y para que el chat y
+  // la pantalla no puedan discrepar sobre el mismo negocio.
+  //
+  // Solo en los primeros mensajes a propósito: son cuatro consultas, y repetirlas en cada turno de una
+  // conversación larga es pagar latencia por un dato que ya está en el contexto.
+  let briefResumen: string | undefined
+  if (history.length <= 2) {
+    try {
+      const hoy = new Date()
+      const periodo = {
+        desde: new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), 1)).toISOString().slice(0, 10),
+        hasta: hoy.toISOString().slice(0, 10),
+      }
+      const consulta = await consultarMetricas(sb, auth.tenantId, periodo)
+      const config = {
+        muestraAlta: 100,
+        muestraMinima: 20,
+        umbralCritico: 0.2,
+        ticketMedioEur: consulta.agregados.aov?.valor ?? contexto.precioOfertaEur ?? null,
+        volumenBase: consulta.agregados.agendas?.valor ?? null,
+      }
+      const diagnostico = diagnosticarCuelloBotella(entradasDiagnostico(consulta.agregados), config)
+      briefResumen = construirBrief({
+        salud: calcularSalud(entradasSalud(consulta.agregados)),
+        diagnostico,
+        alertas: [],
+        escalado: evaluarEscalado(diagnostico, { utilizacionVentas: null, utilizacionEntrega: null }, config),
+        periodo,
+      }).resumenParaAgente
+    } catch {
+      // Si el brief no se puede calcular, el agente responde sin él y usa sus herramientas como siempre.
+      // Un fallo de métricas no puede dejar el chat sin funcionar.
+      briefResumen = undefined
+    }
+  }
+
   const toolCallLogs: Array<{
     tool_name: string
     input: Record<string, unknown>
@@ -91,6 +133,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       history,
       screen: body.screen,
       contexto,
+      briefResumen,
       onToolCall: (name, input, success, summary, latencyMs) => {
         toolCallLogs.push({ tool_name: name, input, success, result_summary: summary, latency_ms: latencyMs })
       },

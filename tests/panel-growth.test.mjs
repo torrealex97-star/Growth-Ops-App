@@ -110,3 +110,55 @@ test('los filtros de periodo son los mismos que en el resto de métricas', () =>
 test('el periodo se pasa a la ruta en vez de recalcularse en el panel', () => {
   assert.match(sinComentarios(leer(PAGINA)), /<PanelGrowth desde=\{desde\} hasta=\{hasta\} \/>/)
 })
+
+// ---------------------------------------------------------------------------------------------
+// EL AGENTE NO ABRE CON UN CHAT VACÍO. Un cuadro de texto en blanco traslada a la persona el trabajo de
+// saber qué preguntar, y el resultado es que no se usa.
+// ---------------------------------------------------------------------------------------------
+
+const CABECERA = 'components/ai/GrowthBriefCabecera.tsx'
+
+test('la cabecera del agente enseña salud, restricción, impacto y acción', () => {
+  const codigo = leer(CABECERA)
+  assert.match(codigo, /Growth Brief/)
+  for (const seccion of ['Salud', 'Restricción', 'Impacto', 'Acción recomendada']) {
+    assert.ok(codigo.includes(seccion), `falta ${seccion}`)
+  }
+})
+
+test('la cabecera pide el mismo brief que el panel, no uno propio', () => {
+  const codigo = sinComentarios(leer(CABECERA))
+  assert.match(codigo, /metricas\/brief/)
+  assert.doesNotMatch(codigo, /diagnosticarCuelloBotella|calcularSalud/)
+})
+
+// Si el brief falla, el chat tiene que seguir sirviendo: es un extra, no un requisito.
+test('si el brief no carga, la cabecera desaparece en vez de romper el chat', () => {
+  const codigo = sinComentarios(leer(CABECERA))
+  assert.match(codigo, /if \(!datos\) return null/)
+  // Y no pinta un error: un aviso aquí convertiría un problema de métricas en una avería del agente.
+  assert.doesNotMatch(codigo, /setError|alertaCalidadDato|EstadoPanel/)
+})
+
+test('el botón manda al agente el brief ya calculado, no una pregunta vaga', () => {
+  const codigo = leer(CABECERA)
+  assert.match(codigo, /brief\.resumenParaAgente/)
+  assert.match(codigo, /qué mirar para saber si funcionó/)
+})
+
+test('el launcher monta la cabecera antes de las sugerencias', () => {
+  const codigo = sinComentarios(leer('components/ai/AgentLauncher.tsx'))
+  const cabecera = codigo.indexOf('<GrowthBriefCabecera')
+  const sugerencias = codigo.indexOf('suggestionsFor(relPath)')
+  assert.ok(cabecera > -1 && cabecera < sugerencias)
+})
+
+// El brief se le pasa al modelo, pero solo al empezar: repetir cuatro consultas en cada turno de una
+// conversación larga es pagar latencia por algo que ya está en el contexto.
+test('la ruta del agente le pasa el brief solo al arrancar la conversación', () => {
+  const codigo = sinComentarios(leer('app/api/[tenant]/evergreen/ai/agent/route.ts'))
+  assert.match(codigo, /if \(history\.length <= 2\)/)
+  assert.match(codigo, /briefResumen,/)
+  // Y si el brief falla, el agente responde igual usando sus herramientas.
+  assert.match(codigo, /briefResumen = undefined/)
+})
