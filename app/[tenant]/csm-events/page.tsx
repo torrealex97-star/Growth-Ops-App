@@ -147,6 +147,9 @@ export default function CsmEventsPage() {
       return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
     })
     const completados = filteredItems.filter((e) => e.status === 'completado')
+    // OJO: esto es `csm_events.status`, NO `appointments.status`. Comparte el literal 'no_show' por
+    // casualidad de vocabulario, pero es otra entidad y otro ciclo de vida. NO usar aquí `isNoShow()`
+    // de lib/appointments/status: unificarlo ataría el cálculo de CSM a la semántica de las citas.
     const noShows = filteredItems.filter((e) => e.status === 'no_show')
     const showRate =
       completados.length + noShows.length > 0 ? (completados.length / (completados.length + noShows.length)) * 100 : 0

@@ -1,6 +1,7 @@
 // Agregaciones puras para el centro de mando (dashboard, ranking, atribución, objetivos).
 // Sin I/O: reciben filas crudas de Supabase y devuelven datos listos para pintar.
 
+import { isNoShow } from '@/lib/appointments/status'
 export type SaleRow = {
   id: string
   gross_amount: number | string
@@ -196,7 +197,7 @@ export function setterAgendaStats(appointments: AppointmentRow[], users: UserRow
         .get(a.setter_id)!
     row.total += 1
     if (a.status === 'show') row.shows += 1
-    if (a.status === 'no_show') row.noShows += 1
+    if (isNoShow(a.status)) row.noShows += 1
   }
   map.forEach((r) => {
     r.showRate = r.total ? (r.shows / r.total) * 100 : 0

@@ -90,13 +90,32 @@ async function graphGet(url: string): Promise<any> {
   return json
 }
 
-async function graphGetAll(firstUrl: string, maxPages = 50): Promise<any[]> {
-  const out: any[] = []
+/**
+ * La forma de lo que devuelve el Graph API, acotada igual que en lib/meta/client.ts: no se finge conocer
+ * su esquema completo —cambia sin avisar— sino que es un objeto de claves desconocidas. Con eso, leer un
+ * campo obliga a convertirlo, que es lo que ya hace este fichero con String()/Number(). Con `any`, un
+ * campo renombrado por Meta pasaba a `undefined` en silencio.
+ */
+type FilaGraph = Record<string, unknown>
+
+/** Convierte un campo del Graph API a texto opcional. `''` y ausente son lo mismo: no hay dato. */
+function texto(v: unknown): string | undefined {
+  return v == null || v === '' ? undefined : String(v)
+}
+
+/** Lee una clave de un objeto embebido del Graph API, sin dar por hecho que el embebido llegó. */
+function leerAnidado(valor: unknown, clave: string): string | undefined {
+  if (!valor || typeof valor !== 'object') return undefined
+  return texto((valor as Record<string, unknown>)[clave])
+}
+
+async function graphGetAll(firstUrl: string, maxPages = 50): Promise<FilaGraph[]> {
+  const out: FilaGraph[] = []
   let url: string | null = firstUrl
   let guard = 0
   while (url && guard < maxPages) {
-    const json: any = await graphGet(url)
-    if (Array.isArray(json?.data)) out.push(...json.data)
+    const json = (await graphGet(url)) as { data?: unknown; paging?: { next?: string | null } }
+    if (Array.isArray(json?.data)) out.push(...(json.data as FilaGraph[]))
     url = json?.paging?.next || null
     guard++
   }
@@ -110,8 +129,8 @@ export async function resolveIgUserId(cfg: IgConfig): Promise<{ id: string; user
   const url = `${GRAPH}/${cfg.version}/me/accounts?fields=instagram_business_account{id,username}&limit=100&${q(cfg)}`
   const pages = await graphGetAll(url)
   for (const p of pages) {
-    const iba = p?.instagram_business_account
-    if (iba?.id) return { id: String(iba.id), username: iba.username }
+    const id = leerAnidado(p?.instagram_business_account, 'id')
+    if (id) return { id, username: leerAnidado(p?.instagram_business_account, 'username') }
   }
   throw new Error(
     'No encuentro ninguna cuenta de Instagram business vinculada al token. Verifica que tu cuenta es profesional, está vinculada a una página de Facebook, y que la página está asignada al System User del token (o define IG_USER_ID).'
@@ -158,15 +177,15 @@ export async function fetchIgMedia(cfg: IgConfig, igId: string, limit = 100): Pr
     'id,media_type,media_product_type,caption,permalink,thumbnail_url,media_url,timestamp,like_count,comments_count'
   const url = `${GRAPH}/${cfg.version}/${igId}/media?fields=${fields}&limit=${Math.min(limit, 100)}&${q(cfg)}`
   const rows = await graphGetAll(url, Math.ceil(limit / 100) + 1)
-  return rows.slice(0, limit).map((r: any) => ({
+  return rows.slice(0, limit).map((r) => ({
     id: String(r.id),
-    media_type: r.media_type,
-    media_product_type: r.media_product_type,
-    caption: r.caption,
-    permalink: r.permalink,
-    thumbnail_url: r.thumbnail_url,
-    media_url: r.media_url,
-    timestamp: r.timestamp,
+    media_type: texto(r.media_type),
+    media_product_type: texto(r.media_product_type),
+    caption: texto(r.caption),
+    permalink: texto(r.permalink),
+    thumbnail_url: texto(r.thumbnail_url),
+    media_url: texto(r.media_url),
+    timestamp: texto(r.timestamp),
     like_count: Number(r.like_count) || 0,
     comments_count: Number(r.comments_count) || 0,
   }))
@@ -368,7 +387,7 @@ export async function resolveFbPageId(cfg: IgConfig, igUserId: string): Promise<
   const url = `${GRAPH}/${cfg.version}/me/accounts?fields=instagram_business_account{id}&limit=100&${q(cfg)}`
   const pages = await graphGetAll(url)
   for (const p of pages) {
-    if (p?.instagram_business_account?.id && String(p.instagram_business_account.id) === String(igUserId)) {
+    if (leerAnidado(p?.instagram_business_account, 'id') === String(igUserId)) {
       return String(p.id)
     }
   }
@@ -410,9 +429,9 @@ export async function fetchFacebookReels(
   for (const r of rows.slice(0, limit)) {
     const reel: FbReel = {
       external_id: String(r.id),
-      description: r.description,
-      permalink: r.permalink_url ? `https://www.facebook.com${r.permalink_url}` : undefined,
-      created_time: r.created_time,
+      description: texto(r.description),
+      permalink: r.permalink_url ? `https://www.facebook.com${String(r.permalink_url)}` : undefined,
+      created_time: texto(r.created_time),
       views: Number(r.views) || 0,
       likes: 0,
       comments: 0,
@@ -467,7 +486,7 @@ export async function fetchBusinessDiscovery(
   const j = await graphGet(url)
   const bd = j?.business_discovery
   if (!bd) throw new Error(`No se pudo leer @${uname}. Debe ser una cuenta profesional pública (creador/empresa).`)
-  const media: CompetitorMedia[] = (bd.media?.data || []).map((r: any) => ({
+  const media: CompetitorMedia[] = (bd.media?.data || []).map((r: FilaGraph) => ({
     external_id: String(r.id),
     caption: r.caption,
     media_type: r.media_type,
@@ -561,16 +580,16 @@ export async function fetchIgConversationsWithMessages(
         `${GRAPH}/${cfg.version}/${c.id}?fields=participants,messages.limit(50){message,from,created_time}&${pq}`
       )
       const participants = j?.participants?.data || []
-      const other = participants.find((p: any) => String(p?.id) !== String(igUserId))
+      const other = participants.find((p: FilaGraph) => String(p?.id) !== String(igUserId))
       participant = other?.username || other?.name || other?.id
       const msgRows = j?.messages?.data || []
       messages = msgRows
         .slice()
         .reverse()
-        .map((m: any) => ({
-          from: (m?.from?.id && String(m.from.id) === String(igUserId) ? 'agente' : 'lead') as 'agente' | 'lead',
-          text: m?.message,
-          created_time: m?.created_time,
+        .map((m: FilaGraph) => ({
+          from: (leerAnidado(m?.from, 'id') === String(igUserId) ? 'agente' : 'lead') as 'agente' | 'lead',
+          text: texto(m?.message),
+          created_time: texto(m?.created_time),
         }))
     } catch {
       // si falla el detalle de una conversación, la dejamos sin transcripción en vez de tumbar todo el listado
@@ -578,7 +597,7 @@ export async function fetchIgConversationsWithMessages(
     out.push({
       id: String(c.id),
       participant,
-      updated_time: c?.updated_time,
+      updated_time: texto(c?.updated_time),
       unread_count: Number(c?.unread_count) || 0,
       message_count: Number(c?.message_count) || 0,
       messages,
