@@ -23,7 +23,7 @@ import { Plus, Percent, Loader2, Pencil, Trash2 } from 'lucide-react'
 import { formatDate, formatPercent } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { CommissionRule, ParticipantType } from '@/lib/types/database'
-import { useTenantId } from '@/lib/tenant-context'
+import { useSesion, useTenantId } from '@/lib/tenant-context'
 
 const PARTICIPANT_LABELS: Record<ParticipantType, string> = {
   setter: 'Setter',
@@ -53,6 +53,8 @@ const formatMoney = (n: number) => n.toLocaleString('es-ES', { minimumFractionDi
 
 export default function CommissionRulesPage() {
   const tenantId = useTenantId()
+  // Sesión ya resuelta por el layout: evita repetir auth.getUser() + from('users') aquí.
+  const sesion = useSesion()
   const [rules, setRules] = useState<CommissionRule[]>([])
   const [users, setUsers] = useState<SimpleUser[]>([])
   const [tramos, setTramos] = useState<SimpleTramo[]>([])
@@ -124,25 +126,15 @@ export default function CommissionRulesPage() {
     }
   }
 
-  const fetchCurrentUserRole = async () => {
-    const supabase = createClient()
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser()
-    if (!authUser) return
-
-    const { data: userData } = await supabase.from('users').select('*, roles(key)').eq('id', authUser.id).single()
-
-    const role = (userData as { roles?: { key?: string } })?.roles?.key ?? ''
-    setCurrentUserRole(role)
-  }
-
   useEffect(() => {
     fetchRules()
     fetchUsers()
     fetchTramos()
-    fetchCurrentUserRole()
-  }, [])
+    // El rol propio ya viene en la sesión: antes eran dos consultas en serie (`auth.getUser()` +
+    // `from('users')`) para releer lo que el layout acababa de traer.
+    setCurrentUserRole(sesion?.rol ?? '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sesion])
 
   const getRoleKey = (u: SimpleUser): string | null => {
     if (!u.roles) return null

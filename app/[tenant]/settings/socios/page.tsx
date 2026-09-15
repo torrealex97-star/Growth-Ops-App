@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Handshake, Plus, Trash2, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useTenantId } from '@/lib/tenant-context'
+import { useSesion, useTenantId } from '@/lib/tenant-context'
 
 type Partner = {
   id: string
@@ -20,6 +20,8 @@ const cls =
 
 export default function SociosSettingsPage() {
   const tenantId = useTenantId()
+  // Sesión ya resuelta por el layout: evita repetir auth.getUser() + from('users') aquí.
+  const sesion = useSesion()
   const [partners, setPartners] = useState<Partner[]>([])
   const [loading, setLoading] = useState(true)
   const [tableMissing, setTableMissing] = useState(false)
@@ -32,15 +34,11 @@ export default function SociosSettingsPage() {
   // formulario y los botones a quien no puede escribir solo produce fallos silenciosos.
   const [canWrite, setCanWrite] = useState(false)
 
+  // DOS VIAJES DE RED MENOS. Leer el propio rol era `auth.getUser()` + `from('users')` en serie, y el
+  // layout acaba de hacer exactamente eso para decidir si dejar entrar aquí.
   useEffect(() => {
-    const sb = createClient()
-    void sb.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) return
-      const { data } = await sb.from('users').select('roles(key)').eq('id', user.id).single()
-      const role = (data?.roles as { key?: string } | null)?.key
-      setCanWrite(role === 'admin' || role === 'director')
-    })
-  }, [])
+    setCanWrite(sesion?.rol === 'admin' || sesion?.rol === 'director')
+  }, [sesion])
 
   const load = async () => {
     const sb = createClient()

@@ -106,7 +106,16 @@ test('un fallo al contar no se convierte en un cero', () => {
 test('la tarjeta de Subcuentas solo se pinta para super admin', () => {
   const page = read('app/[tenant]/settings/page.tsx')
   assert.match(page, /superAdminOnly: true/)
-  assert.match(page, /sb\.rpc\('is_super_admin'\)/, 'super admin no es un rol de users: hay que preguntar a la función')
+  // La invariante sigue siendo la misma —super admin NO se deduce del rol de `users`, se pregunta a la
+  // función de base que usan las políticas— pero se cumple un nivel más arriba: ahora lo resuelve
+  // app/[tenant]/layout.tsx una vez y la pantalla lo lee de la sesión, en vez de repetir la llamada.
+  assert.match(page, /sesion\.isSuperAdmin/)
+  assert.doesNotMatch(page, /isSuperAdmin.*===.*'admin'|rol === 'super_admin'/, 'no se puede deducir del rol')
+  assert.match(
+    read('app/[tenant]/layout.tsx'),
+    /supabase\.rpc\('is_super_admin'\)/,
+    'super admin no es un rol de users: hay que preguntar a la función'
+  )
   assert.match(page, /superAdminOnly\) return isSuperAdmin === true/)
   // Arranca en null para no pintar la tarjeta antes de saberlo.
   assert.match(page, /useState<boolean \| null>\(null\)/)
