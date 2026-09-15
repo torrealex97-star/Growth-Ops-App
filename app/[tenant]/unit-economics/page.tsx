@@ -307,7 +307,7 @@ export default function UnitEconomicsPage() {
   const hasData = campaignsVisibles.length > 0 || sales.length > 0 || appointments.length > 0
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="dashboard-surface p-4 sm:p-6 space-y-5">
       {/* Header */}
       <div>
         <div className="flex items-center gap-2">
@@ -367,7 +367,7 @@ export default function UnitEconomicsPage() {
           loading={loading}
           description="Facturación activa / clientes únicos"
         />
-        <div className="rounded-2xl border border-border bg-card p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_8px_24px_rgba(0,0,0,0.3)]">
+        <div className="dashboard-card p-5">
           <div className="flex items-start justify-between mb-4">
             <p className="text-sm font-medium text-muted-foreground">LTV:CAC ratio</p>
             <div className="w-9 h-9 rounded-lg border border-border bg-background flex items-center justify-center">
@@ -578,7 +578,7 @@ export default function UnitEconomicsPage() {
         </div>
 
         {/* Mini-embudo visual */}
-        <div className="rounded-2xl border border-border bg-card p-5">
+        <div className="dashboard-card p-5">
           <h3 className="text-sm font-semibold text-foreground mb-4">
             Impresiones → Clicks → Leads → Sales Calls → Closes
           </h3>
@@ -619,7 +619,7 @@ export default function UnitEconomicsPage() {
       </div>
 
       {/* Tabla por canal */}
-      <div className="rounded-2xl border border-border bg-card p-5">
+      <div className="dashboard-card p-5">
         <h3 className="text-sm font-semibold text-foreground mb-4">Unit economics por canal</h3>
         {loading ? (
           <div className="space-y-2">

@@ -7,9 +7,9 @@ import type { AttribRow } from '@/lib/analytics'
 export function AttributionTable({ rows }: { rows: AttribRow[] }) {
   const withData = rows.filter((r) => r.leads > 0 || r.sales > 0)
   return (
-    <div className="bg-card border border-border rounded-lg p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <Megaphone className="w-4 h-4 text-blue-400" />
+    <div className="dashboard-card p-5">
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <Megaphone className="w-4 h-4 text-brand-400" />
         <h3 className="text-sm font-semibold text-foreground">Atribución de leads</h3>
         <span className="text-xs text-muted-foreground">de dónde vienen y qué convierte</span>
       </div>

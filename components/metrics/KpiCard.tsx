@@ -74,7 +74,7 @@ export function KpiCard({
   const objetivo = textoObjetivo(metrica)
 
   return (
-    <div className={cn('rounded-lg border border-border bg-card p-4', className)}>
+    <div className={cn('dashboard-card p-4', className)}>
       <div className="flex items-start justify-between gap-2">
         <MetricTooltip
           contenido={{
@@ -100,7 +100,7 @@ export function KpiCard({
 
       <div className="mt-2">
         {hayDato ? (
-          <span className="block text-2xl font-semibold tabular-nums text-foreground">
+          <span className="block font-display text-2xl font-semibold tabular-nums text-foreground">
             {formatearValor(metrica.value, metrica.unit)}
           </span>
         ) : (

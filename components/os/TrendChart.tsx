@@ -66,7 +66,7 @@ export function TrendChart({ title, data, format, previousTotal, aggregate = 'su
 
   if (conDato.length === 0) {
     return (
-      <div className={`border-border bg-card rounded-2xl border p-5 ${className ?? ''}`}>
+      <div className={`dashboard-card p-5 ${className ?? ''}`}>
         <p className="text-sm font-medium">{title}</p>
         <p className="text-muted-foreground mt-1 text-sm">Sin datos en el periodo seleccionado.</p>
       </div>
@@ -74,7 +74,7 @@ export function TrendChart({ title, data, format, previousTotal, aggregate = 'su
   }
 
   return (
-    <div className={`border-border bg-card rounded-2xl border p-5 ${className ?? ''}`}>
+    <div className={`dashboard-card p-5 ${className ?? ''}`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-sm font-medium">{title}</p>
         <div className="flex items-baseline gap-2">
@@ -96,7 +96,7 @@ export function TrendChart({ title, data, format, previousTotal, aggregate = 'su
           <AreaChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id={`trend-${title.replace(/\W/g, '')}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.28} />
+                <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.16} />
                 <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.02} />
               </linearGradient>
             </defs>

@@ -1,5 +1,33 @@
 # Relevo activo
 
+## Diseño de dashboards Growth Ops — 2026-09-15
+
+Rama local: `codex/dashboard-visual-design`, desde `3a0cc28` (PR #55).
+El usuario autorizó continuar con todo lo pendiente. El gate local está cerrado; subir la rama para
+obtener una Preview verificable, pero **no fusionar hasta revisar esa Preview**.
+App: https://growth-ops-weld.vercel.app; Vercel `growth-ops` (`prj_dwUfilCj5GX0dFmSicjbsTQfzjAc`),
+equipo `Growth-Ops_vercel`. Supabase `Growth Ops` (`rgcbveflosqgxrcqlqzv`).
+
+- Cambios exclusivamente visuales sobre las rutas reales: Dashboard, Unit Economics, Analítica,
+  Ventas (embudo/ranking/actividad), Marketing (Campañas/Atribución/VSL) y Analítica financiera
+  (resumen/proyección/P&L/cohortes). Sin cambios a consultas, permisos o fórmulas de métricas.
+- Tarjetas suaves, Inter/Space Grotesk, acento por tenant; embudo de ventas antes de volúmenes;
+  gráficos diarios antes de tabla, tabla desplazable; finanzas con anillos y barras a partir de
+  los desgloses existentes. Entrada breve de tarjetas y gráficos respetando reduced motion.
+- La demo de componentes con datos de muestra fue rechazada por el usuario y eliminada.
+  NO volver a presentarla como vista de la app. Revisar las páginas reales con navegación y datos.
+- `.env.local` contiene solo configuración pública recuperada de Supabase, está gitignored.
+  Dev server en puerto 3100. Falta SUPABASE_SERVICE_ROLE_KEY para las APIs que la necesitan:
+  auto-review rechazó recuperarla; se ha pedido autorización explícita al usuario, sin copiarla.
+  Requiere inicio de sesión del usuario; localhost no hereda la sesión
+  de producción. No se han copiado cookies ni creado usuarios de prueba.
+- Gate local ejecutado sobre el árbol final estable: format PASS; lint PASS con warnings heredados;
+  typecheck PASS; suite general 343/343 PASS; métricas 647/647 PASS; dead-code informativo PASS;
+  `git diff --check` PASS; build limpio de producción PASS con variables placeholder.
+- El servidor local no pudo abrir `127.0.0.1:3100` porque el sandbox denegó el bind; no declarar
+  revisión visual local. Pendiente: abrir PR, revisar la Preview autenticada en escritorio y móvil,
+  corregir cualquier regresión responsive, esperar CI y solo entonces fusionar y hacer smoke.
+
 ## Contexto estratégico editable — 2026-09-15
 
 Rama única: `codex/growth-context-ui`, iniciada después de fusionar y desplegar la PR #54.

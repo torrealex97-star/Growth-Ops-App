@@ -568,10 +568,10 @@ export default function CampaignsPage() {
   const activeCount = displayItems.filter((c) => c.status === 'activa').length
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-surface space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground flex items-center gap-2">
             <Radio className="w-6 h-6 text-brand-400" /> Campañas
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
@@ -734,7 +734,7 @@ export default function CampaignsPage() {
             {/* Solo lo que el embudo de abajo no cuenta: desfase Meta vs Funnel, y cuántas
                 campañas están activas ahora. Inversión/Leads/CPL/ROAS ya son el hero del embudo
                 — repetirlos aquí sería la misma cifra dos veces en dos cards distintas. */}
-            <div className="flex flex-wrap items-center gap-6 text-sm border-b border-border pb-4">
+            <div className="dashboard-card flex flex-wrap items-center gap-x-8 gap-y-3 p-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Leads Meta </span>
                 <span className="font-semibold text-foreground tabular-nums">
@@ -774,7 +774,7 @@ export default function CampaignsPage() {
                 </p>
               </div>
             ) : (
-              <div className="bg-card/50 border border-border rounded-lg overflow-x-auto">
+              <div className="dashboard-card overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="sticky top-0 z-10 bg-card border-b border-border text-left text-muted-foreground text-xs uppercase">

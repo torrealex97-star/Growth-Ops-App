@@ -20,7 +20,7 @@ const pct = (n: number) => `${n < 10 ? n.toFixed(1) : Math.round(n)}%`
 export function FunnelStrip({ totals, loading }: FunnelStripProps) {
   if (loading) {
     return (
-      <div className="rounded-2xl border border-border bg-card p-5">
+      <div className="dashboard-card p-5">
         <div className="h-24 animate-pulse rounded-lg bg-muted" />
       </div>
     )
@@ -35,7 +35,7 @@ export function FunnelStrip({ totals, loading }: FunnelStripProps) {
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-5">
+    <div className="dashboard-card p-5">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-sm font-medium text-muted-foreground">Funnel del periodo</h3>
         <span className="text-xs text-muted-foreground">
@@ -48,9 +48,17 @@ export function FunnelStrip({ totals, loading }: FunnelStripProps) {
           const ratio = step.fromKey ? totals[step.fromKey] : null
           return (
             <div key={step.key} className="flex flex-1 items-center gap-3">
-              <div className="flex-1 rounded-xl border border-border bg-muted/30 px-4 py-3">
+              <div className="min-w-0 flex-1 rounded-xl bg-muted/30 px-4 py-3">
                 <p className="text-xs text-muted-foreground">{step.label}</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{value}</p>
+                <p className="mt-1 font-display text-2xl font-semibold tabular-nums text-foreground">{value}</p>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                  <div
+                    className="h-full rounded-full bg-brand-500"
+                    style={{
+                      width: `${(value / Math.max(totals.leads, totals.appointments, totals.sales, 1)) * 100}%`,
+                    }}
+                  />
+                </div>
                 {ratio !== null && (
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {pct(ratio)} {step.fromLabel}

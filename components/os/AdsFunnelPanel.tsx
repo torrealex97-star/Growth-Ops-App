@@ -26,7 +26,7 @@ const short = (name: string) => (name.length > 18 ? `${name.slice(0, 17)}…` : 
 
 type AlertState = 'ok' | 'warn' | 'bad' | null
 
-// Color de texto (no de tarjeta — aquí no hay tarjetas) según si el KPI cumple el objetivo
+// Color de texto según si el KPI cumple el objetivo
 // configurado (Settings → Campañas → Objetivos). Sin objetivo fijado, `alert` es null y el
 // número se queda en el color normal — nunca inventamos un umbral por defecto, porque "sin
 // objetivo" y "objetivo cumplido" no son lo mismo.
@@ -36,18 +36,17 @@ const alertText: Record<'ok' | 'warn' | 'bad', string> = {
   bad: 'text-red-400',
 }
 
-// KPI grande, "hero": los 4-5 números que de verdad importan de un vistazo, sin tarjeta propia
-// — una sola superficie con divisores en vez de un grid de cards idénticas.
+// Los mismos KPI canónicos, en tarjetas que se adaptan al ancho disponible.
 type HeroStat = { label: string; value: string; hint?: string; alert?: AlertState }
 
 function HeroRow({ stats }: { stats: HeroStat[] }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
       {stats.map((s) => (
-        <div key={s.label} className="px-4 py-3 first:pl-0 sm:first:pl-0">
+        <div key={s.label} className="dashboard-card p-5">
           <p className="text-xs text-muted-foreground">{s.label}</p>
           <p
-            className={`mt-1 text-2xl font-semibold tracking-tight ${s.alert ? alertText[s.alert] : 'text-foreground'}`}
+            className={`mt-3 font-display text-3xl tabular-nums font-semibold tracking-tight ${s.alert ? alertText[s.alert] : 'text-foreground'}`}
           >
             {s.value}
           </p>
@@ -80,7 +79,7 @@ function FunnelList({ stages }: { stages: FunnelStage[] }) {
   return (
     <div className="funnel-chart divide-border/60 divide-y">
       {stages.map((s, i) => (
-        <div key={s.label} className="relative flex items-center gap-3 py-2.5 text-sm">
+        <div key={s.label} className="relative flex items-center gap-3 px-3 py-3 text-sm">
           {/* La barra vive DETRÁS de la fila: el ancho codifica el volumen, así que la reducción
               entre etapas se ve de un vistazo, y las cifras siguen alineadas y legibles. */}
           <span
@@ -107,7 +106,7 @@ function FunnelList({ stages }: { stages: FunnelStage[] }) {
   )
 }
 
-const chartBox = 'bg-card/50 border border-border rounded-lg p-4'
+const chartBox = 'dashboard-card p-5'
 
 const ChartTooltip = ({
   active,
@@ -227,7 +226,7 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-foreground">Embudo de Ads</h2>
         <span className="text-[11px] text-muted-foreground">
           Agendas · Llamadas · Cierres se cruzan con el CRM por UTM del contacto
@@ -236,7 +235,7 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
 
       <HeroRow stats={heroStats} />
 
-      <div className="rounded-lg border border-border bg-card/30 p-4">
+      <div className="dashboard-ads-funnel dashboard-card p-5 overflow-x-auto">
         <div className="flex items-center justify-between text-xs text-muted-foreground mb-1 pl-8">
           <span />
           <span className="w-24 text-right">% conversión</span>
@@ -256,14 +255,19 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
       </div>
 
       {points.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {/* Leads vs Coste por Lead */}
           <div className={chartBox}>
             <h3 className="text-xs font-medium text-muted-foreground mb-3">Leads vs Coste por Lead</h3>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={points} margin={{ top: 5, right: 8, bottom: 0, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                  <CartesianGrid
+                    strokeDasharray="3 6"
+                    strokeOpacity={0.4}
+                    stroke="hsl(var(--border))"
+                    vertical={false}
+                  />
                   <XAxis
                     dataKey="short"
                     tick={{ fontSize: 10, fill: '#71717a' }}
@@ -285,7 +289,7 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
                   />
                   <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--brand-500) / 0.08)' }} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar yAxisId="l" dataKey="leads" name="Leads" fill="hsl(var(--brand-500))" radius={[3, 3, 0, 0]} />
+                  <Bar yAxisId="l" dataKey="leads" name="Leads" fill="hsl(var(--brand-500))" radius={[7, 7, 0, 0]} />
                   <Line
                     yAxisId="r"
                     dataKey="cpl"
@@ -306,7 +310,12 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={points} margin={{ top: 5, right: 8, bottom: 0, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                  <CartesianGrid
+                    strokeDasharray="3 6"
+                    strokeOpacity={0.4}
+                    stroke="hsl(var(--border))"
+                    vertical={false}
+                  />
                   <XAxis
                     dataKey="short"
                     tick={{ fontSize: 10, fill: '#71717a' }}
@@ -328,7 +337,7 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
                   />
                   <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(16, 185, 129, 0.08)' }} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar yAxisId="l" dataKey="agendas" name="Agendas" fill="#10b981" radius={[3, 3, 0, 0]} />
+                  <Bar yAxisId="l" dataKey="agendas" name="Agendas" fill="#10b981" radius={[7, 7, 0, 0]} />
                   <Line
                     yAxisId="r"
                     dataKey="costeAgenda"
@@ -344,12 +353,17 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
           </div>
 
           {/* % Registro vs % Conversión VSL */}
-          <div className={`${chartBox} lg:col-span-2`}>
+          <div className={`${chartBox} xl:col-span-2`}>
             <h3 className="text-xs font-medium text-muted-foreground mb-3">% de Registro vs % de Conversión VSL</h3>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={points} margin={{ top: 5, right: 8, bottom: 0, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                  <CartesianGrid
+                    strokeDasharray="3 6"
+                    strokeOpacity={0.4}
+                    stroke="hsl(var(--border))"
+                    vertical={false}
+                  />
                   <XAxis
                     dataKey="short"
                     tick={{ fontSize: 10, fill: '#71717a' }}
@@ -371,7 +385,7 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
                   <Line
                     dataKey="pctRegistro"
                     name="% Registro"
-                    stroke="#3b82f6"
+                    stroke="hsl(var(--brand-500))"
                     strokeWidth={2}
                     dot={{ r: 3 }}
                     connectNulls
@@ -379,7 +393,7 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
                   <Line
                     dataKey="pctConversionVSL"
                     name="% Conversión VSL"
-                    stroke="#ec4899"
+                    stroke="hsl(var(--brand-300))"
                     strokeWidth={2}
                     dot={{ r: 3 }}
                     connectNulls

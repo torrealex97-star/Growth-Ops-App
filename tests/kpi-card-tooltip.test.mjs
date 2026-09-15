@@ -145,8 +145,11 @@ test('la tarjeta permite abrir el detalle de los registros', () => {
 // Respeta el design system en vez de traerse estilos propios.
 test('la tarjeta usa los tokens del proyecto', () => {
   const src = read(CARD)
-  assert.match(src, /border-border/)
-  assert.match(src, /bg-card/)
+  assert.match(src, /dashboard-card/)
+  const surface = read('app/globals.css').match(/\.dashboard-card\s*\{([^}]+)\}/)?.[1]
+  assert.ok(surface, 'la superficie compartida debe existir')
+  assert.match(surface, /var\(--border\)/)
+  assert.match(surface, /var\(--card\)/)
   assert.match(src, /text-muted-foreground/)
   assert.match(src, /from '@\/lib\/utils'/)
 })

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { KPICard } from '@/components/os/DashboardKPICard'
+import { FinanceBreakdown, FinanceEvolution } from '@/components/finanzas/FinanceCharts'
 import { PieChart, Wallet, ShoppingCart, Receipt, TrendingDown, Scale, Users, CreditCard } from 'lucide-react'
 import { isActiveSale, lastNMonths, prevMonth, monthLabel, pctDelta } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
@@ -55,9 +56,9 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 function MetricCard({ label, value, sublabel }: { label: string; value: string; sublabel?: string }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="dashboard-card p-4">
       <p className="text-xs text-muted-foreground mb-1">{label}</p>
-      <p className="text-lg font-semibold text-foreground tabular-nums">{value}</p>
+      <p className="font-display text-xl font-semibold text-foreground tabular-nums">{value}</p>
       {sublabel && <p className="text-[11px] text-muted-foreground mt-0.5">{sublabel}</p>}
     </div>
   )
@@ -289,7 +290,6 @@ export default function FinanzasPage() {
       }),
     [months6, summaryFor]
   )
-  const maxSeriesValue = useMemo(() => Math.max(1, ...series.map((s) => Math.max(s.cash, s.expenses))), [series])
   const maxCategoryAmount = useMemo(() => Math.max(1, ...cur.categories.map((c) => c.amount)), [cur.categories])
 
   const delta = (c: number, p: number) => {
@@ -306,7 +306,7 @@ export default function FinanzasPage() {
   const intOrDash = (n: number | null) => (n === null || !isFinite(n) ? '—' : String(n))
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-surface space-y-5">
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -314,7 +314,7 @@ export default function FinanzasPage() {
             <PieChart className="w-5 h-5 text-brand-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Resumen financiero</h1>
+            <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">Resumen financiero</h1>
             <p className="text-muted-foreground text-sm mt-1">
               Resultados de la empresa por mes · ver detalle en I&amp;G — Ingresos y Gastos
             </p>
@@ -340,7 +340,7 @@ export default function FinanzasPage() {
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="rounded-lg border border-border bg-card p-6 space-y-2">
+              <div key={i} className="dashboard-card p-6 space-y-2">
                 <div className="h-4 w-24 bg-muted animate-pulse rounded" />
                 <div className="h-8 w-32 bg-muted animate-pulse rounded" />
               </div>
@@ -355,7 +355,7 @@ export default function FinanzasPage() {
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
               Resultados de {monthLabel(ym)}
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
               <KPICard
                 title="Cash Collected"
                 value={fmt(cur.cashCollected)}
@@ -384,38 +384,29 @@ export default function FinanzasPage() {
                 description="Stripe, transferencia, Sequra..."
                 {...delta(cur.platformFees, prev.platformFees)}
               />
-              <KPICard
-                title="Devoluciones del mes"
-                value={`− ${fmt(cur.totalRefunds)}`}
-                icon={TrendingDown}
-                description="se resta del Cash Collected para el neto"
-                {...delta(cur.totalRefunds, prev.totalRefunds)}
-              />
-              <div className="rounded-lg border border-border bg-card p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <p className="text-sm font-medium text-muted-foreground">Resultado neto</p>
-                  <div className="w-9 h-9 rounded-lg bg-brand-600/20 flex items-center justify-center">
-                    <Scale className="w-4 h-4 text-brand-400" />
-                  </div>
-                </div>
-                <div className="flex items-baseline gap-1">
-                  <span className={`text-2xl font-bold ${cur.netResult >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {fmt(cur.netResult)}
-                  </span>
-                </div>
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">margen {pct(cur.margin)}</span>
-                </div>
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  Mismo cálculo que I&amp;G (Dirección › Métricas): Net Revenue − COGS − OpEx
-                </p>
+              <div className="md:row-span-2 xl:col-start-3 xl:row-start-1">
+                <FinanceBreakdown
+                  title="Origen de los cobros"
+                  slices={[
+                    { label: 'Primer cobro', amount: paymentsSummary.newGr },
+                    { label: 'Cuotas siguientes', amount: paymentsSummary.followupGr },
+                  ]}
+                  emptyLabel="Sin cobros registrados este mes."
+                />
+              </div>
+              <div className="md:row-span-2 xl:col-start-4 xl:row-start-1">
+                <FinanceBreakdown
+                  title="Distribución de gastos"
+                  slices={cur.categories.map((c) => ({ label: c.label, amount: c.amount }))}
+                  emptyLabel="Sin gastos registrados este mes."
+                />
               </div>
             </div>
           </div>
 
           {/* Desglose de gastos + gráfica 6 meses */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="bg-card border border-border rounded-lg p-5">
+            <div className="dashboard-card p-5">
               <h3 className="text-sm font-semibold text-foreground mb-4">Gastos por categoría — {monthLabel(ym)}</h3>
               {cur.categories.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-6 text-center">Sin gastos registrados este mes.</p>
@@ -439,45 +430,35 @@ export default function FinanzasPage() {
               )}
             </div>
 
-            <div className="lg:col-span-2 bg-card border border-border rounded-lg p-5">
-              <h3 className="text-sm font-semibold text-foreground mb-4">Cash Collected vs Gastos — últimos 6 meses</h3>
-              <div className="space-y-4">
-                {series.map((s) => (
-                  <div key={s.ym}>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-foreground capitalize">{s.label}</span>
-                      <span className={`tabular-nums ${s.net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        Neto: {fmt(s.net)}
-                      </span>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground w-14 shrink-0">Cash</span>
-                        <div className="h-2.5 bg-muted rounded-full overflow-hidden flex-1">
-                          <div
-                            className="h-full rounded-full bg-emerald-500"
-                            style={{ width: `${(s.cash / maxSeriesValue) * 100}%` }}
-                          />
-                        </div>
-                        <span className="text-[10px] text-muted-foreground w-20 text-right shrink-0 tabular-nums">
-                          {fmt(s.cash)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground w-14 shrink-0">Gastos</span>
-                        <div className="h-2.5 bg-muted rounded-full overflow-hidden flex-1">
-                          <div
-                            className="h-full rounded-full bg-red-500"
-                            style={{ width: `${(s.expenses / maxSeriesValue) * 100}%` }}
-                          />
-                        </div>
-                        <span className="text-[10px] text-muted-foreground w-20 text-right shrink-0 tabular-nums">
-                          {fmt(s.expenses)}
-                        </span>
-                      </div>
+            <div className="lg:col-span-2 space-y-4">
+              <FinanceEvolution data={series} />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <KPICard
+                  title="Devoluciones del mes"
+                  value={`− ${fmt(cur.totalRefunds)}`}
+                  icon={TrendingDown}
+                  description="se resta del Cash Collected para el neto"
+                  {...delta(cur.totalRefunds, prev.totalRefunds)}
+                />
+                <div className="dashboard-card p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <p className="text-sm font-medium text-muted-foreground">Resultado neto</p>
+                    <div className="w-9 h-9 rounded-lg bg-brand-600/20 flex items-center justify-center">
+                      <Scale className="w-4 h-4 text-brand-400" />
                     </div>
                   </div>
-                ))}
+                  <div className="flex items-baseline gap-1">
+                    <span className={`text-2xl font-bold ${cur.netResult >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {fmt(cur.netResult)}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">margen {pct(cur.margin)}</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Mismo cálculo que I&amp;G (Dirección › Métricas): Net Revenue − COGS − OpEx
+                  </p>
+                </div>
               </div>
             </div>
           </div>

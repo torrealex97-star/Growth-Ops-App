@@ -532,11 +532,11 @@ export default function DashboardPage() {
   const fmt = (n: number) => formatCurrency(n)
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="dashboard-surface p-4 sm:p-6 space-y-5">
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">
+          <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">
             Hola de nuevo{userName ? `, ${userName.split(' ')[0]}` : ''} 👋
           </h1>
           <p className="text-muted-foreground text-sm mt-1">Todo tu negocio, de un vistazo.</p>
@@ -746,7 +746,7 @@ export default function DashboardPage() {
         <div className="lg:col-span-2">
           <SalesChart data={series} title="Facturación últimos 6 meses" />
         </div>
-        <div className="rounded-2xl border border-border bg-card p-5">
+        <div className="dashboard-card p-5">
           <div className="flex items-center gap-2 mb-4">
             <TargetIcon className="w-4 h-4 text-brand-400" />
             <h3 className="text-sm font-semibold text-foreground">Objetivos de empresa</h3>

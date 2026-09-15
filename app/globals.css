@@ -337,3 +337,70 @@ label[for] {
     scroll-behavior: auto !important;
   }
 }
+
+/* Shared dashboard surfaces: typography and tenant accents remain inherited. */
+@layer components {
+  .dashboard-surface {
+    --card: 220 16% 98%;
+    --border: 220 12% 89%;
+  }
+  .dark .dashboard-surface {
+    --card: 225 12% 12%;
+    --border: 225 10% 19%;
+    --muted: 225 10% 16%;
+  }
+  .dashboard-card {
+    min-width: 0;
+    border: 1px solid hsl(var(--border) / 0.35);
+    border-radius: 1rem;
+    background: hsl(var(--card));
+    box-shadow: 0 2px 8px hsl(0 0% 0% / 0.025);
+  }
+  .dashboard-surface h1,
+  .dashboard-surface h2,
+  .dashboard-surface h3 {
+    text-wrap: balance;
+  }
+  .dashboard-surface .recharts-text {
+    font-family: var(--font-sans), Inter, system-ui, sans-serif;
+  }
+}
+
+/* Dashboard motion is a brief entrance, never a looping distraction from the data. */
+@keyframes dashboard-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .dashboard-surface .dashboard-card {
+    animation: dashboard-enter 240ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+  }
+  .dashboard-surface .recharts-wrapper {
+    animation: dashboard-enter 280ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+  }
+  .dashboard-surface button {
+    transition:
+      color 120ms ease-out,
+      background-color 120ms ease-out,
+      transform 120ms ease-out;
+  }
+  .dashboard-surface button:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+}
+.dashboard-surface table {
+  font-variant-numeric: tabular-nums;
+}
+.dashboard-surface .recharts-cartesian-grid-horizontal line {
+  stroke-opacity: 0.45;
+}
+
+.dashboard-ads-funnel .funnel-chart {
+  min-width: 30rem;
+}
