@@ -1,5 +1,30 @@
 # Relevo activo
 
+## Observabilidad de navegador + cierre de cascada de sesión — 2026-09-15
+
+La sesión que resuelve `app/[tenant]/layout.tsx` ya es la única lectura de `auth.getUser()` en las
+pantallas protegidas. Se retiraron las relecturas de 17 superficies que aún las hacían al cargar o
+escribir (Ventas, Reservas, Embudo, Contacto, Gastos, Campañas, Instagram, Contenido, Tareas,
+Perfil, contratos/recursos y sus componentes compartidos). No cambió la autorización: RLS y las
+rutas de servidor siguen decidiendo qué puede leer o escribir cada rol; solo se eliminó red
+duplicada y se reutiliza `useSesion()`.
+
+La caída de navegador queda diagnosticable:
+
+- `app/[tenant]/error.tsx` envía la excepción a Sentry con la ruta agrupada y no muestra el mensaje
+  técnico al usuario;
+- `app/global-error.tsx` cubre también errores del layout raíz que el límite del tenant no alcanza;
+- el fallback dejó de montar el shader WebGL, para que un fallo de GPU/render no se agrave al mostrar
+  el propio error;
+- `WebVitalsReporter` registra LCP, INP y CLS reales por ruta en Sentry cuando
+  `NEXT_PUBLIC_SENTRY_DSN` está configurado, sin slug de subcuenta, ids ni PII.
+
+Validación local ejecutada: **format PASS; lint PASS con warnings heredados; typecheck PASS; suite
+general 322/322 PASS; métricas 643/643 PASS; regresión focal 46/46 PASS; Next production build PASS;
+dead-code informativo PASS (51 exports y 15 tipos heredados)**. Pendiente tras fusionar: confirmar el
+deploy de Vercel y comprobar que el proyecto de Sentry tiene DSN en Production/Preview; sin DSN los
+fallos siguen teniendo fallback y reintento, pero no salen del navegador.
+
 ## Incidencia de carga intermitente — corregida y validada (2026-09-15)
 
 Se reprodujo una pestaña del navegador en estado `This page crashed`, mientras una pestaña limpia
@@ -25,8 +50,8 @@ instrumentación dinámica de Sentry.
 
 ## Estado consolidado Codex + Claude Code — 2026-09-15
 
-Fuente revisada: `origin/main` en `08bf522` y única rama remota de trabajo
-`claude/app-continuation-lpbupf` en `4cf441a`. No se creó otra rama.
+Fuente revisada: `origin/main` en `e25bf43`. Al iniciar no había PR ni rama remota de trabajo activa;
+se continuó en la única rama `codex/stability-observability`.
 
 ### Mapa de las 24 tareas
 
@@ -41,9 +66,9 @@ Fuente revisada: `origin/main` en `08bf522` y única rama remota de trabajo
 | 7 | Montar KPI cards, brief y alertas | **HECHO EN RAMA ACTIVA** (`2cae4e2`) |
 | 8 | Agendas: respuestas del formulario | **HECHO EN RAMA ACTIVA** (`eddd936`) |
 | 9 | Atribución: propagar campaign/UTM | **HECHO EN RAMA ACTIVA** (`4cf441a`) |
-| 10 | Cascada de sesión en pantallas restantes | **PENDIENTE DE AUDITORÍA/CIERRE** |
+| 10 | Cascada de sesión en pantallas restantes | **HECHO**; solo el layout resuelve `auth.getUser()` |
 | 11 | `any` restantes | **PENDIENTE DE AUDITORÍA/CIERRE**; no sustituir por casts inseguros |
-| 12 | Medir LCP / INP / CLS reales | **PENDIENTE**; no hay instrumentación Web Vitals encontrada |
+| 12 | Medir LCP / INP / CLS reales | **HECHO EN CÓDIGO**; envío a Sentry condicionado al DSN |
 | 13 | Decidir sobre el 89% de `use client` | **PENDIENTE DE DECISIÓN ARQUITECTÓNICA**; medir antes de migrar en masa |
 | 14 | Rellenar contexto de negocio | **CÓDIGO HECHO / DATOS PENDIENTES**; tabla/API existen, falta contenido real y confirmar migración en producción |
 | 15 | Webhook Stripe y Google Client Secret | **WEBHOOK HECHO** (`7b15aab`); **ROTACIÓN DE SECRET PENDIENTE DEL USUARIO** |
@@ -57,7 +82,7 @@ Fuente revisada: `origin/main` en `08bf522` y única rama remota de trabajo
 | 23 | 50.3 alertas/notificaciones/anotaciones | **PARCIAL**: motor y panel existen; falta verificar anotaciones en todos los gráficos/notificaciones |
 | 24 | 50.4 Growth Brief inicial del agente | **HECHO EN RAMA ACTIVA** (`8248749`) |
 
-Claude Code puede retomar los puntos 10–15, 20 y 23 cuando se restablezcan sus límites. Antes debe
+Claude Code puede retomar los puntos 11, 13–15, 20 y 23 cuando se restablezcan sus límites. Antes debe
 comprobar si esta rama ya se fusionó y continuar desde `main` si así fuera.
 
 ### Bloque Free Tier de Codex

@@ -7,7 +7,7 @@ import { FileText, Plus, X, ExternalLink, Send, Webhook } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
-import { useTenant } from '@/lib/tenant-context'
+import { useSesion, useTenant } from '@/lib/tenant-context'
 
 const STATUSES = [
   { value: 'pendiente', label: 'Pendiente' },
@@ -40,6 +40,7 @@ type Contract = {
 
 export default function ContratosPage() {
   const tenant = useTenant()
+  const sesion = useSesion()
   const [contracts, setContracts] = useState<Contract[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
@@ -96,15 +97,12 @@ export default function ContratosPage() {
       return
     }
     const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
     const { error } = await supabase.from('contracts').insert({
       contact_id: nc.contact_id || null,
       title: nc.title.trim(),
       url: nc.url || null,
       status: nc.status,
-      created_by: user?.id,
+      created_by: sesion?.userId ?? null,
     })
     if (error) {
       toast.error('Error al crear', { description: error.message })

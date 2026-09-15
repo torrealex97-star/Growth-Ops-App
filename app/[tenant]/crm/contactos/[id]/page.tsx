@@ -35,7 +35,7 @@ import { toast } from 'sonner'
 import type { Contact, ContactAttribution, Appointment, Sale, User } from '@/lib/types/database'
 import type { Qualification, QualificationAnswer } from '@/lib/qualification'
 import { LEAD_STATUS_COLORS, LEAD_STATUS_LABELS } from '@/lib/lead-status'
-import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { buildContactTimeline, type TimelineEventType } from '@/lib/contact-timeline'
 import { isNoShow } from '@/lib/appointments/status'
 
@@ -105,6 +105,7 @@ const TIMELINE_ICON: Record<TimelineEventType, typeof Clock> = {
 export default function ContactDetailPage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
+  const sesion = useSesion()
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [contact, setContact] = useState<Contact | null>(null)
@@ -127,8 +128,7 @@ export default function ContactDetailPage() {
   const load = async () => {
     const supabase = createClient()
 
-    const [{ data: authData }, contactRes, attrRes, appRes, salesRes, notesRes] = await Promise.all([
-      supabase.auth.getUser(),
+    const [contactRes, attrRes, appRes, salesRes, notesRes] = await Promise.all([
       supabase.from('contacts').select('*').eq('id', id).eq('tenant_id', tenantId).single(),
       supabase
         .from('contact_attributions')
@@ -156,7 +156,7 @@ export default function ContactDetailPage() {
         .order('created_at', { ascending: false }),
     ])
 
-    if (authData?.user) setCurrentUser({ id: authData.user.id })
+    if (sesion) setCurrentUser({ id: sesion.userId })
 
     if (contactRes.error || !contactRes.data) {
       setNotFound(true)
@@ -184,7 +184,7 @@ export default function ContactDetailPage() {
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id])
+  }, [id, sesion])
 
   const handleUpdateContact = async (formData: ContactFormData) => {
     if (!contact) return
@@ -216,13 +216,9 @@ export default function ContactDetailPage() {
     if (!newNote.trim()) return
     setSavingNote(true)
     const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
     const { error } = await supabase.from('contact_notes').insert({
       contact_id: id,
-      author_id: user?.id ?? currentUser?.id ?? null,
+      author_id: sesion?.userId ?? currentUser?.id ?? null,
       note: newNote.trim(),
       tenant_id: tenantId,
     })

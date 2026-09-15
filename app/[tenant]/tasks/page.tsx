@@ -6,7 +6,7 @@ import { activeUserNamesQuery } from '@/lib/users'
 import { ListChecks, Plus, Sparkles, X, Loader2, Trash2, Calendar } from 'lucide-react'
 import { toast } from 'sonner'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
-import { useTenant } from '@/lib/tenant-context'
+import { useSesion, useTenant } from '@/lib/tenant-context'
 
 const STAGES = [
   { value: 'backlog', label: 'Sin empezar' },
@@ -59,6 +59,7 @@ type DbUser = { id: string; full_name: string }
 
 export default function TasksPage() {
   const tenant = useTenant()
+  const sesion = useSesion()
   const [tasks, setTasks] = useState<Task[]>([])
   const [users, setUsers] = useState<DbUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -99,22 +100,16 @@ export default function TasksPage() {
 
   const load = async () => {
     const supabase = createClient()
-    const [tRes, uRes, authRes] = await Promise.all([
+    const [tRes, uRes] = await Promise.all([
       supabase.from('tasks').select('*, assignee:assignee_id(full_name)').order('created_at', { ascending: false }),
       activeUserNamesQuery(supabase),
-      supabase.auth.getUser(),
     ])
     setTasks((tRes.data as Task[]) || [])
     setUsers((uRes.data as DbUser[]) || [])
 
-    if (authRes.data.user) {
-      setCurrentUserId(authRes.data.user.id)
-      const { data: userData } = await supabase
-        .from('users')
-        .select('roles(key)')
-        .eq('id', authRes.data.user.id)
-        .single()
-      const roleKey = (userData as { roles?: { key?: string } } | null)?.roles?.key
+    if (sesion) {
+      setCurrentUserId(sesion.userId)
+      const roleKey = sesion.rol
       const admin = roleKey === 'admin' || roleKey === 'director' || roleKey === 'manager'
       setCanDelete(roleKey === 'admin' || roleKey === 'director')
       setIsAdmin(admin)
@@ -125,7 +120,8 @@ export default function TasksPage() {
   }
   useEffect(() => {
     load()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sesion])
 
   const patch = async (id: string, p: Partial<Task>) => {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...p } : t)))

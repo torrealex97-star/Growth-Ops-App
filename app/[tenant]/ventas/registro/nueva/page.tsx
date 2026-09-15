@@ -15,7 +15,7 @@ import { toast } from 'sonner'
 import { buildRestInstallments } from '@/lib/commissions/calculator'
 import { addDays } from 'date-fns'
 import type { Contact, Product, PaymentPlan, User as DbUser, Appointment } from '@/lib/types/database'
-import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 
 // UUID v4 con fallback para navegadores sin crypto.randomUUID (contextos no seguros/antiguos).
 function genUuid(): string {
@@ -40,6 +40,7 @@ const STEPS = [
 export default function NewSalePage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
+  const sesion = useSesion()
   const router = useRouter()
 
   const [step, setStep] = useState<Step>(1)
@@ -137,15 +138,14 @@ export default function NewSalePage() {
       setUsers(usersRes.data ?? [])
 
       // Usuario actual (para prerellenar el closer con quien registra la venta).
-      const { data: auth } = await supabase.auth.getUser()
-      if (auth.user) {
-        setCurrentUserId(auth.user.id)
-        const { data: me } = await supabase.from('users').select('roles(key)').eq('id', auth.user.id).maybeSingle()
-        setCurrentRoleKey((me?.roles as { key?: string } | null)?.key ?? '')
+      if (sesion) {
+        setCurrentUserId(sesion.userId)
+        setCurrentRoleKey(sesion.rol ?? '')
       }
     }
     fetchData()
-  }, [tenantId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId, sesion])
 
   // Prefill desde query params (?contact=&reserva=&product=&reservationId=) al venir de "Completar pago" de una reserva
   useEffect(() => {
@@ -515,8 +515,7 @@ export default function NewSalePage() {
     setSubmitting(true)
     const supabase = createClient()
 
-    const { data: authUser } = await supabase.auth.getUser()
-    if (!authUser.user) {
+    if (!sesion) {
       toast.error('No autenticado')
       setSubmitting(false)
       return
@@ -715,7 +714,7 @@ export default function NewSalePage() {
         ...teamFields,
         ...buyerFields,
         status: 'active' as const,
-        created_by: authUser.user.id,
+        created_by: sesion.userId,
         updated_by: null,
         notes: notes || null,
       }
@@ -736,7 +735,7 @@ export default function NewSalePage() {
       saleId = newSaleId
       await supabase.from('audit_logs').insert({
         tenant_id: tenantId,
-        actor_user_id: authUser.user.id,
+        actor_user_id: sesion.userId,
         entity_type: 'sale',
         entity_id: saleId,
         action: 'create',

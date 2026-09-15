@@ -37,6 +37,16 @@ export function normalizarRuta(pathname: string): string {
     .join('/')
 }
 
+/**
+ * Variante para telemetría de navegador: el primer segmento es el slug de la subcuenta.
+ * Se sustituye para no enviar nombres de negocio a terceros y para agrupar la misma pantalla
+ * de todas las subcuentas en una sola serie.
+ */
+export function normalizarRutaTenant(pathname: string): string {
+  const normalizada = normalizarRuta(pathname)
+  return normalizada.replace(/^\/[^/]+(?=\/|$)/, '/:tenant')
+}
+
 /** Un id de petición. Corto para que se pueda dictar por teléfono, aleatorio para que no sea adivinable. */
 export function nuevoRequestId(): string {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 16)

@@ -19,7 +19,7 @@ import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-b
 import { ContactForm, type ContactFormData } from '@/components/contacts/ContactForm'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { LEAD_STATUSES, leadStatusMeta, type LeadStatus } from '@/lib/lead-status'
-import { useTenant } from '@/lib/tenant-context'
+import { useSesion, useTenant } from '@/lib/tenant-context'
 
 type Channel = 'whatsapp' | 'llamada' | 'email' | 'otro' | ''
 type SetSource = 'closer' | 'setter' | 'cold_caller' | 'affiliate' | null
@@ -195,6 +195,7 @@ const COLS_STORAGE_KEY = 'leads_cols'
 
 export function ContactsLeadsView() {
   const tenant = useTenant()
+  const sesion = useSesion()
   const [leads, setLeads] = useState<LeadRow[]>([])
   const [appts, setAppts] = useState<ApptLite[]>([])
   const [loading, setLoading] = useState(true)
@@ -314,12 +315,9 @@ export function ContactsLeadsView() {
     if (!note) return
     setSavingNote(true)
     const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
     const { error } = await supabase.from('contact_notes').insert({
       contact_id: id,
-      author_id: user?.id ?? null,
+      author_id: sesion?.userId ?? null,
       note,
     })
     setSavingNote(false)

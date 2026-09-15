@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
+import { useSesion } from '@/lib/tenant-context'
 
 const STATUSES = [
   { value: 'agendado', label: 'Agendado' },
@@ -48,6 +49,7 @@ type DbUser = { id: string; full_name: string }
 type DbContact = { id: string; full_name: string }
 
 export default function CsmEventsPage() {
+  const sesion = useSesion()
   const [items, setItems] = useState<CsmEventRow[]>([])
   const [contacts, setContacts] = useState<DbContact[]>([])
   const [csmUsers, setCsmUsers] = useState<DbUser[]>([])
@@ -118,9 +120,6 @@ export default function CsmEventsPage() {
       return
     }
     const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
     const { error } = await supabase.from('csm_events').insert({
       contact_id: ne.contact_id,
       csm_id: ne.csm_id || null,
@@ -128,7 +127,7 @@ export default function CsmEventsPage() {
       event_datetime: new Date(ne.event_datetime).toISOString(),
       notes: ne.notes || null,
       status: 'agendado',
-      created_by: user?.id,
+      created_by: sesion?.userId ?? null,
     })
     if (error) {
       toast.error('Error al crear', { description: error.message })

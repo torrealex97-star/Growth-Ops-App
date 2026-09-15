@@ -55,7 +55,7 @@ import type {
   SaleStatus,
   CommissionRule,
 } from '@/lib/types/database'
-import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 
 type AppointmentCallInfo = {
   recording_url: string | null
@@ -99,6 +99,7 @@ const COMMISSION_STATUS_COLORS: Record<string, string> = {
 export default function SaleDetailPage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
+  const sesion = useSesion()
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [sale, setSale] = useState<SaleWithRelations | null>(null)
@@ -174,44 +175,42 @@ export default function SaleDetailPage() {
   const fetchData = useCallback(async () => {
     const supabase = createClient()
 
-    const [saleRes, collectionsRes, installmentsRes, commissionsRes, auditRes, rulesRes, userRes, usersRes] =
-      await Promise.all([
-        supabase
-          .from('sales')
-          .select(
-            `*, contacts(*), products(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name)`
-          )
-          .eq('id', id)
-          .eq('tenant_id', tenantId)
-          .single(),
-        supabase
-          .from('collections')
-          .select('*')
-          .eq('sale_id', id)
-          .eq('tenant_id', tenantId)
-          .order('collected_at', { ascending: false }),
-        supabase
-          .from('sale_expected_installments')
-          .select('*')
-          .eq('sale_id', id)
-          .eq('tenant_id', tenantId)
-          .order('installment_number'),
-        // Desambiguar el embed: commissions tiene 2 FK a users (user_id y approved_by) → PGRST201 si no
-        supabase
-          .from('commissions')
-          .select('*, users!commissions_user_id_fkey(full_name)')
-          .eq('sale_id', id)
-          .eq('tenant_id', tenantId),
-        supabase
-          .from('audit_logs')
-          .select('*')
-          .eq('entity_id', id)
-          .eq('tenant_id', tenantId)
-          .order('created_at', { ascending: false }),
-        supabase.from('commission_rules').select('*').eq('is_active', true).eq('tenant_id', tenantId),
-        supabase.auth.getUser(),
-        supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
-      ])
+    const [saleRes, collectionsRes, installmentsRes, commissionsRes, auditRes, rulesRes, usersRes] = await Promise.all([
+      supabase
+        .from('sales')
+        .select(
+          `*, contacts(*), products(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name)`
+        )
+        .eq('id', id)
+        .eq('tenant_id', tenantId)
+        .single(),
+      supabase
+        .from('collections')
+        .select('*')
+        .eq('sale_id', id)
+        .eq('tenant_id', tenantId)
+        .order('collected_at', { ascending: false }),
+      supabase
+        .from('sale_expected_installments')
+        .select('*')
+        .eq('sale_id', id)
+        .eq('tenant_id', tenantId)
+        .order('installment_number'),
+      // Desambiguar el embed: commissions tiene 2 FK a users (user_id y approved_by) → PGRST201 si no
+      supabase
+        .from('commissions')
+        .select('*, users!commissions_user_id_fkey(full_name)')
+        .eq('sale_id', id)
+        .eq('tenant_id', tenantId),
+      supabase
+        .from('audit_logs')
+        .select('*')
+        .eq('entity_id', id)
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false }),
+      supabase.from('commission_rules').select('*').eq('is_active', true).eq('tenant_id', tenantId),
+      supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
+    ])
 
     if (saleRes.error) {
       toast.error('Venta no encontrada')
@@ -255,18 +254,9 @@ export default function SaleDetailPage() {
       setAppointmentCall(null)
     }
 
-    // Fetch user role
-    if (userRes.data.user) {
-      const { data: userData } = await supabase
-        .from('users')
-        .select('roles(key)')
-        .eq('id', userRes.data.user.id)
-        .single()
-      const roleKey = (userData as { roles?: { key?: string } } | null)?.roles?.key ?? null
-      setUserRole(roleKey)
-    }
+    setUserRole(sesion?.rol ?? null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, tenantId])
+  }, [id, tenantId, sesion])
 
   useEffect(() => {
     fetchData()

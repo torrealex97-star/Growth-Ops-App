@@ -9,7 +9,7 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import type { Contact, PaymentPlan, Product } from '@/lib/types/database'
-import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 
 type ReservationRow = {
   id: string
@@ -30,6 +30,7 @@ type ReservationRow = {
 export default function ReservasPage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
+  const sesion = useSesion()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
@@ -42,15 +43,13 @@ export default function ReservasPage() {
       setLoading(true)
       const supabase = createClient()
 
-      const { data: authData } = await supabase.auth.getUser()
-      let myId: string | null = null
-      let canViewAll = false
-      if (authData.user) {
-        myId = authData.user.id
-        const { data: userData } = await supabase.from('users').select('roles(key)').eq('id', authData.user.id).single()
-        const roleKey = (userData as { roles?: { key?: string } } | null)?.roles?.key as AppRole | undefined
-        canViewAll = roleKey ? isLeadership(roleKey) : false
+      if (!sesion) {
+        setLoading(false)
+        return
       }
+      const myId = sesion.userId
+      const roleKey = sesion.rol as AppRole | null
+      const canViewAll = roleKey ? isLeadership(roleKey) : false
 
       const cols =
         'id, contact_id, product_id, payment_plan_id, gross_amount, sale_date, reservation_amount, reservation_completed_at, closer_id, setter_id, contacts(full_name,email), products(id,name), payment_plans(method,name)'
@@ -116,7 +115,8 @@ export default function ReservasPage() {
     }
 
     fetchData()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sesion, tenantId])
 
   const nq = normalizeText(q.trim())
   const matchesQ = (row: ReservationRow) =>

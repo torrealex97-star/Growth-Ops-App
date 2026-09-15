@@ -25,6 +25,7 @@ import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/perio
 import { originLabel } from '@/lib/ads/funnel'
 import { isAttended } from '@/lib/appointments/status'
 import { countryISOForPhone, regionForISO } from '@/lib/phone'
+import { useSesion } from '@/lib/tenant-context'
 
 type MetricsAppointmentRow = {
   id: string
@@ -157,6 +158,7 @@ function FunnelStep({
 }
 
 export default function VentasMetricasPage() {
+  const sesion = useSesion()
   const [loading, setLoading] = useState(true)
   const [appointments, setAppointments] = useState<MetricsAppointmentRow[]>([])
   const [sales, setSales] = useState<MetricsSaleRow[]>([])
@@ -176,7 +178,7 @@ export default function VentasMetricasPage() {
     let mounted = true
     async function load() {
       const supabase = createClient()
-      const [apptRes, salesRes, collRes, usersRes, contactsRes, authRes] = await Promise.all([
+      const [apptRes, salesRes, collRes, usersRes, contactsRes] = await Promise.all([
         supabase
           .from('appointments')
           .select(
@@ -186,7 +188,6 @@ export default function VentasMetricasPage() {
         supabase.from('collections').select('gross_amount, commissionable_amount, collected_at'),
         supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
         supabase.from('contacts').select('id, phone'),
-        supabase.auth.getUser(),
       ])
       if (!mounted) return
       setAppointments((apptRes.data as MetricsAppointmentRow[] | null) || [])
@@ -205,17 +206,14 @@ export default function VentasMetricasPage() {
         rMap.set(c.id, regionForISO(countryISOForPhone(c.phone)))
       }
       setRegionByContact(rMap)
-      if (authRes.data.user) {
-        const { data: urow } = await supabase.from('users').select('roles(key)').eq('id', authRes.data.user.id).single()
-        setMyRole((urow?.roles as { key?: string } | null)?.key ?? null)
-      }
+      setMyRole(sesion?.rol ?? null)
       setLoading(false)
     }
     load()
     return () => {
       mounted = false
     }
-  }, [])
+  }, [sesion])
 
   const monthOptions = useMemo(() => lastNMonths(12, nowYm()).reverse(), [])
 

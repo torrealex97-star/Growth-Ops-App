@@ -338,16 +338,12 @@ export default function EnlacesPage() {
 
     setSubmitting(true)
     const supabase = createClient()
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser()
-
     const payload = {
       name,
       base_url: normalizedUrl,
       applies_to: appliesTo,
       is_active: isActive,
-      created_by: authUser?.id ?? null,
+      created_by: sesion?.userId ?? null,
     }
 
     const { error } = editingId
@@ -400,13 +396,10 @@ export default function EnlacesPage() {
     if (!nm) return
     setSavingDivision(true)
     const supabase = createClient()
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser()
     const { error } = await supabase.from('resource_link_divisions').insert({
       name: nm,
       sort_order: divisions.length,
-      created_by: authUser?.id ?? null,
+      created_by: sesion?.userId ?? null,
     })
     setSavingDivision(false)
     if (error) {
@@ -495,10 +488,6 @@ export default function EnlacesPage() {
 
     setResSubmitting(true)
     const supabase = createClient()
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser()
-
     const payload = {
       division_id: divId,
       category: divId ? divisionName(divId) : 'General', // respaldo/legacy
@@ -507,7 +496,7 @@ export default function EnlacesPage() {
       description: resDescription.trim() || null,
       applies_to: resAppliesTo,
       is_active: resActive,
-      created_by: authUser?.id ?? null,
+      created_by: sesion?.userId ?? null,
     }
 
     const { error } = resEditingId
