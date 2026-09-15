@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   serverExternalPackages: ['papaparse'],
+  // Este repositorio vive dentro de una carpeta que también contiene otro package-lock.
+  // Fijar la raíz evita que Next tracee desde /Documents y meta archivos ajenos en el
+  // artefacto serverless (más tamaño, I/O y riesgo de un despliegue incompleto).
+  outputFileTracingRoot: __dirname,
   async redirects() {
     // Reorganización de la sección "Ventas" (CRM / Ventas & Cobros / Analítica / Comisiones /
     // Recursos de venta). Redirects 301 desde cada ruta vieja para no romper enlaces ni bookmarks.

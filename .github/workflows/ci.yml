@@ -19,8 +19,8 @@ jobs:
     name: Format · Lint · Typecheck · Dead code · Unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           # Node 24 ejecuta imports TypeScript en los tests nativos y coincide con
           # el runtime local/Vercel usado para validar este repositorio.
@@ -43,8 +43,8 @@ jobs:
     needs: quality
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
