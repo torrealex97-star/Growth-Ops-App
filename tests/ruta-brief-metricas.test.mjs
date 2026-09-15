@@ -57,7 +57,7 @@ test('todas las lecturas de FILAS pasan por el paginador', () => {
   assert.match(codigo, /fuentesRecortadas/)
 })
 
-test('las cuatro lecturas van en paralelo', () => {
+test('las lecturas de métricas van en paralelo', () => {
   assert.match(sinComentarios(leer(CONSULTA)), /await Promise\.all\(\[/)
 })
 
@@ -81,6 +81,9 @@ test('el nombre de las columnas es el real, no el que uno recuerda', () => {
   assert.doesNotMatch(sinComentarios(codigo), /select\('[^']*\bamount\b[^']*'\)/)
   // Y las respuestas del formulario están en raw_payload, no en qualification (0 de 559 en producción).
   assert.match(codigo, /qualification, raw_payload/)
+  // Speed to Lead sale de dos timestamps reales del contacto; no de la fecha de la cita ni de una
+  // aproximación inventada en el frontend.
+  assert.match(codigo, /created_at, first_contact_at/)
 })
 
 // ---------------------------------------------------------------------------------------------

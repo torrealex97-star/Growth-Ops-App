@@ -1,6 +1,6 @@
 # Hoja de ruta MVP — funnels, integraciones y aprovisionamiento
 
-Última actualización: 2026-09-13 (Claude Code).
+Última actualización: 2026-09-15 (Codex).
 Sustituye a `PLAN_FUNNELS_INTEGRACIONES.md` (rama `claude/plan-funnels-integraciones`), cuyo §3.4
 contenía dos recomendaciones erróneas ya corregidas aquí.
 
@@ -38,6 +38,13 @@ GA4 sí sirve: rango de fechas arbitrario, dimensiones de source/medium/campaign
 y eventos de conversión. Es la fuente correcta para Web/SEO.
 
 ## 3. Estado y orden de ejecución
+
+Actualización de métricas (2026-09-15): Speed to Lead, BAMFAM y el acuerdo de cualificación
+marketing ↔ ventas ya consumen las columnas canónicas existentes. Las alertas priorizadas que
+produce el Growth Brief aparecen también dentro de Notificaciones. `LTGP:CAC` permanece sin medir hasta que el negocio registre
+el margen bruto por cliente; no se sustituye por ingresos. Las anotaciones temporales en gráficos
+siguen pendientes porque las alertas actuales describen un periodo, no una fecha concreta que se
+pueda colocar honestamente sobre una serie.
 
 Leyenda: ✅ hecho · 🚧 en curso · ⛔ bloqueado por el usuario · ⬜ pendiente
 

@@ -13,6 +13,12 @@
 
 import { evaluarCualificacion } from '@/lib/metrics/cualificacion'
 import { extraerRespuestas } from '@/lib/metrics/respuestas-formulario'
+import {
+  compararCualificaciones,
+  cualificacionVentas,
+  resumirConcordancia,
+} from '@/lib/metrics/concordancia-cualificacion'
+import { esElegibleBamfam } from '@/lib/agenda/marcado'
 
 /** Lo que se sabe de UNA métrica tras mirar las filas. */
 export type Medicion = {
@@ -74,6 +80,8 @@ export type FilaCita = {
   status: string | null
   result?: string | null
   offered?: boolean | null
+  /** Marcado del closer: existe una siguiente reunión agendada. Alimenta BAMFAM. */
+  needs_followup?: boolean | null
   /**
    * El payload del proveedor, TAL COMO LLEGÓ. Es donde están de verdad las respuestas del formulario:
    * comprobado en producción, `raw_payload->invitee->questions_and_answers` las trae en 473 de 559 citas,
@@ -93,6 +101,11 @@ export type FilaCampana = {
   leads: number | string | null
 }
 
+export type FilaContacto = {
+  created_at: string | null
+  first_contact_at: string | null
+}
+
 export type Periodo = { desde: string; hasta: string }
 
 export type Entrada = {
@@ -100,6 +113,7 @@ export type Entrada = {
   cobros: FilaCobro[]
   citas: FilaCita[]
   campanas: FilaCampana[]
+  contactos?: FilaContacto[]
   periodo: Periodo
   /** Ticket comprometido medio conocido, para estimaciones. `null` si no se sabe. */
   ticketConocidoEur?: number | null
@@ -109,6 +123,13 @@ const num = (v: unknown): number => {
   if (v === null || v === undefined || v === '') return 0
   const n = typeof v === 'number' ? v : Number(v)
   return Number.isFinite(n) ? n : 0
+}
+
+function mediana(valores: number[]): number | null {
+  if (valores.length === 0) return null
+  const ordenados = [...valores].sort((a, b) => a - b)
+  const centro = Math.floor(ordenados.length / 2)
+  return ordenados.length % 2 === 0 ? (ordenados[centro - 1] + ordenados[centro]) / 2 : ordenados[centro]
 }
 
 /** Estados de venta que cuentan. Una venta reembolsada o anulada no es facturación del periodo. */
@@ -204,6 +225,18 @@ export function calcularAgregados(e: Entrada): Agregados {
   const conOfertaMarcada = shows.filter((c) => c.offered !== null && c.offered !== undefined)
   const ofertas = shows.filter((c) => c.offered === true)
 
+  // Speed to lead vive en contacts desde la migración original. Solo se usan pares de fechas válidos
+  // y no negativos: un timestamp anterior a la creación es dato corrupto, no una respuesta instantánea.
+  const contactosDelPeriodo = (e.contactos ?? []).filter((c) => enPeriodo(c.created_at, p))
+  const minutosHastaContacto = contactosDelPeriodo.flatMap((c) => {
+    if (!c.created_at || !c.first_contact_at) return []
+    const creado = new Date(c.created_at).getTime()
+    const contactado = new Date(c.first_contact_at).getTime()
+    const minutos = (contactado - creado) / 60_000
+    return Number.isFinite(minutos) && minutos >= 0 ? [minutos] : []
+  })
+  const medianaSpeedToLead = mediana(minutosHastaContacto)
+
   const m: Agregados = {}
 
   m.cash_collected = { valor: r2(cash), muestra: cobrosDelPeriodo.length }
@@ -281,14 +314,57 @@ export function calcularAgregados(e: Entrada): Agregados {
       ? porcentaje(ventasConCita, ofertas.length, '')
       : sinDato('No hay ofertas marcadas en el periodo: no se puede medir el cierre sobre oferta.')
 
-  // Estas dos necesitan datos que hoy no se capturan. Se declaran como huecos EXPLÍCITOS en vez de
-  // omitirlas: un panel al que le falta una métrica sin decirlo parece completo y no lo está.
+  // LTGP sigue siendo un hueco real: ninguna tabla registra todavía el margen bruto de por vida por
+  // cliente. Usar facturación o cash como sustituto convertiría ingresos en beneficio y falsearía la
+  // métrica que decide si se puede escalar.
   m.ltgp_cac = sinDato('Falta el margen bruto por cliente (LTGP) para poder dividirlo por el CAC.')
-  m.speed_to_lead = sinDato('Aún no se registra la hora del primer contacto: se medirá desde setting-conversaciones.')
-  m.bamfam_rate = sinDato('Aún no se registra si la siguiente cita se agendó durante la llamada.')
-  m.tasa_concordancia_cualificacion = sinDato(
-    'Requiere el juicio de ventas sobre la cualificación, que se marca en la agenda y todavía está vacío.'
+
+  m.speed_to_lead =
+    medianaSpeedToLead === null
+      ? sinDato(
+          contactosDelPeriodo.length > 0
+            ? `Hay ${contactosDelPeriodo.length} contactos en el periodo, pero ninguno tiene una hora de primer contacto válida.`
+            : 'No hay contactos creados en el periodo: no se puede medir el tiempo hasta el primer contacto.'
+        )
+      : {
+          valor: r2(medianaSpeedToLead),
+          muestra: minutosHastaContacto.length,
+          motivo:
+            minutosHastaContacto.length < contactosDelPeriodo.length
+              ? `Se calcula sobre ${minutosHastaContacto.length} de ${contactosDelPeriodo.length} contactos con ambas horas válidas.`
+              : undefined,
+        }
+
+  const elegiblesBamfam = citasDelPeriodo.filter(esElegibleBamfam)
+  m.bamfam_rate =
+    elegiblesBamfam.length > 0
+      ? porcentaje(elegiblesBamfam.filter((c) => c.needs_followup === true).length, elegiblesBamfam.length, '')
+      : sinDato('No hay llamadas asistidas sin venta en el periodo sobre las que medir una siguiente reunión.')
+
+  const concordancia = resumirConcordancia(
+    citasDelPeriodo.map((c, indice) =>
+      compararCualificaciones(
+        veredictos[indice],
+        cualificacionVentas(c),
+        c.status === 'show' || c.status === 'completed'
+      )
+    )
   )
+  m.tasa_concordancia_cualificacion =
+    concordancia.tasaConcordancia === null
+      ? sinDato(
+          citasDelPeriodo.length > 0
+            ? 'No hay agendas donde formulario y closer se hayan pronunciado: todavía no existe una muestra comparable.'
+            : 'No hay agendas en el periodo: no se puede comparar la cualificación de marketing y ventas.'
+        )
+      : {
+          valor: r2(concordancia.tasaConcordancia),
+          muestra: concordancia.comparables,
+          motivo:
+            concordancia.comparables < citasDelPeriodo.length
+              ? `Se compara en ${concordancia.comparables} de ${citasDelPeriodo.length} agendas; las demás no tienen las dos valoraciones.`
+              : undefined,
+        }
 
   return m
 }
