@@ -5,7 +5,7 @@ import { runYoutubeSync } from '@/lib/youtube/backfill'
 import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
-export const maxDuration = 120
+export const maxDuration = 60
 
 // Backfill de reels antiguos a YouTube, repartido en 3 pasadas al día (mañana/mediodía/noche)
 // vía Supabase pg_cron, en vez de subir todo el cupo diario de golpe en una sola pasada del

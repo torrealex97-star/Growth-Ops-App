@@ -30,7 +30,10 @@ export async function GET(req: NextRequest, { params: routeParams }: { params: P
     })
     const css = await res.text()
     return new NextResponse(css, {
-      headers: { 'Content-Type': 'text/css', 'Cache-Control': 'public, max-age=86400' },
+      headers: {
+        'Content-Type': 'text/css',
+        'Cache-Control': 'public, max-age=604800, s-maxage=604800, stale-while-revalidate=86400',
+      },
     })
   } catch {
     return new NextResponse('', { headers: { 'Content-Type': 'text/css' } })

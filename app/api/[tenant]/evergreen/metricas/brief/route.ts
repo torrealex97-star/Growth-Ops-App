@@ -137,6 +137,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     )
   }
 
+  // EL HUECO DE ATRIBUCIÓN, dicho en vez de callado. Sin origen no hay CAC por canal, ni se puede
+  // separar lo orgánico de la web de los anuncios: el panel enseñaría un CAC global y nadie sabría de
+  // qué canal viene. Se avisa con el número exacto para que no parezca una opinión.
+  const { contactos, conAtribucion } = consulta.atribucion
+  if (contactos > 0 && conAtribucion < contactos) {
+    alertas.push(
+      alertaCalidadDato({
+        key: 'atribucion_contactos',
+        que: 'el origen de los contactos',
+        detalle: `${conAtribucion} de ${contactos} contactos tienen origen conocido. Sin eso no hay CAC por canal ni se puede separar lo orgánico de los anuncios.`,
+        comoArreglar:
+          'Añadir parámetros UTM a los enlaces de reserva de los anuncios, o instalar el snippet de tracking en la landing. Mientras no lleguen, no hay nada que atribuir.',
+      })
+    )
+  }
+
   const capacidad = {
     // La utilización solo se calcula si una persona ha declarado la capacidad: sin ese dato no se puede
     // saber si hay techo, y el motor devuelve `con_cautela` en vez de luz verde.
@@ -169,6 +185,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
       fuentesRecortadas: consulta.fuentesRecortadas,
       ticketMedioUsado: ticketMedio,
       contextoConfigurado: contexto !== null && contexto.precioOfertaEur !== null,
+      atribucion: consulta.atribucion,
     },
     requestId: auth.requestId,
   })

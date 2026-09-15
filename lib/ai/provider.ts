@@ -120,7 +120,7 @@ async function deepseekText(req: TextRequest, env: Env): Promise<TextResult> {
         { role: 'user', content: req.user },
       ],
     }),
-    signal: AbortSignal.timeout(120_000),
+    signal: AbortSignal.timeout(45_000),
   })
   const body = (await response.json().catch(() => ({}))) as {
     choices?: { message?: { content?: string } }[]
@@ -140,7 +140,7 @@ async function anthropicText(req: TextRequest, env: Env): Promise<TextResult> {
   const model = req.smart ? ANTHROPIC_SMART : ANTHROPIC_FAST
   // maxRetries alto porque Anthropic devuelve 529 (overloaded) en picos y el default del SDK (2) no
   // siempre aguanta hasta que se libera capacidad.
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 6 })
+  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 1, timeout: 45_000 })
   const msg = await client.messages.create({
     model,
     max_tokens: req.maxTokens,

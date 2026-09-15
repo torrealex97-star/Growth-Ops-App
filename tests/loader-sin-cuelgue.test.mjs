@@ -44,6 +44,24 @@ test('hay techo de tiempo: una consulta que no responde no cuelga la pantalla', 
   assert.match(codigo, /return \(\) => \{[\s\S]{0,160}clearTimeout\(porTiempo\)/)
 })
 
+test('el timeout cancela o descarta TODAS las operaciones del arranque', () => {
+  const codigo = sinComentarios(leer(LAYOUT))
+  assert.match(codigo, /esperarConAbort\(supabase\.auth\.getUser\(\), cancelar\.signal\)/)
+  assert.equal(
+    (codigo.match(/\.abortSignal\(cancelar\.signal\)/g) || []).length >= 4,
+    true,
+    'tenant, rol, perfil y branding deben soltar la red al desmontar o vencer el tiempo'
+  )
+  assert.match(codigo, /if \(!mounted \|\| cancelar\.signal\.aborted\) return/)
+})
+
+test('el observador del body no acumula timers tras navegar', () => {
+  const codigo = sinComentarios(leer(LAYOUT))
+  assert.match(codigo, /let comprobacionPendiente: ReturnType<typeof setTimeout> \| null = null/)
+  assert.match(codigo, /if \(comprobacionPendiente\) clearTimeout\(comprobacionPendiente\)/)
+  assert.match(codigo, /observer\.disconnect\(\)[\s\S]{0,100}clearTimeout\(comprobacionPendiente\)/)
+})
+
 test('un error de consulta no se confunde con "no tienes acceso"', () => {
   const codigo = sinComentarios(leer(LAYOUT))
   // Decirle a alguien que no tiene acceso cuando lo que falló fue la red le manda a pedir permisos

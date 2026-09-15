@@ -359,6 +359,13 @@ async function metaConectaSinFirma(token: string, version: string): Promise<bool
 /** Veredicto de una comprobación. `code` es una pista ESTABLE para elegir el arreglo a mostrar. */
 type ProbeResult = { ok: boolean; message: string; code?: string }
 
+const PROBE_TIMEOUT_MS = 10_000
+
+/** Evita que una API externa deje abierta una función de Vercel hasta agotar todo su presupuesto. */
+function probeFetch(input: Parameters<typeof fetch>[0], init: RequestInit = {}) {
+  return fetch(input, { ...init, signal: init.signal ?? AbortSignal.timeout(PROBE_TIMEOUT_MS) })
+}
+
 /**
  * Traduce el código HTTP del proveedor a una causa. El mensaje lo escribe la API externa y cambia sin
  * avisar, así que la pantalla no puede depender de parsearlo para decir cómo arreglarlo.
@@ -492,7 +499,7 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
       const results = await Promise.all(
         accounts.map(async (acc) => {
           const url = `https://graph.facebook.com/${ver}/${acc}?fields=name,account_status&access_token=${encodeURIComponent(token)}${proofQs}`
-          const r = await fetch(url)
+          const r = await probeFetch(url)
           const j = await r.json()
           return { acc, ok: r.ok && !j.error, name: j.name as string | undefined, body: j, status: r.status }
         })
@@ -526,7 +533,7 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
       const objetivo = cfg.IG_USER_ID
         ? `${encodeURIComponent(cfg.IG_USER_ID.trim())}?fields=username,media_count`
         : `me/accounts?fields=name`
-      const r = await fetch(`https://graph.facebook.com/${ver}/${objetivo}${qs}`)
+      const r = await probeFetch(`https://graph.facebook.com/${ver}/${objetivo}${qs}`)
       const j = (await r.json()) as { username?: string; media_count?: number; error?: unknown }
       if (!r.ok || j.error) {
         const causa = classifyMetaError(j, r.status)
@@ -542,7 +549,9 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
     if (group === 'calendly') {
       const token = cfg.CALENDLY_API_TOKEN
       if (!token) return { ok: false, message: 'Falta el PAT de Calendly.' }
-      const r = await fetch('https://api.calendly.com/users/me', { headers: { Authorization: `Bearer ${token}` } })
+      const r = await probeFetch('https://api.calendly.com/users/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
       const j = await r.json()
       return r.ok
         ? { ok: true, message: `Usuario: ${j.resource?.name || 'OK'}` }
@@ -572,7 +581,9 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
       if (!key) return { ok: false, message: 'Falta la API key de Resend.' }
       const from = cfg.RESEND_FROM || ''
       const fromDomain = from.match(/@([^>\s]+)/)?.[1]?.toLowerCase() || null
-      const r = await fetch('https://api.resend.com/domains', { headers: { Authorization: `Bearer ${key}` } })
+      const r = await probeFetch('https://api.resend.com/domains', {
+        headers: { Authorization: `Bearer ${key}` },
+      })
       if (r.ok) {
         const j = (await r.json().catch(() => ({}))) as { data?: { name: string; status: string }[] }
         const domains = j.data ?? []
@@ -597,7 +608,7 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
       // de prueba sin destinatario válido para que Resend nos diga si el dominio está verificado.
       const j = (await r.json().catch(() => ({}))) as { name?: string }
       if (r.status === 401 && j?.name === 'restricted_api_key') {
-        const probe = await fetch('https://api.resend.com/emails', {
+        const probe = await probeFetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -651,7 +662,7 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
       const token = cfg.GHL_API_TOKEN
       const locationId = cfg.GHL_LOCATION_ID
       if (!token || !locationId) return { ok: false, message: 'Faltan el token o el Location ID de GoHighLevel.' }
-      const r = await fetch(`https://services.leadconnectorhq.com/locations/${encodeURIComponent(locationId)}`, {
+      const r = await probeFetch(`https://services.leadconnectorhq.com/locations/${encodeURIComponent(locationId)}`, {
         headers: { Authorization: `Bearer ${token}`, Version: '2021-07-28', Accept: 'application/json' },
       })
       const j = (await r.json().catch(() => ({}))) as { location?: { name?: string }; message?: string }
@@ -675,7 +686,7 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
       const basic =
         cfg.HOTMART_BASIC_TOKEN?.trim() ||
         Buffer.from(`${cfg.HOTMART_CLIENT_ID}:${cfg.HOTMART_CLIENT_SECRET}`).toString('base64')
-      const r = await fetch(`https://api-sec-vlc.hotmart.com/security/oauth/token?${query}`, {
+      const r = await probeFetch(`https://api-sec-vlc.hotmart.com/security/oauth/token?${query}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Basic ${basic}` },
       })
@@ -686,7 +697,7 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
     }
     if (group === 'whop') {
       if (!cfg.WHOP_API_KEY) return { ok: false, message: 'Falta la API Key de Whop.' }
-      const r = await fetch('https://api.whop.com/api/v2/me', {
+      const r = await probeFetch('https://api.whop.com/api/v2/me', {
         headers: { Authorization: `Bearer ${cfg.WHOP_API_KEY}` },
       })
       const j = (await r.json().catch(() => ({}))) as { message?: string }
@@ -698,10 +709,12 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
       const missing = [!cfg.ANTHROPIC_API_KEY && 'Anthropic', !cfg.GROQ_API_KEY && 'Groq'].filter(Boolean)
       if (missing.length) return { ok: false, message: `Falta configurar: ${missing.join(', ')}.` }
       const [anthropic, groq] = await Promise.all([
-        fetch('https://api.anthropic.com/v1/models?limit=1', {
+        probeFetch('https://api.anthropic.com/v1/models?limit=1', {
           headers: { 'x-api-key': cfg.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
         }),
-        fetch('https://api.groq.com/openai/v1/models', { headers: { Authorization: `Bearer ${cfg.GROQ_API_KEY}` } }),
+        probeFetch('https://api.groq.com/openai/v1/models', {
+          headers: { Authorization: `Bearer ${cfg.GROQ_API_KEY}` },
+        }),
       ])
       if (!anthropic.ok || !groq.ok) {
         return {
@@ -741,7 +754,7 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
       if (!cfg.YOUTUBE_CLIENT_ID || !cfg.YOUTUBE_CLIENT_SECRET || !cfg.YOUTUBE_REFRESH_TOKEN) {
         return { ok: false, message: 'Faltan credenciales OAuth de YouTube.' }
       }
-      const r = await fetch('https://oauth2.googleapis.com/token', {
+      const r = await probeFetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
@@ -758,7 +771,7 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
     }
     if (group === 'sequra') {
       if (!cfg.SEQURA_MCP_TOKEN) return { ok: false, message: 'Falta el token MCP de SeQura.' }
-      const r = await fetch('https://simba.sequra.com/mcp', {
+      const r = await probeFetch('https://simba.sequra.com/mcp', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

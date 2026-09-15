@@ -5,7 +5,7 @@ import { getTenantConfigWithFallback } from '@/lib/config'
 import { businessToday } from '@/lib/dates/business'
 
 export const runtime = 'nodejs'
-export const maxDuration = 300
+export const maxDuration = 60
 
 const TIME_BUDGET_MS = 270_000 // deja margen sobre maxDuration=300s
 

@@ -38,7 +38,7 @@ export type ChatMessage = { role: 'user' | 'assistant'; content: string }
 // La clave llega de la configuración de la subcuenta (ver lib/config.ts): leerla de `process.env`
 // significaba que el agente de una subcuenta podía consumir la cuenta de Anthropic de otra.
 function anthropicClient(apiKey: string | undefined) {
-  return new Anthropic({ apiKey, maxRetries: 3 })
+  return new Anthropic({ apiKey, maxRetries: 1, timeout: 45_000 })
 }
 
 // Definición de tools en formato Anthropic. input_schema es JSON Schema — el SDK valida que el

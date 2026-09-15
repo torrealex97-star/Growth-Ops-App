@@ -12,7 +12,7 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-export const maxDuration = 120
+export const maxDuration = 60
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params

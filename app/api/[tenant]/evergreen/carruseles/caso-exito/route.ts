@@ -14,7 +14,7 @@ import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-export const maxDuration = 300
+export const maxDuration = 60
 
 const MODEL = 'claude-sonnet-5'
 

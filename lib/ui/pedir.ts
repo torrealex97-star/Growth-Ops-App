@@ -91,6 +91,32 @@ export function tipoPorExcepcion(e: unknown, porTimeout: boolean): TipoFallo {
   return 'red'
 }
 
+/**
+ * Espera una operación que no acepta `AbortSignal` sin permitir que su resultado continúe una
+ * carga ya cancelada. La operación subyacente puede terminar en segundo plano, pero su valor queda
+ * descartado y no puede lanzar nuevas consultas ni escribir estado obsoleto.
+ */
+export function esperarConAbort<T>(operacion: PromiseLike<T>, signal: AbortSignal): Promise<T> {
+  const errorAbort = () => {
+    const error = new Error('Petición cancelada.')
+    error.name = 'AbortError'
+    return error
+  }
+
+  if (signal.aborted) return Promise.reject(errorAbort())
+
+  return new Promise<T>((resolve, reject) => {
+    const alAbortar = () => reject(errorAbort())
+    signal.addEventListener('abort', alAbortar, { once: true })
+
+    Promise.resolve(operacion)
+      .then(resolve, reject)
+      .finally(() => {
+        signal.removeEventListener('abort', alAbortar)
+      })
+  })
+}
+
 export type OpcionesPedir = RequestInit & {
   /** Milisegundos antes de rendirse. `null` para no poner techo (solo para descargas largas). */
   timeoutMs?: number | null

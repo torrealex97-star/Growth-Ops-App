@@ -4,6 +4,7 @@ import { getTenantConfigWithFallback } from '@/lib/config'
 import { mueveDinero, normalizarEventoStripe, verificarFirmaStripe } from '@/lib/stripe/webhook'
 
 export const runtime = 'nodejs'
+export const maxDuration = 10
 
 // WEBHOOK DE STRIPE — la mitad continua de la ingesta económica.
 //

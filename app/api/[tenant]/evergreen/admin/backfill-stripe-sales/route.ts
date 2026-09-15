@@ -4,7 +4,7 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
-export const maxDuration = 300
+export const maxDuration = 60
 
 // Backfill de ventas/cobros desde Stripe para clientes que hoy solo existen en `stripe_customers`
 // (sincronizados en Integraciones → Stripe → "Sincronizar clientes") pero no tienen ninguna venta

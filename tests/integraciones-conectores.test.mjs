@@ -19,10 +19,12 @@ test('cada comprobación se guarda, y una comprobación es una llamada real a la
   assert.match(route, /await saveLastCheck\(tenantId, group, result\)/)
   assert.match(route, /HEALTH_KEY = 'INTEGRATION_HEALTH'/)
   assert.match(route, /onConflict: 'tenant_id,key'/, 'el estado debe guardarse por subcuenta')
-  // probeGueGroup llama a fetch contra cada proveedor: una comprobación que solo mire si el campo
-  // está relleno sería el "conectado" mentiroso que esto viene a quitar.
+  // probeGroup delega en un fetch REAL con timeout: una comprobación que solo mire si el campo está
+  // relleno sería el "conectado" mentiroso que esto viene a quitar.
   const probe = route.slice(route.indexOf('async function probeGroup'))
-  assert.ok([...probe.matchAll(/await fetch\(/g)].length >= 8, 'faltan comprobaciones reales contra APIs')
+  assert.match(route, /return fetch\(input,/)
+  assert.match(route, /AbortSignal\.timeout\(PROBE_TIMEOUT_MS\)/)
+  assert.ok([...probe.matchAll(/await probeFetch\(/g)].length >= 8, 'faltan comprobaciones reales contra APIs')
 })
 
 // El mensaje lo escribe la API externa y cambia sin avisar; el código lo ponemos nosotros y es lo

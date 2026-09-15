@@ -166,7 +166,7 @@ export async function runReport(opts: {
       // y esas filas contaminarían el desglose por landing.
       keepEmptyRows: false,
     }),
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.timeout(45_000),
   })
   const j = (await r.json().catch(() => ({}))) as {
     rows?: Array<{ dimensionValues?: Array<{ value?: string }>; metricValues?: Array<{ value?: string }> }>

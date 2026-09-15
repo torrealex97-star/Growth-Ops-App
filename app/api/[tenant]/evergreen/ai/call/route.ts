@@ -7,7 +7,7 @@ import { GROQ_LIMIT_BYTES, transcribeAudio } from '@/lib/ai/groq'
 import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
-export const maxDuration = 300
+export const maxDuration = 60
 
 function driveFileId(url: string): string | null {
   const m = url.match(/\/file\/d\/([^/]+)/) || url.match(/[?&]id=([^&]+)/)

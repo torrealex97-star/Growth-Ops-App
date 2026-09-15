@@ -45,7 +45,7 @@ export async function uploadReelToYoutube(
 
   // Timeout: es una descarga de vídeo, así que es holgado — pero sin ninguno, un CDN colgado
   // bloquea la subida y el backfill se queda a medias sin decir por qué.
-  const videoRes = await fetch(videoUrl, { signal: AbortSignal.timeout(60_000) })
+  const videoRes = await fetch(videoUrl, { signal: AbortSignal.timeout(45_000) })
   if (!videoRes.ok || !videoRes.body) throw new Error(`No se pudo descargar el vídeo de Instagram (${videoRes.status})`)
   const buffer = Buffer.from(await videoRes.arrayBuffer())
 

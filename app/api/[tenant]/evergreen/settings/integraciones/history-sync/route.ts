@@ -4,7 +4,7 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
-export const maxDuration = 300
+export const maxDuration = 60
 
 import { decideMatch } from '@/lib/fathom/match'
 import { recordSyncRun, SyncBusyError } from '@/lib/integrations/sync-runs'
