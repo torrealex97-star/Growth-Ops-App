@@ -89,6 +89,21 @@ export function MarcadoRapido({ tenant, cita, onMarcado }: Props) {
   // servidor, y si la escritura falla se revierte.
   const [local, setLocal] = useState<Cita>(cita)
 
+  // AL CAMBIAR DE CITA HAY QUE OLVIDAR LA ANTERIOR.
+  //
+  // El panel vive dentro de un Sheet que NO se desmonta: al abrir otra llamada solo cambia el prop.
+  // Sin este reajuste, `local` seguía siendo la cita anterior — y como `marcar()` enviaba `local.id`,
+  // marcar "Venta" en la llamada B la escribía en la llamada A. Los montajes pasan además una `key`
+  // por id, pero esto no puede depender de que quien monte el componente se acuerde: un dato
+  // financiero escrito en el registro equivocado no es un fallo de presentación.
+  //
+  // Se ajusta en el render, no en un efecto: así no se pinta un fotograma con los datos de la cita
+  // que ya no está abierta (es el patrón que documenta React para estado derivado de props).
+  if (local.id !== cita.id) {
+    setLocal(cita)
+    setGuardando(null)
+  }
+
   const asistio =
     local.status === 'show' || local.status === 'completed' ? true : local.status === 'no_show' ? false : null
   const oferta = local.offered ?? null
@@ -96,6 +111,11 @@ export function MarcadoRapido({ tenant, cita, onMarcado }: Props) {
   const seguimiento = local.needs_followup ?? null
 
   const grabacion = local.fathom_meeting_id || local.recording_url
+
+  // Una reunión cancelada no puede tener asistencia ni oferta: no hubo llamada. Ofrecer los botones
+  // invitaría a crear un 'show' sobre algo que no ocurrió, y ese show entraría en el denominador del
+  // Show Rate y del Pitch Rate como si fuera una llamada real.
+  const cancelada = typeof local.status === 'string' && local.status.startsWith('cancelled')
 
   async function marcar(m: Marcado, campo: string, optimista: Partial<Cita>) {
     const previo = local
@@ -105,7 +125,9 @@ export function MarcadoRapido({ tenant, cita, onMarcado }: Props) {
       const res = await fetch(`/api/${tenant}/evergreen/appointments/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appointmentId: local.id, patch: { marcado: m } }),
+        // El id sale del PROP, no de la copia local: si alguna vez el reajuste de arriba fallara, lo
+        // peor que puede pasar es pintar un valor viejo, nunca escribir en la cita equivocada.
+        body: JSON.stringify({ appointmentId: cita.id, patch: { marcado: m } }),
       })
       const data = await res.json()
       if (!res.ok || data?.error) throw new Error(data?.error || 'No se pudo marcar')
@@ -114,7 +136,7 @@ export function MarcadoRapido({ tenant, cita, onMarcado }: Props) {
       if (Array.isArray(data.avisos) && data.avisos.length > 0) {
         toast.success('Marcado', { description: data.avisos.join(' ') })
       }
-      onMarcado?.(local.id, optimista)
+      onMarcado?.(cita.id, optimista)
     } catch (err) {
       setLocal(previo)
       toast.error('No se pudo marcar', { description: err instanceof Error ? err.message : undefined })
@@ -124,6 +146,18 @@ export function MarcadoRapido({ tenant, cita, onMarcado }: Props) {
   }
 
   const cargando = (campo: string) => guardando === campo
+
+  if (cancelada) {
+    return (
+      <div className="rounded-lg border border-border p-4">
+        <h3 className="text-sm font-semibold">Resultado de la llamada</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          La reunión está cancelada, así que no hay asistencia ni oferta que marcar. No cuenta en el Show Rate ni en el
+          Pitch Rate.
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-3 rounded-lg border border-border p-4">

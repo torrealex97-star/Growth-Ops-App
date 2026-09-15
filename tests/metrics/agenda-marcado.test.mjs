@@ -134,3 +134,22 @@ test('las no celebradas quedan fuera del denominador del BAMFAM', () => {
 test('las que acabaron en venta quedan fuera del denominador del BAMFAM', () => {
   assert.equal(esElegibleBamfam({ status: 'show', result: 'venta' }), false)
 })
+
+// ---------------------------------------------------------------------------------------------
+// BUGS ENCONTRADOS AL REVISAR EL TRABAJO DEL MISMO DÍA.
+// ---------------------------------------------------------------------------------------------
+
+// "No cualificado" ES "no se le lanzó la oferta", por la definición del negocio. Antes esto no
+// escribía `offered`, así que la llamada quedaba con el campo nulo —"sin medir"— cuando el closer
+// acababa de declarar justo lo contrario, y el Coste por Agenda Cualificada la excluía del cómputo
+// en vez de contarla como no cualificada.
+test('marcar "no cualificado" registra que NO hubo oferta, no lo deja sin medir', () => {
+  const p = parche({ asistio: true, resultado: 'no_cualificado' })
+  assert.equal(p.offered, false)
+  assert.notEqual(p.offered, undefined)
+})
+
+// Pero sigue siendo una contradicción marcarlo junto a una oferta presentada.
+test('"no cualificado" con oferta presentada sigue siendo contradictorio', () => {
+  assert.match(error({ asistio: true, ofertaPresentada: true, resultado: 'no_cualificado' }), /cualificada/i)
+})

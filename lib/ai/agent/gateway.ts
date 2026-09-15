@@ -8,6 +8,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { estimateCostUsd } from '@/lib/ai/pricing'
+import { avisoRespuestaCortada, serializarResultadoTool } from '@/lib/ai/agent/serializar'
 import * as tools from './tools'
 
 // Modelo único por ahora (solo hay credenciales de Anthropic en este proyecto) — la constante
@@ -424,7 +425,11 @@ export async function runAgent(opts: {
         .map((b) => b.text)
         .join('\n')
         .trim()
-      return { text: text || 'No he podido generar una respuesta.', evidence, usage: buildUsage() }
+      // Si el modelo se quedó sin tokens, la respuesta llega cortada a media frase. Se dice: quien
+      // lee un análisis que acaba en "el CAC ha subido porque" no sabe si falta media frase o la
+      // conclusión entera.
+      const conAviso = avisoRespuestaCortada(text, resp.stop_reason)
+      return { text: conAviso || 'No he podido generar una respuesta.', evidence, usage: buildUsage() }
     }
 
     messages.push({ role: 'assistant', content: resp.content })
@@ -436,7 +441,10 @@ export async function runAgent(opts: {
         const { result, summary } = await callTool(use.name, input, ctx)
         evidence.push({ name: use.name, input, summary })
         opts.onToolCall?.(use.name, input, true, summary, Date.now() - toolStartedAt)
-        toolResults.push({ type: 'tool_result', tool_use_id: use.id, content: JSON.stringify(result).slice(0, 20000) })
+        // Se recorta por DATOS, nunca cortando la cadena: `JSON.stringify(...).slice(...)` dejaba al
+        // modelo un JSON mutilado —sin cerrar y con el último valor a medias— que NO le hace fallar,
+        // le hace RELLENAR. Y rellenar cifras de negocio es el peor fallo posible porque no se nota.
+        toolResults.push({ type: 'tool_result', tool_use_id: use.id, content: serializarResultadoTool(result) })
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e)
         opts.onToolCall?.(use.name, input, false, msg, Date.now() - toolStartedAt)

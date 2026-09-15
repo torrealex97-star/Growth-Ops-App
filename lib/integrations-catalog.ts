@@ -212,6 +212,17 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         help: 'Clave secreta restringida o estándar con permiso de lectura de PaymentIntents.',
       },
       {
+        // El webhook es la mitad CONTINUA de la ingesta: sin esto, un cobro no existe en la app hasta
+        // que alguien pulsa el importador. No es `required` porque la Secret Key sola ya permite el
+        // backfill histórico y la conciliación; sin el secreto lo que se pierde es el tiempo real.
+        key: 'STRIPE_WEBHOOK_SECRET',
+        label: 'Signing secret del webhook',
+        type: 'password',
+        secret: true,
+        placeholder: 'whsec_…',
+        help: 'De Stripe → Developers → Webhooks, en el endpoint que apunta a /api/{subcuenta}/evergreen/webhooks/stripe. Sin él los eventos entrantes se rechazan: no se puede verificar quién los envía.',
+      },
+      {
         key: 'STRIPE_ACCOUNT_ID',
         advanced: true,
         label: 'Connected Account ID (opcional)',
