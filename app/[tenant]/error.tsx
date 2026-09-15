@@ -1,47 +1,49 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
+import * as Sentry from '@sentry/nextjs'
 import { AlertTriangle, RotateCcw } from 'lucide-react'
-import { ShaderBackground } from '@/components/ui/mesh-drift-shader'
+import { normalizarRutaTenant } from '@/lib/observability/peticion'
 
 // Red de seguridad: sin esto, un error de render en cualquier página de /evergreen dejaba la
 // pantalla en blanco/"congelada" sin ninguna pista de qué había pasado (el reporte de "la app se
-// queda bloqueada al filtrar en Ventas" era imposible de diagnosticar sin esto). Ahora se ve el
-// mensaje del error y se puede copiar/pegar, y hay un botón para reintentar sin recargar todo.
+// queda bloqueada al filtrar en Ventas" era imposible de diagnosticar sin esto). Ahora Sentry recibe
+// la excepción con una ruta agrupable y hay un botón para reintentar sin recargar todo. El mensaje
+// técnico no se imprime en pantalla: puede contener detalles internos o datos sensibles.
 export default function EvergreenError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  const pathname = usePathname()
+  const [eventId, setEventId] = useState<string | null>(null)
+
   useEffect(() => {
-    console.error(`[evergreen] Error de render capturado:`, error)
-  }, [error])
+    const capturedId = Sentry.captureException(error, {
+      tags: { route: normalizarRutaTenant(pathname) },
+    })
+    if (process.env.NEXT_PUBLIC_SENTRY_DSN) setEventId(capturedId)
+  }, [error, pathname])
 
   return (
-    <div className="relative min-h-[60vh] flex items-center justify-center p-6 overflow-hidden rounded-xl">
-      {/* Mismo fondo animado que el login: decorativo, no intercepta clics (el shader lee el
-          puntero desde window) y se apaga con prefers-reduced-motion. */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 motion-reduce:hidden">
-        <ShaderBackground className="h-full w-full" />
-      </div>
-      {/* Velo al 50%, más opaco que el 30% del login: aquí encima hay un mensaje de error que debe
-          leerse sin esfuerzo, incluido el bloque monoespaciado con el detalle técnico. */}
-      <div className="pointer-events-none absolute inset-0 bg-background/50" />
-
-      <div className="relative max-w-lg w-full rounded-xl border border-red-500/30 bg-red-500/5 p-6 space-y-4 backdrop-blur-xl">
+    <div className="min-h-[60vh] flex items-center justify-center p-6">
+      <div role="alert" className="max-w-lg w-full rounded-xl border border-red-500/30 bg-red-500/5 p-6 space-y-4">
         <div className="flex items-start gap-3">
           <AlertTriangle className="w-6 h-6 text-red-400 shrink-0 mt-0.5" />
           <div>
             <h2 className="text-foreground font-semibold">Algo ha fallado en esta pantalla</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              No es que se haya quedado colgada: ha ocurrido un error y no se ha podido pintar la página. Copia el
-              mensaje de abajo y pásaselo al equipo para arreglarlo.
+              Ha ocurrido un error y no se ha podido pintar la página. Puedes reintentar sin perder la ruta en la que
+              estabas.
             </p>
           </div>
         </div>
-        <pre className="text-xs text-red-300 bg-background/60 border border-border rounded-lg p-3 overflow-x-auto whitespace-pre-wrap">
-          {error.message || 'Error desconocido'}
-          {error.digest ? `\n\ndigest: ${error.digest}` : ''}
-        </pre>
+        {(eventId || error.digest) && (
+          <p className="text-xs text-muted-foreground">
+            Referencia: <code>{eventId || error.digest}</code>
+          </p>
+        )}
         <button
+          type="button"
           onClick={reset}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium"
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <RotateCcw className="w-4 h-4" /> Reintentar
         </button>

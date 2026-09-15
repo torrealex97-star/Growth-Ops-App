@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { getCustomDateRange } from '@/lib/filters/period'
 import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
+import { useSesion } from '@/lib/tenant-context'
 
 function csvEscape(value: string): string {
   if (value == null) return ''
@@ -100,6 +101,7 @@ type DropRow = {
 }
 
 export default function DropsPage() {
+  const sesion = useSesion()
   const [items, setItems] = useState<DropRow[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [users, setUsers] = useState<DbUser[]>([])
@@ -227,9 +229,6 @@ export default function DropsPage() {
       return
     }
     const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
     const { error } = await supabase.from('drops').insert({
       contact_id: nd.contact_id,
       reason: nd.reason,
@@ -239,7 +238,7 @@ export default function DropsPage() {
       result: nd.result,
       refund_amount: nd.refund_amount ? Number(nd.refund_amount) : 0,
       notes: nd.notes || null,
-      created_by: user?.id,
+      created_by: sesion?.userId ?? null,
     })
     if (error) {
       toast.error('Error al crear', { description: error.message })

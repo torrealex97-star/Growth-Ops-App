@@ -1,5 +1,5 @@
 'use client'
-import { useTenant } from '@/lib/tenant-context'
+import { useSesion, useTenant } from '@/lib/tenant-context'
 
 // Cola global de guiones (transcribir + generar) que vive en el layout de /evergreen,
 // no en la página de Competencia. Así sigue procesando aunque cambies de sección.
@@ -51,6 +51,7 @@ const LS_KEY = 'iaw_script_jobs'
 
 export function ScriptQueueProvider({ children }: { children: React.ReactNode }) {
   const tenant = useTenant()
+  const sesion = useSesion()
   const router = useRouter()
   const [jobs, setJobs] = useState<ScriptJob[]>([])
   const [trayOpen, setTrayOpen] = useState(true)
@@ -193,9 +194,6 @@ export function ScriptQueueProvider({ children }: { children: React.ReactNode })
   const saveDraftAsIdea = async (job: ScriptJob) => {
     if (!job.draft) return
     const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
     const d = job.draft
     const notes = `GUION IA (inspirado en ${job.permalink || 'un reel top'})${d.cta_used ? ` · CTA: ${d.cta_used}` : ''}:\n\nHOOK: ${d.hook}\n\nCAPTION: ${d.caption}\n\nNOTAS: ${d.notes}`
     const { data, error } = await supabase
@@ -208,7 +206,7 @@ export function ScriptQueueProvider({ children }: { children: React.ReactNode })
         script: `HOOK: ${d.hook}\n\n${d.script}\n\nCAPTION: ${d.caption}`,
         reference_reel_url: job.permalink || null,
         reference_transcript: job.transcript || null,
-        created_by: user?.id,
+        created_by: sesion?.userId ?? null,
       })
       .select('id')
       .single()

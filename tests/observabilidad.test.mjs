@@ -50,3 +50,30 @@ test('no se etiqueta nada que identifique a una persona', () => {
   assert.match(etiquetas, /route/)
   assert.match(etiquetas, /request_id/)
 })
+
+test('las rutas de navegador no exponen el slug de la subcuenta', async () => {
+  const { normalizarRutaTenant } = await import(join(root, 'lib/observability/peticion.ts'))
+  assert.equal(normalizarRutaTenant('/women-digital-closer/ventas/registro/123'), '/:tenant/ventas/registro/:n')
+  assert.equal(normalizarRutaTenant('/evergreen/dashboard'), '/:tenant/dashboard')
+})
+
+test('LCP, INP y CLS se miden en el navegador sin crear otro proveedor', () => {
+  const codigo = sinComentarios(leer('components/observability/WebVitalsReporter.tsx'))
+  assert.match(codigo, /useReportWebVitals/)
+  assert.match(codigo, /new Set\(\['CLS', 'INP', 'LCP'\]\)/)
+  assert.match(codigo, /Sentry\.metrics\.distribution/)
+  assert.match(codigo, /normalizarRutaTenant\(pathname\)/)
+  assert.doesNotMatch(codigo, /email|phone|userId|full_name/)
+  assert.match(sinComentarios(leer('app/layout.tsx')), /<WebVitalsReporter \/>/)
+})
+
+test('los límites de error registran la excepción sin exponer el mensaje técnico', () => {
+  for (const fichero of ['app/[tenant]/error.tsx', 'app/global-error.tsx']) {
+    const codigo = sinComentarios(leer(fichero))
+    assert.match(codigo, /Sentry\.captureException\(error/)
+    assert.doesNotMatch(codigo, /\{error\.message/)
+    assert.match(codigo, /role="alert"/)
+  }
+  // El fallback debe seguir siendo barato aunque el error original fuera de GPU/renderizado.
+  assert.doesNotMatch(leer('app/[tenant]/error.tsx'), /ShaderBackground|mesh-drift-shader/)
+})

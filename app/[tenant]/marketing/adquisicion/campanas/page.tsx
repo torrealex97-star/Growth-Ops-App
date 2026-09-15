@@ -14,7 +14,7 @@ import { AdsFunnelPanel, type CampaignTargets } from '@/components/os/AdsFunnelP
 import { DailyMetricsPanel } from '@/components/os/DailyMetricsPanel'
 import { AdsTable } from '@/components/os/AdsTable'
 import { MultiSelect } from '@/components/ui/multi-select'
-import { useTenant } from '@/lib/tenant-context'
+import { useSesion, useTenant } from '@/lib/tenant-context'
 
 // Valores por defecto de los filtros: cuando uno está en su valor por defecto NO se escribe en la
 // URL, así el enlace limpio sigue siendo limpio.
@@ -112,6 +112,7 @@ const ymdLocal = (d: Date) =>
 
 export default function CampaignsPage() {
   const tenant = useTenant()
+  const sesion = useSesion()
   const [items, setItems] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
@@ -349,13 +350,8 @@ export default function CampaignsPage() {
   }
 
   useEffect(() => {
-    const supabase = createClient()
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) return
-      const { data: row } = await supabase.from('users').select('roles(key)').eq('id', data.user.id).single()
-      setRole((row?.roles as { key?: string } | null)?.key ?? null)
-    })
-  }, [])
+    setRole(sesion?.rol ?? null)
+  }, [sesion])
 
   const runSync = async () => {
     setSyncing(true)
@@ -477,9 +473,6 @@ export default function CampaignsPage() {
       return
     }
     const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
     const adspendNum = nc.adspend ? Number(nc.adspend) : 0
     const { data: created, error } = await supabase
       .from('campaigns')
@@ -497,7 +490,7 @@ export default function CampaignsPage() {
         status: 'activa',
         ad_source: nc.ad_source || null,
         notes: nc.notes || null,
-        created_by: user?.id,
+        created_by: sesion?.userId ?? null,
       })
       .select('id, name')
       .single()

@@ -12,7 +12,7 @@ import { createClient } from '@/lib/supabase/client'
 import { activeUserNamesQuery } from '@/lib/users'
 import type { Roleplay } from '@/lib/types/database'
 import { toast } from 'sonner'
-import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 
 type Call = {
@@ -45,6 +45,7 @@ type TeamUser = { id: string; full_name: string }
 export default function BibliotecaPage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
+  const sesion = useSesion()
   const [role, setRole] = useState<AppRole | ''>('')
   const [calls, setCalls] = useState<Call[]>([])
   const [loading, setLoading] = useState(true)
@@ -110,9 +111,6 @@ export default function BibliotecaPage() {
     }
     setSavingRp(true)
     const sb = createClient()
-    const {
-      data: { user },
-    } = await sb.auth.getUser()
     const { error } = await sb.from('roleplays').insert({
       title: rp.title.trim(),
       participant_id: rp.participant_id || null,
@@ -122,7 +120,7 @@ export default function BibliotecaPage() {
       score: rp.score ? Number(rp.score) : null,
       notes: rp.notes.trim() || null,
       shared: true,
-      created_by: user?.id ?? null,
+      created_by: sesion?.userId ?? null,
       tenant_id: tenantId,
     })
     setSavingRp(false)
