@@ -134,8 +134,9 @@ const GROUP_META: Record<string, { icon: typeof Plug; tone: string; steps: strin
     tone: 'from-fuchsia-500/25 to-orange-500/5',
     steps: [
       'Conecta una cuenta profesional de Instagram a una página de Facebook.',
-      'Obtén el identificador de usuario de Instagram Graph API.',
-      'Guarda, verifica y después carga el histórico si lo necesitas.',
+      'En Meta Business asigna esa página y la cuenta de Instagram al usuario que genera el token.',
+      'Genera un token con permisos para leer el perfil, las publicaciones y sus insights; un token solo de Ads no sirve.',
+      'Copia el identificador de Instagram Business, guarda y pulsa «Comprobar» antes de cargar el histórico.',
     ],
     docs: 'https://developers.facebook.com/docs/instagram-platform/instagram-graph-api/get-started/',
   },

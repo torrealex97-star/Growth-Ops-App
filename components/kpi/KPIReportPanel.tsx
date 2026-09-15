@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { KPIForm } from '@/components/kpi/KPIForm'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { CalendarPopover } from '@/components/ui/calendar-popover'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { ClipboardList, Edit2 } from 'lucide-react'
@@ -197,11 +197,12 @@ export function KPIReportPanel() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <p className="text-muted-foreground text-sm">Registra tus métricas diarias</p>
-        <Input
-          type="date"
+        <CalendarPopover
           value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          className="w-44 bg-card border-border"
+          onChange={setSelectedDate}
+          disablePast={false}
+          label="Día del informe KPI"
+          className="w-52 bg-card"
         />
       </div>
 

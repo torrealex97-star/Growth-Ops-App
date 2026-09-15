@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { testimonioPitch, type Testimonio } from '@/lib/testimonios-shared'
 import { useTenant } from '@/lib/tenant-context'
+import { CalendarPopover } from '@/components/ui/calendar-popover'
 
 type Draft = {
   id: string
@@ -182,11 +183,12 @@ export default function ReelsDelDiaPage() {
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
           <label className="text-xs text-muted-foreground">Día</label>
-          <input
-            type="date"
+          <CalendarPopover
             value={day}
-            onChange={(e) => setDay(e.target.value)}
-            className="bg-muted border border-border rounded-lg px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-pink-500"
+            onChange={setDay}
+            disablePast={false}
+            label="Día de los reels"
+            className="h-8 w-44"
           />
         </div>
         <div className="flex items-center gap-1">

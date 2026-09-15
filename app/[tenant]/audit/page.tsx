@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ChevronDown, ChevronRight, Shield, X } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
@@ -148,19 +148,12 @@ export default function AuditPage() {
           </SelectContent>
         </Select>
 
-        <Input
-          type="date"
-          value={dateFrom}
-          max={dateTo || undefined}
-          onChange={(e) => setDateFrom(e.target.value)}
-          className="w-40 bg-card border-border"
-        />
-        <Input
-          type="date"
-          value={dateTo}
-          min={dateFrom || undefined}
-          onChange={(e) => setDateTo(e.target.value)}
-          className="w-40 bg-card border-border"
+        <DateRangeCalendarPopover
+          from={dateFrom}
+          to={dateTo}
+          onFromChange={setDateFrom}
+          onToChange={setDateTo}
+          className="w-full sm:w-72"
         />
         {hasFilters && (
           <Button

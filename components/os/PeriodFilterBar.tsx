@@ -2,9 +2,9 @@
 
 import { useId, type ReactNode } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { CalendarPopover, DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
 import { X, Download } from 'lucide-react'
 import {
   isDateRangeInvalid,
@@ -124,47 +124,27 @@ export function PeriodFilterBar({
             <Label htmlFor={`${id}-day`} className="text-xs text-muted-foreground">
               Día
             </Label>
-            <Input
-              id={`${id}-day`}
-              type="date"
-              value={customFrom}
-              onChange={(e) => onCustomFromChange(e.target.value)}
-              className="bg-muted border-border h-9"
+            <CalendarPopover
+              value={customFrom || null}
+              onChange={onCustomFromChange}
+              disablePast={false}
+              placeholder="Seleccionar día"
+              className="h-9"
             />
           </div>
         )}
 
         {preset === 'custom' && (
-          <>
-            <div className="space-y-1.5">
-              <Label htmlFor={`${id}-from`} className="text-xs text-muted-foreground">
-                Desde
-              </Label>
-              <Input
-                id={`${id}-from`}
-                type="date"
-                value={customFrom}
-                max={customTo || undefined}
-                onChange={(e) => onCustomFromChange(e.target.value)}
-                className="bg-muted border-border h-9"
-                aria-invalid={invalidRange}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor={`${id}-to`} className="text-xs text-muted-foreground">
-                Hasta
-              </Label>
-              <Input
-                id={`${id}-to`}
-                type="date"
-                value={customTo}
-                min={customFrom || undefined}
-                onChange={(e) => onCustomToChange(e.target.value)}
-                className="bg-muted border-border h-9"
-                aria-invalid={invalidRange}
-              />
-            </div>
-          </>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label className="text-xs text-muted-foreground">Fechas</Label>
+            <DateRangeCalendarPopover
+              from={customFrom}
+              to={customTo}
+              onFromChange={onCustomFromChange}
+              onToChange={onCustomToChange}
+              className="h-9"
+            />
+          </div>
         )}
 
         {roles && onRoleChange && (

@@ -1,14 +1,14 @@
 'use client'
-import { useSesion, useTenant } from '@/lib/tenant-context'
+import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import type { Testimonio } from '@/lib/testimonios-shared'
 import {
   Camera,
   RefreshCw,
-  Zap,
   Play,
   Heart,
   MessageCircle,
@@ -22,6 +22,7 @@ import {
   FileText,
   ExternalLink,
   X,
+  AlertTriangle,
   Clock,
 } from 'lucide-react'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar } from 'recharts'
@@ -81,6 +82,7 @@ type YoutubeUpload = {
 }
 type Audience = { dimension: string; bucket: string; value: number }
 type Convo = { snapshot_date: string; total_conversations: number; unique_people: number; total_messages: number }
+type SyncRun = { status: string; started_at: string; error_message: string | null }
 
 type Tab = 'reels' | 'crecimiento' | 'captacion' | 'conversaciones'
 type SortKey = 'views' | 'reach' | 'engagement_rate' | 'saved' | 'follows' | 'published_at'
@@ -92,6 +94,7 @@ const fecha = (s: string | null) =>
 
 export default function InstagramPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const sesion = useSesion()
   const [media, setMedia] = useState<Media[]>([])
   const [fbMedia, setFbMedia] = useState<FbMedia[]>([])
@@ -102,13 +105,13 @@ export default function InstagramPage() {
   const [detail, setDetail] = useState<Media | null>(null)
   const [role, setRole] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [lastSync, setLastSync] = useState<SyncRun | null>(null)
   const [tab, setTab] = useState<Tab>('reels')
   const [platform, setPlatform] = useState<Platform>('all')
   const [sortKey, setSortKey] = useState<SortKey>('views')
   const [busyId, setBusyId] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
-  const [migrating, setMigrating] = useState(false)
-  const [croning, setCroning] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [scriptModal, setScriptModal] = useState<{
     mediaId: string
@@ -123,26 +126,53 @@ export default function InstagramPage() {
 
   const load = async () => {
     const sb = createClient()
-    const [m, d, a, c, fb, yt] = await Promise.all([
-      sb.from('ig_media').select('*').order('published_at', { ascending: false }).limit(500),
+    setLoadError(null)
+    const [m, d, a, c, fb, yt, run] = await Promise.all([
+      sb
+        .from('ig_media')
+        .select(
+          'id, external_id, media_type, media_product_type, caption, permalink, thumbnail_url, media_url, published_at, reach, views, likes, comments, shares, saved, total_interactions, avg_watch_time, reach_followers, reach_non_followers, follows, engagement_rate, transcript, transcript_status, ai_analysis, ai_analyzed_at'
+        )
+        .eq('tenant_id', tenantId)
+        .order('published_at', { ascending: false })
+        .limit(500),
       sb
         .from('ig_account_daily')
         .select('snapshot_date, followers_count, reach, profile_views, new_follows, reach_non_followers')
+        .eq('tenant_id', tenantId)
         .order('snapshot_date'),
-      sb.from('ig_audience').select('dimension, bucket, value'),
+      sb.from('ig_audience').select('dimension, bucket, value').eq('tenant_id', tenantId),
       sb
         .from('ig_conversations_daily')
         .select('snapshot_date, total_conversations, unique_people, total_messages')
+        .eq('tenant_id', tenantId)
         .order('snapshot_date'),
-      sb.from('fb_media').select('external_id, description, permalink, created_time, views, likes, comments'),
-      sb.from('youtube_uploads').select('ig_media_external_id, youtube_video_id, status, views, likes, comments'),
+      sb
+        .from('fb_media')
+        .select('external_id, description, permalink, created_time, views, likes, comments')
+        .eq('tenant_id', tenantId),
+      sb
+        .from('youtube_uploads')
+        .select('ig_media_external_id, youtube_video_id, status, views, likes, comments')
+        .eq('tenant_id', tenantId),
+      sb
+        .from('integration_sync_runs')
+        .select('status, started_at, error_message')
+        .eq('tenant_id', tenantId)
+        .eq('provider', 'instagram')
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ])
+    const firstError = [m, d, a, c, fb, yt].find((result) => result.error)?.error
+    if (firstError) setLoadError(firstError.message)
     setMedia((m.data as Media[]) || [])
     setDaily((d.data as Daily[]) || [])
     setAudience((a.data as Audience[]) || [])
     setConvos((c.data as Convo[]) || [])
     setFbMedia((fb.data as FbMedia[]) || [])
     setYoutube((yt.data as YoutubeUpload[]) || [])
+    setLastSync((run.data as SyncRun | null) ?? null)
     setLoading(false)
   }
 
@@ -155,7 +185,7 @@ export default function InstagramPage() {
       .catch(() => {})
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sesion, tenant])
+  }, [sesion, tenant, tenantId])
 
   const runSync = async () => {
     setSyncing(true)
@@ -173,33 +203,6 @@ export default function InstagramPage() {
       setSyncing(false)
     }
   }
-  const runMigrate = async () => {
-    setMigrating(true)
-    try {
-      const res = await fetch(`/api/${tenant}/evergreen/admin/migrate-instagram`, { method: 'POST' })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error)
-      toast.success('Base de datos lista', { description: 'Tablas de Instagram creadas' })
-    } catch (e) {
-      toast.error('Error en la migración', { description: e instanceof Error ? e.message : '' })
-    } finally {
-      setMigrating(false)
-    }
-  }
-  const runCron = async () => {
-    setCroning(true)
-    try {
-      const res = await fetch(`/api/${tenant}/evergreen/admin/setup-instagram-cron`, { method: 'POST' })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error)
-      toast.success('Sincronización automática activada', { description: 'Cada 6 horas (Supabase pg_cron)' })
-    } catch (e) {
-      toast.error('Error activando el cron', { description: e instanceof Error ? e.message : '' })
-    } finally {
-      setCroning(false)
-    }
-  }
-
   const transcribe = async (id: string) => {
     setBusyId(id)
     try {
@@ -241,31 +244,36 @@ export default function InstagramPage() {
   const youtubeUploadedCount = youtube.filter((y) => y.status === 'uploaded').length
   const youtubePendingCount = youtube.filter((y) => y.status === 'pending').length
   const youtubeTotalViews = youtube.reduce((s, y) => s + (y.views || 0), 0)
-  const matchYoutube = (m: Media): YoutubeUpload | null =>
-    youtube.find((y) => y.ig_media_external_id === m.external_id) ?? null
+  const matchYoutube = useCallback(
+    (m: Media): YoutubeUpload | null => youtube.find((y) => y.ig_media_external_id === m.external_id) ?? null,
+    [youtube]
+  )
 
   // Empareja un reel de IG con su cross-post de Facebook. Como algunos captions se
   // repiten, entre los candidatos elige el creado más cerca del publicado en IG:
   // 1) coincidencia de caption (primeros ~40 chars) + fecha más próxima;
   // 2) si no hay caption, el FB creado dentro de ±30 min del publicado en IG.
-  const matchFb = (m: Media): FbMedia | null => {
-    const norm = (s: string | null) => (s || '').trim().slice(0, 40).toLowerCase()
-    const cap = norm(m.caption)
-    const igTime = m.published_at ? new Date(m.published_at).getTime() : 0
-    const dist = (f: FbMedia) =>
-      igTime && f.created_time ? Math.abs(new Date(f.created_time).getTime() - igTime) : Number.MAX_SAFE_INTEGER
-    let byCaption: FbMedia | null = null
-    let byTime: FbMedia | null = null
-    for (const f of fbMedia) {
-      if (cap && norm(f.description) === cap) {
-        if (!byCaption || dist(f) < dist(byCaption)) byCaption = f
+  const matchFb = useCallback(
+    (m: Media): FbMedia | null => {
+      const norm = (s: string | null) => (s || '').trim().slice(0, 40).toLowerCase()
+      const cap = norm(m.caption)
+      const igTime = m.published_at ? new Date(m.published_at).getTime() : 0
+      const dist = (f: FbMedia) =>
+        igTime && f.created_time ? Math.abs(new Date(f.created_time).getTime() - igTime) : Number.MAX_SAFE_INTEGER
+      let byCaption: FbMedia | null = null
+      let byTime: FbMedia | null = null
+      for (const f of fbMedia) {
+        if (cap && norm(f.description) === cap) {
+          if (!byCaption || dist(f) < dist(byCaption)) byCaption = f
+        }
+        if (igTime && f.created_time && dist(f) < 30 * 60 * 1000) {
+          if (!byTime || dist(f) < dist(byTime)) byTime = f
+        }
       }
-      if (igTime && f.created_time && dist(f) < 30 * 60 * 1000) {
-        if (!byTime || dist(f) < dist(byTime)) byTime = f
-      }
-    }
-    return byCaption || byTime
-  }
+      return byCaption || byTime
+    },
+    [fbMedia]
+  )
 
   // Filtra por plataforma: "Instagram" = todos (es la base), "Facebook"/"YouTube" = solo los
   // reels que además tengan cross-post/espejo publicado en esa plataforma.
@@ -273,7 +281,7 @@ export default function InstagramPage() {
     if (platform === 'facebook') return media.filter((m) => !!matchFb(m))
     if (platform === 'youtube') return media.filter((m) => matchYoutube(m)?.status === 'uploaded')
     return media
-  }, [media, platform, fbMedia, youtube])
+  }, [media, platform, matchFb, matchYoutube])
 
   const sorted = useMemo(() => {
     const arr = [...platformFiltered]
@@ -322,32 +330,43 @@ export default function InstagramPage() {
                 <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />{' '}
                 {syncing ? 'Sincronizando…' : 'Sincronizar ahora'}
               </button>
-              <button
-                onClick={runMigrate}
-                disabled={migrating}
-                title="Ejecutar una vez para preparar la base de datos"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-muted text-foreground hover:bg-muted disabled:opacity-50"
-              >
-                <Zap className="w-4 h-4" /> {migrating ? 'Aplicando…' : 'Migración IG'}
-              </button>
-              <button
-                onClick={runCron}
-                disabled={croning}
-                title="Sincronizar automáticamente cada 6 h"
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-muted text-foreground hover:bg-muted disabled:opacity-50"
-              >
-                <Clock className="w-4 h-4" /> {croning ? 'Activando…' : 'Auto 6h'}
-              </button>
             </>
           )}
         </div>
       </div>
 
-      {empty && (
-        <div className="rounded-xl border border-border bg-card/50 p-6 text-muted-foreground text-sm">
-          Aún no hay datos.{' '}
+      {(loadError || lastSync?.status === 'error') && (
+        <div className="flex flex-col gap-3 rounded-lg border border-amber-500/30 bg-amber-500/[0.08] p-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+            <div>
+              <p className="text-sm font-medium text-foreground">Instagram necesita atención</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {loadError || lastSync?.error_message || 'La última sincronización no terminó correctamente.'}
+              </p>
+              {lastSync?.started_at && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Último intento: {new Date(lastSync.started_at).toLocaleString('es-ES')}
+                </p>
+              )}
+            </div>
+          </div>
+          {isAdmin && (
+            <Link
+              href={`/${tenant}/settings/integraciones`}
+              className="shrink-0 text-sm font-medium text-brand-400 hover:text-brand-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+            >
+              Revisar permisos →
+            </Link>
+          )}
+        </div>
+      )}
+
+      {empty && !loadError && lastSync?.status !== 'error' && (
+        <div className="rounded-lg border border-dashed border-border bg-card/40 p-6 text-sm text-muted-foreground">
+          Aún no hay publicaciones sincronizadas.{' '}
           {isAdmin
-            ? 'Pulsa (en orden) «Migración IG» → «Sincronizar ahora» → «Auto 6h».'
+            ? 'Usa «Sincronizar ahora» para importar los datos disponibles.'
             : 'Pide a un admin que sincronice Instagram.'}
         </div>
       )}

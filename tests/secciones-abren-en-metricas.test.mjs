@@ -15,12 +15,12 @@ const read = (path) => readFileSync(join(root, path), 'utf8')
 const RAICES = [
   ['app/[tenant]/crm/page.tsx', '/crm/agendas'],
   ['app/[tenant]/ventas/page.tsx', '/analitica/embudo'],
-  ['app/[tenant]/marketing/adquisicion/page.tsx', '/marketing/adquisicion/atribucion'],
+  ['app/[tenant]/marketing/adquisicion/page.tsx', '/marketing/adquisicion/campanas'],
   ['app/[tenant]/producto/page.tsx', '/students'],
   ['app/[tenant]/finanzas/page.tsx', '/finanzas/analitica/resumen'],
 ]
 
-test('cada sección tiene raíz propia y abre en su vista de lectura, no en la operativa', () => {
+test('cada sección tiene raíz propia y abre en su vista de trabajo acordada', () => {
   for (const [ruta, destino] of RAICES) {
     const src = read(ruta)
     assert.match(src, new RegExp(`redirect\\(\`/\\$\\{tenant\\}${destino.replace(/\//g, '\\/')}\``), `${ruta}`)
@@ -50,6 +50,13 @@ test('el hub analítico se llama Métricas y KPIs sin absorber la vista operativ
   const marketing = nav.slice(nav.indexOf("dept: 'marketing'"), nav.indexOf("dept: 'producto'"))
   assert.match(marketing, /label: 'Métricas y KPIs'/)
   assert.match(marketing, /href: '\/marketing\/adquisicion\/campanas'/)
+})
+
+test('Marketing abre en Campañas y la muestra antes que Atribución', () => {
+  const nav = read('lib/nav.ts')
+  const marketing = nav.slice(nav.indexOf("dept: 'marketing'"), nav.indexOf("dept: 'producto'"))
+  assert.match(marketing, /href: '\/marketing\/adquisicion\/campanas'/)
+  assert.ok(marketing.indexOf("label: 'Campañas'") < marketing.indexOf("label: 'Atribución'"))
 })
 
 // En Ventas, lo analítico va ANTES que lo operativo en el menú, no solo en la redirección: si el

@@ -18,6 +18,7 @@ import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import { getQualificationEntries, type Qualification } from '@/lib/appointments/qualification'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
+import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
 import { getCustomDateRange, inPeriod } from '@/lib/filters/period'
 
 // Etapas del pipeline interno de seguimiento (independiente de `status` y del `pipeline_stage`
@@ -451,21 +452,12 @@ export default function SeguimientoPage() {
           </SelectContent>
         </Select>
 
-        <Input
-          type="date"
-          value={dateFrom}
-          max={dateTo || undefined}
-          onChange={(e) => setDateFrom(e.target.value)}
-          className="w-40 bg-card border-border"
-          placeholder="Desde"
-        />
-        <Input
-          type="date"
-          value={dateTo}
-          min={dateFrom || undefined}
-          onChange={(e) => setDateTo(e.target.value)}
-          className="w-40 bg-card border-border"
-          placeholder="Hasta"
+        <DateRangeCalendarPopover
+          from={dateFrom}
+          to={dateTo}
+          onFromChange={setDateFrom}
+          onToChange={setDateTo}
+          className="w-full sm:w-72"
         />
         {hasFilters && (
           <Button

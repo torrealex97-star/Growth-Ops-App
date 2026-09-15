@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { getCustomDateRange } from '@/lib/filters/period'
 import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
 import { useSesion } from '@/lib/tenant-context'
+import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
 
 function csvEscape(value: string): string {
   if (value == null) return ''
@@ -323,16 +324,16 @@ export default function DropsPage() {
           </div>
 
           {periodPreset === 'custom' && (
-            <>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Periodo desde</Label>
-                <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className={cls} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Periodo hasta</Label>
-                <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className={cls} />
-              </div>
-            </>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label className="text-xs text-muted-foreground">Periodo personalizado</Label>
+              <DateRangeCalendarPopover
+                from={customFrom}
+                to={customTo}
+                onFromChange={setCustomFrom}
+                onToChange={setCustomTo}
+                className="h-9"
+              />
+            </div>
           )}
         </div>
       </div>
