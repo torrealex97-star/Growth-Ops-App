@@ -3,7 +3,13 @@
 // La decisión (qué slug es válido, qué se crea y qué no) vive en lib/tenants/blueprint.ts, que es
 // pura. Aquí solo se ejecuta, en un orden que se pueda repetir sin daño.
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { type AssignableMemberRole, initialSettings, MANUAL_STEPS, type TenantInput } from '@/lib/tenants/blueprint'
+import {
+  type AssignableMemberRole,
+  createTenantIdentity,
+  initialSettings,
+  MANUAL_STEPS,
+  type TenantInput,
+} from '@/lib/tenants/blueprint'
 
 export type ProvisionResult =
   | {
@@ -12,32 +18,39 @@ export type ProvisionResult =
       hecho: string[]
       pendiente: { id: string; label: string; reason?: string }[]
     }
-  | { ok: false; motivo: 'slug_ocupado' | 'no_escrito' | 'sin_acceso'; mensaje: string }
+  | { ok: false; motivo: 'id_ocupado' | 'no_escrito' | 'sin_acceso'; mensaje: string }
 
 /**
  * Crea una subcuenta vacía y da acceso a quien la crea.
  *
- * NO es un "upsert": si el slug ya existe, se para. Reutilizar una subcuenta existente sería
- * reescribir la marca de un cliente en producción por un nombre repetido en un formulario.
+ * El UUID se genera antes del INSERT y se usa también como slug. Así el nombre comercial es libre de
+ * cambiar y la URL no revela ni depende del nombre del negocio.
  */
 export async function provisionTenant(
   sb: SupabaseClient,
   input: TenantInput,
   actor: { userId: string; tenantId: string }
 ): Promise<ProvisionResult> {
-  const existing = await sb.from('tenants').select('id,slug').eq('slug', input.slug).maybeSingle()
+  const identity = createTenantIdentity()
+  const existing = await sb.from('tenants').select('id,slug').eq('id', identity.id).maybeSingle()
   if (existing.error) throw existing.error
   if (existing.data) {
     return {
       ok: false,
-      motivo: 'slug_ocupado',
-      mensaje: `Ya hay una subcuenta con el identificador "${input.slug}". Elige otro: no se sobreescribe una subcuenta existente.`,
+      motivo: 'id_ocupado',
+      mensaje: 'No se pudo generar un identificador único para la subcuenta. Vuelve a intentarlo.',
     }
   }
 
   const created = await sb
     .from('tenants')
-    .insert({ slug: input.slug, name: input.name, status: 'active', settings: initialSettings(input) })
+    .insert({
+      id: identity.id,
+      slug: identity.slug,
+      name: input.name,
+      status: 'active',
+      settings: initialSettings(input),
+    })
     .select('id,slug,name')
   if (created.error) throw created.error
   // Sin `.select()` un INSERT bloqueado por RLS no da error: diríamos "creada" sin crear nada.
@@ -49,7 +62,7 @@ export async function provisionTenant(
 
   // Acceso para quien la crea. Si esto falla, la subcuenta existe pero nadie puede entrar, así que se
   // dice con el id delante en vez de devolver un ok a secas: repetir la creación daría
-  // "slug_ocupado" y el operador no sabría por qué no la ve.
+  // "identificador ocupado" y el operador no sabría por qué no la ve.
   const member = await sb
     .from('tenant_members')
     // 'super_admin' aquí no es una escalada: quien crea subcuentas ya ES super admin de plataforma

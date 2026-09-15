@@ -9,70 +9,22 @@
 // las que salen la facturación y las comisiones. Así que lo que no se puede saber no se crea: se
 // devuelve como lista de lo que falta, con quién tiene que hacerlo.
 
-/**
- * Slugs que NO pueden usarse: el primer segmento de la URL ES la subcuenta
- * (`/[tenant]/...` y `/api/[tenant]/...`), así que una subcuenta llamada `api` o `embed` taparía
- * rutas reales de la aplicación. Ese fallo no daría ningún error al crearla: simplemente dejaría de
- * funcionar una parte del producto para todo el mundo.
- *
- * La lista se mantiene alineada con los directorios reales de `app/` por un test.
- */
-export const RESERVED_SLUGS = [
-  'api',
-  'embed',
-  'firmar',
-  'firmar-alumno',
-  // Rutas públicas declaradas en el middleware que tampoco cuelgan de una subcuenta.
-  'public-contracts',
-  'oauth',
-  'vsl',
-  // Internos de Next y estáticos. Van en la forma NORMALIZADA (que es contra la que se comparan):
-  // escribir '_next' o 'favicon.ico' aquí sería una entrada muerta, porque el guion bajo y el punto
-  // desaparecen al normalizar y nunca podrían salir de `normalizeSlug`. Lo detectó el test que exige
-  // que cada reservado sea igual a su propia normalización.
-  'next',
-  'favicon',
-  'static',
-  // Reservados para uso futuro de la plataforma, para no tener que renombrar una subcuenta después.
-  'platform',
-  'admin',
-  'login',
-  'logout',
-  'recover',
-  'signup',
-  'www',
-]
-
-export const SLUG_MIN = 3
-export const SLUG_MAX = 40
 export const NAME_MAX = 80
 
 export type TenantAccent = 'brand' | 'pink'
 
-export type TenantInput = { slug: string; name: string; accent: TenantAccent }
+export type TenantInput = { name: string; accent: TenantAccent }
 
 /**
- * Convierte lo que escribe una persona ("Women Digital Closer") en un slug de URL
- * ("women-digital-closer"). No adivina nada más: si el resultado no es válido, se dice, en vez de
- * inventar un slug parecido que el usuario no eligió.
+ * Genera la identidad estable de una subcuenta nueva. El slug coincide con el UUID interno para que
+ * el nombre comercial pueda cambiar sin cambiar la URL ni obligar a mantener redirecciones.
  */
-export function normalizeSlug(input: string): string {
-  return (
-    input
-      .normalize('NFD')
-      // Quita las tildes: 'formación' → 'formacion'. Sin esto el slug llevaría caracteres que hay
-      // que escapar en una URL.
-      .replace(/[̀-ͯ]/g, '')
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-  )
+export function createTenantIdentity(): { id: string; slug: string } {
+  const id = crypto.randomUUID()
+  return { id, slug: id }
 }
 
 export function validateTenantInput(raw: {
-  slug?: unknown
   name?: unknown
   accent?: unknown
 }): { input: TenantInput } | { error: string } {
@@ -80,18 +32,8 @@ export function validateTenantInput(raw: {
   if (!name) return { error: 'Falta el nombre de la subcuenta' }
   if (name.length > NAME_MAX) return { error: `El nombre no puede pasar de ${NAME_MAX} caracteres` }
 
-  // El slug se puede escribir a mano o derivar del nombre, pero se normaliza SIEMPRE: guardar un
-  // slug con mayúsculas o espacios rompería las URLs de esa subcuenta para siempre.
-  const slugSource = typeof raw.slug === 'string' && raw.slug.trim() ? raw.slug : name
-  const slug = normalizeSlug(slugSource)
-  if (slug.length < SLUG_MIN) return { error: `El identificador de URL necesita al menos ${SLUG_MIN} caracteres` }
-  if (slug.length > SLUG_MAX) return { error: `El identificador de URL no puede pasar de ${SLUG_MAX} caracteres` }
-  if (RESERVED_SLUGS.includes(slug)) {
-    return { error: `"${slug}" es una ruta de la aplicación: elige otro identificador de URL` }
-  }
-
   const accent: TenantAccent = raw.accent === 'pink' ? 'pink' : 'brand'
-  return { input: { slug, name, accent } }
+  return { input: { name, accent } }
 }
 
 /**
