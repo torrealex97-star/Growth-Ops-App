@@ -589,9 +589,9 @@ export default function CampaignsPage() {
             )}
           </p>
         </div>
-        <div className="flex w-full flex-wrap items-center gap-2 xl:w-auto xl:justify-end">
+        <div className="flex w-full flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center xl:w-auto xl:justify-end">
           {isAdmin && (
-            <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-lg border border-border bg-card p-1">
+            <div className="flex w-full min-w-0 items-center gap-1 overflow-x-auto rounded-lg border border-border bg-card p-1 sm:w-auto">
               <button
                 onClick={runSync}
                 disabled={syncing}
@@ -651,7 +651,7 @@ export default function CampaignsPage() {
           )}
           <button
             onClick={() => setShowNew(true)}
-            className="flex shrink-0 items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm text-white hover:bg-brand-500"
+            className="flex w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm text-white hover:bg-brand-500 sm:w-auto"
           >
             <Plus className="w-4 h-4" /> Nueva campaña
           </button>
