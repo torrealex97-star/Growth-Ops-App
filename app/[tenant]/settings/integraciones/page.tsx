@@ -36,6 +36,8 @@ import {
   Search,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { EstadoPanel } from '@/components/ui/carga/EstadoPanel'
+import { esFalloVisible, pedir, type Fallo } from '@/lib/ui/pedir'
 import { useTenant } from '@/lib/tenant-context'
 import { isAccountSelected, parseAccountIds, serializeAccountIds, toggleAccountId } from '@/lib/meta/accounts'
 import { brandFor, type Brand } from '@/components/integrations/brands'
@@ -392,6 +394,8 @@ export default function IntegracionesPage() {
   const [encReady, setEncReady] = useState(true)
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
+  // El motivo del fallo, para poder enseñarlo en pantalla en vez de dejar un loader eterno.
+  const [falloCarga, setFalloCarga] = useState<Fallo | null>(null)
   const [savingId, setSavingId] = useState<string | null>(null)
   const [testingId, setTestingId] = useState<string | null>(null)
   const [syncingId, setSyncingId] = useState<string | null>(null)
@@ -422,26 +426,49 @@ export default function IntegracionesPage() {
   const [buscandoModelos, setBuscandoModelos] = useState(false)
   const [findingAccounts, setFindingAccounts] = useState(false)
 
+  // ESTA ERA LA PANTALLA QUE SE QUEDABA CARGANDO.
+  //
+  // El código anterior hacía `await fetch(...)` y `await r.json()` SIN try/catch/finally. Con eso basta:
+  // una red que se corta un segundo, o un 502 que devuelve el HTML de error de Vercel en vez de JSON,
+  // hace que el await rechace, la función se abandone a mitad y nadie llegue nunca a `setLoading(false)`.
+  // Resultado: "Cargando…" para siempre, sin error, sin botón y sin forma de salir salvo recargar.
+  //
+  // Ahora la petición pasa por `pedir` (timeout, cancelación y clasificación del fallo, sin lanzar), el
+  // motivo se guarda en estado para poder enseñarlo, y `finally` apaga el loader por todos los caminos.
   const load = useCallback(async () => {
     setLoading(true)
-    const r = await fetch(`/api/${tenant}/evergreen/settings/integraciones`)
-    if (!r.ok) {
-      toast.error('No autorizado o error cargando')
+    setFalloCarga(null)
+    try {
+      const res = await pedir<{
+        groups: Group[]
+        state: Record<string, StateEntry>
+        encReady: boolean
+        health?: IntegrationHealth[]
+      }>(`/api/${tenant}/evergreen/settings/integraciones`)
+
+      if (!res.ok) {
+        // Una cancelación por navegar a otra pantalla no es un error que enseñar.
+        if (!esFalloVisible(res)) return
+        setFalloCarga(res)
+        // El 403 no se anuncia como "error cargando": el mensaje ya viene clasificado por tipo.
+        toast.error(res.mensaje)
+        return
+      }
+
+      const j = res.data
+      setGroups(j.groups)
+      setState(j.state)
+      setEncReady(j.encReady)
+      setHealth(Object.fromEntries(((j.health ?? []) as IntegrationHealth[]).map((h) => [h.id, h])))
+      // precargar los no-secretos en los drafts para poder editarlos
+      const d: Record<string, string> = {}
+      for (const [k, v] of Object.entries(j.state as Record<string, StateEntry>)) {
+        if (!v.secret && v.value != null) d[k] = v.value
+      }
+      setDrafts(d)
+    } finally {
       setLoading(false)
-      return
     }
-    const j = await r.json()
-    setGroups(j.groups)
-    setState(j.state)
-    setEncReady(j.encReady)
-    setHealth(Object.fromEntries(((j.health ?? []) as IntegrationHealth[]).map((h) => [h.id, h])))
-    // precargar los no-secretos en los drafts para poder editarlos
-    const d: Record<string, string> = {}
-    for (const [k, v] of Object.entries(j.state as Record<string, StateEntry>)) {
-      if (!v.secret && v.value != null) d[k] = v.value
-    }
-    setDrafts(d)
-    setLoading(false)
   }, [tenant])
   useEffect(() => {
     void load()
@@ -738,9 +765,12 @@ export default function IntegracionesPage() {
   }
 
   async function loadStripeCustomers() {
-    const r = await fetch(`/api/${tenant}/evergreen/settings/integraciones/stripe-customers`)
-    const j = await r.json().catch(() => ({}))
-    if (r.ok) setStripeCustomers(j.rows ?? [])
+    // Se llama con `void` desde un useEffect: un fetch que rechace aquí quedaba como rechazo de promesa
+    // sin gestionar, y la lista se quedaba en `null` (= "cargando") para siempre.
+    const res = await pedir<{ rows?: StripeCustomerRow[] }>(
+      `/api/${tenant}/evergreen/settings/integraciones/stripe-customers`
+    )
+    setStripeCustomers(res.ok ? (res.data?.rows ?? []) : [])
   }
 
   async function syncStripeCustomersHandler() {
@@ -765,10 +795,27 @@ export default function IntegracionesPage() {
     }
   }
 
-  if (loading) {
+  // El fallo se enseña, con su motivo real y su botón. Antes este camino no existía: si la carga
+  // fallaba, se quedaba el "Cargando…" de abajo indefinidamente.
+  if (falloCarga) {
     return (
-      <div className="flex items-center gap-2 p-8 text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
+      <div className="p-8">
+        <EstadoPanel
+          estado={falloCarga.tipo === 'permiso' ? 'sin_permiso' : 'error'}
+          que="las integraciones"
+          mensajeError={falloCarga.mensaje}
+          onReintentar={falloCarga.reintentable ? () => void load() : undefined}
+        />
+      </div>
+    )
+  }
+
+  if (loading) {
+    // Skeleton con la forma real de la pantalla (lista de integraciones), no un spinner suelto: así no
+    // salta el contenido al llegar. Y no aparece nada si la carga baja de 300 ms.
+    return (
+      <div className="p-8">
+        <EstadoPanel estado="cargando" que="las integraciones" filasSkeleton={8} />
       </div>
     )
   }
