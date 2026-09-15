@@ -132,7 +132,7 @@ export function verificarFirmaStripe(
 // ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 /** Qué representa el evento para el negocio. */
-export type ClaseEvento =
+type ClaseEvento =
   /** Dinero que ha entrado. Cuenta para el cash collected. */
   | 'cobro'
   /** Dinero devuelto. */

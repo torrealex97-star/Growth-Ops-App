@@ -17,9 +17,9 @@
 // quiere detectar: un día con 10x de gasto sube sigma tanto que el día deja de parecer raro. La mediana
 // de desviaciones absolutas no se deja arrastrar por un punto.
 
-export type CategoriaAlerta = 'KPI' | 'ANOMALIA' | 'CAPACIDAD' | 'CALIDAD_DATO'
+type CategoriaAlerta = 'KPI' | 'ANOMALIA' | 'CAPACIDAD' | 'CALIDAD_DATO'
 
-export type SeveridadAlerta = 'INFO' | 'WARNING' | 'CRITICAL'
+type SeveridadAlerta = 'INFO' | 'WARNING' | 'CRITICAL'
 
 export type Alerta = {
   id: string

@@ -18,7 +18,7 @@
 // POR QUÉ MÓDULO APARTE: para poder probarlo sin el SDK de Anthropic ni una llamada de red.
 
 /** Tope de caracteres que se le pasa al modelo por resultado de tool. */
-export const LIMITE_RESULTADO = 20000
+const LIMITE_RESULTADO = 20000
 
 /** Cuántos elementos se dejan como muestra cuando hay que recortar una lista. */
 const MUESTRA_MINIMA = 3

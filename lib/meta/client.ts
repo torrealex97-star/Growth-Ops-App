@@ -344,7 +344,7 @@ export async function fetchMetaInsights(
 // Insight DIARIO por campaña (level=campaign, time_increment=1). Devuelve una fila por
 // (campaña, día) con el gasto/impresiones/clics/leads de ESE día. Es lo que permite filtrar
 // el gasto por rango real (este mes, este trimestre…) en vez de mostrar el total histórico.
-export type MetaDailyInsight = {
+type MetaDailyInsight = {
   campaign_id: string
   campaign_name: string
   date: string // YYYY-MM-DD

@@ -22,7 +22,7 @@ export type CompanyProfile = {
 
 // Valores por defecto si aún no se ha configurado la fila company_profile
 // de esta subcuenta (rellenar en Configuración → Datos de empresa).
-export const DEFAULT_COMPANY: CompanyProfile = {
+const DEFAULT_COMPANY: CompanyProfile = {
   name: 'Tu Empresa',
   legal_name: null,
   cif: null,

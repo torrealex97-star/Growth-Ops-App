@@ -65,7 +65,7 @@ export const LEADERSHIP: AppRole[] = ['admin', 'director', 'manager']
 export const isLeadership = (role: AppRole) => LEADERSHIP.includes(role)
 
 // ---- Departamentos que cada rol puede ver ----
-export const ROLE_DEPARTMENTS: Record<AppRole, Department[]> = {
+const ROLE_DEPARTMENTS: Record<AppRole, Department[]> = {
   admin: ['ventas', 'marketing', 'producto', 'finanzas', 'sistema'],
   director: ['ventas', 'marketing', 'producto', 'finanzas', 'sistema'],
   manager: ['ventas', 'marketing', 'producto', 'finanzas'],
@@ -189,7 +189,7 @@ export function allowedPrefixesFor(
   return rolePrefixes ? normalizeAllowedPrefixes(rolePrefixes) : undefined
 }
 
-export const hasDepartment = (role: AppRole, dept: Department) => ROLE_DEPARTMENTS[role]?.includes(dept) ?? false
+const hasDepartment = (role: AppRole, dept: Department) => ROLE_DEPARTMENTS[role]?.includes(dept) ?? false
 
 // ---- Rutas permitidas por rol (para acotar el acceso en el layout) ----
 // Los roles de liderazgo (admin/director/manager) no tienen restricción (undefined).
@@ -201,7 +201,7 @@ export const hasDepartment = (role: AppRole, dept: Department) => ROLE_DEPARTMEN
 // más allá de lo que ya tenía. `/analitica/actividad` alberga ahora también el modal de KPI Diario,
 // así que cualquier rol que antes pudiera enviar su KPI (setter/closer/triager/cold_caller) necesita
 // ese sub-prefijo aunque antes no viera la propia página de Prospección.
-export const ROLE_ALLOWED_PREFIXES: Partial<Record<AppRole, string[]>> = {
+const ROLE_ALLOWED_PREFIXES: Partial<Record<AppRole, string[]>> = {
   setter: [
     '/dashboard',
     '/crm',

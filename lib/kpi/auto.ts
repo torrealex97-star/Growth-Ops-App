@@ -14,7 +14,7 @@ export type KpiAutoMetrics = {
 }
 
 // role_key → (field_key del template → métrica calculada)
-export const AUTO_KPI: Record<string, Record<string, keyof KpiAutoMetrics>> = {
+const AUTO_KPI: Record<string, Record<string, keyof KpiAutoMetrics>> = {
   closer: {
     calls_realizadas: 'closer_appointments',
     shows: 'closer_shows',

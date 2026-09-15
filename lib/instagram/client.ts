@@ -347,27 +347,13 @@ export async function fetchFollowerDemographics(cfg: IgConfig, igId: string): Pr
   return rows
 }
 
-export type IgComment = {
+type IgComment = {
   external_id: string
   media_external_id: string
   username?: string
   text?: string
   like_count: number
   commented_at?: string
-}
-
-// Comentarios de un media (fase 2b).
-export async function fetchMediaComments(cfg: IgConfig, mediaId: string, limit = 100): Promise<IgComment[]> {
-  const url = `${GRAPH}/${cfg.version}/${mediaId}/comments?fields=id,text,username,like_count,timestamp&limit=${Math.min(limit, 100)}&${q(cfg)}`
-  const rows = await graphGetAll(url, 3)
-  return rows.slice(0, limit).map((r: any) => ({
-    external_id: String(r.id),
-    media_external_id: mediaId,
-    username: r.username,
-    text: r.text,
-    like_count: Number(r.like_count) || 0,
-    commented_at: r.timestamp,
-  }))
 }
 
 // ── Facebook: la misma cuenta cross-postea sus reels a la página de FB ────────
@@ -542,7 +528,7 @@ export async function fetchConversationStats(cfg: IgConfig, pageId: string, pat?
   }
 }
 
-export type IgConversationMessage = { from: 'agente' | 'lead'; text?: string; created_time?: string }
+type IgConversationMessage = { from: 'agente' | 'lead'; text?: string; created_time?: string }
 export type IgConversation = {
   id: string
   participant?: string

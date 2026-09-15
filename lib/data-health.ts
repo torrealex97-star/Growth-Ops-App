@@ -1,4 +1,4 @@
-export function normalizeIdentity(value: string | null | undefined): string | null {
+function normalizeIdentity(value: string | null | undefined): string | null {
   const normalized =
     value
       ?.trim()

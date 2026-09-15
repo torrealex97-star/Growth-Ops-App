@@ -33,7 +33,7 @@ export const DIAL_CODES: DialCode[] = [
   { code: '+376', iso: 'AD', label: '🇦🇩 Andorra (+376)' },
 ]
 
-export const DEFAULT_DIAL_CODE = '+34'
+const DEFAULT_DIAL_CODE = '+34'
 
 // Prefijos ordenados de más largo a más corto para detectar el correcto sin ambigüedad.
 const CODES_BY_LENGTH = Array.from(new Set(DIAL_CODES.map((d) => d.code))).sort((a, b) => b.length - a.length)

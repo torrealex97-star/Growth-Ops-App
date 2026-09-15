@@ -25,7 +25,7 @@ import type { EntradaMetrica } from './cuello-botella'
 
 export type DimensionSalud = 'adquisicion' | 'ventas' | 'producto' | 'financiera' | 'capacidad'
 
-export const NOMBRE_DIMENSION: Record<DimensionSalud, string> = {
+const NOMBRE_DIMENSION: Record<DimensionSalud, string> = {
   adquisicion: 'Adquisición',
   ventas: 'Ventas',
   producto: 'Producto y retención',
@@ -48,7 +48,7 @@ export const PESO_DIMENSION: Record<DimensionSalud, number> = {
 export type Fiabilidad = 'alta' | 'media' | 'baja'
 
 /** Lo que aportó UNA métrica a su dimensión. Esto es lo que hace auditable la nota. */
-export type ComponenteSalud = {
+type ComponenteSalud = {
   key: string
   nombre: string
   actual: number | null

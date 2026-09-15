@@ -2,7 +2,7 @@
 // que el equipo "lee lo mismo" cada mañana). Sin llamada a IA en vivo: control total del tono de
 // marca y cero coste/latencia. Rotación determinista por día del año, sin estado en BD.
 
-export const DAILY_QUOTES: string[] = [
+const DAILY_QUOTES: string[] = [
   'Hoy no compites contra tu compañero, compites contra el que eras ayer.',
   'Un "no" de hoy es información, no un veredicto. Sigue.',
   'El equipo gana cuando cada uno suma su mejor versión, no una versión perfecta.',

@@ -65,7 +65,7 @@ export async function getTestimonio(id: string, tenantId?: string): Promise<Test
 }
 
 /** Slug estable a partir del nombre, único dentro de la tabla (y del tenant, si se indica). */
-export async function uniqueSlug(name: string, tenantId?: string): Promise<string> {
+async function uniqueSlug(name: string, tenantId?: string): Promise<string> {
   const base =
     name
       .normalize('NFD')

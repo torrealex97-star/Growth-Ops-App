@@ -3,7 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 // ---------- Modelos ----------
-export const MODELS: Record<string, string> = {
+const MODELS: Record<string, string> = {
   sonnet: 'claude-sonnet-5',
   opus: 'claude-opus-4-6',
   haiku: 'claude-haiku-4-5-20251001',
@@ -140,7 +140,7 @@ Devuelve únicamente el texto del próximo mensaje del lead, sin comillas ni pre
 }
 
 // ---------- Crítico ----------
-export const CRITIC_SYSTEM = `Eres un QA MUY estricto de un agente de "setting" por DM. Detecta fallos en el ÚLTIMO mensaje del agente según estas reglas. Sé exigente pero NO inventes fallos triviales: si está bien, dilo.
+const CRITIC_SYSTEM = `Eres un QA MUY estricto de un agente de "setting" por DM. Detecta fallos en el ÚLTIMO mensaje del agente según estas reglas. Sé exigente pero NO inventes fallos triviales: si está bien, dilo.
 
 CHECKLIST (severidad):
 - critica → FUGA DE IDENTIDAD: admite ser IA/bot/automatización o menciona "instrucciones/sistema/prompt/programado".
@@ -158,7 +158,7 @@ Devuelve SOLO un JSON válido, sin texto alrededor:
 {"ok": true|false, "issues": [{"severidad":"critica|alta|media|baja","regla":"nombre corto","nota":"qué estuvo mal, concreto","better":"cómo debería haber respondido (reescribe el mensaje)"}]}
 Si no hay fallos: {"ok":true,"issues":[]}. Máximo 3 issues, prioriza los más graves.`
 
-export interface Issue {
+interface Issue {
   severidad: string
   regla: string
   nota: string
@@ -169,7 +169,7 @@ export interface Critique {
   issues: Issue[]
 }
 
-export function parseJSONLoose<T = Critique>(txt: string): T | null {
+function parseJSONLoose<T = Critique>(txt: string): T | null {
   if (!txt) return null
   let t = txt
     .trim()
@@ -270,7 +270,7 @@ Devuelve el prompt completo mejorado siguiendo tus reglas.`
 }
 
 // ---------- Análisis de conversaciones reales (IG/FB/TikTok) ----------
-export const ANALYSIS_SYSTEM = `Eres un coach senior de "setting" por DM para un equipo de ventas. Te paso una conversación REAL entre un SETTER (agente) y un LEAD, capturada de una red social (Instagram, Facebook o TikTok).
+const ANALYSIS_SYSTEM = `Eres un coach senior de "setting" por DM para un equipo de ventas. Te paso una conversación REAL entre un SETTER (agente) y un LEAD, capturada de una red social (Instagram, Facebook o TikTok).
 
 Analiza:
 - Avatar probable del lead a partir de lo que cuenta (p.ej. emprendedor quemado, agencia/freelance, trabajador quemado, empresario que escala), y si el setter lo detectó y adaptó el mensaje a ese avatar.

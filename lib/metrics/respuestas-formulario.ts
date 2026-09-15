@@ -20,7 +20,7 @@
 import type { RespuestaFormulario } from '@/lib/metrics/cualificacion'
 
 /** Etiqueta que se usa cuando el proveedor no da pares pregunta/respuesta. */
-export const SIN_PREGUNTA_ESTRUCTURADA = 'Respuestas (texto libre del proveedor)'
+const SIN_PREGUNTA_ESTRUCTURADA = 'Respuestas (texto libre del proveedor)'
 
 type Json = Record<string, unknown>
 

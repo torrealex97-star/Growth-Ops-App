@@ -58,7 +58,7 @@ function esc(s: string): string {
 }
 
 /** Portada: foto real en tarjeta (respeta su proporción) + chip + hook. */
-export function coverSlide(opts: { photoUrl: string; name: string; label?: string; hook: string }): string {
+function coverSlide(opts: { photoUrl: string; name: string; label?: string; hook: string }): string {
   const hook = esc(opts.hook)
   const size = hook.length > 62 ? 66 : hook.length > 44 ? 74 : 84
   return root(`
@@ -76,7 +76,7 @@ export function coverSlide(opts: { photoUrl: string; name: string; label?: strin
 }
 
 /** Slide de contenido: kicker + (cifra grande) + titular + cuerpo. */
-export function contentSlide(opts: { kicker?: string; heading: string; body?: string; big?: string }): string {
+function contentSlide(opts: { kicker?: string; heading: string; body?: string; big?: string }): string {
   const heading = esc(opts.heading)
   const big = opts.big ? esc(opts.big) : ''
   const bigBlock = big
@@ -114,7 +114,7 @@ export function ctaSlide(opts: { lead?: string }): string {
 
 // ---------------------------------------------------------------------------
 
-export interface CasoExitoContentSlide {
+interface CasoExitoContentSlide {
   kicker?: string
   heading: string
   body?: string

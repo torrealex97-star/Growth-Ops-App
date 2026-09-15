@@ -33,7 +33,7 @@ export type MetricValue = {
 // Fuentes que no pueden alimentar series históricas. No es una opinión: la Data Export API de
 // Clarity da 10 peticiones por proyecto y día y solo los últimos 1-3 días de datos, y esos límites
 // no son ampliables. Marcarla aquí obliga a la UI a decirlo en pantalla en vez de pintar un 0.
-export const LIMITED_SOURCES: Partial<Record<FunnelSource, string>> = {
+const LIMITED_SOURCES: Partial<Record<FunnelSource, string>> = {
   clarity: 'Clarity solo expone los últimos 1-3 días y 10 peticiones al día: no sirve para histórico.',
 }
 
