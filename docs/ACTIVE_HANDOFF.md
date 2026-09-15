@@ -1,5 +1,30 @@
 # Relevo activo
 
+## Métricas reales restantes + alertas en Notificaciones — 2026-09-15
+
+Se cerraron tres métricas que el registro ya declaraba pero que `calcularAgregados` devolvía siempre
+como hueco pese a existir las señales necesarias:
+
+- **Speed to Lead**: mediana de `contacts.first_contact_at - contacts.created_at`, paginada, acotada
+  por `tenant_id` y periodo. Fechas inválidas o negativas se excluyen y la tarjeta declara cuántos
+  contactos tienen ambas horas.
+- **BAMFAM**: llamadas asistidas sin venta que tienen `needs_followup = true` sobre todas las elegibles.
+- **Acuerdo marketing ↔ ventas**: reutiliza el motor canónico de cualificación del formulario y el
+  juicio del closer; el denominador contiene solo agendas comparables y se declara la cobertura.
+
+`LTGP:CAC` sigue correctamente como **hueco**: no existe beneficio/margen bruto de por vida por
+cliente. Sustituirlo por facturación o cash sería convertir ingresos en beneficio e inventar la
+métrica que decide si se escala.
+
+El desplegable global de Notificaciones ahora incorpora las prioridades del Growth Brief. La carga
+es perezosa al abrir la campana, usa el cliente de peticiones con timeout/cancelación, informa del
+fallo y permite reintentar. No añade la lectura paginada del brief a cada navegación, protegiendo CPU
+y consultas del tier gratuito.
+
+Validación local ejecutada: **format PASS; lint PASS con warnings heredados; typecheck PASS; suite
+general 330/330 PASS; métricas 647/647 PASS; build limpio de producción PASS**. Falta aún confirmar
+CI, Preview y smoke real antes de fusionar.
+
 ## Observabilidad de navegador + cierre de cascada de sesión — 2026-09-15
 
 La sesión que resuelve `app/[tenant]/layout.tsx` ya es la única lectura de `auth.getUser()` en las
@@ -55,32 +80,32 @@ se continuó en la única rama `codex/stability-observability`.
 
 ### Mapa de las 24 tareas
 
-| # | Tarea | Estado comprobado en Git |
-| --- | --- | --- |
-| 1 | Causa raíz y sistema de carga | **HECHO EN MAIN** (`78602a8`) |
-| 2 | Rol acotado a la subcuenta | **HECHO EN MAIN** (`5d7577b`, `91dd890`) |
-| 3 | Cascada de red: primeras 12 pantallas | **HECHO EN MAIN** (`5d7577b`, `4679909`) |
-| 4 | `request_id` en rutas | **HECHO EN MAIN** (`1303b6f`) |
-| 5 | Limpieza con evidencia | **HECHO EN MAIN** (`1303b6f`, `2045026`) |
-| 6 | Capa de consulta con datos reales | **HECHO EN MAIN** (`8efb0d2`) |
-| 7 | Montar KPI cards, brief y alertas | **HECHO EN RAMA ACTIVA** (`2cae4e2`) |
-| 8 | Agendas: respuestas del formulario | **HECHO EN RAMA ACTIVA** (`eddd936`) |
-| 9 | Atribución: propagar campaign/UTM | **HECHO EN RAMA ACTIVA** (`4cf441a`) |
-| 10 | Cascada de sesión en pantallas restantes | **HECHO**; solo el layout resuelve `auth.getUser()` |
-| 11 | `any` restantes | **PENDIENTE DE AUDITORÍA/CIERRE**; no sustituir por casts inseguros |
-| 12 | Medir LCP / INP / CLS reales | **HECHO EN CÓDIGO**; envío a Sentry condicionado al DSN |
-| 13 | Decidir sobre el 89% de `use client` | **PENDIENTE DE DECISIÓN ARQUITECTÓNICA**; medir antes de migrar en masa |
-| 14 | Rellenar contexto de negocio | **CÓDIGO HECHO / DATOS PENDIENTES**; tabla/API existen, falta contenido real y confirmar migración en producción |
-| 15 | Webhook Stripe y Google Client Secret | **WEBHOOK HECHO** (`7b15aab`); **ROTACIÓN DE SECRET PENDIENTE DEL USUARIO** |
-| 16 | 49.1 agregados puros | **HECHO EN MAIN** |
-| 17 | 49.2 lectura paginada/tenant | **HECHO EN MAIN** |
-| 18 | 49.3 puente a niveles/dimensiones/objetivos | **HECHO EN MAIN** |
-| 19 | 49.4 ruta `/metricas/brief` | **HECHO EN MAIN** |
-| 20 | 49.5 cuatro huecos declarados | **PENDIENTE DE REVISIÓN CONTRA EL REGISTRO ACTUAL** |
-| 21 | 50.1 cuello de botella + Business Health | **HECHO EN MAIN Y MONTADO EN RAMA** (`0ee2be7`, `2cae4e2`) |
-| 22 | 50.2 objetivos, previsión y capacidad | **HECHO EN MAIN Y MONTADO EN RAMA** (`ec3b61f`, `2cae4e2`) |
-| 23 | 50.3 alertas/notificaciones/anotaciones | **PARCIAL**: motor y panel existen; falta verificar anotaciones en todos los gráficos/notificaciones |
-| 24 | 50.4 Growth Brief inicial del agente | **HECHO EN RAMA ACTIVA** (`8248749`) |
+| #   | Tarea                                       | Estado comprobado en Git                                                                                         |
+| --- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 1   | Causa raíz y sistema de carga               | **HECHO EN MAIN** (`78602a8`)                                                                                    |
+| 2   | Rol acotado a la subcuenta                  | **HECHO EN MAIN** (`5d7577b`, `91dd890`)                                                                         |
+| 3   | Cascada de red: primeras 12 pantallas       | **HECHO EN MAIN** (`5d7577b`, `4679909`)                                                                         |
+| 4   | `request_id` en rutas                       | **HECHO EN MAIN** (`1303b6f`)                                                                                    |
+| 5   | Limpieza con evidencia                      | **HECHO EN MAIN** (`1303b6f`, `2045026`)                                                                         |
+| 6   | Capa de consulta con datos reales           | **HECHO EN MAIN** (`8efb0d2`)                                                                                    |
+| 7   | Montar KPI cards, brief y alertas           | **HECHO EN RAMA ACTIVA** (`2cae4e2`)                                                                             |
+| 8   | Agendas: respuestas del formulario          | **HECHO EN RAMA ACTIVA** (`eddd936`)                                                                             |
+| 9   | Atribución: propagar campaign/UTM           | **HECHO EN RAMA ACTIVA** (`4cf441a`)                                                                             |
+| 10  | Cascada de sesión en pantallas restantes    | **HECHO**; solo el layout resuelve `auth.getUser()`                                                              |
+| 11  | `any` restantes                             | **PENDIENTE DE AUDITORÍA/CIERRE**; no sustituir por casts inseguros                                              |
+| 12  | Medir LCP / INP / CLS reales                | **HECHO EN CÓDIGO**; envío a Sentry condicionado al DSN                                                          |
+| 13  | Decidir sobre el 89% de `use client`        | **PENDIENTE DE DECISIÓN ARQUITECTÓNICA**; medir antes de migrar en masa                                          |
+| 14  | Rellenar contexto de negocio                | **CÓDIGO HECHO / DATOS PENDIENTES**; tabla/API existen, falta contenido real y confirmar migración en producción |
+| 15  | Webhook Stripe y Google Client Secret       | **WEBHOOK HECHO** (`7b15aab`); **ROTACIÓN DE SECRET PENDIENTE DEL USUARIO**                                      |
+| 16  | 49.1 agregados puros                        | **HECHO EN MAIN**                                                                                                |
+| 17  | 49.2 lectura paginada/tenant                | **HECHO EN MAIN**                                                                                                |
+| 18  | 49.3 puente a niveles/dimensiones/objetivos | **HECHO EN MAIN**                                                                                                |
+| 19  | 49.4 ruta `/metricas/brief`                 | **HECHO EN MAIN**                                                                                                |
+| 20  | 49.5 cuatro huecos declarados               | **3 CERRADOS**: Speed to Lead, BAMFAM y concordancia; LTGP:CAC espera margen bruto real                          |
+| 21  | 50.1 cuello de botella + Business Health    | **HECHO EN MAIN Y MONTADO EN RAMA** (`0ee2be7`, `2cae4e2`)                                                       |
+| 22  | 50.2 objetivos, previsión y capacidad       | **HECHO EN MAIN Y MONTADO EN RAMA** (`ec3b61f`, `2cae4e2`)                                                       |
+| 23  | 50.3 alertas/notificaciones/anotaciones     | **PARCIAL**: motor, panel y Notificaciones cerrados; faltan anotaciones con fecha en los gráficos                |
+| 24  | 50.4 Growth Brief inicial del agente        | **HECHO EN RAMA ACTIVA** (`8248749`)                                                                             |
 
 Claude Code puede retomar los puntos 11, 13–15, 20 y 23 cuando se restablezcan sus límites. Antes debe
 comprobar si esta rama ya se fusionó y continuar desde `main` si así fuera.

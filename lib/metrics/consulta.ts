@@ -6,6 +6,7 @@ import {
   type FilaCampana,
   type FilaCita,
   type FilaCobro,
+  type FilaContacto,
   type FilaVenta,
   type Periodo,
 } from './agregados'
@@ -55,8 +56,8 @@ export async function consultarMetricas(
   tenantId: string,
   periodo: Periodo
 ): Promise<ResultadoConsulta> {
-  // Las cuatro lecturas son independientes: en serie serían cuatro viajes de red encadenados por nada.
-  const [ventas, cobros, citas, campanas] = await Promise.all([
+  // Las cinco lecturas son independientes: en serie serían cinco viajes de red encadenados por nada.
+  const [ventas, cobros, citas, campanas, contactos] = await Promise.all([
     fetchAllRows<FilaVenta>(
       () =>
         sb
@@ -85,7 +86,7 @@ export async function consultarMetricas(
           .from('appointments')
           // `raw_payload` es donde están las respuestas del formulario (473 de 559 citas en producción);
           // `qualification` está a 0 y se pide igual por si algún día se rellena.
-          .select('appointment_datetime, status, result, offered, qualification, raw_payload')
+          .select('appointment_datetime, status, result, offered, needs_followup, qualification, raw_payload')
           .eq('tenant_id', tenantId)
           .gte('appointment_datetime', `${periodo.desde}T00:00:00Z`)
           .lte('appointment_datetime', `${periodo.hasta}T23:59:59Z`),
@@ -99,6 +100,16 @@ export async function consultarMetricas(
           .eq('tenant_id', tenantId)
           .gte('date', periodo.desde)
           .lte('date', periodo.hasta),
+      { maxPages: MAX_PAGINAS }
+    ),
+    fetchAllRows<FilaContacto>(
+      () =>
+        sb
+          .from('contacts')
+          .select('created_at, first_contact_at')
+          .eq('tenant_id', tenantId)
+          .gte('created_at', `${periodo.desde}T00:00:00Z`)
+          .lte('created_at', `${periodo.hasta}T23:59:59Z`),
       { maxPages: MAX_PAGINAS }
     ),
   ])
@@ -117,7 +128,7 @@ export async function consultarMetricas(
       .eq('is_primary', true),
   ])
 
-  const fuentes = { ventas, cobros, citas, campanas }
+  const fuentes = { ventas, cobros, citas, campanas, contactos }
   const fuentesConError = Object.entries(fuentes)
     .filter(([, r]) => r.error !== null)
     .map(([fuente, r]) => ({ fuente, error: r.error as string }))
@@ -133,6 +144,7 @@ export async function consultarMetricas(
       cobros: cobros.rows,
       citas: citas.rows,
       campanas: campanas.rows,
+      contactos: contactos.rows,
       periodo,
     }),
     fuentesConError,
@@ -144,6 +156,7 @@ export async function consultarMetricas(
       cobros: cobros.rows.length,
       citas: citas.rows.length,
       campanas: campanas.rows.length,
+      contactos: contactos.rows.length,
     },
   }
 }

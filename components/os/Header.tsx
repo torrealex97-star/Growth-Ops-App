@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Menu, Bell, AlertTriangle, ChevronsUpDown, Check, X, CalendarClock } from 'lucide-react'
+import { Menu, Bell, AlertTriangle, ChevronsUpDown, Check, X, CalendarClock, Loader2, Activity } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +15,8 @@ import { FeedbackDialog } from '@/components/os/FeedbackDialog'
 import { GlobalSearch } from '@/components/os/GlobalSearch'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
 import type { AppointmentStatus, User } from '@/lib/types/database'
+import type { Alerta } from '@/lib/metrics/alertas'
+import { esFalloVisible, pedir } from '@/lib/ui/pedir'
 import { toast } from 'sonner'
 
 interface HeaderProps {
@@ -38,6 +40,12 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
   const [pendingAttendance, setPendingAttendance] = useState<PendingAttendance[]>([])
   const [updatingAttendance, setUpdatingAttendance] = useState<string | null>(null)
   const [tenants, setTenants] = useState<TenantOption[]>([])
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [metricAlerts, setMetricAlerts] = useState<Alerta[]>([])
+  const [metricAlertsLoaded, setMetricAlertsLoaded] = useState(false)
+  const [metricAlertsLoading, setMetricAlertsLoading] = useState(false)
+  const [metricAlertsError, setMetricAlertsError] = useState<string | null>(null)
+  const [metricAlertsRetry, setMetricAlertsRetry] = useState(0)
 
   // Alerta de obligación: agendas ASISTIDAS (show) SIN enlace de llamada (recording_url). El closer
   // debe añadirlo. Liderazgo ve todas; el resto solo las suyas (además la RLS por scope las acota).
@@ -116,7 +124,42 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
     }
   }, [isSuperAdmin])
 
-  const count = missing.length + pendingAttendance.length
+  // El brief necesita varias lecturas paginadas. Cargarlo en cada pantalla solo para rellenar la
+  // campana multiplicaría consultas y CPU; se trae una vez, al abrir Notificaciones, con timeout y
+  // cancelación. Así las alertas existen donde se esperan sin convertir el Header en polling global.
+  useEffect(() => {
+    if (!notificationsOpen || metricAlertsLoaded) return
+    const ac = new AbortController()
+    let active = true
+    setMetricAlertsLoading(true)
+    setMetricAlertsError(null)
+    ;(async () => {
+      const res = await pedir<{ brief: { alertas: Alerta[] } }>(`/api/${tenant}/evergreen/metricas/brief`, {
+        signal: ac.signal,
+      })
+      if (!active) return
+      if (res.ok) {
+        setMetricAlerts(res.data.brief.alertas)
+        setMetricAlertsLoaded(true)
+      } else if (esFalloVisible(res)) {
+        setMetricAlertsError(res.mensaje)
+      }
+      setMetricAlertsLoading(false)
+    })()
+    return () => {
+      active = false
+      ac.abort()
+    }
+  }, [metricAlertsLoaded, metricAlertsRetry, notificationsOpen, tenant])
+
+  useEffect(() => {
+    setMetricAlerts([])
+    setMetricAlertsLoaded(false)
+    setMetricAlertsLoading(false)
+    setMetricAlertsError(null)
+  }, [tenant])
+
+  const count = missing.length + pendingAttendance.length + metricAlerts.length
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center border-b border-border bg-background/95 backdrop-blur-xl px-4 lg:px-7">
@@ -158,9 +201,14 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
       <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
         <GlobalSearch user={user} />
         <FeedbackDialog />
-        <Popover>
+        <Popover open={notificationsOpen} onOpenChange={setNotificationsOpen}>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative text-muted-foreground hover:text-foreground"
+              aria-label={count > 0 ? `Notificaciones: ${count} pendientes` : 'Notificaciones'}
+            >
               <Bell className="w-4 h-4" />
               {count > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-foreground text-[10px] font-bold flex items-center justify-center">
@@ -173,10 +221,46 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
             <div className="px-4 py-3 border-b border-border">
               <p className="text-sm font-semibold text-foreground">Notificaciones</p>
             </div>
-            {count === 0 ? (
+            {count === 0 && metricAlertsLoaded ? (
               <p className="px-4 py-6 text-sm text-muted-foreground text-center">Todo al día. Sin pendientes.</p>
             ) : (
               <div className="max-h-80 overflow-y-auto divide-y divide-border">
+                {metricAlertsLoading && (
+                  <div className="flex items-center justify-center gap-2 px-4 py-5 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                    Revisando métricas…
+                  </div>
+                )}
+                {metricAlertsError && (
+                  <div className="px-4 py-3 text-xs text-muted-foreground">
+                    <p>{metricAlertsError}</p>
+                    <button
+                      type="button"
+                      className="mt-2 font-medium text-foreground underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => setMetricAlertsRetry((actual) => actual + 1)}
+                    >
+                      Reintentar
+                    </button>
+                  </div>
+                )}
+                {metricAlerts.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 px-4 py-2 text-xs text-amber-400">
+                      <Activity className="h-3.5 w-3.5" aria-hidden="true" />
+                      {metricAlerts.length} alerta{metricAlerts.length === 1 ? '' : 's'} del Growth Brief
+                    </div>
+                    {metricAlerts.map((alerta) => (
+                      <Link
+                        key={alerta.id}
+                        href={`/${tenant}/unit-economics`}
+                        className="block border-t border-border px-4 py-2.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                      >
+                        <p className="text-sm font-medium text-foreground">{alerta.titulo}</p>
+                        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{alerta.detalle}</p>
+                      </Link>
+                    ))}
+                  </div>
+                )}
                 {pendingAttendance.length > 0 && (
                   <div>
                     <div className="px-4 py-2 flex items-center gap-2 text-amber-400 text-xs">
