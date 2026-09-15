@@ -70,6 +70,21 @@ test('cada ruta de IA pasa la configuración de SU subcuenta', () => {
   assert.match(provider, /getTenantConfigWithFallback/)
 })
 
+test('el agente y Setting AI usan el motor de la subcuenta, no una clave global de Vercel', () => {
+  const agentRoute = sinComentarios(read('app/api/[tenant]/evergreen/ai/agent/route.ts'))
+  assert.match(agentRoute, /aiEnv:\s*await tenantAiEnv\(auth\.tenantId\)/)
+
+  const gateway = read('lib/ai/agent/gateway.ts')
+  assert.match(gateway, /selectEngine\(env\)/)
+  assert.match(gateway, /https:\/\/api\.deepseek\.com\/anthropic/)
+
+  for (const route of ['chat', 'critic', 'simulate', 'improve', 'autotrain', 'analyze-conversation']) {
+    const source = sinComentarios(read(`app/api/[tenant]/evergreen/setting-ai/${route}/route.ts`))
+    assert.match(source, /tenantAiEnv\(t\.tenantId\)/, `${route} ignora la configuración de la subcuenta`)
+    assert.doesNotMatch(source, /process\.env\.ANTHROPIC_API_KEY/, `${route} sigue exigiendo Anthropic global`)
+  }
+})
+
 // Un cambio de motor silencioso es una avería invisible: el resultado sale de otro modelo y nadie
 // se entera de que el configurado está caído.
 test('si responde el motor de repuesto, se dice cuál y por qué', () => {

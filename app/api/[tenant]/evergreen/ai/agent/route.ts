@@ -8,7 +8,7 @@ import { diagnosticarCuelloBotella, evaluarEscalado } from '@/lib/metrics/cuello
 import { entradasDiagnostico, entradasSalud } from '@/lib/metrics/entradas'
 import { calcularSalud } from '@/lib/metrics/salud'
 import { runAgent, type ChatMessage } from '@/lib/ai/agent/gateway'
-import { getTenantConfigWithFallback } from '@/lib/config'
+import { tenantAiEnv } from '@/lib/ai/provider'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -126,7 +126,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   try {
     turn = await runAgent({
       tenantId: auth.tenantId,
-      anthropicKey: (await getTenantConfigWithFallback(auth.tenantId)).ANTHROPIC_API_KEY,
+      aiEnv: await tenantAiEnv(auth.tenantId),
       tenantName: tenantRow?.slug || tenant,
       userId: auth.userId,
       sb,

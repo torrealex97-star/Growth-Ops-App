@@ -16,6 +16,7 @@ import {
   type Correction,
 } from '@/lib/setting-ai/core'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { tenantAiEnv } from '@/lib/ai/provider'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,8 +26,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const { tenant } = await params
   const t = await requireTenant(tenant)
   if ('error' in t) return t.error
-  if (!process.env.ANTHROPIC_API_KEY)
-    return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada' }, { status: 503 })
+  const aiEnv = await tenantAiEnv(t.tenantId)
 
   const b = await req.json().catch(() => ({}))
   const basePrompt: string = typeof b.basePrompt === 'string' ? b.basePrompt : ''
@@ -64,28 +64,34 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
               toLeadMessages(conversation),
               '(Acabas de abrir el DM. Escribe tu primer mensaje como lead, breve y natural.)'
             )
-            const leadText = await callText({
-              model: leadModel,
-              system: leadSystem(persona),
-              messages: leadMsgs,
-              max_tokens: 400,
-            })
+            const leadText = await callText(
+              {
+                model: leadModel,
+                system: leadSystem(persona),
+                messages: leadMsgs,
+                max_tokens: 400,
+              },
+              aiEnv
+            )
             conversation.push({ who: 'lead', text: leadText })
             send({ type: 'lead', convo: ci, turn: t, text: leadText })
 
             // 2) Agente con correcciones ya aplicadas
             const sys = liveSystem(basePrompt, autoCorr)
-            const agentText = await callText({
-              model: chatModel,
-              system: sys,
-              messages: toAgentMessages(conversation),
-              max_tokens: 700,
-            })
+            const agentText = await callText(
+              {
+                model: chatModel,
+                system: sys,
+                messages: toAgentMessages(conversation),
+                max_tokens: 700,
+              },
+              aiEnv
+            )
             conversation.push({ who: 'agent', text: agentText })
             send({ type: 'agent', convo: ci, turn: t, text: agentText })
 
             // 3) Crítico + autocorrección
-            const crit = await critique(conversation, criticModel)
+            const crit = await critique(conversation, criticModel, aiEnv)
             send({ type: 'critic', convo: ci, turn: t, ok: crit.ok, issues: crit.issues })
             for (const iss of crit.issues || []) {
               if (iss.severidad === 'baja') continue
@@ -112,21 +118,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         if (autoCorr.length) {
           const { system, user } = buildImprovePrompt(basePrompt, autoCorr, notes)
           try {
-            improved = await callText({
-              model: chatModel,
-              system,
-              messages: [{ role: 'user', content: user }],
-              max_tokens: 14000,
-              temperature: 0.4,
-            })
+            improved = await callText(
+              {
+                model: chatModel,
+                system,
+                messages: [{ role: 'user', content: user }],
+                max_tokens: 14000,
+                temperature: 0.4,
+              },
+              aiEnv
+            )
           } catch {
-            improved = await callText({
-              model: DEFAULT_MODEL,
-              system,
-              messages: [{ role: 'user', content: user }],
-              max_tokens: 14000,
-              temperature: 0.4,
-            })
+            improved = await callText(
+              {
+                model: DEFAULT_MODEL,
+                system,
+                messages: [{ role: 'user', content: user }],
+                max_tokens: 14000,
+                temperature: 0.4,
+              },
+              aiEnv
+            )
           }
         } else {
           improved =

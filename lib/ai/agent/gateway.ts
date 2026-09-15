@@ -7,17 +7,15 @@
 // función TypeScript acotada (lib/ai/agent/tools.ts) sobre las tablas de negocio ya existentes.
 import Anthropic from '@anthropic-ai/sdk'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { deepseekModel, selectEngine, type AiEnv } from '@/lib/ai/provider'
 import { estimateCostUsd } from '@/lib/ai/pricing'
 import { autorizarTool, construirSystemPrompt, type ContextoNegocio } from '@/lib/ai/agent/growth-operator'
 import { avisoRespuestaCortada, serializarResultadoTool } from '@/lib/ai/agent/serializar'
 import * as tools from './tools'
 import { formatCurrency, formatPercent } from '@/lib/utils'
 
-// Modelo único por ahora (solo hay credenciales de Anthropic en este proyecto) — la constante
-// vive en un solo sitio para no hardcodear el id en varios ficheros, y consultar la política de
-// mínimo-privilegio/costes: BALANCED porque el agente hace tool-use multi-turno, no clasificación
-// simple. Cuando haya más de un proveedor real, esto se convierte en un adapter — no antes.
 const AGENT_MODEL = process.env.AI_AGENT_MODEL || 'claude-sonnet-5'
+const DEEPSEEK_ANTHROPIC_BASE_URL = 'https://api.deepseek.com/anthropic'
 const MAX_TOOL_ROUNDS = 4 // evita un bucle de tool-use descontrolado (coste + latencia)
 
 export type ToolEvidence = { name: string; input: Record<string, unknown>; summary: string }
@@ -36,10 +34,26 @@ export type TurnUsage = {
 export type AgentTurn = { text: string; evidence: ToolEvidence[]; usage: TurnUsage }
 export type ChatMessage = { role: 'user' | 'assistant'; content: string }
 
-// La clave llega de la configuración de la subcuenta (ver lib/config.ts): leerla de `process.env`
-// significaba que el agente de una subcuenta podía consumir la cuenta de Anthropic de otra.
-function anthropicClient(apiKey: string | undefined) {
-  return new Anthropic({ apiKey, maxRetries: 1, timeout: 45_000 })
+// DeepSeek ofrece oficialmente un endpoint compatible con Anthropic. Así conservamos exactamente
+// el mismo bucle de tool-use y, sobre todo, la misma frontera de autorización de herramientas. Solo
+// cambia el cliente/modelo elegidos por la configuración aislada de ESTA subcuenta.
+export function agentProvider(env: AiEnv): { client: Anthropic; model: string; engine: 'deepseek' | 'anthropic' } {
+  if (selectEngine(env) === 'deepseek') {
+    const apiKey = env.DEEPSEEK_API_KEY?.trim()
+    if (!apiKey) throw new Error('DeepSeek no está configurado para esta subcuenta')
+    return {
+      client: new Anthropic({ apiKey, baseURL: DEEPSEEK_ANTHROPIC_BASE_URL, maxRetries: 1, timeout: 45_000 }),
+      model: deepseekModel(env),
+      engine: 'deepseek',
+    }
+  }
+  const apiKey = env.ANTHROPIC_API_KEY?.trim()
+  if (!apiKey) throw new Error('Configura una clave de DeepSeek o Anthropic para esta subcuenta')
+  return {
+    client: new Anthropic({ apiKey, maxRetries: 1, timeout: 45_000 }),
+    model: AGENT_MODEL,
+    engine: 'anthropic',
+  }
 }
 
 // Definición de tools en formato Anthropic. input_schema es JSON Schema — el SDK valida que el
@@ -370,8 +384,8 @@ async function callTool(
 
 export async function runAgent(opts: {
   tenantId: string
-  /** Clave de Anthropic de esta subcuenta. */
-  anthropicKey: string | undefined
+  /** Instantánea aislada de la configuración de IA de esta subcuenta. */
+  aiEnv: AiEnv
   tenantName: string
   userId?: string
   sb: SupabaseClient
@@ -389,15 +403,15 @@ export async function runAgent(opts: {
     latencyMs: number
   ) => void
 }): Promise<AgentTurn> {
-  const client = anthropicClient(opts.anthropicKey)
+  const { client, model } = agentProvider(opts.aiEnv)
   const ctx: tools.ToolContext = { tenantId: opts.tenantId, sb: opts.sb, userId: opts.userId }
   const evidence: ToolEvidence[] = []
   const startedAt = Date.now()
   const totals = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, rounds: 0 }
   const buildUsage = (): TurnUsage => ({
-    model: AGENT_MODEL,
+    model,
     ...totals,
-    costUsd: estimateCostUsd(AGENT_MODEL, totals),
+    costUsd: estimateCostUsd(model, totals),
     latencyMs: Date.now() - startedAt,
   })
 
@@ -413,7 +427,7 @@ export async function runAgent(opts: {
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const resp = await client.messages.create({
-      model: AGENT_MODEL,
+      model,
       max_tokens: 1500,
       system,
       tools: TOOL_DEFS,

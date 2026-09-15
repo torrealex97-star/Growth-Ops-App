@@ -6,12 +6,24 @@ import {
   deepseekModel,
   selectEngine,
 } from '../../lib/ai/provider.ts'
+import { agentProvider } from '../../lib/ai/agent/gateway.ts'
 
 // Conectar DeepSeek en Integraciones tiene que CAMBIAR quién atiende las peticiones. Antes las
 // funciones de IA llamaban a Anthropic directamente, así que la integración daba verde y no movía
 // un dato: una integración que solo existe en la pantalla.
 test('con clave de DeepSeek, el motor es DeepSeek', () => {
   assert.equal(selectEngine({ DEEPSEEK_API_KEY: 'sk-abc', ANTHROPIC_API_KEY: 'sk-ant' }), 'deepseek')
+})
+
+test('el agente usa el endpoint Anthropic-compatible de DeepSeek con el modelo de la subcuenta', () => {
+  const provider = agentProvider({ DEEPSEEK_API_KEY: 'sk-test', DEEPSEEK_MODEL: 'deepseek-flash' })
+  assert.equal(provider.engine, 'deepseek')
+  assert.equal(provider.model, 'deepseek-flash')
+  assert.equal(provider.client.baseURL, 'https://api.deepseek.com/anthropic')
+})
+
+test('sin ningún motor configurado el agente falla antes de enviar datos', () => {
+  assert.throws(() => agentProvider({}), /Configura una clave de DeepSeek o Anthropic/)
 })
 
 // Y no se activa solo: sin clave, todo sigue exactamente como estaba. Cambiar el motor de una
