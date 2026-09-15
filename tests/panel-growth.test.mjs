@@ -162,3 +162,43 @@ test('la ruta del agente le pasa el brief solo al arrancar la conversación', ()
   // Y si el brief falla, el agente responde igual usando sus herramientas.
   assert.match(codigo, /briefResumen = undefined/)
 })
+
+// ---------------------------------------------------------------------------------------------
+// LAS AGENDAS ENSEÑAN LAS RESPUESTAS, NO EL PAYLOAD.
+//
+// La sección "Formulario / Cualificación" existía y NUNCA aparecía: leía `appointment.qualification`,
+// que en producción está a 0 de 559. Las respuestas viven en `raw_payload` (473 de 559), así que quien
+// llamaba tenía que desplegar el JSON crudo para ver lo que el lead había contestado.
+// ---------------------------------------------------------------------------------------------
+
+const DETALLE = 'components/appointments/AppointmentDetail.tsx'
+
+test('el formulario cae a raw_payload cuando la columna estructurada está vacía', () => {
+  const codigo = sinComentarios(leer(DETALLE))
+  assert.match(codigo, /extraerRespuestas\(appointment\.raw_payload, appointment\.external_source\)/)
+  assert.match(codigo, /qualificationEntries\.length > 0\s*\?\s*qualificationEntries\s*:\s*respuestasDelPayload/)
+  // Y la sección se pinta con la lista combinada, no con la columna vacía.
+  assert.match(codigo, /\{entradasFormulario\.length > 0 && \(/)
+  assert.match(codigo, /entradasFormulario\.map\(/)
+})
+
+test('se enseña el veredicto de cualificación que cuenta el panel, con sus motivos', () => {
+  const codigo = leer(DETALLE)
+  assert.match(codigo, /Cualificación de marketing/)
+  assert.match(codigo, /veredicto\.motivos\.map/)
+  assert.match(codigo, /fiabilidad \{veredicto\.fiabilidad\}/)
+})
+
+// `null` no es "no cualificada": es que el formulario no da para decidirlo. Pintarlo como un "no"
+// metería en las no cualificadas a todo el que simplemente no contestó.
+test('sin datos suficientes no se declara "no cualificada"', () => {
+  const codigo = leer(DETALLE)
+  assert.match(codigo, /no se puede saber con lo que contestó/)
+  assert.match(codigo, /veredicto\.cualificada === true[\s\S]{0,120}=== false/)
+})
+
+test('el payload crudo sigue plegado y solo para quien administra', () => {
+  const codigo = sinComentarios(leer(DETALLE))
+  assert.match(codigo, /canSeeRawPayload && appointment\.raw_payload/)
+  assert.match(codigo, /<details/)
+})
