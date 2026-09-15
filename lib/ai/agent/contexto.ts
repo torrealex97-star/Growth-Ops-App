@@ -42,7 +42,13 @@ export function mapearContexto(row: Record<string, unknown> | null | undefined):
 }
 
 export async function cargarContextoNegocio(sb: SupabaseClient, tenantId: string): Promise<ContextoNegocio> {
-  const { data, error } = await sb.from('growth_context').select('*').eq('tenant_id', tenantId).maybeSingle()
+  const { data, error } = await sb
+    .from('growth_context')
+    .select(
+      'business_type,offer_name,offer_price_eur,sales_cycle_days,target_monthly_revenue_eur,target_ltgp_cac,target_cash_roas,capacity_calls_per_week,capacity_active_clients,notes'
+    )
+    .eq('tenant_id', tenantId)
+    .maybeSingle()
   if (error) {
     if (error.code === TABLA_NO_EXISTE) return CONTEXTO_VACIO
     throw new Error(`No se pudo leer el contexto de negocio: ${error.message}`)
