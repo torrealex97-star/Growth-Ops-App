@@ -9,6 +9,7 @@ import { STATUS_LABELS, type MetricStatus } from '@/lib/funnels/types'
 import type { FunnelResult } from '@/lib/funnels/compute'
 import { formatCurrency } from '@/lib/utils'
 import { FunnelChart } from '@/components/os/FunnelChart'
+import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
 
 // La respuesta ES el FunnelResult que calcula `lib/funnels/compute.ts`, más el rango que se pidió.
 // Antes esta pantalla mantenía su propia copia de los tipos, con `source: string` en vez del union
@@ -96,28 +97,8 @@ export default function FunnelsPage() {
             </button>
           ))}
         </div>
-        <div className="flex items-end gap-2">
-          <label className="text-xs text-muted-foreground">
-            Desde
-            <input
-              type="date"
-              value={from}
-              max={to}
-              onChange={(e) => setFrom(e.target.value)}
-              className="mt-1 block rounded-lg border border-border bg-background/60 px-2 py-1.5 text-sm text-foreground"
-            />
-          </label>
-          <label className="text-xs text-muted-foreground">
-            Hasta
-            <input
-              type="date"
-              value={to}
-              min={from}
-              max={todayIso()}
-              onChange={(e) => setTo(e.target.value)}
-              className="mt-1 block rounded-lg border border-border bg-background/60 px-2 py-1.5 text-sm text-foreground"
-            />
-          </label>
+        <div className="w-full sm:w-auto sm:min-w-72">
+          <DateRangeCalendarPopover from={from} to={to} onFromChange={setFrom} onToChange={setTo} max={todayIso()} />
         </div>
       </div>
 

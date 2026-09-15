@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { CollectionsTable } from '@/components/collections/CollectionsTable'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Plus, DollarSign, Download, X } from 'lucide-react'
@@ -15,6 +14,7 @@ import type { CollectionWithRelations } from '@/lib/types/database'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { getCustomDateRange, inPeriod } from '@/lib/filters/period'
 import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
+import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
 
 function csvEscape(value: string): string {
   if (value == null) return ''
@@ -203,26 +203,16 @@ export default function CollectionsPage() {
           </div>
 
           {periodPreset === 'custom' && (
-            <>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Periodo desde</Label>
-                <Input
-                  type="date"
-                  value={customFrom}
-                  onChange={(e) => setCustomFrom(e.target.value)}
-                  className="bg-muted border-border h-9"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Periodo hasta</Label>
-                <Input
-                  type="date"
-                  value={customTo}
-                  onChange={(e) => setCustomTo(e.target.value)}
-                  className="bg-muted border-border h-9"
-                />
-              </div>
-            </>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label className="text-xs text-muted-foreground">Periodo personalizado</Label>
+              <DateRangeCalendarPopover
+                from={customFrom}
+                to={customTo}
+                onFromChange={setCustomFrom}
+                onToChange={setCustomTo}
+                className="h-9"
+              />
+            </div>
           )}
 
           <div className="space-y-1.5">
@@ -254,24 +244,14 @@ export default function CollectionsPage() {
             </Select>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Desde</Label>
-            <Input
-              type="date"
-              value={dateFrom}
-              max={dateTo || undefined}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="bg-muted border-border h-9"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Hasta</Label>
-            <Input
-              type="date"
-              value={dateTo}
-              min={dateFrom || undefined}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="bg-muted border-border h-9"
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label className="text-xs text-muted-foreground">Fechas del cobro</Label>
+            <DateRangeCalendarPopover
+              from={dateFrom}
+              to={dateTo}
+              onFromChange={setDateFrom}
+              onToChange={setDateTo}
+              className="h-9"
             />
           </div>
         </div>

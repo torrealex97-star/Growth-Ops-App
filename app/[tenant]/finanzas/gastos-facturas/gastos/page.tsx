@@ -23,6 +23,7 @@ import { getCustomDateRange, getPreviousPeriodRange, inPeriod, type PeriodRange 
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { ShareDonut } from '@/components/os/ShareDonut'
 import { TrendChart } from '@/components/os/TrendChart'
+import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
 
 type PeriodPreset = 'month' | 'today' | 'week' | 'quarter' | 'year' | 'custom'
 
@@ -852,20 +853,13 @@ export default function ExpensesPage() {
             />
           )}
           {periodPreset === 'custom' && (
-            <>
-              <input
-                type="date"
-                value={customFrom}
-                onChange={(e) => setCustomFrom(e.target.value)}
-                className="bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-brand-500"
-              />
-              <input
-                type="date"
-                value={customTo}
-                onChange={(e) => setCustomTo(e.target.value)}
-                className="bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-brand-500"
-              />
-            </>
+            <DateRangeCalendarPopover
+              from={customFrom}
+              to={customTo}
+              onFromChange={setCustomFrom}
+              onToChange={setCustomTo}
+              className="w-full sm:w-72"
+            />
           )}
           <SearchBox value={q} onChange={setQ} placeholder="Buscar concepto, proveedor..." className="w-64" />
           <button

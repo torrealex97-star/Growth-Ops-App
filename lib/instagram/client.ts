@@ -22,6 +22,25 @@ export type IgConfig = {
 
 const GRAPH = 'https://graph.facebook.com'
 
+export type InstagramErrorCode = 'token_caducado' | 'token_invalido' | 'sin_permisos' | 'limite_de_uso' | 'timeout'
+
+export class InstagramApiError extends Error {
+  constructor(
+    message: string,
+    readonly code: InstagramErrorCode
+  ) {
+    super(message)
+    this.name = 'InstagramApiError'
+  }
+}
+
+export function instagramErrorCode(providerCode: number | null, message: string): InstagramErrorCode {
+  if (providerCode === 10) return 'sin_permisos'
+  if ([4, 17, 32, 613].includes(providerCode ?? -1)) return 'limite_de_uso'
+  if (providerCode === 190 && /expir|caduc/i.test(message)) return 'token_caducado'
+  return 'token_invalido'
+}
+
 /**
  * Credenciales de Instagram tal y como las guarda la subcuenta. Se pasan EXPLÍCITAMENTE, igual que
  * en lib/meta/client.ts y por el mismo motivo: `ensureConfig(tenantId)` las vuelca en `process.env`,
@@ -76,15 +95,18 @@ async function graphGet(url: string): Promise<any> {
     res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(IG_TIMEOUT_MS) })
   } catch (err) {
     if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
-      throw new Error('La API de Instagram tardó demasiado en responder (timeout)')
+      throw new InstagramApiError('La API de Instagram tardó demasiado en responder (timeout)', 'timeout')
     }
     throw err
   }
   const json = await res.json()
   if (!res.ok || json?.error) {
     const err = json?.error
-    throw new Error(
-      `Instagram API error${err?.code ? ` (${err.code})` : ''}: ${err?.message || res.statusText || 'desconocido'}`
+    const providerCode = Number.isFinite(Number(err?.code)) ? Number(err.code) : null
+    const message = err?.message || res.statusText || 'desconocido'
+    throw new InstagramApiError(
+      `Instagram API error${providerCode ? ` (${providerCode})` : ''}: ${message}`,
+      instagramErrorCode(providerCode, message)
     )
   }
   return json

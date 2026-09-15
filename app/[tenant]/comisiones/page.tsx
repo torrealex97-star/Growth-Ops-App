@@ -8,7 +8,6 @@ import { CommissionInvoicePanel } from '@/components/commissions/CommissionInvoi
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { TrendingUp, Users, Percent, ExternalLink, X, Download, Wrench, Loader2 } from 'lucide-react'
@@ -19,6 +18,7 @@ import type { CommissionWithRelations, ParticipantType } from '@/lib/types/datab
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { getCustomDateRange, inPeriod } from '@/lib/filters/period'
 import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
+import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
 
 type SimpleMember = { id: string; full_name: string }
 
@@ -472,26 +472,16 @@ export default function CommissionsPage() {
           </div>
 
           {periodPreset === 'custom' && (
-            <>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Periodo desde</Label>
-                <Input
-                  type="date"
-                  value={customFrom}
-                  onChange={(e) => setCustomFrom(e.target.value)}
-                  className="bg-muted border-border h-9"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Periodo hasta</Label>
-                <Input
-                  type="date"
-                  value={customTo}
-                  onChange={(e) => setCustomTo(e.target.value)}
-                  className="bg-muted border-border h-9"
-                />
-              </div>
-            </>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label className="text-xs text-muted-foreground">Periodo personalizado</Label>
+              <DateRangeCalendarPopover
+                from={customFrom}
+                to={customTo}
+                onFromChange={setCustomFrom}
+                onToChange={setCustomTo}
+                className="h-9"
+              />
+            </div>
           )}
 
           <div className="space-y-1.5">
@@ -511,25 +501,14 @@ export default function CommissionsPage() {
             </Select>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Desde</Label>
-            <Input
-              type="date"
-              value={filterFrom}
-              max={filterTo || undefined}
-              onChange={(e) => setFilterFrom(e.target.value)}
-              className="bg-muted border-border h-9"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Hasta</Label>
-            <Input
-              type="date"
-              value={filterTo}
-              min={filterFrom || undefined}
-              onChange={(e) => setFilterTo(e.target.value)}
-              className="bg-muted border-border h-9"
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label className="text-xs text-muted-foreground">Fechas de comisión</Label>
+            <DateRangeCalendarPopover
+              from={filterFrom}
+              to={filterTo}
+              onFromChange={setFilterFrom}
+              onToChange={setFilterTo}
+              className="h-9"
             />
           </div>
 

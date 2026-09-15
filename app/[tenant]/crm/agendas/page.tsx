@@ -22,7 +22,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { AppointmentDetail } from '@/components/appointments/AppointmentDetail'
 import { AgendasAnalysisView } from '@/components/appointments/AgendasAnalysisView'
 import { AgendasMetricsView } from '@/components/appointments/AgendasMetricsView'
-import { CalendarPopover } from '@/components/ui/calendar-popover'
+import { CalendarPopover, DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
 import {
   Calendar,
   Search,
@@ -1304,21 +1304,12 @@ export default function AppointmentsPage() {
               </SelectContent>
             </Select>
 
-            <Input
-              type="date"
-              value={dateFrom}
-              max={dateTo || undefined}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-40 bg-card border-border"
-              placeholder="Desde"
-            />
-            <Input
-              type="date"
-              value={dateTo}
-              min={dateFrom || undefined}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-40 bg-card border-border"
-              placeholder="Hasta"
+            <DateRangeCalendarPopover
+              from={dateFrom}
+              to={dateTo}
+              onFromChange={setDateFrom}
+              onToChange={setDateTo}
+              className="w-full sm:w-72"
             />
 
             {/* Duplicadas: solo aparece si hay alguna. El admin las abre y las borra desde el detalle. */}

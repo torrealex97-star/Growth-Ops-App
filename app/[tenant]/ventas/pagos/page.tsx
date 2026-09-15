@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -18,6 +17,7 @@ import type { SaleWithRelations, Collection, SaleExpectedInstallment } from '@/l
 import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { getCustomDateRange } from '@/lib/filters/period'
 import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
+import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
 
 function csvEscape(value: string): string {
   if (value == null) return ''
@@ -388,26 +388,16 @@ export default function PaymentsPipelinePage() {
           </div>
 
           {periodPreset === 'custom' && (
-            <>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Periodo desde</Label>
-                <Input
-                  type="date"
-                  value={customFrom}
-                  onChange={(e) => setCustomFrom(e.target.value)}
-                  className="bg-muted border-border h-9"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Periodo hasta</Label>
-                <Input
-                  type="date"
-                  value={customTo}
-                  onChange={(e) => setCustomTo(e.target.value)}
-                  className="bg-muted border-border h-9"
-                />
-              </div>
-            </>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label className="text-xs text-muted-foreground">Periodo personalizado</Label>
+              <DateRangeCalendarPopover
+                from={customFrom}
+                to={customTo}
+                onFromChange={setCustomFrom}
+                onToChange={setCustomTo}
+                className="h-9"
+              />
+            </div>
           )}
         </div>
         {excludedCount > 0 && (

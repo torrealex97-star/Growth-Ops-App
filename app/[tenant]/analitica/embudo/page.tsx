@@ -10,7 +10,6 @@ import {
   Video,
   PhoneCall,
   ThumbsUp,
-  HandCoins,
   Wallet,
   Trophy,
   Banknote,
@@ -114,7 +113,7 @@ function KPICard({
   description?: string
 }) {
   return (
-    <div className="dashboard-card p-4">
+    <div className="min-w-0 border-b border-border/70 p-4 sm:border-r">
       <div className="flex items-center gap-2 mb-2">
         <Icon className="w-4 h-4 text-brand-400" />
         <span className="text-xs uppercase tracking-wider text-muted-foreground">{title}</span>
@@ -289,7 +288,7 @@ export default function VentasMetricasPage() {
       programadas,
       seguimientos,
     }
-  }, [monthAppointments, monthSales, monthCollections, personSales, ym, range])
+  }, [monthAppointments, monthSales, monthCollections, personSales, ym, range, usingPeriodPreset])
 
   // Ventas por fuente (Facebook/Meta, Setting IA, orgánico...) — cruzando la venta con la agenda
   // que la originó (sales.appointment_id -> appointments.utm_source/utm_term), mismo criterio que
@@ -452,9 +451,42 @@ export default function VentasMetricasPage() {
           )}
 
           {/* Embudo visual */}
-          <div>
-            <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Embudo — Sales Calls</h2>
-            <div className="dashboard-card p-5">
+          <section className="overflow-hidden rounded-xl border border-border bg-card/35">
+            <div className="flex flex-col gap-4 border-b border-border px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                  Embudo comercial
+                </p>
+                <h2 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground">Sales Calls</h2>
+              </div>
+              <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
+                <div>
+                  <dt className="text-[11px] text-muted-foreground">Booked → Close</dt>
+                  <dd className="mt-1 font-display text-lg font-semibold tabular-nums text-foreground">
+                    {pct(metrics.closes, metrics.bookedSalesCalls)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] text-muted-foreground">Facturación cerrada</dt>
+                  <dd className="mt-1 font-display text-lg font-semibold tabular-nums text-foreground">
+                    {formatCurrency(metrics.closedValue)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] text-muted-foreground">Pipe activo</dt>
+                  <dd className="mt-1 font-display text-lg font-semibold tabular-nums text-foreground">
+                    {formatCurrency(metrics.pipeValue)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] text-muted-foreground">Devoluciones</dt>
+                  <dd className="mt-1 font-display text-lg font-semibold tabular-nums text-foreground">
+                    {metrics.refunds}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+            <div className="p-4 sm:p-5">
               <ConnectedFunnel
                 stages={[
                   { label: 'Booked', value: metrics.bookedSalesCalls, conversion: null },
@@ -468,17 +500,14 @@ export default function VentasMetricasPage() {
                 ]}
               />
             </div>
-            <p className="text-xs text-muted-foreground mt-3">
-              Conversión global Booked → Close: {pct(metrics.closes, metrics.bookedSalesCalls)}
-            </p>
-          </div>
+          </section>
 
           {/* Volúmenes */}
           <div>
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
               Volúmenes — {monthLabel(ym)}
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 overflow-hidden rounded-xl border border-border bg-card/30 sm:grid-cols-2 lg:grid-cols-4">
               <KPICard
                 title="Pipe Value"
                 value={formatCurrency(metrics.pipeValue)}
@@ -510,21 +539,7 @@ export default function VentasMetricasPage() {
                 icon={ThumbsUp}
                 description="result = good_demo"
               />
-              <KPICard title="Sales Calls Booked" value={String(metrics.bookedSalesCalls)} icon={CalendarCheck} />
-              <KPICard
-                title="Live Sales Calls"
-                value={String(metrics.liveSalesCalls)}
-                icon={PhoneCall}
-                description="show / completed"
-              />
-              <KPICard
-                title="Offers"
-                value={String(metrics.offers)}
-                icon={HandCoins}
-                description="offered = true o offer_made"
-              />
               <KPICard title="Deposits" value={String(metrics.deposits)} icon={Wallet} description="result = deposit" />
-              <KPICard title="Closes" value={String(metrics.closes)} icon={Trophy} description="ventas del periodo" />
               <KPICard
                 title="Cobros comisionables"
                 value={formatCurrency(metrics.netRevenue)}
@@ -538,7 +553,7 @@ export default function VentasMetricasPage() {
           {/* Tasas */}
           <div>
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Tasas de conversión</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 overflow-hidden rounded-xl border border-border bg-card/30 sm:grid-cols-2 lg:grid-cols-4">
               <KPICard
                 title="% Show Rate (D)"
                 value={pct(metrics.liveDemos, metrics.bookedDemos)}
@@ -610,7 +625,7 @@ export default function VentasMetricasPage() {
 
           <div>
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Embudo — Demos</h2>
-            <div className="dashboard-card p-5">
+            <div className="rounded-xl border border-border bg-card/35 p-4 sm:p-5">
               <ConnectedFunnel
                 stages={[
                   { label: 'Booked', value: metrics.bookedDemos, conversion: null },
@@ -714,7 +729,7 @@ export default function VentasMetricasPage() {
                 Agendas por región — {monthLabel(ym)}{' '}
                 <span className="normal-case text-muted-foreground/70">(solo visible para ti)</span>
               </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 overflow-hidden rounded-xl border border-border bg-card/30 sm:grid-cols-2 lg:grid-cols-5">
                 {regionBreakdown.map((r) => (
                   <KPICard key={r.region} title={r.region} value={String(r.count)} icon={BarChart3} />
                 ))}
