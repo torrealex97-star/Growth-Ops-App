@@ -1,5 +1,26 @@
 # Relevo activo
 
+## Endurecimiento operativo e invitaciones multi-tenant — 2026-09-15
+
+Rama única: `codex/operational-hardening`, iniciada desde `main` limpio (`63b382d`) al no existir
+otra rama ni PR de trabajo activa.
+
+- La pantalla Usuarios dejó de llamar a `admin/migrate-page-overrides` en cada montaje. Abrir una
+  vista ya no dispara DDL administrativo ni consume una función/consulta innecesaria.
+- La invitación valida el rol antes de crear la identidad, asigna techo `admin` en
+  `tenant_members` a admin/director, conserva un techo administrativo existente y comprueba cada
+  escritura. Si una invitación nueva queda a medias, elimina la identidad recién creada para no
+  dejar usuarios huérfanos.
+- CI y deploy usan Node 24 y `actions/checkout`/`actions/setup-node` v7. Next fija
+  `outputFileTracingRoot` al repositorio para no inferir `/Documents` por el lockfile ajeno.
+- Pruebas de regresión: `tests/invite-consistency.test.mjs` y `tests/ci-runtime.test.mjs`.
+
+Validación local ejecutada: **format PASS; lint PASS con warnings heredados; typecheck PASS; suite
+general PASS; métricas 647/647 PASS; dead-code informativo PASS; build limpio de producción PASS**.
+Pendiente al escribir este relevo: push, CI/Preview, merge y smoke de producción. La verificación
+directa de datos/migraciones en Supabase sigue requiriendo conectar el complemento de Supabase;
+no se considera probada contra datos reales desde este entorno.
+
 ## Métricas reales restantes + alertas en Notificaciones — 2026-09-15
 
 Se cerraron tres métricas que el registro ya declaraba pero que `calcularAgregados` devolvía siempre
