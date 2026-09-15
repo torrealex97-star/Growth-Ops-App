@@ -1787,6 +1787,12 @@ export default function AppointmentsPage() {
           {selectedAppointment && (
             <div className="mt-6">
               <AppointmentDetail
+                // El Sheet NO se desmonta al cambiar de cita: solo cambia el prop. Sin esta key, todos
+                // los useState(appointment.x) del panel se quedan con los valores de la cita ANTERIOR
+                // —notas, URL de grabación, transcripción y el marcado del resultado— y al guardar se
+                // escriben en la cita que está abierta ahora. La key fuerza el remontaje, que es lo que
+                // reinicializa ese estado.
+                key={selectedAppointment.id}
                 appointment={selectedAppointment}
                 canChangeStatus={canChangeStatus}
                 currentUserName={currentUserName}
