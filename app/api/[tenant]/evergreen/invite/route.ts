@@ -10,6 +10,7 @@ export const runtime = 'nodejs'
 
 // Roles que necesitan un tracking_code para generar enlaces con UTM
 const TRACKING_ROLES = ['setter', 'closer', 'cold_caller', 'affiliate']
+const ADMIN_ROLES = ['admin', 'director']
 
 // Invitación de un nuevo miembro. En vez del email genérico de "invitación" de
 // Supabase (que no llevaba bien a crear contraseña), generamos NOSOTROS el enlace
@@ -64,6 +65,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin
     const redirectTo = `${siteUrl}/api/${tenant}/evergreen/auth/callback?next=/${tenant}/settings/password`
 
+    // El roleId llega del navegador, así que no se usa hasta comprobar que existe. Además de evitar
+    // perfiles con una FK inválida, necesitamos la key canónica para poner el techo de membresía
+    // correcto: un admin/director invitado como `member` quedaría recortado a manager por diseño.
+    const { data: role, error: roleError } = await supabase.from('roles').select('key').eq('id', roleId).maybeSingle()
+    if (roleError) return NextResponse.json({ error: 'No se pudo validar el rol' }, { status: 500 })
+    const roleKey = (role as { key?: string } | null)?.key
+    if (!roleKey) return NextResponse.json({ error: 'El rol seleccionado no existe' }, { status: 400 })
+
     // 1) Enlace de acceso. Para un usuario nuevo → 'invite' (crea el usuario);
     //    si ya existe → 'recovery' (crear/restablecer contraseña).
     let linkType: 'invite' | 'recovery' = 'invite'
@@ -93,13 +102,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // 2) Perfil en la tabla users (idempotente).
     const userId = gen.data.user?.id
     if (userId) {
-      const { data: role } = await supabase.from('roles').select('key').eq('id', roleId).maybeSingle()
-      const roleKey = (role as { key?: string } | null)?.key
       let trackingCode: string | null = null
-      if (roleKey && TRACKING_ROLES.includes(roleKey)) {
+      if (TRACKING_ROLES.includes(roleKey)) {
         trackingCode = await generateUniqueTrackingCode(supabase)
       }
-      await supabase.from('users').upsert(
+
+      // Lee primero el acceso actual: si esta comprobación falla no debemos modificar el perfil
+      // global de un usuario existente y dejar la operación completada solo a medias.
+      const desiredMembershipRole = ADMIN_ROLES.includes(roleKey) ? 'admin' : 'member'
+      const { data: currentMembership, error: currentMembershipError } = await supabase
+        .from('tenant_members')
+        .select('role')
+        .eq('tenant_id', t.tenantId)
+        .eq('user_id', userId)
+        .maybeSingle()
+      if (currentMembershipError) {
+        if (linkType === 'invite') await supabase.auth.admin.deleteUser(userId)
+        return NextResponse.json({ error: 'No se pudo comprobar el acceso actual a la subcuenta' }, { status: 500 })
+      }
+      const previousMembershipRole = (currentMembership as { role?: string } | null)?.role
+      const membershipRole =
+        previousMembershipRole === 'super_admin' || previousMembershipRole === 'admin'
+          ? previousMembershipRole
+          : desiredMembershipRole
+
+      const { error: profileError } = await supabase.from('users').upsert(
         {
           id: userId,
           email,
@@ -113,17 +140,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         },
         { onConflict: 'id' }
       )
+      if (profileError) {
+        // generateLink(invite) acaba de crear esta identidad y todavía no se ha enviado el correo.
+        // Se revierte para no dejar una cuenta huérfana. En recovery la identidad era previa y jamás
+        // se borra: el error se informa para que un reintento pueda completar el perfil.
+        if (linkType === 'invite') await supabase.auth.admin.deleteUser(userId)
+        return NextResponse.json({ error: `No se pudo crear el perfil: ${profileError.message}` }, { status: 500 })
+      }
 
       // Alta en la subcuenta: sin esta fila, el usuario tendría perfil pero
       // no podría entrar a NINGÚN tenant (el layout exige una fila en
-      // tenant_members o super_admin). onConflict evita degradar a un
-      // admin/super_admin ya existente a 'member' si se le reinvita.
-      await supabase
+      // tenant_members o super_admin). Un rol funcional elevado necesita membresía admin en ESTA
+      // subcuenta; los demás son member. Antes de escribir se conserva cualquier techo administrativo
+      // previo: reinvitar a alguien como closer no puede degradar sin aviso un admin ya existente.
+      const { error: membershipError } = await supabase
         .from('tenant_members')
-        .upsert(
-          { tenant_id: t.tenantId, user_id: userId, role: 'member' },
-          { onConflict: 'tenant_id,user_id', ignoreDuplicates: true }
+        .upsert({ tenant_id: t.tenantId, user_id: userId, role: membershipRole }, { onConflict: 'tenant_id,user_id' })
+      if (membershipError) {
+        if (linkType === 'invite') await supabase.auth.admin.deleteUser(userId)
+        return NextResponse.json(
+          { error: `No se pudo dar acceso a la subcuenta: ${membershipError.message}` },
+          { status: 500 }
         )
+      }
     }
 
     // 3) Enviar el email de "crea tu contraseña" con nuestra plantilla (si Resend está configurado).

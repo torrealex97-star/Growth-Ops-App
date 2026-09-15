@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -81,7 +81,7 @@ export default function UsersPage() {
   const [editTrackingCode, setEditTrackingCode] = useState('')
   const [regeneratingCode, setRegeneratingCode] = useState(false)
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     const supabase = createClient()
     const [usersRes, rolesRes, tplRes, rulesRes] = await Promise.all([
       supabase.from('users').select('*, roles(*)').order('full_name'),
@@ -100,17 +100,11 @@ export default function UsersPage() {
     setTemplates((tplRes.data ?? []) as ContractTemplate[])
     setRules((rulesRes.data ?? []) as CommissionRule[])
     setLoading(false)
-  }
+  }, [tenantId])
 
   useEffect(() => {
     fetchData()
-  }, [])
-
-  // Asegura la columna users.page_overrides (idempotente). Corre en Vercel, donde POSTGRES_URL
-  // está poblado; la llamada va autenticada (sesión admin) desde dentro de la app.
-  useEffect(() => {
-    fetch(`/api/${tenant}/evergreen/admin/migrate-page-overrides`, { method: 'POST' }).catch(() => {})
-  }, [])
+  }, [fetchData])
 
   const openEdit = (user: UserWithRole) => {
     setEditingUser(user)
