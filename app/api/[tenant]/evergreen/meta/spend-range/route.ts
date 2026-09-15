@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { getTenantConfigWithFallback } from '@/lib/config'
+import { parseAccountIds } from '@/lib/meta/accounts'
 
 export const runtime = 'nodejs'
 
-const ALLOWED_ROLES = ['admin', 'director', 'manager', 'marketing', 'adscripcion']
+const ALLOWED_ROLES = ['super_admin', 'admin', 'director', 'manager', 'marketing', 'adscripcion']
 
 // Agrega el gasto DIARIO (campaign_daily) por campaña dentro de un rango [from, to].
 // Devuelve un mapa campaignId → { spend, impressions, clicks, leads } para que la página de
@@ -23,6 +25,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
 
     const from = req.nextUrl.searchParams.get('from')
     const to = req.nextUrl.searchParams.get('to')
+    // La selección hecha en Configuración es la fuente de verdad para toda la app. La tabla conserva
+    // históricos de cuentas que estuvieron conectadas antes; filtrar solo por tenant mezclaba esas
+    // cuentas antiguas en el dashboard aunque ya no estuvieran seleccionadas.
+    const cfg = await getTenantConfigWithFallback(t.tenantId)
+    const activeAccountIds = parseAccountIds(cfg.META_AD_ACCOUNT_ID)
 
     // Paginación defensiva por si hay muchas filas (campañas × días). Se reconstruye la query
     // en cada página (los builders de supabase-js no se reutilizan tras await).
@@ -44,6 +51,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     for (let guard = 0; guard < 200; guard++) {
       // select('*') para tolerar bases sin las columnas nuevas hasta que se aplique la migración.
       let q = sb.from('campaign_daily').select('*').eq('tenant_id', t.tenantId)
+      if (activeAccountIds.length > 0) q = q.in('account_id', activeAccountIds)
       if (from) q = q.gte('date', from)
       if (to) q = q.lte('date', to)
       const { data, error } = await q.range(offset, offset + PAGE - 1)
@@ -74,7 +82,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
       offset += PAGE
     }
 
-    return NextResponse.json({ ok: true, byCampaign })
+    return NextResponse.json({ ok: true, byCampaign, activeAccountIds })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }
