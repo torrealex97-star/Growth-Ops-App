@@ -41,6 +41,21 @@ test('sin la credencial dice exactamente qué falta', () => {
   assert.match(h.fix, /GHL_LOCATION_ID/)
 })
 
+test('una integración puede aceptar una de varias credenciales alternativas', () => {
+  const ai = { id: 'alternativas', requiredAny: ['DEEPSEEK_API_KEY', 'ANTHROPIC_API_KEY'], testable: true }
+  const sinMotor = assessIntegration(ai, { facts: facts({ keys: [] }), lastCheck: null, now: AHORA })
+  assert.equal(sinMotor.status, 'sin_configurar')
+  assert.deepEqual(sinMotor.missingKeys, ['DEEPSEEK_API_KEY', 'ANTHROPIC_API_KEY'])
+
+  const conDeepSeek = assessIntegration(ai, {
+    facts: facts({ keys: ['DEEPSEEK_API_KEY'] }),
+    lastCheck: { ok: true, message: 'DeepSeek conectado.', checkedAt: hace(1000) },
+    now: AHORA,
+  })
+  assert.equal(conDeepSeek.status, 'conectada')
+  assert.deepEqual(conDeepSeek.missingKeys, [])
+})
+
 test('una comprobación correcta y reciente sí pinta verde', () => {
   const h = assessIntegration(grupo(), {
     facts: facts({ keys: ['CALENDLY_API_TOKEN'] }),

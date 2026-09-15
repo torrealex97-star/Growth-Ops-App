@@ -39,6 +39,7 @@ export type IntegrationGroup = {
   category: IntegrationCategory
   test?: boolean // si hay acción "probar conexión"
   required?: string[] // claves mínimas para considerar operativa la integración
+  requiredAny?: string[] // alternativas: basta con una (p. ej. DeepSeek O Anthropic)
   // Pantalla donde se edita este grupo. 'empresa' = no es una integración (no hay credencial,
   // conexión que probar ni sincronización): son datos de la propia empresa y se editan en
   // Configuración → Datos de empresa. Sigue en este catálogo porque su persistencia es la misma
@@ -304,9 +305,9 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
       'Motores de la plataforma: generación de contenido, análisis de llamadas, guiones, tareas y transcripción. DeepSeek es uno más — cuando su clave está puesta, atiende el texto; si no, lo hace Anthropic.',
     category: 'ia',
     test: true,
-    // DeepSeek NO es obligatorio: es opcional y por eso no entra en `required`. Si no está, la
-    // plataforma sigue funcionando con Anthropic exactamente igual que antes.
-    required: ['ANTHROPIC_API_KEY', 'GROQ_API_KEY'],
+    // El texto funciona con DeepSeek O Anthropic. Groq aporta transcripción, pero no puede hacer que
+    // un agente de texto correctamente configurado aparezca como desconectado.
+    requiredAny: ['DEEPSEEK_API_KEY', 'ANTHROPIC_API_KEY'],
     fields: [
       {
         key: 'ANTHROPIC_API_KEY',
@@ -314,7 +315,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         type: 'password',
         secret: true,
         placeholder: 'sk-ant-…',
-        help: 'Necesaria para asistentes, contenido, tareas y análisis.',
+        help: 'Opcional si usas DeepSeek. Motor alternativo para asistentes, contenido, tareas y análisis.',
       },
       {
         key: 'GROQ_API_KEY',
@@ -322,7 +323,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         type: 'password',
         secret: true,
         placeholder: 'gsk_…',
-        help: 'Necesaria para transcribir llamadas y reels.',
+        help: 'Opcional para el agente. Se usa para transcribir llamadas y reels.',
       },
       {
         // DeepSeek vive AQUÍ y no en su propia tarjeta: es un motor más de los que la plataforma

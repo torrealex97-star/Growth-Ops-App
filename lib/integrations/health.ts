@@ -72,12 +72,17 @@ export function isStale(checkedAt: string | null | undefined, now: number): bool
 }
 
 export function assessIntegration(
-  group: { id: string; required?: string[]; testable: boolean },
+  group: { id: string; required?: string[]; requiredAny?: string[]; testable: boolean },
   args: { facts: HealthFacts; lastCheck?: LastCheck | null; now?: number }
 ): IntegrationHealth {
   const now = args.now ?? Date.now()
   const required = group.required ?? []
-  const missingKeys = required.filter((k) => !args.facts.configuredKeys.has(k))
+  const requiredAny = group.requiredAny ?? []
+  const anyConfigured = requiredAny.length === 0 || requiredAny.some((k) => args.facts.configuredKeys.has(k))
+  const missingKeys = [
+    ...required.filter((k) => !args.facts.configuredKeys.has(k)),
+    ...(anyConfigured ? [] : requiredAny),
+  ]
   const syncs = (SYNCS_BY_GROUP[group.id] ?? [])
     .map((id) => SYNC_DEFS.find((d) => d.id === id))
     .filter((d): d is NonNullable<typeof d> => !!d)
@@ -91,11 +96,14 @@ export function assessIntegration(
       ...base,
       status: 'sin_configurar',
       headline: 'Sin configurar',
-      detail:
-        required.length === missingKeys.length
+      detail: !anyConfigured
+        ? `Conecta al menos una alternativa: ${requiredAny.join(' o ')}.`
+        : required.length === missingKeys.length
           ? 'Todavía no has conectado esta integración.'
           : `Falta rellenar ${missingKeys.length} de ${required.length} datos obligatorios.`,
-      fix: `Rellena ${missingKeys.join(', ')} y pulsa Guardar.`,
+      fix: !anyConfigured
+        ? `Rellena ${requiredAny.join(' o ')} y pulsa Guardar.`
+        : `Rellena ${missingKeys.join(', ')} y pulsa Guardar.`,
     }
   }
 

@@ -9,6 +9,7 @@ import {
   type Persona,
 } from '@/lib/setting-ai/core'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { tenantAiEnv } from '@/lib/ai/provider'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,8 +19,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const { tenant } = await params
   const t = await requireTenant(tenant)
   if ('error' in t) return t.error
-  if (!process.env.ANTHROPIC_API_KEY)
-    return NextResponse.json({ error: 'ANTHROPIC_API_KEY no configurada' }, { status: 503 })
+  const aiEnv = await tenantAiEnv(t.tenantId)
 
   const b = await req.json().catch(() => ({}))
   const conv: ConvMsg[] = Array.isArray(b.conversation) ? b.conversation : []
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     '(Acabas de abrir el DM. Escribe tu primer mensaje como lead, breve y natural.)'
   )
   try {
-    const text = await callText({ model, system: leadSystem(persona), messages, max_tokens: 450 })
+    const text = await callText({ model, system: leadSystem(persona), messages, max_tokens: 450 }, aiEnv)
     return NextResponse.json({ text })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
