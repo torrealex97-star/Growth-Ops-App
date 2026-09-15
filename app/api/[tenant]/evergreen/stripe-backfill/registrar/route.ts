@@ -8,7 +8,7 @@ import { buildCollection, buildSaleFromPayments, type ImportChoice } from '@/lib
 import type { StripeIntent } from '@/lib/finance/stripeReconciliation'
 
 export const runtime = 'nodejs'
-export const maxDuration = 120
+export const maxDuration = 60
 
 // Registrar como VENTAS los pagos de Stripe que el informe marca como `registrable`.
 //

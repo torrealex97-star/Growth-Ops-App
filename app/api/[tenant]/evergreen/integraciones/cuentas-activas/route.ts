@@ -32,9 +32,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
   const cfg = await getTenantConfigWithFallback(auth.tenantId)
   const meta = parseAccountIds(cfg.META_AD_ACCOUNT_ID)
 
-  return NextResponse.json({
-    meta: { seleccionadas: meta, todas: meta.length === 0 },
-    // Instagram no tiene selección de cuenta: la cuenta ES la del token configurado.
-    instagram: { seleccionadas: [], todas: true, motivo: 'una cuenta por token' },
-  })
+  return NextResponse.json(
+    {
+      meta: { seleccionadas: meta, todas: meta.length === 0 },
+      // Instagram no tiene selección de cuenta: la cuenta ES la del token configurado.
+      instagram: { seleccionadas: [], todas: true, motivo: 'una cuenta por token' },
+    },
+    {
+      headers: {
+        'Cache-Control': 'private, max-age=60, stale-while-revalidate=300',
+        Vary: 'Cookie',
+      },
+    }
+  )
 }

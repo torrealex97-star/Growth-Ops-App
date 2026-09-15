@@ -1,6 +1,16 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
+  "fluid": true,
+  "functions": {
+    "app/api/**/*.ts": { "maxDuration": 60 }
+  },
+  "git": {
+    "deploymentEnabled": {
+      "dependabot/**": false
+    }
+  },
+  "ignoreCommand": "if [ \"$VERCEL_ENV\" != \"production\" ] && git diff --quiet HEAD^ HEAD -- . ':!docs/**' ':!*.md'; then exit 0; else exit 1; fi",
   "crons": [
     { "path": "/api/_/evergreen/cron/monthly", "schedule": "0 6 1 * *" },
     { "path": "/api/_/evergreen/cron/reminders", "schedule": "0 7 * * *" },

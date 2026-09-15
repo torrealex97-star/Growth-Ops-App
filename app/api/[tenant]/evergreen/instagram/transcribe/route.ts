@@ -8,7 +8,7 @@ import { tenantAiEnv } from '@/lib/ai/provider'
 import { GROQ_LIMIT_BYTES, transcribeAudio } from '@/lib/ai/groq'
 
 export const runtime = 'nodejs'
-export const maxDuration = 300
+export const maxDuration = 60
 
 const ALLOWED_ROLES = ['admin', 'director', 'manager', 'marketing', 'editor']
 const VIDEO_BUCKET = 'ig-competitor-reels'

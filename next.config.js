@@ -1,8 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverComponentsExternalPackages: ['papaparse'],
-  },
+  serverExternalPackages: ['papaparse'],
   async redirects() {
     // Reorganización de la sección "Ventas" (CRM / Ventas & Cobros / Analítica / Comisiones /
     // Recursos de venta). Redirects 301 desde cada ruta vieja para no romper enlaces ni bookmarks.

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { datoFiable, faseCarga, puedePintarCero, RETARDO_LOADER_MS, UMBRAL_LENTO_MS } from '../../lib/ui/carga.ts'
 import {
+  esperarConAbort,
   esFalloVisible,
   fallo,
   pedir,
@@ -223,6 +224,24 @@ test('cancelar desde fuera da cancelado, y no se enseña', async () => {
   )
   assert.equal(r.tipo, 'cancelado')
   assert.equal(esFalloVisible(r), false)
+})
+
+test('una operación sin soporte de AbortSignal no puede continuar una carga cancelada', async () => {
+  const ac = new AbortController()
+  let resolver
+  const operacion = new Promise((resolve) => {
+    resolver = resolve
+  })
+  const espera = esperarConAbort(operacion, ac.signal)
+
+  ac.abort()
+  await assert.rejects(espera, { name: 'AbortError' })
+  resolver('resultado tardío')
+})
+
+test('una operación no cancelada conserva su resultado', async () => {
+  const ac = new AbortController()
+  assert.equal(await esperarConAbort(Promise.resolve('ok'), ac.signal), 'ok')
 })
 
 test('con timeoutMs null no se pone techo, para descargas largas a propósito', async () => {

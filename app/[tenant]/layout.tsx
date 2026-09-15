@@ -15,7 +15,7 @@ import { ScriptQueueProvider } from '@/components/os/ScriptQueue'
 import { AgentLauncher } from '@/components/ai/AgentLauncher'
 import { isAllowedLocation, permissionLocationFor } from '@/lib/marketing-navigation'
 import { AppLoading } from '@/components/ui/carga/AppLoading'
-import { pedir } from '@/lib/ui/pedir'
+import { esperarConAbort, pedir } from '@/lib/ui/pedir'
 
 // Rutas confidenciales SOLO para liderazgo (admin/director/manager), aunque el admin
 // haya concedido por error un override de departamento/página que las abriría por prefijo.
@@ -88,6 +88,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   // Aquí vigilamos el body en todo momento: si queda con pointer-events:none y no hay ningún
   // overlay de Radix realmente abierto (Select/Dialog/Popover/DropdownMenu), lo limpiamos.
   useEffect(() => {
+    let comprobacionPendiente: ReturnType<typeof setTimeout> | null = null
     const clearIfStuck = () => {
       if (document.body.style.pointerEvents !== 'none') return
       const openOverlay = document.querySelector(
@@ -98,10 +99,14 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
     const observer = new MutationObserver(() => {
       // Pequeño margen: Radix a veces pone pointer-events:none un instante antes de montar
       // el overlay, así que comprobamos en el siguiente tick en vez de al vuelo.
-      setTimeout(clearIfStuck, 50)
+      if (comprobacionPendiente) clearTimeout(comprobacionPendiente)
+      comprobacionPendiente = setTimeout(clearIfStuck, 50)
     })
     observer.observe(document.body, { attributes: true, attributeFilter: ['style'] })
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      if (comprobacionPendiente) clearTimeout(comprobacionPendiente)
+    }
   }, [])
 
   // Branding: se resuelve SIEMPRE, incluso en login/recover — esas páginas están fuera del
@@ -109,16 +114,20 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   // donde no la hay), pero también deben verse con la marca/acento de esta subcuenta.
   useEffect(() => {
     let mounted = true
-    createClient()
-      .from('tenants')
-      .select('settings')
-      .eq('slug', tenant)
-      .maybeSingle()
+    const cancelar = new AbortController()
+    void Promise.resolve(
+      createClient().from('tenants').select('settings').eq('slug', tenant).abortSignal(cancelar.signal).maybeSingle()
+    )
       .then(({ data }) => {
-        if (mounted && data) setBranding(resolveTenantBranding(data.settings))
+        if (mounted && !cancelar.signal.aborted && data) setBranding(resolveTenantBranding(data.settings))
+      })
+      .catch((error: unknown) => {
+        if (error instanceof Error && error.name === 'AbortError') return
+        // La marca tiene fallback local; un fallo aquí no debe tumbar el shell ni quedar sin manejar.
       })
     return () => {
       mounted = false
+      cancelar.abort()
     }
   }, [tenant])
 
@@ -147,9 +156,9 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
       const supabase = createClient()
       const {
         data: { user: authUser },
-      } = await supabase.auth.getUser()
+      } = await esperarConAbort(supabase.auth.getUser(), cancelar.signal)
 
-      if (!mounted) return
+      if (!mounted || cancelar.signal.aborted) return
       if (!authUser) {
         router.push(`/${tenant}/login`)
         // EL BUG DE LA PANTALLA NEGRA, en una línea. Este `return` salía SIN apagar `loading`, apostando
@@ -168,9 +177,10 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
         .from('tenants')
         .select('id, status')
         .eq('slug', tenant)
+        .abortSignal(cancelar.signal)
         .maybeSingle()
 
-      if (!mounted) return
+      if (!mounted || cancelar.signal.aborted) return
 
       // Un error de consulta NO es "no tienes acceso": decirle a alguien que no tiene acceso cuando lo
       // que ha fallado es la red le manda a pedir permisos que ya tiene.
@@ -187,11 +197,16 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
       // EN PARALELO. Eran dos await encadenados y ninguno dependía del otro: se pagaban dos viajes de
       // red seguidos antes de pintar un solo píxel, en CADA entrada al panel.
       const [{ data: superAdminCheck }, { data, error }] = await Promise.all([
-        supabase.rpc('is_super_admin'),
-        supabase.from('users').select('*, roles(key, name)').eq('id', authUser.id).single(),
+        supabase.rpc('is_super_admin').abortSignal(cancelar.signal),
+        supabase
+          .from('users')
+          .select('*, roles(key, name)')
+          .eq('id', authUser.id)
+          .abortSignal(cancelar.signal)
+          .single(),
       ])
 
-      if (!mounted) return
+      if (!mounted || cancelar.signal.aborted) return
       setIsSuperAdmin(!!superAdminCheck)
 
       if (error || !data) {
@@ -213,7 +228,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
           `/api/${tenant}/evergreen/contracts/my-status`,
           { signal: cancelar.signal }
         )
-        if (!mounted) return
+        if (!mounted || cancelar.signal.aborted) return
         if (res.ok && res.data?.hasSigned === false) {
           setContractGate({ pendingToken: res.data.pendingToken ?? null })
           setUser(data as UserWithRole)
@@ -224,7 +239,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
         // error transitorio de red.
       }
 
-      if (!mounted) return
+      if (!mounted || cancelar.signal.aborted) return
       setUser(data as UserWithRole)
     }
 
@@ -234,7 +249,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
       .catch((e: unknown) => {
         // EL CATCH QUE NO EXISTÍA. Cualquier excepción —red caída, CORS, 500 de Supabase— abortaba la
         // función a mitad y nadie apagaba `loading`. Ahora el fallo se ve y se puede reintentar.
-        if (!mounted) return
+        if (!mounted || cancelar.signal.aborted) return
         const nombre = e instanceof Error ? e.name : ''
         if (nombre === 'AbortError') return // lo gestiona el timeout o el desmontaje
         setFallo(e instanceof Error ? e.message : 'No se ha podido cargar tu espacio.')
@@ -242,7 +257,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
       .finally(() => {
         // Y EL FINALLY. Pase lo que pase por cualquiera de los caminos, el loader se apaga.
         clearTimeout(porTiempo)
-        if (mounted) setLoading(false)
+        if (mounted && !cancelar.signal.aborted) setLoading(false)
       })
 
     return () => {
