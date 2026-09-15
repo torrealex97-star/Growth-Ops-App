@@ -11,8 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { cn, formatDateTime } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { SuggestionType, SuggestionStatus, SuggestionWithUser, SuggestionTeamStat } from '@/lib/types/database'
-import { createClient } from '@/lib/supabase/client'
-import { useTenant } from '@/lib/tenant-context'
+import { useSesion, useTenant } from '@/lib/tenant-context'
 
 const TYPES: { value: SuggestionType; label: string; icon: React.ElementType; hint: string }[] = [
   { value: 'mejora', label: 'Mejora', icon: Lightbulb, hint: 'Una idea para mejorar la plataforma' },
@@ -37,6 +36,7 @@ const STATUS_META: Record<SuggestionStatus, { label: string; color: string }> = 
 
 export function FeedbackDialog() {
   const tenant = useTenant()
+  const sesion = useSesion()
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<'enviar' | 'mias' | 'equipo'>('enviar')
@@ -98,10 +98,8 @@ export function FeedbackDialog() {
 
   useEffect(() => {
     if (!open || myUserId) return
-    createClient()
-      .auth.getUser()
-      .then(({ data }) => setMyUserId(data.user?.id ?? null))
-  }, [open, myUserId])
+    setMyUserId(sesion?.userId ?? null)
+  }, [open, myUserId, sesion])
 
   const submit = async () => {
     if (!title.trim() || !message.trim()) {

@@ -7,8 +7,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2, User as UserIcon, KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
+import { useSesion } from '@/lib/tenant-context'
 
 export default function PerfilPage() {
+  const sesion = useSesion()
   const [email, setEmail] = useState<string>('')
   const [fullName, setFullName] = useState<string>('')
   const [current, setCurrent] = useState('')
@@ -17,14 +19,10 @@ export default function PerfilPage() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    const sb = createClient()
-    sb.auth.getUser().then(async ({ data }) => {
-      if (!data.user) return
-      setEmail(data.user.email ?? '')
-      const { data: row } = await sb.from('users').select('full_name').eq('id', data.user.id).single()
-      setFullName((row as { full_name?: string } | null)?.full_name ?? '')
-    })
-  }, [])
+    if (!sesion) return
+    setEmail((sesion.user.email as string | null | undefined) ?? '')
+    setFullName((sesion.user.full_name as string | null | undefined) ?? '')
+  }, [sesion])
 
   const changePassword = async () => {
     if (!current || !next || !confirm) {

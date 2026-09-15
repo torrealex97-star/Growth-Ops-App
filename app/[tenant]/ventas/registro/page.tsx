@@ -11,7 +11,7 @@ import { Plus, Download, ShoppingCart } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import type { SaleWithRelations, User, Product, SaleStatus } from '@/lib/types/database'
-import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { getCustomDateRange, inPeriod } from '@/lib/filters/period'
 import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
@@ -74,6 +74,7 @@ function downloadCSV(filename: string, headers: string[], rows: (string | number
 export default function SalesPage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
+  const sesion = useSesion()
   const router = useRouter()
   const [sales, setSales] = useState<SaleWithRelations[]>([])
   const [users, setUsers] = useState<User[]>([])
@@ -107,7 +108,7 @@ export default function SalesPage() {
     const fetchData = async () => {
       const supabase = createClient()
 
-      const [salesRes, usersRes, productsRes, attrRes, authRes] = await Promise.all([
+      const [salesRes, usersRes, productsRes, attrRes] = await Promise.all([
         supabase
           .from('sales')
           .select(
@@ -121,7 +122,6 @@ export default function SalesPage() {
           .from('contact_attributions')
           .select('contact_id, first_utm_source, utm_source')
           .eq('tenant_id', tenantId),
-        supabase.auth.getUser(),
       ])
 
       if (salesRes.error) {
@@ -150,19 +150,12 @@ export default function SalesPage() {
       setProducts(productsRes.data ?? [])
       setLoading(false)
 
-      if (authRes.data.user) {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('roles(key)')
-          .eq('id', authRes.data.user.id)
-          .single()
-        const roleKey = (userData as { roles?: { key?: string } } | null)?.roles?.key
-        setIsAdmin(roleKey === 'admin' || roleKey === 'director')
-      }
+      setIsAdmin(sesion?.rol === 'admin' || sesion?.rol === 'director')
     }
 
     fetchData()
-  }, [tenantId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId, sesion])
 
   const setters = useMemo(
     () => users.filter((u) => (u as { roles?: { key?: string } }).roles?.key === 'setter'),

@@ -1,5 +1,5 @@
 'use client'
-import { useTenant } from '@/lib/tenant-context'
+import { useSesion, useTenant } from '@/lib/tenant-context'
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -92,6 +92,7 @@ const fecha = (s: string | null) =>
 
 export default function InstagramPage() {
   const tenant = useTenant()
+  const sesion = useSesion()
   const [media, setMedia] = useState<Media[]>([])
   const [fbMedia, setFbMedia] = useState<FbMedia[]>([])
   const [youtube, setYoutube] = useState<YoutubeUpload[]>([])
@@ -146,19 +147,15 @@ export default function InstagramPage() {
   }
 
   useEffect(() => {
-    const sb = createClient()
-    sb.auth.getUser().then(async ({ data }) => {
-      if (!data.user) return
-      const { data: row } = await sb.from('users').select('roles(key)').eq('id', data.user.id).single()
-      setRole((row?.roles as { key?: string } | null)?.key ?? null)
-    })
+    setRole(sesion?.rol ?? null)
     // Catálogo de casos de éxito para el selector de prueba social.
     fetch(`/api/${tenant}/evergreen/testimonios`)
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => j && setTestimonios((j.testimonios || []).filter((t: Testimonio) => t.active)))
       .catch(() => {})
     load()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sesion, tenant])
 
   const runSync = async () => {
     setSyncing(true)

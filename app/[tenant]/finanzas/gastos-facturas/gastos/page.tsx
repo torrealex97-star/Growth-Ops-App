@@ -20,7 +20,7 @@ import { toast } from 'sonner'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { getCustomDateRange, getPreviousPeriodRange, inPeriod, type PeriodRange } from '@/lib/filters/period'
-import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { ShareDonut } from '@/components/os/ShareDonut'
 import { TrendChart } from '@/components/os/TrendChart'
 
@@ -262,6 +262,7 @@ function KpiDelta({ current, previous, hasPrevious }: { current: number; previou
 export default function ExpensesPage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
+  const sesion = useSesion()
   const [items, setItems] = useState<Expense[]>([])
   const [users, setUsers] = useState<DbUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -291,10 +292,9 @@ export default function ExpensesPage() {
   const load = async () => {
     setLoading(true)
     const supabase = createClient()
-    const [eRes, uRes, authRes] = await Promise.all([
+    const [eRes, uRes] = await Promise.all([
       supabase.from('expenses').select('*').order('expense_date', { ascending: false }),
       activeUserNamesQuery(supabase),
-      supabase.auth.getUser(),
     ])
     // Sin esto, un fallo de RLS al cargar gastos dejaba la pantalla vacía en silencio,
     // indistinguible de "no hay gastos este mes" (módulo de dinero, alto impacto si pasa
@@ -303,20 +303,13 @@ export default function ExpensesPage() {
     setItems((eRes.data as Expense[]) || [])
     setUsers((uRes.data as DbUser[]) || [])
 
-    if (authRes.data.user) {
-      const { data: userData } = await supabase
-        .from('users')
-        .select('roles(key)')
-        .eq('id', authRes.data.user.id)
-        .single()
-      const roleKey = (userData as { roles?: { key?: string } } | null)?.roles?.key
-      setCanManage(roleKey === 'admin' || roleKey === 'director')
-    }
+    setCanManage(sesion?.rol === 'admin' || sesion?.rol === 'director')
     setLoading(false)
   }
   useEffect(() => {
     load()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sesion])
 
   const periodRange = useMemo(
     () => getPeriodRange(periodPreset, month, customFrom, customTo),
@@ -545,10 +538,6 @@ export default function ExpensesPage() {
       const extracted: AiExtracted = data.extracted || {}
 
       const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
       let invoiceUrl: string | null = null
       try {
         // Prefijo tenant_id/: permite que la política de Storage valide pertenencia por la ruta.
@@ -583,7 +572,7 @@ export default function ExpensesPage() {
         counterparty: extracted.counterparty || null,
         person_id: matchedPersonId,
         notes: currencyConversionNote(extracted),
-        created_by: user?.id,
+        created_by: sesion?.userId ?? null,
         invoice_url: invoiceUrl,
         needs_review: true,
         ai_extracted: extracted,
@@ -678,10 +667,6 @@ export default function ExpensesPage() {
     }
 
     const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
     let invoiceUrl: string | null = null
     if (aiFile) {
       try {
@@ -710,7 +695,7 @@ export default function ExpensesPage() {
       counterparty: ne.counterparty.trim() || null,
       person_id: ne.person_id || null,
       notes: ne.notes.trim() || null,
-      created_by: user?.id,
+      created_by: sesion?.userId ?? null,
       invoice_url: invoiceUrl,
       needs_review: !!aiExtracted,
       ai_extracted: aiExtracted || null,

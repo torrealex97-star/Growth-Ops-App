@@ -93,6 +93,49 @@ const MIGRADAS = [
   'components/settings/AiEnginePanel.tsx',
 ]
 
+const CIERRE_PANTALLAS = [
+  'app/[tenant]/instagram/page.tsx',
+  'app/[tenant]/ventas/reservas/page.tsx',
+  'app/[tenant]/ventas/registro/page.tsx',
+  'app/[tenant]/ventas/registro/nueva/page.tsx',
+  'app/[tenant]/ventas/registro/[id]/page.tsx',
+  'app/[tenant]/tasks/page.tsx',
+  'app/[tenant]/perfil/page.tsx',
+  'app/[tenant]/analitica/embudo/page.tsx',
+  'app/[tenant]/crm/contactos/[id]/page.tsx',
+  'app/[tenant]/marketing/contenido/page.tsx',
+  'app/[tenant]/marketing/adquisicion/campanas/page.tsx',
+  'app/[tenant]/finanzas/gastos-facturas/gastos/page.tsx',
+  'app/[tenant]/csm-events/page.tsx',
+  'app/[tenant]/drops/page.tsx',
+  'app/[tenant]/contratos/page.tsx',
+  'app/[tenant]/recursos/biblioteca/page.tsx',
+  'components/os/ScriptQueue.tsx',
+  'components/os/FeedbackDialog.tsx',
+  'components/crm/ContactsLeadsView.tsx',
+]
+
+test('el cierre de la cascada reutiliza la sesión tanto al cargar como al escribir', () => {
+  for (const f of CIERRE_PANTALLAS) {
+    const codigo = sinComentarios(leer(f))
+    assert.match(codigo, /useSesion\(\)/, f)
+    assert.doesNotMatch(codigo, /auth\.getUser\(\)/, `${f} vuelve a pedir una sesión ya resuelta`)
+  }
+})
+
+test('solo el layout resuelve auth.getUser en las pantallas protegidas', () => {
+  const conLecturaPropia = []
+  const walk = (d) => {
+    for (const e of readdirSync(join(root, d), { withFileTypes: true })) {
+      const p = `${d}/${e.name}`
+      if (e.isDirectory()) walk(p)
+      else if (/\.tsx?$/.test(e.name) && /auth\.getUser\(\)/.test(sinComentarios(leer(p)))) conLecturaPropia.push(p)
+    }
+  }
+  walk('app/[tenant]')
+  assert.deepEqual(conLecturaPropia, ['app/[tenant]/layout.tsx'])
+})
+
 test('ninguna pantalla migrada vuelve a leer su propia fila de users', () => {
   // El patrón exacto: from('users') ... .eq('id', <el propio usuario>) ... .single()
   const relectura =

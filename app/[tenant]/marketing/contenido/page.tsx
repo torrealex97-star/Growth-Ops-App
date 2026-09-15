@@ -20,7 +20,7 @@ import {
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { testimonioPitch, type Testimonio } from '@/lib/testimonios-shared'
-import { useTenant } from '@/lib/tenant-context'
+import { useSesion, useTenant } from '@/lib/tenant-context'
 
 const STATUSES = [
   { value: 'idea', label: 'Idea' },
@@ -125,6 +125,7 @@ const statusIndex = (s: string) => {
 
 export default function ContentPage() {
   const tenant = useTenant()
+  const sesion = useSesion()
   const [items, setItems] = useState<Content[]>([])
   const [users, setUsers] = useState<DbUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -154,27 +155,25 @@ export default function ContentPage() {
 
   const load = async () => {
     const supabase = createClient()
-    const [cRes, uRes, authRes] = await Promise.all([
+    const [cRes, uRes] = await Promise.all([
       supabase
         .from('content_items')
         .select('*, assignee:assigned_to(full_name)')
         .order('created_at', { ascending: false }),
       activeUserNamesQuery(supabase),
-      supabase.auth.getUser(),
     ])
     setItems((cRes.data as Content[]) || [])
     setUsers((uRes.data as DbUser[]) || [])
     setLoading(false)
-    const uid = authRes.data.user?.id
-    if (uid) {
-      setMyId(uid)
-      const { data: urow } = await supabase.from('users').select('roles(key)').eq('id', uid).single()
-      setMyRole((urow?.roles as { key?: string } | null)?.key || '')
+    if (sesion) {
+      setMyId(sesion.userId)
+      setMyRole(sesion.rol ?? '')
     }
   }
   useEffect(() => {
     load()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sesion])
   // Catálogo de casos de éxito, para marcar qué testimonio lleva cada pieza.
   useEffect(() => {
     fetch(`/api/${tenant}/evergreen/testimonios`)
@@ -302,9 +301,6 @@ export default function ContentPage() {
       return
     }
     const supabase = createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
     // Un editor solo puede crear RLS-mente piezas asignadas a sí mismo (content_editor_insert,
     // v60): si dejaba "Editor" sin elegir o elegía a otra persona, el insert lo rechazaba la
     // base de datos y la pieza no llegaba a la tabla.
@@ -317,7 +313,7 @@ export default function ContentPage() {
       assigned_to: assignedTo,
       notes: nc.notes || null,
       status: 'idea',
-      created_by: user?.id,
+      created_by: sesion?.userId ?? null,
     })
     if (error) {
       toast.error('Error al crear', { description: error.message })
