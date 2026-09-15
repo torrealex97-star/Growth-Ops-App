@@ -1,5 +1,6 @@
 import type { CommissionRule, User } from '@/lib/types/database'
 import type { CompanyProfile } from './company'
+import { formatNumber } from '@/lib/utils'
 
 // Condiciones económicas de un contrato de equipo, extraídas de la plataforma
 // (sueldo fijo del miembro + reglas de comisión por tramos) y confirmables/editables
@@ -90,8 +91,7 @@ export function buildDefaultTerms(
   }
 }
 
-const fmtEur = (n: number) =>
-  new Intl.NumberFormat('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n)
+const fmtEur = (n: number) => formatNumber(n, { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 
 // Texto legible de un tramo de comisión.
 export function tierLine(t: CommissionTier): string {

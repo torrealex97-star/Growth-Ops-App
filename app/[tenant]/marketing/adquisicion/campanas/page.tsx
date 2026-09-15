@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Radio, Plus, X, Pencil, Receipt, CheckCircle2, RefreshCw, AlertTriangle, Zap } from 'lucide-react'
 import { toast } from 'sonner'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatNumber } from '@/lib/utils'
 import type { Campaign } from '@/lib/types/database'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { getPeriodRange, inPeriod, PERIOD_LABELS, type PeriodPreset } from '@/lib/filters/period'
@@ -62,7 +62,8 @@ const statusBadge = (s: string) => {
 }
 
 const div = (a: number, b: number): number | null => (b > 0 ? a / b : null)
-const fmtNum = (n: number | null, decimals = 2) => (n === null ? '—' : n.toFixed(decimals))
+const fmtNum = (n: number | null, decimals = 2) =>
+  n === null ? '—' : formatNumber(n, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
 
 type NewCampaign = {
   name: string
@@ -741,20 +742,14 @@ export default function CampaignsPage() {
             <div className="dashboard-card flex flex-wrap items-center gap-x-8 gap-y-3 p-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Leads Meta </span>
-                <span className="font-semibold text-foreground tabular-nums">
-                  {totalMetaLeads.toLocaleString('es-ES')}
-                </span>
+                <span className="font-semibold text-foreground tabular-nums">{formatNumber(totalMetaLeads)}</span>
                 <span className="text-muted-foreground"> · Funnel (app) </span>
-                <span className="font-semibold text-foreground tabular-nums">
-                  {totalFunnelLeads.toLocaleString('es-ES')}
-                </span>
+                <span className="font-semibold text-foreground tabular-nums">{formatNumber(totalFunnelLeads)}</span>
               </div>
               {totalFollowers > 0 && (
                 <div>
                   <span className="text-muted-foreground">Seguidores </span>
-                  <span className="font-semibold text-foreground tabular-nums">
-                    {totalFollowers.toLocaleString('es-ES')}
-                  </span>
+                  <span className="font-semibold text-foreground tabular-nums">{formatNumber(totalFollowers)}</span>
                   <span className="text-muted-foreground"> · €/seguidor </span>
                   <span className="font-semibold text-foreground tabular-nums">
                     {costPerFollower === null ? '—' : formatCurrency(costPerFollower)}
@@ -851,11 +846,11 @@ export default function CampaignsPage() {
                             {formatCurrency(c.adspend)}
                           </td>
                           <td className="px-4 py-3 text-right text-foreground tabular-nums">
-                            {(c.meta_leads || 0).toLocaleString('es-ES')}
+                            {formatNumber(c.meta_leads || 0)}
                           </td>
                           <td className="px-4 py-3 text-right tabular-nums">
                             <span className="inline-flex items-center gap-1 text-foreground">
-                              {(c.funnel_leads || 0).toLocaleString('es-ES')}
+                              {formatNumber(c.funnel_leads || 0)}
                               {showGap && (
                                 <span
                                   title={`Meta reporta ${c.meta_leads} pero en la app hay ${c.funnel_leads}. Revisa el tracking/UTM.`}
@@ -878,7 +873,7 @@ export default function CampaignsPage() {
                             {cpl === null ? '—' : formatCurrency(cpl)}
                           </td>
                           <td className="px-4 py-3 text-right text-foreground tabular-nums">
-                            {(c.followers || 0) > 0 ? (c.followers || 0).toLocaleString('es-ES') : '—'}
+                            {(c.followers || 0) > 0 ? formatNumber(c.followers || 0) : '—'}
                           </td>
                           <td className="px-4 py-3 text-right text-muted-foreground tabular-nums">
                             {(() => {

@@ -13,13 +13,13 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import type { Campaign } from '@/lib/types/database'
 import { computeAdFunnel, perCampaign } from '@/lib/ads/funnel'
 
-const fmtNum = (n: number) => n.toLocaleString('es-ES')
+const fmtNum = (n: number) => formatNumber(n)
 const fmtEur = (n: number | null) => (n === null ? '—' : formatCurrency(n))
-const fmtPct = (n: number | null) => (n === null ? '—' : `${n.toFixed(1)}%`)
+const fmtPct = (n: number | null) => formatPercent(n, 1)
 
 // Nombre corto de campaña para los ejes de los gráficos.
 const short = (name: string) => (name.length > 11 ? `${name.slice(0, 10)}…` : name)
@@ -125,10 +125,10 @@ const ChartTooltip = ({
         <p key={p.name} className="text-xs font-medium" style={{ color: p.color }}>
           {p.name}:{' '}
           {p.name.includes('%')
-            ? `${(p.value ?? 0).toFixed(1)}%`
+            ? formatPercent(p.value ?? 0, 1)
             : p.name.toLowerCase().includes('coste') || p.name.toLowerCase().includes('cpl')
               ? formatCurrency(p.value ?? 0)
-              : (p.value ?? 0).toLocaleString('es-ES')}
+              : formatNumber(p.value ?? 0)}
         </p>
       ))}
     </div>
@@ -179,9 +179,11 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
     },
     {
       label: 'ROAS',
-      value: f.roas !== null ? `${f.roas.toFixed(2)}x` : '—',
+      value: f.roas !== null ? `${formatNumber(f.roas, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x` : '—',
       alert: roasAlert,
-      hint: targets?.target_roas ? `Objetivo: ≥ ${targets.target_roas.toFixed(2)}x` : fmtEur(f.facturacion),
+      hint: targets?.target_roas
+        ? `Objetivo: ≥ ${formatNumber(targets.target_roas, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x`
+        : fmtEur(f.facturacion),
     },
   ]
 
@@ -293,7 +295,7 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
                     tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={(v) => `${v}€`}
+                    tickFormatter={(v) => `${formatNumber(v)}€`}
                   />
                   <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--brand-500) / 0.08)' }} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -347,7 +349,7 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
                     tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={(v) => `${v}€`}
+                    tickFormatter={(v) => `${formatNumber(v)}€`}
                   />
                   <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(16, 185, 129, 0.08)' }} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />

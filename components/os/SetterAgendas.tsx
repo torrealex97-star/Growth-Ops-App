@@ -2,6 +2,7 @@
 
 import { CalendarCheck } from 'lucide-react'
 import type { SetterAgendaRow } from '@/lib/analytics'
+import { formatNumber, formatPercent } from '@/lib/utils'
 
 export function SetterAgendas({ rows }: { rows: SetterAgendaRow[] }) {
   const withData = rows.filter((r) => r.total > 0)
@@ -23,12 +24,12 @@ export function SetterAgendas({ rows }: { rows: SetterAgendaRow[] }) {
               <span className="flex-1 min-w-0 truncate text-sm text-foreground">{r.name}</span>
               <div className="text-right shrink-0">
                 <p className="text-sm font-semibold text-foreground">
-                  {r.total} <span className="text-xs font-normal text-muted-foreground">agendas</span>
+                  {formatNumber(r.total)} <span className="text-xs font-normal text-muted-foreground">agendas</span>
                 </p>
                 <p className="text-[11px] text-muted-foreground">
-                  {r.shows} shows · {r.noShows} no-show ·{' '}
+                  {formatNumber(r.shows)} shows · {formatNumber(r.noShows)} no-show ·{' '}
                   <span className={r.showRate >= 60 ? 'text-emerald-400' : 'text-muted-foreground'}>
-                    {r.showRate.toFixed(0)}% show
+                    {formatPercent(r.showRate, 0)} show
                   </span>
                 </p>
               </div>

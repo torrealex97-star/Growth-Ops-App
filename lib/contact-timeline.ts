@@ -2,6 +2,8 @@
 // Notas) construida a partir de las tablas normalizadas que YA existen (contacts,
 // contact_attributions, appointments, sales, contact_notes) — sin escribir a canonical_events ni
 // tocar el pipeline de ingesta. Es una vista de lectura, no una nueva fuente de verdad.
+import { formatCurrency } from '@/lib/utils'
+
 const APPOINTMENT_STATUS_LABELS: Record<string, string> = {
   scheduled: 'Cita agendada',
   confirmed: 'Cita confirmada',
@@ -118,7 +120,7 @@ export function buildContactTimeline(
       occurredAt: s.sale_date,
       type: 'sale',
       title: SALE_STATUS_LABELS[s.status] || 'Venta',
-      detail: `${Number(s.gross_amount).toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}`,
+      detail: formatCurrency(Number(s.gross_amount)),
       source: null,
     })
   }

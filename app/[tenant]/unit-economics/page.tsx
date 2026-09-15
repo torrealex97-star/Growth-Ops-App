@@ -6,7 +6,7 @@ import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { PieChart, Target, Users, TrendingUp, Wallet, Filter, MousePointerClick, Megaphone } from 'lucide-react'
 import { ACTIVE_SALE_STATUSES } from '@/lib/analytics'
-import { formatCurrency, formatPercent } from '@/lib/utils'
+import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import { FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 import {
   buildChannelRows,
@@ -369,7 +369,11 @@ export default function UnitEconomicsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
           title="MER"
-          value={loading ? '—' : totals.mer !== null ? `${totals.mer.toFixed(2)}x` : '—'}
+          value={
+            loading || totals.mer === null
+              ? '—'
+              : `${formatNumber(totals.mer, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x`
+          }
           icon={TrendingUp}
           loading={loading}
           description="Cash collected / ad spend"
@@ -404,7 +408,9 @@ export default function UnitEconomicsPage() {
             <>
               <div className="flex items-baseline gap-1">
                 <span className={`text-2xl font-bold ${ratioColor(totals.ltvCacRatio)}`}>
-                  {totals.ltvCacRatio !== null ? `${totals.ltvCacRatio.toFixed(2)}:1` : '—'}
+                  {totals.ltvCacRatio !== null
+                    ? `${formatNumber(totals.ltvCacRatio, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}:1`
+                    : '—'}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-2">Objetivo saludable: ≥ 3:1</p>
@@ -440,27 +446,27 @@ export default function UnitEconomicsPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KPICard
             title="Agendas"
-            value={loading ? '—' : ventas.agendas.toLocaleString('es-ES')}
+            value={loading ? '—' : formatNumber(ventas.agendas)}
             icon={Users}
             loading={loading}
-            description={`${ventas.canceladas.toLocaleString('es-ES')} canceladas`}
+            description={`${formatNumber(ventas.canceladas)} canceladas`}
           />
           <KPICard
             title="Shows"
-            value={loading ? '—' : ventas.shows.toLocaleString('es-ES')}
+            value={loading ? '—' : formatNumber(ventas.shows)}
             icon={Target}
             loading={loading}
             // Una cita futura no cuenta como asistencia todavía: contarla daría un show-up que aún
             // no ha ocurrido, y con esa cifra se decide.
             description={
               ventas.llamadasSinCita > 0
-                ? `Incluye ${ventas.llamadasSinCita.toLocaleString('es-ES')} llamadas grabadas en Fathom sin cita asociada`
+                ? `Incluye ${formatNumber(ventas.llamadasSinCita)} llamadas grabadas en Fathom sin cita asociada`
                 : 'Citas no canceladas que ya han pasado'
             }
           />
           <KPICard
             title="Ventas"
-            value={loading ? '—' : ventas.ventas.toLocaleString('es-ES')}
+            value={loading ? '—' : formatNumber(ventas.ventas)}
             icon={Wallet}
             loading={loading}
             description={
@@ -490,19 +496,19 @@ export default function UnitEconomicsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard
             title="Impressions"
-            value={loading ? '—' : marketingFunnel.impressions.toLocaleString('es-ES')}
+            value={loading ? '—' : formatNumber(marketingFunnel.impressions)}
             icon={Megaphone}
             loading={loading}
           />
           <KPICard
             title="Clicks (outbound)"
-            value={loading ? '—' : marketingFunnel.clicks.toLocaleString('es-ES')}
+            value={loading ? '—' : formatNumber(marketingFunnel.clicks)}
             icon={MousePointerClick}
             loading={loading}
           />
           <KPICard
             title="New unique leads"
-            value={loading ? '—' : marketingFunnel.leads.toLocaleString('es-ES')}
+            value={loading ? '—' : formatNumber(marketingFunnel.leads)}
             icon={Filter}
             loading={loading}
           />
@@ -551,7 +557,7 @@ export default function UnitEconomicsPage() {
           />
           <KPICard
             title="Sales calls booked"
-            value={loading ? '—' : marketingFunnel.salesCallsBooked.toLocaleString('es-ES')}
+            value={loading ? '—' : formatNumber(marketingFunnel.salesCallsBooked)}
             icon={Users}
             loading={loading}
             description="Citas de contactos con campaña"
@@ -572,7 +578,7 @@ export default function UnitEconomicsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard
             title="Deals closed"
-            value={loading ? '—' : marketingFunnel.dealsClosed.toLocaleString('es-ES')}
+            value={loading ? '—' : formatNumber(marketingFunnel.dealsClosed)}
             icon={Target}
             loading={loading}
             description="Ventas atribuidas a marketing"
@@ -585,7 +591,11 @@ export default function UnitEconomicsPage() {
           />
           <KPICard
             title="ROAS"
-            value={loading ? '—' : marketingFunnel.roas !== null ? `${marketingFunnel.roas.toFixed(2)}x` : '—'}
+            value={
+              loading || marketingFunnel.roas === null
+                ? '—'
+                : `${formatNumber(marketingFunnel.roas, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x`
+            }
             icon={TrendingUp}
             loading={loading}
             description="Gross de deals cerrados / adspend"
@@ -631,13 +641,19 @@ export default function UnitEconomicsPage() {
                   <tr key={row.channel} className="border-b border-border/50 text-foreground">
                     <td className="py-2.5 pr-4 font-medium text-foreground">{labelChannel(row.channel)}</td>
                     <td className="py-2.5 pr-4">{formatCurrency(row.adspend)}</td>
-                    <td className="py-2.5 pr-4">{row.leads.toLocaleString('es-ES')}</td>
+                    <td className="py-2.5 pr-4">{formatNumber(row.leads)}</td>
                     <td className="py-2.5 pr-4">{row.cpl !== null ? formatCurrency(row.cpl) : '—'}</td>
-                    <td className="py-2.5 pr-4">{row.customers.toLocaleString('es-ES')}</td>
+                    <td className="py-2.5 pr-4">{formatNumber(row.customers)}</td>
                     <td className="py-2.5 pr-4">{row.cac !== null ? formatCurrency(row.cac) : '—'}</td>
                     <td className="py-2.5 pr-4">{formatCurrency(row.revenue)}</td>
                     <td className="py-2.5 pr-4">
-                      {row.roas !== null ? <span className={ratioColor(row.roas)}>{row.roas.toFixed(2)}x</span> : '—'}
+                      {row.roas !== null ? (
+                        <span className={ratioColor(row.roas)}>
+                          {formatNumber(row.roas, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x
+                        </span>
+                      ) : (
+                        '—'
+                      )}
                     </td>
                   </tr>
                 ))}

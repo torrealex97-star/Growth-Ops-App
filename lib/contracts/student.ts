@@ -1,5 +1,6 @@
 import type { CompanyProfile } from './company'
 import { ID_DOC_TYPES, idDocLabel, validateIdDocument, type IdDocType } from './id-validation'
+import { formatNumber } from '@/lib/utils'
 
 // Condiciones económicas de un contrato de ALUMNO (a diferencia del de equipo,
 // que va de sueldo/comisiones). Se guardan en contracts.terms y se muestran en
@@ -73,8 +74,7 @@ export function validateStudentSigner(sd: StudentSignerData): string[] {
 export const DEFAULT_STUDENT_WELCOME =
   '¡Bienvenido/a! 🎉 Estás a un clic de entrar. Revisa y acepta las condiciones para recibir tus accesos al instante.'
 
-const fmtEur = (n: number) =>
-  new Intl.NumberFormat('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n)
+const fmtEur = (n: number) => formatNumber(n, { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 
 function durationLabel(months: number | null): string {
   if (!months) return 'la indicada en el programa'

@@ -30,6 +30,7 @@ import type { Testimonio } from '@/lib/testimonios-shared'
 import { createClient } from '@/lib/supabase/client'
 import { useScriptQueue } from '@/components/os/ScriptQueue'
 import { useTenant } from '@/lib/tenant-context'
+import { formatNumber } from '@/lib/utils'
 
 type Competitor = {
   id: string
@@ -74,7 +75,7 @@ type GenState = {
   saving: boolean
 }
 
-const nf = (n: number | null | undefined) => new Intl.NumberFormat('es-ES').format(Math.round(n || 0))
+const nf = (n: number | null | undefined) => formatNumber(Math.round(n || 0))
 const fecha = (s: string | null) =>
   s ? new Date(s).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : '—'
 const normUrl = (u: string | null) => (u || '').split('?')[0].split('#')[0].replace(/\/$/, '').toLowerCase()

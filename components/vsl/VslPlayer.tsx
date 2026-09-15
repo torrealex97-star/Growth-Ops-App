@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import type { VslConfig } from '@/lib/vsl/types'
+import { formatNumber } from '@/lib/utils'
 
 export interface VslPlayerVideo {
   slug: string
@@ -75,7 +76,7 @@ function fmtTime(sec: number): string {
 }
 
 function fmtNum(n: number): string {
-  return new Intl.NumberFormat('es-ES').format(Math.max(0, Math.floor(n)))
+  return formatNumber(Math.max(0, Math.floor(n)))
 }
 
 export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; embed?: boolean }) {

@@ -1,6 +1,7 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib'
 import { companySignatureLabel, type CompanyProfile } from './company'
 import { tierLine, type ContractTerms, type SignerData } from './terms'
+import { formatNumber } from '@/lib/utils'
 
 // Sustituye caracteres fuera de WinAnsi (que pdf-lib/Helvetica no sabe codificar)
 // por equivalentes ASCII seguros, para que la generación nunca falle.
@@ -126,9 +127,7 @@ export async function buildContractPdf(input: ContractPdfInput): Promise<Uint8Ar
   ensure(LINE * 4)
   draw('CONDICIONES ECONOMICAS ACORDADAS', { font: bold, size: 12, gap: 4 })
   const fijo =
-    input.terms.fixed_salary != null
-      ? `${new Intl.NumberFormat('es-ES').format(input.terms.fixed_salary)} EUR/mes`
-      : 'Sin retribucion fija'
+    input.terms.fixed_salary != null ? `${formatNumber(input.terms.fixed_salary)} EUR/mes` : 'Sin retribucion fija'
   draw(`Retribucion fija: ${fijo}`)
   if (input.terms.commissions.length) {
     draw('Comisiones (sobre cash collected):', { font: bold })

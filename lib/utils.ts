@@ -1,5 +1,5 @@
-function formatNumber(n: number): string {
-  return n.toLocaleString('es-ES')
+export function formatNumber(n: number, options: Intl.NumberFormatOptions = {}): string {
+  return new Intl.NumberFormat('es-ES', { useGrouping: true, ...options }).format(n)
 }
 
 // --- shadcn/ui utilities ---
@@ -16,6 +16,7 @@ export function formatCurrency(amount: number | null | undefined, currency = 'EU
     style: 'currency',
     currency,
     minimumFractionDigits: 2,
+    useGrouping: true,
   }).format(amount)
 }
 
@@ -34,7 +35,10 @@ export function formatDateTime(date: string | Date | null | undefined): string {
 // usa coma decimal europea (formatCurrency/formatNumber) — de ahí "12.5%" junto a "1.234,56 €".
 export function formatPercent(value: number | null | undefined, fractionDigits = 2): string {
   if (value === null || value === undefined) return '—'
-  return `${new Intl.NumberFormat('es-ES', { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits }).format(value)}%`
+  return `${formatNumber(value, {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  })}%`
 }
 
 export function getInitials(name: string): string {

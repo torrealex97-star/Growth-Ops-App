@@ -14,15 +14,15 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { CalendarDays, RefreshCw, Download } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import { downloadCSV } from '@/lib/filters/period'
 import type { DailyFunnelRow } from '@/lib/ads/funnel'
 import { sumDailyRows } from '@/lib/ads/funnel'
 import { useTenant } from '@/lib/tenant-context'
 
-const fmtNum = (n: number) => n.toLocaleString('es-ES')
+const fmtNum = (n: number) => formatNumber(n)
 const fmtEur = (n: number | null) => (n === null ? '—' : formatCurrency(n))
-const fmtPct = (n: number | null) => (n === null ? '—' : `${n.toFixed(1)}%`)
+const fmtPct = (n: number | null) => formatPercent(n, 1)
 
 // YYYY-MM-DD → DD/MM (etiqueta corta para los ejes y la tabla).
 const shortDate = (d: string) => (d.length >= 10 ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : d)
@@ -49,10 +49,10 @@ const ChartTooltip = ({
         <p key={p.name} className="text-xs font-medium" style={{ color: p.color }}>
           {p.name}:{' '}
           {p.name.includes('%')
-            ? `${(p.value ?? 0).toFixed(1)}%`
+            ? formatPercent(p.value ?? 0, 1)
             : p.name.toLowerCase().includes('coste')
               ? formatCurrency(p.value ?? 0)
-              : (p.value ?? 0).toLocaleString('es-ES')}
+              : formatNumber(p.value ?? 0)}
         </p>
       ))}
     </div>
@@ -276,7 +276,7 @@ export function DailyMetricsPanel({ from, to }: { from?: string | null; to?: str
                     tick={{ fontSize: 10, fill: '#71717a' }}
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={(v) => `${v}€`}
+                    tickFormatter={(v) => `${formatNumber(v)}€`}
                   />
                   <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(16, 185, 129, 0.08)' }} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />

@@ -20,7 +20,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Plus, Percent, Loader2, Pencil, Trash2 } from 'lucide-react'
-import { formatDate, formatPercent } from '@/lib/utils'
+import { formatDate, formatNumber, formatPercent } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { CommissionRule, ParticipantType } from '@/lib/types/database'
 import { useSesion, useTenantId } from '@/lib/tenant-context'
@@ -49,7 +49,7 @@ type SimpleTramo = {
   emoji: string | null
 }
 
-const formatMoney = (n: number) => n.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+const formatMoney = (n: number) => formatNumber(n, { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 
 export default function CommissionRulesPage() {
   const tenantId = useTenantId()

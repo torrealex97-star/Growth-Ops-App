@@ -1,5 +1,6 @@
 import { ConnectedFunnel } from './ConnectedFunnel'
 import type { FunnelTotals } from '@/lib/analytics'
+import { formatPercent } from '@/lib/utils'
 
 interface FunnelStripProps {
   totals: FunnelTotals
@@ -12,7 +13,7 @@ const STEPS: { key: keyof FunnelTotals; label: string; fromLabel?: string; fromK
   { key: 'sales', label: 'Ventas', fromLabel: 'de agendas', fromKey: 'apptToSale' },
 ]
 
-const pct = (n: number) => `${n < 10 ? n.toFixed(1) : Math.round(n)}%`
+const pct = (n: number) => formatPercent(n, n < 10 ? 1 : 0)
 
 // Funnel del periodo activo (mismo filtro que el resto del Dashboard) — no confundir con el
 // embudo detallado de Analítica de ventas, que es acumulado histórico y mide otras etapas

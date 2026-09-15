@@ -21,6 +21,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import { testimonioPitch, type Testimonio } from '@/lib/testimonios-shared'
 import { useSesion, useTenant } from '@/lib/tenant-context'
+import { formatCurrency } from '@/lib/utils'
 
 const STATUSES = [
   { value: 'idea', label: 'Idea' },
@@ -631,9 +632,7 @@ function MonthlyPriceSummary({ items }: { items: Content[] }) {
         {byMonth.map(([month, total]) => (
           <div key={month} className="rounded-lg border border-border px-3 py-2 min-w-[110px]">
             <p className="text-[11px] text-muted-foreground">{month}</p>
-            <p className="text-sm font-semibold text-foreground">
-              {total.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' })}
-            </p>
+            <p className="text-sm font-semibold text-foreground">{formatCurrency(total)}</p>
           </div>
         ))}
       </div>
