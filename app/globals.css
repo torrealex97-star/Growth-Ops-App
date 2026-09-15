@@ -313,3 +313,27 @@ label[for] {
   --serie-5: 340 61% 58%;
   --serie-6: 246 68% 72%;
 }
+
+/* ACCESIBILIDAD DEL MOVIMIENTO — WCAG 2.2 AA (2.3.3 Animation from Interactions).
+   Las utilidades de animación de Tailwind (animate-spin, animate-pulse, animate-bounce, ping) NO
+   respetan `prefers-reduced-motion` por su cuenta. La app tenía ~18 spinners escritos con
+   `animate-spin` repartidos por pantallas distintas, así que una persona con el ajuste del sistema
+   activado seguía viendo todo girando. Se resuelve UNA vez aquí en vez de en cada componente: así
+   también quedan cubiertos los spinners que ya existían y los que se escriban mañana.
+   El elemento sigue visible —no se oculta nada—, simplemente deja de moverse. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin,
+  .animate-pulse,
+  .animate-bounce,
+  .animate-ping {
+    animation: none !important;
+  }
+  /* Un skeleton sin pulso tiene que seguir distinguiéndose del fondo. */
+  .animate-pulse {
+    opacity: 0.65;
+  }
+  /* Y ningún scroll suave ni transición larga para quien ha pedido no tener movimiento. */
+  html {
+    scroll-behavior: auto !important;
+  }
+}
