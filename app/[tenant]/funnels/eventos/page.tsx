@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, ArrowLeft, CheckCircle2, Info, Loader2, Save } from 'lucide-react'
 import { useTenant } from '@/lib/tenant-context'
+import { formatNumber } from '@/lib/utils'
 
 type Stage = { key: string; family: string; familyLabel: string; label: string; names: string[] }
 type Available = { name: string; events: number; lastSeen: string }
@@ -134,8 +135,8 @@ export default function FunnelEventMapPage() {
             <Info className="mt-0.5 h-4 w-4 shrink-0" />
             Nombres vistos en los últimos {data.sample.days} días
             {data.sample.truncated
-              ? `, sobre una muestra de las ${data.sample.limit.toLocaleString('es-ES')} más recientes: si usas un nombre muy poco frecuente puede no aparecer en la lista`
-              : ` (${data.sample.rows.toLocaleString('es-ES')} eventos)`}
+              ? `, sobre una muestra de las ${formatNumber(data.sample.limit)} más recientes: si usas un nombre muy poco frecuente puede no aparecer en la lista`
+              : ` (${formatNumber(data.sample.rows)} eventos)`}
             .
           </p>
 
@@ -180,7 +181,7 @@ export default function FunnelEventMapPage() {
                       >
                         <span className="block font-medium">{ev.name}</span>
                         <span className="opacity-70">
-                          {ev.events.toLocaleString('es-ES')} eventos · hasta {dateOnly(ev.lastSeen)}
+                          {formatNumber(ev.events)} eventos · hasta {dateOnly(ev.lastSeen)}
                         </span>
                       </button>
                     )

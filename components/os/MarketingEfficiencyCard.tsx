@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Megaphone } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatNumber } from '@/lib/utils'
 import { useTenant } from '@/lib/tenant-context'
 
 interface MarketingEfficiencyCardProps {
@@ -68,7 +68,7 @@ export function MarketingEfficiencyCard({ loading, spend, revenue, customers }: 
             ROAS
           </p>
           <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
-            {roas === null ? '—' : `${roas.toFixed(2)}x`}
+            {roas === null ? '—' : `${formatNumber(roas, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x`}
           </p>
         </div>
         <div>

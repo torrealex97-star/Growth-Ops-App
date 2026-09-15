@@ -1,7 +1,7 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import type { PeriodPreset } from '@/lib/filters/period'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatPercent } from '@/lib/utils'
 
 // Extraído de crm/agendas/page.tsx (Fase 6/9): vista "métricas" (setters/closers) de Agendas —
 // puramente presentacional, el padre sigue calculando setterMetrics/closerMetrics vía useMemo y
@@ -53,7 +53,7 @@ function RateDelta({
   const up = delta > 0
   return (
     <span className={`text-[11px] ml-1.5 ${up ? 'text-emerald-400' : 'text-red-400'}`}>
-      {up ? '▲' : '▼'} {Math.abs(delta).toFixed(1)}pp vs. anterior
+      {up ? '▲' : '▼'} {formatPercent(Math.abs(delta), 1).replace('%', ' pp')} vs. anterior
     </span>
   )
 }
@@ -128,7 +128,7 @@ export function AgendasMetricsView({
                     <TableCell className="text-foreground text-sm">{m.noShows}</TableCell>
                     <TableCell className="text-indigo-300 text-sm">{m.seguimientos}</TableCell>
                     <TableCell className={`text-sm font-semibold ${rateColor(m.showRate)}`}>
-                      {m.showRate !== null ? `${m.showRate.toFixed(1)}%` : '—'}
+                      {formatPercent(m.showRate, 1)}
                       <RateDelta
                         current={m.showRate}
                         previous={prevSetterMetrics.find((p) => p.id === m.id)?.showRate ?? null}
@@ -177,7 +177,7 @@ export function AgendasMetricsView({
                     <TableCell className="text-indigo-300 text-sm">{m.seguimientos}</TableCell>
                     <TableCell className="text-foreground text-sm">{m.cierres}</TableCell>
                     <TableCell className={`text-sm font-semibold ${rateColor(m.closeRate)}`}>
-                      {m.closeRate !== null ? `${m.closeRate.toFixed(1)}%` : '—'}
+                      {formatPercent(m.closeRate, 1)}
                       <RateDelta
                         current={m.closeRate}
                         previous={prevCloserMetrics.find((p) => p.id === m.id)?.closeRate ?? null}

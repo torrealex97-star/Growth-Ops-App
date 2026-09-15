@@ -17,6 +17,7 @@
 import { useMemo } from 'react'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ArrowDownRight, ArrowRight, ArrowUpRight } from 'lucide-react'
+import { formatNumber, formatPercent } from '@/lib/utils'
 
 type TrendPoint = { date: string; value: number | null }
 
@@ -32,14 +33,13 @@ type Props = {
   className?: string
 }
 
-const nf = new Intl.NumberFormat('es-ES')
 const fmtFecha = (iso: string) => {
   const d = new Date(`${iso}T00:00:00`)
   return isNaN(d.getTime()) ? iso : d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })
 }
 
 export function TrendChart({ title, data, format, previousTotal, aggregate = 'sum', className }: Props) {
-  const fmt = format ?? ((n: number) => nf.format(Math.round(n)))
+  const fmt = format ?? ((n: number) => formatNumber(Math.round(n)))
 
   const { actual, anterior, conDato } = useMemo(() => {
     const conDato = data.filter((d) => d.value != null)
@@ -82,7 +82,7 @@ export function TrendChart({ title, data, format, previousTotal, aggregate = 'su
           {variacion != null ? (
             <span className={`flex items-center gap-0.5 text-xs tabular-nums ${colorVar}`}>
               <Flecha className="h-3.5 w-3.5" aria-hidden />
-              {Math.abs(variacion) < 10 ? Math.abs(variacion).toFixed(1) : Math.round(Math.abs(variacion))}%
+              {formatPercent(Math.abs(variacion), Math.abs(variacion) < 10 ? 1 : 0)}
             </span>
           ) : (
             // Se dice por qué no hay comparación, en vez de pintar un 0 % que parece "no cambió".

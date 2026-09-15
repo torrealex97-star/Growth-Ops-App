@@ -1,7 +1,7 @@
 'use client'
 
 import { Megaphone } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import type { AttribRow } from '@/lib/analytics'
 
 export function AttributionTable({ rows }: { rows: AttribRow[] }) {
@@ -31,11 +31,11 @@ export function AttributionTable({ rows }: { rows: AttribRow[] }) {
               {withData.map((r) => (
                 <tr key={r.source} className="border-b border-border/50 last:border-0">
                   <td className="py-2.5 text-foreground max-w-[220px] truncate">{r.source}</td>
-                  <td className="py-2.5 text-right text-foreground">{r.leads}</td>
-                  <td className="py-2.5 text-right text-foreground">{r.sales}</td>
+                  <td className="py-2.5 text-right text-foreground">{formatNumber(r.leads)}</td>
+                  <td className="py-2.5 text-right text-foreground">{formatNumber(r.sales)}</td>
                   <td className="py-2.5 text-right">
                     <span className={r.convRate >= 20 ? 'text-emerald-400' : 'text-muted-foreground'}>
-                      {r.convRate.toFixed(0)}%
+                      {formatPercent(r.convRate, 0)}
                     </span>
                   </td>
                   <td className="py-2.5 text-right font-semibold text-foreground">{formatCurrency(r.gross)}</td>

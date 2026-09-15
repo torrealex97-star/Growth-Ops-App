@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
-import { useTenant } from '@/lib/tenant-context'
 
-export default function EvergreenRootPage() {
-  const tenant = useTenant()
+export default async function TenantRootPage({ params }: { params: Promise<{ tenant: string }> }) {
+  const { tenant } = await params
   redirect(`/${tenant}/dashboard`)
 }

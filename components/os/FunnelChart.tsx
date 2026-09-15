@@ -24,6 +24,7 @@ import { useId, useState } from 'react'
 import { AlertTriangle, Loader2, Settings2 } from 'lucide-react'
 import type { FunnelResult, StageResult } from '@/lib/funnels/compute'
 import { isUsable, STATUS_LABELS } from '@/lib/funnels/types'
+import { formatNumber, formatPercent } from '@/lib/utils'
 
 type FunnelChartState = 'loading' | 'not_connected' | 'error' | 'ok'
 
@@ -40,9 +41,8 @@ type Props = {
   className?: string
 }
 
-const nf = new Intl.NumberFormat('es-ES')
-const fmt = (n: number) => nf.format(Math.round(n))
-const fmtPct = (n: number) => `${n < 10 ? n.toFixed(1) : Math.round(n)}%`
+const fmt = (n: number) => formatNumber(Math.round(n))
+const fmtPct = (n: number) => formatPercent(n, n < 10 ? 1 : 0)
 
 /** Ancho de la barra: proporción respecto a la PRIMERA etapa con dato. La cima es el 100 %. */
 function anchos(stages: StageResult[]): number[] {

@@ -16,7 +16,7 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import { lastNMonths, monthLabel, ACTIVE_SALE_STATUSES } from '@/lib/analytics'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatNumber } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { KPIReportPanel } from '@/components/kpi/KPIReportPanel'
@@ -64,7 +64,7 @@ function fmtPct(v: number | null): string {
 }
 
 function fmtNum(v: number | null): string {
-  return v !== null ? v.toLocaleString('es-ES', { maximumFractionDigits: 1 }) : '—'
+  return v !== null ? formatNumber(v, { maximumFractionDigits: 1 }) : '—'
 }
 
 function ratioColor(ratio: number | null, good: number, warn: number): string {

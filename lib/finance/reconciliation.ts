@@ -5,6 +5,7 @@
 // en una sola vista.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { reconcileStripePayments } from './stripeReconciliation'
+import { formatCurrency } from '@/lib/utils'
 
 type ConciliacionPlatform = 'stripe' | 'sequra' | 'transferencia' | 'bizum' | 'paypal' | 'otro'
 export type ConciliacionStatus = 'conciliado' | 'descuadre' | 'pendiente'
@@ -114,7 +115,7 @@ export async function buildConciliacion(
           const registered = r.internalProcessingFee ?? 0
           if (registered < r.platformFee - 0.05) {
             status = 'descuadre'
-            detail = `Comisión de pasarela no registrada (Stripe: ${r.platformFee.toFixed(2)} € · interno: ${registered.toFixed(2)} €)`
+            detail = `Comisión de pasarela no registrada (Stripe: ${formatCurrency(r.platformFee)} · interno: ${formatCurrency(registered)})`
           }
         }
         rows.push({
@@ -180,7 +181,7 @@ export async function buildConciliacion(
         internalAmount: num(c.gross_amount),
         status: hasOpenDebt ? 'descuadre' : 'conciliado',
         detail: hasOpenDebt
-          ? `seQura reporta deuda pendiente (${delinquent!.debt.toFixed(2)} €) para este cliente`
+          ? `seQura reporta deuda pendiente (${formatCurrency(delinquent!.debt)}) para este cliente`
           : 'Sin deuda vencida reportada por seQura',
       })
     }
