@@ -132,6 +132,22 @@ test('Campañas deriva TODA la pantalla del mismo rango y guarda los filtros en 
   assert.match(page, /w-full shrink-0 items-center justify-center/)
 })
 
+test('el dashboard parte de 30 días y el gasto respeta las cuentas Meta activas', () => {
+  const dashboard = readFileSync(new URL('../../app/[tenant]/dashboard/page.tsx', import.meta.url), 'utf8')
+  const spendRoute = readFileSync(
+    new URL('../../app/api/[tenant]/evergreen/meta/spend-range/route.ts', import.meta.url),
+    'utf8'
+  )
+
+  assert.match(dashboard, /periodPreset: '30d'/)
+  assert.match(dashboard, /const periodRevenue = useMemo/)
+  assert.match(dashboard, /filteredSales\.filter\(isActiveSale\)/)
+  assert.doesNotMatch(dashboard, /revenue=\{cur\.gross\}/)
+  assert.match(spendRoute, /parseAccountIds\(cfg\.META_AD_ACCOUNT_ID\)/)
+  assert.match(spendRoute, /q = q\.in\('account_id', activeAccountIds\)/)
+  assert.match(spendRoute, /\['super_admin', 'admin', 'director'/)
+})
+
 test('la barra de periodo y las pantallas toman los presets del módulo canónico', () => {
   const bar = readFileSync(new URL('../../components/os/PeriodFilterBar.tsx', import.meta.url), 'utf8')
   // Listas explícitas y no Object.keys: una pantalla sin selector de día no debe ofrecer el preset
