@@ -69,7 +69,7 @@ export type ConfigCualificacion = {
   insatisfaccionMinima: number
 }
 
-export const CONFIG_CUALIFICACION_POR_DEFECTO: ConfigCualificacion = {
+const CONFIG_CUALIFICACION_POR_DEFECTO: ConfigCualificacion = {
   ingresosMinimosEur: 1000,
   patronesIngresos: ['ingresos', 'generando al mes', 'facturas', 'cuanto ganas'],
   patronesProblema: ['escala del 1 al 10', 'como te sientes', 'situacion laboral', 'que te ha motivado'],

@@ -52,7 +52,7 @@ function isoForCountryName(name: string): string | null {
   return match?.iso ?? null
 }
 
-export function timezoneForISO(iso: string | null | undefined): string | null {
+function timezoneForISO(iso: string | null | undefined): string | null {
   if (!iso) return null
   return TIMEZONE_BY_ISO[iso.toUpperCase()] ?? null
 }

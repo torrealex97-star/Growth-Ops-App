@@ -119,7 +119,7 @@ export async function fetchAdAccounts(
     `${GRAPH}/${version}/me/adaccounts` +
     `?fields=name,account_status&limit=500&access_token=${encodeURIComponent(token)}${proof}`
   const { rows } = await graphGetAll(url)
-  return rows.map((r: any) => ({
+  return rows.map((r) => ({
     id: String(r.id), // Meta ya devuelve el prefijo act_
     name: String(r.name || r.id),
     status: r.account_status != null ? Number(r.account_status) : undefined,
@@ -242,19 +242,37 @@ async function graphGet(url: string): Promise<any> {
 // el día a día, pero NO para una carga de histórico con `time_increment=1` (una fila por campaña y
 // día: 37 meses × unas decenas de campañas se pasan de largo). El resultado era un histórico
 // incompleto presentado como completo — el peor tipo de fallo de esta base de datos.
+// ---------------------------------------------------------------------------------------------
+// LA FORMA DE LO QUE DEVUELVE META, dicha de la única manera honesta.
+//
+// Antes esto era `any`, y un `any` aquí no es un descuido de estilo: es un agujero en las métricas de
+// dinero. Si Meta renombra un campo, `r.spend` pasa a `undefined`, `Number(undefined)` es NaN, y el CPL
+// y el CAC salen NaN o 0 sin que nada falle. El compilador no podía avisar porque `any` lo permite todo.
+//
+// No se declara el esquema completo del Graph API —cambia sin avisar y fingir conocerlo sería peor—:
+// se declara que es un objeto de claves desconocidas. Con eso, leer un campo obliga a convertirlo
+// explícitamente, que es exactamente lo que ya hace este fichero con String()/Number().
+type FilaGraph = Record<string, unknown>
+
+/** Una entrada de `actions`/`action_values` de Meta: tipo de acción y su valor. */
+type AccionGraph = { action_type?: unknown; value?: unknown }
+
+/** Respuesta paginada del Graph API. `paging.next` es la URL de la página siguiente. */
+type RespuestaGraph = { data?: unknown; paging?: { next?: string | null } }
+
 const DEFAULT_MAX_PAGES = 50
 
 async function graphGetAll(
   firstUrl: string,
   maxPages = DEFAULT_MAX_PAGES
-): Promise<{ rows: any[]; truncated: boolean }> {
-  const out: any[] = []
+): Promise<{ rows: FilaGraph[]; truncated: boolean }> {
+  const out: FilaGraph[] = []
   let url: string | null = firstUrl
   let guard = 0
   while (url) {
     if (guard >= maxPages) return { rows: out, truncated: true }
-    const json: any = await graphGet(url)
-    if (Array.isArray(json?.data)) out.push(...json.data)
+    const json = (await graphGet(url)) as RespuestaGraph
+    if (Array.isArray(json?.data)) out.push(...(json.data as FilaGraph[]))
     url = json?.paging?.next || null
     guard++
   }
@@ -277,11 +295,12 @@ const LEAD_ACTION_TYPES = new Set([
   'offsite_conversion.fb_pixel_lead',
 ])
 
-function parseLeads(actions: any): number {
+function parseLeads(actions: unknown): number {
   if (!Array.isArray(actions)) return 0
   let total = 0
   for (const a of actions) {
-    if (LEAD_ACTION_TYPES.has(a?.action_type)) total += Number(a?.value) || 0
+    const accion = a as AccionGraph
+    if (LEAD_ACTION_TYPES.has(String(accion?.action_type))) total += Number(accion?.value) || 0
   }
   return total
 }
@@ -298,21 +317,23 @@ const FOLLOW_ACTION_TYPES = new Set([
   'onsite_conversion.instagram_follow',
 ])
 
-function parseFollows(actions: any): number {
+function parseFollows(actions: unknown): number {
   if (!Array.isArray(actions)) return 0
   let total = 0
   for (const a of actions) {
-    if (FOLLOW_ACTION_TYPES.has(a?.action_type)) total += Number(a?.value) || 0
+    const accion = a as AccionGraph
+    if (FOLLOW_ACTION_TYPES.has(String(accion?.action_type))) total += Number(accion?.value) || 0
   }
   return total
 }
 
 // Suma el valor de un action_type concreto (p. ej. 'landing_page_view').
-function sumAction(actions: any, type: string): number {
+function sumAction(actions: unknown, type: string): number {
   if (!Array.isArray(actions)) return 0
   let total = 0
   for (const a of actions) {
-    if (a?.action_type === type) total += Number(a?.value) || 0
+    const accion = a as AccionGraph
+    if (accion?.action_type === type) total += Number(accion?.value) || 0
   }
   return total
 }
@@ -327,7 +348,7 @@ export async function fetchMetaInsights(
     `?level=campaign&fields=${fields}&date_preset=${datePreset}&limit=500` +
     `&access_token=${encodeURIComponent(cfg.token)}${proofParam(cfg)}`
   const { rows } = await graphGetAll(url)
-  return rows.map((r: any) => ({
+  return rows.map((r) => ({
     campaign_id: String(r.campaign_id),
     campaign_name: String(r.campaign_name || ''),
     spend: Number(r.spend) || 0,
@@ -344,7 +365,7 @@ export async function fetchMetaInsights(
 // Insight DIARIO por campaña (level=campaign, time_increment=1). Devuelve una fila por
 // (campaña, día) con el gasto/impresiones/clics/leads de ESE día. Es lo que permite filtrar
 // el gasto por rango real (este mes, este trimestre…) en vez de mostrar el total histórico.
-export type MetaDailyInsight = {
+type MetaDailyInsight = {
   campaign_id: string
   campaign_name: string
   date: string // YYYY-MM-DD
@@ -378,7 +399,7 @@ export async function fetchMetaDailyInsights(cfg: MetaConfig, sinceDays = 180): 
   // histórico a medias sin decirlo.
   const maxPages = Math.max(DEFAULT_MAX_PAGES, Math.ceil(sinceDays / 5))
   const { rows, truncated } = await graphGetAll(url, maxPages)
-  const mapped = rows.map((r: any) => ({
+  const mapped = rows.map((r) => ({
     campaign_id: String(r.campaign_id),
     campaign_name: String(r.campaign_name || r.campaign_id),
     date: String(r.date_start || '').slice(0, 10),
@@ -395,17 +416,27 @@ export async function fetchMetaDailyInsights(cfg: MetaConfig, sinceDays = 180): 
 
 // Lista los ANUNCIOS de la cuenta (metadatos, sin métricas). Una sola llamada
 // paginada por cuenta (no crece con el nº de campañas).
+/** Lee una clave de un objeto embebido del Graph API, sin dar por hecho que el embebido llegó. */
+function leerAnidado(valor: unknown, clave: string): string | undefined {
+  if (!valor || typeof valor !== 'object') return undefined
+  const v = (valor as Record<string, unknown>)[clave]
+  return v == null || v === '' ? undefined : String(v)
+}
+
 export async function fetchMetaAds(cfg: MetaConfig): Promise<MetaAd[]> {
   const fields = 'id,name,status,effective_status,adset{name},campaign{id}'
   const url = `${GRAPH}/${cfg.version}/${cfg.accountId}/ads?fields=${fields}&limit=200&access_token=${encodeURIComponent(cfg.token)}${proofParam(cfg)}`
   const { rows } = await graphGetAll(url)
-  return rows.map((r: any) => ({
+  return rows.map((r) => ({
     id: String(r.id),
     name: String(r.name || ''),
     status: String(r.status || ''),
     effective_status: r.effective_status ? String(r.effective_status) : undefined,
-    adset_name: r.adset?.name ? String(r.adset.name) : undefined,
-    campaign_id: r.campaign?.id ? String(r.campaign.id) : undefined,
+    // Los embebidos (`adset{name}`, `campaign{id}`) llegan como objetos anidados. Se acotan igual que
+    // el resto: sin esto, un cambio de forma en el embebido dejaba `undefined` sin que nada avisara, y
+    // un anuncio sin `campaign_id` se queda huérfano de su campaña en las métricas.
+    adset_name: leerAnidado(r.adset, 'name'),
+    campaign_id: leerAnidado(r.campaign, 'id'),
   }))
 }
 
@@ -420,7 +451,7 @@ export async function fetchMetaAdInsights(
     `?level=ad&fields=${fields}&date_preset=${datePreset}&limit=500` +
     `&access_token=${encodeURIComponent(cfg.token)}${proofParam(cfg)}`
   const { rows } = await graphGetAll(url)
-  return rows.map((r: any) => ({
+  return rows.map((r) => ({
     ad_id: String(r.ad_id),
     campaign_id: String(r.campaign_id || ''),
     spend: Number(r.spend) || 0,

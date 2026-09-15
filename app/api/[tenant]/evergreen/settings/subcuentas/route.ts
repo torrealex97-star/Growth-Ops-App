@@ -63,7 +63,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const session = await requireSuperAdmin(tenant)
   if ('error' in session) return session.error
 
-  const body = (await req.json().catch(() => ({}))) as { slug?: unknown; name?: unknown; accent?: unknown }
+  const body = (await req.json().catch(() => ({}))) as { name?: unknown; accent?: unknown }
   const validated = validateTenantInput(body)
   if ('error' in validated) return NextResponse.json({ error: validated.error }, { status: 400 })
 
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Un fallo de aprovisionamiento se devuelve con 409/500 según qué pasó, y siempre con el motivo:
     // "no se pudo crear" sin decir por qué obliga a mirar la base de datos a mano.
     if (!result.ok) {
-      return NextResponse.json(result, { status: result.motivo === 'slug_ocupado' ? 409 : 500 })
+      return NextResponse.json(result, { status: result.motivo === 'id_ocupado' ? 409 : 500 })
     }
     return NextResponse.json(result)
   } catch (e) {

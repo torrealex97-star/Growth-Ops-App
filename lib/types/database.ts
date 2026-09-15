@@ -12,14 +12,14 @@ export type AppointmentStatus =
   | 'seguimiento'
   | 'reserva'
 export type SaleStatus = 'active' | 'refunded' | 'partial_refund' | 'chargeback' | 'cancelled'
-export type CollectionStatus = 'collected' | 'reversed' | 'disputed'
-export type CommissionStatus = 'pending' | 'approved' | 'liquidated' | 'cancelled'
-export type CommissionDirection = 'positive' | 'negative'
+type CollectionStatus = 'collected' | 'reversed' | 'disputed'
+type CommissionStatus = 'pending' | 'approved' | 'liquidated' | 'cancelled'
+type CommissionDirection = 'positive' | 'negative'
 export type ParticipantType = 'setter' | 'closer' | 'affiliate'
-export type TargetScopeType = 'company' | 'role' | 'user'
-export type TargetPeriodType = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual'
+type TargetScopeType = 'company' | 'role' | 'user'
+type TargetPeriodType = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual'
 export type KpiFieldType = 'number' | 'text' | 'textarea' | 'boolean' | 'select' | 'date'
-export type UserRole = 'admin' | 'director' | 'setter' | 'closer' | 'affiliate'
+type UserRole = 'admin' | 'director' | 'setter' | 'closer' | 'affiliate'
 
 // ==================== ROLES ====================
 export type Role = {
@@ -30,7 +30,7 @@ export type Role = {
   created_at: string
 }
 
-export type InsertRole = Omit<Role, 'id' | 'created_at'>
+type InsertRole = Omit<Role, 'id' | 'created_at'>
 
 // ==================== USERS ====================
 export type User = {
@@ -65,7 +65,7 @@ export type User = {
   updated_at: string
 }
 
-export type InsertUser = Omit<User, 'created_at' | 'updated_at' | 'data_scope'>
+type InsertUser = Omit<User, 'created_at' | 'updated_at' | 'data_scope'>
 
 export type UserWithRole = User & {
   roles: Role
@@ -131,9 +131,9 @@ export type ContactNote = {
   created_at: string
 }
 
-export type InsertContactNote = Omit<ContactNote, 'id' | 'created_at'>
+type InsertContactNote = Omit<ContactNote, 'id' | 'created_at'>
 
-export type InsertContact = Omit<Contact, 'id' | 'created_at' | 'updated_at' | 'vsl_watch_pct' | 'vsl_watched_at'>
+type InsertContact = Omit<Contact, 'id' | 'created_at' | 'updated_at' | 'vsl_watch_pct' | 'vsl_watched_at'>
 
 // ==================== CONTACT ATTRIBUTIONS ====================
 export type ContactAttribution = {
@@ -165,7 +165,7 @@ export type ContactAttribution = {
   updated_at: string
 }
 
-export type InsertContactAttribution = Omit<ContactAttribution, 'id' | 'created_at' | 'updated_at'>
+type InsertContactAttribution = Omit<ContactAttribution, 'id' | 'created_at' | 'updated_at'>
 
 // ==================== APPOINTMENTS ====================
 export type Appointment = {
@@ -233,7 +233,7 @@ export type Appointment = {
   updated_at: string
 }
 
-export type InsertAppointment = Omit<Appointment, 'id' | 'created_at' | 'updated_at'>
+type InsertAppointment = Omit<Appointment, 'id' | 'created_at' | 'updated_at'>
 
 // ==================== LINK TEMPLATES (enlaces con UTM por usuario) ====================
 export type LinkTemplate = {
@@ -247,7 +247,7 @@ export type LinkTemplate = {
   updated_at: string
 }
 
-export type InsertLinkTemplate = Omit<LinkTemplate, 'id' | 'created_at' | 'updated_at'>
+type InsertLinkTemplate = Omit<LinkTemplate, 'id' | 'created_at' | 'updated_at'>
 
 // ==================== RESOURCE LINKS (enlaces varios por tipología, SIN UTM) ====================
 // Enlaces fijos que el admin comparte por categoría: pagos de productos, playbook,
@@ -262,7 +262,7 @@ export type ResourceLinkDivision = {
   updated_at: string
 }
 
-export type InsertResourceLinkDivision = Omit<ResourceLinkDivision, 'id' | 'created_at' | 'updated_at'>
+type InsertResourceLinkDivision = Omit<ResourceLinkDivision, 'id' | 'created_at' | 'updated_at'>
 
 export type ResourceLink = {
   id: string
@@ -279,7 +279,7 @@ export type ResourceLink = {
   updated_at: string
 }
 
-export type InsertResourceLink = Omit<ResourceLink, 'id' | 'created_at' | 'updated_at'>
+type InsertResourceLink = Omit<ResourceLink, 'id' | 'created_at' | 'updated_at'>
 
 // ==================== PROGRAMA DE AFILIADOS (v18) ====================
 export type AffiliateCampaignType = 'evento' | 'lanzamiento' | 'vsl' | 'otro'
@@ -295,9 +295,9 @@ export type AffiliateCampaign = {
   created_at: string
   updated_at: string
 }
-export type InsertAffiliateCampaign = Omit<AffiliateCampaign, 'id' | 'created_at' | 'updated_at'>
+type InsertAffiliateCampaign = Omit<AffiliateCampaign, 'id' | 'created_at' | 'updated_at'>
 
-export type AffiliateCampaignMember = {
+type AffiliateCampaignMember = {
   id: string
   campaign_id: string
   affiliate_id: string
@@ -305,7 +305,7 @@ export type AffiliateCampaignMember = {
   created_at: string
 }
 
-export type AffiliateProfile = {
+type AffiliateProfile = {
   user_id: string
   instagram: string | null
   audience_size: string | null
@@ -358,7 +358,7 @@ export type Product = {
   updated_at: string
 }
 
-export type InsertProduct = Omit<Product, 'id' | 'created_at' | 'updated_at'>
+type InsertProduct = Omit<Product, 'id' | 'created_at' | 'updated_at'>
 
 // ==================== PAYMENT PLANS ====================
 export type PaymentPlan = {
@@ -380,9 +380,9 @@ export type PaymentPlan = {
   updated_at: string
 }
 
-export type InsertPaymentPlan = Omit<PaymentPlan, 'id' | 'created_at' | 'updated_at'>
+type InsertPaymentPlan = Omit<PaymentPlan, 'id' | 'created_at' | 'updated_at'>
 
-export type PaymentPlanWithProduct = PaymentPlan & {
+type PaymentPlanWithProduct = PaymentPlan & {
   products: Product
 }
 
@@ -444,7 +444,7 @@ export type Sale = {
 }
 
 // Datos del tomador/pagador cuando compra alguien distinto del alumno (v38)
-export type PayerData = {
+type PayerData = {
   name: string
   dni?: string | null
   email?: string | null
@@ -454,7 +454,7 @@ export type PayerData = {
   relation?: string | null // relación con el alumno: madre, padre, empresa, socio…
 }
 
-export type InsertSale = Omit<Sale, 'id' | 'created_at' | 'updated_at'>
+type InsertSale = Omit<Sale, 'id' | 'created_at' | 'updated_at'>
 
 export type SaleWithRelations = Sale & {
   contacts: Contact
@@ -480,7 +480,7 @@ export type SaleExpectedInstallment = {
   updated_at: string
 }
 
-export type InsertSaleExpectedInstallment = Omit<SaleExpectedInstallment, 'id' | 'created_at' | 'updated_at'>
+type InsertSaleExpectedInstallment = Omit<SaleExpectedInstallment, 'id' | 'created_at' | 'updated_at'>
 
 // ==================== COLLECTIONS ====================
 export type Collection = {
@@ -514,7 +514,7 @@ export type Collection = {
   updated_at: string
 }
 
-export type InsertCollection = Omit<Collection, 'id' | 'created_at' | 'updated_at'>
+type InsertCollection = Omit<Collection, 'id' | 'created_at' | 'updated_at'>
 
 export type CollectionWithRelations = Collection & {
   sales: SaleWithRelations
@@ -536,7 +536,7 @@ export type Refund = {
   updated_at: string
 }
 
-export type InsertRefund = Omit<Refund, 'id' | 'created_at' | 'updated_at'>
+type InsertRefund = Omit<Refund, 'id' | 'created_at' | 'updated_at'>
 
 // ==================== COMMISSION RULES ====================
 export type CommissionRule = {
@@ -558,7 +558,7 @@ export type CommissionRule = {
   updated_at: string
 }
 
-export type InsertCommissionRule = Omit<CommissionRule, 'id' | 'created_at' | 'updated_at'>
+type InsertCommissionRule = Omit<CommissionRule, 'id' | 'created_at' | 'updated_at'>
 
 // ==================== COMMISSIONS ====================
 export type Commission = {
@@ -608,7 +608,7 @@ export type KpiFormTemplate = {
   updated_at: string
 }
 
-export type InsertKpiFormTemplate = Omit<KpiFormTemplate, 'id' | 'created_at' | 'updated_at'>
+type InsertKpiFormTemplate = Omit<KpiFormTemplate, 'id' | 'created_at' | 'updated_at'>
 
 // ==================== KPI DAILY REPORTS ====================
 export type KpiDailyReport = {
@@ -622,7 +622,7 @@ export type KpiDailyReport = {
   updated_at: string
 }
 
-export type InsertKpiDailyReport = Omit<KpiDailyReport, 'id' | 'created_at' | 'updated_at'>
+type InsertKpiDailyReport = Omit<KpiDailyReport, 'id' | 'created_at' | 'updated_at'>
 
 // ==================== TARGETS ====================
 export type Target = {
@@ -642,7 +642,7 @@ export type Target = {
   updated_at: string
 }
 
-export type InsertTarget = Omit<Target, 'id' | 'created_at' | 'updated_at'>
+type InsertTarget = Omit<Target, 'id' | 'created_at' | 'updated_at'>
 
 // ==================== SAVED DASHBOARD VIEWS ====================
 export type SavedDashboardView = {
@@ -656,7 +656,7 @@ export type SavedDashboardView = {
   updated_at: string
 }
 
-export type InsertSavedDashboardView = Omit<SavedDashboardView, 'id' | 'created_at' | 'updated_at'>
+type InsertSavedDashboardView = Omit<SavedDashboardView, 'id' | 'created_at' | 'updated_at'>
 
 // ==================== AUDIT LOGS ====================
 export type AuditLog = {
@@ -709,7 +709,7 @@ export type Campaign = {
   followers: number
 }
 
-export type InsertCampaign = Omit<Campaign, 'id' | 'created_at' | 'updated_at'>
+type InsertCampaign = Omit<Campaign, 'id' | 'created_at' | 'updated_at'>
 
 // ==================== CAMPAIGN ADS (v29 — nivel anuncio) ====================
 export type CampaignAd = {
@@ -758,7 +758,7 @@ export type Expense = {
   updated_at: string
 }
 
-export type InsertExpense = Omit<Expense, 'id' | 'created_at' | 'updated_at'>
+type InsertExpense = Omit<Expense, 'id' | 'created_at' | 'updated_at'>
 
 // ==================== ACTIVITIES (Ventas) ====================
 export type Activity = {
@@ -775,10 +775,10 @@ export type Activity = {
   updated_at: string
 }
 
-export type InsertActivity = Omit<Activity, 'id' | 'created_at' | 'updated_at'>
+type InsertActivity = Omit<Activity, 'id' | 'created_at' | 'updated_at'>
 
 // ==================== CSM EVENTS (Producto / Alumnos) ====================
-export type CsmEvent = {
+type CsmEvent = {
   id: string
   contact_id: string
   sale_id: string | null
@@ -796,7 +796,7 @@ export type CsmEvent = {
   updated_at: string
 }
 
-export type InsertCsmEvent = Omit<CsmEvent, 'id' | 'created_at' | 'updated_at'>
+type InsertCsmEvent = Omit<CsmEvent, 'id' | 'created_at' | 'updated_at'>
 
 // ==================== DROPS / CANCELACIONES (Producto / Alumnos) ====================
 export type Drop = {
@@ -818,7 +818,7 @@ export type Drop = {
   updated_at: string
 }
 
-export type InsertDrop = Omit<Drop, 'id' | 'created_at' | 'updated_at'>
+type InsertDrop = Omit<Drop, 'id' | 'created_at' | 'updated_at'>
 
 // ==================== CONTRACTS ====================
 export type Contract = {
@@ -860,7 +860,7 @@ export type Contract = {
   updated_at: string
 }
 
-export type InsertContract = Omit<Contract, 'id' | 'created_at' | 'updated_at'>
+type InsertContract = Omit<Contract, 'id' | 'created_at' | 'updated_at'>
 
 // v16 — plantillas de contrato (cuerpo con variables {{...}})
 export type ContractTemplate = {
@@ -879,15 +879,15 @@ export type ContractTemplate = {
   updated_at: string
 }
 
-export type InsertContractTemplate = Omit<ContractTemplate, 'id' | 'created_at' | 'updated_at'>
+type InsertContractTemplate = Omit<ContractTemplate, 'id' | 'created_at' | 'updated_at'>
 
-export type InsertAuditLog = Omit<AuditLog, 'id' | 'created_at'>
+type InsertAuditLog = Omit<AuditLog, 'id' | 'created_at'>
 
 // v21 — sugerencias y mejoras de la plataforma enviadas por los usuarios
 export type SuggestionType = 'mejora' | 'error' | 'comentario'
 export type SuggestionStatus = 'nueva' | 'en_revision' | 'planificada' | 'en_progreso' | 'resuelta' | 'descartada'
 
-export type Suggestion = {
+type Suggestion = {
   id: string
   user_id: string | null
   type: SuggestionType
@@ -935,4 +935,4 @@ export type Roleplay = {
   updated_at: string
 }
 
-export type InsertRoleplay = Omit<Roleplay, 'id' | 'created_at' | 'updated_at'>
+type InsertRoleplay = Omit<Roleplay, 'id' | 'created_at' | 'updated_at'>

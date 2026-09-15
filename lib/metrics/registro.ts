@@ -127,7 +127,7 @@ export const METRICAS_GLOBAL: DefinicionMetrica[] = [
 // 2. VENTAS — la cadena diagnóstica del equipo comercial.
 // =================================================================================================
 
-export const METRICAS_SALES: DefinicionMetrica[] = [
+const METRICAS_SALES: DefinicionMetrica[] = [
   M({
     id: 'sales.ventas',
     key: 'ventas',
@@ -293,7 +293,7 @@ export const METRICAS_SALES: DefinicionMetrica[] = [
 // 3. MARKETING — de lo cualificado a lo diagnóstico, en ese orden.
 // =================================================================================================
 
-export const METRICAS_MARKETING: DefinicionMetrica[] = [
+const METRICAS_MARKETING: DefinicionMetrica[] = [
   M({
     id: 'marketing.agendas',
     key: 'agendas',

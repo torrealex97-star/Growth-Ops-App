@@ -40,7 +40,7 @@ export interface CarruselTemplate {
   createdAt: string
 }
 
-export interface BrandColors {
+interface BrandColors {
   primary: string
   secondary: string
   accent: string
@@ -48,7 +48,7 @@ export interface BrandColors {
   surface: string
 }
 
-export interface BrandFonts {
+interface BrandFonts {
   heading: string
   body: string
 }

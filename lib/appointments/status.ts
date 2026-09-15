@@ -2,7 +2,7 @@ import type { AppointmentStatus } from '@/lib/types/database'
 
 // Statuses que cuentan como "asistió"/"no asistió" a la cita. Fuente única de verdad para no
 // repetir el mismo literal `status === 'show' || status === 'completed'` en cada página de métricas.
-export const ATTENDED_STATUSES = ['show', 'completed'] as const
+const ATTENDED_STATUSES = ['show', 'completed'] as const
 export const NO_SHOW_STATUSES = ['no_show'] as const
 
 export function isAttended(status: string | null | undefined) {
@@ -59,7 +59,7 @@ const CANCELLED_STATUSES: AppointmentStatus[] = ['cancelled', 'cancelled_admin',
 export function getAppointmentCategory(status: AppointmentStatus, purchased: boolean): AppointmentDisplayCategory {
   if (purchased) return 'compra'
   if (CANCELLED_STATUSES.includes(status)) return 'cancelada'
-  if (status === 'no_show') return 'no_show'
+  if (isNoShow(status)) return 'no_show'
   if (isAttended(status)) return 'se_presenta'
   if (status === 'reserva') return 'reserva'
   if (status === 'seguimiento') return 'seguimiento'

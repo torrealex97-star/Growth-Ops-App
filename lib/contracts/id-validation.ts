@@ -19,7 +19,7 @@ export function idDocLabel(type: string | null | undefined): string {
 const DNI_LETTERS = 'TRWAGMYFPDXBNJZSQVHLCKE'
 
 // Normaliza: mayúsculas y sin espacios/guiones.
-export function normalizeId(value: string): string {
+function normalizeId(value: string): string {
   return (value || '').toUpperCase().replace(/[\s-]/g, '')
 }
 
@@ -39,7 +39,7 @@ export function isValidNie(value: string): boolean {
 }
 
 // CIF/NIF de empresa: letra inicial + 7 dígitos + dígito/letra de control.
-export function isValidNif(value: string): boolean {
+function isValidNif(value: string): boolean {
   const v = normalizeId(value)
   const m = v.match(/^([ABCDEFGHJNPQRSUVW])(\d{7})([0-9A-J])$/)
   if (!m) return false
@@ -64,7 +64,7 @@ export function isValidNif(value: string): boolean {
 }
 
 // Pasaporte: sin estándar único; alfanumérico razonable (5-20).
-export function isValidPassport(value: string): boolean {
+function isValidPassport(value: string): boolean {
   const v = normalizeId(value)
   return /^[A-Z0-9]{5,20}$/.test(v)
 }

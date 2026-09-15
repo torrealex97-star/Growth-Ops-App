@@ -1,8 +1,8 @@
-export type EventProcessingStatus = 'received' | 'matched' | 'processed' | 'rejected' | 'pending'
-export type MatchStatus = 'proposed' | 'confirmed' | 'rejected' | 'needs_review'
-export type DeliveryStatus = 'pending' | 'sending' | 'accepted' | 'rejected' | 'retrying' | 'failed' | 'deduplicated'
+type EventProcessingStatus = 'received' | 'matched' | 'processed' | 'rejected' | 'pending'
+type MatchStatus = 'proposed' | 'confirmed' | 'rejected' | 'needs_review'
+type DeliveryStatus = 'pending' | 'sending' | 'accepted' | 'rejected' | 'retrying' | 'failed' | 'deduplicated'
 
-export interface ConsentSnapshot {
+interface ConsentSnapshot {
   analytics?: boolean
   advertising?: boolean
   source?: string
@@ -10,7 +10,7 @@ export interface ConsentSnapshot {
   purposes?: string[]
 }
 
-export interface CanonicalEventInput {
+interface CanonicalEventInput {
   event_id: string
   event_name: string
   occurred_at: string

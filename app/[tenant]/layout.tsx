@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter, usePathname, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Sidebar } from '@/components/os/Sidebar'
@@ -14,6 +14,8 @@ import { FileSignature, LogOut } from 'lucide-react'
 import { ScriptQueueProvider } from '@/components/os/ScriptQueue'
 import { AgentLauncher } from '@/components/ai/AgentLauncher'
 import { isAllowedLocation, permissionLocationFor } from '@/lib/marketing-navigation'
+import { AppLoading } from '@/components/ui/carga/AppLoading'
+import { pedir } from '@/lib/ui/pedir'
 
 // Rutas confidenciales SOLO para liderazgo (admin/director/manager), aunque el admin
 // haya concedido por error un override de departamento/página que las abriría por prefijo.
@@ -46,6 +48,12 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   const [tenantId, setTenantId] = useState<string | null>(null)
   const [branding, setBranding] = useState<TenantBranding>(() => resolveTenantBranding(null))
   const [contractGate, setContractGate] = useState<ContractGate | null>(null)
+  // EL FALLO TENÍA QUE PODER VERSE. Antes, si la resolución de sesión/tenant fallaba, no había ningún
+  // estado para contarlo: `loading` se quedaba en true y la pantalla no volvía nunca.
+  const [fallo, setFallo] = useState<string | null>(null)
+  // Cambiar esto vuelve a lanzar la resolución. Es lo que hace que "Reintentar" reintente de verdad
+  // en vez de recargar la página entera y perder el sitio donde estaba la persona.
+  const [intento, setIntento] = useState(0)
   const router = useRouter()
   const pathname = usePathname()
   // Ruta relativa al tenant, sin el segmento /<tenant> — todas las comparaciones
@@ -122,14 +130,32 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
     }
 
     let mounted = true
+    const cancelar = new AbortController()
+
+    // TECHO DE TIEMPO. Sin esto, una consulta que no responde nunca (arranque en frío de Supabase, red
+    // móvil que se cae a mitad) dejaba la pantalla cargando indefinidamente: no hacía falta ni un error,
+    // bastaba con que el await no se resolviera jamás.
+    const TIMEOUT_MS = 12_000
+    const porTiempo = setTimeout(() => {
+      if (!mounted) return
+      cancelar.abort()
+      setFallo('No se ha podido cargar tu espacio: la conexión ha tardado demasiado.')
+      setLoading(false)
+    }, TIMEOUT_MS)
+
     const fetchUser = async () => {
       const supabase = createClient()
       const {
         data: { user: authUser },
       } = await supabase.auth.getUser()
 
+      if (!mounted) return
       if (!authUser) {
         router.push(`/${tenant}/login`)
+        // EL BUG DE LA PANTALLA NEGRA, en una línea. Este `return` salía SIN apagar `loading`, apostando
+        // a que la redirección desmontaría el componente. Cuando no lo hace —ya se está en esa ruta, la
+        // navegación se traga, el router aún no está listo— queda una pantalla cargando para siempre.
+        setLoading(false)
         return
       }
 
@@ -138,9 +164,17 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
       // supabase/migrations/20260911140000_multi_tenant_foundation.sql).
       // Si no hay fila, no tiene acceso a esta subcuenta — RLS es la última
       // línea de defensa aunque este check corra en cliente.
-      const { data: tenantRow } = await supabase.from('tenants').select('id, status').eq('slug', tenant).maybeSingle()
+      const { data: tenantRow, error: tenantErr } = await supabase
+        .from('tenants')
+        .select('id, status')
+        .eq('slug', tenant)
+        .maybeSingle()
 
       if (!mounted) return
+
+      // Un error de consulta NO es "no tienes acceso": decirle a alguien que no tiene acceso cuando lo
+      // que ha fallado es la red le manda a pedir permisos que ya tiene.
+      if (tenantErr) throw new Error(tenantErr.message)
 
       if (!tenantRow || tenantRow.status !== 'active') {
         setNoTenantAccess(true)
@@ -148,14 +182,17 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
         return
       }
 
-      if (mounted) setTenantId(tenantRow.id)
+      setTenantId(tenantRow.id)
 
-      const { data: superAdminCheck } = await supabase.rpc('is_super_admin')
-      if (mounted) setIsSuperAdmin(!!superAdminCheck)
-
-      const { data, error } = await supabase.from('users').select('*, roles(key, name)').eq('id', authUser.id).single()
+      // EN PARALELO. Eran dos await encadenados y ninguno dependía del otro: se pagaban dos viajes de
+      // red seguidos antes de pintar un solo píxel, en CADA entrada al panel.
+      const [{ data: superAdminCheck }, { data, error }] = await Promise.all([
+        supabase.rpc('is_super_admin'),
+        supabase.from('users').select('*, roles(key, name)').eq('id', authUser.id).single(),
+      ])
 
       if (!mounted) return
+      setIsSuperAdmin(!!superAdminCheck)
 
       if (error || !data) {
         // Schema not applied or no profile — show helpful error instead of infinite loop
@@ -170,32 +207,51 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
       // roles leer la tabla directamente.
       const roleKey = (data.roles as { key?: string } | null)?.key as AppRole | undefined
       if (roleKey && CONTRACT_GATED_ROLES.includes(roleKey)) {
-        try {
-          const res = await fetch(`/api/${tenant}/evergreen/contracts/my-status`)
-          const st = await res.json()
-          if (!mounted) return
-          if (res.ok && !st.hasSigned) {
-            setContractGate({ pendingToken: st.pendingToken ?? null })
-            setUser(data as UserWithRole)
-            setLoading(false)
-            return
-          }
-        } catch {
-          // Si falla la comprobación, no bloqueamos (fail-open) para no dejar
-          // fuera al colaborador por un error transitorio de red.
+        // `pedir` no lanza y trae timeout propio: si la comprobación del contrato se cuelga, no se lleva
+        // por delante el arranque de toda la aplicación.
+        const res = await pedir<{ hasSigned?: boolean; pendingToken?: string | null }>(
+          `/api/${tenant}/evergreen/contracts/my-status`,
+          { signal: cancelar.signal }
+        )
+        if (!mounted) return
+        if (res.ok && res.data?.hasSigned === false) {
+          setContractGate({ pendingToken: res.data.pendingToken ?? null })
+          setUser(data as UserWithRole)
+          setLoading(false)
+          return
         }
+        // Si la comprobación falla, no se bloquea (fail-open) para no dejar fuera al colaborador por un
+        // error transitorio de red.
       }
 
+      if (!mounted) return
       setUser(data as UserWithRole)
-      setLoading(false)
     }
 
+    setFallo(null)
+    setLoading(true)
     fetchUser()
+      .catch((e: unknown) => {
+        // EL CATCH QUE NO EXISTÍA. Cualquier excepción —red caída, CORS, 500 de Supabase— abortaba la
+        // función a mitad y nadie apagaba `loading`. Ahora el fallo se ve y se puede reintentar.
+        if (!mounted) return
+        const nombre = e instanceof Error ? e.name : ''
+        if (nombre === 'AbortError') return // lo gestiona el timeout o el desmontaje
+        setFallo(e instanceof Error ? e.message : 'No se ha podido cargar tu espacio.')
+      })
+      .finally(() => {
+        // Y EL FINALLY. Pase lo que pase por cualquiera de los caminos, el loader se apaga.
+        clearTimeout(porTiempo)
+        if (mounted) setLoading(false)
+      })
+
     return () => {
       mounted = false
+      clearTimeout(porTiempo)
+      cancelar.abort()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthRoute, tenant])
+  }, [isAuthRoute, tenant, intento])
 
   // Roles acotados por departamento: cada uno solo accede a su zona.
   // Excepción: la página de cambio de contraseña es accesible por cualquier rol
@@ -220,22 +276,65 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
     }
   }, [user, relPathname, relLocation, router, contractGate, isSuperAdmin, tenant])
 
+  // La sesión que las pantallas van a reutilizar. Se construye de lo que este layout YA cargó para
+  // decidir si dejarlas entrar: sin esto, cada pantalla repetía `auth.getUser()` + `from('users')` para
+  // releer lo mismo, en serie y antes de pedir sus propios datos.
+  // useMemo NO es cosmético aquí: las pantallas ponen `sesion` en las dependencias de su efecto de
+  // carga, y un objeto nuevo en cada render del layout sería una referencia nueva cada vez → el efecto
+  // se volvería a disparar sin parar y la pantalla recargaría en bucle.
+  const sesion = useMemo(
+    () => (user ? { userId: user.id, user, rol: user.roles?.key ?? null, isSuperAdmin } : null),
+    [user, isSuperAdmin]
+  )
+
   // Auth pages render without sidebar
   if (isAuthRoute) {
     return (
-      <TenantProvider tenant={tenant} tenantId={tenantId} branding={branding}>
+      <TenantProvider tenant={tenant} tenantId={tenantId} branding={branding} sesion={sesion}>
         <div className="dark">{children}</div>
       </TenantProvider>
     )
   }
 
+  // EL FALLO, ANTES DEL LOADER. Si la resolución falló, se enseña el motivo y una salida — no un loader
+  // que no va a terminar nunca.
+  if (fallo) {
+    return (
+      <div className="dark flex h-screen items-center justify-center bg-background px-4">
+        <div role="alert" className="max-w-sm text-center">
+          <h2 className="mb-2 text-lg font-semibold text-foreground">No se ha podido cargar {branding.name}</h2>
+          <p className="mb-6 text-sm text-muted-foreground">{fallo}</p>
+          <div className="flex justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIntento((n) => n + 1)}
+              className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Reintentar
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push(`/${tenant}/login`)}
+              className="rounded-md px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Volver a entrar
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (loading) {
+    // Ya no es un rectángulo pulsando sobre negro con la palabra "Cargando": es el loader de marca, no
+    // aparece si la carga dura menos de 300 ms, y a los 6 segundos ofrece reintentar en vez de quedarse.
     return (
       <div className="dark flex h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-8 h-8 rounded-lg bg-brand-600 animate-pulse" />
-          <p className="text-muted-foreground text-sm">Cargando {branding.name}...</p>
-        </div>
+        <AppLoading
+          mensaje={`Preparando ${branding.name}…`}
+          onReintentar={() => setIntento((n) => n + 1)}
+          onVolver={() => router.push(`/${tenant}/login`)}
+        />
       </div>
     )
   }
@@ -340,7 +439,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   }
 
   return (
-    <TenantProvider tenant={tenant} tenantId={tenantId} branding={branding}>
+    <TenantProvider tenant={tenant} tenantId={tenantId} branding={branding} sesion={sesion}>
       <ScriptQueueProvider>
         <div className="flex h-screen bg-background text-foreground overflow-hidden" data-theme="os">
           <Sidebar user={user} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />

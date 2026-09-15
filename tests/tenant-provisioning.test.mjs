@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readdirSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -11,23 +11,6 @@ const sinComentarios = (src) => src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\
 const ROUTE = 'app/api/[tenant]/evergreen/settings/subcuentas/route.ts'
 const PROVISION = 'lib/tenants/provision.ts'
 const BLUEPRINT = 'lib/tenants/blueprint.ts'
-
-// El primer segmento de la URL ES la subcuenta, así que la lista de reservados tiene que cubrir TODO
-// lo que hoy cuelga de la raíz de `app/`. Si mañana alguien añade `app/status/`, este test falla y
-// obliga a reservar ese nombre — que es la única forma de que la lista no se quede obsoleta sola.
-test('los reservados cubren todos los directorios de la raíz de app/', () => {
-  const blueprint = read(BLUEPRINT)
-  const reservados = [...blueprint.matchAll(/^ {2}'([a-z0-9-]+)',$/gm)].map((m) => m[1])
-  assert.ok(reservados.length > 5, 'no se han extraído los slugs reservados')
-
-  const enDisco = readdirSync(join(root, 'app'), { withFileTypes: true })
-    .filter((d) => d.isDirectory() && !d.name.startsWith('[') && !d.name.startsWith('_'))
-    .map((d) => d.name)
-  assert.ok(enDisco.includes('api'), 'no se ha leído el árbol de app/')
-
-  const sinReservar = enDisco.filter((name) => !reservados.includes(name))
-  assert.deepEqual(sinReservar, [], `estas rutas de app/ no están reservadas como slug: ${sinReservar.join(', ')}`)
-})
 
 // Crear subcuentas es una operación de PLATAFORMA. Un admin de cliente que pudiera crearlas se daría
 // acceso a sí mismo a una subcuenta nueva sin que nadie lo autorizara.
@@ -67,13 +50,18 @@ test('el aprovisionador no siembra datos de ejemplo', () => {
   }
 })
 
-// Un `upsert` por slug reescribiría la marca de un cliente en producción porque alguien repitió un
-// nombre en un formulario.
-test('un slug ya usado se rechaza en vez de sobreescribir la subcuenta existente', () => {
+// El nombre comercial no forma parte de la identidad: el UUID se genera en servidor y se guarda
+// como PK y como slug. Repetir o cambiar el nombre no puede reusar ni renombrar otra subcuenta.
+test('el UUID interno es también el slug y no lo decide el cliente', () => {
   const provision = sinComentarios(read(PROVISION))
-  assert.match(provision, /slug_ocupado/)
+  const route = sinComentarios(read(ROUTE))
+  const page = sinComentarios(read('app/[tenant]/settings/subcuentas/page.tsx'))
+  assert.match(provision, /id_ocupado/)
   assert.doesNotMatch(provision, /from\('tenants'\)[\s\S]{0,120}?\.upsert\(/, 'nunca un upsert sobre tenants')
-  assert.match(provision, /\.eq\('slug', input\.slug\)/, 'no se comprueba si el slug ya existe')
+  assert.match(provision, /createTenantIdentity\(\)/)
+  assert.match(provision, /id: identity\.id,[\s\S]{0,40}slug: identity\.slug/)
+  assert.doesNotMatch(route, /slug\?: unknown/, 'la API no debe aceptar un slug elegido por el cliente')
+  assert.doesNotMatch(page, /name:\s*['"]slug['"]|setSlug|slugPreview/, 'la pantalla no debe pedir el slug')
 })
 
 // Supabase no da error cuando un INSERT afecta a 0 filas: sin comprobarlo diríamos "creada" sin haber
@@ -106,7 +94,16 @@ test('un fallo al contar no se convierte en un cero', () => {
 test('la tarjeta de Subcuentas solo se pinta para super admin', () => {
   const page = read('app/[tenant]/settings/page.tsx')
   assert.match(page, /superAdminOnly: true/)
-  assert.match(page, /sb\.rpc\('is_super_admin'\)/, 'super admin no es un rol de users: hay que preguntar a la función')
+  // La invariante sigue siendo la misma —super admin NO se deduce del rol de `users`, se pregunta a la
+  // función de base que usan las políticas— pero se cumple un nivel más arriba: ahora lo resuelve
+  // app/[tenant]/layout.tsx una vez y la pantalla lo lee de la sesión, en vez de repetir la llamada.
+  assert.match(page, /sesion\.isSuperAdmin/)
+  assert.doesNotMatch(page, /isSuperAdmin.*===.*'admin'|rol === 'super_admin'/, 'no se puede deducir del rol')
+  assert.match(
+    read('app/[tenant]/layout.tsx'),
+    /supabase\.rpc\('is_super_admin'\)/,
+    'super admin no es un rol de users: hay que preguntar a la función'
+  )
   assert.match(page, /superAdminOnly\) return isSuperAdmin === true/)
   // Arranca en null para no pintar la tarjeta antes de saberlo.
   assert.match(page, /useState<boolean \| null>\(null\)/)

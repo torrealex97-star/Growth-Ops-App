@@ -51,7 +51,7 @@ import {
 import { formatCurrency } from '@/lib/utils'
 import { FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 import type { SavedDashboardView } from '@/lib/types/database'
-import { useTenant } from '@/lib/tenant-context'
+import { useSesion, useTenant } from '@/lib/tenant-context'
 
 const SalesChart = dynamic(() => import('@/components/os/SalesChart').then((m) => ({ default: m.SalesChart })), {
   ssr: false,
@@ -103,6 +103,8 @@ const FILTER_ROLES = [
 
 export default function DashboardPage() {
   const tenant = useTenant()
+  // La sesión que el layout ya resolvió: evita repetir auth.getUser() + from('users') en esta pantalla.
+  const sesion = useSesion()
   const [loading, setLoading] = useState(true)
   const [userName, setUserName] = useState('')
   const [userId, setUserId] = useState<string | null>(null)
@@ -156,44 +158,38 @@ export default function DashboardPage() {
     let mounted = true
     async function load() {
       const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user || !mounted) return
-      setUserId(user.id)
 
-      // Columnas base (siempre existen) → determinan el scoping. Se piden SEPARADAS de las columnas
-      // nuevas del fijo para que, si la migración del fijo aún no ha corrido, el scoping no se rompa.
-      const { data: userData } = await supabase
-        .from('users')
-        .select('full_name, data_scope, base_salary, roles(key)')
-        .eq('id', user.id)
-        .single()
-      if (userData) {
-        setUserName(userData.full_name)
-        setMyBaseSalary(Number((userData as { base_salary?: number | null }).base_salary ?? 0))
-        const rk = (userData as { roles?: { key?: string } }).roles?.key ?? ''
-        setMyRoleKey(rk as AppRole)
-        const scope = (userData as { data_scope?: string }).data_scope
-        if (!isLeadership(rk as AppRole) && scope === 'own') {
-          setSelfScoped(true)
-          setMember(user.id)
-        }
-      }
+      // LA CASCADA QUE SE ELIMINA. Aquí había tres viajes de red EN SERIE antes de pedir un solo dato
+      // del dashboard: `auth.getUser()`, luego `users` para el scoping, y luego `users` OTRA VEZ para las
+      // columnas del fijo. Los tres releían algo que app/[tenant]/layout.tsx acababa de traer con
+      // `select('*, roles(key, name)')` para decidir si dejar entrar a esta pantalla.
+      //
+      // Las dos consultas a `users` estaban separadas porque las columnas del fijo podían no existir si
+      // su migración no había corrido. Con `select('*')` del layout eso deja de ser un problema: si la
+      // columna no existe, simplemente no viene en el objeto, y los `?? 0` de abajo ya lo cubren.
+      if (!sesion || !mounted) return
+      setUserId(sesion.userId)
 
-      // Reglas del fijo (columnas nuevas; pueden no existir aún → si falla, se usan valores por defecto).
-      const { data: fijoData } = await supabase
-        .from('users')
-        .select('fijo_unlock_type, fijo_min_sales, fijo_min_revenue')
-        .eq('id', user.id)
-        .single()
-      if (fijoData) {
-        setMyFijoUnlockType(
-          ((fijoData as { fijo_unlock_type?: string | null }).fijo_unlock_type as 'sales' | 'revenue') ?? 'sales'
-        )
-        setMyFijoMinSales(Number((fijoData as { fijo_min_sales?: number | null }).fijo_min_sales ?? 0))
-        setMyFijoMinRevenue(Number((fijoData as { fijo_min_revenue?: number | null }).fijo_min_revenue ?? 0))
+      const userData = sesion.user as {
+        full_name?: string
+        data_scope?: string
+        base_salary?: number | null
+        fijo_unlock_type?: string | null
+        fijo_min_sales?: number | null
+        fijo_min_revenue?: number | null
+        roles?: { key?: string } | null
       }
+      setUserName(userData.full_name ?? '')
+      setMyBaseSalary(Number(userData.base_salary ?? 0))
+      const rk = (userData.roles?.key ?? '') as AppRole
+      setMyRoleKey(rk)
+      if (!isLeadership(rk) && userData.data_scope === 'own') {
+        setSelfScoped(true)
+        setMember(sesion.userId)
+      }
+      setMyFijoUnlockType((userData.fijo_unlock_type as 'sales' | 'revenue') ?? 'sales')
+      setMyFijoMinSales(Number(userData.fijo_min_sales ?? 0))
+      setMyFijoMinRevenue(Number(userData.fijo_min_revenue ?? 0))
 
       const [salesRes, collRes, usersRes, roleUsersRes, contactsRes, attrRes, apptRes, targetsRes, viewsRes, commRes] =
         await Promise.all([
@@ -223,7 +219,7 @@ export default function DashboardPage() {
             )
             .eq('is_active', true)
             .eq('scope_type', 'company'),
-          supabase.from('saved_dashboard_views').select('*').or(`user_id.eq.${user.id},scope.eq.shared`),
+          supabase.from('saved_dashboard_views').select('*').or(`user_id.eq.${sesion.userId},scope.eq.shared`),
           supabase
             .from('commissions')
             .select('user_id, sale_id, commission_amount, direction, status')
@@ -256,7 +252,7 @@ export default function DashboardPage() {
     return () => {
       mounted = false
     }
-  }, [tenant])
+  }, [tenant, sesion])
 
   // Meses para el selector: últimos 12 (más reciente primero)
   // Personas del rol elegido (para el selector de usuario del filtro de arriba).

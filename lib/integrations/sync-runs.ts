@@ -11,7 +11,7 @@
 //   · Si la tabla no existe (migración sin aplicar), la sync NO se cae: se ejecuta sin historial.
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export type SyncRunStatus = 'running' | 'ok' | 'error' | 'timeout'
+type SyncRunStatus = 'running' | 'ok' | 'error' | 'timeout'
 export type SyncTrigger = 'cron' | 'manual' | 'historico'
 
 export type SyncRunSummary = {

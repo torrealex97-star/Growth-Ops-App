@@ -47,7 +47,7 @@ export const QUALIFICATION_KEYS = [
   'vio_vsl',
 ] as const
 
-export type QualificationKey = (typeof QUALIFICATION_KEYS)[number]
+type QualificationKey = (typeof QUALIFICATION_KEYS)[number]
 
 export const QUALIFICATION_LABELS: Record<string, string> = {
   telefono: 'Teléfono',
@@ -64,17 +64,4 @@ export const QUALIFICATION_LABELS: Record<string, string> = {
 
 export function labelFor(key: string): string {
   return QUALIFICATION_LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
-// Devuelve el valor de una clave, cayendo al array `respuestas` si no está mapeada.
-export function answerFor(q: Qualification | null | undefined, key: string): string | null {
-  if (!q) return null
-  const direct = q[key]
-  if (typeof direct === 'string' && direct.trim()) return direct.trim()
-  return null
-}
-
-// ¿Tiene respuestas útiles?
-export function hasAnswers(q: Qualification | null | undefined): boolean {
-  return !!q && Array.isArray(q.respuestas) && q.respuestas.length > 0
 }

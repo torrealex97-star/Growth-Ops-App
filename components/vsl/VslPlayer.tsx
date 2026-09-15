@@ -35,12 +35,18 @@ const posKey = (slug: string) => `tcc_vsl_pos_${slug}`
 function savePos(slug: string, pos: number, dur: number) {
   try {
     localStorage.setItem(posKey(slug), JSON.stringify({ pos, dur }))
-  } catch {}
+  } catch {
+    // Se ignora a propósito: en ventana privada o con las cookies de sitio bloqueadas, localStorage
+    // LANZA al escribir. Recordar por dónde iba el vídeo es una comodidad, no un requisito: si no se
+    // puede guardar, el vídeo empieza desde el principio y no pasa nada más.
+  }
 }
 function clearPos(slug: string) {
   try {
     localStorage.removeItem(posKey(slug))
-  } catch {}
+  } catch {
+    // Mismo motivo que en savePos: si no se pudo escribir, tampoco hay nada que borrar.
+  }
 }
 function readPos(slug: string, fallbackDur: number): number | null {
   try {
@@ -217,7 +223,11 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
           // (lo pasa como salesforce_uuid en el enlace, aunque el lead no haga optin).
           try {
             window.parent?.postMessage({ __tccvsl: 'ready', slug: video.slug, anonId }, '*')
-          } catch {}
+          } catch {
+            // Se ignora a propósito: el reproductor va en un iframe de otro dominio y `window.parent`
+            // puede no existir (abierto directo) o rechazar el mensaje. Es una señal opcional para la
+            // landing; sin ella el vídeo funciona igual.
+          }
           // Si el autoplay ya arrancó antes de tener sesión, registra el 'play' ahora
           // (si no, se perdería y el play rate saldría 0).
           if (hasPlayedRef.current && !playSentRef.current) {
@@ -325,7 +335,9 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
           { __tccvsl: 'progress', slug: video.slug, percent: Math.round((el.currentTime / d) * 100) },
           '*'
         )
-      } catch {}
+      } catch {
+        // Igual que el mensaje de 'ready': la landing es de otro dominio y puede no estar escuchando.
+      }
     }
   }
 
@@ -404,7 +416,11 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
     maxReachedRef.current = sec // permite el salto pese a lockSeek (ya lo había visto)
     try {
       el.currentTime = sec
-    } catch {}
+    } catch {
+      // Se ignora a propósito: asignar currentTime LANZA si el medio aún no tiene metadatos
+      // cargados (readyState 0). El usuario vuelve a pulsar y entonces sí salta; tratarlo como
+      // error solo produciría un aviso por algo que se arregla solo.
+    }
     el.muted = muted
     el.play().catch(() => {})
   }
@@ -417,7 +433,11 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
     maxReachedRef.current = 0
     try {
       el.currentTime = 0
-    } catch {}
+    } catch {
+      // Se ignora a propósito: asignar currentTime LANZA si el medio aún no tiene metadatos
+      // cargados (readyState 0). El usuario vuelve a pulsar y entonces sí salta; tratarlo como
+      // error solo produciría un aviso por algo que se arregla solo.
+    }
     el.muted = muted
     el.play().catch(() => {})
   }
@@ -440,7 +460,11 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
       maxReachedRef.current = 0
       try {
         el.currentTime = 0
-      } catch {}
+      } catch {
+        // Se ignora a propósito: asignar currentTime LANZA si el medio aún no tiene metadatos
+        // cargados (readyState 0). El usuario vuelve a pulsar y entonces sí salta; tratarlo como
+        // error solo produciría un aviso por algo que se arregla solo.
+      }
     }
     el.play().catch(() => {})
   }

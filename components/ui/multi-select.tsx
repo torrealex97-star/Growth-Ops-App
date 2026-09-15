@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils'
 import { normalizeText } from '@/components/ui/search-box'
 
-export type MultiSelectOption = { value: string; label: string }
+type MultiSelectOption = { value: string; label: string }
 
 interface MultiSelectProps {
   options: MultiSelectOption[]

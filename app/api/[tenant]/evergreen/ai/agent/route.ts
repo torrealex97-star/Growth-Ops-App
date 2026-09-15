@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { createClient } from '@/lib/supabase/server'
+import { cargarContextoNegocio } from '@/lib/ai/agent/contexto'
 import { runAgent, type ChatMessage } from '@/lib/ai/agent/gateway'
 import { getTenantConfigWithFallback } from '@/lib/config'
 
@@ -60,6 +61,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   if (userMsgErr) return NextResponse.json({ error: userMsgErr.message }, { status: 500 })
 
   const { data: tenantRow } = await sb.from('tenants').select('slug').eq('id', auth.tenantId).maybeSingle()
+  // El contexto de negocio (precio, oferta, objetivos, capacidad) lo pone una persona y no se deduce de
+  // las tablas. Lo que no esté puesto se declara ausente en el prompt, nunca se rellena.
+  let contexto
+  try {
+    contexto = await cargarContextoNegocio(sb, auth.tenantId)
+  } catch (e) {
+    // Se devuelve el motivo en vez de dejar que reviente: un 500 genérico aquí haría parecer que el
+    // agente está roto cuando lo que falla es leer una tabla de configuración.
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Error de contexto' }, { status: 500 })
+  }
   const history: ChatMessage[] = [...((priorMessages || []) as ChatMessage[]), { role: 'user', content: message }]
 
   const toolCallLogs: Array<{
@@ -79,6 +90,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       sb,
       history,
       screen: body.screen,
+      contexto,
       onToolCall: (name, input, success, summary, latencyMs) => {
         toolCallLogs.push({ tool_name: name, input, success, result_summary: summary, latency_ms: latencyMs })
       },

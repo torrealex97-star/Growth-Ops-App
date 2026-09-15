@@ -11,7 +11,7 @@ function isAbsoluteUrl(value: string): boolean {
   return /^https?:\/\//i.test(value)
 }
 
-export async function getSignedStorageUrl(
+async function getSignedStorageUrl(
   bucket: string,
   pathOrUrl: string,
   ttlSeconds = DEFAULT_TTL_SECONDS

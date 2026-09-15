@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
   AlertTriangle,
@@ -14,7 +14,6 @@ import {
   UserPlus,
 } from 'lucide-react'
 import { useTenant } from '@/lib/tenant-context'
-import { normalizeSlug } from '@/lib/tenants/blueprint'
 
 type Step = { id: string; label: string; automatic: boolean; reason?: string }
 type Readiness = {
@@ -47,7 +46,6 @@ export default function SubcuentasPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [name, setName] = useState('')
-  const [slug, setSlug] = useState('')
   const [accent, setAccent] = useState<'brand' | 'pink'>('brand')
   const [creating, setCreating] = useState(false)
   const [result, setResult] = useState<{ ok: boolean; text: string; pendiente?: Step[] } | null>(null)
@@ -80,10 +78,6 @@ export default function SubcuentasPage() {
     void load()
   }, [load])
 
-  // El slug se enseña ANTES de crear: es la URL de esa subcuenta para siempre, así que el usuario
-  // tiene que ver exactamente qué se va a guardar en vez de descubrirlo después.
-  const slugPreview = useMemo(() => normalizeSlug(slug || name), [slug, name])
-
   async function create() {
     setCreating(true)
     setResult(null)
@@ -91,7 +85,7 @@ export default function SubcuentasPage() {
       const r = await fetch(`/api/${tenant}/evergreen/settings/subcuentas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, slug: slug || name, accent }),
+        body: JSON.stringify({ name, accent }),
       })
       const j = await r.json()
       if (!r.ok || j.ok === false) {
@@ -104,7 +98,6 @@ export default function SubcuentasPage() {
         pendiente: j.pendiente,
       })
       setName('')
-      setSlug('')
       await load()
     } catch (e) {
       setResult({ ok: false, text: e instanceof Error ? e.message : 'Error de conexión' })
@@ -167,15 +160,6 @@ export default function SubcuentasPage() {
             />
           </label>
           <label className="text-muted-foreground text-xs">
-            Identificador de URL (opcional)
-            <input
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-              placeholder="se deriva del nombre"
-              className="border-border bg-background/60 text-foreground mt-1 block w-full rounded-lg border px-2 py-1.5 text-sm"
-            />
-          </label>
-          <label className="text-muted-foreground text-xs">
             Color de marca
             <select
               value={accent}
@@ -191,12 +175,12 @@ export default function SubcuentasPage() {
           </label>
         </div>
         <p className="text-muted-foreground text-xs">
-          URL de la subcuenta: <code className="text-foreground">/{slugPreview || '…'}</code>. No se puede cambiar
-          después sin romper los enlaces que ya estén repartidos.
+          La URL usará el mismo UUID estable que identifica la subcuenta. El nombre comercial podrá cambiar sin cambiar
+          enlaces ni rutas.
         </p>
         <button
           onClick={() => void create()}
-          disabled={creating || slugPreview.length < 3 || !name.trim()}
+          disabled={creating || !name.trim()}
           className="bg-primary text-primary-foreground inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
           {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}

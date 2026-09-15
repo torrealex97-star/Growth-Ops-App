@@ -14,7 +14,7 @@ import { toast } from 'sonner'
 import { PERMISSIONS, type AppRole } from '@/lib/auth/permissions'
 import { generateTrackingCode } from '@/lib/tracking'
 import type { AffiliateCampaign, AffiliateCampaignType } from '@/lib/types/database'
-import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 
 type Affiliate = { id: string; full_name: string; affiliate_code: string | null }
@@ -30,6 +30,8 @@ const TYPE_LABEL: Record<string, string> = Object.fromEntries(TYPE_OPTIONS.map((
 export default function CampanasAfiliadosPage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
+  // Sesión ya resuelta por el layout: evita repetir auth.getUser() + from('users') aquí.
+  const sesion = useSesion()
   const [role, setRole] = useState<AppRole | ''>('')
   const [loading, setLoading] = useState(true)
   const [campaigns, setCampaigns] = useState<AffiliateCampaign[]>([])
@@ -57,17 +59,13 @@ export default function CampanasAfiliadosPage() {
 
   const fetchAll = useCallback(async () => {
     const sb = createClient()
-    const {
-      data: { user },
-    } = await sb.auth.getUser()
-    if (!user) {
+    // DOS VIAJES DE RED MENOS, en serie: el layout ya trajo la sesión y la fila de `users`.
+    if (!sesion) {
       setLoading(false)
       return
     }
-    setCurrentUserId(user.id)
-
-    const { data: me } = await sb.from('users').select('roles(key)').eq('id', user.id).single()
-    setRole(((me as { roles?: { key?: string } } | null)?.roles?.key ?? '') as AppRole)
+    setCurrentUserId(sesion.userId)
+    setRole((sesion.rol ?? '') as AppRole)
 
     const [campRes, affRes, memRes] = await Promise.all([
       sb.from('affiliate_campaigns').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }),
@@ -84,7 +82,10 @@ export default function CampanasAfiliadosPage() {
     }
     setCounts(c)
     setLoading(false)
-  }, [tenantId])
+    // `sesion` entra en las dependencias: sin ella, la carga se quedaría con el valor capturado en el
+    // primer render. Está memorizada en el layout, así que no provoca bucle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId, sesion])
 
   useEffect(() => {
     fetchAll()

@@ -31,7 +31,7 @@ import { resolverOferta, type ConfigOferta, CONFIG_OFERTA_POR_DEFECTO } from '@/
  * `sin_juicio_ventas` — hubo llamada pero el closer no se pronunció. Un hueco de proceso.
  * `sin_dato` — falta información de una de las dos partes. NO es una discrepancia.
  */
-export type Concordancia =
+type Concordancia =
   'concuerdan_si' | 'concuerdan_no' | 'solo_marketing' | 'solo_ventas' | 'sin_juicio_ventas' | 'sin_dato'
 
 export type EvaluacionConcordancia = {

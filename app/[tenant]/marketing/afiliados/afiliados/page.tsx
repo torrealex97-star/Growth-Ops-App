@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useSesion } from '@/lib/tenant-context'
 import { createClient } from '@/lib/supabase/client'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { TrendingUp, ShoppingCart, Wallet, Percent } from 'lucide-react'
@@ -66,6 +67,8 @@ function saleStatusBadge(status: string) {
 
 export default function AfiliadosPage() {
   const [loading, setLoading] = useState(true)
+  // Sesión ya resuelta por el layout: evita repetir auth.getUser() + from('users') aquí.
+  const sesion = useSesion()
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [currentRole, setCurrentRole] = useState<AppRole | ''>('')
   const [currentAffiliateCode, setCurrentAffiliateCode] = useState<string | null>(null)
@@ -94,23 +97,13 @@ export default function AfiliadosPage() {
     let mounted = true
     async function load() {
       const supabase = createClient()
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user || !mounted) return
-      setCurrentUserId(user.id)
-
-      const { data: meData } = await supabase
-        .from('users')
-        .select('affiliate_code, roles(key)')
-        .eq('id', user.id)
-        .single()
-
-      const meRow = meData as { affiliate_code?: string | null; roles?: { key?: string } | null } | null
-      const role = (meRow?.roles?.key ?? '') as AppRole | ''
-      if (!mounted) return
+      // DOS VIAJES DE RED MENOS, en serie: el layout ya trajo la sesión y la fila de `users` completa.
+      if (!sesion || !mounted) return
+      setCurrentUserId(sesion.userId)
+      const meRow = sesion.user as { affiliate_code?: string | null; roles?: { key?: string } | null }
+      const role = (meRow.roles?.key ?? '') as AppRole | ''
       setCurrentRole(role)
-      setCurrentAffiliateCode(meRow?.affiliate_code ?? null)
+      setCurrentAffiliateCode(meRow.affiliate_code ?? null)
 
       const [affRes, attrRes, salesRes, collRes] = await Promise.all([
         supabase
@@ -133,7 +126,10 @@ export default function AfiliadosPage() {
     return () => {
       mounted = false
     }
-  }, [])
+    // `sesion` entra en las dependencias: sin ella, la carga se quedaría con el valor capturado en el
+    // primer render. Está memorizada en el layout, así que no provoca bucle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sesion])
 
   const isAffiliateUser = currentRole === 'affiliate'
   const isLead = currentRole ? isLeadership(currentRole) : false

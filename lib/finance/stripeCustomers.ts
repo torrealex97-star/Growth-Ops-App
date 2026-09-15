@@ -6,7 +6,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { stripeList } from '@/lib/stripe/client'
 
-export type StripeCustomerStatus = 'cliente' | 'activo_mensual' | 'moroso' | 'cancelado'
+type StripeCustomerStatus = 'cliente' | 'activo_mensual' | 'moroso' | 'cancelado'
 
 export type StripeCustomerRow = {
   stripeCustomerId: string
