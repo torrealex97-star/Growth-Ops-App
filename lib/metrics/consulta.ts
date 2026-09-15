@@ -35,6 +35,11 @@ export type ResultadoConsulta = {
   /** Cuántas filas se leyeron de cada fuente. Va al drill-down de "ver cálculo". */
   filasLeidas: Record<string, number>
   /**
+   * Cuántos contactos del periodo tienen atribución conocida. Es un hueco, no una métrica, y va aparte
+   * para que el panel pueda decirlo en vez de dejarlo invisible.
+   */
+  atribucion: { contactos: number; conAtribucion: number }
+  /**
    * Las citas leídas, para poder medir la COBERTURA DEL MARCADO sin volver a la base. No se devuelven
    * las demás filas a propósito: de estas solo se usan estado y fecha, y arrastrar ventas o cobros
    * enteros hasta la ruta sería pasear datos financieros sin necesidad.
@@ -98,6 +103,20 @@ export async function consultarMetricas(
     ),
   ])
 
+  // LA ATRIBUCIÓN, contada aparte. Comprobado en producción: `contact_attributions` está a 0 filas y
+  // `contacts.campaign_id` a 0 de 956, porque los enlaces de reserva no llevan UTMs y los payloads no
+  // traen nada que atribuir. Se cuenta con `head: true` —solo el número, sin traerse las filas— para que
+  // el panel pueda decir "0 de N con origen conocido" en vez de enseñar métricas por canal vacías sin
+  // explicar por qué.
+  const [totalContactos, conAtribucion] = await Promise.all([
+    sb.from('contacts').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+    sb
+      .from('contact_attributions')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .eq('is_primary', true),
+  ])
+
   const fuentes = { ventas, cobros, citas, campanas }
   const fuentesConError = Object.entries(fuentes)
     .filter(([, r]) => r.error !== null)
@@ -119,6 +138,7 @@ export async function consultarMetricas(
     fuentesConError,
     fuentesRecortadas,
     citas: citas.rows,
+    atribucion: { contactos: totalContactos.count ?? 0, conAtribucion: conAtribucion.count ?? 0 },
     filasLeidas: {
       ventas: ventas.rows.length,
       cobros: cobros.rows.length,

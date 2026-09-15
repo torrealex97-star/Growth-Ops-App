@@ -30,8 +30,10 @@ test('lee con la sesión del usuario, no con service_role', () => {
   assert.match(codigo, /await createClient\(\)/)
 })
 
-test('cada consulta filtra por tenant_id explícitamente', () => {
+test('cada consulta filtra por tenant_id explícitamente, conteos incluidos', () => {
   const codigo = sinComentarios(leer(CONSULTA))
+  // Incluye los conteos de atribución: un conteo sin filtrar por subcuenta diría cuántos contactos tiene
+  // OTRO cliente, que es una fuga aunque solo sea un número.
   const tablas = (codigo.match(/\.from\('(\w+)'\)/g) || []).length
   const filtros = (codigo.match(/\.eq\('tenant_id', tenantId\)/g) || []).length
   assert.equal(filtros, tablas, `${tablas} tablas y solo ${filtros} filtros por subcuenta`)
@@ -41,11 +43,16 @@ test('cada consulta filtra por tenant_id explícitamente', () => {
 // PAGINACIÓN. PostgREST devuelve 1.000 filas como máximo y NO avisa de que ha recortado.
 // ---------------------------------------------------------------------------------------------
 
-test('todas las lecturas pasan por el paginador', () => {
+test('todas las lecturas de FILAS pasan por el paginador', () => {
   const codigo = sinComentarios(leer(CONSULTA))
+  // Las consultas de solo conteo (`head: true`) no devuelven filas, así que no hay nada que paginar:
+  // PostgREST manda el total en una cabecera. Se excluyen a propósito, y por eso se cuentan aparte en vez
+  // de relajar la comprobación — si se relajara, una lectura de filas sin paginar se colaría sin ruido.
   const froms = (codigo.match(/\.from\('/g) || []).length
+  const conteos = (codigo.match(/head: true/g) || []).length
   const paginadas = (codigo.match(/fetchAllRows</g) || []).length
-  assert.equal(paginadas, froms)
+  assert.equal(paginadas, froms - conteos, `${froms} consultas, ${conteos} de conteo, ${paginadas} paginadas`)
+  assert.ok(conteos > 0, 'los conteos de atribución deberían usar head: true y no traerse las filas')
   // Y un recorte se declara: una suma incompleta que no avisa es el fallo más caro de esta base.
   assert.match(codigo, /fuentesRecortadas/)
 })
@@ -125,4 +132,42 @@ test('la respuesta permite auditar de dónde sale cada número', () => {
   assert.match(codigo, /filasLeidas: consulta\.filasLeidas/)
   assert.match(codigo, /ticketMedioUsado: ticketMedio/)
   assert.match(codigo, /requestId: auth\.requestId/)
+})
+
+// ---------------------------------------------------------------------------------------------
+// EL HUECO DE ATRIBUCIÓN, DICHO EN VEZ DE CALLADO.
+//
+// `contact_attributions` está a 0 filas y `contacts.campaign_id` a 0 de 956 en producción, porque los
+// enlaces de reserva no llevan UTMs. Sin origen no hay CAC por canal ni se puede separar lo orgánico de
+// los anuncios, y un panel que enseña un CAC global sin decirlo deja creer que sí se sabe.
+// ---------------------------------------------------------------------------------------------
+
+test('la atribución se cuenta y se avisa con números exactos', () => {
+  const consulta = sinComentarios(leer(CONSULTA))
+  assert.match(consulta, /from\('contact_attributions'\)/)
+  assert.match(consulta, /head: true/)
+  const ruta = sinComentarios(leer(RUTA))
+  assert.match(ruta, /key: 'atribucion_contactos'/)
+  assert.match(ruta, /contactos > 0 && conAtribucion < contactos/)
+  assert.match(ruta, /de \$\{contactos\} contactos tienen origen conocido/)
+})
+
+test('el aviso dice qué hacer, y que sin captura no hay nada que atribuir', () => {
+  const ruta = leer(RUTA)
+  assert.match(ruta, /parámetros UTM a los enlaces/)
+  assert.match(ruta, /no hay nada que atribuir/)
+})
+
+// Los webhooks registran el toque, y un fallo al atribuir no puede tumbar la cita.
+test('los webhooks registran el toque sin arriesgar la cita', () => {
+  for (const w of [
+    'app/api/[tenant]/evergreen/webhooks/calendly/route.ts',
+    'app/api/[tenant]/evergreen/webhooks/ghl/route.ts',
+  ]) {
+    const codigo = sinComentarios(leer(w))
+    assert.match(codigo, /registrarToque\(sb, tenantId, contact\.id/, w)
+    assert.match(codigo, /if \(toqueTieneDatos\(toque\)\)/, w)
+    // En try/catch: la cita y el contacto valen más que su procedencia.
+    assert.match(codigo, /try \{[\s\S]{0,320}registrarToque[\s\S]{0,200}\} catch/, w)
+  }
 })

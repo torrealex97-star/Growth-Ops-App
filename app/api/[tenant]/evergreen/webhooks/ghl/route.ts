@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { getOrCreateContact } from '@/lib/contacts/resolve'
+import { leerToque, registrarToque, toqueTieneDatos } from '@/lib/contacts/atribucion'
 import { firstMemberOf, resolveUserIdByTrackingCode } from '@/lib/tracking'
 import { isValidWebhookSecret } from '@/lib/webhooks/verifySecret'
 
@@ -224,6 +225,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: 'Error creando contacto', detail: resolved.error }, { status: 500 })
     }
     const contact = resolved.contact
+
+    // ATRIBUCIÓN. El toque se registra conservando el PRIMERO: si alguien llega por un anuncio y vuelve
+    // semanas después por un email, el anuncio es quien lo trajo, y machacarlo haría que el canal que
+    // remata se llevara el mérito del que capta — y con eso se decide el presupuesto.
+    //
+    // Hoy esto casi nunca escribe nada, y no es un fallo de aquí: los payloads no traen UTMs porque los
+    // enlaces de reserva no los llevan (0 de 559 citas tienen utm_source). El camino queda puesto para
+    // cuando empiecen a llegar. Un fallo al atribuir NO tumba el webhook: la cita y el contacto valen más
+    // que su procedencia.
+    try {
+      const toque = leerToque(payload)
+      if (toqueTieneDatos(toque)) {
+        await registrarToque(sb, tenantId, contact.id, { ...toque, enEl: now })
+      }
+    } catch (e) {
+      console.warn('[atribucion] no se pudo registrar el toque:', e instanceof Error ? e.message : e)
+    }
     if (!resolved.created) {
       await sb
         .from('contacts')
