@@ -10,10 +10,10 @@ export interface TenantBranding {
   accent: TenantAccent
 }
 
-// Nombre de plataforma histórico (hardcodeado antes en 9 archivos para TODOS los tenants) — se usa
+// Nombre de plataforma por defecto para todos los tenants — se usa
 // como fallback si un tenant no tiene branding configurado en `settings`, y como texto de carga
 // antes de que resuelva el fetch (login/layout no pueden esperar a la red para pintar el primer frame).
-const DEFAULT_BRAND_NAME = 'Scalix Systems'
+const DEFAULT_BRAND_NAME = 'Growth Ops'
 
 export function resolveTenantBranding(settings: unknown): TenantBranding {
   const branding = (settings as { branding?: { name?: unknown; accent?: unknown } } | null | undefined)?.branding

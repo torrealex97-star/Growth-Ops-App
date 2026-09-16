@@ -2,7 +2,7 @@ name: Deploy to Vercel
 
 # Auto-deploy sin la integración nativa Vercel↔GitHub (que no se pudo activar por el
 # reparto de cuentas). Usa el token de Vercel guardado en Secrets:
-#   - push a main    -> despliega a PRODUCCIÓN ([tenant]), env vars de Production
+#   - push a main    -> despliega a PRODUCCIÓN (Growth Ops), env vars de Production
 #   - push a staging -> despliega un PREVIEW, env vars de Preview (Supabase staging)
 # Activación manual hasta configurar VERCEL_TOKEN, VERCEL_ORG_ID y
 # VERCEL_PROJECT_ID en GitHub Actions.
