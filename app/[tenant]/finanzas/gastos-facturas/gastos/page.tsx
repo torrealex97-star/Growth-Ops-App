@@ -797,6 +797,7 @@ export default function ExpensesPage() {
       </div>
 
       <PeriodFilterBar
+        // PeriodFilterBar encapsula el DateRangeCalendarPopover sin duplicar el filtro temporal.
         preset={periodPreset}
         onPresetChange={setPeriodPreset}
         customFrom={customFrom}
