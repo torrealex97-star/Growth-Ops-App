@@ -14,74 +14,22 @@ import {
   Edit2,
   Trash2,
   Paperclip,
-  Download,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
-import { getCustomDateRange, getPreviousPeriodRange, inPeriod, type PeriodRange } from '@/lib/filters/period'
+import {
+  getPeriodRange,
+  getPreviousPeriodRange,
+  inPeriod,
+  periodFileTag as makePeriodFileTag,
+  type PeriodPreset,
+  type PeriodRange,
+} from '@/lib/filters/period'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { ShareDonut } from '@/components/os/ShareDonut'
 import { TrendChart } from '@/components/os/TrendChart'
-import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
-
-type PeriodPreset = 'month' | 'today' | 'week' | 'quarter' | 'year' | 'custom'
-
-const PERIOD_LABELS: Record<PeriodPreset, string> = {
-  month: 'Mes (selector arriba)',
-  today: 'Hoy',
-  week: 'Esta semana',
-  quarter: 'Este trimestre',
-  year: 'Este año',
-  custom: 'Personalizado',
-}
-
-function getPeriodRange(
-  preset: PeriodPreset,
-  month: string,
-  customFrom: string,
-  customTo: string
-): { from: Date | null; to: Date | null } {
-  const now = new Date()
-  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0)
-  const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
-
-  switch (preset) {
-    case 'today': {
-      return { from: startOfDay(now), to: endOfDay(now) }
-    }
-    case 'week': {
-      const day = now.getDay() === 0 ? 7 : now.getDay()
-      const monday = new Date(now)
-      monday.setDate(now.getDate() - day + 1)
-      const sunday = new Date(monday)
-      sunday.setDate(monday.getDate() + 6)
-      return { from: startOfDay(monday), to: endOfDay(sunday) }
-    }
-    case 'quarter': {
-      const q = Math.floor(now.getMonth() / 3)
-      const from = new Date(now.getFullYear(), q * 3, 1)
-      const to = new Date(now.getFullYear(), q * 3 + 3, 0)
-      return { from: startOfDay(from), to: endOfDay(to) }
-    }
-    case 'year': {
-      const from = new Date(now.getFullYear(), 0, 1)
-      const to = new Date(now.getFullYear(), 11, 31)
-      return { from: startOfDay(from), to: endOfDay(to) }
-    }
-    case 'custom': {
-      return getCustomDateRange(customFrom, customTo)
-    }
-    case 'month':
-    default: {
-      const [y, m] = month.split('-').map(Number)
-      if (!y || !m) return { from: null, to: null }
-      const from = new Date(y, m - 1, 1)
-      const to = new Date(y, m, 0)
-      return { from: startOfDay(from), to: endOfDay(to) }
-    }
-  }
-}
+import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 
 function csvEscape(value: string): string {
   if (value == null) return ''
@@ -201,11 +149,6 @@ function currencyConversionNote(extracted: AiExtracted): string | null {
   return `Factura original en ${extracted.original_currency} ${original} · convertido a ${formatCurrency(extracted.amount)} (tasa ${rate})`
 }
 
-function currentMonth(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-
 const emptyForm = {
   concept: '',
   category: 'publicidad' as Expense['category'],
@@ -272,7 +215,6 @@ export default function ExpensesPage() {
   const [items, setItems] = useState<Expense[]>([])
   const [users, setUsers] = useState<DbUser[]>([])
   const [loading, setLoading] = useState(true)
-  const [month, setMonth] = useState(currentMonth())
   const [showNew, setShowNew] = useState(false)
   const [ne, setNe] = useState(emptyForm)
   const [analyzing, setAnalyzing] = useState(false)
@@ -318,30 +260,17 @@ export default function ExpensesPage() {
   }, [sesion])
 
   const periodRange = useMemo(
-    () => getPeriodRange(periodPreset, month, customFrom, customTo),
-    [periodPreset, month, customFrom, customTo]
+    () => getPeriodRange(periodPreset, customFrom, customTo),
+    [periodPreset, customFrom, customTo]
   )
 
   const monthItems = useMemo(() => {
-    if (periodPreset === 'month') {
-      return items.filter((e) => e.expense_date && e.expense_date.startsWith(month))
-    }
-    return items.filter((e) => {
-      if (!e.expense_date) return false
-      const d = new Date(e.expense_date)
-      if (periodRange.from && d < periodRange.from) return false
-      if (periodRange.to && d > periodRange.to) return false
-      return true
-    })
-  }, [items, month, periodPreset, periodRange])
+    return items.filter((e) => inPeriod(e.expense_date, periodRange))
+  }, [items, periodRange])
 
   const periodFileTag = useMemo(() => {
-    if (periodPreset === 'month') return month
-    if (periodPreset === 'custom') {
-      return `${customFrom || 'inicio'}_a_${customTo || 'fin'}`
-    }
-    return periodPreset
-  }, [periodPreset, month, customFrom, customTo])
+    return makePeriodFileTag(periodPreset, customFrom, customTo)
+  }, [periodPreset, customFrom, customTo])
 
   const handleExportCSV = () => {
     const headers = [
@@ -838,41 +767,7 @@ export default function ExpensesPage() {
           <p className="text-muted-foreground text-sm mt-1">Costes operativos — base del P&L, burn rate y runway</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={periodPreset}
-            onChange={(e) => setPeriodPreset(e.target.value as PeriodPreset)}
-            className="bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-brand-500"
-          >
-            {(Object.keys(PERIOD_LABELS) as PeriodPreset[]).map((p) => (
-              <option key={p} value={p}>
-                {PERIOD_LABELS[p]}
-              </option>
-            ))}
-          </select>
-          {periodPreset === 'month' && (
-            <input
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-              className="bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-brand-500"
-            />
-          )}
-          {periodPreset === 'custom' && (
-            <DateRangeCalendarPopover
-              from={customFrom}
-              to={customTo}
-              onFromChange={setCustomFrom}
-              onToChange={setCustomTo}
-              className="w-full sm:w-72"
-            />
-          )}
           <SearchBox value={q} onChange={setQ} placeholder="Buscar concepto, proveedor..." className="w-64" />
-          <button
-            onClick={handleExportCSV}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-muted border border-border text-foreground hover:border-brand-500"
-          >
-            <Download className="w-4 h-4 text-brand-400" /> Exportar CSV
-          </button>
           <input
             ref={fileInputRef}
             type="file"
@@ -911,6 +806,16 @@ export default function ExpensesPage() {
           </button>
         </div>
       </div>
+
+      <PeriodFilterBar
+        preset={periodPreset}
+        onPresetChange={setPeriodPreset}
+        customFrom={customFrom}
+        customTo={customTo}
+        onCustomFromChange={setCustomFrom}
+        onCustomToChange={setCustomTo}
+        onExport={handleExportCSV}
+      />
 
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Info className="w-3.5 h-3.5" /> Los sueldos del equipo y los gastos recurrentes mensuales se generan
