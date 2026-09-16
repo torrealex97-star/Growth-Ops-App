@@ -483,7 +483,11 @@ export default function VentasMetricasPage() {
                     value: metrics.liveSalesCalls,
                     conversion: pctVal(metrics.liveSalesCalls, metrics.bookedSalesCalls),
                   },
-                  { label: 'Oferta', value: metrics.offers, conversion: pctVal(metrics.offers, metrics.liveSalesCalls) },
+                  {
+                    label: 'Oferta',
+                    value: metrics.offers,
+                    conversion: pctVal(metrics.offers, metrics.liveSalesCalls),
+                  },
                   { label: 'Cierre', value: metrics.closes, conversion: pctVal(metrics.closes, metrics.offers) },
                 ]}
               />
@@ -514,7 +518,12 @@ export default function VentasMetricasPage() {
                 icon={ListChecks}
                 description="agendas marcadas en seguimiento"
               />
-              <KPICard title="Depósitos" value={String(metrics.deposits)} icon={Wallet} description="Resultado: depósito" />
+              <KPICard
+                title="Depósitos"
+                value={String(metrics.deposits)}
+                icon={Wallet}
+                description="Resultado: depósito"
+              />
               <KPICard
                 title="Cobros comisionables"
                 value={formatCurrency(metrics.netRevenue)}
