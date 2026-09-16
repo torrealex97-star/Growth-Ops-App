@@ -185,7 +185,7 @@ function buildCarousels(P) {
       }),
       content({
         kicker: 'El vehículo',
-        heading: 'El sistema de IA Winners aplicado a un nicho',
+        heading: 'El sistema de Growth Ops aplicado a un nicho',
         body: 'Contenido + captación automatizada, empaquetado como servicio. No hacía falta ser técnico: hacía falta un método y ejecutarlo.',
       }),
       cta({ lead: '¿Cuánto tiempo más vas a dudar tú?' }),
@@ -582,7 +582,7 @@ function buildCarousels(P) {
       content({
         kicker: 'El giro',
         heading: 'Una sola llamada y se quedó',
-        body: 'Comparó opciones, habló con IA Winners y decidió. Lo que más valora: la estructura del contenido y tener compañeros a los que preguntar.',
+        body: 'Comparó opciones, habló con Growth Ops y decidió. Lo que más valora: la estructura del contenido y tener compañeros a los que preguntar.',
       }),
       content({ kicker: 'Punto B', big: '4 meses', heading: 'Y su primer chatbot ya funcionando' }),
       content({

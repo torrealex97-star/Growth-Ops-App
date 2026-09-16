@@ -27,7 +27,7 @@ function wrap(html) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8">${link}<style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:1080px;height:1350px;overflow:hidden}</style></head><body>${html}</body></html>`
 }
 
-const DEST = path.join(process.env.HOME, 'Desktop', 'Carrusels IA', 'VSL IA WINNERS - Export')
+const DEST = path.join(process.env.HOME, 'Desktop', 'Carrusels IA', 'VSL Growth Ops - Export')
 const TMP = '/tmp/vslexport'
 fs.mkdirSync(DEST, { recursive: true })
 fs.rmSync(TMP, { recursive: true, force: true })
