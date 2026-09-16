@@ -61,10 +61,10 @@ const APPOINTMENT_STATUS_COLORS: Record<string, string> = {
 }
 
 const APPOINTMENT_STATUS_LABELS: Record<string, string> = {
-  scheduled: 'Programada',
+  scheduled: 'Agendada',
   confirmed: 'Confirmada',
   show: 'Se presentó',
-  no_show: 'No show',
+  no_show: 'No asistió',
   cancelled: 'Cancelada',
   rescheduled: 'Reagendada',
   completed: 'Completada',
