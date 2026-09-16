@@ -516,7 +516,11 @@ export function AppointmentDetail({
         const res = await fetch(`/api/${tenant}/evergreen/ai/queue-call`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ appointmentId: appointment.id, driveUrl: sourceUrl, recordingUrl: recordingUrl.trim() || undefined }),
+          body: JSON.stringify({
+            appointmentId: appointment.id,
+            driveUrl: sourceUrl,
+            recordingUrl: recordingUrl.trim() || undefined,
+          }),
         })
         const data = await res.json()
         if (!res.ok || !data.ok) throw new Error(data?.error || 'No se pudo encolar')
@@ -1192,19 +1196,19 @@ export function AppointmentDetail({
           appointment.ai_summary ||
           appointment.ai_analyzed_at
         ) && (
-        <>
-          <Separator className="bg-muted" />
-          <details className="group">
-            <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
-              Payload crudo del webhook
-              <span className="ml-2 text-xs font-normal">(diagnóstico — las respuestas legibles están arriba)</span>
-            </summary>
-            <pre className="mt-3 max-h-48 overflow-auto rounded-lg border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
-              {JSON.stringify(appointment.raw_payload, null, 2)}
-            </pre>
-          </details>
-        </>
-      )}
+          <>
+            <Separator className="bg-muted" />
+            <details className="group">
+              <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
+                Payload crudo del webhook
+                <span className="ml-2 text-xs font-normal">(diagnóstico — las respuestas legibles están arriba)</span>
+              </summary>
+              <pre className="mt-3 max-h-48 overflow-auto rounded-lg border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
+                {JSON.stringify(appointment.raw_payload, null, 2)}
+              </pre>
+            </details>
+          </>
+        )}
 
       {/* Grabación + nota única de la llamada (editable) */}
       <Separator className="bg-muted" />

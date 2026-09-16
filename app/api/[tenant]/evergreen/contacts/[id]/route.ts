@@ -63,11 +63,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 })
     }
 
-    let updateQuery = sb
-      .from('contacts')
-      .update(patch)
-      .eq('id', id)
-      .eq('tenant_id', t.tenantId)
+    let updateQuery = sb.from('contacts').update(patch).eq('id', id).eq('tenant_id', t.tenantId)
     if (expectedUpdatedAt) updateQuery = updateQuery.eq('updated_at', expectedUpdatedAt)
     const { data: updated, error } = await updateQuery.select().maybeSingle()
 

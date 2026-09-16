@@ -42,7 +42,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     const { data: appt } = await sb
       .from('appointments')
-      .select('id, setter_id, closer_id, status, utm_content, calendly_event_uuid, calendar_name, updated_at, notes, recording_url')
+      .select(
+        'id, setter_id, closer_id, status, utm_content, calendly_event_uuid, calendar_name, updated_at, notes, recording_url'
+      )
       .eq('id', appointmentId)
       .eq('tenant_id', t.tenantId)
       .single()
