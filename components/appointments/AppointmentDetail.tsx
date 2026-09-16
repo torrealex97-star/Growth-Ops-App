@@ -655,6 +655,10 @@ export function AppointmentDetail({
   const veredicto = respuestasDelPayload.length > 0 ? evaluarCualificacion(respuestasDelPayload) : null
 
   const isCancelled = CANCELLED_STATUSES.includes(appointment.status)
+  const canRenderRawPayload = canSeeRawPayload && appointment.raw_payload
+  const rawPayloadVisible =
+    canRenderRawPayload &&
+    !(appointment.fathom_meeting_id || appointment.transcript || appointment.ai_summary || appointment.ai_analyzed_at)
 
   const fields = [
     { label: 'Telefono', value: appointment.contacts?.phone },
@@ -1188,27 +1192,20 @@ export function AppointmentDetail({
       {/* Payload crudo: plegado y solo para quien administra. Antes se volcaba abierto para
           cualquiera que pudiera ver la cita, encima justo debajo de las respuestas ya legibles, así
           que ocupaba media ficha con ruido técnico. */}
-      {canSeeRawPayload &&
-        appointment.raw_payload &&
-        !(
-          appointment.fathom_meeting_id ||
-          appointment.transcript ||
-          appointment.ai_summary ||
-          appointment.ai_analyzed_at
-        ) && (
-          <>
-            <Separator className="bg-muted" />
-            <details className="group">
-              <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
-                Payload crudo del webhook
-                <span className="ml-2 text-xs font-normal">(diagnóstico — las respuestas legibles están arriba)</span>
-              </summary>
-              <pre className="mt-3 max-h-48 overflow-auto rounded-lg border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
-                {JSON.stringify(appointment.raw_payload, null, 2)}
-              </pre>
-            </details>
-          </>
-        )}
+      {rawPayloadVisible && (
+        <>
+          <Separator className="bg-muted" />
+          <details className="group">
+            <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
+              Payload crudo del webhook
+              <span className="ml-2 text-xs font-normal">(diagnóstico — las respuestas legibles están arriba)</span>
+            </summary>
+            <pre className="mt-3 max-h-48 overflow-auto rounded-lg border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
+              {JSON.stringify(appointment.raw_payload, null, 2)}
+            </pre>
+          </details>
+        </>
+      )}
 
       {/* Grabación + nota única de la llamada (editable) */}
       <Separator className="bg-muted" />
