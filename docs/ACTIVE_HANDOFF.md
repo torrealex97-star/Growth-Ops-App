@@ -1,5 +1,21 @@
 # Relevo activo
 
+## Copy de analítica del embudo — 2026-09-16
+
+En la analítica de ventas/admisión se eliminó la presentación visual de demos y se dejó un único
+embudo de llamadas de ventas. Se conservaron las claves internas y la compatibilidad de datos
+(`event_type=demo`, `sales_call`, `result=offer_made/closed`) para no alterar consultas ni fórmulas.
+
+- Terminología adoptada: **Agendadas**, **Llamadas atendidas**, **Oferta**, **Cierre**,
+  **Tasa de asistencia**, **Tasa de cierre** y **No asistió**.
+- Se tradujeron labels, subtítulos, avisos, métricas y cabeceras relacionadas en Analítica, Ranking,
+  métricas de Agendas y estados CRM relacionados.
+- Ambigüedad resuelta sin bloquear: se mantiene **Closers/Setters** como nombres de rol porque es el
+  vocabulario operativo predominante en la app; las etapas y estados sí están en español.
+- Validación: `git diff --check` PASS. `pnpm quality` y `pnpm build` no disponibles en este entorno:
+  el runtime no incluye `node` y pnpm falla durante los scripts postinstall (`node: command not found`).
+  No se ha desplegado.
+
 ## Filtros visuales, embudo de ventas e Instagram — 2026-09-15
 
 Rama única: `codex/filters-instagram-closer`, creada desde `main` limpio (`3b87ff6`). No había PR
@@ -811,10 +827,29 @@ Requieren acción tuya, no son cosas que pueda cerrar solo:
 Pendiente de trabajo mío, no bloqueado: el aprovisionador de subcuentas en un clic
 (`/platform/tenants` + `POST /api/platform/tenants` + blueprint versionado), que va en **PR aparte**
 una vez cerrados los P0 de #30.
-
 ## Filtros de fecha — PR #64 (2026-09-16)
 
 - **Estado:** commit `a640fb8` publicado en `torrealex97-star-unify-date-filters`; PR abierto contra `main`.
 - **Implementado:** `PeriodFilterBar` usa un popover compacto con presets en español, calendario de día/rango, foco/ARIA, responsive y cierre por click fuera. Gastos elimina el selector temporal redundante y usa el filtro compartido.
 - **Validación:** `git diff --check` PASS. `format:check`, `typecheck` y tests no ejecutables en este entorno: no existe `node`/`npm`; `pnpm` falla en postinstall al invocar `node`.
 - **Siguiente acción exacta:** ejecutar quality gate en CI/entorno con Node y revisar el PR antes de mergear. No se ha hecho deploy.
+=======
+## CRM agendas y ficha de contacto — 2026-09-16
+
+Commit local: `b89b7ea` (`feat: improve CRM agenda and contact workflows`) en la única rama activa
+`torrealex97-star-crm-agendas-contactos-ux`.
+
+- El drawer de agendas prioriza el nombre completo y email navegables a la ficha, consolida la nota
+  visible de llamada, mantiene grabación/transcripción/IA y oculta el payload crudo cuando ya hay
+  llamada Fathom/procesada.
+- La ficha incorpora activities y contratos a la timeline, enlaces de navegación y edición de estado
+  y notas de agendas con los endpoints existentes. No se creó tabla de mensajes ni se borraron los
+  tres campos persistidos de notas.
+- Los guardados de contacto y agenda devuelven `updated_at`/`updatedAt` y ofrecen `Deshacer` con
+  comprobación optimista para no pisar cambios concurrentes. No se intercepta Ctrl/Cmd+Z ni copiar/
+  pegar nativos; los inputs conservan su undo habitual.
+- Regresión estática añadida en `tests/crm-contact-ux.test.mjs`.
+
+Validación ejecutada: `git diff --check` PASS. Quality/build/tests **bloqueados localmente**:
+este entorno no tiene `node`, `npm`, `npx`, `bun` ni `deno`; ejecutar `npm run quality` y
+`npm run build` en CI/entorno Node antes de fusionar. No se hizo deploy ni se tocaron secretos.

@@ -38,7 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
 
     // 4) Generar contraseña temporal y aplicarla
-    const tempPassword = `IAW-${globalThis.crypto.randomUUID().slice(0, 8)}!`
+    const tempPassword = `GOP-${globalThis.crypto.randomUUID().slice(0, 8)}!`
     const { data: target, error } = await admin.auth.admin.updateUserById(userId, {
       password: tempPassword,
       email_confirm: true,

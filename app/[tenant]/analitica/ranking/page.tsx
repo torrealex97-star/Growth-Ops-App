@@ -604,7 +604,7 @@ export default function PipelinePage() {
                       <tr className="text-left text-muted-foreground text-xs uppercase tracking-wider">
                         <th className="pb-2">Setter</th>
                         <th className="pb-2 text-right">Citas</th>
-                        <th className="pb-2 text-right">Shows</th>
+                        <th className="pb-2 text-right">Llamadas atendidas</th>
                         <th className="pb-2 text-right">% Show</th>
                       </tr>
                     </thead>

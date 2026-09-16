@@ -104,11 +104,11 @@ export function AgendasMetricsView({
               <TableRow className="border-border hover:bg-transparent">
                 <TableHead className="text-muted-foreground">Setter</TableHead>
                 <TableHead className="text-muted-foreground">Agendas</TableHead>
-                <TableHead className="text-muted-foreground">Programadas</TableHead>
-                <TableHead className="text-muted-foreground">Shows</TableHead>
-                <TableHead className="text-muted-foreground">No-shows</TableHead>
+                <TableHead className="text-muted-foreground">Agendadas</TableHead>
+                <TableHead className="text-muted-foreground">Llamadas atendidas</TableHead>
+                <TableHead className="text-muted-foreground">No asistieron</TableHead>
                 <TableHead className="text-muted-foreground">Seguimiento</TableHead>
-                <TableHead className="text-muted-foreground">Show Rate</TableHead>
+                <TableHead className="text-muted-foreground">Tasa de asistencia</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -152,11 +152,11 @@ export function AgendasMetricsView({
               <TableRow className="border-border hover:bg-transparent">
                 <TableHead className="text-muted-foreground">Closer</TableHead>
                 <TableHead className="text-muted-foreground">Asignadas</TableHead>
-                <TableHead className="text-muted-foreground">Programadas</TableHead>
-                <TableHead className="text-muted-foreground">Shows atendidos</TableHead>
+                <TableHead className="text-muted-foreground">Agendadas</TableHead>
+                <TableHead className="text-muted-foreground">Llamadas atendidas</TableHead>
                 <TableHead className="text-muted-foreground">Seguimiento</TableHead>
                 <TableHead className="text-muted-foreground">Cierres</TableHead>
-                <TableHead className="text-muted-foreground">Close Rate</TableHead>
+                <TableHead className="text-muted-foreground">Tasa de cierre</TableHead>
                 <TableHead className="text-muted-foreground">Ingresos</TableHead>
               </TableRow>
             </TableHeader>

@@ -53,7 +53,7 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('iaw_sidebar_collapsed')
+      const raw = localStorage.getItem('growth-ops-sidebar-collapsed')
       if (raw) setCollapsed(JSON.parse(raw))
     } catch {
       /* ignore */
@@ -63,7 +63,7 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
     setCollapsed((prev) => {
       const next = { ...prev, [dept]: !prev[dept] }
       try {
-        localStorage.setItem('iaw_sidebar_collapsed', JSON.stringify(next))
+        localStorage.setItem('growth-ops-sidebar-collapsed', JSON.stringify(next))
       } catch {
         /* ignore */
       }
