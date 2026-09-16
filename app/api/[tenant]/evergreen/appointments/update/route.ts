@@ -27,7 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const t = await requireTenant(tenant)
     if ('error' in t) return t.error
 
-    const { appointmentId, patch } = await req.json()
+    const { appointmentId, patch, expectedUpdatedAt } = await req.json()
     if (!appointmentId || !patch || typeof patch !== 'object') {
       return NextResponse.json({ error: 'Faltan parámetros' }, { status: 400 })
     }
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     const { data: appt } = await sb
       .from('appointments')
-      .select('id, setter_id, closer_id, status, utm_content, calendly_event_uuid, calendar_name')
+      .select('id, setter_id, closer_id, status, utm_content, calendly_event_uuid, calendar_name, updated_at, notes, recording_url')
       .eq('id', appointmentId)
       .eq('tenant_id', t.tenantId)
       .single()
@@ -75,8 +75,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if ('library_shared' in patch) clean.library_shared = !!patch.library_shared
     if (Object.keys(clean).length === 0) return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 })
 
-    const { error } = await sb.from('appointments').update(clean).eq('id', appointmentId).eq('tenant_id', t.tenantId)
+    let updateQuery = sb.from('appointments').update(clean).eq('id', appointmentId).eq('tenant_id', t.tenantId)
+    if (typeof expectedUpdatedAt === 'string') updateQuery = updateQuery.eq('updated_at', expectedUpdatedAt)
+    const { data: updated, error } = await updateQuery
+      .select('id, updated_at, notes, recording_url, transcript_drive_url, transcript')
+      .maybeSingle()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (!updated) {
+      return NextResponse.json(
+        { error: 'La agenda cambió mientras editabas. Recarga antes de deshacer.' },
+        { status: 409 }
+      )
+    }
 
     // Si el closer/setter deja notas de la reunión, se reenvían a creatuagente junto con el
     // evento que corresponda al estado actual de la cita (normalmente cita.completada, ya que
@@ -92,7 +102,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       })
     }
 
-    return NextResponse.json({ ok: true, avisos })
+    return NextResponse.json({ ok: true, avisos, updatedAt: updated.updated_at, appointment: updated })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }

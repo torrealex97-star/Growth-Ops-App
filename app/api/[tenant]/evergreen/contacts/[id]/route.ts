@@ -15,6 +15,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
     if ('error' in t) return t.error
 
     const body = await req.json()
+    const expectedUpdatedAt = typeof body.expectedUpdatedAt === 'string' ? body.expectedUpdatedAt : null
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -62,15 +63,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 })
     }
 
-    const { data: updated, error } = await sb
+    let updateQuery = sb
       .from('contacts')
       .update(patch)
       .eq('id', id)
       .eq('tenant_id', t.tenantId)
-      .select()
-      .single()
+    if (expectedUpdatedAt) updateQuery = updateQuery.eq('updated_at', expectedUpdatedAt)
+    const { data: updated, error } = await updateQuery.select().maybeSingle()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (!updated) {
+      return NextResponse.json(
+        { error: 'El contacto cambió mientras editabas. Recarga la ficha antes de deshacer.' },
+        { status: 409 }
+      )
+    }
 
     await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
