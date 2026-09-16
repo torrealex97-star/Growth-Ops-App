@@ -1791,7 +1791,9 @@ export default function AppointmentsPage() {
                     {selectedAppointment.contacts.email}
                   </a>
                 )}
-                <p className="text-xs text-muted-foreground">Detalle de agenda · {formatDateTime(selectedAppointment.appointment_datetime)}</p>
+                <p className="text-xs text-muted-foreground">
+                  Detalle de agenda · {formatDateTime(selectedAppointment.appointment_datetime)}
+                </p>
               </div>
             )}
           </SheetHeader>

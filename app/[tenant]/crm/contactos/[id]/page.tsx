@@ -212,7 +212,8 @@ export default function ContactDetailPage() {
     if (appRes.error) toast.error('Error al cargar las agendas', { description: appRes.error.message })
     if (salesRes.error) toast.error('Error al cargar las ventas', { description: salesRes.error.message })
     if (notesRes.error) toast.error('Error al cargar las notas', { description: notesRes.error.message })
-    if (activitiesRes.error) toast.error('Error al cargar las interacciones', { description: activitiesRes.error.message })
+    if (activitiesRes.error)
+      toast.error('Error al cargar las interacciones', { description: activitiesRes.error.message })
     if (contractsRes.error) toast.error('Error al cargar los contratos', { description: contractsRes.error.message })
 
     setContact(contactRes.data)
@@ -221,10 +222,12 @@ export default function ContactDetailPage() {
     setSales(salesRes.data ?? [])
     setNotes((notesRes.data as ContactNote[]) ?? [])
     setActivities(
-      ((activitiesRes.data ?? []) as Array<ContactActivity & { users?: { full_name?: string } | null }>).map((activity) => ({
-        ...activity,
-        author: activity.users?.full_name || 'Alguien',
-      }))
+      ((activitiesRes.data ?? []) as Array<ContactActivity & { users?: { full_name?: string } | null }>).map(
+        (activity) => ({
+          ...activity,
+          author: activity.users?.full_name || 'Alguien',
+        })
+      )
     )
     setContracts((contractsRes.data as ContactContract[]) ?? [])
     setLoading(false)
@@ -354,40 +357,45 @@ export default function ContactDetailPage() {
       setAppointments((current) =>
         current.map((appointment) =>
           appointment.id === editingAppointmentId
-            ? { ...appointment, status: appointmentDraft.status as Appointment['status'], notes: appointmentDraft.notes.trim() }
+            ? {
+                ...appointment,
+                status: appointmentDraft.status as Appointment['status'],
+                notes: appointmentDraft.notes.trim(),
+              }
             : appointment
         )
       )
       toast.success('Agenda actualizada', {
-        action: notesData?.updatedAt && previousAppointment
-          ? {
-              label: 'Deshacer notas',
-              onClick: async () => {
-                const undoRes = await fetch(`/api/${tenant}/evergreen/appointments/update`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    appointmentId: editingAppointmentId,
-                    expectedUpdatedAt: notesData.updatedAt,
-                    patch: { notes: previousAppointment.notes ?? '' },
-                  }),
-                })
-                const undoData = await undoRes.json().catch(() => ({}))
-                if (!undoRes.ok) {
-                  toast.error('No se pudieron deshacer las notas', { description: undoData?.error })
-                  return
-                }
-                setAppointments((current) =>
-                  current.map((appointment) =>
-                    appointment.id === editingAppointmentId
-                      ? { ...appointment, notes: previousAppointment.notes }
-                      : appointment
+        action:
+          notesData?.updatedAt && previousAppointment
+            ? {
+                label: 'Deshacer notas',
+                onClick: async () => {
+                  const undoRes = await fetch(`/api/${tenant}/evergreen/appointments/update`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      appointmentId: editingAppointmentId,
+                      expectedUpdatedAt: notesData.updatedAt,
+                      patch: { notes: previousAppointment.notes ?? '' },
+                    }),
+                  })
+                  const undoData = await undoRes.json().catch(() => ({}))
+                  if (!undoRes.ok) {
+                    toast.error('No se pudieron deshacer las notas', { description: undoData?.error })
+                    return
+                  }
+                  setAppointments((current) =>
+                    current.map((appointment) =>
+                      appointment.id === editingAppointmentId
+                        ? { ...appointment, notes: previousAppointment.notes }
+                        : appointment
+                    )
                   )
-                )
-                toast.success('Notas deshechas')
-              },
-            }
-          : undefined,
+                  toast.success('Notas deshechas')
+                },
+              }
+            : undefined,
       })
       setEditingAppointmentId(null)
       setAppointmentDraft(null)
@@ -565,7 +573,11 @@ export default function ContactDetailPage() {
                         <p className="text-xs text-muted-foreground">{formatDateTime(event.occurredAt)}</p>
                         {event.href ? (
                           <a
-                            href={event.href.startsWith('/') && !event.href.startsWith('//') ? `/${tenant}${event.href}` : event.href}
+                            href={
+                              event.href.startsWith('/') && !event.href.startsWith('//')
+                                ? `/${tenant}${event.href}`
+                                : event.href
+                            }
                             target={event.href.startsWith('http') ? '_blank' : undefined}
                             rel={event.href.startsWith('http') ? 'noreferrer' : undefined}
                             className="text-sm font-medium text-brand-400 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded-sm"
@@ -865,120 +877,129 @@ export default function ContactDetailPage() {
                     return (
                       <Fragment key={appt.id}>
                         <TableRow className="border-border">
-                        <TableCell className="text-foreground">{formatDateTime(appt.appointment_datetime)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <Badge className={`border text-xs ${APPOINTMENT_STATUS_COLORS[appt.status] ?? ''}`}>
-                              {APPOINTMENT_STATUS_LABELS[appt.status] ?? appt.status}
-                            </Badge>
-                            {isNoShow(appt.rescheduled_from_status) && (
-                              <Badge className="border text-xs bg-red-500/10 text-red-400 border-red-500/30">
-                                Reagenda / No show
+                          <TableCell className="text-foreground">{formatDateTime(appt.appointment_datetime)}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <Badge className={`border text-xs ${APPOINTMENT_STATUS_COLORS[appt.status] ?? ''}`}>
+                                {APPOINTMENT_STATUS_LABELS[appt.status] ?? appt.status}
                               </Badge>
-                            )}
-                            {appt.rescheduled_from_status === 'show' && (
-                              <Badge className="border text-xs bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
-                                Reagenda / Show
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{appt.setter?.full_name || '—'}</TableCell>
-                        <TableCell className="text-muted-foreground">{appt.closer?.full_name || '—'}</TableCell>
-                        <TableCell className="text-muted-foreground">{appt.calendar_name || '—'}</TableCell>
-                        <TableCell className="text-muted-foreground">{appt.source || '—'}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            {rec && (
-                              <a
-                                href={rec}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-brand-400 hover:text-brand-300 text-xs"
-                              >
-                                Grabación
-                              </a>
-                            )}
-                            {tr && (
-                              <a
-                                href={tr}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sky-400 hover:text-sky-300 text-xs"
-                              >
-                                Transcripción
-                              </a>
-                            )}
-                            {!rec && !tr && <span className="text-muted-foreground text-xs">—</span>}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 text-xs"
-                            onClick={() => startAppointmentEdit(appt)}
-                            aria-label={`Editar agenda de ${contact.full_name}`}
-                          >
-                            <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-                            Editar
-                          </Button>
-                        </TableCell>
+                              {isNoShow(appt.rescheduled_from_status) && (
+                                <Badge className="border text-xs bg-red-500/10 text-red-400 border-red-500/30">
+                                  Reagenda / No show
+                                </Badge>
+                              )}
+                              {appt.rescheduled_from_status === 'show' && (
+                                <Badge className="border text-xs bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                                  Reagenda / Show
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{appt.setter?.full_name || '—'}</TableCell>
+                          <TableCell className="text-muted-foreground">{appt.closer?.full_name || '—'}</TableCell>
+                          <TableCell className="text-muted-foreground">{appt.calendar_name || '—'}</TableCell>
+                          <TableCell className="text-muted-foreground">{appt.source || '—'}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              {rec && (
+                                <a
+                                  href={rec}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-brand-400 hover:text-brand-300 text-xs"
+                                >
+                                  Grabación
+                                </a>
+                              )}
+                              {tr && (
+                                <a
+                                  href={tr}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sky-400 hover:text-sky-300 text-xs"
+                                >
+                                  Transcripción
+                                </a>
+                              )}
+                              {!rec && !tr && <span className="text-muted-foreground text-xs">—</span>}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 text-xs"
+                              onClick={() => startAppointmentEdit(appt)}
+                              aria-label={`Editar agenda de ${contact.full_name}`}
+                            >
+                              <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                              Editar
+                            </Button>
+                          </TableCell>
                         </TableRow>
                         {editingAppointmentId === appt.id && appointmentDraft && (
                           <TableRow className="border-border bg-muted/30">
-                          <TableCell colSpan={8}>
-                            <div className="grid gap-3 md:grid-cols-[180px_1fr_auto] md:items-end">
-                              <label className="space-y-1.5">
-                                <span className="text-xs font-medium text-muted-foreground">Estado</span>
-                                <Select
-                                  value={appointmentDraft.status}
-                                  onValueChange={(status) => setAppointmentDraft((draft) => (draft ? { ...draft, status } : draft))}
-                                >
-                                  <SelectTrigger className="h-9 bg-background" aria-label="Estado de la agenda">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {Object.entries(APPOINTMENT_STATUS_LABELS).map(([status, label]) => (
-                                      <SelectItem key={status} value={status}>
-                                        {label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </label>
-                              <label className="space-y-1.5">
-                                <span className="text-xs font-medium text-muted-foreground">Notas de la llamada</span>
-                                <textarea
-                                  value={appointmentDraft.notes}
-                                  onChange={(event) =>
-                                    setAppointmentDraft((draft) => (draft ? { ...draft, notes: event.target.value } : draft))
-                                  }
-                                  rows={2}
-                                  className="w-full resize-y rounded-lg border border-border bg-background p-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-                                  aria-label="Notas de la llamada"
-                                />
-                              </label>
-                              <div className="flex gap-2">
-                                <Button type="button" size="sm" onClick={saveAppointmentEdit} disabled={savingAppointment}>
-                                  {savingAppointment ? 'Guardando…' : 'Guardar'}
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    setEditingAppointmentId(null)
-                                    setAppointmentDraft(null)
-                                  }}
-                                  disabled={savingAppointment}
-                                >
-                                  Cancelar
-                                </Button>
+                            <TableCell colSpan={8}>
+                              <div className="grid gap-3 md:grid-cols-[180px_1fr_auto] md:items-end">
+                                <label className="space-y-1.5">
+                                  <span className="text-xs font-medium text-muted-foreground">Estado</span>
+                                  <Select
+                                    value={appointmentDraft.status}
+                                    onValueChange={(status) =>
+                                      setAppointmentDraft((draft) => (draft ? { ...draft, status } : draft))
+                                    }
+                                  >
+                                    <SelectTrigger className="h-9 bg-background" aria-label="Estado de la agenda">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {Object.entries(APPOINTMENT_STATUS_LABELS).map(([status, label]) => (
+                                        <SelectItem key={status} value={status}>
+                                          {label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </label>
+                                <label className="space-y-1.5">
+                                  <span className="text-xs font-medium text-muted-foreground">Notas de la llamada</span>
+                                  <textarea
+                                    value={appointmentDraft.notes}
+                                    onChange={(event) =>
+                                      setAppointmentDraft((draft) =>
+                                        draft ? { ...draft, notes: event.target.value } : draft
+                                      )
+                                    }
+                                    rows={2}
+                                    className="w-full resize-y rounded-lg border border-border bg-background p-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                                    aria-label="Notas de la llamada"
+                                  />
+                                </label>
+                                <div className="flex gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={saveAppointmentEdit}
+                                    disabled={savingAppointment}
+                                  >
+                                    {savingAppointment ? 'Guardando…' : 'Guardar'}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditingAppointmentId(null)
+                                      setAppointmentDraft(null)
+                                    }}
+                                    disabled={savingAppointment}
+                                  >
+                                    Cancelar
+                                  </Button>
+                                </div>
                               </div>
-                            </div>
-                          </TableCell>
+                            </TableCell>
                           </TableRow>
                         )}
                       </Fragment>

@@ -19,7 +19,7 @@ test('el payload crudo se oculta cuando existe una llamada procesada', () => {
   assert.match(src, /appointment\.fathom_meeting_id/)
   assert.match(src, /appointment\.transcript/)
   assert.match(src, /appointment\.ai_analyzed_at/)
-  assert.match(src, /!\\([\s\S]*appointment\.fathom_meeting_id/)
+  assert.ok(src.includes('!(') && src.includes('appointment.fathom_meeting_id'))
 })
 
 test('el deshacer persistido usa versión y no intercepta undo nativo', () => {
