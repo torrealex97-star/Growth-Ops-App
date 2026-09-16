@@ -1773,9 +1773,26 @@ export default function AppointmentsPage() {
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent className="bg-card border-border text-foreground w-full sm:max-w-xl overflow-y-auto">
           <SheetHeader>
-            <SheetTitle className="text-foreground">Detalle de Agenda</SheetTitle>
             {selectedAppointment && (
-              <p className="text-muted-foreground text-sm">{selectedAppointment.contacts?.full_name}</p>
+              <div className="space-y-1">
+                <SheetTitle className="text-left text-2xl font-semibold text-foreground text-pretty">
+                  <a
+                    href={`/${tenant}/crm/contactos/${selectedAppointment.contact_id}`}
+                    className="hover:text-brand-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded-sm"
+                  >
+                    {selectedAppointment.contacts?.full_name || 'Contacto sin nombre'}
+                  </a>
+                </SheetTitle>
+                {selectedAppointment.contacts?.email && (
+                  <a
+                    href={`/${tenant}/crm/contactos/${selectedAppointment.contact_id}`}
+                    className="block w-fit text-sm text-brand-400 hover:text-brand-300 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded-sm"
+                  >
+                    {selectedAppointment.contacts.email}
+                  </a>
+                )}
+                <p className="text-xs text-muted-foreground">Detalle de agenda · {formatDateTime(selectedAppointment.appointment_datetime)}</p>
+              </div>
             )}
           </SheetHeader>
           {selectedAppointment && (
