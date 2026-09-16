@@ -168,7 +168,7 @@ export default function ReelsDelDiaPage() {
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             Cada día minamos ~5 reels de las cuentas de Competencia y te dejamos aquí el guión adaptado (hook + CTA
-            SCALIX SYSTEMS), la transcripción original y una idea de carrusel. Tú decides qué aprobar.
+            Growth Ops), la transcripción original y una idea de carrusel. Tú decides qué aprobar.
           </p>
         </div>
         <button
@@ -305,7 +305,7 @@ export default function ReelsDelDiaPage() {
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-xs text-muted-foreground">
-                        Guión adaptado (hook + CTA SCALIX SYSTEMS)
+                        Guión adaptado (hook + CTA Growth Ops)
                       </label>
                       <button
                         onClick={() => copyScript(d.id)}

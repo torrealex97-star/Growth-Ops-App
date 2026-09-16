@@ -5,8 +5,6 @@ import { searchAllOrders, showOrder, type SequraEnv } from './client'
 // configuración de CADA subcuenta: antes era una constante de módulo resuelta al arrancar el
 // proceso, así que todas las subcuentas sincronizaban el mismo comercio (el del entorno de Vercel)
 // por mucho que cada una tuviera el suyo guardado en Integraciones.
-const DEFAULT_MERCHANT_REFERENCE = '[tenant]'
-
 // Mora real = cuota vencida sin pagar (overdue_days > 0), no cuotas futuras
 // normales de un pago aplazado (eso simplemente da debt > 0).
 function isRealDelinquent(overdueDays: number | null): boolean {
@@ -22,7 +20,8 @@ export type SyncResult = {
 
 export async function syncSequraDelinquents(tenantId: string, env: SequraEnv): Promise<SyncResult> {
   const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const merchantReference = env.SEQURA_MERCHANT_REFERENCE?.trim() || DEFAULT_MERCHANT_REFERENCE
+  const merchantReference = env.SEQURA_MERCHANT_REFERENCE?.trim()
+  if (!merchantReference) throw new Error('Falta configurar SEQURA_MERCHANT_REFERENCE')
 
   const orders = (await searchAllOrders(env, merchantReference)).filter((o) => o.status !== 'cancelled')
 
