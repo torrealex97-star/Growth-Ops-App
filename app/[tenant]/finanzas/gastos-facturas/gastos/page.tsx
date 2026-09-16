@@ -3,18 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeUserNamesQuery } from '@/lib/users'
-import {
-  Wallet,
-  Plus,
-  X,
-  Sparkles,
-  ShieldCheck,
-  RefreshCw,
-  Info,
-  Edit2,
-  Trash2,
-  Paperclip,
-} from 'lucide-react'
+import { Wallet, Plus, X, Sparkles, ShieldCheck, RefreshCw, Info, Edit2, Trash2, Paperclip } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
