@@ -4,21 +4,7 @@ import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import {
-  BarChart3,
-  CalendarCheck,
-  Video,
-  PhoneCall,
-  ThumbsUp,
-  Wallet,
-  Trophy,
-  Banknote,
-  Undo2,
-  Gauge,
-  ArrowRight,
-  ClipboardList,
-  ListChecks,
-} from 'lucide-react'
+import { BarChart3, PhoneCall, Wallet, Trophy, Banknote, Undo2, Gauge, ClipboardList, ListChecks } from 'lucide-react'
 import { lastNMonths, monthLabel } from '@/lib/analytics'
 import { formatCurrency, formatPercent } from '@/lib/utils'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
@@ -97,7 +83,7 @@ function ratio(value: number, base: number): string {
 
 const ACTIVE_APPT_STATUSES = ['scheduled', 'confirmed', 'show', 'completed', 'rescheduled']
 const CANCELLED_APPT_STATUSES = ['cancelled', 'cancelled_admin', 'cancelled_lead']
-// Programadas: citas agendadas que todavía faltan por hacerse (no confundir con el status
+// Agendadas: citas que todavía faltan por hacerse (no confundir con el status
 // 'reserva', que significa que el lead ya pagó la reserva/depósito).
 const PROGRAMADA_APPT_STATUSES = ['scheduled', 'confirmed', 'rescheduled', 'seguimiento']
 
@@ -228,16 +214,10 @@ export default function VentasMetricasPage() {
   }, [monthAppointments])
 
   const metrics = useMemo(() => {
-    const demos = monthAppointments.filter((a) => a.event_type === 'demo')
     const salesCalls = monthAppointments.filter((a) => a.event_type === 'sales_call' || a.event_type === null)
 
     const activeAppts = monthAppointments.filter((a) => ACTIVE_APPT_STATUSES.includes(a.status))
     const pipeValue = activeAppts.reduce((acc, a) => acc + num(a.pipe_value), 0)
-
-    const bookedDemos = demos.length
-    const liveDemos = demos.filter((a) => isAttended(a.status)).length
-    const cancelledDemos = demos.filter((a) => CANCELLED_APPT_STATUSES.includes(a.status)).length
-    const goodDemos = demos.filter((a) => a.result === 'good_demo').length
 
     const bookedSalesCalls = salesCalls.length
     const liveSalesCalls = salesCalls.filter((a) => isAttended(a.status)).length
@@ -272,10 +252,6 @@ export default function VentasMetricasPage() {
 
     return {
       pipeValue,
-      bookedDemos,
-      liveDemos,
-      cancelledDemos,
-      goodDemos,
       bookedSalesCalls,
       liveSalesCalls,
       cancelledSalesCalls,
@@ -378,7 +354,7 @@ export default function VentasMetricasPage() {
             <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">Métricas de ventas</h1>
           </div>
           <p className="text-muted-foreground text-sm mt-1">
-            Embudo granular de Demos y Sales Calls, con tasas de conversión y ratios de valor
+            Embudo de llamadas de ventas/admisión, con tasas de conversión y ratios de valor
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -444,9 +420,9 @@ export default function VentasMetricasPage() {
         <>
           {eventTypeCoverage < 50 && (
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs text-amber-300">
-              Marca el tipo (Demo/Sales Call) en las agendas para separar ambos embudos. Actualmente solo el{' '}
+              Marca el tipo de llamada en las agendas para mejorar la atribución. Actualmente solo el{' '}
               {formatPercent(eventTypeCoverage, 0)} de las citas del mes tienen event_type definido (las citas sin tipo
-              se cuentan como Sales Call).
+              se cuentan como llamadas de ventas).
             </div>
           )}
 
@@ -457,11 +433,13 @@ export default function VentasMetricasPage() {
                 <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
                   Embudo comercial
                 </p>
-                <h2 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground">Sales Calls</h2>
+                <h2 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground">
+                  Llamadas de ventas
+                </h2>
               </div>
               <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
                 <div>
-                  <dt className="text-[11px] text-muted-foreground">Booked → Close</dt>
+                  <dt className="text-[11px] text-muted-foreground">Agendadas → cierre</dt>
                   <dd className="mt-1 font-display text-lg font-semibold tabular-nums text-foreground">
                     {pct(metrics.closes, metrics.bookedSalesCalls)}
                   </dd>
@@ -489,14 +467,18 @@ export default function VentasMetricasPage() {
             <div className="p-4 sm:p-5">
               <ConnectedFunnel
                 stages={[
-                  { label: 'Booked', value: metrics.bookedSalesCalls, conversion: null },
+                  { label: 'Agendadas', value: metrics.bookedSalesCalls, conversion: null },
                   {
-                    label: 'Live',
+                    label: 'Llamadas atendidas',
                     value: metrics.liveSalesCalls,
                     conversion: pctVal(metrics.liveSalesCalls, metrics.bookedSalesCalls),
                   },
-                  { label: 'Offer', value: metrics.offers, conversion: pctVal(metrics.offers, metrics.liveSalesCalls) },
-                  { label: 'Close', value: metrics.closes, conversion: pctVal(metrics.closes, metrics.offers) },
+                  {
+                    label: 'Oferta',
+                    value: metrics.offers,
+                    conversion: pctVal(metrics.offers, metrics.liveSalesCalls),
+                  },
+                  { label: 'Cierre', value: metrics.closes, conversion: pctVal(metrics.closes, metrics.offers) },
                 ]}
               />
             </div>
@@ -515,7 +497,7 @@ export default function VentasMetricasPage() {
                 description="valor en citas activas"
               />
               <KPICard
-                title="Programadas"
+                title="Agendadas"
                 value={String(metrics.programadas)}
                 icon={ClipboardList}
                 description="citas agendadas sin resolver"
@@ -526,20 +508,12 @@ export default function VentasMetricasPage() {
                 icon={ListChecks}
                 description="agendas marcadas en seguimiento"
               />
-              <KPICard title="Booked Demos" value={String(metrics.bookedDemos)} icon={CalendarCheck} />
               <KPICard
-                title="Live Demos"
-                value={String(metrics.liveDemos)}
-                icon={Video}
-                description="show / completed"
+                title="Depósitos"
+                value={String(metrics.deposits)}
+                icon={Wallet}
+                description="Resultado: depósito"
               />
-              <KPICard
-                title="Good Demos"
-                value={String(metrics.goodDemos)}
-                icon={ThumbsUp}
-                description="result = good_demo"
-              />
-              <KPICard title="Deposits" value={String(metrics.deposits)} icon={Wallet} description="result = deposit" />
               <KPICard
                 title="Cobros comisionables"
                 value={formatCurrency(metrics.netRevenue)}
@@ -555,55 +529,37 @@ export default function VentasMetricasPage() {
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Tasas de conversión</h2>
             <div className="grid grid-cols-1 overflow-hidden rounded-xl border border-border bg-card/30 sm:grid-cols-2 lg:grid-cols-4">
               <KPICard
-                title="% Show Rate (D)"
-                value={pct(metrics.liveDemos, metrics.bookedDemos)}
-                icon={Video}
-                description="Live / Booked Demos"
-              />
-              <KPICard
-                title="% Cancel (D)"
-                value={pct(metrics.cancelledDemos, metrics.bookedDemos)}
-                icon={Undo2}
-                description="cancelled / Booked Demos"
-              />
-              <KPICard
-                title="% Live(D)→(SC)"
-                value={pct(metrics.liveSalesCalls, metrics.liveDemos)}
-                icon={ArrowRight}
-                description="Live Sales Calls / Live Demos"
-              />
-              <KPICard
-                title="% Show Rate (SC)"
+                title="% de asistencia"
                 value={pct(metrics.liveSalesCalls, metrics.bookedSalesCalls)}
                 icon={PhoneCall}
-                description="Live / Booked Sales Calls"
+                description="Llamadas atendidas / llamadas agendadas"
               />
               <KPICard
-                title="% Cancel (SC)"
+                title="% de cancelación"
                 value={pct(metrics.cancelledSalesCalls, metrics.bookedSalesCalls)}
                 icon={Undo2}
-                description="cancelled / Booked Sales Calls"
+                description="Llamadas canceladas / llamadas agendadas"
               />
               <KPICard
-                title="% Offer/Close"
+                title="% oferta → cierre"
                 value={pct(metrics.closes, metrics.offers)}
                 icon={Trophy}
-                description="Closes / Offers"
+                description="Cierres / ofertas"
               />
               <KPICard
-                title="% Live(SC)/Close"
+                title="% atendidas → cierre"
                 value={pct(metrics.closes, metrics.liveSalesCalls)}
                 icon={Trophy}
-                description="Closes / Live Sales Calls"
+                description="Cierres / llamadas atendidas"
               />
               <KPICard
-                title="% Booked(SC)/Close"
+                title="% agendadas → cierre"
                 value={pct(metrics.closes, metrics.bookedSalesCalls)}
                 icon={Trophy}
-                description="Closes / Booked Sales Calls"
+                description="Cierres / llamadas agendadas"
               />
               <KPICard
-                title="% Pipe Closed"
+                title="% del pipeline cerrado"
                 value={pct(metrics.closedValue, metrics.pipeValue)}
                 icon={Gauge}
                 description="valor cerrado / Pipe Value"
@@ -612,34 +568,13 @@ export default function VentasMetricasPage() {
                 title="Cobros/LSC"
                 value={ratio(metrics.netRevenue, metrics.liveSalesCalls)}
                 icon={Banknote}
-                description="Cobros comisionables / Live Sales Calls"
+                description="Cobros comisionables / llamadas atendidas"
               />
               <KPICard
                 title="Cobros/BSC"
                 value={ratio(metrics.netRevenue, metrics.bookedSalesCalls)}
                 icon={Banknote}
-                description="Cobros comisionables / Booked Sales Calls"
-              />
-            </div>
-          </div>
-
-          <div>
-            <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Embudo — Demos</h2>
-            <div className="rounded-xl border border-border bg-card/35 p-4 sm:p-5">
-              <ConnectedFunnel
-                stages={[
-                  { label: 'Booked', value: metrics.bookedDemos, conversion: null },
-                  {
-                    label: 'Live',
-                    value: metrics.liveDemos,
-                    conversion: pctVal(metrics.liveDemos, metrics.bookedDemos),
-                  },
-                  {
-                    label: 'Good Demo',
-                    value: metrics.goodDemos,
-                    conversion: pctVal(metrics.goodDemos, metrics.liveDemos),
-                  },
-                ]}
+                description="Cobros comisionables / llamadas agendadas"
               />
             </div>
           </div>
@@ -696,11 +631,11 @@ export default function VentasMetricasPage() {
                   <thead>
                     <tr className="border-b border-border text-xs uppercase tracking-wider text-muted-foreground">
                       <th className="text-left px-4 py-2 font-medium">Persona</th>
-                      <th className="text-right px-4 py-2 font-medium">SC Booked</th>
-                      <th className="text-right px-4 py-2 font-medium">SC Live</th>
-                      <th className="text-right px-4 py-2 font-medium">Show Rate</th>
-                      <th className="text-right px-4 py-2 font-medium">Closes</th>
-                      <th className="text-right px-4 py-2 font-medium">Close Rate</th>
+                      <th className="text-right px-4 py-2 font-medium">Llamadas agendadas</th>
+                      <th className="text-right px-4 py-2 font-medium">Llamadas atendidas</th>
+                      <th className="text-right px-4 py-2 font-medium">Tasa de asistencia</th>
+                      <th className="text-right px-4 py-2 font-medium">Cierres</th>
+                      <th className="text-right px-4 py-2 font-medium">Tasa de cierre</th>
                       <th className="text-right px-4 py-2 font-medium">Facturación</th>
                     </tr>
                   </thead>

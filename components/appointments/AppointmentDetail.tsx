@@ -39,7 +39,7 @@ type AppointmentWithAi = AppointmentWithRelations & {
 }
 
 const cls =
-  'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500'
+  'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus:border-brand-500'
 
 const CANCELLED_STATUSES: AppointmentStatus[] = ['cancelled', 'cancelled_admin', 'cancelled_lead']
 
@@ -187,7 +187,6 @@ export function AppointmentDetail({
   const [activities, setActivities] = useState<ActivityRow[]>([])
   const [loadingActivities, setLoadingActivities] = useState(false)
   const [newActivityResult, setNewActivityResult] = useState('contactado')
-  const [newActivityNotes, setNewActivityNotes] = useState('')
   const [postingActivity, setPostingActivity] = useState(false)
 
   useEffect(() => {
@@ -220,13 +219,12 @@ export function AppointmentDetail({
         body: JSON.stringify({
           type: 'llamada',
           result: newActivityResult,
-          notes: newActivityNotes.trim() || undefined,
+          notes: notes.trim() || undefined,
         }),
       })
       const data = await res.json()
       if (!res.ok || data?.error) throw new Error(data?.error || 'No se pudo registrar la llamada')
       setActivities((prev) => [{ ...data.activity, author: currentUserName || 'Tú' }, ...prev])
-      setNewActivityNotes('')
       toast.success('Llamada registrada')
     } catch (err) {
       toast.error('No se pudo registrar la llamada', { description: err instanceof Error ? err.message : undefined })
@@ -357,7 +355,36 @@ export function AppointmentDetail({
       const data = await res.json()
       if (!res.ok || data?.error) throw new Error(data?.error || 'No se pudo guardar')
       fireConfetti()
-      toast.success('¡Guardado! 🎉', { description: cheerMessage(currentUserName) })
+      toast.success('¡Guardado! 🎉', {
+        description: cheerMessage(currentUserName),
+        action: data?.updatedAt
+          ? {
+              label: 'Deshacer',
+              onClick: async () => {
+                const undoRes = await fetch(`/api/${tenant}/evergreen/appointments/update`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    appointmentId: appointment.id,
+                    expectedUpdatedAt: data.updatedAt,
+                    patch: {
+                      notes: appointment.notes ?? '',
+                      recording_url: appointment.recording_url ?? '',
+                    },
+                  }),
+                })
+                const undoData = await undoRes.json().catch(() => ({}))
+                if (!undoRes.ok) {
+                  toast.error('No se pudo deshacer', { description: undoData?.error })
+                  return
+                }
+                setNotes(appointment.notes ?? '')
+                setRecordingUrl(appointment.recording_url ?? '')
+                toast.success('Cambio deshecho')
+              },
+            }
+          : undefined,
+      })
     } catch (err) {
       toast.error('No se pudo guardar', { description: err instanceof Error ? err.message : undefined })
     } finally {
@@ -465,19 +492,35 @@ export function AppointmentDetail({
   }
 
   const analyzeCall = async () => {
-    if (!driveUrl.trim() && !transcriptText.trim()) {
-      toast.error('Pega un enlace de Drive o una transcripción para analizar')
+    const sourceUrl = driveUrl.trim() || recordingUrl.trim()
+    if (!sourceUrl && !transcriptText.trim()) {
+      toast.error('Añade un enlace de grabación o una transcripción para analizar')
       return
     }
     setAnalyzing(true)
     try {
+      if (recordingUrl.trim() && recordingUrl.trim() !== (appointment.recording_url ?? '')) {
+        const saveRecording = await fetch(`/api/${tenant}/evergreen/appointments/update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ appointmentId: appointment.id, patch: { recording_url: recordingUrl.trim() } }),
+        })
+        const recordingData = await saveRecording.json()
+        if (!saveRecording.ok || recordingData?.error) {
+          throw new Error(recordingData?.error || 'No se pudo guardar el enlace de grabación')
+        }
+      }
       // Con enlace de Drive (y sin transcripción pegada) → se procesa en segundo plano
       // (el worker soporta cualquier duración). La app solo lo encola.
-      if (driveUrl.trim() && !transcriptText.trim()) {
+      if (sourceUrl && !transcriptText.trim()) {
         const res = await fetch(`/api/${tenant}/evergreen/ai/queue-call`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ appointmentId: appointment.id, driveUrl: driveUrl.trim() }),
+          body: JSON.stringify({
+            appointmentId: appointment.id,
+            driveUrl: sourceUrl,
+            recordingUrl: recordingUrl.trim() || undefined,
+          }),
         })
         const data = await res.json()
         if (!res.ok || !data.ok) throw new Error(data?.error || 'No se pudo encolar')
@@ -612,10 +655,12 @@ export function AppointmentDetail({
   const veredicto = respuestasDelPayload.length > 0 ? evaluarCualificacion(respuestasDelPayload) : null
 
   const isCancelled = CANCELLED_STATUSES.includes(appointment.status)
+  const canRenderRawPayload = canSeeRawPayload && appointment.raw_payload
+  const rawPayloadVisible =
+    canRenderRawPayload &&
+    !(appointment.fathom_meeting_id || appointment.transcript || appointment.ai_summary || appointment.ai_analyzed_at)
 
   const fields = [
-    { label: 'Contacto', value: appointment.contacts?.full_name },
-    { label: 'Email', value: appointment.contacts?.email },
     { label: 'Telefono', value: appointment.contacts?.phone },
     { label: 'Instagram', value: appointment.contacts?.instagram },
     { label: 'Fecha y hora', value: formatDateTime(appointment.appointment_datetime) },
@@ -905,6 +950,34 @@ export function AppointmentDetail({
 
       {/* Fields */}
       <dl className="space-y-3">
+        {appointment.contact_id && (
+          <>
+            <div className="flex justify-between gap-4">
+              <dt className="text-sm text-muted-foreground shrink-0 w-36">Contacto</dt>
+              <dd className="text-sm text-right">
+                <a
+                  href={`/${tenant}/crm/contactos/${appointment.contact_id}`}
+                  className="text-brand-400 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded-sm"
+                >
+                  {appointment.contacts?.full_name || 'Abrir ficha'}
+                </a>
+              </dd>
+            </div>
+            {appointment.contacts?.email && (
+              <div className="flex justify-between gap-4">
+                <dt className="text-sm text-muted-foreground shrink-0 w-36">Email</dt>
+                <dd className="text-sm text-right">
+                  <a
+                    href={`/${tenant}/crm/contactos/${appointment.contact_id}`}
+                    className="max-w-[15rem] break-all text-brand-400 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded-sm"
+                  >
+                    {appointment.contacts.email}
+                  </a>
+                </dd>
+              </div>
+            )}
+          </>
+        )}
         <div className="flex justify-between gap-4">
           <dt className="text-sm text-muted-foreground shrink-0 w-36">Closer</dt>
           <dd className="text-sm text-foreground text-right">
@@ -1082,13 +1155,6 @@ export function AppointmentDetail({
                   ))}
                 </SelectContent>
               </Select>
-              <textarea
-                value={newActivityNotes}
-                onChange={(e) => setNewActivityNotes(e.target.value)}
-                rows={2}
-                placeholder="Notas de la llamada (opcional)…"
-                className={`${cls} resize-y`}
-              />
               <div className="flex justify-end">
                 <Button size="sm" onClick={submitActivity} disabled={postingActivity}>
                   {postingActivity ? 'Guardando…' : 'Registrar llamada'}
@@ -1126,7 +1192,7 @@ export function AppointmentDetail({
       {/* Payload crudo: plegado y solo para quien administra. Antes se volcaba abierto para
           cualquiera que pudiera ver la cita, encima justo debajo de las respuestas ya legibles, así
           que ocupaba media ficha con ruido técnico. */}
-      {canSeeRawPayload && appointment.raw_payload && (
+      {rawPayloadVisible && (
         <>
           <Separator className="bg-muted" />
           <details className="group">
@@ -1141,17 +1207,18 @@ export function AppointmentDetail({
         </>
       )}
 
-      {/* Grabación + nota de la closer (editable) */}
+      {/* Grabación + nota única de la llamada (editable) */}
       <Separator className="bg-muted" />
       <div className="space-y-4">
         <div>
-          <h4 className="text-sm font-medium text-muted-foreground mb-2">Enlace de grabación</h4>
+          <h4 className="text-sm font-medium text-muted-foreground mb-2">Grabación de la llamada</h4>
           <input
             type="url"
             value={recordingUrl}
             onChange={(e) => setRecordingUrl(e.target.value)}
-            placeholder="https://… (Drive, Zoom, Fathom)"
-            className="w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500"
+            aria-label="Enlace externo de grabación"
+            placeholder="https://… (Drive, Zoom, Meet, Fathom)"
+            className="w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus:border-brand-500"
           />
           {appointment.recording_url && (
             <a
@@ -1165,13 +1232,13 @@ export function AppointmentDetail({
           )}
         </div>
         <div>
-          <h4 className="text-sm font-medium text-muted-foreground mb-2">Nota de la call</h4>
+          <h4 className="text-sm font-medium text-muted-foreground mb-2">Notas de la llamada</h4>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={4}
             placeholder="¿Qué tal fue la reunión? Objeciones, próximos pasos, etc."
-            className="w-full bg-muted border border-border rounded-lg p-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-brand-500 resize-y"
+            className="w-full bg-muted border border-border rounded-lg p-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus:border-brand-500 resize-y"
           />
         </div>
         <div className="flex justify-end">
@@ -1187,12 +1254,13 @@ export function AppointmentDetail({
         <h4 className="text-sm font-medium text-foreground">Grabación y transcripción</h4>
 
         <div>
-          <h5 className="text-xs font-medium text-muted-foreground mb-2">Enlace de Drive de la llamada</h5>
+          <h5 className="text-xs font-medium text-muted-foreground mb-2">Fuente de transcripción (opcional)</h5>
           <input
             type="url"
             value={driveUrl}
             onChange={(e) => setDriveUrl(e.target.value)}
             onBlur={saveTranscriptFields}
+            aria-label="Enlace de Drive para transcripción"
             placeholder="https://drive.google.com/…"
             className={cls}
           />

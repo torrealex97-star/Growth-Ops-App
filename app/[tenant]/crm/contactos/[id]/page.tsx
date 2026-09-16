@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { Fragment, useState, useEffect, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -8,6 +8,7 @@ import { ContactForm, type ContactFormData } from '@/components/contacts/Contact
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
   ArrowLeft,
@@ -29,6 +30,7 @@ import {
   ShoppingBag,
   StickyNote,
   FileText,
+  Pencil,
 } from 'lucide-react'
 import { formatDate, formatDateTime, formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -61,10 +63,10 @@ const APPOINTMENT_STATUS_COLORS: Record<string, string> = {
 }
 
 const APPOINTMENT_STATUS_LABELS: Record<string, string> = {
-  scheduled: 'Programada',
+  scheduled: 'Agendada',
   confirmed: 'Confirmada',
   show: 'Se presentó',
-  no_show: 'No show',
+  no_show: 'No asistió',
   cancelled: 'Cancelada',
   rescheduled: 'Reagendada',
   completed: 'Completada',
@@ -96,8 +98,30 @@ const TIMELINE_ICON: Record<TimelineEventType, typeof Clock> = {
   attribution: Link2,
   appointment: Calendar,
   transcript: FileText,
+  activity: Phone,
+  contract: FileText,
   sale: ShoppingBag,
   note: StickyNote,
+}
+
+type ContactActivity = {
+  id: string
+  type: string
+  direction: string | null
+  result: string | null
+  duration_min: number | null
+  notes: string | null
+  created_at: string
+  author?: string
+}
+
+type ContactContract = {
+  id: string
+  title: string | null
+  status: string
+  url: string | null
+  signed_at: string | null
+  created_at: string
 }
 
 // Next.js 15: `params` pasa a ser una Promise — useParams() de next/navigation sigue siendo
@@ -113,22 +137,27 @@ export default function ContactDetailPage() {
   const [appointments, setAppointments] = useState<AppointmentWithNames[]>([])
   const [sales, setSales] = useState<Sale[]>([])
   const [notes, setNotes] = useState<ContactNote[]>([])
+  const [activities, setActivities] = useState<ContactActivity[]>([])
+  const [contracts, setContracts] = useState<ContactContract[]>([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [saving, setSaving] = useState(false)
   const [newNote, setNewNote] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [currentUser, setCurrentUser] = useState<Pick<User, 'id'> | null>(null)
+  const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null)
+  const [appointmentDraft, setAppointmentDraft] = useState<{ status: string; notes: string } | null>(null)
+  const [savingAppointment, setSavingAppointment] = useState(false)
 
   const timeline = useMemo(
-    () => buildContactTimeline(attributions, appointments, sales, notes),
-    [attributions, appointments, sales, notes]
+    () => buildContactTimeline(attributions, appointments, sales, notes, activities, contracts),
+    [attributions, appointments, sales, notes, activities, contracts]
   )
 
   const load = async () => {
     const supabase = createClient()
 
-    const [contactRes, attrRes, appRes, salesRes, notesRes] = await Promise.all([
+    const [contactRes, attrRes, appRes, salesRes, notesRes, activitiesRes, contractsRes] = await Promise.all([
       supabase.from('contacts').select('*').eq('id', id).eq('tenant_id', tenantId).single(),
       supabase
         .from('contact_attributions')
@@ -154,6 +183,17 @@ export default function ContactDetailPage() {
         .eq('contact_id', id)
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false }),
+      supabase
+        .from('activities')
+        .select('id, type, direction, result, duration_min, notes, created_at, users(full_name)')
+        .eq('contact_id', id)
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('contracts')
+        .select('id, title, status, url, signed_at, created_at')
+        .eq('contact_id', id)
+        .order('created_at', { ascending: false }),
     ])
 
     if (sesion) setCurrentUser({ id: sesion.userId })
@@ -172,12 +212,24 @@ export default function ContactDetailPage() {
     if (appRes.error) toast.error('Error al cargar las agendas', { description: appRes.error.message })
     if (salesRes.error) toast.error('Error al cargar las ventas', { description: salesRes.error.message })
     if (notesRes.error) toast.error('Error al cargar las notas', { description: notesRes.error.message })
+    if (activitiesRes.error)
+      toast.error('Error al cargar las interacciones', { description: activitiesRes.error.message })
+    if (contractsRes.error) toast.error('Error al cargar los contratos', { description: contractsRes.error.message })
 
     setContact(contactRes.data)
     setAttributions(attrRes.data ?? [])
     setAppointments((appRes.data as AppointmentWithNames[]) ?? [])
     setSales(salesRes.data ?? [])
     setNotes((notesRes.data as ContactNote[]) ?? [])
+    setActivities(
+      ((activitiesRes.data ?? []) as Array<ContactActivity & { users?: { full_name?: string } | null }>).map(
+        (activity) => ({
+          ...activity,
+          author: activity.users?.full_name || 'Alguien',
+        })
+      )
+    )
+    setContracts((contractsRes.data as ContactContract[]) ?? [])
     setLoading(false)
   }
 
@@ -208,7 +260,38 @@ export default function ContactDetailPage() {
       return
     }
 
-    toast.success('Contacto actualizado')
+    const updatedAt = data?.contact?.updated_at
+    const previousValues = {
+      first_name: contact.first_name,
+      last_name: contact.last_name,
+      email: contact.email,
+      phone: contact.phone,
+      country: contact.country,
+      company_name: contact.company_name,
+      instagram: contact.instagram,
+      notes: contact.notes,
+    }
+    toast.success('Contacto actualizado', {
+      action: updatedAt
+        ? {
+            label: 'Deshacer',
+            onClick: async () => {
+              const undoRes = await fetch(`/api/${tenant}/evergreen/contacts/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...previousValues, expectedUpdatedAt: updatedAt }),
+              })
+              const undoData = await undoRes.json().catch(() => ({}))
+              if (!undoRes.ok) {
+                toast.error('No se pudo deshacer', { description: undoData?.error })
+                return
+              }
+              setContact(undoData.contact)
+              toast.success('Cambio deshecho')
+            },
+          }
+        : undefined,
+    })
     setContact({ ...contact, ...formData, full_name: fullName })
   }
 
@@ -240,6 +323,89 @@ export default function ContactDetailPage() {
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
     setNotes((notesData as ContactNote[]) ?? [])
+  }
+
+  const startAppointmentEdit = (appointment: AppointmentWithNames) => {
+    setEditingAppointmentId(appointment.id)
+    setAppointmentDraft({ status: appointment.status, notes: appointment.notes ?? '' })
+  }
+
+  const saveAppointmentEdit = async () => {
+    if (!editingAppointmentId || !appointmentDraft) return
+    const previousAppointment = appointments.find((appointment) => appointment.id === editingAppointmentId)
+    setSavingAppointment(true)
+    try {
+      const [statusRes, notesRes] = await Promise.all([
+        fetch(`/api/${tenant}/evergreen/appointments/status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ appointmentId: editingAppointmentId, status: appointmentDraft.status }),
+        }),
+        fetch(`/api/${tenant}/evergreen/appointments/update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            appointmentId: editingAppointmentId,
+            patch: { notes: appointmentDraft.notes.trim() },
+          }),
+        }),
+      ])
+      const statusData = await statusRes.json().catch(() => ({}))
+      const notesData = await notesRes.json().catch(() => ({}))
+      if (!statusRes.ok || statusData?.error) throw new Error(statusData?.error || 'No se pudo actualizar el estado')
+      if (!notesRes.ok || notesData?.error) throw new Error(notesData?.error || 'No se pudieron guardar las notas')
+      setAppointments((current) =>
+        current.map((appointment) =>
+          appointment.id === editingAppointmentId
+            ? {
+                ...appointment,
+                status: appointmentDraft.status as Appointment['status'],
+                notes: appointmentDraft.notes.trim(),
+              }
+            : appointment
+        )
+      )
+      toast.success('Agenda actualizada', {
+        action:
+          notesData?.updatedAt && previousAppointment
+            ? {
+                label: 'Deshacer notas',
+                onClick: async () => {
+                  const undoRes = await fetch(`/api/${tenant}/evergreen/appointments/update`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      appointmentId: editingAppointmentId,
+                      expectedUpdatedAt: notesData.updatedAt,
+                      patch: { notes: previousAppointment.notes ?? '' },
+                    }),
+                  })
+                  const undoData = await undoRes.json().catch(() => ({}))
+                  if (!undoRes.ok) {
+                    toast.error('No se pudieron deshacer las notas', { description: undoData?.error })
+                    return
+                  }
+                  setAppointments((current) =>
+                    current.map((appointment) =>
+                      appointment.id === editingAppointmentId
+                        ? { ...appointment, notes: previousAppointment.notes }
+                        : appointment
+                    )
+                  )
+                  toast.success('Notas deshechas')
+                },
+              }
+            : undefined,
+      })
+      setEditingAppointmentId(null)
+      setAppointmentDraft(null)
+    } catch (error) {
+      toast.error('No se pudo actualizar la agenda', {
+        description: error instanceof Error ? error.message : undefined,
+      })
+    } finally {
+      setSavingAppointment(false)
+    }
   }
 
   if (loading) {
@@ -403,9 +569,24 @@ export default function ContactDetailPage() {
                         </div>
                         <div className="mt-1 w-px flex-1 bg-border" />
                       </div>
-                      <div className="pb-4">
+                      <div className="min-w-0 pb-4">
                         <p className="text-xs text-muted-foreground">{formatDateTime(event.occurredAt)}</p>
-                        <p className="text-sm font-medium text-foreground">{event.title}</p>
+                        {event.href ? (
+                          <a
+                            href={
+                              event.href.startsWith('/') && !event.href.startsWith('//')
+                                ? `/${tenant}${event.href}`
+                                : event.href
+                            }
+                            target={event.href.startsWith('http') ? '_blank' : undefined}
+                            rel={event.href.startsWith('http') ? 'noreferrer' : undefined}
+                            className="text-sm font-medium text-brand-400 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded-sm"
+                          >
+                            {event.title}
+                          </a>
+                        ) : (
+                          <p className="text-sm font-medium text-foreground">{event.title}</p>
+                        )}
                         {event.detail && <p className="text-sm text-muted-foreground">{event.detail}</p>}
                         {event.source && event.type !== 'note' && (
                           <p className="text-xs text-muted-foreground/70">{event.source}</p>
@@ -686,6 +867,7 @@ export default function ContactDetailPage() {
                     <TableHead className="text-muted-foreground">Calendario</TableHead>
                     <TableHead className="text-muted-foreground">Fuente</TableHead>
                     <TableHead className="text-muted-foreground">Llamada</TableHead>
+                    <TableHead className="text-muted-foreground">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -693,55 +875,134 @@ export default function ContactDetailPage() {
                     const rec = (appt as { recording_url?: string | null }).recording_url
                     const tr = (appt as { transcript_drive_url?: string | null }).transcript_drive_url
                     return (
-                      <TableRow key={appt.id} className="border-border">
-                        <TableCell className="text-foreground">{formatDateTime(appt.appointment_datetime)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <Badge className={`border text-xs ${APPOINTMENT_STATUS_COLORS[appt.status] ?? ''}`}>
-                              {APPOINTMENT_STATUS_LABELS[appt.status] ?? appt.status}
-                            </Badge>
-                            {isNoShow(appt.rescheduled_from_status) && (
-                              <Badge className="border text-xs bg-red-500/10 text-red-400 border-red-500/30">
-                                Reagenda / No show
+                      <Fragment key={appt.id}>
+                        <TableRow className="border-border">
+                          <TableCell className="text-foreground">{formatDateTime(appt.appointment_datetime)}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <Badge className={`border text-xs ${APPOINTMENT_STATUS_COLORS[appt.status] ?? ''}`}>
+                                {APPOINTMENT_STATUS_LABELS[appt.status] ?? appt.status}
                               </Badge>
-                            )}
-                            {appt.rescheduled_from_status === 'show' && (
-                              <Badge className="border text-xs bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
-                                Reagenda / Show
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{appt.setter?.full_name || '—'}</TableCell>
-                        <TableCell className="text-muted-foreground">{appt.closer?.full_name || '—'}</TableCell>
-                        <TableCell className="text-muted-foreground">{appt.calendar_name || '—'}</TableCell>
-                        <TableCell className="text-muted-foreground">{appt.source || '—'}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            {rec && (
-                              <a
-                                href={rec}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-brand-400 hover:text-brand-300 text-xs"
-                              >
-                                Grabación
-                              </a>
-                            )}
-                            {tr && (
-                              <a
-                                href={tr}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sky-400 hover:text-sky-300 text-xs"
-                              >
-                                Transcripción
-                              </a>
-                            )}
-                            {!rec && !tr && <span className="text-muted-foreground text-xs">—</span>}
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                              {isNoShow(appt.rescheduled_from_status) && (
+                                <Badge className="border text-xs bg-red-500/10 text-red-400 border-red-500/30">
+                                  Reagenda / No show
+                                </Badge>
+                              )}
+                              {appt.rescheduled_from_status === 'show' && (
+                                <Badge className="border text-xs bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                                  Reagenda / Show
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{appt.setter?.full_name || '—'}</TableCell>
+                          <TableCell className="text-muted-foreground">{appt.closer?.full_name || '—'}</TableCell>
+                          <TableCell className="text-muted-foreground">{appt.calendar_name || '—'}</TableCell>
+                          <TableCell className="text-muted-foreground">{appt.source || '—'}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              {rec && (
+                                <a
+                                  href={rec}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-brand-400 hover:text-brand-300 text-xs"
+                                >
+                                  Grabación
+                                </a>
+                              )}
+                              {tr && (
+                                <a
+                                  href={tr}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sky-400 hover:text-sky-300 text-xs"
+                                >
+                                  Transcripción
+                                </a>
+                              )}
+                              {!rec && !tr && <span className="text-muted-foreground text-xs">—</span>}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 text-xs"
+                              onClick={() => startAppointmentEdit(appt)}
+                              aria-label={`Editar agenda de ${contact.full_name}`}
+                            >
+                              <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                              Editar
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                        {editingAppointmentId === appt.id && appointmentDraft && (
+                          <TableRow className="border-border bg-muted/30">
+                            <TableCell colSpan={8}>
+                              <div className="grid gap-3 md:grid-cols-[180px_1fr_auto] md:items-end">
+                                <label className="space-y-1.5">
+                                  <span className="text-xs font-medium text-muted-foreground">Estado</span>
+                                  <Select
+                                    value={appointmentDraft.status}
+                                    onValueChange={(status) =>
+                                      setAppointmentDraft((draft) => (draft ? { ...draft, status } : draft))
+                                    }
+                                  >
+                                    <SelectTrigger className="h-9 bg-background" aria-label="Estado de la agenda">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {Object.entries(APPOINTMENT_STATUS_LABELS).map(([status, label]) => (
+                                        <SelectItem key={status} value={status}>
+                                          {label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </label>
+                                <label className="space-y-1.5">
+                                  <span className="text-xs font-medium text-muted-foreground">Notas de la llamada</span>
+                                  <textarea
+                                    value={appointmentDraft.notes}
+                                    onChange={(event) =>
+                                      setAppointmentDraft((draft) =>
+                                        draft ? { ...draft, notes: event.target.value } : draft
+                                      )
+                                    }
+                                    rows={2}
+                                    className="w-full resize-y rounded-lg border border-border bg-background p-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                                    aria-label="Notas de la llamada"
+                                  />
+                                </label>
+                                <div className="flex gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={saveAppointmentEdit}
+                                    disabled={savingAppointment}
+                                  >
+                                    {savingAppointment ? 'Guardando…' : 'Guardar'}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditingAppointmentId(null)
+                                      setAppointmentDraft(null)
+                                    }}
+                                    disabled={savingAppointment}
+                                  >
+                                    Cancelar
+                                  </Button>
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Fragment>
                     )
                   })}
                 </TableBody>

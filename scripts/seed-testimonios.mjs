@@ -35,7 +35,7 @@ const T = [
     punto_a: 'Venía del sector de la noche. Escéptico con la IA y 9 meses dudando antes de entrar.',
     punto_b:
       'Agencia de IA propia ennichada en creación de contenido, avatares y captación automática. Libertad total de horario.',
-    vehiculo: 'El sistema de IA Winners aplicado a un nicho concreto: contenido + captación automatizada.',
+    vehiculo: 'El sistema de Growth Ops aplicado a un nicho concreto: contenido + captación automatizada.',
     cifra: '12.000€ en su primer mes fuerte; después 3.000-4.000€/mes recurrentes con picos de 8.000€',
     has_revenue: true,
     sort_order: 10,

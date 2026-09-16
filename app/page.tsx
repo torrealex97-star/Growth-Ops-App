@@ -28,7 +28,7 @@ export default function HomePage() {
   return (
     <div className="dark min-h-screen bg-background flex items-center justify-center p-4" data-theme="os">
       <div className="w-full max-w-sm text-center">
-        <span className="text-3xl font-semibold tracking-tight text-white">Scalix Systems</span>
+        <span className="text-3xl font-semibold tracking-tight text-white">Growth Ops</span>
         <p className="text-muted-foreground text-sm mt-2 mb-8">Elige tu subcuenta para entrar.</p>
 
         {tenants === null && (

@@ -57,7 +57,7 @@ async function uploadPhotos() {
 async function setBrand() {
   const { error } = await sb.from('carrusel_brand').upsert({
     id: 1,
-    name: 'IA WINNERS',
+    name: 'Growth Ops',
     colors: {
       primary: C.navy2,
       secondary: C.navy,
@@ -70,7 +70,7 @@ async function setBrand() {
     updated_at: new Date().toISOString(),
   })
   if (error) throw new Error('brand: ' + error.message)
-  console.log('· marca IA WINNERS aplicada')
+  console.log('· marca Growth Ops aplicada')
 }
 
 // ---- HTML helpers (body fragment; wrapper sizes to 1080x1350) ----
@@ -89,7 +89,7 @@ const root = (inner, bg) =>
 const handle = (color = 'rgba(255,255,255,.85)') =>
   `<div style="position:absolute;bottom:56px;left:64px;display:flex;align-items:center;gap:12px;font-family:${DISPLAY};font-weight:700;font-size:26px;letter-spacing:.02em;color:${color};z-index:5;">
     <span style="display:inline-flex;width:40px;height:40px;border-radius:11px;background:${C.accent};box-shadow:0 0 26px rgba(30,158,255,.75);align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:800;">IA</span>
-    IA WINNERS
+    Growth Ops
   </div>`
 
 const swipe = () =>
@@ -103,7 +103,7 @@ function cover({ url, kicker, title, pos = 'center 25%' }) {
     <div style="position:absolute;inset:0;background:linear-gradient(90deg, rgba(30,158,255,.18) 0%, transparent 40%);"></div>
     <div style="position:absolute;top:60px;left:64px;display:flex;align-items:center;gap:12px;z-index:5;">
       <span style="display:inline-flex;width:44px;height:44px;border-radius:12px;background:${C.accent};box-shadow:0 0 30px rgba(30,158,255,.8);align-items:center;justify-content:center;color:#fff;font-size:22px;font-weight:800;font-family:${DISPLAY};">IA</span>
-      <span style="font-family:${DISPLAY};font-weight:700;font-size:27px;color:#fff;letter-spacing:.02em;">IA WINNERS</span>
+      <span style="font-family:${DISPLAY};font-weight:700;font-size:27px;color:#fff;letter-spacing:.02em;">Growth Ops</span>
     </div>
     <div style="position:absolute;left:64px;right:64px;bottom:150px;z-index:5;">
       <div style="display:inline-block;font-family:${DISPLAY};font-weight:700;font-size:24px;letter-spacing:.18em;text-transform:uppercase;color:${C.accent2};background:rgba(30,158,255,.14);border:1px solid rgba(30,158,255,.4);padding:10px 20px;border-radius:999px;margin-bottom:26px;">${kicker}</div>
@@ -148,7 +148,7 @@ function cta({ url, title, ctaText, note = 'Guarda este post', pos = 'center 20%
     </div>
     <div style="position:absolute;top:60px;left:64px;display:flex;align-items:center;gap:12px;z-index:5;">
       <span style="display:inline-flex;width:44px;height:44px;border-radius:12px;background:${C.accent};box-shadow:0 0 30px rgba(30,158,255,.8);align-items:center;justify-content:center;color:#fff;font-size:22px;font-weight:800;font-family:${DISPLAY};">IA</span>
-      <span style="font-family:${DISPLAY};font-weight:700;font-size:27px;color:#fff;">IA WINNERS</span>
+      <span style="font-family:${DISPLAY};font-weight:700;font-size:27px;color:#fff;">Growth Ops</span>
     </div>`
   return root(inner, C.navy)
 }
@@ -162,7 +162,7 @@ function buildCarousels(P) {
       title: '1 · Agentes IA — Setting AI',
       caption:
         'Mientras lees esto hay leads escribiéndote que nunca vas a contestar a tiempo. 🕒\nSetting AI responde tus DMs como si fueras tú, cualifica y te agenda las llamadas mientras trabajas (o duermes).\n¿Lo quieres en tu cuenta? Comenta «AGENTE» 💪',
-      hashtags: ['InteligenciaArtificial', 'AgenciaDeIA', 'Automatización', 'IAWinners', 'IAparaNegocios'],
+      hashtags: ['InteligenciaArtificial', 'AgenciaDeIA', 'Automatización', 'GrowthOps', 'IAparaNegocios'],
       slides: [
         cover({
           url: P['adri-laptop-down'],
@@ -196,8 +196,8 @@ function buildCarousels(P) {
     {
       title: '2 · Herramientas nuevas de IA',
       caption:
-        'El secreto no es "usar ChatGPT". Es tener un sistema donde cada herramienta te quita horas. ⚙️\nEstas 5 son las que usamos en IA WINNERS a diario.\n¿Quieres montar las tuyas? Comenta «IA» 👇',
-      hashtags: ['HerramientasIA', 'ProductividadIA', 'AgenciaDeIA', 'IAWinners', 'AutomatizaTuNegocio'],
+        'El secreto no es "usar ChatGPT". Es tener un sistema donde cada herramienta te quita horas. ⚙️\nEstas 5 son las que usamos en Growth Ops a diario.\n¿Quieres montar las tuyas? Comenta «IA» 👇',
+      hashtags: ['HerramientasIA', 'ProductividadIA', 'AgenciaDeIA', 'GrowthOps', 'AutomatizaTuNegocio'],
       slides: [
         cover({
           url: P['adri-laptop-side'],
@@ -233,7 +233,7 @@ function buildCarousels(P) {
       title: '3 · Estrategias — Método DMD',
       caption:
         'Vender por DM soltando el precio es la forma más rápida de quemar un lead. 🔥\nEl método DMD (Dolor → Miedo → Deseo) convierte una conversación fría en una llamada agendada.\n¿Quieres el guion? Escribe «DMD» 👇',
-      hashtags: ['VentasOnline', 'Closer', 'Setting', 'IAWinners', 'EstrategiaDeVentas'],
+      hashtags: ['VentasOnline', 'Closer', 'Setting', 'GrowthOps', 'EstrategiaDeVentas'],
       slides: [
         cover({
           url: P['adri-teach-2'],
@@ -273,7 +273,7 @@ function buildCarousels(P) {
       title: '4 · Servicios — Agencia de IA',
       caption:
         'No necesitas otro producto que "revender". Necesitas un vehículo que no dependa de suerte ni de stock. 🚀\nUna Agencia de IA se monta desde casa vendiendo soluciones que los negocios YA buscan.\n¿Te enseño cómo? Comenta «AGENCIA» 👇',
-      hashtags: ['AgenciaDeIA', 'NegociosOnline', 'LibertadFinanciera', 'IAWinners', 'EmprenderConIA'],
+      hashtags: ['AgenciaDeIA', 'NegociosOnline', 'LibertadFinanciera', 'GrowthOps', 'EmprenderConIA'],
       slides: [
         cover({
           url: P['adri-class'],
@@ -309,7 +309,7 @@ function buildCarousels(P) {
       title: '5 · Historia + Master IA Expert',
       caption:
         'De La Mina a Andorra. De arruinado a una comunidad de cientos de alumnos. 🙏🏼\nNo fue suerte: fue elegir el vehículo correcto (agencia de IA) y seguir un método.\nEse sistema es Master IA Expert. Comenta «WINNER» 👇',
-      hashtags: ['HistoriaReal', 'AgenciaDeIA', 'Mentalidad', 'IAWinners', 'Emprender'],
+      hashtags: ['HistoriaReal', 'AgenciaDeIA', 'Mentalidad', 'GrowthOps', 'Emprender'],
       slides: [
         cover({
           url: P['adri-laptop-front'],
@@ -343,7 +343,7 @@ function buildCarousels(P) {
       title: 'VIRAL 1 · La IA trabaja por ti',
       caption:
         'Esto ya no es el futuro. Es lo que la IA hace HOY mientras tú duermes. 😴🤖\nGuárdatelo y empieza por uno.\nSígueme para más 👉',
-      hashtags: ['InteligenciaArtificial', 'IAparaNegocios', 'Automatización', 'IAWinners', 'FuturoDelTrabajo'],
+      hashtags: ['InteligenciaArtificial', 'IAparaNegocios', 'Automatización', 'GrowthOps', 'FuturoDelTrabajo'],
       slides: [
         cover({
           url: P['adri-laptop-down'],
@@ -384,7 +384,7 @@ function buildCarousels(P) {
       title: 'VIRAL 2 · La IA y tu trabajo',
       caption:
         'No es miedo, es matemática. 📊\nEn cada cambio de era gana quien se adapta primero.\n¿Por dónde empezar? Comenta «IA» y te lo digo 👇',
-      hashtags: ['InteligenciaArtificial', 'Mentalidad', 'FuturoDelTrabajo', 'IAWinners', 'Reinvéntate'],
+      hashtags: ['InteligenciaArtificial', 'Mentalidad', 'FuturoDelTrabajo', 'GrowthOps', 'Reinvéntate'],
       slides: [
         cover({
           url: P['adri-teach-1'],
@@ -415,7 +415,7 @@ function buildCarousels(P) {
       title: 'VIRAL 3 · Cobré 1.500€ en una tarde',
       caption:
         'La gente cree que montar un negocio con IA es complicadísimo. No lo es. 🤝\nEsto es literalmente lo que hace una Agencia de IA.\n¿Quieres el paso a paso? Comenta «AGENCIA» 👇',
-      hashtags: ['AgenciaDeIA', 'CasoReal', 'NegociosOnline', 'IAWinners', 'IAparaNegocios'],
+      hashtags: ['AgenciaDeIA', 'CasoReal', 'NegociosOnline', 'GrowthOps', 'IAparaNegocios'],
       slides: [
         cover({
           url: P['adri-laptop-side'],

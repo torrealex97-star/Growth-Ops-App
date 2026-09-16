@@ -48,11 +48,11 @@ const root = (inner, bg) =>
 const logoTop = () =>
   `<div style="position:absolute;top:60px;left:64px;display:flex;align-items:center;gap:12px;z-index:5;">
     <span style="display:inline-flex;width:44px;height:44px;border-radius:12px;background:${C.accent};box-shadow:0 0 30px rgba(30,158,255,.8);align-items:center;justify-content:center;color:#fff;font-size:22px;font-weight:800;font-family:${DISPLAY};">IA</span>
-    <span style="font-family:${DISPLAY};font-weight:700;font-size:27px;color:#fff;letter-spacing:.02em;">IA WINNERS</span>
+    <span style="font-family:${DISPLAY};font-weight:700;font-size:27px;color:#fff;letter-spacing:.02em;">Growth Ops</span>
   </div>`
 const handle = () =>
   `<div style="position:absolute;bottom:56px;left:64px;display:flex;align-items:center;gap:12px;font-family:${DISPLAY};font-weight:700;font-size:26px;color:rgba(255,255,255,.85);z-index:5;">
-    <span style="display:inline-flex;width:40px;height:40px;border-radius:11px;background:${C.accent};box-shadow:0 0 26px rgba(30,158,255,.75);align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:800;">IA</span>IA WINNERS</div>`
+    <span style="display:inline-flex;width:40px;height:40px;border-radius:11px;background:${C.accent};box-shadow:0 0 26px rgba(30,158,255,.75);align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:800;">IA</span>Growth Ops</div>`
 const swipe = () =>
   `<div style="position:absolute;bottom:58px;right:64px;font-family:${DISPLAY};font-weight:600;font-size:24px;color:${C.accent2};z-index:5;">desliza →</div>`
 
@@ -143,7 +143,7 @@ function build(P) {
       title: 'VSL 01 · El cambio de era',
       caption:
         'Dentro de 2 años habrá 3 tipos de personas. Solo uno sobrevive. 👀\nTe cuento cuál y cómo subirte a la ola de la IA a tiempo en la clase gratuita.\n▶ Enlace en la bio para verla ahora.',
-      hashtags: ['InteligenciaArtificial', 'AgenciaDeIA', 'IAWinners', 'FuturoDelTrabajo', 'AdrianMartinez'],
+      hashtags: ['InteligenciaArtificial', 'AgenciaDeIA', 'GrowthOps', 'FuturoDelTrabajo', 'AdrianMartinez'],
       slides: [
         cover({
           url: P['adri-laptop-front'],
@@ -178,7 +178,7 @@ function build(P) {
       title: 'VSL 02 · El Peaje de la IA',
       caption:
         'Todas las empresas acabarán usando IA. Igual que todas acabaron teniendo web y email. 🌐\nLa oportunidad no es crear IA: es ayudar a las empresas a usarla.\n▶ Te lo explico entero en la clase gratis (link en bio).',
-      hashtags: ['AgenciaDeIA', 'NegociosOnline', 'IAparaNegocios', 'IAWinners', 'Emprender'],
+      hashtags: ['AgenciaDeIA', 'NegociosOnline', 'IAparaNegocios', 'GrowthOps', 'Emprender'],
       slides: [
         cover({
           url: P['adri-event-numbers'],
@@ -206,7 +206,7 @@ function build(P) {
       title: 'VSL 03 · No necesitas ser programador',
       caption:
         'La mayor mentira de la IA: que necesitas ser ingeniero. 🚫👨‍💻\nLas empresas no buscan código. Buscan resultados.\n▶ Aprende el modelo real en la clase gratuita (link en bio).',
-      hashtags: ['InteligenciaArtificial', 'NoCode', 'AgenciaDeIA', 'IAWinners', 'Automatización'],
+      hashtags: ['InteligenciaArtificial', 'NoCode', 'AgenciaDeIA', 'GrowthOps', 'Automatización'],
       slides: [
         cover({
           url: P['adri-cafe-work'],
@@ -234,7 +234,7 @@ function build(P) {
       title: 'VSL 04 · Qué hace una Agencia de IA',
       caption:
         '¿Qué hace exactamente una Agencia de IA? No inventa tecnología: usa la que ya existe para resolver problemas reales. 🤖\n▶ Clase gratis con el modelo completo (link en bio).',
-      hashtags: ['AgenciaDeIA', 'Automatización', 'IAparaNegocios', 'IAWinners', 'Make'],
+      hashtags: ['AgenciaDeIA', 'Automatización', 'IAparaNegocios', 'GrowthOps', 'Make'],
       slides: [
         cover({
           url: P['adri-cafe-think'],
@@ -263,7 +263,7 @@ function build(P) {
       title: 'VSL 05 · Vendes resultados, no tecnología',
       caption:
         'Un cliente no te pide un robot. Te pide dejar de perder clientes por WhatsApp. 📲\nNo vendes IA. Vendes resultados. Y las empresas pagan por resultados.\n▶ Clase gratuita en el link de la bio.',
-      hashtags: ['Ventas', 'AgenciaDeIA', 'IAparaNegocios', 'IAWinners', 'Resultados'],
+      hashtags: ['Ventas', 'AgenciaDeIA', 'IAparaNegocios', 'GrowthOps', 'Resultados'],
       slides: [
         cover({
           url: P['adri-event-point'],
@@ -291,8 +291,8 @@ function build(P) {
     {
       title: 'VSL 06 · Las 4 claves del éxito',
       caption:
-        'El sistema no va de aprender una herramienta. Va de convertir esa herramienta en un negocio. 🔑\nEstas son las 4 claves que enseñamos en IA WINNERS.\n▶ Clase gratis completa en la bio.',
-      hashtags: ['AgenciaDeIA', 'Emprender', 'IAWinners', 'NegociosOnline', 'Sistema'],
+        'El sistema no va de aprender una herramienta. Va de convertir esa herramienta en un negocio. 🔑\nEstas son las 4 claves que enseñamos en Growth Ops.\n▶ Clase gratis completa en la bio.',
+      hashtags: ['AgenciaDeIA', 'Emprender', 'GrowthOps', 'NegociosOnline', 'Sistema'],
       slides: [
         cover({
           url: P['adri-event-smile'],
@@ -327,7 +327,7 @@ function build(P) {
       title: 'VSL 07 · La habilidad mejor pagada',
       caption:
         'Las herramientas cambian. ChatGPT no existía hace 2 años. 🔄\nLo que permanece es saber ayudar a las empresas a adoptarlas. Esa es la habilidad mejor pagada.\n▶ Clase gratis en la bio.',
-      hashtags: ['InteligenciaArtificial', 'Habilidades', 'AgenciaDeIA', 'IAWinners', 'Futuro'],
+      hashtags: ['InteligenciaArtificial', 'Habilidades', 'AgenciaDeIA', 'GrowthOps', 'Futuro'],
       slides: [
         cover({
           url: P['adri-laptop-down'],
@@ -351,12 +351,12 @@ function build(P) {
     {
       title: 'VSL 08 · No es teoría, es una empresa real',
       caption:
-        'IA WINNERS no nació como academia. Nació de una agencia que YA implementaba IA en empresas reales. 🏢\nPrimero el negocio. Después el método.\n▶ Ve cómo funciona en la clase gratuita (bio).',
-      hashtags: ['IAWinners', 'AgenciaDeIA', 'Formación', 'IAparaNegocios', 'AdrianMartinez'],
+        'Growth Ops no nació como academia. Nació de una agencia que YA implementaba IA en empresas reales. 🏢\nPrimero el negocio. Después el método.\n▶ Ve cómo funciona en la clase gratuita (bio).',
+      hashtags: ['GrowthOps', 'AgenciaDeIA', 'Formación', 'IAparaNegocios', 'AdrianMartinez'],
       slides: [
         cover({
           url: P['adri-mentoring'],
-          kicker: 'Por qué IA WINNERS',
+          kicker: 'Por qué Growth Ops',
           title: 'No enseñamos teoría. Enseñamos lo que hacemos.',
           pos: 'center 32%',
         }),
@@ -383,10 +383,10 @@ function build(P) {
       ],
     },
     {
-      title: 'VSL 09 · De 1.699€ a IA WINNERS',
+      title: 'VSL 09 · De 1.699€ a Growth Ops',
       caption:
         'Miré mi cuenta: 1.699€. Venía de arruinarme, de una depresión y de perder a mi mejor amigo. 🙏\nTenía dos opciones: aceptarlo o empezar de cero. Elegí empezar.\n▶ Mi historia completa y el modelo, en la clase gratis (bio).',
-      hashtags: ['HistoriaReal', 'Mentalidad', 'IAWinners', 'Emprender', 'AdrianMartinez'],
+      hashtags: ['HistoriaReal', 'Mentalidad', 'GrowthOps', 'Emprender', 'AdrianMartinez'],
       slides: [
         cover({
           url: P['adri-laptop-front'],
@@ -418,7 +418,7 @@ function build(P) {
       title: 'VSL 10 · Esto no es para todo el mundo',
       caption:
         'Si buscas dinero rápido tocando 2 botones, esto no es para ti. 🚪\nPreferimos pocas personas, pero comprometidas. Empieza por la clase gratuita y decide.\n▶ Link en la bio.',
-      hashtags: ['Mentalidad', 'Compromiso', 'AgenciaDeIA', 'IAWinners', 'Emprender'],
+      hashtags: ['Mentalidad', 'Compromiso', 'AgenciaDeIA', 'GrowthOps', 'Emprender'],
       slides: [
         cover({
           url: P['adri-teach-1'],

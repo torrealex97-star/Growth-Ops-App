@@ -1,5 +1,5 @@
 // ============================================================
-// Worker de transcripción de llamadas — IA WINNERS
+// Worker de transcripción de llamadas — Growth Ops
 // Flujo: Supabase (appointments.transcript_status='pendiente' + transcript_drive_url)
 //   → descarga de Drive (service account o público)
 //   → ffmpeg: audio 16kHz mono 24kbps troceado en segmentos de 10 min (<25MB c/u)
@@ -145,7 +145,7 @@ async function transcribeChunk(filePath) {
 }
 
 async function analyzeCall(transcript, leadName) {
-  const system = `Eres un sales coach experto en alto ticket (academia de closing "IA WINNERS").
+  const system = `Eres un sales coach experto en ventas de alto ticket para Growth Ops.
 Analizas la transcripción de una llamada de ventas y devuelves SOLO un objeto JSON:
 {"call_score": number 1-10, "lead_score": number 1-10, "suggested_stage": one of ["Nuevo","Contactado","Cita agendada","Presentado/Demo","Oferta hecha","Depósito","Cerrado ganado","Seguimiento","Perdido/No cualifica"], "summary": string (3-4 frases en español), "objections": string[], "next_steps": string[], "tasks": [{"title": string, "description": string}]}
 No inventes; si la transcripción es pobre, refléjalo en los scores.`
@@ -177,7 +177,7 @@ async function processOne(appt) {
   const fileId = driveFileId(appt.transcript_drive_url || '')
   if (!fileId) throw new Error('Enlace de Drive no válido')
 
-  const dir = await mkdtemp(path.join(tmpdir(), 'iaw-'))
+  const dir = await mkdtemp(path.join(tmpdir(), 'growth-ops-'))
   try {
     const input = path.join(dir, 'input.bin')
     await downloadDrive(fileId, input)
@@ -241,7 +241,7 @@ async function tick() {
   }
 }
 
-console.log('Worker de transcripción IA WINNERS iniciado. Poll cada', POLL_INTERVAL_MS, 'ms')
+console.log('Worker de transcripción Growth Ops iniciado. Poll cada', POLL_INTERVAL_MS, 'ms')
 async function loop() {
   for (;;) {
     try {
