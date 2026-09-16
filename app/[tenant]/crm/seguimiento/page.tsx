@@ -62,7 +62,7 @@ type KanbanStage = (typeof KANBAN_STAGES)[number]
 const RELEVANT_STATUSES: AppointmentStatus[] = ['no_show', 'seguimiento', 'rescheduled']
 
 const STATUS_LABELS_LOCAL: Record<string, string> = {
-  scheduled: 'Programada',
+  scheduled: 'Agendada',
   confirmed: 'Confirmada',
   show: 'Asistió',
   no_show: 'No asistió',

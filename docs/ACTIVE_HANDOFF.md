@@ -1,5 +1,21 @@
 # Relevo activo
 
+## Copy de analítica del embudo — 2026-09-16
+
+En la analítica de ventas/admisión se eliminó la presentación visual de demos y se dejó un único
+embudo de llamadas de ventas. Se conservaron las claves internas y la compatibilidad de datos
+(`event_type=demo`, `sales_call`, `result=offer_made/closed`) para no alterar consultas ni fórmulas.
+
+- Terminología adoptada: **Agendadas**, **Llamadas atendidas**, **Oferta**, **Cierre**,
+  **Tasa de asistencia**, **Tasa de cierre** y **No asistió**.
+- Se tradujeron labels, subtítulos, avisos, métricas y cabeceras relacionadas en Analítica, Ranking,
+  métricas de Agendas y estados CRM relacionados.
+- Ambigüedad resuelta sin bloquear: se mantiene **Closers/Setters** como nombres de rol porque es el
+  vocabulario operativo predominante en la app; las etapas y estados sí están en español.
+- Validación: `git diff --check` PASS. `pnpm quality` y `pnpm build` no disponibles en este entorno:
+  el runtime no incluye `node` y pnpm falla durante los scripts postinstall (`node: command not found`).
+  No se ha desplegado.
+
 ## Filtros visuales, embudo de ventas e Instagram — 2026-09-15
 
 Rama única: `codex/filters-instagram-closer`, creada desde `main` limpio (`3b87ff6`). No había PR
