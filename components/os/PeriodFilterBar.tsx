@@ -1,11 +1,13 @@
 'use client'
 
 import { useId, type ReactNode } from 'react'
+import { useState } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { CalendarPopover, DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
-import { X, Download } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { CalendarDays, Check, ChevronDown, X, Download } from 'lucide-react'
 import {
   isDateRangeInvalid,
   PERIOD_LABELS,
@@ -69,11 +71,13 @@ export function PeriodFilterBar({
   children,
 }: Props) {
   const id = useId()
+  const [open, setOpen] = useState(false)
   const invalidRange = preset === 'custom' && isDateRangeInvalid(customFrom, customTo)
 
   const handlePresetChange = (next: PeriodPreset) => {
     if (next === 'day' && !customFrom) onCustomFromChange(toDateInputValue())
     onPresetChange(next)
+    if (next !== 'custom' && next !== 'day') setOpen(false)
   }
 
   return (
@@ -100,52 +104,74 @@ export function PeriodFilterBar({
           )}
         </div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1.5">
           <Label htmlFor={`${id}-preset`} className="text-xs text-muted-foreground">
             Periodo
           </Label>
-          <Select value={preset} onValueChange={(v) => handlePresetChange(v as PeriodPreset)}>
-            <SelectTrigger id={`${id}-preset`} className="bg-muted border-border h-9" aria-label="Periodo">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-card border-border">
-              {PERIOD_PRESETS_BAR.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {PERIOD_LABELS[p]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                id={`${id}-preset`}
+                type="button"
+                variant="outline"
+                className="h-9 min-w-52 justify-between bg-muted text-left font-normal"
+                aria-haspopup="dialog"
+                aria-expanded={open}
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <CalendarDays className="h-4 w-4 shrink-0 text-brand-400" aria-hidden="true" />
+                  <span className="truncate">{PERIOD_LABELS[preset]}</span>
+                </span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-[min(calc(100vw-2rem),34rem)] p-3">
+              <div className="mb-2">
+                <p className="text-sm font-medium text-foreground">Selecciona un periodo</p>
+                <p className="text-xs text-muted-foreground">Las métricas se actualizarán al elegir una opción.</p>
+              </div>
+              <div className="grid max-h-72 grid-cols-2 gap-1 overflow-y-auto pr-1 sm:grid-cols-3">
+                {PERIOD_PRESETS_BAR.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    aria-pressed={preset === p}
+                    onClick={() => handlePresetChange(p)}
+                    className="flex min-h-9 items-center justify-between rounded-md px-2.5 py-2 text-left text-xs text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 aria-pressed:bg-brand-500/15 aria-pressed:text-brand-300"
+                  >
+                    <span>{PERIOD_LABELS[p]}</span>
+                    {preset === p && <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+                  </button>
+                ))}
+              </div>
+              {(preset === 'day' || preset === 'custom') && (
+                <div className="mt-3 border-t border-border pt-3">
+                  <Label className="mb-1.5 block text-xs text-muted-foreground">
+                    {preset === 'day' ? 'Día concreto' : 'Rango personalizado'}
+                  </Label>
+                  {preset === 'day' ? (
+                    <CalendarPopover
+                      value={customFrom || null}
+                      onChange={onCustomFromChange}
+                      disablePast={false}
+                      placeholder="Seleccionar día…"
+                      className="h-9"
+                    />
+                  ) : (
+                    <DateRangeCalendarPopover
+                      from={customFrom}
+                      to={customTo}
+                      onFromChange={onCustomFromChange}
+                      onToChange={onCustomToChange}
+                      className="h-9"
+                    />
+                  )}
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
         </div>
-
-        {preset === 'day' && (
-          <div className="space-y-1.5">
-            <Label htmlFor={`${id}-day`} className="text-xs text-muted-foreground">
-              Día
-            </Label>
-            <CalendarPopover
-              value={customFrom || null}
-              onChange={onCustomFromChange}
-              disablePast={false}
-              placeholder="Seleccionar día"
-              className="h-9"
-            />
-          </div>
-        )}
-
-        {preset === 'custom' && (
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label className="text-xs text-muted-foreground">Fechas</Label>
-            <DateRangeCalendarPopover
-              from={customFrom}
-              to={customTo}
-              onFromChange={onCustomFromChange}
-              onToChange={onCustomToChange}
-              className="h-9"
-            />
-          </div>
-        )}
 
         {roles && onRoleChange && (
           <div className="space-y-1.5">
