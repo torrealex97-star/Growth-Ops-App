@@ -811,3 +811,10 @@ Requieren acción tuya, no son cosas que pueda cerrar solo:
 Pendiente de trabajo mío, no bloqueado: el aprovisionador de subcuentas en un clic
 (`/platform/tenants` + `POST /api/platform/tenants` + blueprint versionado), que va en **PR aparte**
 una vez cerrados los P0 de #30.
+
+## Filtros de fecha — PR #64 (2026-09-16)
+
+- **Estado:** commit `a640fb8` publicado en `torrealex97-star-unify-date-filters`; PR abierto contra `main`.
+- **Implementado:** `PeriodFilterBar` usa un popover compacto con presets en español, calendario de día/rango, foco/ARIA, responsive y cierre por click fuera. Gastos elimina el selector temporal redundante y usa el filtro compartido.
+- **Validación:** `git diff --check` PASS. `format:check`, `typecheck` y tests no ejecutables en este entorno: no existe `node`/`npm`; `pnpm` falla en postinstall al invocar `node`.
+- **Siguiente acción exacta:** ejecutar quality gate en CI/entorno con Node y revisar el PR antes de mergear. No se ha hecho deploy.
