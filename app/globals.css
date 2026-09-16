@@ -85,7 +85,7 @@ body {
   color: hsl(var(--popover-foreground)) !important;
 }
 
-/* ── Utilidades de marca Scalix Systems ── */
+/* ── Utilidades de marca Growth Ops ── */
 /* Texto "cromado" para titulares clave */
 .text-chrome {
   background: linear-gradient(180deg, #ffffff 0%, #cfe6ff 45%, #7fbaf0 100%);
@@ -181,7 +181,7 @@ label[for] {
   }
 }
 
-/* Scalix Systems design tokens. */
+/* Growth Ops design tokens. */
 :root {
   --background: 210 40% 99%;
   --foreground: 222 47% 11%;
