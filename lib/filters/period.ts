@@ -4,6 +4,7 @@
 export type PeriodPreset =
   | 'all'
   | 'today'
+  | 'yesterday'
   | 'day'
   | 'week'
   | 'month'
@@ -23,8 +24,9 @@ export type PeriodPreset =
   | 'custom'
 
 export const PERIOD_LABELS: Record<PeriodPreset, string> = {
-  all: 'Todo',
+  all: 'Todo el periodo',
   today: 'Hoy',
+  yesterday: 'Ayer',
   day: 'Día concreto',
   week: 'Esta semana',
   month: 'Este mes',
@@ -36,7 +38,7 @@ export const PERIOD_LABELS: Record<PeriodPreset, string> = {
   '90d': 'Últimos 90 días',
   ytd: 'Lo que va de año',
   launch: 'Desde el lanzamiento',
-  custom: 'Rango personalizado',
+  custom: 'Personalizado',
 }
 
 /** Los presets que el brief pide como mínimo en Métricas y Campañas, en orden de menor a mayor. */
@@ -49,20 +51,22 @@ export const PERIOD_PRESETS_DASHBOARD: PeriodPreset[] = ['7d', '30d', '90d', 'yt
  * cuanto alguien tocara una.
  */
 export const PERIOD_PRESETS_BAR: PeriodPreset[] = [
-  'all',
   'today',
-  'day',
+  'yesterday',
   '3d',
-  '7d',
-  '30d',
-  '90d',
   'week',
+  '7d',
   'month',
+  '30d',
   'quarter',
   'year',
+  'all',
+  'custom',
+  // Compatibilidad con enlaces y pantallas que todavía exponen estos presets.
+  'day',
+  '90d',
   'ytd',
   'launch',
-  'custom',
 ]
 
 export const PERIOD_PRESETS_STANDARD: PeriodPreset[] = [
@@ -166,6 +170,11 @@ export function getPeriodRange(
     }
     case 'today':
       return { from: startOfDay(now), to: endOfDay(now) }
+    case 'yesterday': {
+      const yesterday = new Date(now)
+      yesterday.setDate(yesterday.getDate() - 1)
+      return { from: startOfDay(yesterday), to: endOfDay(yesterday) }
+    }
     case 'day': {
       // Un día concreto elegido en el selector (usa customFrom como la fecha).
       const d = parseDateInput(customFrom)
