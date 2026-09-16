@@ -811,3 +811,22 @@ Requieren acción tuya, no son cosas que pueda cerrar solo:
 Pendiente de trabajo mío, no bloqueado: el aprovisionador de subcuentas en un clic
 (`/platform/tenants` + `POST /api/platform/tenants` + blueprint versionado), que va en **PR aparte**
 una vez cerrados los P0 de #30.
+## CRM agendas y ficha de contacto — 2026-09-16
+
+Commit local: `b89b7ea` (`feat: improve CRM agenda and contact workflows`) en la única rama activa
+`torrealex97-star-crm-agendas-contactos-ux`.
+
+- El drawer de agendas prioriza el nombre completo y email navegables a la ficha, consolida la nota
+  visible de llamada, mantiene grabación/transcripción/IA y oculta el payload crudo cuando ya hay
+  llamada Fathom/procesada.
+- La ficha incorpora activities y contratos a la timeline, enlaces de navegación y edición de estado
+  y notas de agendas con los endpoints existentes. No se creó tabla de mensajes ni se borraron los
+  tres campos persistidos de notas.
+- Los guardados de contacto y agenda devuelven `updated_at`/`updatedAt` y ofrecen `Deshacer` con
+  comprobación optimista para no pisar cambios concurrentes. No se intercepta Ctrl/Cmd+Z ni copiar/
+  pegar nativos; los inputs conservan su undo habitual.
+- Regresión estática añadida en `tests/crm-contact-ux.test.mjs`.
+
+Validación ejecutada: `git diff --check` PASS. Quality/build/tests **bloqueados localmente**:
+este entorno no tiene `node`, `npm`, `npx`, `bun` ni `deno`; ejecutar `npm run quality` y
+`npm run build` en CI/entorno Node antes de fusionar. No se hizo deploy ni se tocaron secretos.

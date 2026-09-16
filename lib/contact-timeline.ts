@@ -24,7 +24,7 @@ const SALE_STATUS_LABELS: Record<string, string> = {
   cancelled: 'Venta cancelada',
 }
 
-export type TimelineEventType = 'attribution' | 'appointment' | 'transcript' | 'sale' | 'note'
+export type TimelineEventType = 'attribution' | 'appointment' | 'transcript' | 'activity' | 'contract' | 'sale' | 'note'
 
 export type TimelineEvent = {
   id: string
@@ -33,6 +33,7 @@ export type TimelineEvent = {
   title: string
   detail: string | null
   source: string | null
+  href?: string | null
   // Solo para type: 'transcript' — la transcripción no se muestra inline (punto 25), se referencia.
   transcriptRef?: string | null
 }
@@ -66,12 +67,30 @@ type NoteInput = {
   created_at: string
   author?: { full_name: string } | null
 }
+type ActivityInput = {
+  id: string
+  type: string
+  direction: string | null
+  result: string | null
+  notes: string | null
+  created_at: string
+}
+type ContractInput = {
+  id: string
+  title: string | null
+  status: string
+  url: string | null
+  signed_at: string | null
+  created_at: string
+}
 
 export function buildContactTimeline(
   attributions: AttributionInput[],
   appointments: AppointmentInput[],
   sales: SaleInput[],
-  notes: NoteInput[]
+  notes: NoteInput[],
+  activities: ActivityInput[] = [],
+  contracts: ContractInput[] = []
 ): TimelineEvent[] {
   const events: TimelineEvent[] = []
 
@@ -97,6 +116,7 @@ export function buildContactTimeline(
       title: APPOINTMENT_STATUS_LABELS[ap.status] || 'Cita',
       detail: ap.external_source ? `vía ${ap.external_source}` : null,
       source: ap.external_source,
+      href: `/crm/agendas?appointmentId=${encodeURIComponent(ap.id)}`,
     })
     // La transcripción se ancla a la fecha de actualización de la cita (cuando se recibió/procesó),
     // no a la fecha de la reunión — son eventos distintos (occurred_at de la llamada vs ingested_at
@@ -110,8 +130,20 @@ export function buildContactTimeline(
         detail: ap.ai_summary ? ap.ai_summary.slice(0, 140) : null,
         source: 'Fathom',
         transcriptRef: ap.id,
+        href: `/crm/agendas?appointmentId=${encodeURIComponent(ap.id)}`,
       })
     }
+  }
+
+  for (const activity of activities) {
+    events.push({
+      id: `activity_${activity.id}`,
+      occurredAt: activity.created_at,
+      type: 'activity',
+      title: activity.type === 'llamada' ? 'Llamada registrada' : `Interacción: ${activity.type}`,
+      detail: activity.notes || activity.result || activity.direction,
+      source: activity.direction,
+    })
   }
 
   for (const s of sales) {
@@ -122,6 +154,19 @@ export function buildContactTimeline(
       title: SALE_STATUS_LABELS[s.status] || 'Venta',
       detail: formatCurrency(Number(s.gross_amount)),
       source: null,
+      href: `/ventas/registro/${encodeURIComponent(s.id)}`,
+    })
+  }
+
+  for (const contract of contracts) {
+    events.push({
+      id: `contract_${contract.id}`,
+      occurredAt: contract.signed_at || contract.created_at,
+      type: 'contract',
+      title: contract.title || 'Contrato',
+      detail: contract.status,
+      source: 'Contratos',
+      href: contract.url,
     })
   }
 
