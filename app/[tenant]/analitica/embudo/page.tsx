@@ -4,17 +4,7 @@ import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import {
-  BarChart3,
-  PhoneCall,
-  Wallet,
-  Trophy,
-  Banknote,
-  Undo2,
-  Gauge,
-  ClipboardList,
-  ListChecks,
-} from 'lucide-react'
+import { BarChart3, PhoneCall, Wallet, Trophy, Banknote, Undo2, Gauge, ClipboardList, ListChecks } from 'lucide-react'
 import { lastNMonths, monthLabel } from '@/lib/analytics'
 import { formatCurrency, formatPercent } from '@/lib/utils'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
