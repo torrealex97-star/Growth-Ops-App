@@ -29,14 +29,14 @@ export type FunnelDef = {
 
 const AGENDA: StageDef = {
   id: 'agendas',
-  label: 'Agendas',
+  label: 'Agendadas',
   source: 'crm',
   counts: 'personas',
   drilldown: 'appointments',
 }
 const SHOW: StageDef = {
   id: 'llamadas',
-  label: 'Llamadas realizadas',
+  label: 'Llamadas atendidas',
   source: 'crm',
   counts: 'personas',
   drilldown: 'appointments',
@@ -47,7 +47,7 @@ export const FUNNEL_DEFS: Record<FunnelFamily, FunnelDef> = {
   vsl: {
     family: 'vsl',
     label: 'VSL',
-    description: 'Anuncio → landing con vídeo de venta → opt-in → llamada.',
+    description: 'Anuncio → landing con vídeo de venta → opt-in → llamada de ventas.',
     stages: [
       { id: 'impresiones', label: 'Impresiones', source: 'meta', counts: 'eventos' },
       { id: 'clics', label: 'Clics en el enlace', source: 'meta', counts: 'eventos' },
@@ -61,7 +61,7 @@ export const FUNNEL_DEFS: Record<FunnelFamily, FunnelDef> = {
   webinar: {
     family: 'webinar',
     label: 'Webinar',
-    description: 'Registro → asistencia → llamada. La asistencia es la etapa que más se cae.',
+    description: 'Registro → asistencia → llamada de ventas. La asistencia es la etapa que más se cae.',
     stages: [
       { id: 'visitas', label: 'Visitas a la página de registro', source: 'vsl', counts: 'eventos' },
       { id: 'registros', label: 'Registros', source: 'crm', counts: 'personas', drilldown: 'contacts' },
@@ -74,7 +74,7 @@ export const FUNNEL_DEFS: Record<FunnelFamily, FunnelDef> = {
   profile: {
     family: 'profile',
     label: 'Perfil (Instagram)',
-    description: 'Contenido → perfil → conversación por DM → llamada.',
+    description: 'Contenido → perfil → conversación por DM → llamada de ventas.',
     stages: [
       { id: 'alcance', label: 'Alcance', source: 'meta', counts: 'eventos' },
       { id: 'visitas_perfil', label: 'Visitas al perfil', source: 'meta', counts: 'eventos' },

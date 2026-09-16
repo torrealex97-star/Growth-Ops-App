@@ -15,9 +15,9 @@ const STEPS: { key: keyof FunnelTotals; label: string; fromLabel?: string; fromK
 
 const pct = (n: number) => formatPercent(n, n < 10 ? 1 : 0)
 
-// Funnel del periodo activo (mismo filtro que el resto del Dashboard) — no confundir con el
+// Embudo del periodo activo (mismo filtro que el resto del Dashboard) — no confundir con el
 // embudo detallado de Analítica de ventas, que es acumulado histórico y mide otras etapas
-// (demos/llamadas). Aquí solo se representan las 3 etapas que existen con datos fiables: lead
+// (llamadas). Aquí solo se representan las 3 etapas que existen con datos fiables: lead
 // (contacto creado en el periodo), agenda y venta activa.
 export function FunnelStrip({ totals, loading }: FunnelStripProps) {
   if (loading) {
@@ -39,7 +39,7 @@ export function FunnelStrip({ totals, loading }: FunnelStripProps) {
   return (
     <div className="dashboard-card p-5">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-sm font-medium text-muted-foreground">Funnel del periodo</h3>
+        <h3 className="text-sm font-medium text-muted-foreground">Embudo del periodo</h3>
         <span className="text-xs text-muted-foreground">
           Lead → Venta <span className="font-semibold text-foreground">{pct(totals.leadToSale)}</span>
         </span>
