@@ -439,19 +439,19 @@ export default function ProspectingPage() {
                 title="Ofertas"
                 value={fmtNum(kpis.ofertas)}
                 icon={Handshake}
-                description={`% Offer: ${fmtPct(kpis.pctOffer)}`}
+                description={`% de oferta: ${fmtPct(kpis.pctOffer)}`}
               />
               <KPICard
-                title="Citas (Booked)"
+                title="Citas agendadas"
                 value={fmtNum(kpis.citas)}
                 icon={CalendarCheck}
-                description={`% Booked: ${fmtPct(kpis.pctBooked)}`}
+                description={`% agendadas: ${fmtPct(kpis.pctBooked)}`}
               />
               <KPICard
                 title="Depósitos"
                 value={fmtNum(kpis.depositos)}
                 icon={Wallet}
-                description={`% Close: ${fmtPct(kpis.pctClose)}`}
+                description={`% de cierre: ${fmtPct(kpis.pctClose)}`}
               />
             </div>
           </div>
@@ -491,7 +491,7 @@ export default function ProspectingPage() {
                       <th className="py-2 pr-4">Convos</th>
                       <th className="py-2 pr-4">% Convo</th>
                       <th className="py-2 pr-4">Citas</th>
-                      <th className="py-2 pr-4">% Booked</th>
+                      <th className="py-2 pr-4">% agendadas</th>
                       <th className="py-2 pr-4">NR/Hr</th>
                     </tr>
                   </thead>
