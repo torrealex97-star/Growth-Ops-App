@@ -19,7 +19,6 @@ import {
   UserCog,
   FileText,
   Megaphone,
-  Inbox,
   ListChecks,
   Clapperboard,
   Radio,
@@ -124,12 +123,6 @@ export const NAV_SECTIONS: NavSection[] = [
             label: 'Contactos',
             href: '/crm/contactos',
             icon: UserRound,
-            roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'],
-          },
-          {
-            label: 'Leads (VSL)',
-            href: '/crm/contactos?view=leads',
-            icon: Inbox,
             roles: [...LEAD, 'setter', 'closer', 'triager', 'cold_caller'],
           },
           {
