@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { createClient } from '@/lib/supabase/server'
 
 export const runtime = 'nodejs'
-
-function serviceClient() {
-  return createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  })
-}
 
 const VALID_TYPES = ['llamada', 'whatsapp', 'email', 'dm_instagram', 'sms']
 const VALID_RESULTS = ['contactado', 'no_contesta', 'buzon', 'conversacion', 'cita_agendada']
@@ -22,7 +16,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
   const t = await requireTenant(tenant)
   if ('error' in t) return t.error
 
-  const sb = serviceClient()
+  // Cliente autenticado (RLS activa): requireTenant ya validó sesión + membership y la policy de
+  // `activities` permite leer/añadir al miembro de la subcuenta. El service-role aquí no solo era
+  // innecesario: con SUPABASE_SERVICE_ROLE_KEY vacía en local, su constructor lanzaba y la ruta
+  // moría con un 500 sin mensaje.
+  const sb = await createClient()
   const { data, error } = await sb
     .from('activities')
     .select('id, type, direction, result, duration_min, notes, created_at, users(full_name)')
@@ -65,7 +63,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     return NextResponse.json({ error: 'Resultado inválido' }, { status: 400 })
   }
 
-  const sb = serviceClient()
+  const sb = await createClient()
   const { data: contact } = await sb
     .from('contacts')
     .select('id')
