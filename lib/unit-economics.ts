@@ -24,6 +24,8 @@ export type SaleRow = {
 export type ContactRow = {
   id: string
   campaign_id: string | null
+  /** Fecha de creación del contacto. Opcional: solo el funnel operacional la usa para acotar por periodo. */
+  created_at?: string | null
 }
 
 export type ChannelRow = {

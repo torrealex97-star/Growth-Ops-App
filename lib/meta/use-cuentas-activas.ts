@@ -14,7 +14,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
 type Respuesta = {
-  meta: { seleccionadas: string[]; todas: boolean }
+  meta: { seleccionadas: string[]; todas: boolean; nombres?: Record<string, string> }
 }
 
 export function useCuentasMetaActivas(tenant: string) {
@@ -40,6 +40,8 @@ export function useCuentasMetaActivas(tenant: string) {
       seleccionadas,
       /** Vacío = todas las accesibles, el mismo convenio que la sincronización y el panel. */
       todas,
+      /** Nombre legible por cuenta (id → nombre), para selectores; cae al id si no hay nombre. */
+      nombres: datos?.meta.nombres ?? {},
       listo: datos !== null,
       error,
       /** ¿Entra esta fila? Una fila sin cuenta (campaña manual) siempre entra. */

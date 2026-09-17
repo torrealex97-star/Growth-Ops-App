@@ -38,7 +38,10 @@ test('una campaña sin cuenta (manual) nunca se descarta', () => {
 test('Métricas y KPIs filtra por cuenta seleccionada y tiene filtro de periodo', () => {
   // La pantalla sumaba las CATORCE cuentas que ve el token y lo presentaba como el negocio.
   assert.match(pantalla, /useCuentasMetaActivas\(tenant\)/)
-  assert.match(pantalla, /const campaignsVisibles = useMemo\(\(\) => cuentas\.filtrar\(campaigns\)/)
+  // El punto de verdad sigue siendo la selección de Integraciones (cuentas.filtrar); encima puede
+  // haber un subconjunto elegido en el selector de la propia pantalla.
+  assert.match(pantalla, /const porIntegracion = cuentas\.filtrar\(campaigns\)/)
+  assert.match(pantalla, /cuentaSel === 'todas' \|\| !d\.account_id \|\| d\.account_id === cuentaSel/)
   // Y el filtro de periodo que faltaba, con la serie diaria que lo hace posible.
   assert.match(pantalla, /<PeriodFilterBar/)
   assert.match(pantalla, /from\('campaign_daily'\)/)
