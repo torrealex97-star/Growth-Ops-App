@@ -78,9 +78,11 @@ GRANT EXECUTE ON FUNCTION public.rol_en_tenant(UUID) TO authenticated;
 
 -- -----------------------------------------------------------------------------
 -- 3) FUNCIONES DE SERVICIO / FUSIÓN
+--    service_role NECESITA EXECUTE: los webhooks (Calendly, GHL, dedupe) llaman a estas RPC
+--    con el cliente de servicio — quitarle EXECUTE rompería la creación de leads en producción.
 -- -----------------------------------------------------------------------------
 REVOKE ALL ON FUNCTION public.merge_contacts(UUID, UUID, UUID) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.merge_contacts(UUID, UUID, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.merge_contacts(UUID, UUID, UUID) TO authenticated, service_role;
 
 REVOKE ALL ON FUNCTION public.contacts_get_or_create(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INT, TEXT, TIMESTAMPTZ) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.contacts_get_or_create(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INT, TEXT, TIMESTAMPTZ) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.contacts_get_or_create(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, INT, TEXT, TIMESTAMPTZ) TO authenticated, service_role;
