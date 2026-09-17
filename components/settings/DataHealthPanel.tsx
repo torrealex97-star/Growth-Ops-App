@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import type { DataHealthSummary } from '@/lib/types/tracking'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { TrackingSitesPanel } from '@/components/settings/TrackingSitesPanel'
 import { formatPercent } from '@/lib/utils'
 
 type EventRow = {
@@ -283,6 +284,9 @@ export function DataHealthPanel() {
 
   return (
     <div className="space-y-6">
+      {/* Pixel first-party (Fase C): alta de sites, snippet instalable y estado con datos reales. */}
+      <TrackingSitesPanel />
+
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">

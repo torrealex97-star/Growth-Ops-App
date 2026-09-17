@@ -8,6 +8,10 @@ const PUBLIC_PATHS = [
   '/firmar', // página pública de firma de contratos (auth por token)
   '/embed', // reproductor VSL embebido en landings/GHL (iframe público)
   '/api/vsl', // tracking del player VSL desde el iframe público (track/identify/session)
+  // Ingesta del pixel first-party (/api/track/<public_key>). La seguridad NO es de sesión: la
+  // clave pública identifica site+subcuenta y el endpoint valida origin allowlist + rate limit
+  // por clave. Un navegador sin sesión tiene que poder enviar eventos (ver app/api/track/[site]).
+  '/api/track',
   // Firma pública de contratos por token — sin tenant en la URL porque las páginas /firmar y
   // /firmar-alumno solo conocen el token; el tenant se resuelve dentro de la propia ruta
   // leyendo el contrato por signing_token (índice UNIQUE global). El token es el mecanismo de

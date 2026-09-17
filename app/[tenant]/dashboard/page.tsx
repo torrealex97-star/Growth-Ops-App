@@ -336,9 +336,10 @@ export default function DashboardPage() {
   const filteredSaleIds = useMemo(() => new Set(filteredSales.map((s) => s.id)), [filteredSales])
 
   const filteredCollections = useMemo(() => {
-    if (member === 'all' && periodPreset === 'all') return collections
+    // Sin atajo para 'all': inPeriod ya trata el rango abierto (from/to null) como "todo", y así
+    // TODA métrica pasa por el mismo camino — una colección huérfana (venta borrada) no se cuela.
     return collections.filter((c) => filteredSaleIds.has(c.sale_id) && inPeriod(c.collected_at, range))
-  }, [collections, filteredSaleIds, member, periodPreset, range])
+  }, [collections, filteredSaleIds, range])
 
   const filteredAppointments = useMemo(() => {
     return appointments.filter((a) => apptMatches(a) && inPeriod(a.appointment_datetime, range))
@@ -375,9 +376,9 @@ export default function DashboardPage() {
   // negocio distintas: "¿qué trajo cada fuente en este periodo?" vs "¿qué trajo cada fuente en
   // toda la vida de la cuenta?"). No se filtra por rol/persona: un lead no pertenece a un closer.
   const filteredContactIds = useMemo(() => {
-    if (periodPreset === 'all') return contactIds
+    // Sin atajo para 'all' (inPeriod con rango abierto = todo): un solo camino de filtrado.
     return contacts.filter((c) => inPeriod(c.created_at, range)).map((c) => c.id)
-  }, [contacts, contactIds, periodPreset, range])
+  }, [contacts, range])
 
   const funnelTotals = useMemo(
     () => aggregateFunnel(funnelBySource(filteredContactIds, attributions, filteredSales, filteredAppointments)),
