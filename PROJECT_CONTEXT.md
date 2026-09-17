@@ -124,6 +124,9 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | — | Contactos unificados: merges Leads VSL + Contactos, filtros GHL, column toggle | `a469b6b` | 09-17 |
 | — | Auditoría filtros de fecha: DEFAULT_PERIOD='month' en 16 páginas | `c98faea` | 09-17 |
 | — | Docs: AUDIT_DATE_FILTERS.md con inventario completo | `c98faea` | 09-17 |
+| — | **Multitenant: no-enumeración de subcuentas en la home** (query anon → gated por sesión + RLS) | `09dc33b` | 09-17 |
+| — | **Multitenant: localStorage namespaced por tenant** (ScriptQueue, ContactsAllView + deps useEffect) | `09dc33b` | 09-17 |
+| — | Multitenant: tests de aislamiento (no-enumeración + keys por tenant) | `09dc33b` | 09-17 |
 
 ### ❌ Pendiente
 
@@ -140,6 +143,9 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | — | **Sincronizar env vars server-side** | `vercel env pull` | **Alta** |
 | — | **Auditoría: verificar queries filtran por columna correcta** | Fase 3 de auditoría | Alta |
 | — | **Auditoría: corregir dashboard bypass cuando period='all'** | Líneas 339/378 dashboard | Alta |
+| — | **Multitenant: Agency Home + switcher robusto** | UX definida, falta implementar | Alta |
+| — | **Multitenant: bloquear subcuenta archivada** (crons, logins, syncs) | RLS ya filtra, falta gate activo | Alta |
+| — | **Multitenant: constraint FK cross-tenant** campaign↔ad_account | Riesgo de FK entre tenants | Media |
 | — | **Dashboard: pixel first-party + Data Health** | BD ya tiene tracking_sites | Alta |
 | — | **Dashboard: integraciones faltantes** (TikTok Ads/Org) | — | Media |
 | — | Dashboard: migrar agregaciones a SQL (RPCs) | — | Media |
@@ -219,8 +225,8 @@ Ver `.env.local.example` para la lista completa. Resumen:
 
 - **Remote:** `https://github.com/torrealex97-star/Growth-Ops-App.git`
 - **Branch principal:** `main`
-- **Último commit:** `c98faea` — "fix: unify all date filter defaults to 'Este mes' (DEFAULT_PERIOD)"
-- **Historial reciente:** PRs #61-#64 + dashboard redesign + contactos unificados + auditoría filtros fecha — mantener flujo de PRs
+- **Último commit:** `09dc33b` — "fix: no-enumeración de subcuentas en la home + localStorage por tenant"
+- **Historial reciente:** auditoría multitenant (09dc33b) + bugs campañas/filtro (d6dce41) + unificación defaults de fecha (c98faea) + contactos unificados + dashboard fases 1-5 — mantener flujo de PRs
 - **Antes de push:** Ejecutar `npm run quality` completo
 - **Vercel:** Deploy automático al hacer push a `main` → `https://growth-ops-weld.vercel.app`
 
