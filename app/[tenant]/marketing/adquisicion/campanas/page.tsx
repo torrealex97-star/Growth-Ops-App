@@ -15,10 +15,12 @@ import { DailyMetricsPanel } from '@/components/os/DailyMetricsPanel'
 import { AdsTable } from '@/components/os/AdsTable'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { useSesion, useTenant } from '@/lib/tenant-context'
+import { useCuentasMetaActivas } from '@/lib/meta/use-cuentas-activas'
+import { DEFAULT_PERIOD } from '@/lib/filters/period'
 
 // Valores por defecto de los filtros: cuando uno está en su valor por defecto NO se escribe en la
 // URL, así el enlace limpio sigue siendo limpio.
-const FILTROS_POR_DEFECTO = { period: 'all', account: 'all' }
+const FILTROS_POR_DEFECTO = { period: DEFAULT_PERIOD, account: 'all' }
 const PRESETS_VALIDOS = Object.keys(PERIOD_LABELS) as PeriodPreset[]
 
 // Gasto y métricas de ads agregadas por campaña dentro del rango seleccionado (campaign_daily).
@@ -114,6 +116,7 @@ const ymdLocal = (d: Date) =>
 export default function CampaignsPage() {
   const tenant = useTenant()
   const sesion = useSesion()
+  const cuentas = useCuentasMetaActivas(tenant)
   const [items, setItems] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
@@ -128,7 +131,7 @@ export default function CampaignsPage() {
   // miraban lo mismo con periodos distintos.
   const urlFilters = useUrlFilters(FILTROS_POR_DEFECTO)
   const [periodPreset, setPeriodPreset] = useState<PeriodPreset>(() =>
-    readEnum(urlFilters.get('period'), PRESETS_VALIDOS, 'all')
+    readEnum(urlFilters.get('period'), PRESETS_VALIDOS, DEFAULT_PERIOD)
   )
   const [customFrom, setCustomFrom] = useState(() => urlFilters.get('from') ?? '')
   const [customTo, setCustomTo] = useState(() => urlFilters.get('to') ?? '')
@@ -186,12 +189,15 @@ export default function CampaignsPage() {
     })
   }, [periodPreset, customFrom, customTo, accountFilter, selectedCampaignIds, urlFilters])
 
+  // Campañas filtradas por las cuentas configuradas en Integraciones (no todas las que ve el token).
+  const itemsFiltrados = useMemo(() => cuentas.filtrar(items), [items, cuentas])
+
   // Cuentas publicitarias presentes (para el desplegable de filtro). Solo campañas
-  // de Meta traen account_id; las manuales no aparecen aquí. Se muestran por NOMBRE
+  // de las cuentas configuradas en Integraciones. Se muestran por NOMBRE
   // (account_name), con fallback al id act_XXX si aún no se sincronizó el nombre.
   const accounts = useMemo(() => {
     const byId = new Map<string, string>()
-    for (const c of items) {
+    for (const c of itemsFiltrados) {
       if (!c.account_id) continue
       const label = c.account_name || byId.get(c.account_id) || c.account_id
       byId.set(c.account_id, label)
@@ -199,7 +205,7 @@ export default function CampaignsPage() {
     return Array.from(byId.entries())
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name))
-  }, [items])
+  }, [itemsFiltrados])
 
   // Fechas del rango en formato YYYY-MM-DD (local) para el endpoint de gasto por rango.
   const rangeFrom = useMemo(() => (range.from ? ymdLocal(range.from) : null), [range.from])
@@ -234,16 +240,16 @@ export default function CampaignsPage() {
 
   const campaignOptions = useMemo(
     () =>
-      items
+      itemsFiltrados
         .filter((c) => accountFilter === 'all' || c.account_id === accountFilter)
         .map((c) => ({ value: c.id, label: c.name }))
         .sort((a, b) => a.label.localeCompare(b.label)),
-    [items, accountFilter]
+    [itemsFiltrados, accountFilter]
   )
 
   const filteredItems = useMemo(
     () =>
-      items.filter((c) => {
+      itemsFiltrados.filter((c) => {
         if (accountFilter !== 'all' && c.account_id !== accountFilter) return false
         if (selectedCampaignIds.length && !selectedCampaignIds.includes(c.id)) return false
         if (!periodActive) return true
@@ -252,7 +258,7 @@ export default function CampaignsPage() {
         if (hasDaily && c.provider === 'meta') return !!rangeMap![c.id]
         return inPeriod(c.start_date, range)
       }),
-    [items, range, accountFilter, selectedCampaignIds, periodActive, hasDaily, rangeMap]
+    [itemsFiltrados, range, accountFilter, selectedCampaignIds, periodActive, hasDaily, rangeMap]
   )
 
   // Métricas mostradas: dentro de un periodo con serie diaria, se sustituyen gasto/impresiones/
