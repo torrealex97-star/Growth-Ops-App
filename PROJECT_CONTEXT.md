@@ -128,6 +128,8 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | — | **Multitenant: localStorage namespaced por tenant** (ScriptQueue, ContactsAllView + deps useEffect) | `09dc33b` | 09-17 |
 | — | Multitenant: tests de aislamiento (no-enumeración + keys por tenant) | `09dc33b` | 09-17 |
 | — | Calendario agendas: contenido adaptativo por altura (xs/sm/full), clamp fuera de rango, enlace muerto Leads (VSL) eliminado | `b4b44df` | 09-17 |
+| — | Fix 500 actividades contacto (service-role innecesario → cliente autenticado, §16) | `1b7c017` | 09-17 |
+| — | Responsive CRM: switchers con wrap, tabla de agendas con scroll horizontal | `1b7c017` | 09-17 |
 
 ### ❌ Pendiente
 
