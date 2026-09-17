@@ -1207,11 +1207,14 @@ export function AppointmentDetail({
         </>
       )}
 
-      {/* Grabación + nota única de la llamada (editable) */}
+      {/* Grabación, notas y análisis IA — sección unificada */}
       <Separator className="bg-muted" />
       <div className="space-y-4">
+        <h4 className="text-sm font-medium text-foreground">Grabación y notas</h4>
+
+        {/* URL de grabación */}
         <div>
-          <h4 className="text-sm font-medium text-muted-foreground mb-2">Grabación de la llamada</h4>
+          <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Enlace de grabación</label>
           <input
             type="url"
             value={recordingUrl}
@@ -1231,58 +1234,39 @@ export function AppointmentDetail({
             </a>
           )}
         </div>
+
+        {/* Notas */}
         <div>
-          <h4 className="text-sm font-medium text-muted-foreground mb-2">Notas de la llamada</h4>
+          <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Notas de la llamada</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            rows={4}
-            placeholder="¿Qué tal fue la reunión? Objeciones, próximos pasos, etc."
+            rows={3}
+            placeholder="Objeciones, próximos pasos, contexto…"
             className="w-full bg-muted border border-border rounded-lg p-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus:border-brand-500 resize-y"
           />
         </div>
-        <div className="flex justify-end">
-          <Button size="sm" onClick={saveNote} disabled={savingNote || !dirty}>
-            {savingNote ? 'Guardando…' : 'Guardar'}
-          </Button>
-        </div>
-      </div>
 
-      {/* Grabación y transcripción (IA) */}
-      <Separator className="bg-muted" />
-      <div className="space-y-4">
-        <h4 className="text-sm font-medium text-foreground">Grabación y transcripción</h4>
-
+        {/* Transcripción (pegar manualmente) */}
         <div>
-          <h5 className="text-xs font-medium text-muted-foreground mb-2">Fuente de transcripción (opcional)</h5>
-          <input
-            type="url"
-            value={driveUrl}
-            onChange={(e) => setDriveUrl(e.target.value)}
-            onBlur={saveTranscriptFields}
-            aria-label="Enlace de Drive para transcripción"
-            placeholder="https://drive.google.com/…"
-            className={cls}
-          />
-        </div>
-
-        <div>
-          <h5 className="text-xs font-medium text-muted-foreground mb-2">
-            Transcripción (pegar manualmente, opcional)
-          </h5>
+          <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Transcripción (opcional)</label>
           <textarea
             value={transcriptText}
             onChange={(e) => setTranscriptText(e.target.value)}
             onBlur={saveTranscriptFields}
-            rows={5}
-            placeholder="Pega aquí la transcripción de la llamada si ya la tienes…"
-            className={`${cls} resize-y`}
+            rows={4}
+            placeholder="Pega la transcripción si ya la tienes…"
+            className="w-full bg-muted border border-border rounded-lg p-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus:border-brand-500 resize-y"
           />
         </div>
 
-        <div className="flex justify-end">
-          <Button size="sm" onClick={analyzeCall} disabled={analyzing}>
-            {analyzing ? 'Transcribiendo y analizando… (puede tardar)' : 'Analizar llamada (IA)'}
+        {/* Acciones */}
+        <div className="flex justify-end gap-2">
+          <Button size="sm" onClick={saveNote} disabled={savingNote || !dirty}>
+            {savingNote ? 'Guardando…' : 'Guardar'}
+          </Button>
+          <Button size="sm" onClick={analyzeCall} disabled={analyzing} className="bg-brand-600 hover:bg-brand-500">
+            {analyzing ? 'Analizando…' : 'Analizar con IA'}
           </Button>
         </div>
 
