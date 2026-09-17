@@ -1,7 +1,7 @@
 # Growth-Ops-App — Contexto del Proyecto
 
 > **Fuente única de verdad** para Claude Code, Codex y Freebuff. Lee este archivo primero.
-> Última actualización: 2026-09-17
+> Última actualización: 2026-09-17 (post PRs #61–#64)
 
 ---
 
@@ -70,13 +70,18 @@ Ver `.env.local.example` para la lista completa. Resumen:
 
 ## 5. Estado actual (2026-09-17)
 
-### ✅ Funcionando
-- Dashboard con funnel, KPIs, gráfico 6 meses, ranking equipo, atribución leads
-- CRM + pipeline Kanban de seguimiento (leads reales de WDC)
-- Selector de subcuentas (Evergreen plantilla + Women Digital Closer)
-- Login con sesión ([tenant] · Administrador)
-- Sidebar completo: CRM, Métricas, Ventas, Instagram, Alumnos, Finanzas, Morosidad...
-- Auditoría visual del 15-sep implementada (funnel arriba, ConnectedFunnel compartido)
+### ✅ Funcionando (producción Vercel)
+- **Dashboard** con funnel, KPIs, gráfico 6 meses, ranking equipo, atribución leads
+- **CRM mejorado** (#62): drawer de agendas con nombre/email navegable, ficha de contacto con timeline completa (actividades + contratos), guardado con Deshacer
+- **Filtros de fecha unificados** (#64): `PeriodFilterBar` compartido con presets en español, calendario día/rango, responsive
+- **Métricas CRM unificadas** (#63): copy del embudo comercial consistente
+- **Pipeline Kanban** de seguimiento (leads reales de WDC)
+- **Selector de subcuentas** (Evergreen plantilla + Women Digital Closer)
+- **Login** con sesión ([tenant] · Administrador)
+- **Sidebar completo**: CRM, Métricas, Ventas, Instagram, Alumnos, Finanzas, Morosidad...
+- **Agente de IA** MVP + fase 2 (chat flotante, tools de solo lectura, insights proactivos, memoria de negocio)
+- **Rebrand** a "Growth Ops" (#61 — eliminadas referencias [tenant])
+- **Auditoría visual** del 15-sep implementada (funnel arriba, ConnectedFunnel compartido)
 
 ### ⚠️ Conocido
 - **APIs server-side en 500** cuando faltan env vars server-side (local sin `vercel env pull`)
@@ -84,11 +89,18 @@ Ver `.env.local.example` para la lista completa. Resumen:
   - Causa: `SUPABASE_SERVICE_ROLE_KEY` no está en `.env.local` local
   - En Vercel producción: funciona correctamente
 - **3 APIs responden con texto de auth en body** en vez de 401/redirect (ruta de error de `requireTenant`)
-- **4 archivos duplicados limpiados** este hilo (FinanceCharts 2, ConnectedFunnel 2, system 2, DASHBOARD_VISUAL_AUDIT 2)
+- **Media BD vacía para WDC**: `sales` 0, `collections` 0, `campaigns` 0, `campaign_ads` 0 (backfill de Stripe pendiente de ejecutar por el usuario desde Integraciones)
+- **Meta token** de Instagram necesita reconexión con permisos de cuenta profesional
 - **Vercel CLI** instalado globalmente (v59.20.0), auth guardada en `~/.vercel/`
+- **Plan Vercel Hobby**: 3 crons activos; `analyze-calls` e `ai-insights` fuera de `vercel.json` (lanzar manualmente o vía pg_cron)
 
 ### 🔒 Seguridad (advisors Supabase)
-- 10 funciones `SECURITY DEFINER` ejecutables por `authenticated` (helpers RLS — hardening pendiente)
+- **Hardening SQL completado**: migración revoca EXECUTE público de las 10 funciones SECURITY DEFINER
+- Protección de contraseñas filtradas desactivada (activar en Auth → Policies)
+- Multi-tenant RLS cerrado: 0 filas con `tenant_id` NULL en tablas core, aislamiento verificado por SQL
+
+### 🔒 Seguridad (advisors Supabase)
+- **Hardening SQL completado (2026-09-17)**: Migración `20260917100000_security_definer_execute_hardening.sql` revoca `EXECUTE` público y de `anon` de las 10 funciones `SECURITY DEFINER` (RLS helpers) y revoca `ALL` en funciones de trigger y RPCs no expuestas. Cubierto por suite `tests/security-definer-hardening.test.mjs`.
 - Protección de contraseñas filtradas desactivada (activar en Auth → Policies)
 
 ---
@@ -96,10 +108,13 @@ Ver `.env.local.example` para la lista completa. Resumen:
 ## 6. Próximos pasos (priorizados)
 
 1. **Sincronizar env vars completas** — `vercel env pull` para que las APIs server funcionen en local
-2. **Hardening SQL** — Revocar EXECUTE público de las 10 funciones SECURITY DEFINER
-3. **Fiabilidad de APIs** — Estados de error honestos (distinguir "cero real" de "no pude cargar")
-4. **Mover agregaciones a SQL (RPC)** — Las vistas traen ~50K filas al navegador; RPCs de resumen en Postgres
-5. **Panel "Puesta a punto"** — Checklist de configuración por tenant (Meta Ads, objetivos, formularios)
+2. ✅ **Hardening SQL** — Revocado EXECUTE público de las 10 funciones SECURITY DEFINER
+3. **Backfill de Stripe** — Usuario ejecuta sync de clientes + backfill de ventas desde Integraciones (desbloquea agente IA + métricas financieras)
+4. **Reconectar token Meta** — Instagram no trae históricos (permisos de cuenta profesional pendientes)
+5. **Fiabilidad de APIs** — Estados de error honestos (distinguir "cero real" de "no pude cargar")
+6. **Mover agregaciones a SQL (RPC)** — Las vistas traen ~50K filas al navegador; RPCs de resumen en Postgres
+7. **Panel "Puesta a punto"** — Checklist de configuración por tenant (Meta Ads, objetivos, formularios)
+8. **Agente IA fase 3** — RAG/pgvector, Google Drive/Notion, Model Router multi-proveedor (requiere embeddings provider)
 
 ---
 
@@ -118,13 +133,28 @@ Ver `.env.local.example` para la lista completa. Resumen:
 
 - **Remote:** `https://github.com/torrealex97-star/Growth-Ops-App.git`
 - **Branch principal:** `main`
-- **Último commit:** `74ac2d2` — "fix: route tenant AI through configured provider (#60)"
-- **Historial:** PRs mergeados (#58, #59, #60) — mantener flujo de PRs para cambios significativos
+- **Último commit:** `0038e9b` — "chore: add PROJECT_CONTEXT.md for multi-agent workflow"
+- **Historial reciente:** PRs #61 (rebrand), #62 (CRM UX), #63 (métricas CRM), #64 (filtros fecha) — mantener flujo de PRs
 - **Antes de push:** Ejecutar `npm run quality` completo
+- **Vercel:** Deploy automático al hacer push a `main` → `https://growth-ops-weld.vercel.app`
 
 ---
 
-## 9. Notas para agentes
+## 9. Handoff doc
+
+`docs/ACTIVE_HANDOFF.md` contiene el historial detallado de todas las sesiones de Claude Code y Codex, incluyendo:
+- 24 tareas del brief con estado (18 hechas, 6 pendientes/parciales)
+- Auditoría de RLS multi-tenant (cerrada)
+- Estado de datos reales (qué tablas tienen datos, cuáles vacías)
+- Bug de sesiones y race conditions (corregido)
+- Plan Vercel Hobby y sus limitaciones de crons
+- Backfill de Stripe (pendiente de ejecutar por el usuario)
+
+Leer `docs/ACTIVE_HANDOFF.md` cuando se necesite contexto histórico detallado.
+
+---
+
+## 10. Notas para agentes
 
 ### Claude Code
 - Usa `.claude/` para configuración. Lee `PROJECT_CONTEXT.md` al inicio.
@@ -136,6 +166,7 @@ Ver `.env.local.example` para la lista completa. Resumen:
 
 ### Freebuff
 - Sandbox no puede leer `~/Documents` (TCC). Trabaja desde `/tmp/growthops-preview`.
-- Supabase MCP disponible para queries de BD, advisors, logs de producción.
+- Supabase MCP disponible para queries de BD, advisors, logs de producción, esquema.
 - Launchd para procesos persistentes (sobreviven reinicios).
 - Usar Finder vía AppleScript para copiar archivos desde `~/Documents`.
+- `PROJECT_CONTEXT.md` se actualiza con cada PR mergeado; mantenerlo como fuente única de verdad.
