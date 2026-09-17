@@ -39,6 +39,15 @@ export async function updateSession(request: NextRequest, tenant: string) {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) {
+    // BUGFIX: las rutas de API no redirigen al HTML del login. Un fetch sigue el redirect y
+    // recibe el HTML de /login donde esperaba JSON, así que el cliente no distingue
+    // "sin sesión" de "respuesta corrupta" y las pantallas muestran errores absurdos.
+    // Para APIs: 401 JSON explícito (requireTenant volverá a comprobar y ya decide 401/403).
+    if (request.nextUrl.pathname.startsWith('/api/')) {
+      const sinSesion = NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+      sinSesion.headers.set(CABECERA_REQUEST_ID, requestId)
+      return sinSesion
+    }
     const login = request.nextUrl.clone()
     login.pathname = `/${tenant}/login`
     login.search = ''
