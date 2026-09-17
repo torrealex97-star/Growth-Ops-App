@@ -127,6 +127,7 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | — | **Multitenant: no-enumeración de subcuentas en la home** (query anon → gated por sesión + RLS) | `09dc33b` | 09-17 |
 | — | **Multitenant: localStorage namespaced por tenant** (ScriptQueue, ContactsAllView + deps useEffect) | `09dc33b` | 09-17 |
 | — | Multitenant: tests de aislamiento (no-enumeración + keys por tenant) | `09dc33b` | 09-17 |
+| — | Calendario agendas: contenido adaptativo por altura (xs/sm/full), clamp fuera de rango, enlace muerto Leads (VSL) eliminado | `b4b44df` | 09-17 |
 
 ### ❌ Pendiente
 
