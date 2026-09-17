@@ -137,7 +137,7 @@ export default function AppointmentsPage() {
   const [reassigningConflictId, setReassigningConflictId] = useState<string | null>(null)
 
   // View switcher
-  const [view, setView] = useState<'tabla' | 'calendario' | 'analisis' | 'metricas'>('tabla')
+  const [view, setView] = useState<'tabla' | 'calendario' | 'analisis' | 'metricas'>('calendario')
   const [weekStart, setWeekStart] = useState<Date>(() => getMondayOfWeek(new Date()))
   const [calMode, setCalMode] = useState<'week' | 'day'>('week')
   // En modo día, closers a mostrar como columnas (lanes) estilo GHL. Vacío = todos.
@@ -1557,7 +1557,7 @@ export default function AppointmentsPage() {
 
           {/* Grid semanal / diario */}
           <div className="rounded-lg border border-border overflow-x-auto">
-            <div style={{ minWidth: calMode === 'day' ? 60 + calColumns.length * 200 : 900 }}>
+            <div style={{ minWidth: calMode === 'day' ? 60 + calColumns.length * 220 : 1400 }}>
               {/* Cabecera: días (semana) o closers (día) */}
               <div
                 className="grid border-b border-border"
@@ -1693,7 +1693,7 @@ export default function AppointmentsPage() {
                               left: `calc(${(colIndex / colCount) * 100}% + 2px)`,
                               width: `calc(${(1 / colCount) * 100}% - 4px)`,
                             }}
-                            className={`absolute text-left border rounded px-1.5 py-1 transition-colors overflow-hidden ${
+                            className={`absolute text-left border rounded px-2 py-1.5 transition-colors ${
                               draggable ? 'cursor-grab active:cursor-grabbing' : ''
                             } ${CATEGORY_BLOCK_CLASSES[category]} ${isCancelled ? 'z-10' : 'z-20'} ${appt.needs_followup ? 'ring-2 ring-indigo-400/70' : ''}`}
                           >
@@ -1715,18 +1715,18 @@ export default function AppointmentsPage() {
                             {appt.setter?.full_name && (
                               <p className="text-[9px] text-muted-foreground truncate">{appt.setter.full_name}</p>
                             )}
-                            <div className="flex items-center gap-1 flex-wrap mt-0.5">
-                              <Badge className={`border text-[10px] gap-1 ${CATEGORY_BADGE_CLASSES[category]}`}>
+                            <div className="flex items-center gap-1 flex-wrap mt-1">
+                              <Badge className={`border text-[10px] gap-1 whitespace-nowrap ${CATEGORY_BADGE_CLASSES[category]}`}>
                                 {category === 'compra' && <Banknote className="w-3 h-3" />}
                                 {CATEGORY_LABELS[category]}
                               </Badge>
                               {appt.needs_followup ? (
-                                <Badge className="border text-[10px] bg-indigo-500/20 text-indigo-300 border-indigo-500/30">
+                                <Badge className="border text-[10px] bg-indigo-500/20 text-indigo-300 border-indigo-500/30 whitespace-nowrap">
                                   Seguimiento
                                 </Badge>
                               ) : null}
                               {appt.duration_minutes ? (
-                                <span className="text-[10px] text-muted-foreground">{appt.duration_minutes} min</span>
+                                <span className="text-[10px] text-muted-foreground whitespace-nowrap">{appt.duration_minutes} min</span>
                               ) : null}
                             </div>
                           </button>

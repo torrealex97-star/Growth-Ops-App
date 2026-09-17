@@ -224,16 +224,21 @@ export async function loadFunnelCounts(
   const isSourceError = (v: unknown): v is { error: string } =>
     v !== null && typeof v === 'object' && 'error' in v && typeof (v as { error: unknown }).error === 'string'
 
+  type CrmStages = { leads: MetricValue; agendas: MetricValue; llamadas: MetricValue; cierres: MetricValue }
+  type Ga4Stages = { sesiones: MetricValue }
+  type MetaStages = { impresiones: MetricValue; clics: MetricValue; alcance: MetricValue; inversion: number | null }
+
   const counts: Record<string, MetricValue> = {}
   for (const stage of stages) {
     if (stage.source === 'crm') {
       if (isSourceError(crm)) {
         counts[stage.id] = errorFuente('crm', crm.error)
       } else if (crm) {
-        if (stage.id === 'leads') counts[stage.id] = crm.leads
-        else if (stage.id === 'agendas') counts[stage.id] = crm.agendas
-        else if (stage.id === 'llamadas') counts[stage.id] = crm.llamadas
-        else if (stage.id === 'cierres') counts[stage.id] = crm.cierres
+        const c = crm as unknown as CrmStages
+        if (stage.id === 'leads') counts[stage.id] = c.leads
+        else if (stage.id === 'agendas') counts[stage.id] = c.agendas
+        else if (stage.id === 'llamadas') counts[stage.id] = c.llamadas
+        else if (stage.id === 'cierres') counts[stage.id] = c.cierres
         else
           counts[stage.id] = noConfigurada(
             'crm',
@@ -248,8 +253,9 @@ export async function loadFunnelCounts(
       if (isSourceError(ga4)) {
         counts[stage.id] = errorFuente('ga4', ga4.error)
       } else if (ga4) {
+        const g = ga4 as unknown as Ga4Stages
         counts[stage.id] =
-          stage.id === 'sesiones' ? ga4.sesiones : noConfigurada('ga4', `GA4 no aporta "${stage.label}".`)
+          stage.id === 'sesiones' ? g.sesiones : noConfigurada('ga4', `GA4 no aporta "${stage.label}".`)
       } else {
         counts[stage.id] = noConfigurada('ga4', 'GA4 no solicitado para esta familia.')
       }
@@ -259,9 +265,10 @@ export async function loadFunnelCounts(
       if (isSourceError(meta)) {
         counts[stage.id] = errorFuente('meta', meta.error)
       } else if (meta) {
-        if (stage.id === 'impresiones') counts[stage.id] = meta.impresiones
-        else if (stage.id === 'clics') counts[stage.id] = meta.clics
-        else if (stage.id === 'alcance') counts[stage.id] = meta.alcance
+        const m = meta as unknown as MetaStages
+        if (stage.id === 'impresiones') counts[stage.id] = m.impresiones
+        else if (stage.id === 'clics') counts[stage.id] = m.clics
+        else if (stage.id === 'alcance') counts[stage.id] = m.alcance
         else
           counts[stage.id] = noConfigurada(
             'meta',
@@ -292,7 +299,7 @@ export async function loadFunnelCounts(
   }
 
   // inversion solo se extrae si meta funcionó (no si devolvió { error }).
-  const inversion = meta && !isSourceError(meta) ? meta.inversion : null
+  const inversion = meta && !isSourceError(meta) ? (meta as unknown as MetaStages).inversion : null
   return { counts, inversion }
 }
 
