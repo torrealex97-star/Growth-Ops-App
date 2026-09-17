@@ -20,7 +20,8 @@ import {
 import { useTenant } from '@/lib/tenant-context'
 import { useCuentasMetaActivas } from '@/lib/meta/use-cuentas-activas'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
-import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
+import { getPeriodRange, inPeriod, type PeriodPreset, type PeriodRange } from '@/lib/filters/period'
+import { isCancelled } from '@/lib/unit-economics'
 
 type CollectionRow = {
   gross_amount: number | string | null
@@ -58,6 +59,15 @@ const labelChannel = (ch: string) => CHANNEL_LABELS[ch?.toLowerCase()] || ch || 
 
 // Guard div/0 → null (se pinta como "—")
 const safeDiv = (a: number, b: number): number | null => (b ? a / b : null)
+
+// Etiqueta de cobertura de atribución del funnel del negocio: dice cuánta parte del negocio
+// puede demostrarse atribuida a anuncios, sin dar por hecho que lo no atribuido no ocurrió.
+function cuentaAtribucionLabel(f: FunnelOperativo, hayAnuncios: boolean): string {
+  if (!hayAnuncios) return 'sin campañas sincronizadas: solo realidad operacional'
+  if (f.cierres === 0) return 'sin cierres en el periodo'
+  const pctAtrib = Math.round((f.atribuidos.cierres / f.cierres) * 100)
+  return `${pctAtrib}% de cierres atribuidos a anuncios`
+}
 
 type MarketingFunnel = {
   impressions: number
@@ -129,6 +139,65 @@ function buildMarketingFunnel(
   }
 }
 
+// ── REALIDAD OPERACIONAL vs ATRIBUCIÓN ──────────────────────────────────────
+// ERROR QUE ESTO CORRIGE: el funnel de marketing filtraba agendas y cierres por
+// "¿el contacto tiene campaign_id?". Con contact_attributions a 0 filas, casi
+// ningún contacto lo tiene, y el funnel enseñaba 0 agendas y 0 cierres aunque
+// hubiera 559 agendas y 27 ventas REALES. La ausencia de atribución NO significa
+// que el evento no haya ocurrido: los totales del negocio se cuentan del CRM
+// (contacts/appointments/sales), y la atribución se declara aparte, nunca mezclada.
+
+type FunnelOperativo = {
+  leads: number
+  agendas: number
+  asistencias: number
+  cierres: number
+  facturacion: number
+  atribuidos: { agendas: number; cierres: number; facturacion: number }
+}
+
+function buildFunnelOperativo(
+  contacts: ContactRow[],
+  appointments: AppointmentRow[],
+  sales: SaleRow[],
+  hayPeriodo: boolean,
+  rango: PeriodRange
+): FunnelOperativo {
+  const ahora = new Date()
+  const contactos = hayPeriodo ? contacts.filter((c) => c.created_at && inPeriod(c.created_at, rango)) : contacts
+  const agendasVisibles = hayPeriodo ? appointments.filter((a) => inPeriod(a.appointment_datetime, rango)) : appointments
+  const ventas = hayPeriodo ? sales.filter((s) => inPeriod(s.sale_date, rango)) : sales
+  const ventasActivas = ventas.filter((s) => ACTIVE_SALE_STATUSES.includes(s.status))
+
+  // ASISTENCIA = misma semántica que el KPI "Shows" de esta misma página (buildSalesOverview):
+  // citas vivas que ya pasaron. Los closers casi nunca marcan status='show' (4 de 559), así que
+  // contar el status diría 4 asistencias mientras el KPI de al lado enseña 517. Dos números
+  // distintos para el mismo concepto es exactamente el problema de nomenclatura que unifica el brief.
+  const agendasVivasYaPasadas = agendasVisibles.filter((a) => {
+    if (isCancelled(a.status)) return false
+    if (!a.appointment_datetime) return true
+    const t = Date.parse(a.appointment_datetime)
+    return Number.isNaN(t) || t <= ahora.getTime()
+  }).length
+
+  const conCampaign = new Set(contacts.filter((c) => !!c.campaign_id).map((c) => c.id))
+  const agendasAtrib = agendasVisibles.filter((a) => a.contact_id && conCampaign.has(a.contact_id)).length
+  const ventasAtrib = ventasActivas.filter((s) => s.contact_id && conCampaign.has(s.contact_id))
+
+  return {
+    leads: contactos.length,
+    agendas: agendasVisibles.length,
+    asistencias: agendasVivasYaPasadas,
+    cierres: ventasActivas.length,
+    facturacion: ventasActivas.reduce((a, s) => a + num(s.gross_amount), 0),
+    atribuidos: {
+      agendas: agendasAtrib,
+      cierres: ventasAtrib.length,
+      facturacion: ventasAtrib.reduce((a, s) => a + num(s.gross_amount), 0),
+    },
+  }
+}
+
 function ratioColor(ratio: number | null): string {
   if (ratio === null) return 'text-muted-foreground'
   if (ratio >= 3) return 'text-emerald-400'
@@ -167,6 +236,10 @@ export default function UnitEconomicsPage() {
   const [collections, setCollections] = useState<CollectionRow[]>([])
   const [contacts, setContacts] = useState<ContactRow[]>([])
   const [appointments, setAppointments] = useState<AppointmentRow[]>([])
+  // Selección de cuentas Meta para las métricas de anuncios: 'todas' o un subconjunto de las
+  // seleccionadas en Integraciones. NUNCA "todas las accesibles por el token": si el usuario
+  // eligió A y C en Integraciones, B y D no existen para esta pantalla.
+  const [cuentaSel, setCuentaSel] = useState<string>('todas')
 
   useEffect(() => {
     let mounted = true
@@ -182,7 +255,7 @@ export default function UnitEconomicsPage() {
           .select('id, gross_amount, status, contact_id, sale_date')
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase.from('collections').select('gross_amount, collected_at, status').range(0, FINANCE_QUERY_ROW_CAP),
-        supabase.from('contacts').select('id, campaign_id').range(0, FINANCE_QUERY_ROW_CAP),
+        supabase.from('contacts').select('id, campaign_id, created_at').range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('appointments')
           .select('id, contact_id, status, appointment_datetime, pipe_value')
@@ -219,11 +292,20 @@ export default function UnitEconomicsPage() {
   const rango = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
   const hayPeriodo = periodPreset !== 'all'
 
-  // UN solo punto de verdad para "qué campañas cuentan": las de las cuentas seleccionadas.
-  const campaignsVisibles = useMemo(() => cuentas.filtrar(campaigns), [campaigns, cuentas])
+  // UN solo punto de verdad para "qué campañas cuentan": las de las cuentas seleccionadas
+  // en Integraciones (cuentas.filtrar), acotado además al subconjunto elegido en el selector.
+  const campaignsVisibles = useMemo(() => {
+    const porIntegracion = cuentas.filtrar(campaigns)
+    if (cuentaSel === 'todas') return porIntegracion
+    return porIntegracion.filter((c) => !c.account_id || c.account_id === cuentaSel)
+  }, [campaigns, cuentas, cuentaSel])
   const dailyVisible = useMemo(
-    () => cuentas.filtrar(daily).filter((d) => !hayPeriodo || inPeriod(d.date, rango)),
-    [daily, cuentas, hayPeriodo, rango]
+    () =>
+      cuentas
+        .filtrar(daily)
+        .filter((d) => !hayPeriodo || inPeriod(d.date, rango))
+        .filter((d) => cuentaSel === 'todas' || !d.account_id || d.account_id === cuentaSel),
+    [daily, cuentas, hayPeriodo, rango, cuentaSel]
   )
 
   // Con periodo activo mandan los datos DIARIOS; sin periodo, el acumulado de la campaña. Mezclarlos
@@ -291,6 +373,14 @@ export default function UnitEconomicsPage() {
     [campanasParaTotales, contacts, appointments, ventasVisibles]
   )
 
+  // REALIDAD OPERACIONAL: totales del CRM en el periodo, SIN exigir atribución. Es lo que el
+  // negocio vivió de verdad. La parte atribuida a anuncios se declara aparte y nunca colapsa
+  // "no atribuible" a "0 eventos".
+  const funnelOperativo = useMemo(
+    () => buildFunnelOperativo(contacts, appointments, sales, hayPeriodo, rango),
+    [contacts, appointments, sales, hayPeriodo, rango]
+  )
+
   // Citas del periodo elegido, con el mismo rango que el resto de la pantalla.
   const agendasVisibles = useMemo(
     () => (hayPeriodo ? appointments.filter((a) => inPeriod(a.appointment_datetime, rango)) : appointments),
@@ -306,6 +396,8 @@ export default function UnitEconomicsPage() {
   )
 
   const hasData = campaignsVisibles.length > 0 || sales.length > 0 || appointments.length > 0
+  // ¿Hay campañas de anuncios que mirar? Decide si el bloque de atribución se muestra.
+  const hasAdsData = campanasParaTotales.length > 0
 
   return (
     <div className="dashboard-surface p-4 sm:p-6 space-y-5">
@@ -321,15 +413,38 @@ export default function UnitEconomicsPage() {
         {/* El aviso que había aquí decía que esta pantalla no podía filtrar por periodo porque
             `campaigns.adspend` es un acumulado. Era cierto a medias: `campaign_daily` guarda el gasto
             por día y campaña, y es lo que se usa en cuanto se elige un periodo. */}
+        {/* Estado REAL de la selección de cuentas: el texto anterior confesaba el bug
+            ("Todas las cuentas de Meta accesibles") — ahora se declara lo que de verdad cuenta. */}
         <p className="text-muted-foreground mt-2 text-xs">
           {cuentas.listo && !cuentas.todas
-            ? `Solo las ${cuentas.seleccionadas.length} cuentas de Meta seleccionadas en Integraciones.`
-            : 'Todas las cuentas de Meta accesibles. Elige cuáles en Integraciones › Meta Ads para acotar estos números.'}
+            ? `Cuentas de Meta: solo las ${cuentas.seleccionadas.length} seleccionadas en Integraciones › Meta Ads.`
+            : 'Cuentas de Meta: todas las accesibles por el token. Selecciona cuentas en Integraciones › Meta Ads para acotar.'}
           {hayPeriodo
             ? ' El gasto y las métricas de anuncios salen de la serie diaria del periodo elegido.'
             : ' Sin periodo: acumulado histórico desde el origen de los datos.'}
         </p>
       </div>
+
+      {/* Selector de cuenta Meta: multi-select real cuando hay varias elegidas en Integraciones. */}
+      {cuentas.listo && !cuentas.todas && cuentas.seleccionadas.length > 1 && (
+        <div className="flex items-center gap-2 text-sm">
+          <Megaphone className="w-4 h-4 text-muted-foreground" />
+          <span className="text-muted-foreground text-xs">Meta Ads:</span>
+          <select
+            value={cuentaSel}
+            onChange={(e) => setCuentaSel(e.target.value)}
+            className="bg-muted border border-border rounded-md px-2 py-1 text-xs text-foreground"
+            aria-label="Cuenta de Meta Ads"
+          >
+            <option value="todas">Todas las seleccionadas ({cuentas.seleccionadas.length})</option>
+            {cuentas.seleccionadas.map((id) => (
+              <option key={id} value={id}>
+                {cuentas.nombres?.[id] || id}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <PeriodFilterBar
         preset={periodPreset}
@@ -345,19 +460,72 @@ export default function UnitEconomicsPage() {
         }}
       />
 
+      {/* FUNNEL DEL NEGOCIO: realidad operacional primero, atribución aparte. */}
       <section className="dashboard-card p-5 sm:p-6">
-        <h2 className="font-display text-xl font-semibold">Embudo de marketing</h2>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-display text-xl font-semibold">Embudo del negocio</h2>
+          <p className="text-xs text-muted-foreground">
+            Totales reales del CRM en el periodo · {cuentaAtribucionLabel(funnelOperativo, hasAdsData)}
+          </p>
+        </div>
         <p className="mt-1 mb-5 text-sm text-muted-foreground">
-          De las impresiones al cierre. Solo contactos y ventas atribuidos a anuncios, en el periodo seleccionado.
+          Lo que ocurrió de verdad: leads capturados, agendas creadas, asistencias y cierres — con o sin anuncio
+          detrás. La ausencia de atribución no convierte un evento en cero.
+        </p>
+        <ConnectedFunnel
+          loading={loading}
+          stages={[
+            { label: 'Leads', value: funnelOperativo.leads },
+            { label: 'Agendas', value: funnelOperativo.agendas },
+            { label: 'Asistencias', value: funnelOperativo.asistencias },
+            { label: 'Cierres', value: funnelOperativo.cierres },
+          ].map((stage, index, stages) => ({
+            ...stage,
+            conversion: index > 0 ? safeDiv(stage.value * 100, stages[index - 1].value) : null,
+          }))}
+        />
+        {hasAdsData && (
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+            <div className="rounded-lg border border-border bg-muted/40 p-3">
+              <p className="text-muted-foreground">Agendas atribuidas a anuncios</p>
+              <p className="text-base font-semibold text-foreground mt-1">
+                {formatNumber(funnelOperativo.atribuidos.agendas)}
+                <span className="text-muted-foreground text-xs font-normal"> de {formatNumber(funnelOperativo.agendas)}</span>
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/40 p-3">
+              <p className="text-muted-foreground">Cierres atribuidos</p>
+              <p className="text-base font-semibold text-foreground mt-1">
+                {formatNumber(funnelOperativo.atribuidos.cierres)}
+                <span className="text-muted-foreground text-xs font-normal"> de {formatNumber(funnelOperativo.cierres)}</span>
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/40 p-3">
+              <p className="text-muted-foreground">Facturación atribuida</p>
+              <p className="text-base font-semibold text-foreground mt-1">
+                {formatCurrency(funnelOperativo.atribuidos.facturacion)}
+                <span className="text-muted-foreground text-xs font-normal"> de {formatCurrency(funnelOperativo.facturacion)}</span>
+              </p>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* FUNNEL DE ANUNCIOS: solo la parte atribuible, con nomenclatura unificada. */}
+      <section className="dashboard-card p-5 sm:p-6">
+        <h2 className="font-display text-lg font-semibold">Embudo de anuncios</h2>
+        <p className="mt-1 mb-5 text-sm text-muted-foreground">
+          Solo lo atribuible a las campañas de Meta seleccionadas. Las conversiones que no pueden demostrarse
+          atribuidas están en el embudo del negocio, no aquí.
         </p>
         <ConnectedFunnel
           loading={loading}
           stages={[
             { label: 'Impresiones', value: marketingFunnel.impressions },
-            { label: 'Clicks', value: marketingFunnel.clicks },
+            { label: 'Clics', value: marketingFunnel.clicks },
             { label: 'Leads', value: marketingFunnel.leads },
-            { label: 'Sales Calls', value: marketingFunnel.salesCallsBooked },
-            { label: 'Closes', value: marketingFunnel.dealsClosed },
+            { label: 'Agendas', value: marketingFunnel.salesCallsBooked },
+            { label: 'Cierres', value: marketingFunnel.dealsClosed },
           ].map((stage, index, stages) => ({
             ...stage,
             conversion: index > 0 ? safeDiv(stage.value * 100, stages[index - 1].value) : null,
