@@ -189,63 +189,111 @@ export async function loadFunnelCounts(
   const needsMeta = stages.some((s) => s.source === 'meta')
   const needsGa4 = stages.some((s) => s.source === 'ga4')
 
-  const [crm, meta, ga4] = await Promise.all([
-    needsCrm ? crmStages(sb, tenantId, range) : Promise.resolve(null),
-    needsMeta ? metaStages(sb, tenantId, range) : Promise.resolve(null),
-    needsGa4 ? ga4Stages(sb, tenantId, range) : Promise.resolve(null),
-  ])
+  // Cada fuente se envuelve individualmente: si Meta falla, CRM y GA4 siguen disponibles.
+  // Antes, un throw en cualquiera de las tres causaba Promise.all rechazado → 500 en el endpoint
+  // y el funnel entero desaparecía. Con esto, cada fuente devuelve null si falla y el loop de
+  // abajo la marca 'error_fuente' en sus etapas.
+  const crmSafe = async () => {
+    if (!needsCrm) return null
+    try {
+      return await crmStages(sb, tenantId, range)
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : 'Error al leer CRM' } as const
+    }
+  }
+  const metaSafe = async () => {
+    if (!needsMeta) return null
+    try {
+      return await metaStages(sb, tenantId, range)
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : 'Error al leer Meta' } as const
+    }
+  }
+  const ga4Safe = async () => {
+    if (!needsGa4) return null
+    try {
+      return await ga4Stages(sb, tenantId, range)
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : 'Error al leer GA4' } as const
+    }
+  }
+  const [crm, meta, ga4] = await Promise.all([crmSafe(), metaSafe(), ga4Safe()])
+
+  // Helpers: los wrappers devuelven { error } cuando fallan. El loop necesita distinguir
+  // entre "no se pidió" (null), "falló" ({ error }) y "funcionó" (objeto con leads/agendas/...).
+  const isSourceError = (v: unknown): v is { error: string } =>
+    v !== null && typeof v === 'object' && 'error' in v && typeof (v as { error: unknown }).error === 'string'
 
   const counts: Record<string, MetricValue> = {}
   for (const stage of stages) {
-    if (stage.source === 'crm' && crm) {
-      // Las etapas de "entrada" del CRM comparten el mismo recuento de contactos nuevos: registros
-      // de webinar, opt-ins de VSL y conversaciones por DM son, hoy, el mismo dato sin segmentar.
-      // Se marca como no configurada cuando la etapa exige una distinción que aún no existe.
-      if (stage.id === 'leads') counts[stage.id] = crm.leads
-      else if (stage.id === 'agendas') counts[stage.id] = crm.agendas
-      else if (stage.id === 'llamadas') counts[stage.id] = crm.llamadas
-      else if (stage.id === 'cierres') counts[stage.id] = crm.cierres
-      else
-        counts[stage.id] = noConfigurada(
-          'crm',
-          `La etapa "${stage.label}" necesita distinguir este subconjunto de contactos y todavía no hay ese criterio en base.`
-        )
+    if (stage.source === 'crm') {
+      if (isSourceError(crm)) {
+        counts[stage.id] = errorFuente('crm', crm.error)
+      } else if (crm) {
+        if (stage.id === 'leads') counts[stage.id] = crm.leads
+        else if (stage.id === 'agendas') counts[stage.id] = crm.agendas
+        else if (stage.id === 'llamadas') counts[stage.id] = crm.llamadas
+        else if (stage.id === 'cierres') counts[stage.id] = crm.cierres
+        else
+          counts[stage.id] = noConfigurada(
+            'crm',
+            `La etapa "${stage.label}" necesita distinguir este subconjunto de contactos y todavía no hay ese criterio en base.`
+          )
+      } else {
+        counts[stage.id] = noConfigurada('crm', 'CRM no solicitado para esta familia.')
+      }
       continue
     }
-    if (stage.source === 'ga4' && ga4) {
-      counts[stage.id] =
-        stage.id === 'sesiones' ? ga4.sesiones : noConfigurada('ga4', `GA4 no aporta "${stage.label}".`)
+    if (stage.source === 'ga4') {
+      if (isSourceError(ga4)) {
+        counts[stage.id] = errorFuente('ga4', ga4.error)
+      } else if (ga4) {
+        counts[stage.id] =
+          stage.id === 'sesiones' ? ga4.sesiones : noConfigurada('ga4', `GA4 no aporta "${stage.label}".`)
+      } else {
+        counts[stage.id] = noConfigurada('ga4', 'GA4 no solicitado para esta familia.')
+      }
       continue
     }
-    if (stage.source === 'meta' && meta) {
-      if (stage.id === 'impresiones') counts[stage.id] = meta.impresiones
-      else if (stage.id === 'clics') counts[stage.id] = meta.clics
-      else if (stage.id === 'alcance') counts[stage.id] = meta.alcance
-      else
-        counts[stage.id] = noConfigurada(
-          'meta',
-          `Meta no expone "${stage.label}" en las columnas que se sincronizan hoy.`
-        )
+    if (stage.source === 'meta') {
+      if (isSourceError(meta)) {
+        counts[stage.id] = errorFuente('meta', meta.error)
+      } else if (meta) {
+        if (stage.id === 'impresiones') counts[stage.id] = meta.impresiones
+        else if (stage.id === 'clics') counts[stage.id] = meta.clics
+        else if (stage.id === 'alcance') counts[stage.id] = meta.alcance
+        else
+          counts[stage.id] = noConfigurada(
+            'meta',
+            `Meta no expone "${stage.label}" en las columnas que se sincronizan hoy.`
+          )
+      } else {
+        counts[stage.id] = noConfigurada('meta', 'Meta no solicitado para esta familia.')
+      }
       continue
     }
     if (stage.source === 'vsl') {
-      const names = namesFor(eventMap, family, stage.id)
-      // Orden de resolución: 1) el mapeo explícito del usuario sobre canonical_events (contrato
-      // configurable, sin sorpresas); 2) si no hay mapeo, el tracking PROPIO de sesiones VSL
-      // (vsl_sessions), que existe desde antes del pipeline canónico y tiene datos reales cuando
-      // hay vídeos publicados. Sin ninguna de las dos, 'no_configurada' — nunca 0.
-      if (names.length > 0) {
-        counts[stage.id] = await vslStage(sb, tenantId, range, names)
-        continue
+      // Cada etapa VSL se envuelve en su propio try-catch: si una falla (vsl_sessions no
+      // existe, service_role_key ausente), las demás etapas VSL se resuelven normalmente.
+      try {
+        const names = namesFor(eventMap, family, stage.id)
+        if (names.length > 0) {
+          counts[stage.id] = await vslStage(sb, tenantId, range, names)
+          continue
+        }
+        const sesion = await vslSessionStage(sb, tenantId, range, stage.id)
+        counts[stage.id] = sesion ?? noConfigurada('vsl', NOT_READY.vsl)
+      } catch (e) {
+        counts[stage.id] = errorFuente('vsl', e instanceof Error ? e.message : 'Error al leer VSL')
       }
-      const sesion = await vslSessionStage(sb, tenantId, range, stage.id)
-      counts[stage.id] = sesion ?? noConfigurada('vsl', NOT_READY.vsl)
       continue
     }
     counts[stage.id] = noConfigurada(stage.source, NOT_READY[stage.source] ?? 'Fuente sin configurar.')
   }
 
-  return { counts, inversion: meta?.inversion ?? null }
+  // inversion solo se extrae si meta funcionó (no si devolvió { error }).
+  const inversion = meta && !isSourceError(meta) ? meta.inversion : null
+  return { counts, inversion }
 }
 
 // ── Etapas de VSL desde vsl_sessions (tracking propio del player) ──────────
