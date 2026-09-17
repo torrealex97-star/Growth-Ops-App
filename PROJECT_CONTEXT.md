@@ -130,6 +130,9 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | — | Calendario agendas: contenido adaptativo por altura (xs/sm/full), clamp fuera de rango, enlace muerto Leads (VSL) eliminado | `b4b44df` | 09-17 |
 | — | Fix 500 actividades contacto (service-role innecesario → cliente autenticado, §16) | `1b7c017` | 09-17 |
 | — | Responsive CRM: switchers con wrap, tabla de agendas con scroll horizontal | `1b7c017` | 09-17 |
+| — | **Pixel first-party Fase C**: POST /api/track/[site] (public_key + origin allowlist + rate limit + raw→canónico), SDK /tracker.js, sites API, panel en Data Health con datos reales | `75ea934` | 09-17 |
+| — | Dashboard: elimina bypass duplicado de period='all' (inPeriod ya cubre rango abierto) | `75ea934` | 09-17 |
+| — | Security: migración hardening EXECUTE de 10 helpers SECURITY DEFINER + 4 triggers + 2 utilidades (advisor Supabase) | `c3ca9e8` | 09-17 |
 
 ### ❌ Pendiente
 
@@ -145,11 +148,10 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | — | **Reconectar token Meta** (Instagram) | Usuario reconecta en Meta | **Alta** |
 | — | **Sincronizar env vars server-side** | `vercel env pull` | **Alta** |
 | — | **Auditoría: verificar queries filtran por columna correcta** | Fase 3 de auditoría | Alta |
-| — | **Auditoría: corregir dashboard bypass cuando period='all'** | Líneas 339/378 dashboard | Alta |
+| — | **Pixel: aplicar hardening + crear primer site en producción** | Ejecutar migración c3ca9e8 en Supabase prod; alta de site y snippet en la web real | **Alta** |
 | — | **Multitenant: Agency Home + switcher robusto** | UX definida, falta implementar | Alta |
 | — | **Multitenant: bloquear subcuenta archivada** (crons, logins, syncs) | RLS ya filtra, falta gate activo | Alta |
 | — | **Multitenant: constraint FK cross-tenant** campaign↔ad_account | Riesgo de FK entre tenants | Media |
-| — | **Dashboard: pixel first-party + Data Health** | BD ya tiene tracking_sites | Alta |
 | — | **Dashboard: integraciones faltantes** (TikTok Ads/Org) | — | Media |
 | — | Dashboard: migrar agregaciones a SQL (RPCs) | — | Media |
 | — | **Activar protección contraseñas filtradas** | Auth → Policies en Supabase | Media |
@@ -228,8 +230,8 @@ Ver `.env.local.example` para la lista completa. Resumen:
 
 - **Remote:** `https://github.com/torrealex97-star/Growth-Ops-App.git`
 - **Branch principal:** `main`
-- **Último commit:** `09dc33b` — "fix: no-enumeración de subcuentas en la home + localStorage por tenant"
-- **Historial reciente:** auditoría multitenant (09dc33b) + bugs campañas/filtro (d6dce41) + unificación defaults de fecha (c98faea) + contactos unificados + dashboard fases 1-5 — mantener flujo de PRs
+- **Último commit:** `c3ca9e8` — "security: revoca EXECUTE publico de funciones SECURITY DEFINER y triggers (advisor Supabase)"
+- **Historial reciente:** hardening EXECUTE (c3ca9e8) + pixel first-party Fase C (75ea934) + auditoría multitenant (09dc33b) + bugs campañas/filtro (d6dce41) + calendario agendas (b4b44df) + responsive/500 (1b7c017)
 - **Antes de push:** Ejecutar `npm run quality` completo
 - **Vercel:** Deploy automático al hacer push a `main` → `https://growth-ops-weld.vercel.app`
 
