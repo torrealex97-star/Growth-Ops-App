@@ -1,7 +1,7 @@
 # Growth-Ops-App — Contexto del Proyecto
 
 > **Fuente única de verdad** para Claude Code, Codex y Freebuff. Lee este archivo primero.
-> Última actualización: 2026-09-17 (post PRs #61–#64)
+> Última actualización: 2026-09-17 (post dashboard redesign fases 1-5 + resilient funnel)
 
 ---
 
@@ -112,7 +112,13 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | — | Filtros de fecha unificados | PR #64 | 09-16 |
 | — | Hardening SQL: EXECUTE revocado | Migración + tests | 09-17 |
 | — | Limpieza duplicados (4 archivos " 2") | Freebuff | 09-17 |
-| — | PROJECT_CONTEXT.md multi-agente | PR #65 (este) | 09-17 |
+| — | PROJECT_CONTEXT.md multi-agente | `0038e9b` | 09-17 |
+| — | Fix middleware: API routes devuelven 401 JSON, no redirect HTML | `97e2d75` | 09-17 |
+| — | Panel respuestas formulario lee appointments.raw_payload con charts | `0558e88` | 09-17 |
+| — | Dashboard: funnel realidad vs atribución + selector cuentas Meta | `c7349b8` | 09-17 |
+| — | Dashboard: funnel dinámico reutilizable + filtros de atribución | `935a0bf` | 09-17 |
+| — | Nomenclatura unificada: Agendas/Asistencias/Cierres | `935a0bf` | 09-17 |
+| — | Endpoint funnel resiliente: try-catch por fuente individual | `6e84117` | 09-17 |
 
 ### ❌ Pendiente
 
@@ -127,6 +133,9 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | — | **Backfill de Stripe** (WDC) | Usuario ejecuta desde Integraciones | **Alta** |
 | — | **Reconectar token Meta** (Instagram) | Usuario reconecta en Meta | **Alta** |
 | — | **Sincronizar env vars server-side** | `vercel env pull` | **Alta** |
+| — | **Dashboard: pixel first-party + Data Health** | BD ya tiene tracking_sites | Alta |
+| — | **Dashboard: integraciones faltantes** (TikTok Ads/Org) | — | Media |
+| — | Dashboard: migrar agregaciones a SQL (RPCs) | — | Media |
 | — | **Activar protección contraseñas filtradas** | Auth → Policies en Supabase | Media |
 | — | Fiabilidad de APIs: estados de error honestos | — | Media |
 | — | Mover agregaciones a SQL (RPCs) | — | Media |
@@ -138,12 +147,53 @@ Ver `.env.local.example` para la lista completa. Resumen:
 ### 🐛 Conocido (no bloqueante)
 
 - APIs server-side en 500 local (falta `SUPABASE_SERVICE_ROLE_KEY`)
-- 3 APIs devuelven texto de auth en body en vez de 401
+- ~~3 APIs devuelven texto de auth en body en vez de 401~~ **ARREGLADO** (`97e2d75`): middleware ahora devuelve 401 JSON para `/api/*`
 - Media BD vacía para WDC (`sales` 0, `campaigns` 0, `campaign_ads` 0)
 - Plan Vercel Hobby: 3 crons, `maxDuration` 60s
 - Instagram: último sync falla con Meta `(#10) Application does not have permission`
 
 ---
+
+---
+
+## 6. Dashboard de captación — estado actual
+
+### Arquitectura implementada (fases 1-5)
+
+**Página:** `app/[tenant]/unit-economics/page.tsx`
+**Componentes nuevos:**
+- `components/os/FunnelDinamico.tsx` — UN componente, N familias (selector [Todos|VSL|DM|Webinar|Web/SEO])
+- `components/os/QualificationInsights.tsx` — Panel de respuestas de formulario con charts y %
+- `lib/metrics/operativo.ts` — Tipo `FunnelOperativo` compartido
+- `lib/funnels/queries.ts` — Resiliente: cada fuente (CRM/Meta/GA4/VSL) se envuelve en try-catch individual
+
+### Qué hace cada fase
+
+| Fase | Qué implementa | Estado |
+|---|---|---|
+| 1 | Selector de cuentas Meta (solo las configuradas, no todas las accesibles) | ✅ |
+| 2 | Funnel realidad vs atribución (nunca convierte 'no atribuible' en 0) | ✅ |
+| 3 | Nomenclatura española: Agendas/Asistencias/Cierres | ✅ |
+| 4 | Funnel dinámico reutilizable con selector de familia | ✅ |
+| 5 | Filtros de atribución (Origen, Canal, Atribución) con progressive disclosure | ✅ |
+| 6 | Pixel first-party + Data Health | Pendiente |
+| 7 | Integraciones faltantes (TikTok) | Pendiente |
+
+### Datos verificados en vivo (WDC)
+
+- Funnel "Todos" muestra 956→559→340→27 (leads→agendas→asistencias→cierres)
+- Selector de cuentas Meta funciona con nombres legibles
+- Cambio de familia (VSL→Todos) restaura totales sin residuos
+- Filtro "No atribuidos" no convierte nada en 0
+- Panel de respuestas muestra 1326 respuestas en 5 categorías con barras y %
+- 1018 tests PASS, typecheck clean
+
+### Notas técnicas importantes
+
+- `contacts.campaign_id` y `contact_attributions` están a 0 filas → la atribución real es 0%
+- `vsl_sessions` está vacía en WDC → familias VSL devuelven `sin_datos` honesto (no 0)
+- El endpoint funnel es resiliente: si falta `SUPABASE_SERVICE_ROLE_KEY`, las etapas fallan individualmente con `error_fuente`, no crashan todo
+- `QualificationInsights` lee de `appointments.raw_payload` (misma fuente que el drawer de agendas), NO de `contacts.qualification`
 
 ---
 
@@ -162,8 +212,8 @@ Ver `.env.local.example` para la lista completa. Resumen:
 
 - **Remote:** `https://github.com/torrealex97-star/Growth-Ops-App.git`
 - **Branch principal:** `main`
-- **Último commit:** `0038e9b` — "chore: add PROJECT_CONTEXT.md for multi-agent workflow"
-- **Historial reciente:** PRs #61 (rebrand), #62 (CRM UX), #63 (métricas CRM), #64 (filtros fecha) — mantener flujo de PRs
+- **Último commit:** `6e84117` — "fix: funnel endpoint resilient to individual source failures"
+- **Historial reciente:** PRs #61-#64 + dashboard redesign fases 1-5 + resilient funnel — mantener flujo de PRs
 - **Antes de push:** Ejecutar `npm run quality` completo
 - **Vercel:** Deploy automático al hacer push a `main` → `https://growth-ops-weld.vercel.app`
 
