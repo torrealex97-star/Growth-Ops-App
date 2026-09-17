@@ -10,12 +10,22 @@ interface TenantOption {
   name: string
 }
 
-// Selector de subcuenta: lista las subcuentas activas para que el usuario elija a
-// cuál entrar, en vez de tener que conocer/pegar el enlace directo /<tenant>/login.
+// Selector de subcuenta. NO enumera todas las subcuentas del sistema: si estuviéramos
+// autenticados, RLS solo devuelve las subcuentas a las que pertenecemos (policy
+// tenants_select_member); si no lo estamos, no se lista NINGUNA — conocer los nombres de
+// otros clientes no es información pública, así que anónimamente se muestra solo el
+// formulario de acceso directo.
 export default function HomePage() {
   const [tenants, setTenants] = useState<TenantOption[] | null>(null)
+  const [autenticado, setAutenticado] = useState<boolean | null>(null)
 
   useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => setAutenticado(!!data.user))
+  }, [])
+
+  useEffect(() => {
+    if (autenticado === null) return
     const supabase = createClient()
     supabase
       .from('tenants')
@@ -23,7 +33,7 @@ export default function HomePage() {
       .eq('status', 'active')
       .order('name')
       .then(({ data }) => setTenants(data ?? []))
-  }, [])
+  }, [autenticado])
 
   return (
     <div className="dark min-h-screen bg-background flex items-center justify-center p-4" data-theme="os">
@@ -38,7 +48,11 @@ export default function HomePage() {
         )}
 
         {tenants !== null && tenants.length === 0 && (
-          <p className="text-sm text-muted-foreground">No hay subcuentas disponibles todavía.</p>
+          <p className="text-muted-foreground text-sm">
+            {autenticado
+              ? 'No tienes subcuentas asignadas todavía. Pide acceso a tu administrador.'
+              : 'Introduce la dirección de tu subcuenta o entra desde el enlace que te compartieron.'}
+          </p>
         )}
 
         {tenants !== null && tenants.length > 0 && (

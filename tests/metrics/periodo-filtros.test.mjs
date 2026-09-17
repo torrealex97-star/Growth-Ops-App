@@ -121,7 +121,7 @@ test('Campañas deriva TODA la pantalla del mismo rango y guarda los filtros en 
   }
   // Y se leen al arrancar, validados: un enlace editado a mano no deja la pantalla en un estado
   // imposible.
-  assert.match(page, /readEnum\(urlFilters\.get\('period'\), PRESETS_VALIDOS, 'all'\)/)
+  assert.match(page, /readEnum\(urlFilters\.get\('period'\), PRESETS_VALIDOS, DEFAULT_PERIOD\)/)
   // "Desde el lanzamiento" usa la primera fecha con datos, no una inventada.
   assert.match(page, /launchDate/)
   assert.match(page, /getPeriodRange\(periodPreset, customFrom, customTo, \{ launchDate \}\)/)
