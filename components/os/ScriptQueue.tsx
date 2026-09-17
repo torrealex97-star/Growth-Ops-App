@@ -47,7 +47,10 @@ export const useScriptQueue = () => {
 }
 
 const CONCURRENCY = 2
-const LS_KEY = 'iaw_script_jobs'
+// La cola es POR SUBCUENTA: cada tenant tiene sus guiones y su estado. Sin el prefijo, la cola
+// de una subcuenta se recargaba en la siguiente al cambiar de cuenta (mismo navegador, mismo
+// localStorage) y un guion de Cliente A se ejecutaba en el contexto de Cliente B.
+const lsKeyFor = (tenant: string) => `tenant:${tenant}:iaw_script_jobs`
 
 export function ScriptQueueProvider({ children }: { children: React.ReactNode }) {
   const tenant = useTenant()
@@ -64,7 +67,7 @@ export function ScriptQueueProvider({ children }: { children: React.ReactNode })
     jobsRef.current = next
     setJobs(next)
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify(next))
+      localStorage.setItem(lsKeyFor(tenant), JSON.stringify(next))
     } catch {
       /* noop */
     }
@@ -152,8 +155,12 @@ export function ScriptQueueProvider({ children }: { children: React.ReactNode })
   // Reanuda lo que hubiera pendiente al montar (recarga / reapertura del navegador).
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(LS_KEY)
-      if (!raw) return
+      const raw = localStorage.getItem(lsKeyFor(tenant))
+      if (!raw) {
+        jobsRef.current = []
+        setJobs([])
+        return
+      }
       const parsed = JSON.parse(raw) as ScriptJob[]
       // Lo que se quedó a medias vuelve a la cola.
       const resumed = parsed.map((j) =>
@@ -165,8 +172,9 @@ export function ScriptQueueProvider({ children }: { children: React.ReactNode })
     } catch {
       /* noop */
     }
+    // Se re-ejecuta al cambiar de subcuenta: cada cuenta carga SU cola, nunca la de otra.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [tenant])
 
   const enqueue = (items: NewJob[]): number => {
     const active = new Set(jobsRef.current.filter((j) => j.status !== 'error').map((j) => j.cmId))

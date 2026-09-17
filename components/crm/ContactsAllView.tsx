@@ -138,7 +138,9 @@ const COLUMNS: { key: ColumnKey; label: string; group: string }[] = [
 ]
 
 const DEFAULT_COLS: ColumnKey[] = ['nombre', 'telefono', 'email', 'estado', 'canal', 'seguimiento', 'creado']
-const COLS_STORAGE_KEY = 'contacts_unified_cols'
+// Las columnas visibles son una preferencia POR SUBCUENTA: cada empresa tiene su propio flujo de
+// trabajo. Sin el prefijo, la configuración de una se aplicaba a todas al cambiar de cuenta.
+const colsKeyFor = (tenant: string) => `tenant:${tenant}:contacts_unified_cols`
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -230,21 +232,21 @@ export function ContactsAllView() {
   // Nuevo contacto
   const [newOpen, setNewOpen] = useState(false)
 
-  // Cargar columnas de localStorage
+  // Cargar columnas de localStorage — por subcuenta, se re-carga al cambiar de tenant
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(COLS_STORAGE_KEY)
+      const raw = localStorage.getItem(colsKeyFor(tenant))
       if (raw) {
         const parsed = JSON.parse(raw)
         if (Array.isArray(parsed) && parsed.length > 0) setVisibleCols(parsed)
       }
     } catch { /* ignore */ }
-  }, [])
+  }, [tenant])
 
   const toggleCol = (key: ColumnKey) => {
     setVisibleCols((prev) => {
       const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-      try { localStorage.setItem(COLS_STORAGE_KEY, JSON.stringify(next)) } catch { /* ignore */ }
+      try { localStorage.setItem(colsKeyFor(tenant), JSON.stringify(next)) } catch { /* ignore */ }
       return next
     })
   }
