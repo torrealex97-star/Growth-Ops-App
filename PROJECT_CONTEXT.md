@@ -68,53 +68,82 @@ Ver `.env.local.example` para la lista completa. Resumen:
 
 ---
 
-## 5. Estado actual (2026-09-17)
+## 5. Tracker de tareas
 
-### ✅ Funcionando (producción Vercel)
-- **Dashboard** con funnel, KPIs, gráfico 6 meses, ranking equipo, atribución leads
-- **CRM mejorado** (#62): drawer de agendas con nombre/email navegable, ficha de contacto con timeline completa (actividades + contratos), guardado con Deshacer
-- **Filtros de fecha unificados** (#64): `PeriodFilterBar` compartido con presets en español, calendario día/rango, responsive
-- **Métricas CRM unificadas** (#63): copy del embudo comercial consistente
-- **Pipeline Kanban** de seguimiento (leads reales de WDC)
-- **Selector de subcuentas** (Evergreen plantilla + Women Digital Closer)
-- **Login** con sesión (Alex Torre · Administrador)
-- **Sidebar completo**: CRM, Métricas, Ventas, Instagram, Alumnos, Finanzas, Morosidad...
-- **Agente de IA** MVP + fase 2 (chat flotante, tools de solo lectura, insights proactivos, memoria de negocio)
-- **Rebrand** a "Growth Ops" (#61 — eliminadas referencias IAWinners)
-- **Auditoría visual** del 15-sep implementada (funnel arriba, ConnectedFunnel compartido)
+### ✅ Completado
 
-### ⚠️ Conocido
-- **APIs server-side en 500** cuando faltan env vars server-side (local sin `vercel env pull`)
-  - Rutas afectadas: `suggestions`, `commissions/future`, `integrations`, `meta/spend-range`
-  - Causa: `SUPABASE_SERVICE_ROLE_KEY` no está en `.env.local` local
-  - En Vercel producción: funciona correctamente
-- **3 APIs responden con texto de auth en body** en vez de 401/redirect (ruta de error de `requireTenant`)
-- **Media BD vacía para WDC**: `sales` 0, `collections` 0, `campaigns` 0, `campaign_ads` 0 (backfill de Stripe pendiente de ejecutar por el usuario desde Integraciones)
-- **Meta token** de Instagram necesita reconexión con permisos de cuenta profesional
-- **Vercel CLI** instalado globalmente (v59.20.0), auth guardada en `~/.vercel/`
-- **Plan Vercel Hobby**: 3 crons activos; `analyze-calls` e `ai-insights` fuera de `vercel.json` (lanzar manualmente o vía pg_cron)
+| # | Tarea | PR/Commit | Fecha |
+|---|---|---|---|
+| 1 | Causa raíz y sistema de carga | `78602a8` | 09-14 |
+| 2 | Rol acotado a la subcuenta | `5d7577b`, `91dd890` | 09-14 |
+| 3 | Cascada de red: primeras 12 pantallas | `5d7577b`, `4679909` | 09-14 |
+| 4 | `request_id` en rutas server | `1303b6f` | 09-14 |
+| 5 | Limpieza con evidencia | `1303b6f`, `2045026` | 09-14 |
+| 6 | Capa de consulta con datos reales | `8efb0d2` | 09-14 |
+| 7 | KPI cards, brief y alertas | `2cae4e2` | 09-14 |
+| 8 | Agendas: respuestas del formulario | `eddd936` | 09-14 |
+| 9 | Atribución: propagar campaign/UTM | `4cf441a` | 09-14 |
+| 10 | Cascada de sesión en pantallas restantes | Solo layout resuelve `getUser()` | 09-14 |
+| 12 | Medir LCP / INP / CLS reales | Sentry, condicionado al DSN | 09-14 |
+| 16 | 49.1 Agregados puros | main | 09-14 |
+| 17 | 49.2 Lectura paginada/tenant | main | 09-14 |
+| 18 | 49.3 Puente a niveles/dimensiones/objetivos | main | 09-14 |
+| 19 | 49.4 Ruta `/metricas/brief` | main | 09-14 |
+| 20 | 49.5 Huecos declarados (3/4) | Speed to Lead, BAMFAM, concordancia | 09-15 |
+| 21 | 50.1 Cuello de botella + Business Health | `0ee2be7` | 09-14 |
+| 22 | 50.2 Objetivos, previsión y capacidad | `ec3b61f` | 09-14 |
+| 23 | 50.3 Alertas/notificaciones (parcial) | Motor + panel + Notif cerrados | 09-15 |
+| 24 | 50.4 Growth Brief inicial del agente | `8248749` | 09-14 |
+| — | Observabilidad de navegador + Sentry | error.tsx, WebVitalsReporter | 09-15 |
+| — | Cierre de cascada de sesión (17 pantallas) | `useSesion()` reutilizado | 09-15 |
+| — | Race condition de carga intermitente | AbortSignal en layout | 09-15 |
+| — | Contexto estratégico editable | Config → Datos de empresa | 09-15 |
+| — | Endurecimiento operativo + invitaciones | PR #54 | 09-15 |
+| — | Data Health cross-source + golden dataset | `lib/data-health/cross-source.ts` | 09-14 |
+| — | Stripe: diagnóstico + aviso pendientes | `StripePendientesAviso.tsx` | 09-14 |
+| — | Funnels visuales | `FunnelChart.tsx` + API | 09-14 |
+| — | Agente de IA MVP (fase 1) | PR #29 | 09-13 |
+| — | Agente de IA fase 2 (tools, insights, memoria) | PR #29 | 09-13 |
+| — | Gestión de socios recreada | PR #30 | 09-13 |
+| — | Auditoría RLS multi-tenant (cerrada) | SQL verificado | 09-13 |
+| — | Rebrand Growth Ops | PR #61 | 09-16 |
+| — | CRM UX: agendas + ficha contacto | PR #62 | 09-16 |
+| — | Métricas CRM unificadas | PR #63 | 09-16 |
+| — | Filtros de fecha unificados | PR #64 | 09-16 |
+| — | Hardening SQL: EXECUTE revocado | Migración + tests | 09-17 |
+| — | Limpieza duplicados (4 archivos " 2") | Freebuff | 09-17 |
+| — | PROJECT_CONTEXT.md multi-agente | PR #65 (este) | 09-17 |
 
-### 🔒 Seguridad (advisors Supabase)
-- **Hardening SQL completado**: migración revoca EXECUTE público de las 10 funciones SECURITY DEFINER
-- Protección de contraseñas filtradas desactivada (activar en Auth → Policies)
-- Multi-tenant RLS cerrado: 0 filas con `tenant_id` NULL en tablas core, aislamiento verificado por SQL
+### ❌ Pendiente
 
-### 🔒 Seguridad (advisors Supabase)
-- **Hardening SQL completado (2026-09-17)**: Migración `20260917100000_security_definer_execute_hardening.sql` revoca `EXECUTE` público y de `anon` de las 10 funciones `SECURITY DEFINER` (RLS helpers) y revoca `ALL` en funciones de trigger y RPCs no expuestas. Cubierto por suite `tests/security-definer-hardening.test.mjs`.
-- Protección de contraseñas filtradas desactivada (activar en Auth → Policies)
+| # | Tarea | Bloqueado por | Prioridad |
+|---|---|---|---|
+| 11 | `any` restantes → tipado seguro | Auditoría manual | Baja |
+| 13 | Decidir sobre 89% `use client` | Medir antes de migrar | Baja |
+| 14 | Contexto de negocio: contenido real | Usuario llena datos | Media |
+| 15 | Webhook Stripe + rotar Google Client Secret | Usuario en Vercel | Media |
+| 20.4 | LTGP:CAC | Necesita margen bruto real por cliente | Baja |
+| 23.4 | Anotaciones con fecha en gráficos | — | Baja |
+| — | **Backfill de Stripe** (WDC) | Usuario ejecuta desde Integraciones | **Alta** |
+| — | **Reconectar token Meta** (Instagram) | Usuario reconecta en Meta | **Alta** |
+| — | **Sincronizar env vars server-side** | `vercel env pull` | **Alta** |
+| — | **Activar protección contraseñas filtradas** | Auth → Policies en Supabase | Media |
+| — | Fiabilidad de APIs: estados de error honestos | — | Media |
+| — | Mover agregaciones a SQL (RPCs) | — | Media |
+| — | Panel "Puesta a punto" por tenant | — | Media |
+| — | Agente IA fase 3 (RAG/pgvector) | Embeddings provider | Baja |
+| — | Agente IA: smoke test real en navegador | Sesión admin/director | Media |
+| — | Crons `analyze-calls` e `ai-insights` en producción | Plan Hobby o pg_cron | Media |
+
+### 🐛 Conocido (no bloqueante)
+
+- APIs server-side en 500 local (falta `SUPABASE_SERVICE_ROLE_KEY`)
+- 3 APIs devuelven texto de auth en body en vez de 401
+- Media BD vacía para WDC (`sales` 0, `campaigns` 0, `campaign_ads` 0)
+- Plan Vercel Hobby: 3 crons, `maxDuration` 60s
+- Instagram: último sync falla con Meta `(#10) Application does not have permission`
 
 ---
-
-## 6. Próximos pasos (priorizados)
-
-1. **Sincronizar env vars completas** — `vercel env pull` para que las APIs server funcionen en local
-2. ✅ **Hardening SQL** — Revocado EXECUTE público de las 10 funciones SECURITY DEFINER
-3. **Backfill de Stripe** — Usuario ejecuta sync de clientes + backfill de ventas desde Integraciones (desbloquea agente IA + métricas financieras)
-4. **Reconectar token Meta** — Instagram no trae históricos (permisos de cuenta profesional pendientes)
-5. **Fiabilidad de APIs** — Estados de error honestos (distinguir "cero real" de "no pude cargar")
-6. **Mover agregaciones a SQL (RPC)** — Las vistas traen ~50K filas al navegador; RPCs de resumen en Postgres
-7. **Panel "Puesta a punto"** — Checklist de configuración por tenant (Meta Ads, objetivos, formularios)
-8. **Agente IA fase 3** — RAG/pgvector, Google Drive/Notion, Model Router multi-proveedor (requiere embeddings provider)
 
 ---
 
