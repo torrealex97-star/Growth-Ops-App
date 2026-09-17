@@ -1,7 +1,7 @@
 # Growth-Ops-App — Contexto del Proyecto
 
 > **Fuente única de verdad** para Claude Code, Codex y Freebuff. Lee este archivo primero.
-> Última actualización: 2026-09-17 (post dashboard redesign fases 1-5 + resilient funnel)
+> Última actualización: 2026-09-17 (post auditoría filtros fecha + contactos unificados)
 
 ---
 
@@ -119,6 +119,11 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | — | Dashboard: funnel dinámico reutilizable + filtros de atribución | `935a0bf` | 09-17 |
 | — | Nomenclatura unificada: Agendas/Asistencias/Cierres | `935a0bf` | 09-17 |
 | — | Endpoint funnel resiliente: try-catch por fuente individual | `6e84117` | 09-17 |
+| — | CRM: calendario más amplio, sin truncar badges | `7ee9ab4` | 09-17 |
+| — | AppointmentDetail: formulario grabación unificado (eliminado duplicado) | `cf6ade8` | 09-17 |
+| — | Contactos unificados: merges Leads VSL + Contactos, filtros GHL, column toggle | `a469b6b` | 09-17 |
+| — | Auditoría filtros de fecha: DEFAULT_PERIOD='month' en 16 páginas | `c98faea` | 09-17 |
+| — | Docs: AUDIT_DATE_FILTERS.md con inventario completo | `c98faea` | 09-17 |
 
 ### ❌ Pendiente
 
@@ -133,6 +138,8 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | — | **Backfill de Stripe** (WDC) | Usuario ejecuta desde Integraciones | **Alta** |
 | — | **Reconectar token Meta** (Instagram) | Usuario reconecta en Meta | **Alta** |
 | — | **Sincronizar env vars server-side** | `vercel env pull` | **Alta** |
+| — | **Auditoría: verificar queries filtran por columna correcta** | Fase 3 de auditoría | Alta |
+| — | **Auditoría: corregir dashboard bypass cuando period='all'** | Líneas 339/378 dashboard | Alta |
 | — | **Dashboard: pixel first-party + Data Health** | BD ya tiene tracking_sites | Alta |
 | — | **Dashboard: integraciones faltantes** (TikTok Ads/Org) | — | Media |
 | — | Dashboard: migrar agregaciones a SQL (RPCs) | — | Media |
@@ -212,8 +219,8 @@ Ver `.env.local.example` para la lista completa. Resumen:
 
 - **Remote:** `https://github.com/torrealex97-star/Growth-Ops-App.git`
 - **Branch principal:** `main`
-- **Último commit:** `6e84117` — "fix: funnel endpoint resilient to individual source failures"
-- **Historial reciente:** PRs #61-#64 + dashboard redesign fases 1-5 + resilient funnel — mantener flujo de PRs
+- **Último commit:** `c98faea` — "fix: unify all date filter defaults to 'Este mes' (DEFAULT_PERIOD)"
+- **Historial reciente:** PRs #61-#64 + dashboard redesign + contactos unificados + auditoría filtros fecha — mantener flujo de PRs
 - **Antes de push:** Ejecutar `npm run quality` completo
 - **Vercel:** Deploy automático al hacer push a `main` → `https://growth-ops-weld.vercel.app`
 
