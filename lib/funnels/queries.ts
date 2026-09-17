@@ -9,7 +9,7 @@ import { fetchAllRows } from '@/lib/supabase/paginate'
 import { ACTIVE_SALE_STATUSES } from '@/lib/analytics'
 import { type FunnelFamily, stagesOf } from '@/lib/funnels/definitions'
 import { type EventMap, namesFor } from '@/lib/funnels/event-map'
-import { fromCount, noConfigurada, type MetricValue } from '@/lib/funnels/types'
+import { errorFuente, fromCount, noConfigurada, type MetricValue } from '@/lib/funnels/types'
 
 export type DateRange = { from: string; to: string } // ISO, inclusivo por fecha
 
@@ -230,12 +230,95 @@ export async function loadFunnelCounts(
     }
     if (stage.source === 'vsl') {
       const names = namesFor(eventMap, family, stage.id)
-      counts[stage.id] =
-        names.length > 0 ? await vslStage(sb, tenantId, range, names) : noConfigurada('vsl', NOT_READY.vsl)
+      // Orden de resolución: 1) el mapeo explícito del usuario sobre canonical_events (contrato
+      // configurable, sin sorpresas); 2) si no hay mapeo, el tracking PROPIO de sesiones VSL
+      // (vsl_sessions), que existe desde antes del pipeline canónico y tiene datos reales cuando
+      // hay vídeos publicados. Sin ninguna de las dos, 'no_configurada' — nunca 0.
+      if (names.length > 0) {
+        counts[stage.id] = await vslStage(sb, tenantId, range, names)
+        continue
+      }
+      const sesion = await vslSessionStage(sb, tenantId, range, stage.id)
+      counts[stage.id] = sesion ?? noConfigurada('vsl', NOT_READY.vsl)
       continue
     }
     counts[stage.id] = noConfigurada(stage.source, NOT_READY[stage.source] ?? 'Fuente sin configurar.')
   }
 
   return { counts, inversion: meta?.inversion ?? null }
+}
+
+// ── Etapas de VSL desde vsl_sessions (tracking propio del player) ──────────
+//
+// Mapeo de etapas de las familias a columnas reales de vsl_sessions:
+//   visitas   → sesiones creadas en el rango (una sesión = una carga del player)
+//   registros → sesiones identificadas (lead_email) en el rango; para la familia webinar
+//               es lo más cercano a "registro" sin inventar una tabla nueva
+//
+// vsl_sessions usa Postgres directo con tenant_id explícito (mismo aviso que lib/vsl/db):
+// la consulta por rango usa created_at/updated_at con casting seguro. Devuelve null cuando
+// la tabla no existe todavía en algún entorno (migración pendiente): la etapa queda
+// 'no_configurada' con ese motivo, no un error rojo ni un 0.
+async function vslSessionStage(
+  sb: SupabaseClient,
+  tenantId: string,
+  range: DateRange,
+  stageId: string
+): Promise<MetricValue | null> {
+  // Supabase JS no expone vsl_sessions con columnas seguras vía REST tipado si RLS lo bloquea;
+  // el acceso real del módulo VSL es Postgres directo, y desde aquí lo canónico es la REST:
+  // si el rol del endpoint (service role) no puede leerla, es que la tabla no está expuesta,
+  // y eso se declara. countRows ya devuelve rows:null con el error — lo aprovechamos.
+  if (stageId !== 'visitas' && stageId !== 'registros') return null
+  const dateCol = stageId === 'visitas' ? 'created_at' : 'updated_at'
+  const extra = stageId === 'registros' ? { column: 'lead_email', neq: (null as unknown as string) } : undefined
+  const res = await countVslSessions(sb, tenantId, dateCol, range, extra)
+  return res
+}
+
+async function countVslSessions(
+  sb: SupabaseClient,
+  tenantId: string,
+  dateColumn: string,
+  range: DateRange,
+  extra?: { column: string; neq: string }
+): Promise<MetricValue> {
+  try {
+    // El builder de supabase-js con nombres de columna dinámicos satura la inferencia (TS2589).
+    // Solo se necesita el COUNT exacto: se construye el querystring a mano contra la REST, que es
+    // lo mismo que hace PostgREST por debajo, sin la magia de tipos. La validez de columnas la
+    // da el servidor; los errores se traducen abajo.
+    const restUrl = new URL(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/vsl_sessions`)
+    restUrl.searchParams.set('select', 'id')
+    restUrl.searchParams.set('tenant_id', `eq.${tenantId}`)
+    restUrl.searchParams.set(dateColumn, `gte.${range.from}`)
+    // Un solo gte no basta para acotar por ambos lados; PostgREST acepta dos filtros sobre la
+    // misma columna ANDados si van como parámetros separados. El 'lte' añade el segundo.
+    restUrl.searchParams.append(dateColumn, `lte.${range.to}`)
+    restUrl.searchParams.set('not.' + dateColumn, 'is.null')
+    if (extra) restUrl.searchParams.set('not.' + extra.column, 'is.null')
+    restUrl.searchParams.set('limit', '0')
+    const res = await fetch(restUrl, {
+      headers: {
+        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY!}`,
+        Prefer: 'count=exact',
+        Range: '0-0',
+      },
+      cache: 'no-store',
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      // 404/400 con "Could not find the table" → la tabla no está expuesta: no configurada.
+      if (/Could not find|does not exist|relation .* does not exist/i.test(body)) {
+        return noConfigurada('vsl', 'El tracking de sesiones VSL no está disponible en esta base todavía.')
+      }
+      return errorFuente('vsl', `vsl_sessions: HTTP ${res.status}`)
+    }
+    const cr = res.headers.get('content-range') // '*/N' con limit 0
+    const total = cr ? Number(cr.split('/')[1]) : null
+    return fromCount(Number.isFinite(total as number) ? (total as number) : null, 'vsl')
+  } catch (err) {
+    return errorFuente('vsl', err instanceof Error ? err.message : 'No se pudo leer vsl_sessions')
+  }
 }

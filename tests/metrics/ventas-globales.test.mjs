@@ -78,8 +78,12 @@ test('la pantalla separa lo global de lo atribuido a anuncios', () => {
   assert.match(page, /Todos los orígenes/)
   assert.match(
     page,
-    /buildSalesOverview\(agendasVisibles, ventasVisibles, contacts, origen, new Date\(\), fathomVisible\)/
+    /buildSalesOverview\(agendasVisibles, ventasVisibles, contacts, filtroEfectivo, new Date\(\), fathomVisible\)/
   )
+  // El filtro de atribución del dashboard se combina con el de origen y manda el efectivo:
+  // 'atribuidos' → 'ads', 'no_atribuidos' → 'organico', 'todos' → el origen tal cual.
+  assert.match(page, /if \(atribucion === 'atribuidos'\) return 'ads'/)
+  assert.match(page, /if \(atribucion === 'no_atribuidos'\) return 'organico'/)
   // Las llamadas de Fathom sin cita se leen de la cola de revisión, no de una tabla inventada.
   assert.match(page, /from\('fathom_match_review'\)/)
   assert.match(page, /\.eq\('status', 'pendiente'\)/)

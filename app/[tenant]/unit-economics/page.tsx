@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
+import { FunnelDinamico, type OpcionFunnel } from '@/components/os/FunnelDinamico'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { PieChart, Target, Users, TrendingUp, Wallet, Filter, MousePointerClick, Megaphone } from 'lucide-react'
 import { ACTIVE_SALE_STATUSES } from '@/lib/analytics'
@@ -22,6 +23,7 @@ import { useCuentasMetaActivas } from '@/lib/meta/use-cuentas-activas'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { getPeriodRange, inPeriod, type PeriodPreset, type PeriodRange } from '@/lib/filters/period'
 import { isCancelled } from '@/lib/unit-economics'
+import type { FunnelOperativo, FiltroAtribucion } from '@/lib/metrics/operativo'
 
 type CollectionRow = {
   gross_amount: number | string | null
@@ -67,6 +69,105 @@ function cuentaAtribucionLabel(f: FunnelOperativo, hayAnuncios: boolean): string
   if (f.cierres === 0) return 'sin cierres en el periodo'
   const pctAtrib = Math.round((f.atribuidos.cierres / f.cierres) * 100)
   return `${pctAtrib}% de cierres atribuidos a anuncios`
+}
+
+// PeriodRange guarda Date|null; la API de funnels quiere YYYY-MM-DD o nada.
+function rangoISO(d: Date | null): string | null {
+  if (!d) return null
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// FILTROS DE ATRIBUCIÓN — jerarquía limpia: lo principal visible (origen, atribución), lo
+// avanzado (canal, cuenta, campaña) bajo un <details>. Los filtros acotan lo que ya está en
+// pantalla; el funnel 'todos' sigue mostrando los totales del negocio porque su definición ES
+// "sin exigir atribución". Escojer "solo atribuidos" aquí acota las tarjetas y tablas de anuncios.
+function FiltrosAtribucion({
+  origen,
+  onOrigenChange,
+  atribucion,
+  onAtribucionChange,
+  avanzadosAbiertos,
+  onToggleAvanzados,
+}: {
+  origen: AttributionFilter
+  onOrigenChange: (v: AttributionFilter) => void
+  atribucion: FiltroAtribucion
+  onAtribucionChange: (v: FiltroAtribucion) => void
+  avanzadosAbiertos: boolean
+  onToggleAvanzados: () => void
+}) {
+  return (
+    <div className="dashboard-card p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
+          <Filter className="h-3.5 w-3.5" /> Origen
+        </span>
+        <div className="flex gap-1" role="group" aria-label="Origen de los leads">
+          {([
+            ['todos', 'Todos'],
+            ['ads', 'Solo anuncios'],
+            ['organico', 'Orgánico y directo'],
+          ] as const).map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => onOrigenChange(id)}
+              aria-pressed={origen === id}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                origen === id ? 'bg-brand-500 text-zinc-950' : 'bg-muted text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <span className="text-muted-foreground text-xs font-medium">Atribución</span>
+        <div className="flex gap-1" role="group" aria-label="Cobertura de atribución">
+          {([
+            ['todos', 'Todos'],
+            ['atribuidos', 'Atribuidos'],
+            ['no_atribuidos', 'No atribuidos'],
+          ] as const).map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => onAtribucionChange(id)}
+              aria-pressed={atribucion === id}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                atribucion === id ? 'bg-brand-500 text-zinc-950' : 'bg-muted text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={onToggleAvanzados}
+          aria-expanded={avanzadosAbiertos}
+          className="text-muted-foreground hover:text-foreground ml-auto text-xs underline underline-offset-2"
+        >
+          {avanzadosAbiertos ? 'Ocultar avanzados' : 'Filtros avanzados'}
+        </button>
+      </div>
+      {avanzadosAbiertos && (
+        <div className="border-border/60 text-muted-foreground mt-3 space-y-1 border-t pt-3 text-xs">
+          <p>
+            <span className="text-foreground font-medium">Canal y cuenta:</span> el canal lo determina el origen de
+            la campaña sincronizada (Meta Ads hoy; Google, Instagram y TikTok cuando su integración traiga datos) y
+            la cuenta se elige en el selector de Meta Ads de arriba.
+          </p>
+          <p>
+            <span className="text-foreground font-medium">Campaña:</span> se filtra en{' '}
+            <span className="text-foreground">Marketing › Campañas</span>, donde vive la tabla completa por campaña y
+            anuncio. Aquí se muestran los agregados, no la tabla.
+          </p>
+          <p>
+            <span className="text-foreground font-medium">Nota honesta:</span> hoy casi ningún contacto lleva
+            campaign_id (la tabla de atribución está vacía), así que "Atribuidos" puede mostrar 0 aunque los totales
+            del negocio no lo sean. No es un fallo de esta pantalla: es el estado real de la cobertura de datos.
+          </p>
+        </div>
+      )}
+    </div>
+  )
 }
 
 type MarketingFunnel = {
@@ -146,15 +247,6 @@ function buildMarketingFunnel(
 // hubiera 559 agendas y 27 ventas REALES. La ausencia de atribución NO significa
 // que el evento no haya ocurrido: los totales del negocio se cuentan del CRM
 // (contacts/appointments/sales), y la atribución se declara aparte, nunca mezclada.
-
-type FunnelOperativo = {
-  leads: number
-  agendas: number
-  asistencias: number
-  cierres: number
-  facturacion: number
-  atribuidos: { agendas: number; cierres: number; facturacion: number }
-}
 
 function buildFunnelOperativo(
   contacts: ContactRow[],
@@ -240,6 +332,11 @@ export default function UnitEconomicsPage() {
   // seleccionadas en Integraciones. NUNCA "todas las accesibles por el token": si el usuario
   // eligió A y C en Integraciones, B y D no existen para esta pantalla.
   const [cuentaSel, setCuentaSel] = useState<string>('todas')
+  // Filtros de atribución. 'todos' manda por defecto: los totales del negocio primero. El filtro
+  // de atribución acota a la parte DEMOSTRABLEMENTE atribuida o a la que falta atribuir, pero
+  // NUNCA redefin el total: "no atribuible" no es "no ocurrió".
+  const [atribucion, setAtribucion] = useState<FiltroAtribucion>('todos')
+  const [avanzadosAbiertos, setAvanzadosAbiertos] = useState(false)
 
   useEffect(() => {
     let mounted = true
@@ -375,11 +472,24 @@ export default function UnitEconomicsPage() {
 
   // REALIDAD OPERACIONAL: totales del CRM en el periodo, SIN exigir atribución. Es lo que el
   // negocio vivió de verdad. La parte atribuida a anuncios se declara aparte y nunca colapsa
-  // "no atribuible" a "0 eventos".
+  // "no atribuible" a "0 eventos". El funnel 'todos' del selector dinámico SIEMPRE recibe este
+  // total completo: es su definición. El filtro de atribución (atribucion) acota el resto de la
+  // página, no esta base.
   const funnelOperativo = useMemo(
     () => buildFunnelOperativo(contacts, appointments, sales, hayPeriodo, rango),
     [contacts, appointments, sales, hayPeriodo, rango]
   )
+  // El filtro de atribución NO recorta funnelOperativoBase (su definición es el total real);
+  // lo que hace es decidir qué vista de ventas se enseña debajo, junto con el filtro de origen.
+  // Se combinan en el filtro efectivo que ya entiende buildSalesOverview:
+  //   atribuidos + (todos|ads)  → 'ads'      (solo lo demostrablemente atribuido)
+  //   no_atribuidos             → 'organico' (lo que falta de atribuir)
+  //   todos                     → el origen tal cual
+  const filtroEfectivo: AttributionFilter = useMemo(() => {
+    if (atribucion === 'atribuidos') return 'ads'
+    if (atribucion === 'no_atribuidos') return 'organico'
+    return origen
+  }, [atribucion, origen])
 
   // Citas del periodo elegido, con el mismo rango que el resto de la pantalla.
   const agendasVisibles = useMemo(
@@ -391,8 +501,8 @@ export default function UnitEconomicsPage() {
     [fathomSueltas, hayPeriodo, rango]
   )
   const ventas = useMemo(
-    () => buildSalesOverview(agendasVisibles, ventasVisibles, contacts, origen, new Date(), fathomVisible),
-    [agendasVisibles, ventasVisibles, contacts, origen, fathomVisible]
+    () => buildSalesOverview(agendasVisibles, ventasVisibles, contacts, filtroEfectivo, new Date(), fathomVisible),
+    [agendasVisibles, ventasVisibles, contacts, filtroEfectivo, fathomVisible]
   )
 
   const hasData = campaignsVisibles.length > 0 || sales.length > 0 || appointments.length > 0
@@ -460,78 +570,50 @@ export default function UnitEconomicsPage() {
         }}
       />
 
-      {/* FUNNEL DEL NEGOCIO: realidad operacional primero, atribución aparte. */}
-      <section className="dashboard-card p-5 sm:p-6">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="font-display text-xl font-semibold">Embudo del negocio</h2>
-          <p className="text-xs text-muted-foreground">
-            Totales reales del CRM en el periodo · {cuentaAtribucionLabel(funnelOperativo, hasAdsData)}
-          </p>
-        </div>
-        <p className="mt-1 mb-5 text-sm text-muted-foreground">
-          Lo que ocurrió de verdad: leads capturados, agendas creadas, asistencias y cierres — con o sin anuncio
-          detrás. La ausencia de atribución no convierte un evento en cero.
-        </p>
-        <ConnectedFunnel
-          loading={loading}
-          stages={[
-            { label: 'Leads', value: funnelOperativo.leads },
-            { label: 'Agendas', value: funnelOperativo.agendas },
-            { label: 'Asistencias', value: funnelOperativo.asistencias },
-            { label: 'Cierres', value: funnelOperativo.cierres },
-          ].map((stage, index, stages) => ({
-            ...stage,
-            conversion: index > 0 ? safeDiv(stage.value * 100, stages[index - 1].value) : null,
-          }))}
-        />
-        {hasAdsData && (
-          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-            <div className="rounded-lg border border-border bg-muted/40 p-3">
-              <p className="text-muted-foreground">Agendas atribuidas a anuncios</p>
-              <p className="text-base font-semibold text-foreground mt-1">
-                {formatNumber(funnelOperativo.atribuidos.agendas)}
-                <span className="text-muted-foreground text-xs font-normal"> de {formatNumber(funnelOperativo.agendas)}</span>
-              </p>
-            </div>
-            <div className="rounded-lg border border-border bg-muted/40 p-3">
-              <p className="text-muted-foreground">Cierres atribuidos</p>
-              <p className="text-base font-semibold text-foreground mt-1">
-                {formatNumber(funnelOperativo.atribuidos.cierres)}
-                <span className="text-muted-foreground text-xs font-normal"> de {formatNumber(funnelOperativo.cierres)}</span>
-              </p>
-            </div>
-            <div className="rounded-lg border border-border bg-muted/40 p-3">
-              <p className="text-muted-foreground">Facturación atribuida</p>
-              <p className="text-base font-semibold text-foreground mt-1">
-                {formatCurrency(funnelOperativo.atribuidos.facturacion)}
-                <span className="text-muted-foreground text-xs font-normal"> de {formatCurrency(funnelOperativo.facturacion)}</span>
-              </p>
-            </div>
-          </div>
-        )}
-      </section>
+      {/* FILTRO DE ATRIBUCIÓN: principals visibles, avanzados bajo demanda. */}
+      <FiltrosAtribucion
+        origen={origen}
+        onOrigenChange={setOrigen}
+        atribucion={atribucion}
+        onAtribucionChange={setAtribucion}
+        avanzadosAbiertos={avanzadosAbiertos}
+        onToggleAvanzados={() => setAvanzadosAbiertos((v) => !v)}
+      />
 
-      {/* FUNNEL DE ANUNCIOS: solo la parte atribuible, con nomenclatura unificada. */}
-      <section className="dashboard-card p-5 sm:p-6">
-        <h2 className="font-display text-lg font-semibold">Embudo de anuncios</h2>
-        <p className="mt-1 mb-5 text-sm text-muted-foreground">
-          Solo lo atribuible a las campañas de Meta seleccionadas. Las conversiones que no pueden demostrarse
-          atribuidas están en el embudo del negocio, no aquí.
-        </p>
-        <ConnectedFunnel
-          loading={loading}
-          stages={[
-            { label: 'Impresiones', value: marketingFunnel.impressions },
-            { label: 'Clics', value: marketingFunnel.clicks },
-            { label: 'Leads', value: marketingFunnel.leads },
-            { label: 'Agendas', value: marketingFunnel.salesCallsBooked },
-            { label: 'Cierres', value: marketingFunnel.dealsClosed },
-          ].map((stage, index, stages) => ({
-            ...stage,
-            conversion: index > 0 ? safeDiv(stage.value * 100, stages[index - 1].value) : null,
-          }))}
-        />
-      </section>
+      {/* FUNNEL DINÁMICO: familia 'todos' = realidad operacional; las demás salen del motor lib/funnels. */}
+      <FunnelDinamico
+        tenant={tenant}
+        operativo={funnelOperativo}
+        loading={loading}
+        rango={{ from: rangoISO(rango.from), to: rangoISO(rango.to) }}
+      />
+
+      {/* ATRIBUCIÓN declarada aparte: nunca se resta del total del negocio. */}
+      {hasAdsData && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+          <div className="dashboard-card p-3">
+            <p className="text-muted-foreground">Agendas atribuidas a anuncios</p>
+            <p className="text-base font-semibold text-foreground mt-1">
+              {formatNumber(funnelOperativo.atribuidos.agendas)}
+              <span className="text-muted-foreground text-xs font-normal"> de {formatNumber(funnelOperativo.agendas)}</span>
+            </p>
+          </div>
+          <div className="dashboard-card p-3">
+            <p className="text-muted-foreground">Cierres atribuidos</p>
+            <p className="text-base font-semibold text-foreground mt-1">
+              {formatNumber(funnelOperativo.atribuidos.cierres)}
+              <span className="text-muted-foreground text-xs font-normal"> de {formatNumber(funnelOperativo.cierres)}</span>
+            </p>
+          </div>
+          <div className="dashboard-card p-3">
+            <p className="text-muted-foreground">Facturación atribuida</p>
+            <p className="text-base font-semibold text-foreground mt-1">
+              {formatCurrency(funnelOperativo.atribuidos.facturacion)}
+              <span className="text-muted-foreground text-xs font-normal"> de {formatCurrency(funnelOperativo.facturacion)}</span>
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Top cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -719,43 +801,43 @@ export default function UnitEconomicsPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard
-            title="% Click to Lead"
+            title="% Clic a lead"
             value={loading ? '—' : formatPercent(marketingFunnel.clickToLead)}
             loading={loading}
           />
           <KPICard
-            title="Sales calls booked"
+            title="Agendas atribuidas"
             value={loading ? '—' : formatNumber(marketingFunnel.salesCallsBooked)}
             icon={Users}
             loading={loading}
             description="Citas de contactos con campaña"
           />
           <KPICard
-            title="% Lead to Booked"
+            title="% Lead a agenda"
             value={loading ? '—' : formatPercent(marketingFunnel.leadToBooked)}
             loading={loading}
           />
           <KPICard
-            title="BSC cost"
+            title="Coste por agenda"
             value={loading ? '—' : marketingFunnel.bscCost !== null ? formatCurrency(marketingFunnel.bscCost) : '—'}
             loading={loading}
-            description="Coste por sales call agendada"
+            description="Gasto publicitario / agendas atribuidas"
           />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard
-            title="Deals closed"
+            title="Cierres atribuidos"
             value={loading ? '—' : formatNumber(marketingFunnel.dealsClosed)}
             icon={Target}
             loading={loading}
-            description="Ventas atribuidas a marketing"
+            description="Ventas de contactos con campaña"
           />
           <KPICard
-            title="% Convert LSC"
+            title="% Cierre sobre agendas"
             value={loading ? '—' : formatPercent(marketingFunnel.convertLsc)}
             loading={loading}
-            description="Closes / sales calls booked"
+            description="Cierres atribuidos / agendas atribuidas"
           />
           <KPICard
             title="ROAS"
@@ -766,10 +848,10 @@ export default function UnitEconomicsPage() {
             }
             icon={TrendingUp}
             loading={loading}
-            description="Gross de deals cerrados / adspend"
+            description="Facturación de cierres atribuidos / gasto"
           />
           <KPICard
-            title="Pipe value"
+            title="Valor de pipeline"
             value={loading ? '—' : marketingFunnel.pipeValue > 0 ? formatCurrency(marketingFunnel.pipeValue) : '—'}
             icon={Wallet}
             loading={loading}
