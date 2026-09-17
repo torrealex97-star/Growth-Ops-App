@@ -7,7 +7,7 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { AlertTriangle, CheckCircle2, Flag, FlagOff, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
-import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
+import { DEFAULT_PERIOD,  getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 import { useTenant } from '@/lib/tenant-context'
 
@@ -94,7 +94,7 @@ export function InstallmentsMorosidadView() {
   const [tab, setTab] = useState<TabKey>('vencidas')
   const [q, setQ] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
-  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all')
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>(DEFAULT_PERIOD)
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
 

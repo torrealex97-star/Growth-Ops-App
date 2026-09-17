@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 import type { KpiFormTemplate, KpiDailyReport } from '@/lib/types/database'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
-import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
+import { DEFAULT_PERIOD,  getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { buildAutoValues, autoFieldKeys } from '@/lib/kpi/auto'
 import { Sparkles } from 'lucide-react'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
@@ -40,7 +40,7 @@ export function KPIReportPanel() {
   const [autoFields, setAutoFields] = useState<Set<string>>(new Set())
   const [fullyAuto, setFullyAuto] = useState(false)
 
-  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all')
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>(DEFAULT_PERIOD)
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
   const [member, setMember] = useState<string>('all')

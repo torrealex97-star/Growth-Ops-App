@@ -23,6 +23,10 @@ export type PeriodPreset =
   | 'launch'
   | 'custom'
 
+/** Default global: TODAS las vistas abren en 'Este mes'. Si una vista tiene una razón funcional
+ * muy fuerte para otro default, documentarla aquí antes de cambiarla. */
+export const DEFAULT_PERIOD: PeriodPreset = 'month'
+
 export const PERIOD_LABELS: Record<PeriodPreset, string> = {
   all: 'Todo el periodo',
   today: 'Hoy',

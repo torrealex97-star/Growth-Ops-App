@@ -26,7 +26,7 @@ import {
 } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
-import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
+import { DEFAULT_PERIOD,  getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import type { Target } from '@/lib/types/database'
 import { CONTACTED_LEAD_STATUSES } from '@/lib/lead-status'
 import { isAttended, isNoShow } from '@/lib/appointments/status'
@@ -163,7 +163,7 @@ export default function PipelinePage() {
   const [usersWithRoles, setUsersWithRoles] = useState<UserWithRoleRow[]>([])
   const [targets, setTargets] = useState<Target[]>([])
   const [personId, setPersonId] = useState<string>('all')
-  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all')
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>(DEFAULT_PERIOD)
   const [customFrom, setCustomFrom] = useState<string>('')
   const [customTo, setCustomTo] = useState<string>('')
 

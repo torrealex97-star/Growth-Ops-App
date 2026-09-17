@@ -6,7 +6,7 @@ import { activeUserNamesQuery } from '@/lib/users'
 import { CalendarCheck, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
-import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
+import { DEFAULT_PERIOD,  getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { useSesion } from '@/lib/tenant-context'
 
@@ -56,7 +56,7 @@ export default function CsmEventsPage() {
   const [loading, setLoading] = useState(true)
   const [showNew, setShowNew] = useState(false)
   const [ne, setNe] = useState({ contact_id: '', csm_id: '', type: 'onboarding', event_datetime: '', notes: '' })
-  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all')
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>(DEFAULT_PERIOD)
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
 

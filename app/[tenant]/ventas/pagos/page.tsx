@@ -15,8 +15,8 @@ import { toast } from 'sonner'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 import type { SaleWithRelations, Collection, SaleExpectedInstallment } from '@/lib/types/database'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
-import { getCustomDateRange } from '@/lib/filters/period'
-import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
+import { DEFAULT_PERIOD,  getCustomDateRange } from '@/lib/filters/period'
+import {  getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
 import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
 
 function csvEscape(value: string): string {
@@ -84,7 +84,7 @@ export default function PaymentsPipelinePage() {
   const [lastNoteBySale, setLastNoteBySale] = useState<Map<string, { note: string; created_at: string }>>(new Map())
   const [loading, setLoading] = useState(true)
 
-  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all')
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>(DEFAULT_PERIOD)
   const [customFrom, setCustomFrom] = useState<string>('')
   const [customTo, setCustomTo] = useState<string>('')
   const [q, setQ] = useState('')
