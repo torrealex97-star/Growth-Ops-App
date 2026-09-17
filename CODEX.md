@@ -1,4 +1,4 @@
-# Claude Code — Growth-Ops-App
+# Codex — Growth-Ops-App
 
 Lee `PROJECT_CONTEXT.md` en la raíz del repo para el estado completo del proyecto.
 
