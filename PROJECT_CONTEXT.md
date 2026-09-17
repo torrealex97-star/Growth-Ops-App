@@ -133,6 +133,7 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | — | **Pixel first-party Fase C**: POST /api/track/[site] (public_key + origin allowlist + rate limit + raw→canónico), SDK /tracker.js, sites API, panel en Data Health con datos reales | `75ea934` | 09-17 |
 | — | Dashboard: elimina bypass duplicado de period='all' (inPeriod ya cubre rango abierto) | `75ea934` | 09-17 |
 | — | Security: migración hardening EXECUTE de 10 helpers SECURITY DEFINER + 4 triggers + 2 utilidades (advisor Supabase) | `c3ca9e8` | 09-17 |
+| — | **Hardening APLICADO en producción** (28 sentencias DCL) + fix: GRANT service_role en RPCs de webhooks; verificado — RPC anon de `is_super_admin` → 401; advisor sin funciones para `anon`. **Aviso advisor restante:** leaked password protection (activar en Auth → Policies) y WARN intencional de helpers `authenticated` | `319c385` | 09-17 |
 
 ### ❌ Pendiente
 
@@ -146,9 +147,10 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | 23.4 | Anotaciones con fecha en gráficos | — | Baja |
 | — | **Backfill de Stripe** (WDC) | Usuario ejecuta desde Integraciones | **Alta** |
 | — | **Reconectar token Meta** (Instagram) | Usuario reconecta en Meta | **Alta** |
-| — | **Sincronizar env vars server-side** | `vercel env pull` | **Alta** |
+| — | **Sincronizar env vars server-side** | `vercel env pull` hecho; los 11 valores **Secret** de Vercel no se pueden descargar → rellenar a mano (Supabase Settings → API) | Media |
+| — | **Pixel: crear primer site en producción** | Alta de site y snippet en la web real (la BD y las APIs están listas) | **Alta** |
 | — | **Auditoría: verificar queries filtran por columna correcta** | Fase 3 de auditoría | Alta |
-| — | **Pixel: aplicar hardening + crear primer site en producción** | Ejecutar migración c3ca9e8 en Supabase prod; alta de site y snippet en la web real | **Alta** |
+| — | **Pixel: aplicar hardening + crear primer site en producción** ~~aplicar hardening~~ | ~~Ejecutar migración c3ca9e8 en Supabase prod~~ HECHO (319c385); falta alta de site y snippet en la web real | **Alta** |
 | — | **Multitenant: Agency Home + switcher robusto** | UX definida, falta implementar | Alta |
 | — | **Multitenant: bloquear subcuenta archivada** (crons, logins, syncs) | RLS ya filtra, falta gate activo | Alta |
 | — | **Multitenant: constraint FK cross-tenant** campaign↔ad_account | Riesgo de FK entre tenants | Media |
