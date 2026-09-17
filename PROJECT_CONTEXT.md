@@ -132,6 +132,8 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | — | Responsive CRM: switchers con wrap, tabla de agendas con scroll horizontal | `1b7c017` | 09-17 |
 | — | **Pixel first-party Fase C**: POST /api/track/[site] (public_key + origin allowlist + rate limit + raw→canónico), SDK /tracker.js, sites API, panel en Data Health con datos reales | `75ea934` | 09-17 |
 | — | Dashboard: elimina bypass duplicado de period='all' (inPeriod ya cubre rango abierto) | `75ea934` | 09-17 |
+| — | **Deploy producción roto desde PR #51** (9 crons > límite 2 de Hobby, 20 deploys seguidos en error) → reducido a 2 (meta-ads + reminders) | `72f4ec0` | 09-17 |
+| — | Fix lint de build: comillas sin escapar en unit-economics (react/no-unescaped-entities) | `e41393c` | 09-17 |
 | — | Security: migración hardening EXECUTE de 10 helpers SECURITY DEFINER + 4 triggers + 2 utilidades (advisor Supabase) | `c3ca9e8` | 09-17 |
 | — | **Hardening APLICADO en producción** (28 sentencias DCL) + fix: GRANT service_role en RPCs de webhooks; verificado — RPC anon de `is_super_admin` → 401; advisor sin funciones para `anon`. **Aviso advisor restante:** leaked password protection (activar en Auth → Policies) y WARN intencional de helpers `authenticated` | `319c385` | 09-17 |
 
@@ -162,7 +164,7 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | — | Panel "Puesta a punto" por tenant | — | Media |
 | — | Agente IA fase 3 (RAG/pgvector) | Embeddings provider | Baja |
 | — | Agente IA: smoke test real en navegador | Sesión admin/director | Media |
-| — | Crons `analyze-calls` e `ai-insights` en producción | Plan Hobby o pg_cron | Media |
+| — | **Ejecutar los 7 crons retirados de vercel.json** (monthly, sequra-morosos, analyze-calls, ai-insights, meta, meta-daily, instagram) | GitHub Actions / pg_cron / worker externo — Vercel Hobby solo permite 2 | **Alta** |
 
 ### 🐛 Conocido (no bloqueante)
 
@@ -232,8 +234,8 @@ Ver `.env.local.example` para la lista completa. Resumen:
 
 - **Remote:** `https://github.com/torrealex97-star/Growth-Ops-App.git`
 - **Branch principal:** `main`
-- **Último commit:** `c3ca9e8` — "security: revoca EXECUTE publico de funciones SECURITY DEFINER y triggers (advisor Supabase)"
-- **Historial reciente:** hardening EXECUTE (c3ca9e8) + pixel first-party Fase C (75ea934) + auditoría multitenant (09dc33b) + bugs campañas/filtro (d6dce41) + calendario agendas (b4b44df) + responsive/500 (1b7c017)
+- **Último commit:** `72f4ec0` — "fix: reduce crons de vercel.json a 2 (limite del plan Hobby) que rompia todos los deploys de produccion desde el PR 51"
+- **Historial reciente:** fix crons Hobby (72f4ec0) + fix lint build (e41393c) + hardening aplicado (319c385) + pixel first-party (75ea934) + auditoría multitenant (09dc33b) + calendario agendas (b4b44df)
 - **Antes de push:** Ejecutar `npm run quality` completo
 - **Vercel:** Deploy automático al hacer push a `main` → `https://growth-ops-weld.vercel.app`
 
