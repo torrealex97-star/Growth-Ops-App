@@ -1192,7 +1192,7 @@ export default function AppointmentsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Agendas</h1>
           <p className="text-muted-foreground text-sm mt-1">Todas las citas y reuniones</p>
@@ -1204,7 +1204,7 @@ export default function AppointmentsPage() {
       </div>
 
       {/* View switcher */}
-      <div className="inline-flex items-center gap-1 bg-card border border-border rounded-lg p-1">
+      <div className="flex flex-wrap items-center gap-1 bg-card border border-border rounded-lg p-1 w-fit max-w-full">
         <button
           onClick={() => setView('tabla')}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
@@ -1376,7 +1376,7 @@ export default function AppointmentsPage() {
               ))}
             </div>
           ) : (
-            <div className="rounded-lg border border-border overflow-hidden">
+            <div className="rounded-lg border border-border overflow-x-auto">
               <Table>
                 <TableHeader>
                   {table.getHeaderGroups().map((hg) => (

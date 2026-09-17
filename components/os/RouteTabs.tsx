@@ -23,7 +23,7 @@ export interface RouteTab {
 // buscador ⌘K puede llevar directo a ella.
 export function RouteTabs({ tabs, relPathname }: { tabs: RouteTab[]; relPathname: string }) {
   return (
-    <div className="inline-flex items-center gap-1 rounded-lg bg-muted p-1 text-muted-foreground">
+    <div className="flex flex-wrap items-center gap-1 rounded-lg bg-muted p-1 text-muted-foreground w-fit max-w-full">
       {tabs.map((t) => {
         const active = t.exact
           ? relPathname === t.match
