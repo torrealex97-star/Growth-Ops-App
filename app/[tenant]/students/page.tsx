@@ -6,7 +6,7 @@ import { GraduationCap, ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
-import { getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
+import { DEFAULT_PERIOD,  getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { useTenant } from '@/lib/tenant-context'
 import { StripePendientesAviso } from '@/components/os/StripePendientesAviso'
@@ -205,7 +205,7 @@ export default function StudentsPage() {
   const [onbView, setOnbView] = useState<OnbView>('all')
   const [q, setQ] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all')
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>(DEFAULT_PERIOD)
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
 

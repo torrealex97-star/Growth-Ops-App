@@ -139,7 +139,7 @@ test('el dashboard parte de 30 días y el gasto respeta las cuentas Meta activas
     'utf8'
   )
 
-  assert.match(dashboard, /periodPreset: '30d'/)
+  assert.match(dashboard, /periodPreset: DEFAULT_PERIOD/)
   assert.match(dashboard, /const periodRevenue = useMemo/)
   assert.match(dashboard, /filteredSales\.filter\(isActiveSale\)/)
   assert.doesNotMatch(dashboard, /revenue=\{cur\.gross\}/)

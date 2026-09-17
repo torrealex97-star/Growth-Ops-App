@@ -10,8 +10,8 @@ import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { getCustomDateRange } from '@/lib/filters/period'
-import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
+import { DEFAULT_PERIOD,  getCustomDateRange } from '@/lib/filters/period'
+import {  getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
 import { useSesion } from '@/lib/tenant-context'
 import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
 
@@ -120,7 +120,7 @@ export default function DropsPage() {
   })
 
   // Periodo
-  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all')
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>(DEFAULT_PERIOD)
   const [customFrom, setCustomFrom] = useState<string>('')
   const [customTo, setCustomTo] = useState<string>('')
   const [q, setQ] = useState('')

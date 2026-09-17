@@ -21,7 +21,7 @@ import {
 import { useTenant } from '@/lib/tenant-context'
 import { useCuentasMetaActivas } from '@/lib/meta/use-cuentas-activas'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
-import { getPeriodRange, inPeriod, type PeriodPreset, type PeriodRange } from '@/lib/filters/period'
+import { DEFAULT_PERIOD,  getPeriodRange, inPeriod, type PeriodPreset, type PeriodRange } from '@/lib/filters/period'
 import { isCancelled } from '@/lib/unit-economics'
 import type { FunnelOperativo, FiltroAtribucion } from '@/lib/metrics/operativo'
 
@@ -316,7 +316,7 @@ export default function UnitEconomicsPage() {
   // De dónde vienen los datos del bloque global. Es un FILTRO, no una condición de entrada: por
   // defecto se ve todo, venga de ads, de la web o de recomendación.
   const [origen, setOrigen] = useState<AttributionFilter>('todos')
-  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all')
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>(DEFAULT_PERIOD)
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
   const [loading, setLoading] = useState(true)

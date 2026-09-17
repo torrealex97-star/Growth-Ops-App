@@ -48,7 +48,7 @@ import type { AppointmentWithRelations, AppointmentStatus, User, Contact, Sale }
 import { guessContactTimezone, DEFAULT_TIMEZONE, TIMEZONE_OPTIONS } from '@/lib/timezone'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
-import { getPeriodRange, getPreviousPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
+import { DEFAULT_PERIOD,  getPeriodRange, getPreviousPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 import {
   CATEGORY_BADGE_CLASSES,
@@ -760,7 +760,7 @@ export default function AppointmentsPage() {
 
   // Periodo de la vista "Métricas": permite comparar el tramo elegido con el inmediatamente
   // anterior de igual duración (mes vs mes pasado, día vs día pasado...) para tener referencia.
-  const [metricsPeriodPreset, setMetricsPeriodPreset] = useState<PeriodPreset>('all')
+  const [metricsPeriodPreset, setMetricsPeriodPreset] = useState<PeriodPreset>(DEFAULT_PERIOD)
   const [metricsCustomFrom, setMetricsCustomFrom] = useState('')
   const [metricsCustomTo, setMetricsCustomTo] = useState('')
   const metricsRange = useMemo(
