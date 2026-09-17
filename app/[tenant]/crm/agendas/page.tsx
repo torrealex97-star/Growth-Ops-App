@@ -673,8 +673,12 @@ export default function AppointmentsPage() {
       if (dayIdx === -1) continue
       const minutesFromStart = (dt.getHours() - firstHour) * 60 + dt.getMinutes()
       const durationMinutes = appt.duration_minutes ?? 60
-      const top = (minutesFromStart / 60) * pxPerHour
-      const height = Math.max((durationMinutes / 60) * pxPerHour, 20)
+      // Clamp al contenedor del grid: una cita fuera del rango visible (p.ej. 07:30 cuando la
+      // rejilla empieza a las 08:00) recibía top negativo o mayor que la altura y se pintaba
+      // fuera de su columna, por encima de la cabecera o de la fila siguiente.
+      const gridHeight = pxPerHour * CALENDAR_HOURS.length
+      const top = Math.min(Math.max((minutesFromStart / 60) * pxPerHour, 0), gridHeight - 20)
+      const height = Math.min(Math.max((durationMinutes / 60) * pxPerHour, 20), gridHeight - top)
       const arr = grid.get(dayIdx) ?? []
       arr.push({ appt, top, height, colIndex: 0, colCount: 1 })
       grid.set(dayIdx, arr)
@@ -1669,6 +1673,11 @@ export default function AppointmentsPage() {
                         const category = getAppointmentCategory(appt.status, hasPurchased(appt))
                         const isCancelled = category === 'cancelada'
                         const draggable = !isCancelled && canDragAppointment(appt)
+                        // Contenido adaptativo a la altura real del bloque: el formato completo ocupa
+                        // ~76px, así que en semana (52px/h) una card de 60 min no cabe y sus líneas
+                        // se salían tapando la cita de abajo. xs = 1 línea, sm = 2 líneas, full = todo.
+                        // La categoría la sigue comunicando el color del bloque y el tooltip.
+                        const tier = height < 46 ? 'xs' : height < 84 ? 'sm' : 'full'
                         return (
                           <button
                             key={appt.id}
@@ -1686,49 +1695,65 @@ export default function AppointmentsPage() {
                               setSelectedAppointment(appt)
                               setSheetOpen(true)
                             }}
-                            title={`${new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit' }).format(new Date(appt.appointment_datetime))} · ${appt.contacts?.full_name || '—'} · Closer: ${appt.closer?.full_name || 'Sin closer'}`}
+                            title={`${new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit' }).format(new Date(appt.appointment_datetime))} · ${appt.contacts?.full_name || '—'} · Closer: ${appt.closer?.full_name || 'Sin closer'} · ${CATEGORY_LABELS[category]}`}
                             style={{
                               top: `${top}px`,
                               height: `${height}px`,
                               left: `calc(${(colIndex / colCount) * 100}% + 2px)`,
                               width: `calc(${(1 / colCount) * 100}% - 4px)`,
                             }}
-                            className={`absolute text-left border rounded px-2 py-1.5 transition-colors ${
+                            className={`absolute text-left border rounded overflow-hidden transition-colors ${
+                              tier === 'xs' ? 'px-2 py-0.5' : tier === 'sm' ? 'px-2 py-1' : 'px-2 py-1.5'
+                            } ${
                               draggable ? 'cursor-grab active:cursor-grabbing' : ''
                             } ${CATEGORY_BLOCK_CLASSES[category]} ${isCancelled ? 'z-10' : 'z-20'} ${appt.needs_followup ? 'ring-2 ring-indigo-400/70' : ''}`}
                           >
-                            <p className="text-[11px] text-foreground truncate flex items-center gap-1">
-                              {category === 'compra' && (
-                                <Banknote className="w-3 h-3 text-green-400 shrink-0" aria-label="Venta" />
-                              )}
-                              {new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit' }).format(
-                                new Date(appt.appointment_datetime)
-                              )}{' '}
-                              {appt.contacts?.full_name || '—'}
-                            </p>
-                            <p className="text-[10px] text-brand-300 truncate flex items-center gap-1">
-                              <span
-                                className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${closerColorClass(appt.closer_id)}`}
-                              />
-                              {appt.closer?.full_name || 'Sin closer'}
-                            </p>
-                            {appt.setter?.full_name && (
-                              <p className="text-[9px] text-muted-foreground truncate">{appt.setter.full_name}</p>
-                            )}
-                            <div className="flex items-center gap-1 flex-wrap mt-1">
-                              <Badge className={`border text-[10px] gap-1 whitespace-nowrap ${CATEGORY_BADGE_CLASSES[category]}`}>
-                                {category === 'compra' && <Banknote className="w-3 h-3" />}
-                                {CATEGORY_LABELS[category]}
-                              </Badge>
-                              {appt.needs_followup ? (
-                                <Badge className="border text-[10px] bg-indigo-500/20 text-indigo-300 border-indigo-500/30 whitespace-nowrap">
-                                  Seguimiento
-                                </Badge>
-                              ) : null}
-                              {appt.duration_minutes ? (
-                                <span className="text-[10px] text-muted-foreground whitespace-nowrap">{appt.duration_minutes} min</span>
-                              ) : null}
-                            </div>
+                            {tier !== 'full' ? (
+                              <p className="text-[11px] leading-none text-foreground truncate flex items-center gap-1">
+                                {category === 'compra' && (
+                                  <Banknote className="w-3 h-3 text-green-400 shrink-0" aria-label="Venta" />
+                                )}
+                                {new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit' }).format(
+                                  new Date(appt.appointment_datetime)
+                                )}{' '}
+                                {appt.contacts?.full_name || '—'}
+                                {tier === 'xs' && (
+                                  <span
+                                    className={`inline-block w-2 h-2 rounded-full shrink-0 ml-auto ${closerColorClass(appt.closer_id)}`}
+                                    title={appt.closer?.full_name || 'Sin closer'}
+                                  />
+                                )}
+                              </p>
+                            ) : null}
+                            {tier !== 'xs' ? (
+                              <p className="text-[10px] text-brand-300 truncate flex items-center gap-1">
+                                <span
+                                  className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${closerColorClass(appt.closer_id)}`}
+                                />
+                                {appt.closer?.full_name || 'Sin closer'}
+                              </p>
+                            ) : null}
+                            {tier === 'full' ? (
+                              <>
+                                {appt.setter?.full_name && (
+                                  <p className="text-[10px] text-muted-foreground truncate">{appt.setter.full_name}</p>
+                                )}
+                                <div className="flex items-center gap-1 flex-wrap mt-1">
+                                  <Badge className={`border text-[10px] gap-1 whitespace-nowrap ${CATEGORY_BADGE_CLASSES[category]}`}>
+                                    {category === 'compra' && <Banknote className="w-3 h-3" />}
+                                    {CATEGORY_LABELS[category]}
+                                  </Badge>
+                                  {appt.needs_followup ? (
+                                    <Badge className="border text-[10px] bg-indigo-500/20 text-indigo-300 border-indigo-500/30 whitespace-nowrap">
+                                      Seguimiento
+                                    </Badge>
+                                  ) : null}
+                                  {appt.duration_minutes ? (
+                                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">{appt.duration_minutes} min</span>
+                                  ) : null}
+                                </div>
+                              </>
+                            ) : null}
                           </button>
                         )
                       })}
