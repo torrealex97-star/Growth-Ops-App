@@ -161,7 +161,7 @@ function FiltrosAtribucion({
           </p>
           <p>
             <span className="text-foreground font-medium">Nota honesta:</span> hoy casi ningún contacto lleva
-            campaign_id (la tabla de atribución está vacía), así que "Atribuidos" puede mostrar 0 aunque los totales
+            campaign_id (la tabla de atribución está vacía), así que «Atribuidos» puede mostrar 0 aunque los totales
             del negocio no lo sean. No es un fallo de esta pantalla: es el estado real de la cobertura de datos.
           </p>
         </div>
