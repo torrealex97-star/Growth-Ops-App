@@ -110,13 +110,15 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
   }
 
   // Tenant switcher: solo para super_admin. RLS en `tenants` devuelve todas
-  // las subcuentas cuando is_super_admin() es true.
+  // las subcuentas cuando is_super_admin() es true. Las ARCHIVADAS no se
+  // listan: navegar a su URL acabaría en 404 (el layout las bloquea) y en el
+  // selector solo confundirían; se administran desde Configuración › Subcuentas.
   useEffect(() => {
     if (!isSuperAdmin) return
     let active = true
     ;(async () => {
       const sb = createClient()
-      const { data } = await sb.from('tenants').select('slug, name').order('name')
+      const { data } = await sb.from('tenants').select('slug, name').neq('status', 'archived').order('name')
       if (active) setTenants((data as TenantOption[]) ?? [])
     })()
     return () => {

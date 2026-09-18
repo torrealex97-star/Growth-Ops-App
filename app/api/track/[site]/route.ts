@@ -109,10 +109,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY no configurada en este entorno' }, { status: 500 })
 
   // 1) Resolver site+tenant por la clave pública (única global por diseño de la migración).
+  // La subcuenta dueña del site debe estar ACTIVA: una subcuenta archivada/suspendida no sigue
+  // recogiendo eventos (su pixel deja de responder con 409, igual que un site con tracking off).
   const { data: site } = await sb
     .from('tracking_sites')
-    .select('id, tenant_id, slug, allowed_origins, allow_localhost, tracking_enabled, rate_limit_per_minute')
+    .select(
+      'id, tenant_id, slug, allowed_origins, allow_localhost, tracking_enabled, rate_limit_per_minute, tenants!inner(status)'
+    )
     .eq('public_key', publicKey)
+    .eq('tenants.status', 'active')
     .maybeSingle()
   if (!site) return NextResponse.json({ error: 'Site desconocido' }, { status: 404 })
   if (!site.tracking_enabled) return NextResponse.json({ error: 'Tracking desactivado' }, { status: 409 })

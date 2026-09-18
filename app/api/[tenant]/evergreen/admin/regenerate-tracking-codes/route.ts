@@ -29,7 +29,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
       }
     } else {
-      const { data: tenantRow } = await sb.from('tenants').select('id').eq('slug', tenant).maybeSingle()
+      // El camino sin sesión (CRON_SECRET) tampoco debe regenerar códigos de una subcuenta que ya
+      // no está activa: sus sites quedan congelados tal como estaban.
+      const { data: tenantRow } = await sb
+        .from('tenants')
+        .select('id')
+        .eq('slug', tenant)
+        .eq('status', 'active')
+        .maybeSingle()
       if (!tenantRow) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
       tenantId = tenantRow.id
     }

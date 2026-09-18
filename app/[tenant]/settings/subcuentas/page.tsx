@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
   AlertTriangle,
+  Archive,
+  ArchiveRestore,
   ArrowLeft,
   Building2,
   CheckCircle2,
@@ -53,6 +55,11 @@ export default function SubcuentasPage() {
   const [working, setWorking] = useState<string | null>(null)
   const [opResult, setOpResult] = useState<{ tenantId: string; ok: boolean; text: string } | null>(null)
   const [invite, setInvite] = useState<Record<string, { email: string; role: string }>>({})
+  // Archivado: diálogo de confirmación en 2 pasos (impacto → escribir el nombre). El estado del
+  // diálogo vive aparte del resultado de la operación para que cerrar el diálogo no borre el aviso.
+  const [archivando, setArchivando] = useState<Readiness | null>(null)
+  const [confirmacion, setConfirmacion] = useState('')
+  const [impactoLeido, setImpactoLeido] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -106,6 +113,21 @@ export default function SubcuentasPage() {
     }
   }
 
+  // Confirmar el archivado desde el diálogo (paso 2): manda confirmar + nombre al servidor, que
+  // vuelve a verificar AMBOS — la UI puede quedar desincronizada, el servidor no.
+  async function confirmarArchivado() {
+    if (!archivando) return
+    const objetivo = archivando
+    setArchivando(null)
+    await patch(
+      objetivo.id,
+      { action: 'archivar', confirmar: true, nombre: confirmacion.trim() },
+      `"${objetivo.brandName || objetivo.name}" archivada. Sus datos se conservan; se puede restaurar desde aquí.`
+    )
+    setConfirmacion('')
+    setImpactoLeido(false)
+  }
+
   async function patch(tenantId: string, body: Record<string, unknown>, exito: string) {
     setWorking(tenantId)
     setOpResult(null)
@@ -128,6 +150,10 @@ export default function SubcuentasPage() {
       setWorking(null)
     }
   }
+
+  // El diálogo de archivado (paso 2) se pinta condicionalmente, fuera del bucle de tarjetas.
+  const activas = data?.tenants.filter((t) => t.status !== 'archived') ?? []
+  const archivadas = data?.tenants.filter((t) => t.status === 'archived') ?? []
 
   return (
     <div className="space-y-6">
@@ -232,7 +258,47 @@ export default function SubcuentasPage() {
         </div>
       ) : !data ? null : (
         <div className="space-y-3">
-          {data.tenants.map((t) => (
+          {/* Archivadas PRIMERO, para que una subcuenta cerrada no quede enterrada en la lista. */}
+          {archivadas.length > 0 ? (
+            <div className="space-y-2">
+              <h2 className="text-muted-foreground flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
+                <Archive className="h-3.5 w-3.5" /> Archivadas ({archivadas.length})
+              </h2>
+              {archivadas.map((t) => (
+                <article
+                  key={t.id}
+                  className="border-border/60 bg-card/60 rounded-xl border border-dashed p-4 opacity-80"
+                >
+                  <header className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
+                      <Archive className="h-4 w-4" />
+                      {t.brandName || t.name}
+                      <code className="font-normal">/{t.slug}</code>
+                      <span className="text-amber-400">· archivada</span>
+                    </div>
+                    <button
+                      onClick={() =>
+                        void patch(
+                          t.id,
+                          { action: 'restaurar' },
+                          `"${t.brandName || t.name}" restaurada. Vuelve a estar activa.`
+                        )
+                      }
+                      disabled={working === t.id}
+                      className="text-muted-foreground hover:text-emerald-400 inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-xs disabled:opacity-50"
+                    >
+                      <ArchiveRestore className="h-3.5 w-3.5" /> Restaurar
+                    </button>
+                  </header>
+                  <p className="text-muted-foreground mt-2 text-xs">
+                    Datos conservados ({t.counts.miembros} miembros · {t.counts.productos} productos · {t.counts.planes}{' '}
+                    planes). Bloqueada para login, API, webhooks y crons hasta restaurarla.
+                  </p>
+                </article>
+              ))}
+            </div>
+          ) : null}
+          {activas.map((t) => (
             <article key={t.id} className="border-border bg-card rounded-xl border p-4">
               <header className="flex flex-wrap items-center justify-between gap-2">
                 <div className="text-foreground flex items-center gap-2 text-sm font-medium">
@@ -329,18 +395,36 @@ export default function SubcuentasPage() {
                     <UserPlus className="h-3.5 w-3.5" /> Dar acceso
                   </button>
                   {t.status === 'active' ? (
-                    <button
-                      onClick={() => void patch(t.id, { action: 'suspender' }, 'Subcuenta suspendida.')}
-                      disabled={working === t.id || t.id === data.yourTenantId}
-                      title={
-                        t.id === data.yourTenantId
-                          ? 'No puedes suspender la subcuenta desde la que administras'
-                          : 'Suspender: nadie podrá entrar, sin borrar datos'
-                      }
-                      className="border-border text-muted-foreground hover:text-amber-400 ml-auto rounded-lg border px-2 py-1 text-xs disabled:opacity-40"
-                    >
-                      Suspender
-                    </button>
+                    <>
+                      <button
+                        onClick={() => void patch(t.id, { action: 'suspender' }, 'Subcuenta suspendida.')}
+                        disabled={working === t.id || t.id === data.yourTenantId}
+                        title={
+                          t.id === data.yourTenantId
+                            ? 'No puedes suspender la subcuenta desde la que administras'
+                            : 'Suspender: pausa temporal, nadie podrá entrar hasta reactivarla'
+                        }
+                        className="border-border text-muted-foreground hover:text-amber-400 rounded-lg border px-2 py-1 text-xs disabled:opacity-40"
+                      >
+                        Suspender
+                      </button>
+                      <button
+                        onClick={() => {
+                          setArchivando(t)
+                          setConfirmacion('')
+                          setImpactoLeido(false)
+                        }}
+                        disabled={working === t.id || t.id === data.yourTenantId}
+                        title={
+                          t.id === data.yourTenantId
+                            ? 'No puedes archivar la subcuenta desde la que administras'
+                            : 'Archivar: cierra la subcuenta conservando todos los datos'
+                        }
+                        className="border-border text-muted-foreground hover:text-red-400 inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs disabled:opacity-40"
+                      >
+                        <Archive className="h-3.5 w-3.5" /> Archivar
+                      </button>
+                    </>
                   ) : (
                     <button
                       onClick={() => void patch(t.id, { action: 'reactivar' }, 'Subcuenta reactivada.')}
@@ -366,6 +450,88 @@ export default function SubcuentasPage() {
           ))}
         </div>
       )}
+
+      {/* Diálogo de archivado — PASO 2: confirmación con impacto y nombre. Confirm() nativo no
+          basta para una operación de esta envergadura: aquí se LEE el impacto y se escribe el
+          nombre exacto, y el servidor vuelve a verificar ambos. */}
+      {archivando ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirmar archivado"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setArchivando(null)
+          }}
+        >
+          <div className="border-border bg-card w-full max-w-md space-y-4 rounded-xl border p-5">
+            <div className="flex items-center gap-2">
+              <Archive className="text-amber-400 h-5 w-5" />
+              <h3 className="text-foreground text-base font-semibold">
+                Archivar &laquo;{archivando.brandName || archivando.name}&raquo;
+              </h3>
+            </div>
+            <ul className="text-muted-foreground space-y-1.5 text-sm">
+              <li className="text-foreground flex gap-2">
+                <CheckCircle2 className="text-emerald-400 mt-0.5 h-4 w-4 shrink-0" />
+                Se conservan TODOS los datos: contactos, ventas, pagos, contratos, integraciones y auditoría.
+              </li>
+              <li className="text-foreground flex gap-2">
+                <AlertTriangle className="text-amber-400 mt-0.5 h-4 w-4 shrink-0" />
+                Nadie podrá entrar: login, API, webhooks (Calendly, GHL, Stripe), crons y pixel quedan bloqueados.
+              </li>
+              <li className="text-foreground flex gap-2">
+                <AlertTriangle className="text-amber-400 mt-0.5 h-4 w-4 shrink-0" />
+                Dejará de aparecer en el selector de subcuentas y en las pantallas operativas.
+              </li>
+              <li className="text-foreground flex gap-2">
+                <ArchiveRestore className="text-emerald-400 mt-0.5 h-4 w-4 shrink-0" />
+                Se puede restaurar en cualquier momento desde esta misma pantalla.
+              </li>
+            </ul>
+            <label className="text-muted-foreground block text-xs">
+              Escribe <span className="text-foreground font-semibold">{archivando.brandName || archivando.name}</span>{' '}
+              para confirmar:
+              <input
+                value={confirmacion}
+                onChange={(e) => setConfirmacion(e.target.value)}
+                placeholder={archivando.brandName || archivando.name}
+                className="border-border bg-background/60 text-foreground mt-1 block w-full rounded-lg border px-2 py-1.5 text-sm"
+                autoFocus
+              />
+            </label>
+            <label className="text-muted-foreground flex items-start gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={impactoLeido}
+                onChange={(e) => setImpactoLeido(e.target.checked)}
+                className="border-border mt-0.5"
+              />
+              He leído el impacto: la subcuenta quedará bloqueada para todos los accesos hasta restaurarla.
+            </label>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setArchivando(null)}
+                className="border-border text-muted-foreground hover:text-foreground rounded-lg border px-3 py-1.5 text-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => void confirmarArchivado()}
+                disabled={
+                  working !== null ||
+                  !impactoLeido ||
+                  (confirmacion.trim() !== archivando.name.trim() && confirmacion.trim() !== archivando.slug.trim())
+                }
+                className="bg-red-600 text-white inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-40"
+              >
+                {working ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
+                Archivar definitivamente
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
