@@ -12,6 +12,7 @@ import { TrendChart } from '@/components/os/TrendChart'
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { originLabel } from '@/lib/ads/funnel'
 import { isAttended } from '@/lib/appointments/status'
+import { resolverOferta } from '@/lib/metrics/oferta'
 import { countryISOForPhone, regionForISO } from '@/lib/phone'
 import { useSesion } from '@/lib/tenant-context'
 
@@ -225,7 +226,9 @@ export default function VentasMetricasPage() {
     const liveSalesCalls = salesCalls.filter((a) => isAttended(a.status)).length
     const cancelledSalesCalls = salesCalls.filter((a) => CANCELLED_APPT_STATUSES.includes(a.status)).length
 
-    const offers = monthAppointments.filter((a) => a.offered === true || a.result === 'offer_made').length
+    // Ofertas con el resolver canónico del negocio (declarado > derivado > asumido): la cláusula
+    // muerta result='offer_made' solo sumaba 0 — el vocabulario cerrado de `result` la eliminó.
+    const offers = monthAppointments.filter((a) => resolverOferta(a).valor === true).length
     const deposits = monthAppointments.filter((a) => a.result === 'deposit').length
 
     const closedSales = monthSales.filter((s) => s.status === 'active' || s.status === 'partial_refund')
