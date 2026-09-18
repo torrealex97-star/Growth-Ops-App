@@ -102,6 +102,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
     email?: string
     role?: unknown
     userId?: string
+    /** Solo lo exige 'archivar': archivar es lo más parecido a un despido y se confirma con el nombre. */
+    confirmar?: unknown
+    /** Nombre de la subcuenta, para verificar que quien archiva sabe qué archiva. */
+    nombre?: unknown
   }
   if (!body.tenantId) return NextResponse.json({ error: 'Falta la subcuenta' }, { status: 400 })
   const actor = { userId: session.userId, tenantId: session.tenantId }
@@ -129,6 +133,45 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
         body.action === 'suspender' ? 'suspended' : 'active',
         actor
       )
+      return NextResponse.json(result, { status: result.ok ? 200 : 400 })
+    }
+    // ARCHIVAR: tercer estado. Distinto de suspender —no es una pausa, es el cierre ordenado de la
+    // relación comercial conservando todos los datos—. Pide DOS confirmaciones:
+    //   confirmar: true (el diálogo de la UI no es una llamada perdida)
+    //   nombre: el nombre EXACTO de la subcuenta (compara el servidor)
+    if (body.action === 'archivar') {
+      if (body.confirmar !== true) {
+        return NextResponse.json({ error: 'Falta confirmar el archivado (confirmar: true).' }, { status: 400 })
+      }
+      const nombre = typeof body.nombre === 'string' ? body.nombre.trim() : ''
+      const { data: objetivo } = await sb
+        .from('tenants')
+        .select('slug,name,status')
+        .eq('id', body.tenantId)
+        .maybeSingle()
+      if (!objetivo) return NextResponse.json({ error: 'Esa subcuenta no existe.' }, { status: 404 })
+      const fila = objetivo as { slug: string; name: string; status: string }
+      // Se compara contra el nombre visible Y el slug: el operador puede escribir cualquiera de los
+      // dos (en subcuentas nuevas el slug es el UUID, imposible de recordar).
+      if (nombre !== fila.name.trim() && nombre !== fila.slug.trim()) {
+        return NextResponse.json(
+          { error: 'El nombre escrito no coincide con la subcuenta. Escríbelo exactamente para confirmar.' },
+          { status: 400 }
+        )
+      }
+      if (fila.status === 'archived') {
+        return NextResponse.json(
+          { ok: false, motivo: 'ya_estaba', mensaje: 'La subcuenta ya está archivada.' },
+          { status: 400 }
+        )
+      }
+      const result = await setTenantStatus(sb, body.tenantId, 'archived', actor)
+      return NextResponse.json(result, { status: result.ok ? 200 : 400 })
+    }
+    // RESTAURAR: la única vía de vuelta de 'archived' (también sirve para reactivar suspendidas;
+    // es la misma operación con nombre distinto en la UI según el estado de origen).
+    if (body.action === 'restaurar') {
+      const result = await setTenantStatus(sb, body.tenantId, 'active', actor)
       return NextResponse.json(result, { status: result.ok ? 200 : 400 })
     }
     return NextResponse.json({ error: `Acción desconocida: ${body.action}` }, { status: 400 })

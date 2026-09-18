@@ -51,7 +51,14 @@ export async function GET(req: NextRequest) {
     if (!code) return backToIntegrations(tenant, { google: 'error', motivo: 'sin_codigo' }, req)
 
     const sb = serviceClient()
-    const { data: tenantRow } = await sb.from('tenants').select('id').eq('slug', tenant).maybeSingle()
+    // Solo subcuentas activas conectan integraciones: una archivada/suspendida no puede crear ni
+    // renovar tokens (su sesión de usuario ya estaría bloqueada por requireTenant de todos modos).
+    const { data: tenantRow } = await sb
+      .from('tenants')
+      .select('id')
+      .eq('slug', tenant)
+      .eq('status', 'active')
+      .maybeSingle()
     if (!tenantRow) return NextResponse.json({ error: 'Subcuenta desconocida' }, { status: 404 })
     const tenantId = (tenantRow as { id: string }).id
 

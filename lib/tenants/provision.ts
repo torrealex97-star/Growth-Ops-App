@@ -304,29 +304,54 @@ export async function revokeAccess(
   return { ok: true, accion: 'acceso_quitado' }
 }
 
-export type StatusOpResult =
-  { ok: true; status: 'active' | 'suspended' } | { ok: false; motivo: string; mensaje: string }
+export type TenantStatus = 'active' | 'suspended' | 'archived'
+
+export type StatusOpResult = { ok: true; status: TenantStatus } | { ok: false; motivo: string; mensaje: string }
 
 /**
- * Suspende o reactiva una subcuenta. Suspendida, `requireTenant` la rechaza con 404 para todo el
- * mundo: es el interruptor para un cliente que deja de pagar, sin borrar sus datos.
+ * Cambia el estado de una subcuenta: suspende (pausa temporal), ARCHIVA (relación terminada, datos
+ * conservados) o reactiva/restaura (vuelve a 'active'). En todos los estados ≠ 'active',
+ * `requireTenant`, el login, los webhooks y los crons la rechazan igual: 'archived' NO añade un
+ * camino nuevo que mantener, añade una semántica distinta (pantalla separada, impacto documentado)
+ * sobre el mismo interruptor.
  */
 export async function setTenantStatus(
   sb: SupabaseClient,
   tenantId: string,
-  status: 'active' | 'suspended',
+  status: TenantStatus,
   actor: { userId: string; tenantId: string }
 ): Promise<StatusOpResult> {
-  // Suspender la subcuenta desde la que estás administrando cierra la puerta con la llave dentro: la
-  // propia pantalla deja de responder en la siguiente petición.
-  if (status === 'suspended' && tenantId === actor.tenantId) {
+  // Suspender o ARCHIVAR la subcuenta desde la que estás administrando cierra la puerta con la llave
+  // dentro: la propia pantalla deja de responder en la siguiente petición (y una archivada ya no se
+  // puede restaurar DESDE ella misma, porque ni siquiera sus rutas API responden).
+  if (status !== 'active' && tenantId === actor.tenantId) {
     return {
       ok: false,
       motivo: 'no_la_propia',
       mensaje:
-        'No puedes suspender la subcuenta desde la que estás administrando: perderías el acceso a esta misma pantalla. Entra desde otra.',
+        'No puedes suspender ni archivar la subcuenta desde la que estás administrando: perderías el acceso a esta misma pantalla. Entra desde otra.',
     }
   }
+
+  // La fila ANTES del cambio: la auditoría de archivar guarda el estado previo (old_values), y el
+  // operador necesita saber si lo que archiva estaba activa o ya suspendida.
+  const { data: previa, error: errorPrevia } = await sb
+    .from('tenants')
+    .select('id,slug,name,status')
+    .eq('id', tenantId)
+    .maybeSingle()
+  if (errorPrevia) throw errorPrevia
+  if (!previa) {
+    return { ok: false, motivo: 'no_existe', mensaje: 'Esa subcuenta no existe.' }
+  }
+  const estadoAnterior = previa.status as TenantStatus
+  // Reponer un estado igual no es una operación (y `active → active` se descarta antes, en la ruta):
+  // reactivar lo ya activo o suspender lo ya suspendido solo ensuciaría el registro de auditoría.
+  if (estadoAnterior === status) {
+    return { ok: false, motivo: 'ya_estaba', mensaje: `La subcuenta ya estaba en estado "${status}".` }
+  }
+  // Restaurar (cualquier estado ≠ active → active) pasa por la MISMA pantalla y el mismo gate de
+  // super admin: ninguna subcuenta archivada se puede reanimar desde fuera de la plataforma.
 
   const { data, error } = await sb.from('tenants').update({ status }).eq('id', tenantId).select('id,status')
   if (error) throw error
@@ -340,6 +365,7 @@ export async function setTenantStatus(
     entity_id: tenantId,
     action: 'update',
     actor_user_id: actor.userId,
+    old_values: { status: estadoAnterior },
     new_values: { status },
   })
   return { ok: true, status }
