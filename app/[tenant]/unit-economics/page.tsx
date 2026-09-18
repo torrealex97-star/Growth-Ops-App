@@ -5,8 +5,10 @@ import { createClient } from '@/lib/supabase/client'
 import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
 import { FunnelDinamico, FUNNEL_LABELS, FUNNEL_ORDEN, type OpcionFunnel } from '@/components/os/FunnelDinamico'
 import { TrendChart } from '@/components/os/TrendChart'
+import { cn } from '@/lib/utils'
 import { DonutChart, type Segmento } from '@/components/os/DonutChart'
-import { KPICard } from '@/components/os/DashboardKPICard'
+import { KPICard, TargetRow } from '@/components/os/DashboardKPICard'
+import { evaluaTarget, eligeTarget, valorTarget, METRICAS_CON_OBJETIVO } from '@/lib/targets/vs-actual'
 import { PieChart, Target, Users, TrendingUp, Wallet, Filter, MousePointerClick, Megaphone } from 'lucide-react'
 import { ACTIVE_SALE_STATUSES } from '@/lib/analytics'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
@@ -30,6 +32,18 @@ import { canonicalizeLeads, canonicalizeAppointments, dedupeSales } from '@/lib/
 import { canonicalCash, type StripePaymentRow } from '@/lib/canonical/cash'
 import { resolverOferta, CONFIG_OFERTA_POR_DEFECTO } from '@/lib/metrics/oferta'
 import { DataQualityPanel, type QualityStats } from '@/components/os/DataQualityPanel'
+
+// Objetivo de dashboard (§27): fila mínima de `targets` para comparar contra lo del periodo.
+type TargetRowEstado = {
+  id: string
+  metric_key: string
+  scope_type: string
+  is_active: boolean | null
+  period_type: string | null
+  period_start: string
+  period_end: string
+  target_value: number | string
+}
 
 type CollectionRow = {
   id?: string
@@ -366,6 +380,9 @@ export default function UnitEconomicsPage() {
   // Espejo de pagos de Stripe (§2): fuente PRIMARIA del cash. Vacío = Stripe sin sincronizar →
   // el merge resuelve por el fallback (collections), nunca un 0 por "no conectado" (§39).
   const [stripePagos, setStripePagos] = useState<StripePaymentRow[]>([])
+  // Objetivos del dashboard (§27): la MISMA tabla `targets` que ya consumen dashboard y ranking.
+  // Sin filas las cards se muestran limpias — nunca un falso "0% del objetivo" (§39).
+  const [targets, setTargets] = useState<TargetRowEstado[]>([])
   const [contacts, setContacts] = useState<ContactRow[]>([])
   const [appointments, setAppointments] = useState<AppointmentRow[]>([])
   // Selección de cuentas Meta para las métricas de anuncios: 'todas' o un subconjunto de las
@@ -384,45 +401,50 @@ export default function UnitEconomicsPage() {
     let mounted = true
     async function load() {
       const supabase = createClient()
-      const [campRes, salesRes, collRes, stripeRes, contactsRes, apptRes, dailyRes, fathomRes] = await Promise.all([
-        supabase
-          .from('campaigns')
-          .select('id, channel, adspend, leads_generated, impressions, clicks, account_id')
-          .range(0, FINANCE_QUERY_ROW_CAP),
-        supabase
-          .from('sales')
-          .select('id, gross_amount, status, contact_id, sale_date')
-          .range(0, FINANCE_QUERY_ROW_CAP),
-        supabase
-          .from('collections')
-          .select('id, gross_amount, collected_at, status, payment_reference')
-          .range(0, FINANCE_QUERY_ROW_CAP),
-        // Fuente PRIMARIA del cash (§2): espejo de pagos de Stripe (succeeded, neto de su
-        // refunded_amount). Sin filas el merge resuelve por collections — y el desglose por
-        // fuente lo deja visible en vez de suponer que Stripe está al día.
-        supabase
-          .from('stripe_payments')
-          .select('payment_id, charge_id, amount, refunded_amount, status, paid_at, customer_email')
-          .range(0, FINANCE_QUERY_ROW_CAP),
-        // email/phone entran para la consolidación canónica de leads (dedup por persona, §6/§17).
-        supabase.from('contacts').select('id, campaign_id, created_at, email, phone').range(0, FINANCE_QUERY_ROW_CAP),
-        supabase
-          .from('appointments')
-          .select('id, contact_id, status, appointment_datetime, pipe_value, calendly_event_id, offered, result')
-          .range(0, FINANCE_QUERY_ROW_CAP),
-        // La serie DIARIA es lo que permite filtrar por periodo. El aviso que había aquí decía que no
-        // se podía porque `campaigns.adspend` es un acumulado — cierto, pero `campaign_daily` existe
-        // y tiene el gasto por día y campaña.
-        supabase
-          .from('campaign_daily')
-          .select('campaign_id, date, spend, impressions, clicks, leads, account_id')
-          .range(0, FINANCE_QUERY_ROW_CAP),
-        supabase
-          .from('fathom_match_review')
-          .select('meeting_started_at, invitee_email')
-          .eq('status', 'pendiente')
-          .range(0, FINANCE_QUERY_ROW_CAP),
-      ])
+      const [campRes, salesRes, collRes, stripeRes, contactsRes, apptRes, dailyRes, fathomRes, targetsRes] =
+        await Promise.all([
+          supabase
+            .from('campaigns')
+            .select('id, channel, adspend, leads_generated, impressions, clicks, account_id')
+            .range(0, FINANCE_QUERY_ROW_CAP),
+          supabase
+            .from('sales')
+            .select('id, gross_amount, status, contact_id, sale_date')
+            .range(0, FINANCE_QUERY_ROW_CAP),
+          supabase
+            .from('collections')
+            .select('id, gross_amount, collected_at, status, payment_reference')
+            .range(0, FINANCE_QUERY_ROW_CAP),
+          // Fuente PRIMARIA del cash (§2): espejo de pagos de Stripe (succeeded, neto de su
+          // refunded_amount). Sin filas el merge resuelve por collections — y el desglose por
+          // fuente lo deja visible en vez de suponer que Stripe está al día.
+          supabase
+            .from('stripe_payments')
+            .select('payment_id, charge_id, amount, refunded_amount, status, paid_at, customer_email')
+            .range(0, FINANCE_QUERY_ROW_CAP),
+          // email/phone entran para la consolidación canónica de leads (dedup por persona, §6/§17).
+          supabase.from('contacts').select('id, campaign_id, created_at, email, phone').range(0, FINANCE_QUERY_ROW_CAP),
+          supabase
+            .from('appointments')
+            .select('id, contact_id, status, appointment_datetime, pipe_value, calendly_event_id, offered, result')
+            .range(0, FINANCE_QUERY_ROW_CAP),
+          // La serie DIARIA es lo que permite filtrar por periodo. El aviso que había aquí decía que no
+          // se podía porque `campaigns.adspend` es un acumulado — cierto, pero `campaign_daily` existe
+          // y tiene el gasto por día y campaña.
+          supabase
+            .from('campaign_daily')
+            .select('campaign_id, date, spend, impressions, clicks, leads, account_id')
+            .range(0, FINANCE_QUERY_ROW_CAP),
+          supabase
+            .from('fathom_match_review')
+            .select('meeting_started_at, invitee_email')
+            .eq('status', 'pendiente')
+            .range(0, FINANCE_QUERY_ROW_CAP),
+          supabase
+            .from('targets')
+            .select('id, metric_key, scope_type, is_active, period_type, period_start, period_end, target_value')
+            .eq('scope_type', 'company'),
+        ])
       if (!mounted) return
       setCampaigns(campRes.data || [])
       setSales(salesRes.data || [])
@@ -432,6 +454,7 @@ export default function UnitEconomicsPage() {
       setAppointments(apptRes.data || [])
       setDaily(dailyRes.data || [])
       setFathomSueltas(fathomRes.data || [])
+      setTargets((targetsRes.data || []) as TargetRowEstado[])
       setLoading(false)
     }
     load()
@@ -590,6 +613,38 @@ export default function UnitEconomicsPage() {
   // la vista de anuncios, la pide con el filtro — es exactamente para eso que existe.
   const vistaAnuncios = origen === 'ads' || atribucion === 'atribuidos'
 
+  // ── TARGET vs ACTUAL (§29): el objetivo VIGENTE de cada métrica, comparado contra lo del periodo ──
+  // El objetivo sale de la tabla `targets` (editada en Formularios KPI › Objetivos del dashboard):
+  // gana el company activo cuya ventana SOLAPA con el periodo visible — un target "de este mes"
+  // nunca se compara contra el acumulado histórico. Con el filtro en "todo" se usa el objetivo que
+  // contiene hoy. Sin objetivo la card va limpia (sin_target), y un actual no calculable (ad spend
+  // a cero) no pinta gap inventado (sin_dato) — la regla 0 ≠ NULL (§39) aplicada a los objetivos.
+  const kpiObjetivos = (
+    metricKey: string,
+    actual: number | null,
+    tipo: 'money' | 'count' | 'ratio'
+  ): { status: 'verde' | 'ambar' | 'rojo'; gap: string; label: string } | null => {
+    const metrica = METRICAS_CON_OBJETIVO.find((m) => m.key === metricKey)
+    if (!metrica) return null
+    const fromStr = hayPeriodo && rango.from ? rango.from.toISOString().slice(0, 10) : null
+    const toStr = hayPeriodo && rango.to ? rango.to.toISOString().slice(0, 10) : null
+    const objetivo = valorTarget(eligeTarget(targets, metricKey, fromStr, toStr, new Date().toISOString().slice(0, 10)))
+    if (objetivo === null) return null
+    const ev = evaluaTarget(actual, objetivo, metrica.direccion)
+    if (ev.estado === 'sin_dato' || ev.estado === 'sin_target' || ev.gap === null) return null
+    const fmt = (v: number) =>
+      tipo === 'money'
+        ? formatCurrency(v)
+        : tipo === 'ratio'
+          ? `${formatNumber(v, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x`
+          : formatNumber(v)
+    return {
+      status: ev.estado,
+      gap: `${ev.gap >= 0 ? '+' : '-'}${fmt(Math.abs(ev.gap))}`,
+      label: `objetivo ${fmt(objetivo)}`,
+    }
+  }
+
   // ── ENTIDADES CANÓNICAS + CALIDAD DE DATOS (dashboard global §6/§17/§21/§38) ──
   // Consolidación de leads (email › teléfono), agendas (evento calendario), ventas (oportunidad /
   // contacto+fecha+importe) y pagos (id transacción) — SIN sumar dos fuentes del mismo evento.
@@ -691,13 +746,13 @@ export default function UnitEconomicsPage() {
     )
     const resueltas = appointments.map((a) => resolverOferta(a, CONFIG_OFERTA_POR_DEFECTO))
     const ofertas = resueltas.filter((r) => r.valor === true).length
-    const ofertasDeclaradas = resueltas.filter((r) => r.valor === true && r.origen === 'declarado').length
+    const offersDeclaradas = resueltas.filter((r) => r.valor === true && r.origen === 'declarado').length
     return {
       newUniqueLeads: leads.length,
       booked: apptsCanon.length,
       shows: funnelOperativo.asistencias,
       offers: ofertas,
-      offersDeclaradas: ofertasDeclaradas,
+      offersDeclaradas,
       sales: funnelOperativo.cierres,
     }
   }, [contacts, appointments, funnelOperativo])
@@ -990,6 +1045,7 @@ export default function UnitEconomicsPage() {
                 ? 'Cash neto de Stripe / ad spend'
                 : 'Cash neto de cobros internos (Stripe sin sincronizar) / ad spend'
           }
+          target={kpiObjetivos('mer', totals.mer, 'ratio') ?? undefined}
         />
         <KPICard
           title="CAC global"
@@ -997,6 +1053,7 @@ export default function UnitEconomicsPage() {
           icon={Target}
           loading={loading}
           description="Ad spend / clientes únicos (no por venta)"
+          target={kpiObjetivos('cac', totals.cacGlobal, 'money') ?? undefined}
         />
         <KPICard
           title="LTV medio"
@@ -1027,6 +1084,10 @@ export default function UnitEconomicsPage() {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-2">Objetivo saludable: ≥ 3:1</p>
+              {(() => {
+                const t = kpiObjetivos('ltv_cac', totals.ltvCacRatio, 'ratio')
+                return t ? <TargetRow target={t} /> : null
+              })()}
             </>
           )}
         </div>
@@ -1085,6 +1146,7 @@ export default function UnitEconomicsPage() {
             description={
               ventas.tasaCierre !== null ? `${formatPercent(ventas.tasaCierre)} de cierre sobre shows` : 'Sin shows aún'
             }
+            target={kpiObjetivos('sales_count', ventas.ventas, 'count') ?? undefined}
           />
           <KPICard
             title="Facturación"
@@ -1092,6 +1154,7 @@ export default function UnitEconomicsPage() {
             icon={TrendingUp}
             loading={loading}
             description={ventas.tasaAsistencia !== null ? `${formatPercent(ventas.tasaAsistencia)} de asistencia` : '—'}
+            target={kpiObjetivos('revenue', ventas.facturacion, 'money') ?? undefined}
           />
         </div>
       </div>

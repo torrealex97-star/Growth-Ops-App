@@ -17,6 +17,44 @@ interface KPICardProps {
   compareLabel?: string
   // Sparkline opcional (recharts) — solo para KPIs donde la tendencia rápida aporta (punto 11).
   spark?: ReactNode
+  // TARGET vs ACTUAL (§29): estado (color + signo del gap), gap formateado y etiqueta con el
+  // objetivo. Opcional: sin target configurado la card se muestra limpia — nunca un falso
+  // "0% del objetivo" (§39: sin dato NO es cero).
+  target?: {
+    status: 'verde' | 'ambar' | 'rojo'
+    gap: string
+    label: string
+  }
+}
+
+// Fila de TARGET vs ACTUAL (§29): punto de color + gap con signo + objetivo. Exportada para que
+// las cards custom (p. ej. LTV:CAC) pinten la MISMA fila sin duplicar el marcado — y sin inventar
+// colores nuevos: el signo del gap acompaña siempre al color (nunca solo color).
+export function TargetRow({ target }: { target: NonNullable<KPICardProps['target']> }) {
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+      <span
+        className={cn(
+          'inline-block h-1.5 w-1.5 rounded-full',
+          target.status === 'verde' && 'bg-emerald-400',
+          target.status === 'ambar' && 'bg-amber-400',
+          target.status === 'rojo' && 'bg-red-400'
+        )}
+        aria-hidden
+      />
+      <span
+        className={cn(
+          'font-medium tabular-nums',
+          target.status === 'verde' && 'text-emerald-400',
+          target.status === 'ambar' && 'text-amber-400',
+          target.status === 'rojo' && 'text-red-400'
+        )}
+      >
+        {target.gap}
+      </span>
+      <span className="text-muted-foreground">{target.label}</span>
+    </div>
+  )
 }
 
 export function KPICard({
@@ -31,6 +69,7 @@ export function KPICard({
   description,
   compareLabel,
   spark,
+  target,
 }: KPICardProps) {
   return (
     <div className="group relative overflow-hidden dashboard-card p-5">
@@ -84,6 +123,8 @@ export function KPICard({
               )}
             </div>
           )}
+
+          {target && <TargetRow target={target} />}
         </>
       )}
     </div>

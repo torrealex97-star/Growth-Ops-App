@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { KPITemplateEditor } from '@/components/kpi/KPITemplateEditor'
+import { TargetEditor } from '@/components/kpi/TargetEditor'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
 import type { KpiFormTemplate } from '@/lib/types/database'
@@ -51,6 +52,7 @@ export default function KPITemplatesPage() {
           <TabsList className="bg-card border border-border">
             <TabsTrigger value="setter">Setter</TabsTrigger>
             <TabsTrigger value="closer">Closer</TabsTrigger>
+            <TabsTrigger value="objetivos">Objetivos del dashboard</TabsTrigger>
           </TabsList>
 
           <TabsContent value="setter" className="mt-4">
@@ -64,6 +66,12 @@ export default function KPITemplatesPage() {
             <div className="bg-card border border-border rounded-lg p-6">
               <h3 className="text-sm font-medium text-muted-foreground mb-4">Campos para Closers</h3>
               <KPITemplateEditor roleKey="closer" templates={closerTemplates} onUpdate={fetchTemplates} />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="objetivos" className="mt-4">
+            <div className="bg-card border border-border rounded-lg p-6">
+              <TargetEditor />
             </div>
           </TabsContent>
         </Tabs>
