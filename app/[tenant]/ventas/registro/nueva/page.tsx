@@ -806,10 +806,17 @@ export default function NewSalePage() {
         // se pasa commissionable explícito para que el endpoint NO re-aplique el ratio del plan.
         const upfront = rows.find((r) => r.installment_number === 0 && r.is_monitoring === false)
         const monitoringRows = rows.filter((r) => !(r.installment_number === 0 && r.is_monitoring === false))
-        if (monitoringRows.length)
-          await supabase
+        if (monitoringRows.length) {
+          const { error: instErr } = await supabase
             .from('sale_expected_installments')
             .insert(monitoringRows.map((r) => ({ ...r, tenant_id: tenantId })))
+          //Nunca silencioso: si falla, la venta queda sin calendario de cuotas y la morosidad
+          //ni las comisiones futuras la verán. Aviso al usuario y fallback a data/error log.
+          if (instErr) {
+            console.error('[nueva-venta] insert cuotas sequra:', instErr.message)
+            alert(`La venta se registró pero NO se pudo crear el calendario de cuotas: ${instErr.message}. Avísale a soporte para repararlo.`)
+          }
+        }
         if (upfront) {
           const amt = Number(upfront.expected_gross_amount)
           await recordCollection(amt, amt)
@@ -822,8 +829,16 @@ export default function NewSalePage() {
       if (downPaymentNumber > 0) await recordCollection(downPaymentNumber)
       if (!reservationId) {
         const rest = buildInstallmentRows(saleId)
-        if (rest.length)
-          await supabase.from('sale_expected_installments').insert(rest.map((r) => ({ ...r, tenant_id: tenantId })))
+        if (rest.length) {
+          const { error: instErr } = await supabase
+            .from('sale_expected_installments')
+            .insert(rest.map((r) => ({ ...r, tenant_id: tenantId })))
+          //Nunca silencioso (mismo motivo que arriba): el fallo de cuotas rompe finanzas aguas abajo.
+          if (instErr) {
+            console.error('[nueva-venta] insert cuotas financiación:', instErr.message)
+            alert(`La venta se registró pero NO se pudo crear el calendario de cuotas: ${instErr.message}. Avísale a soporte para repararlo.`)
+          }
+        }
       }
     } else if (isReservaPlan) {
       // Alta de una reserva: el importe reservado cuenta como cash collected al momento.

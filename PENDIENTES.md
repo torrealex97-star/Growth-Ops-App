@@ -35,6 +35,8 @@ Feature completo y desplegado: Config → Datos de empresa, plantillas (pega tex
 
 ## 🔒 Seguridad
 
+- [ ] **Inserts de cuotas silenciosos en otro punto** (`app/api/[tenant]/evergreen/payments/mark` y `complete-reservation` ya comprueban error; revisar los `.insert(` del resto de rutas server-side — patrón: supabase-js **no lanza** en fallo, devuelve `{ error }`). El caso crítico (registro de ventas) ya corregido el 18-sep.
+- [ ] **Audit log de DDL aplicado a mano**: la columna `flagged_delinquent` existía en prod sin su migración en el repo — hubo cambios aplicados fuera de git. Inventariar el esquema real vs. migraciones del repo (columnas extra = migraciones perdidas).
 - [ ] **Rotar claves compartidas por chat** (todas están en `.env.local` + Vercel): `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, token Management de Supabase (`sbp_…`).
 - [ ] **Cambiar `GHL_WEBHOOK_SECRET`** por uno más fuerte (ahora `iawinners-ghl-secret-2026`) — actualizar en Vercel y en GHL a la vez.
 
