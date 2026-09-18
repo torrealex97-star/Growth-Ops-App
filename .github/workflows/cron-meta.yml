@@ -4,7 +4,7 @@ name: cron: meta
 on:
   schedule:
     - cron: '0 3 * * *' # diario 03:00 UTC — sincroniza campañas de Meta Ads
-  workflow_dispatch: {}
+  workflow_dispatch:
 permissions: {}
 concurrency:
   group: cron-meta
