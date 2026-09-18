@@ -49,12 +49,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       { data: csmEvents },
       { data: drops },
     ] = await Promise.all([
-      sb.from('collections').select('*').eq('sale_id', saleId),
-      sb.from('commissions').select('*').eq('sale_id', saleId),
-      sb.from('refunds').select('*').eq('sale_id', saleId),
-      sb.from('contracts').select('id').eq('sale_id', saleId),
-      sb.from('csm_events').select('id').eq('sale_id', saleId),
-      sb.from('drops').select('id').eq('sale_id', saleId),
+      sb.from('collections').select('*').eq('sale_id', saleId).eq('tenant_id', t.tenantId),
+      sb.from('commissions').select('*').eq('sale_id', saleId).eq('tenant_id', t.tenantId),
+      sb.from('refunds').select('*').eq('sale_id', saleId).eq('tenant_id', t.tenantId),
+      sb.from('contracts').select('id').eq('sale_id', saleId).eq('tenant_id', t.tenantId),
+      sb.from('csm_events').select('id').eq('sale_id', saleId).eq('tenant_id', t.tenantId),
+      sb.from('drops').select('id').eq('sale_id', saleId).eq('tenant_id', t.tenantId),
     ])
 
     // Snapshot ANTES de borrar/desenlazar nada, para poder reconstruir la venta si el borrado fue un error.
@@ -72,24 +72,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     // Desenlaza (no borra) filas que solo REFERENCIAN la venta: se conservan sin el vínculo.
     await Promise.all([
-      sb.from('contracts').update({ sale_id: null }).eq('sale_id', saleId),
-      sb.from('csm_events').update({ sale_id: null }).eq('sale_id', saleId),
-      sb.from('drops').update({ sale_id: null }).eq('sale_id', saleId),
-      sb.from('sales').update({ origin_sale_id: null }).eq('origin_sale_id', saleId),
-      sb.from('sales').update({ converted_from_reservation_id: null }).eq('converted_from_reservation_id', saleId),
+      sb.from('contracts').update({ sale_id: null }).eq('sale_id', saleId).eq('tenant_id', t.tenantId),
+      sb.from('csm_events').update({ sale_id: null }).eq('sale_id', saleId).eq('tenant_id', t.tenantId),
+      sb.from('drops').update({ sale_id: null }).eq('sale_id', saleId).eq('tenant_id', t.tenantId),
+      sb.from('sales').update({ origin_sale_id: null }).eq('origin_sale_id', saleId).eq('tenant_id', t.tenantId),
+      sb
+        .from('sales')
+        .update({ converted_from_reservation_id: null })
+        .eq('converted_from_reservation_id', saleId)
+        .eq('tenant_id', t.tenantId),
     ])
 
     // Orden que respeta las FK: comisiones → devoluciones → cobros → venta.
     // (sale_expected_installments/document_verifications/payment_follow_ups cascadean solas)
-    const { error: commErr } = await sb.from('commissions').delete().eq('sale_id', saleId)
+    const { error: commErr } = await sb.from('commissions').delete().eq('sale_id', saleId).eq('tenant_id', t.tenantId)
     if (commErr)
       return NextResponse.json({ error: `No se pudieron borrar las comisiones: ${commErr.message}` }, { status: 500 })
 
-    const { error: refErr } = await sb.from('refunds').delete().eq('sale_id', saleId)
+    const { error: refErr } = await sb.from('refunds').delete().eq('sale_id', saleId).eq('tenant_id', t.tenantId)
     if (refErr)
       return NextResponse.json({ error: `No se pudieron borrar las devoluciones: ${refErr.message}` }, { status: 500 })
 
-    const { error: collErr } = await sb.from('collections').delete().eq('sale_id', saleId)
+    const { error: collErr } = await sb.from('collections').delete().eq('sale_id', saleId).eq('tenant_id', t.tenantId)
     if (collErr)
       return NextResponse.json({ error: `No se pudieron borrar los cobros: ${collErr.message}` }, { status: 500 })
 

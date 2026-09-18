@@ -40,6 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         .from('collections')
         .select('id')
         .eq('expected_installment_id', installmentId)
+        .eq('tenant_id', t.tenantId)
         .neq('status', 'reversed')
         .limit(1)
       if (inst.status === 'collected' || (existingColl && existingColl.length > 0)) {

@@ -193,7 +193,9 @@ async function syncGhl(sb: SupabaseClient, tenantId: string, cfg: Record<string,
         if (result.error) throw result.error
         appointmentsUpdated++
       } else {
-        const result = await sb.from('appointments').insert(values)
+        // FASE 3: estampar tenant_id en el insert — la fila no debe existir fuera de la subcuenta
+        // aunque hoy la FK del contact la encasille por accidente.
+        const result = await sb.from('appointments').insert({ ...values, tenant_id: tenantId })
         if (result.error) throw result.error
         appointmentsImported++
       }
@@ -273,7 +275,8 @@ async function syncCalendly(sb: SupabaseClient, tenantId: string, cfg: Record<st
           if (result.error) throw result.error
           updated++
         } else {
-          const result = await sb.from('appointments').insert(values)
+          // FASE 3: estampar tenant_id en el insert (mismo motivo que arriba).
+          const result = await sb.from('appointments').insert({ ...values, tenant_id: tenantId })
           if (result.error) throw result.error
           imported++
         }
