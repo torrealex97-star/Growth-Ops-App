@@ -234,8 +234,8 @@ Ver `.env.local.example` para la lista completa. Resumen:
 
 - **Remote:** `https://github.com/torrealex97-star/Growth-Ops-App.git`
 - **Branch principal:** `main`
-- **Último commit:** `72f4ec0` — "fix: reduce crons de vercel.json a 2 (limite del plan Hobby) que rompia todos los deploys de produccion desde el PR 51"
-- **Historial reciente:** fix crons Hobby (72f4ec0) + fix lint build (e41393c) + hardening aplicado (319c385) + pixel first-party (75ea934) + auditoría multitenant (09dc33b) + calendario agendas (b4b44df)
+- **Último commit:** `0e8b265` — "docs: 7 crons migrados a GitHub Actions con CRON_SECRET (hecho y verificado)"
+- **Historial reciente:** docs crons GHA (0e8b265) + fix YAML names (13ad8e8) + workflows crons (be082ad) + caso F pixel (7b62fa8) + skills del stack (815d1c9) + is_monitoring (c90b00b) + docs crons recorte (72f4ec0)
 - **Antes de push:** Ejecutar `npm run quality` completo
 - **Vercel:** Deploy automático al hacer push a `main` → `https://growth-ops-weld.vercel.app`
 
@@ -271,3 +271,23 @@ Leer `docs/ACTIVE_HANDOFF.md` cuando se necesite contexto histórico detallado.
 - Launchd para procesos persistentes (sobreviven reinicios).
 - Usar Finder vía AppleScript para copiar archivos desde `~/Documents`.
 - `PROJECT_CONTEXT.md` se actualiza con cada PR mergeado; mantenerlo como fuente única de verdad.
+
+---
+
+## 11. GOTCHAS de arquitectura — Crons, Vercel & GitHub Actions
+
+### Arquitectura de Crons (límite Vercel Free)
+- **Distribución:** Vercel Hobby limita a máximo 2 crons en `vercel.json` (`meta-ads`, `reminders`).
+- **Delegación a GitHub Actions:** los 7 crons restantes (`monthly`, `sequra-morosos`, `analyze-calls`, `ai-insights`, `meta`, `meta-daily`, `instagram`) se disparan desde `.github/workflows/cron-*.yml` con sus horarios originales + `workflow_dispatch`.
+- **Autenticación:** cada workflow hace un **GET** a la URL de producción con el header `Authorization: Bearer CRON_SECRET`; el endpoint recorre TODAS las subcuentas activas.
+
+### Reglas críticas para evitar incidentes
+1. **Redeploy obligatorio en Vercel:** tras añadir o modificar `CRON_SECRET` (o cualquier `.env`) en Vercel, ES OBLIGATORIO forzar un redeploy de producción. Sin él, los endpoints responden `401 Unauthorized` porque la función serverless mantiene el runtime antiguo (le pasó a meta-ads/reminders el 18-sep).
+2. **Sintaxis YAML en GitHub Workflows:** SIEMPRE entrecomillar el campo `name` si contiene dos puntos: `name: "cron: meta"` (nunca `name: cron: meta` — rompe el parser de YAML en silencio y GitHub rechaza el `workflow_dispatch` con 422).
+3. **Edición segura de `.env.local`:** al añadir variables por script (`echo "VAR=val" >> .env.local`), verificar antes que el fichero acaba en salto de línea (`\n`); si no, se fusiona con la última línea y corrompe ambas claves (ocurrió con `GHL_WEBHOOK_SECRET` el 18-sep; detectable con `grep -c '^VAR='`).
+4. **Base de datos (Supabase):** `pg_cron` NO está instalado en la BD. La rotación de `CRON_SECRET` no afecta a trabajos internos de Postgres.
+
+### Notas de verificación (18-sep)
+- El secret vive coherente en 3 sitios: GitHub (secret), Vercel Production (+ redeploy) y `.env.local` local.
+- Los runs "failure" de 0s en los `cron-*` son zombis del push de transición YAML: no indican fallo del endpoint.
+- El workflow `CI` (push a main) estuvo en rojo por `format:check` (29 ficheros sin Prettier) — pendiente de arreglar antes de confiar en ese gate.
