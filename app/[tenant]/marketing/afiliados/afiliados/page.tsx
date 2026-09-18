@@ -129,6 +129,15 @@ export default function AfiliadosPage() {
   // (los mismos destinos que ya usan los enlaces de /recursos/enlaces); el código
   // del colaborador personaliza la atribución vía ?utm_content + ?ref.
   const [campanas, setCampanas] = useState<{ id: string; name: string; base_url: string }[]>([])
+  // Campañas completas (activas y no) + asignaciones campaña↔colaborador: la conexión
+  // que el registro público ya escribe por ?c=<slug> (member + perfil de colaborador).
+  // "Altas por campaña" = perfiles creados en el periodo cuyo user_id está asignado.
+  const [campanasTodas, setCampanasTodas] = useState<
+    { id: string; name: string; is_active: boolean; registration_slug: string | null }[]
+  >([])
+  const [asignaciones, setAsignaciones] = useState<
+    { campaign_id: string; affiliate_id: string; created_at: string | null }[]
+  >([])
   const [copiadoId, setCopiadoId] = useState<string | null>(null)
 
   const rango = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
@@ -189,27 +198,49 @@ export default function AfiliadosPage() {
       if (esColab) {
         const { data: memberRows } = await sb
           .from('affiliate_campaign_members')
-          .select('affiliate_campaigns(id, name, base_url, is_active)')
+          .select('campaign_id, created_at, affiliate_campaigns(id, name, base_url, is_active)')
           .eq('affiliate_id', sesion.userId)
           .eq('tenant_id', tenantId)
         if (!mounted) return
-        const asignadas = (
-          (memberRows as unknown as {
-            affiliate_campaigns: { id: string; name: string; base_url: string; is_active: boolean } | null
-          }[]) ?? []
-        )
+        const filas = (memberRows ?? []) as unknown as {
+          campaign_id: string
+          created_at: string | null
+          affiliate_campaigns: { id: string; name: string; base_url: string; is_active: boolean } | null
+        }[]
+        const asignadas = filas
           .map((r) => r.affiliate_campaigns)
           .filter((c): c is { id: string; name: string; base_url: string; is_active: boolean } => !!c && c.is_active)
           .map(({ id, name, base_url }) => ({ id, name, base_url }))
         setCampanas(asignadas)
+        // Sus propias asignaciones y campañas, para los chips de su ficha.
+        setAsignaciones(
+          filas.map((r) => ({ campaign_id: r.campaign_id, affiliate_id: sesion.userId, created_at: r.created_at }))
+        )
+        setCampanasTodas(
+          filas
+            .map((r) => r.affiliate_campaigns)
+            .filter((c): c is { id: string; name: string; base_url: string; is_active: boolean } => !!c)
+            .map((c) => ({ id: c.id, name: c.name, is_active: c.is_active, registration_slug: null }))
+        )
       } else {
-        const { data: campRes } = await sb
-          .from('affiliate_campaigns')
-          .select('id, name, base_url')
-          .eq('tenant_id', tenantId)
-          .eq('is_active', true)
+        // Vista admin: campañas activas para el enlace de referido, campañas TODAS
+        // para las métricas, y las asignaciones que escribe el registro público.
+        const [{ data: campRes }, { data: todasRes }, { data: membersRes }] = await Promise.all([
+          sb.from('affiliate_campaigns').select('id, name, base_url').eq('tenant_id', tenantId).eq('is_active', true),
+          sb.from('affiliate_campaigns').select('id, name, is_active, registration_slug').eq('tenant_id', tenantId),
+          sb
+            .from('affiliate_campaign_members')
+            .select('campaign_id, affiliate_id, created_at')
+            .eq('tenant_id', tenantId),
+        ])
         if (!mounted) return
         setCampanas((campRes ?? []) as { id: string; name: string; base_url: string }[])
+        setCampanasTodas(
+          (todasRes ?? []) as { id: string; name: string; is_active: boolean; registration_slug: string | null }[]
+        )
+        setAsignaciones(
+          (membersRes ?? []) as { campaign_id: string; affiliate_id: string; created_at: string | null }[]
+        )
       }
       setLoading(false)
     }
@@ -294,6 +325,47 @@ export default function AfiliadosPage() {
 
   const activos = useMemo(() => perfiles.filter((p) => p.status === 'active').length, [perfiles])
 
+  // ALTAS POR CAMPAÑA: la conexión estructurada que el registro público ya escribe
+  // (?c=<slug> → affiliate_campaign_members + collaborator_profiles). El alta se mide
+  // por collaborator_profiles.created_at (la identidad estructurada, no users) dentro
+  // del periodo del filtro global; sin doble conteo si un colaborador está en 2 campañas.
+  const campanaStats = useMemo(() => {
+    const userIdsConCampana = new Set(asignaciones.map((a) => a.affiliate_id))
+    const altasConCampana = perfiles.filter(
+      (p) => inPeriod(p.created_at, rango) && p.user_id && userIdsConCampana.has(p.user_id)
+    ).length
+    const altaEnPeriodo = new Set(perfiles.filter((p) => inPeriod(p.created_at, rango)).map((p) => p.user_id))
+    const porCampana = new Map<string, number>()
+    for (const a of asignaciones) {
+      if (a.affiliate_id && altaEnPeriodo.has(a.affiliate_id)) {
+        porCampana.set(a.campaign_id, (porCampana.get(a.campaign_id) ?? 0) + 1)
+      }
+    }
+    const filas = campanasTodas
+      .map((c) => ({
+        ...c,
+        altas: porCampana.get(c.id) ?? 0,
+        miembros: asignaciones.filter((x) => x.campaign_id === c.id).length,
+      }))
+      .sort((a, b) => b.altas - a.altas || b.miembros - a.miembros)
+    return { filas, altasConCampana }
+  }, [perfiles, asignaciones, campanasTodas, rango])
+
+  // Campañas de UN colaborador (chips de la ficha de detalle).
+  const campanasDe = useCallback(
+    (userId: string | null) =>
+      userId
+        ? asignaciones
+            .filter((a) => a.affiliate_id === userId)
+            .map((a) => {
+              const c = campanasTodas.find((x) => x.id === a.campaign_id)
+              return c ? { name: c.name, is_active: c.is_active, slug: c.registration_slug } : null
+            })
+            .filter((x): x is { name: string; is_active: boolean; slug: string | null } => !!x)
+        : [],
+    [asignaciones, campanasTodas]
+  )
+
   const cambiarEstado = async (p: PerfilColaborador, status: string) => {
     setGuardandoEstado(p.id)
     try {
@@ -374,6 +446,7 @@ export default function AfiliadosPage() {
           onVolver={null}
           onCopiar={copiarEnlace}
           copiado={copiadoId === miPerfil.id}
+          campanas={campanasDe(miPerfil.user_id)}
         />
       </div>
     )
@@ -420,6 +493,7 @@ export default function AfiliadosPage() {
           onVolver={() => setDetalleId(null)}
           onCopiar={copiarEnlace}
           copiado={copiadoId === detallePerfil.id}
+          campanas={campanasDe(detallePerfil.user_id)}
         />
       ) : (
         <>
@@ -499,6 +573,70 @@ export default function AfiliadosPage() {
               description="motor de comisiones, no estimación"
             />
           </div>
+
+          {/* Altas por campaña: la conexión campañas ↔ atribución estructurada */}
+          {puedeGestionar && (
+            <section className="bg-card border border-border rounded-lg overflow-hidden">
+              <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">Altas por campaña</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {campanaStats.altasConCampana} alta(s) con campaña en el periodo · la relación la escribe el
+                    registro público (?c=slug) sobre la identidad estructurada
+                  </p>
+                </div>
+                <Link
+                  href={`/${tenant}/marketing/afiliados/campanas`}
+                  className="text-xs text-brand-400 hover:underline underline-offset-4"
+                >
+                  Gestionar campañas →
+                </Link>
+              </div>
+              {campanaStats.filas.length === 0 ? (
+                <div className="p-6 text-center text-sm text-muted-foreground">
+                  Aún no hay campañas. Crea una en Campañas y comparte su enlace de registro con ?c=slug para medir sus
+                  altas aquí.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-muted-foreground border-b border-border">
+                        <th className="px-4 py-2 font-medium">Campaña</th>
+                        <th className="px-4 py-2 font-medium">Estado</th>
+                        <th className="px-4 py-2 font-medium">Enlace de registro</th>
+                        <th className="px-4 py-2 font-medium text-right">Miembros</th>
+                        <th className="px-4 py-2 font-medium text-right">Altas del periodo</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {campanaStats.filas.map((c) => (
+                        <tr key={c.id} className="hover:bg-muted/40">
+                          <td className="px-4 py-2 text-foreground">{c.name}</td>
+                          <td className="px-4 py-2">
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded-full border ${
+                                c.is_active
+                                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                                  : 'bg-zinc-500/20 text-muted-foreground border-border/30'
+                              }`}
+                            >
+                              {c.is_active ? 'Activa' : 'Inactiva'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
+                            {c.registration_slug ? `?c=${c.registration_slug}` : '—'}
+                          </td>
+                          <td className="px-4 py-2 text-right text-foreground">{c.miembros}</td>
+                          <td className="px-4 py-2 text-right text-brand-300 font-medium">{c.altas}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          )}
 
           {/* §45 Listado con KPIs por colaborador */}
           <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -618,6 +756,7 @@ function FichaColaborador({
   onVolver,
   onCopiar,
   copiado,
+  campanas,
 }: {
   tenant: string
   perfil: PerfilColaborador
@@ -629,6 +768,7 @@ function FichaColaborador({
   onVolver: (() => void) | null
   onCopiar?: (perfil: PerfilColaborador) => void
   copiado?: boolean
+  campanas?: { name: string; is_active: boolean; slug: string | null }[]
 }) {
   const [contactos, setContactos] = useState<ContactoRow[]>([])
 
@@ -712,7 +852,7 @@ function FichaColaborador({
         <div className="flex items-center gap-3 text-xs">
           <Link href={`/${tenant}/comisiones`} className="text-brand-400 hover:underline underline-offset-4">
             Ver ledger en Comisiones
-          </Link>
+          </Link>{' '}
           <Link
             href={`/${tenant}/marketing/adquisicion/atribucion`}
             className="text-brand-400 hover:underline underline-offset-4"
@@ -721,6 +861,25 @@ function FichaColaborador({
           </Link>
         </div>
       </div>
+
+      {campanas && campanas.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="text-muted-foreground">Campañas asignadas:</span>
+          {campanas.map((c) => (
+            <span
+              key={c.name}
+              className={`rounded-full border px-2 py-0.5 ${
+                c.is_active
+                  ? 'border-brand-500/30 bg-brand-500/10 text-brand-300'
+                  : 'border-border bg-muted text-muted-foreground'
+              }`}
+            >
+              {c.name}
+              {!c.is_active && ' (inactiva)'}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
