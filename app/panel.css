@@ -23,8 +23,11 @@
   display: grid;
   grid-template-rows: auto 1fr auto;
   width: 100%;
-  min-height: 100vh;
-  min-height: 100svh;
+  /* height, no min-height: con min-height la grid crece con el contenido y en pantallas bajas
+     (p. ej. landscape 740×375) el pie legal quedaba bajo el pliegue con scroll de página.
+     Con height fijo, el exceso de contenido hace scroll DENTRO del panel (fila 1fr). */
+  height: 100vh;
+  height: 100svh;
   overflow: hidden;
   background: #000;
   color: var(--go-text);
@@ -115,6 +118,7 @@
   min-height: 0;
   padding: 0 var(--go-gutter);
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .go-panel {
   display: flex;
