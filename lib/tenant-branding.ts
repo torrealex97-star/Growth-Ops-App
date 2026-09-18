@@ -4,7 +4,7 @@
 // interna — nunca fue pensada como el nombre visible en el sidebar/login, así que el branding vive
 // en su propia clave en vez de reutilizar `name`.
 
-export type TenantAccent = 'brand' | 'pink'
+type TenantAccent = 'brand' | 'pink'
 export interface TenantBranding {
   name: string
   accent: TenantAccent

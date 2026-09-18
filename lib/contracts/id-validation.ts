@@ -23,14 +23,14 @@ function normalizeId(value: string): string {
   return (value || '').toUpperCase().replace(/[\s-]/g, '')
 }
 
-export function isValidDni(value: string): boolean {
+function isValidDni(value: string): boolean {
   const v = normalizeId(value)
   const m = v.match(/^(\d{8})([A-Z])$/)
   if (!m) return false
   return DNI_LETTERS[Number(m[1]) % 23] === m[2]
 }
 
-export function isValidNie(value: string): boolean {
+function isValidNie(value: string): boolean {
   const v = normalizeId(value)
   const m = v.match(/^([XYZ])(\d{7})([A-Z])$/)
   if (!m) return false

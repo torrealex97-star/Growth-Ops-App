@@ -61,7 +61,7 @@ export const ROLE_COLORS: Record<AppRole, string> = {
 }
 
 // Roles con visión global (liderazgo)
-export const LEADERSHIP: AppRole[] = ['admin', 'director', 'manager']
+const LEADERSHIP: AppRole[] = ['admin', 'director', 'manager']
 export const isLeadership = (role: AppRole) => LEADERSHIP.includes(role)
 
 // ---- Departamentos que cada rol puede ver ----
@@ -83,7 +83,7 @@ const ROLE_DEPARTMENTS: Record<AppRole, Department[]> = {
 }
 
 // Prefijos de ruta por departamento (para acceso configurable por usuario)
-export const DEPARTMENT_PREFIXES: Record<Department, string[]> = {
+const DEPARTMENT_PREFIXES: Record<Department, string[]> = {
   ventas: ['/crm', '/ventas', '/analitica', '/comisiones', '/recursos', '/tasks'],
   // '/marketing/afiliados' se añade aquí porque Afiliados se movió a Marketing (antes vivía
   // bajo el departamento 'finanzas', ver DEPARTMENT_PREFIXES.finanzas más abajo).

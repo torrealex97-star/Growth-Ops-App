@@ -129,7 +129,7 @@ export function PageSkeleton({
  * mentira con forma de barra. Sin total conocido se enseña el contador de lo ya procesado, que sí es
  * un hecho.
  */
-export function SyncProgress({
+function SyncProgress({
   titulo,
   hechos,
   total,

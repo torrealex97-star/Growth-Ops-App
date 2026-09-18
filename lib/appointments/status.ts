@@ -3,7 +3,7 @@ import type { AppointmentStatus } from '@/lib/types/database'
 // Statuses que cuentan como "asistió"/"no asistió" a la cita. Fuente única de verdad para no
 // repetir el mismo literal `status === 'show' || status === 'completed'` en cada página de métricas.
 const ATTENDED_STATUSES = ['show', 'completed'] as const
-export const NO_SHOW_STATUSES = ['no_show'] as const
+const NO_SHOW_STATUSES = ['no_show'] as const
 
 export function isAttended(status: string | null | undefined) {
   return !!status && (ATTENDED_STATUSES as readonly string[]).includes(status)

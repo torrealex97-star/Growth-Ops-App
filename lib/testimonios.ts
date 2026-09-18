@@ -10,7 +10,7 @@ import { createClient } from '@supabase/supabase-js'
 import type { Testimonio, TestimonioKind, TestimonioPatch } from './testimonios-shared'
 
 export type { Testimonio, TestimonioKind, TestimonioPatch } from './testimonios-shared'
-export { youtubeId, youtubeThumb, testimonioPitch, testimonioForPrompt } from './testimonios-shared'
+export { youtubeThumb, testimonioForPrompt } from './testimonios-shared'
 
 function svc() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {

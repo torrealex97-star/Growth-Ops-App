@@ -61,7 +61,7 @@ export async function callText(
 }
 
 // ---------- Tipos ----------
-export type Who = 'lead' | 'agent'
+type Who = 'lead' | 'agent'
 export interface ConvMsg {
   who: Who
   text: string

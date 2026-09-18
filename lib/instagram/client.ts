@@ -24,7 +24,7 @@ const GRAPH = 'https://graph.facebook.com'
 
 export type InstagramErrorCode = 'token_caducado' | 'token_invalido' | 'sin_permisos' | 'limite_de_uso' | 'timeout'
 
-export class InstagramApiError extends Error {
+class InstagramApiError extends Error {
   constructor(
     message: string,
     readonly code: InstagramErrorCode
@@ -34,7 +34,7 @@ export class InstagramApiError extends Error {
   }
 }
 
-export function instagramErrorCode(providerCode: number | null, message: string): InstagramErrorCode {
+function instagramErrorCode(providerCode: number | null, message: string): InstagramErrorCode {
   if (providerCode === 10) return 'sin_permisos'
   if ([4, 17, 32, 613].includes(providerCode ?? -1)) return 'limite_de_uso'
   if (providerCode === 190 && /expir|caduc/i.test(message)) return 'token_caducado'

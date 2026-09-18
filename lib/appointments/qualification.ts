@@ -1,7 +1,7 @@
 // Respuestas del formulario de cualificación (Calendly) asociado a una cita. Compartido entre
 // AppointmentDetail (ficha completa) y el pipeline de seguimiento (columna "Respuestas").
 
-export type QualificationAnswer = { q: string; a: string }
+type QualificationAnswer = { q: string; a: string }
 export type Qualification = {
   respuestas?: QualificationAnswer[]
   telefono?: string
@@ -17,7 +17,7 @@ export type Qualification = {
   [key: string]: unknown
 }
 
-export const QUALIFICATION_LABELS: Record<string, string> = {
+const QUALIFICATION_LABELS: Record<string, string> = {
   telefono: 'Teléfono',
   instagram: 'Instagram',
   edad: 'Edad',

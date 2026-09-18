@@ -24,7 +24,7 @@ export type FunnelOperativo = {
 // Canales del filtro avanzado. Solo canales que la app de verdad puede saber hoy: los que
 // cubre `contacts.utm_source`/`contact_attributions` y las campañas sincronizadas. Instagram,
 // YouTube y TikTok orgánicos entran cuando su integración los traiga — no antes.
-export const CANALES_FILTRO = [
+const CANALES_FILTRO = [
   { id: 'meta', label: 'Meta' },
   { id: 'instagram', label: 'Instagram' },
   { id: 'google', label: 'Google' },
@@ -33,4 +33,4 @@ export const CANALES_FILTRO = [
 ] as const
 
 export type FiltroAtribucion = 'todos' | 'atribuidos' | 'no_atribuidos'
-export type FiltroOrigen = 'todos' | 'paid' | 'organic' | 'direct' | 'referral'
+type FiltroOrigen = 'todos' | 'paid' | 'organic' | 'direct' | 'referral'

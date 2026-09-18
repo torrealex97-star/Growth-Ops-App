@@ -97,7 +97,7 @@ function contentSlide(opts: { kicker?: string; heading: string; body?: string; b
 }
 
 /** CTA de cierre: frase gancho + clase gratuita + enlace en la bio. */
-export function ctaSlide(opts: { lead?: string }): string {
+function ctaSlide(opts: { lead?: string }): string {
   const leadBlock = opts.lead
     ? `<div style="font-family:${DISPLAY};font-weight:700;font-size:34px;line-height:1.25;color:${C.accent2};margin-bottom:28px;">${esc(opts.lead)}</div>`
     : ''

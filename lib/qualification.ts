@@ -1,7 +1,7 @@
 // Etiquetas y utilidades para las respuestas del formulario (cualificación del lead).
 // Fuente única compartida por el webhook, Atribución, Dashboard y detalle de contacto.
 
-export function norm(s: string): string {
+function norm(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 }
 
@@ -49,7 +49,7 @@ export const QUALIFICATION_KEYS = [
 
 type QualificationKey = (typeof QUALIFICATION_KEYS)[number]
 
-export const QUALIFICATION_LABELS: Record<string, string> = {
+const QUALIFICATION_LABELS: Record<string, string> = {
   telefono: 'Teléfono',
   instagram: 'Instagram',
   edad: 'Edad',

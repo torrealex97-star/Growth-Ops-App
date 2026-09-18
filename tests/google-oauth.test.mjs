@@ -51,7 +51,7 @@ test('se guardan los ámbitos concedidos, no los pedidos', () => {
 
 test('los ámbitos pedidos son todos de solo lectura', () => {
   const lib = read('lib/google/oauth.ts')
-  const scopes = lib.slice(lib.indexOf('export const SCOPES'), lib.indexOf('export function redirectUri'))
+  const scopes = lib.slice(lib.indexOf('export const SCOPES'), lib.indexOf('function redirectUri'))
   const encontrados = [...scopes.matchAll(/auth\/([a-z0-9.]+)/g)].map((m) => m[1])
   assert.ok(encontrados.length >= 3, 'no se han encontrado los ámbitos')
   for (const s of encontrados) {

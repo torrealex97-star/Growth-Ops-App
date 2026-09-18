@@ -50,7 +50,7 @@ export const DEFAULT_CONFIG: VslConfig = {
   exitHookText: 'Espera… justo ahora viene lo más importante 👇',
 }
 
-export interface VslVideo {
+interface VslVideo {
   id: string
   slug: string
   name: string

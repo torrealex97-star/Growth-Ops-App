@@ -33,4 +33,4 @@ export const sql = new Proxy((() => undefined) as unknown as ReturnType<typeof p
 })
 
 // Re-export de los tipos/helpers puros para comodidad en el servidor.
-export { DEFAULT_CONFIG, mergeConfig, slugify, type VslConfig, type VslVideo } from './types'
+export { DEFAULT_CONFIG, mergeConfig, slugify } from './types'

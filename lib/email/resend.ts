@@ -343,7 +343,7 @@ export async function sendStudentContractEmail(opts: {
 }
 
 // Landing de onboarding donde el alumno encuentra sus accesos y el paso a paso.
-export const ONBOARDING_LANDING_URL = process.env.ONBOARDING_LANDING_URL || ''
+const ONBOARDING_LANDING_URL = process.env.ONBOARDING_LANDING_URL || ''
 
 function studentOnboardingEmailHtml(opts: {
   studentName: string
