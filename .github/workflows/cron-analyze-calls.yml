@@ -1,10 +1,10 @@
 # Cron retirado de vercel.json (Vercel Hobby: máx. 2 crons). GitHub Actions lo ejecuta con el
 # mismo horario UTC y la misma autenticación (Bearer CRON_SECRET) que usaba Vercel Cron.
-name: cron: analyze-calls
+name: "cron: analyze-calls"
 on:
   schedule:
     - cron: '0 4 * * *' # diario 04:00 UTC — análisis IA de llamadas con transcripción
-  workflow_dispatch: {}
+  workflow_dispatch:
 permissions: {}
 concurrency:
   group: cron-analyze-calls
