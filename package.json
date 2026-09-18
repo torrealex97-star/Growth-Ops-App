@@ -13,7 +13,12 @@
     "dead-code": "knip --no-exit-code",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/*.test.mjs",
     "test:metrics": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/metrics/register.mjs --test tests/metrics/*.test.mjs",
-    "quality": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:metrics"
+    "quality": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:metrics",
+    "mcp:supabase": "npx -y @supabase/mcp-server-supabase@latest --read-only --project-ref rgcbveflosqgxrcqlqzv",
+    "mcp:search": "npx -y duckduckgo-mcp-server",
+    "mcp:context7": "npx -y @upstash/context7-mcp",
+    "mcp:repomix": "npx -y repomix --mcp",
+    "context:build": "npx -y repomix --config repomix.config.json"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.36.3",

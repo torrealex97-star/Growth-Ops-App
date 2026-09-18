@@ -3,6 +3,30 @@
     "supabase": {
       "type": "http",
       "url": "https://mcp.supabase.com/mcp?project_ref=rgcbveflosqgxrcqlqzv&features=docs%2Caccount%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching%2Cstorage"
+    },
+    "fetch": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["mcp-server-fetch"],
+      "note": "Requiere uv (pipx install uv / brew install uv). Alternativa sin uv: usar 'web-search' para buscar y que el LLM pida el contenido."
+    },
+    "web-search": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "duckduckgo-mcp-server"],
+      "note": "Búsqueda web sin API keys (DuckDuckGo)."
+    },
+    "context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"],
+      "note": "Documentación actualizada de librerías (evita APIs desfasadas del training del LLM)."
+    },
+    "repomix": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "repomix", "--mcp"],
+      "note": "Empaquetado de contexto del repo. Config en repomix.config.json (respeta .gitignore)."
     }
   }
 }

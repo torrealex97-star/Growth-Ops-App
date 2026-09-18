@@ -1,0 +1,51 @@
+# Cursor Rules — Growth-Ops-App
+
+> Misma guía que `CLAUDE.md` (mantener ambos en sincronía). Fuente única de verdad de estado:
+> `PROJECT_CONTEXT.md`.
+
+## Stack y arranque
+
+- Next.js 15 App Router + TypeScript + React 18 + Tailwind + Supabase (Postgres 17, RLS) + Vercel.
+- `npm run quality` = format + lint + typecheck + test + test:metrics. Ejecutar antes de terminar.
+- Multi-tenancy: rutas `/[tenant]/...`, APIs `app/api/[tenant]/evergreen/...` con `requireTenant()`.
+
+## MCPs locales (`.mcp.json`)
+
+Servidores declarados a nivel de proyecto; funcionan vía `npx -y` / `uvx` / OAuth hosted, sin
+instalación global ni secretos en el repo (copias compatibles: `.cursor/mcp.json`, `.vscode/mcp.json`).
+
+- `supabase` — esquema/BD/advisors/logs (OAuth hosted). Para columnas/relaciones usa
+  `list_tables` primero; tras DDL ejecuta `get_advisors` (security + performance).
+- `web-search` — búsqueda DuckDuckGo sin API keys: versiones actuales de librerías, errores de prod.
+- `fetch` — traer URL como texto (requiere `uv` instalado localmente).
+- `context7` — docs actualizadas de librerías: consulta antes de usar APIs que puedan haber cambiado.
+- `repomix` — empaquetado de contexto del repo para handoff; config en `repomix.config.json`.
+
+Scripts npm equivalentes (sin instalar nada global): `npm run mcp:supabase`, `mcp:search`,
+`mcp:context7`, `mcp:repomix`, `npm run context:build`.
+
+## Optimización de tokens (obligatorio)
+
+- Lectura modular: buscar patrón primero (con números de línea) y leer solo la ventana necesaria
+  con offset/limit. NUNCA leer archivos completos "por si acaso".
+- Referencias explícitas: usa `@ruta/al/archivo.ts` con ruta completa; para bloques grandes,
+  añade rango de líneas (`app/x/page.tsx:120-180`).
+- Excluido siempre: `node_modules/`, `.next/`, `build/`, `coverage/`, `package-lock.json`,
+  `public/`, dumps generados (`repomix-output.xml`). Lo define `repomix.config.json` + `.gitignore`.
+- Correcciones guiadas por el compilador: actúa SOLO sobre la salida exacta de `npm run lint`,
+  `npm run typecheck` o `npm test` (líneas señaladas), sin releer archivos enteros.
+- Esquema de BD: pregúntale al MCP de Supabase; no lo infieras del código.
+- Respuestas concisas: bullets, sin pegar contenido de archivos innecesariamente.
+
+## Convenciones de código
+
+- Formato: `formatNumber`/`formatPercent` de `@/lib/utils` (NO `toLocaleString` inline).
+- UI: Radix + Tailwind siguiendo `components/ui/`. Estado global: React Context (`lib/tenant-context.tsx`).
+- Supabase client: `lib/supabase/client.ts` (browser) / `lib/supabase/server.ts` (server).
+- Tests: `tests/*.test.mjs` con Node test runner nativo (no Jest).
+- Antes de push: `npm run quality` completo (Vercel despliega `main` automáticamente).
+
+## Entorno
+
+- Sandbox Freebuff: Node falla con EPERM (`uv_cwd`) desde `~/Documents` (TCC). Usar el clon
+  `/tmp/growthops-preview` y el puerto 3000 (ver `PROJECT_CONTEXT.md` §7).
