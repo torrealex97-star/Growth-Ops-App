@@ -26,6 +26,9 @@ export type ContactRow = {
   campaign_id: string | null
   /** Fecha de creación del contacto. Opcional: solo el funnel operacional la usa para acotar por periodo. */
   created_at?: string | null
+  /** Para la consolidación canónica de leads (dedup por persona, §6 del dashboard global). */
+  email?: string | null
+  phone?: string | null
 }
 
 export type ChannelRow = {
