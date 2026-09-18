@@ -8,6 +8,7 @@ import { BarChart3, PhoneCall, Wallet, Trophy, Banknote, Undo2, Gauge, Clipboard
 import { lastNMonths, monthLabel } from '@/lib/analytics'
 import { formatCurrency, formatPercent } from '@/lib/utils'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
+import { TrendChart } from '@/components/os/TrendChart'
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { originLabel } from '@/lib/ads/funnel'
 import { isAttended } from '@/lib/appointments/status'
@@ -86,6 +87,7 @@ const CANCELLED_APPT_STATUSES = ['cancelled', 'cancelled_admin', 'cancelled_lead
 // Agendadas: citas que todavía faltan por hacerse (no confundir con el status
 // 'reserva', que significa que el lead ya pagó la reserva/depósito).
 const PROGRAMADA_APPT_STATUSES = ['scheduled', 'confirmed', 'rescheduled', 'seguimiento']
+const REFUND_SALE_STATUSES = ['refunded', 'partial_refund', 'chargeback']
 
 function KPICard({
   title,
@@ -244,7 +246,7 @@ export default function VentasMetricasPage() {
       (s) =>
         (usingPeriodPreset || ymOf(s.sale_date) === ym) &&
         inPeriod(s.sale_date, range) &&
-        (s.status === 'refunded' || s.status === 'partial_refund' || s.status === 'chargeback')
+        REFUND_SALE_STATUSES.includes(s.status)
     ).length
 
     const programadas = monthAppointments.filter((a) => PROGRAMADA_APPT_STATUSES.includes(a.status)).length
@@ -343,6 +345,93 @@ export default function VentasMetricasPage() {
   }, [monthAppointments, regionByContact])
 
   const hasData = appointments.length > 0 || sales.length > 0 || collections.length > 0
+
+  // ── EVOLUCIÓN TEMPORAL (día/semana/mes) ─────────────────────────────
+  // Series sobre la MISMA ventana y filtros que el resto de la página (persona + periodo, con el
+  // selector de mes solo cuando el periodo está en "Todo"). TrendChart pinta la variación contra
+  // el periodo anterior de igual duración y los huecos como huecos.
+  const [granularidad, setGranularidad] = useState<'dia' | 'semana' | 'mes'>('dia')
+  const seriesVentas = useMemo(() => {
+    // Mismo criterio de cierre que metrics.closes arriba: ventas activas o con devolución parcial.
+    const esCierre = (status: string) => status === 'active' || status === 'partial_refund'
+    const fin = range.to ?? new Date()
+    const t1 = fin.getTime()
+    const t0 = range.from ? new Date(range.from).getTime() : t1 - 90 * 86400000
+    const ISO_MIN = new Date(t0).toISOString().slice(0, 10)
+    const ISO_MAX = new Date(t1).toISOString().slice(0, 10)
+    const porDia = new Map<string, { agendas: number; asistencias: number; cierres: number; facturacion: number }>()
+    const bump = (d: string, k: 'agendas' | 'asistencias' | 'cierres' | 'facturacion', n = 1) => {
+      const key = d.slice(0, 10)
+      if (key < ISO_MIN || key > ISO_MAX) return
+      const acc = porDia.get(key) ?? { agendas: 0, asistencias: 0, cierres: 0, facturacion: 0 }
+      acc[k] += n
+      porDia.set(key, acc)
+    }
+    for (const a of personAppointments) {
+      if (!a.appointment_datetime || CANCELLED_APPT_STATUSES.includes(a.status)) continue
+      bump(a.appointment_datetime, 'agendas')
+      if (isAttended(a.status)) bump(a.appointment_datetime, 'asistencias')
+    }
+    for (const s of personSales) {
+      if (!esCierre(s.status) || !s.sale_date) continue
+      bump(s.sale_date, 'cierres')
+      bump(s.sale_date, 'facturacion', num(s.gross_amount))
+    }
+    const clave = (d: string) => {
+      if (granularidad === 'dia') return d
+      if (granularidad === 'semana') {
+        const dt = new Date(`${d}T00:00:00Z`)
+        dt.setUTCDate(dt.getUTCDate() - dt.getUTCDay())
+        return dt.toISOString().slice(0, 10)
+      }
+      return d.slice(0, 7)
+    }
+    const agg = new Map<string, { agendas: number; asistencias: number; cierres: number; facturacion: number }>()
+    for (const [d, v] of porDia) {
+      const k = clave(d)
+      const acc = agg.get(k) ?? { agendas: 0, asistencias: 0, cierres: 0, facturacion: 0 }
+      acc.agendas += v.agendas
+      acc.asistencias += v.asistencias
+      acc.cierres += v.cierres
+      acc.facturacion += v.facturacion
+      agg.set(k, acc)
+    }
+    const fechas = [...agg.keys()].sort()
+    const serie = (k: 'agendas' | 'asistencias' | 'cierres' | 'facturacion') =>
+      fechas.map((f) => ({ date: f, value: agg.get(f)![k] }))
+    return {
+      agendas: serie('agendas'),
+      asistencias: serie('asistencias'),
+      cierres: serie('cierres'),
+      facturacion: serie('facturacion'),
+    }
+  }, [personAppointments, personSales, range, granularidad])
+  const etiquetaGranularidad = granularidad === 'dia' ? 'día' : granularidad === 'semana' ? 'semana' : 'mes'
+
+  // GATE DE TRACKING: una métrica que nunca se ha registrado no se muestra — ni card ni gráfico.
+  // En cuanto el equipo empieza a meter datos (un depósito, un pipe_value, un cobro, una
+  // devolución), la métrica aparece sola en el dashboard, sin flags ni configuración. La
+  // visibilidad se mide sobre TODO el histórico cargado (no sobre el periodo): un mes con 0
+  // depósitos es información; una métrica que jamás tuvo un dato es ruido.
+  const tracking = useMemo(
+    () => ({
+      pipe: appointments.some((a) => num(a.pipe_value) > 0),
+      depositos: appointments.some((a) => a.result === 'deposit'),
+      seguimientos: appointments.some((a) => a.needs_followup),
+      cobros: collections.length > 0,
+      refunds: sales.some((s) => REFUND_SALE_STATUSES.includes(s.status)),
+    }),
+    [appointments, sales, collections]
+  )
+  // Series de evolución: solo se pintan las que tienen algún dato real en la ventana del periodo.
+  const tieneDatos = (serie: { value: number }[]) => serie.some((p) => p.value > 0)
+  const hayEvolucion = {
+    agendas: tieneDatos(seriesVentas.agendas),
+    asistencias: tieneDatos(seriesVentas.asistencias),
+    cierres: tieneDatos(seriesVentas.cierres),
+    facturacion: tieneDatos(seriesVentas.facturacion),
+  }
+  const evolucionVisible = Object.values(hayEvolucion).some(Boolean)
 
   return (
     <div className="dashboard-surface space-y-5">
@@ -450,18 +539,22 @@ export default function VentasMetricasPage() {
                     {formatCurrency(metrics.closedValue)}
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-[11px] text-muted-foreground">Pipe activo</dt>
-                  <dd className="mt-1 font-display text-lg font-semibold tabular-nums text-foreground">
-                    {formatCurrency(metrics.pipeValue)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-[11px] text-muted-foreground">Devoluciones</dt>
-                  <dd className="mt-1 font-display text-lg font-semibold tabular-nums text-foreground">
-                    {metrics.refunds}
-                  </dd>
-                </div>
+                {tracking.pipe && (
+                  <div>
+                    <dt className="text-[11px] text-muted-foreground">Pipe activo</dt>
+                    <dd className="mt-1 font-display text-lg font-semibold tabular-nums text-foreground">
+                      {formatCurrency(metrics.pipeValue)}
+                    </dd>
+                  </div>
+                )}
+                {tracking.refunds && (
+                  <div>
+                    <dt className="text-[11px] text-muted-foreground">Devoluciones</dt>
+                    <dd className="mt-1 font-display text-lg font-semibold tabular-nums text-foreground">
+                      {metrics.refunds}
+                    </dd>
+                  </div>
+                )}
               </dl>
             </div>
             <div className="p-4 sm:p-5">
@@ -484,43 +577,120 @@ export default function VentasMetricasPage() {
             </div>
           </section>
 
+          {/* EVOLUCIÓN TEMPORAL: variación de las métricas del embudo comercial en el tiempo del
+              periodo (día/semana/mes). La variación % de cada serie la pinta TrendChart contra el
+              periodo anterior de igual duración — la comparación honesta. Gate de tracking: solo
+              entran las series con datos; la sección entera desaparece si no hay ninguna. */}
+          {evolucionVisible && (
+            <section className="dashboard-card p-5 sm:p-6 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-display text-xl font-semibold">Evolución</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Variación{' '}
+                    {etiquetaGranularidad === 'día'
+                      ? 'diaria'
+                      : etiquetaGranularidad === 'semana'
+                        ? 'semanal'
+                        : 'mensual'}{' '}
+                    de agendas, asistencias y cierres en el periodo. El % de cada card es la variación frente al{' '}
+                    {etiquetaGranularidad === 'mes' ? 'mes' : 'periodo'} anterior de igual duración.
+                  </p>
+                </div>
+                <div
+                  className="bg-muted border-border flex rounded-lg border p-0.5"
+                  role="tablist"
+                  aria-label="Granularidad"
+                >
+                  {(
+                    [
+                      ['dia', 'Día'],
+                      ['semana', 'Semana'],
+                      ['mes', 'Mes'],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      role="tab"
+                      aria-selected={granularidad === id}
+                      onClick={() => setGranularidad(id)}
+                      className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                        granularidad === id
+                          ? 'bg-brand-500 text-zinc-950'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                {hayEvolucion.agendas && (
+                  <TrendChart title={`Agendas por ${etiquetaGranularidad}`} data={seriesVentas.agendas} />
+                )}
+                {hayEvolucion.asistencias && (
+                  <TrendChart title={`Asistencias por ${etiquetaGranularidad}`} data={seriesVentas.asistencias} />
+                )}
+                {hayEvolucion.cierres && (
+                  <TrendChart title={`Cierres por ${etiquetaGranularidad}`} data={seriesVentas.cierres} />
+                )}
+                {hayEvolucion.facturacion && (
+                  <TrendChart
+                    title={`Facturación cerrada por ${etiquetaGranularidad}`}
+                    data={seriesVentas.facturacion}
+                    format={formatCurrency}
+                  />
+                )}
+              </div>
+            </section>
+          )}
+
           {/* Volúmenes */}
           <div>
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
               Volúmenes — {monthLabel(ym)}
             </h2>
             <div className="grid grid-cols-1 overflow-hidden rounded-xl border border-border bg-card/30 sm:grid-cols-2 lg:grid-cols-4">
-              <KPICard
-                title="Pipe Value"
-                value={formatCurrency(metrics.pipeValue)}
-                icon={Gauge}
-                description="valor en citas activas"
-              />
+              {tracking.pipe && (
+                <KPICard
+                  title="Pipe Value"
+                  value={formatCurrency(metrics.pipeValue)}
+                  icon={Gauge}
+                  description="valor en citas activas"
+                />
+              )}
               <KPICard
                 title="Agendadas"
                 value={String(metrics.programadas)}
                 icon={ClipboardList}
                 description="citas agendadas sin resolver"
               />
-              <KPICard
-                title="Seguimientos"
-                value={String(metrics.seguimientos)}
-                icon={ListChecks}
-                description="agendas marcadas en seguimiento"
-              />
-              <KPICard
-                title="Depósitos"
-                value={String(metrics.deposits)}
-                icon={Wallet}
-                description="Resultado: depósito"
-              />
-              <KPICard
-                title="Cobros comisionables"
-                value={formatCurrency(metrics.netRevenue)}
-                icon={Banknote}
-                description="cobros del periodo, base comisionable (no es el Net Revenue de Finanzas)"
-              />
-              <KPICard title="Refunds" value={String(metrics.refunds)} icon={Undo2} />
+              {tracking.seguimientos && (
+                <KPICard
+                  title="Seguimientos"
+                  value={String(metrics.seguimientos)}
+                  icon={ListChecks}
+                  description="agendas marcadas en seguimiento"
+                />
+              )}
+              {tracking.depositos && (
+                <KPICard
+                  title="Depósitos"
+                  value={String(metrics.deposits)}
+                  icon={Wallet}
+                  description="Resultado: depósito"
+                />
+              )}
+              {tracking.cobros && (
+                <KPICard
+                  title="Cobros comisionables"
+                  value={formatCurrency(metrics.netRevenue)}
+                  icon={Banknote}
+                  description="cobros del periodo, base comisionable (no es el Net Revenue de Finanzas)"
+                />
+              )}
+              {tracking.refunds && <KPICard title="Refunds" value={String(metrics.refunds)} icon={Undo2} />}
             </div>
           </div>
 
@@ -564,18 +734,22 @@ export default function VentasMetricasPage() {
                 icon={Gauge}
                 description="valor cerrado / Pipe Value"
               />
-              <KPICard
-                title="Cobros/LSC"
-                value={ratio(metrics.netRevenue, metrics.liveSalesCalls)}
-                icon={Banknote}
-                description="Cobros comisionables / llamadas atendidas"
-              />
-              <KPICard
-                title="Cobros/BSC"
-                value={ratio(metrics.netRevenue, metrics.bookedSalesCalls)}
-                icon={Banknote}
-                description="Cobros comisionables / llamadas agendadas"
-              />
+              {tracking.cobros && (
+                <>
+                  <KPICard
+                    title="Cobros/LSC"
+                    value={ratio(metrics.netRevenue, metrics.liveSalesCalls)}
+                    icon={Banknote}
+                    description="Cobros comisionables / llamadas atendidas"
+                  />
+                  <KPICard
+                    title="Cobros/BSC"
+                    value={ratio(metrics.netRevenue, metrics.bookedSalesCalls)}
+                    icon={Banknote}
+                    description="Cobros comisionables / llamadas agendadas"
+                  />
+                </>
+              )}
             </div>
           </div>
 

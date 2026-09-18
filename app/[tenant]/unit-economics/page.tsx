@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
-import { FunnelDinamico, type OpcionFunnel } from '@/components/os/FunnelDinamico'
+import { FunnelDinamico, FUNNEL_LABELS, FUNNEL_ORDEN, type OpcionFunnel } from '@/components/os/FunnelDinamico'
+import { TrendChart } from '@/components/os/TrendChart'
+import { DonutChart, type Segmento } from '@/components/os/DonutChart'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { PieChart, Target, Users, TrendingUp, Wallet, Filter, MousePointerClick, Megaphone } from 'lucide-react'
 import { ACTIVE_SALE_STATUSES } from '@/lib/analytics'
@@ -24,6 +26,8 @@ import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset, type PeriodRange } from '@/lib/filters/period'
 import { isCancelled } from '@/lib/unit-economics'
 import type { FunnelOperativo, FiltroAtribucion } from '@/lib/metrics/operativo'
+import { canonicalizeLeads, canonicalizeAppointments, dedupeSales, canonicalizePayments } from '@/lib/canonical/dedup'
+import { DataQualityPanel, type QualityStats } from '@/components/os/DataQualityPanel'
 
 type CollectionRow = {
   gross_amount: number | string | null
@@ -36,6 +40,9 @@ type AppointmentRow = {
   status: string
   appointment_datetime: string | null
   pipe_value: number | string | null
+  calendly_event_id?: string | null
+  offered?: boolean | null
+  result?: string | null
 }
 
 const num = (x: number | string | null | undefined) => Number(x ?? 0)
@@ -52,8 +59,8 @@ const CHANNEL_LABELS: Record<string, string> = {
   referido: 'Referidos',
   referral: 'Referidos',
   email: 'Email Marketing',
-  afiliados: 'Afiliados',
-  affiliate: 'Afiliados',
+  afiliados: 'Colaboradores',
+  affiliate: 'Colaboradores',
   otro: 'Otro',
   other: 'Otro',
 }
@@ -61,15 +68,6 @@ const labelChannel = (ch: string) => CHANNEL_LABELS[ch?.toLowerCase()] || ch || 
 
 // Guard div/0 → null (se pinta como "—")
 const safeDiv = (a: number, b: number): number | null => (b ? a / b : null)
-
-// Etiqueta de cobertura de atribución del funnel del negocio: dice cuánta parte del negocio
-// puede demostrarse atribuida a anuncios, sin dar por hecho que lo no atribuido no ocurrió.
-function cuentaAtribucionLabel(f: FunnelOperativo, hayAnuncios: boolean): string {
-  if (!hayAnuncios) return 'sin campañas sincronizadas: solo realidad operacional'
-  if (f.cierres === 0) return 'sin cierres en el periodo'
-  const pctAtrib = Math.round((f.atribuidos.cierres / f.cierres) * 100)
-  return `${pctAtrib}% de cierres atribuidos a anuncios`
-}
 
 // PeriodRange guarda Date|null; la API de funnels quiere YYYY-MM-DD o nada.
 function rangoISO(d: Date | null): string | null {
@@ -88,6 +86,8 @@ function FiltrosAtribucion({
   onAtribucionChange,
   avanzadosAbiertos,
   onToggleAvanzados,
+  funnelOpcion,
+  onFunnelChange,
 }: {
   origen: AttributionFilter
   onOrigenChange: (v: AttributionFilter) => void
@@ -95,6 +95,8 @@ function FiltrosAtribucion({
   onAtribucionChange: (v: FiltroAtribucion) => void
   avanzadosAbiertos: boolean
   onToggleAvanzados: () => void
+  funnelOpcion: OpcionFunnel
+  onFunnelChange: (v: OpcionFunnel) => void
 }) {
   return (
     <div className="dashboard-card p-4">
@@ -142,6 +144,28 @@ function FiltrosAtribucion({
               }`}
             >
               {label}
+            </button>
+          ))}
+        </div>
+        <span className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
+          <Target className="h-3.5 w-3.5" /> Embudo
+        </span>
+        <div
+          className="bg-muted border-border flex rounded-lg border p-0.5"
+          role="tablist"
+          aria-label="Familia de embudo"
+        >
+          {FUNNEL_ORDEN.map((o) => (
+            <button
+              key={o}
+              role="tab"
+              aria-selected={funnelOpcion === o}
+              onClick={() => onFunnelChange(o)}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                funnelOpcion === o ? 'bg-brand-500 text-zinc-950' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {FUNNEL_LABELS[o]}
             </button>
           ))}
         </div>
@@ -345,6 +369,8 @@ export default function UnitEconomicsPage() {
   // NUNCA redefin el total: "no atribuible" no es "no ocurrió".
   const [atribucion, setAtribucion] = useState<FiltroAtribucion>('todos')
   const [avanzadosAbiertos, setAvanzadosAbiertos] = useState(false)
+  // Selector de embudo — subido a la barra de filtros global (junto a origen/atribución).
+  const [funnelOpcion, setFunnelOpcion] = useState<OpcionFunnel>('todos')
 
   useEffect(() => {
     let mounted = true
@@ -360,10 +386,11 @@ export default function UnitEconomicsPage() {
           .select('id, gross_amount, status, contact_id, sale_date')
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase.from('collections').select('gross_amount, collected_at, status').range(0, FINANCE_QUERY_ROW_CAP),
-        supabase.from('contacts').select('id, campaign_id, created_at').range(0, FINANCE_QUERY_ROW_CAP),
+        // email/phone entran para la consolidación canónica de leads (dedup por persona, §6/§17).
+        supabase.from('contacts').select('id, campaign_id, created_at, email, phone').range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('appointments')
-          .select('id, contact_id, status, appointment_datetime, pipe_value')
+          .select('id, contact_id, status, appointment_datetime, pipe_value, calendly_event_id, offered, result')
           .range(0, FINANCE_QUERY_ROW_CAP),
         // La serie DIARIA es lo que permite filtrar por periodo. El aviso que había aquí decía que no
         // se podía porque `campaigns.adspend` es un acumulado — cierto, pero `campaign_daily` existe
@@ -516,6 +543,199 @@ export default function UnitEconomicsPage() {
   const hasData = campaignsVisibles.length > 0 || sales.length > 0 || appointments.length > 0
   // ¿Hay campañas de anuncios que mirar? Decide si el bloque de atribución se muestra.
   const hasAdsData = campanasParaTotales.length > 0
+  // El detalle de anuncios (cards de atribución, embudo de adquisición, tabla por canal) SOLO se
+  // enseña cuando el filtro pide anuncios: con origen+atribución en "todos" la pantalla describe
+  // el negocio entero, y mezclar "0 de 96 atribuidos" dentro de esa lectura confunde. Quien quiera
+  // la vista de anuncios, la pide con el filtro — es exactamente para eso que existe.
+  const vistaAnuncios = origen === 'ads' || atribucion === 'atribuidos'
+
+  // ── ENTIDADES CANÓNICAS + CALIDAD DE DATOS (dashboard global §6/§17/§21/§38) ──
+  // Consolidación de leads (email › teléfono), agendas (evento calendario), ventas (oportunidad /
+  // contacto+fecha+importe) y pagos (id transacción) — SIN sumar dos fuentes del mismo evento.
+  // El diagnóstico alimenta el panel de Calidad de datos; el funnel canónico alimenta la sección.
+  const calidad = useMemo<QualityStats>(() => {
+    const { leads, duplicates: dupLeads } = canonicalizeLeads(
+      contacts.map((c) => ({
+        id: c.id,
+        email: c.email ?? null,
+        phone: c.phone ?? null,
+        created_at: c.created_at ?? null,
+      }))
+    )
+    const { duplicates: dupAppts } = canonicalizeAppointments(
+      appointments.map((a) => ({
+        id: a.id,
+        contact_id: a.contact_id,
+        calendly_event_id: a.calendly_event_id ?? null,
+        calendar_event_id: null,
+        scheduled_at: a.appointment_datetime,
+        status: a.status,
+      }))
+    )
+    const { duplicates: dupSales } = dedupeSales(
+      sales.map((s) => ({
+        id: s.id,
+        contact_id: s.contact_id,
+        opportunity_id: null,
+        closed_at: s.sale_date ?? null,
+        amount: num(s.gross_amount),
+      }))
+    )
+    const { duplicates: dupPays } = canonicalizePayments(
+      collections.map((c) => ({
+        id: `${c.collected_at}:${c.gross_amount}`,
+        transaction_id: null,
+        customer_id: null,
+        amount: num(c.gross_amount),
+        paid_at: c.collected_at,
+        status: c.status === 'collected' ? 'collected' : 'other',
+      }))
+    )
+    const ventasActivasQ = sales.filter((s) => ACTIVE_SALE_STATUSES.includes(s.status))
+    const conCampaign = contacts.filter((c) => !!c.campaign_id).length
+    const ventasConCampaign = ventasActivasQ.filter(
+      (s) => !!s.contact_id && contacts.some((c) => c.id === s.contact_id && !!c.campaign_id)
+    ).length
+    const revenueTotalQ = ventasActivasQ.reduce((a, s) => a + num(s.gross_amount), 0)
+    const revenueAtribQ = ventasConCampaign
+      ? ventasActivasQ
+          .filter((s) => !!s.contact_id && contacts.some((c) => c.id === s.contact_id && !!c.campaign_id))
+          .reduce((a, s) => a + num(s.gross_amount), 0)
+      : 0
+    const leadsSinAppt = appointments.filter((a) => !a.contact_id).length
+    return {
+      duplicateLeads: dupLeads,
+      duplicateAppointments: dupAppts,
+      duplicateSales: dupSales,
+      duplicatePayments: dupPays,
+      salesWithoutProduct: 0, // sales aún no enlaza product_id (§16); cuando exista, se cuenta aquí
+      appointmentsWithoutLead: leadsSinAppt,
+      paymentsWithoutSale: null as unknown as number,
+      unattributedLeads: contacts.length - conCampaign,
+      unattributedSales: ventasActivasQ.length - ventasConCampaign,
+      totalLeads: contacts.length,
+      totalSales: ventasActivasQ.length,
+      revenueTotal: revenueTotalQ,
+      revenueAttributed: revenueAtribQ,
+    }
+  }, [contacts, appointments, sales, collections])
+
+  // Funnel GLOBAL canónico (§22/§23): leads únicos → agendas consolidadas → shows confirmados →
+  // ofertas → ventas. offer_made aún no existe en appointments (§23); cuando llegue, ofertas deja
+  // de derivarse de result='offer_made' y pasa a leer el campo explícito.
+  const funnelGlobal = useMemo(() => {
+    const { leads } = canonicalizeLeads(
+      contacts.map((c) => ({
+        id: c.id,
+        email: c.email ?? null,
+        phone: c.phone ?? null,
+        created_at: c.created_at ?? null,
+      }))
+    )
+    const { appointments: apptsCanon } = canonicalizeAppointments(
+      appointments.map((a) => ({
+        id: a.id,
+        contact_id: a.contact_id,
+        calendly_event_id: a.calendly_event_id ?? null,
+        calendar_event_id: null,
+        scheduled_at: a.appointment_datetime,
+        status: a.status,
+      }))
+    )
+    const ofertas = appointments.filter((a) => a.offered === true || a.result === 'offer_made').length
+    return {
+      newUniqueLeads: leads.length,
+      booked: apptsCanon.length,
+      shows: funnelOperativo.asistencias,
+      offers: ofertas,
+      sales: funnelOperativo.cierres,
+    }
+  }, [contacts, appointments, funnelOperativo])
+
+  // ── EVOLUCIÓN TEMPORAL ───────────────────────────────────────────
+  // Series día/semana/mes dentro de la ventana del periodo (o últimos 90 días si "todo").
+  // Leads del CRM (contacts), agendas (appointments), cierres (ventas activas) y gasto+leads
+  // de anuncios (campaign_daily, ya filtrado por cuenta/periodo). TrendChart pinta huecos
+  // como huecos: un día sin dato no finge una caída a cero.
+  const [granularidad, setGranularidad] = useState<'dia' | 'semana' | 'mes'>('dia')
+  const etiquetaGranularidad = granularidad === 'dia' ? 'día' : granularidad === 'semana' ? 'semana' : 'mes'
+  const seriesEvolucion = useMemo(() => {
+    const fin = rango.to ?? new Date()
+    const t1 = fin.getTime()
+    const t0 = rango.from ? new Date(rango.from).getTime() : t1 - 90 * 86400000
+    const porDia = new Map<string, { leads: number; agendas: number; cierres: number; spend: number }>()
+    const dia = (d: string) => d.slice(0, 10)
+    const bump = (d: string, k: 'leads' | 'agendas' | 'cierres' | 'spend', n: number) => {
+      const key = dia(d)
+      if (key < new Date(t0).toISOString().slice(0, 10) || key > iso(t1)) return
+      const acc = porDia.get(key) ?? { leads: 0, agendas: 0, cierres: 0, spend: 0 }
+      acc[k] += n
+      porDia.set(key, acc)
+    }
+    const iso = (t: number) => new Date(t).toISOString().slice(0, 10)
+    for (const c of contacts) {
+      if (c.created_at) bump(c.created_at, 'leads', 1)
+    }
+    for (const a of appointments) {
+      if (a.appointment_datetime) bump(a.appointment_datetime, 'agendas', 1)
+    }
+    for (const s of ventasVisibles) {
+      if (ACTIVE_SALE_STATUSES.includes(s.status) && s.sale_date) bump(s.sale_date, 'cierres', 1)
+    }
+    for (const d of dailyVisible) {
+      bump(d.date, 'spend', num(d.spend))
+    }
+    // Agregación por granularidad: día = tal cual; semana = dominio común (UTC); mes = 'YYYY-MM'.
+    const agg = new Map<string, { leads: number; agendas: number; cierres: number; spend: number }>()
+    const clave = (d: string) => {
+      if (granularidad === 'dia') return d
+      if (granularidad === 'semana') {
+        const dt = new Date(`${d}T00:00:00Z`)
+        dt.setUTCDate(dt.getUTCDate() - dt.getUTCDay())
+        return dt.toISOString().slice(0, 10)
+      }
+      return d.slice(0, 7)
+    }
+    for (const [d, v] of porDia) {
+      const k = clave(d)
+      const acc = agg.get(k) ?? { leads: 0, agendas: 0, cierres: 0, spend: 0 }
+      acc.leads += v.leads
+      acc.agendas += v.agendas
+      acc.cierres += v.cierres
+      acc.spend += v.spend
+      agg.set(k, acc)
+    }
+    const fechas = [...agg.keys()].sort()
+    const serie = (k: 'leads' | 'agendas' | 'cierres' | 'spend') =>
+      fechas.map((f) => ({ date: f, value: agg.get(f)![k] }))
+    return { leads: serie('leads'), agendas: serie('agendas'), cierres: serie('cierres'), spend: serie('spend') }
+  }, [contacts, appointments, ventasVisibles, dailyVisible, rango, granularidad])
+
+  // GATE DE TRACKING: una métrica sin ningún dato en la ventana no se pinta — ni gráfico vacío
+  // ni "cero ruido". En cuanto haya un lead, una agenda, un cierre o gasto registrado, el
+  // gráfico entra solo. La sección completa desaparece si no hay ninguna serie con datos.
+  const tieneDatosSerie = (serie: { value: number }[]) => serie.some((p) => p.value > 0)
+  const hayEvolucion = {
+    leads: tieneDatosSerie(seriesEvolucion.leads),
+    spend: tieneDatosSerie(seriesEvolucion.spend),
+    agendas: tieneDatosSerie(seriesEvolucion.agendas),
+    cierres: tieneDatosSerie(seriesEvolucion.cierres),
+  }
+  const evolucionVisible = Object.values(hayEvolucion).some(Boolean)
+
+  // Distribución de facturación por canal (para el donut de la vista de anuncios).
+  const donutCanal: Segmento[] = useMemo(
+    () =>
+      channelRows
+        .filter((r) => r.revenue > 0)
+        .sort((a, b) => b.revenue - a.revenue)
+        .map((r, i) => ({
+          label: labelChannel(r.channel),
+          value: r.revenue,
+          color: `hsl(var(--brand-500) / ${Math.max(1 - i * 0.28, 0.16)})`,
+        })),
+    [channelRows]
+  )
 
   return (
     <div className="dashboard-surface p-4 sm:p-6 space-y-5">
@@ -578,7 +798,7 @@ export default function UnitEconomicsPage() {
         }}
       />
 
-      {/* FILTRO DE ATRIBUCIÓN: principals visibles, avanzados bajo demanda. */}
+      {/* FILTROS GLOBALES: origen + atribución + familia de embudo, todo en una barra. */}
       <FiltrosAtribucion
         origen={origen}
         onOrigenChange={setOrigen}
@@ -586,18 +806,81 @@ export default function UnitEconomicsPage() {
         onAtribucionChange={setAtribucion}
         avanzadosAbiertos={avanzadosAbiertos}
         onToggleAvanzados={() => setAvanzadosAbiertos((v) => !v)}
+        funnelOpcion={funnelOpcion}
+        onFunnelChange={setFunnelOpcion}
       />
 
-      {/* FUNNEL DINÁMICO: familia 'todos' = realidad operacional; las demás salen del motor lib/funnels. */}
+      {/* EVOLUCIÓN TEMPORAL: día/semana/mes de las métricas que se gestionan por tendencia.
+          Solo las series con datos entran; sin ninguna, la sección no se renderiza. */}
+      {evolucionVisible && (
+        <section className="dashboard-card p-5 sm:p-6 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-display text-xl font-semibold">Evolución</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Variación en el tiempo del periodo seleccionado. Las campañas de anuncios aportan gasto; sin periodo se
+                muestran los últimos 90 días.
+              </p>
+            </div>
+            <div
+              className="bg-muted border-border flex rounded-lg border p-0.5"
+              role="tablist"
+              aria-label="Granularidad"
+            >
+              {(
+                [
+                  ['dia', 'Día'],
+                  ['semana', 'Semana'],
+                  ['mes', 'Mes'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  role="tab"
+                  aria-selected={granularidad === id}
+                  onClick={() => setGranularidad(id)}
+                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                    granularidad === id ? 'bg-brand-500 text-zinc-950' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {hayEvolucion.leads && (
+              <TrendChart title={`Leads por ${etiquetaGranularidad}`} data={seriesEvolucion.leads} />
+            )}
+            {hayEvolucion.spend && (
+              <TrendChart
+                title={`Gasto publicitario por ${etiquetaGranularidad}`}
+                data={seriesEvolucion.spend}
+                format={formatCurrency}
+              />
+            )}
+            {hayEvolucion.agendas && (
+              <TrendChart title={`Agendas por ${etiquetaGranularidad}`} data={seriesEvolucion.agendas} />
+            )}
+            {hayEvolucion.cierres && (
+              <TrendChart title={`Cierres por ${etiquetaGranularidad}`} data={seriesEvolucion.cierres} />
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* FUNNEL DINÁMICO: la familia la elige la barra de filtros global (controlado). */}
       <FunnelDinamico
         tenant={tenant}
         operativo={funnelOperativo}
         loading={loading}
+        opcion={funnelOpcion}
         rango={{ from: rangoISO(rango.from), to: rangoISO(rango.to) }}
       />
 
-      {/* ATRIBUCIÓN declarada aparte: nunca se resta del total del negocio. */}
-      {hasAdsData && (
+      {/* ATRIBUCIÓN declarada aparte: nunca se resta del total del negocio. Solo tiene sentido en
+          la vista de anuncios; en "todos" la pantalla describe el negocio completo. */}
+      {vistaAnuncios && hasAdsData && (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
           <div className="dashboard-card p-3">
             <p className="text-muted-foreground">Agendas atribuidas a anuncios</p>
@@ -630,6 +913,13 @@ export default function UnitEconomicsPage() {
             </p>
           </div>
         </div>
+      )}
+
+      {/* CALIDAD + FUNNEL GLOBAL (dashboard global §20-§23/§38): una única versión coherente
+          de la realidad — leads canónicos, agendas consolidadas y diagnóstico de duplicados,
+          con la cobertura de atribución para saber hasta dónde llegan los datos. */}
+      {!loading && (contacts.length > 0 || appointments.length > 0 || sales.length > 0) && (
+        <DataQualityPanel quality={calidad} funnel={funnelGlobal} />
       )}
 
       {/* Top cards */}
@@ -750,193 +1040,220 @@ export default function UnitEconomicsPage() {
         </div>
       </div>
 
-      {/* Embudo de marketing */}
-      <div className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Detalle de adquisición</h2>
-          <p className="text-muted-foreground text-sm mt-1">
-            Impresiones, clicks y leads de campañas, atribuidos hasta el cierre de venta — solo lo que viene de
-            anuncios. Las cifras de todo origen están arriba.
-          </p>
-        </div>
+      {/* DETALLE DE ANUNCIOS — solo en la vista de anuncios (vistaAnuncios): en "todos" la
+          pantalla describe el negocio entero y este embudo mediría otra cosa. */}
+      {vistaAnuncios && (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Detalle de adquisición</h2>
+            <p className="text-muted-foreground text-sm mt-1">
+              Impresiones, clicks y leads de campañas, atribuidos hasta el cierre de venta — solo lo que viene de
+              anuncios. Las cifras de todo origen están arriba.
+            </p>
+          </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KPICard
-            title="Impressions"
-            value={loading ? '—' : formatNumber(marketingFunnel.impressions)}
-            icon={Megaphone}
-            loading={loading}
-          />
-          <KPICard
-            title="Clicks (outbound)"
-            value={loading ? '—' : formatNumber(marketingFunnel.clicks)}
-            icon={MousePointerClick}
-            loading={loading}
-          />
-          <KPICard
-            title="New unique leads"
-            value={loading ? '—' : formatNumber(marketingFunnel.leads)}
-            icon={Filter}
-            loading={loading}
-          />
-          <KPICard
-            title="Adspend"
-            value={loading ? '—' : formatCurrency(marketingFunnel.adspend)}
-            icon={Wallet}
-            loading={loading}
-          />
-        </div>
-
-        <div className="grid gap-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <KPICard
-              title="CPM"
-              value={loading ? '—' : marketingFunnel.cpm !== null ? formatCurrency(marketingFunnel.cpm) : '—'}
+              title="Impressions"
+              value={loading ? '—' : formatNumber(marketingFunnel.impressions)}
+              icon={Megaphone}
               loading={loading}
-              description="Coste por mil impresiones"
             />
             <KPICard
-              title="CTR"
-              value={loading ? '—' : formatPercent(marketingFunnel.ctr)}
+              title="Clicks (outbound)"
+              value={loading ? '—' : formatNumber(marketingFunnel.clicks)}
+              icon={MousePointerClick}
               loading={loading}
-              description="Clicks / impresiones"
             />
             <KPICard
-              title="CPC"
-              value={loading ? '—' : marketingFunnel.cpc !== null ? formatCurrency(marketingFunnel.cpc) : '—'}
+              title="New unique leads"
+              value={loading ? '—' : formatNumber(marketingFunnel.leads)}
+              icon={Filter}
               loading={loading}
-              description="Coste por click"
             />
             <KPICard
-              title="CPL"
-              value={loading ? '—' : marketingFunnel.cpl !== null ? formatCurrency(marketingFunnel.cpl) : '—'}
+              title="Adspend"
+              value={loading ? '—' : formatCurrency(marketingFunnel.adspend)}
+              icon={Wallet}
               loading={loading}
-              description="Coste por lead"
+            />
+          </div>
+
+          <div className="grid gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <KPICard
+                title="CPM"
+                value={loading ? '—' : marketingFunnel.cpm !== null ? formatCurrency(marketingFunnel.cpm) : '—'}
+                loading={loading}
+                description="Coste por mil impresiones"
+              />
+              <KPICard
+                title="CTR"
+                value={loading ? '—' : formatPercent(marketingFunnel.ctr)}
+                loading={loading}
+                description="Clicks / impresiones"
+              />
+              <KPICard
+                title="CPC"
+                value={loading ? '—' : marketingFunnel.cpc !== null ? formatCurrency(marketingFunnel.cpc) : '—'}
+                loading={loading}
+                description="Coste por click"
+              />
+              <KPICard
+                title="CPL"
+                value={loading ? '—' : marketingFunnel.cpl !== null ? formatCurrency(marketingFunnel.cpl) : '—'}
+                loading={loading}
+                description="Coste por lead"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <KPICard
+              title="% Clic a lead"
+              value={loading ? '—' : formatPercent(marketingFunnel.clickToLead)}
+              loading={loading}
+            />
+            <KPICard
+              title="Agendas atribuidas"
+              value={loading ? '—' : formatNumber(marketingFunnel.salesCallsBooked)}
+              icon={Users}
+              loading={loading}
+              description="Citas de contactos con campaña"
+            />
+            <KPICard
+              title="% Lead a agenda"
+              value={loading ? '—' : formatPercent(marketingFunnel.leadToBooked)}
+              loading={loading}
+            />
+            <KPICard
+              title="Coste por agenda"
+              value={loading ? '—' : marketingFunnel.bscCost !== null ? formatCurrency(marketingFunnel.bscCost) : '—'}
+              loading={loading}
+              description="Gasto publicitario / agendas atribuidas"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <KPICard
+              title="Cierres atribuidos"
+              value={loading ? '—' : formatNumber(marketingFunnel.dealsClosed)}
+              icon={Target}
+              loading={loading}
+              description="Ventas de contactos con campaña"
+            />
+            <KPICard
+              title="% Cierre sobre agendas"
+              value={loading ? '—' : formatPercent(marketingFunnel.convertLsc)}
+              loading={loading}
+              description="Cierres atribuidos / agendas atribuidas"
+            />
+            <KPICard
+              title="ROAS"
+              value={
+                loading || marketingFunnel.roas === null
+                  ? '—'
+                  : `${formatNumber(marketingFunnel.roas, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x`
+              }
+              icon={TrendingUp}
+              loading={loading}
+              description="Facturación de cierres atribuidos / gasto"
+            />
+            <KPICard
+              title="Valor de pipeline"
+              value={loading ? '—' : marketingFunnel.pipeValue > 0 ? formatCurrency(marketingFunnel.pipeValue) : '—'}
+              icon={Wallet}
+              loading={loading}
+              description="Valor de pipeline en citas atribuidas"
             />
           </div>
         </div>
+      )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KPICard
-            title="% Clic a lead"
-            value={loading ? '—' : formatPercent(marketingFunnel.clickToLead)}
-            loading={loading}
-          />
-          <KPICard
-            title="Agendas atribuidas"
-            value={loading ? '—' : formatNumber(marketingFunnel.salesCallsBooked)}
-            icon={Users}
-            loading={loading}
-            description="Citas de contactos con campaña"
-          />
-          <KPICard
-            title="% Lead a agenda"
-            value={loading ? '—' : formatPercent(marketingFunnel.leadToBooked)}
-            loading={loading}
-          />
-          <KPICard
-            title="Coste por agenda"
-            value={loading ? '—' : marketingFunnel.bscCost !== null ? formatCurrency(marketingFunnel.bscCost) : '—'}
-            loading={loading}
-            description="Gasto publicitario / agendas atribuidas"
+      {/* DISTRIBUCIÓN por canal (vista de anuncios): qué parte de la facturación y de los leads
+          aporta cada canal. Con la cobertura de atribución actual puede no haber nada que
+          distribuir — entonces no se enseña, en lugar de pintar donuts vacíos. */}
+      {vistaAnuncios && (donutCanal.length > 0 || channelRows.some((r) => r.leads > 0)) && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <DonutChart title="Facturación por canal" data={donutCanal} format={formatCurrency} />
+          <DonutChart
+            title="Leads por canal"
+            data={channelRows
+              .filter((r) => r.leads > 0)
+              .sort((a, b) => b.leads - a.leads)
+              .map((r, i) => ({
+                label: labelChannel(r.channel),
+                value: r.leads,
+                color: `hsl(var(--brand-500) / ${Math.max(1 - i * 0.28, 0.16)})`,
+              }))}
           />
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KPICard
-            title="Cierres atribuidos"
-            value={loading ? '—' : formatNumber(marketingFunnel.dealsClosed)}
-            icon={Target}
-            loading={loading}
-            description="Ventas de contactos con campaña"
-          />
-          <KPICard
-            title="% Cierre sobre agendas"
-            value={loading ? '—' : formatPercent(marketingFunnel.convertLsc)}
-            loading={loading}
-            description="Cierres atribuidos / agendas atribuidas"
-          />
-          <KPICard
-            title="ROAS"
-            value={
-              loading || marketingFunnel.roas === null
-                ? '—'
-                : `${formatNumber(marketingFunnel.roas, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x`
-            }
-            icon={TrendingUp}
-            loading={loading}
-            description="Facturación de cierres atribuidos / gasto"
-          />
-          <KPICard
-            title="Valor de pipeline"
-            value={loading ? '—' : marketingFunnel.pipeValue > 0 ? formatCurrency(marketingFunnel.pipeValue) : '—'}
-            icon={Wallet}
-            loading={loading}
-            description="Valor de pipeline en citas atribuidas"
-          />
-        </div>
-      </div>
+      )}
 
       {/* Tabla por canal */}
-      <div className="dashboard-card p-5">
-        <h3 className="text-sm font-semibold text-foreground mb-4">Unit economics por canal</h3>
-        {loading ? (
-          <div className="space-y-2">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-10 w-full bg-muted animate-pulse rounded" />
-            ))}
-          </div>
-        ) : !hasData || channelRows.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-6 text-center">Sin datos todavía.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-muted-foreground text-xs uppercase tracking-wider border-b border-border">
-                  <th className="py-2 pr-4">Canal</th>
-                  <th className="py-2 pr-4">Ad spend</th>
-                  <th className="py-2 pr-4">Leads</th>
-                  <th className="py-2 pr-4">CPL</th>
-                  <th className="py-2 pr-4">Clientes</th>
-                  <th className="py-2 pr-4">CAC</th>
-                  <th className="py-2 pr-4">Revenue</th>
-                  <th className="py-2 pr-4">ROAS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {channelRows.map((row) => (
-                  <tr key={row.channel} className="border-b border-border/50 text-foreground">
-                    <td className="py-2.5 pr-4 font-medium text-foreground">{labelChannel(row.channel)}</td>
-                    <td className="py-2.5 pr-4">{formatCurrency(row.adspend)}</td>
-                    <td className="py-2.5 pr-4">{formatNumber(row.leads)}</td>
-                    <td className="py-2.5 pr-4">{row.cpl !== null ? formatCurrency(row.cpl) : '—'}</td>
-                    <td className="py-2.5 pr-4">{formatNumber(row.customers)}</td>
-                    <td className="py-2.5 pr-4">{row.cac !== null ? formatCurrency(row.cac) : '—'}</td>
-                    <td className="py-2.5 pr-4">{formatCurrency(row.revenue)}</td>
-                    <td className="py-2.5 pr-4">
-                      {row.roas !== null ? (
-                        <span className={ratioColor(row.roas)}>
-                          {formatNumber(row.roas, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x
-                        </span>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
+      {vistaAnuncios && (
+        <div className="dashboard-card p-5">
+          <h3 className="text-sm font-semibold text-foreground mb-4">Unit economics por canal</h3>
+          {loading ? (
+            <div className="space-y-2">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-10 w-full bg-muted animate-pulse rounded" />
+              ))}
+            </div>
+          ) : !hasData || channelRows.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">Sin datos todavía.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-muted-foreground text-xs uppercase tracking-wider border-b border-border">
+                    <th className="py-2 pr-4">Canal</th>
+                    <th className="py-2 pr-4">Ad spend</th>
+                    <th className="py-2 pr-4">Leads</th>
+                    <th className="py-2 pr-4">CPL</th>
+                    <th className="py-2 pr-4">Clientes</th>
+                    <th className="py-2 pr-4">CAC</th>
+                    <th className="py-2 pr-4">Revenue</th>
+                    <th className="py-2 pr-4">ROAS</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                </thead>
+                <tbody>
+                  {channelRows.map((row) => (
+                    <tr key={row.channel} className="border-b border-border/50 text-foreground">
+                      <td className="py-2.5 pr-4 font-medium text-foreground">{labelChannel(row.channel)}</td>
+                      <td className="py-2.5 pr-4">{formatCurrency(row.adspend)}</td>
+                      <td className="py-2.5 pr-4">{formatNumber(row.leads)}</td>
+                      <td className="py-2.5 pr-4">{row.cpl !== null ? formatCurrency(row.cpl) : '—'}</td>
+                      <td className="py-2.5 pr-4">{formatNumber(row.customers)}</td>
+                      <td className="py-2.5 pr-4">{row.cac !== null ? formatCurrency(row.cac) : '—'}</td>
+                      <td className="py-2.5 pr-4">{formatCurrency(row.revenue)}</td>
+                      <td className="py-2.5 pr-4">
+                        {row.roas !== null ? (
+                          <span className={ratioColor(row.roas)}>
+                            {formatNumber(row.roas, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x
+                          </span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Nota de atribución */}
-      <p className="text-xs text-muted-foreground leading-relaxed">
-        La atribución por canal se calcula a partir de{' '}
-        <span className="text-muted-foreground">contacts.campaign_id</span> (aproximación tipo last-touch): cada
-        contacto se asigna al canal de la campaña que lo originó, y las ventas activas de esos contactos se atribuyen al
-        canal correspondiente. Los clientes sin campaña asociada no se incluyen en el desglose por canal.
-      </p>
+      {vistaAnuncios && (
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          La atribución por canal se calcula a partir de{' '}
+          <span className="text-muted-foreground">contacts.campaign_id</span> (aproximación tipo last-touch): cada
+          contacto se asigna al canal de la campaña que lo originó, y las ventas activas de esos contactos se atribuyen
+          al canal correspondiente. Los clientes sin campaña asociada no se incluyen en el desglose por canal.
+        </p>
+      )}
     </div>
   )
 }

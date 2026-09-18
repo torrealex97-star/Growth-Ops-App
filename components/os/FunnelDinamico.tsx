@@ -26,7 +26,7 @@ import { formatNumber } from '@/lib/utils'
 export type OpcionFunnel = 'todos' | FunnelFamily
 
 // Etiquetas del selector. Las del motor vienen de FUNNEL_DEFS; las dos "conceptuales" van aquí.
-const LABELS: Record<OpcionFunnel, string> = {
+export const FUNNEL_LABELS: Record<OpcionFunnel, string> = {
   todos: 'Todos (negocio)',
   vsl: 'VSL',
   webinar: 'Webinar',
@@ -34,7 +34,7 @@ const LABELS: Record<OpcionFunnel, string> = {
   web_seo: 'Web / SEO',
 }
 
-const ORDEN: OpcionFunnel[] = ['todos', 'vsl', 'profile', 'webinar', 'web_seo']
+export const FUNNEL_ORDEN: OpcionFunnel[] = ['todos', 'vsl', 'profile', 'webinar', 'web_seo']
 
 type Props = {
   tenant: string
@@ -43,13 +43,14 @@ type Props = {
   loading: boolean
   /** Rango del periodo seleccionado, en YYYY-MM-DD, para pedir las familias del motor. */
   rango: { from: string | null; to: string | null }
+  /** Familia activa — CONTROLADA desde la página: el selector vive en la barra de filtros global. */
+  opcion: OpcionFunnel
 }
 
 type EstadoMotor =
   { kind: 'idle' } | { kind: 'loading' } | { kind: 'motor'; result: FunnelResult } | { kind: 'error'; message: string }
 
-export function FunnelDinamico({ tenant, operativo, loading, rango }: Props) {
-  const [opcion, setOpcion] = useState<OpcionFunnel>('todos')
+export function FunnelDinamico({ tenant, operativo, loading, rango, opcion }: Props) {
   const [motor, setMotor] = useState<EstadoMotor>({ kind: 'idle' })
 
   // Las familias del motor se piden al endpoint canónico. 'todos' no se pide: ya está en la página.
@@ -99,25 +100,6 @@ export function FunnelDinamico({ tenant, operativo, loading, rango }: Props) {
               ? 'Realidad operacional del negocio en el periodo: totales del CRM, con o sin anuncio detrás.'
               : 'Etapas de esta familia según sus fuentes (Meta, VSL, CRM). Un hueco se declara, nunca se pinta como 0.'}
           </p>
-        </div>
-        <div
-          className="bg-muted border-border flex rounded-lg border p-0.5"
-          role="tablist"
-          aria-label="Familia de embudo"
-        >
-          {ORDEN.map((o) => (
-            <button
-              key={o}
-              role="tab"
-              aria-selected={opcion === o}
-              onClick={() => setOpcion(o)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                opcion === o ? 'bg-brand-500 text-zinc-950' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {LABELS[o]}
-            </button>
-          ))}
         </div>
       </div>
 
