@@ -24,97 +24,109 @@ function svc() {
 // PATCH { status? , adapted_script?, carousel_idea?, testimonio_id? } → aprueba/descarta/edita.
 // PATCH { action: 'regenerate' } → re-transcribe + re-genera el guión de este borrador.
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ tenant: string; id: string }> }) {
-  const { tenant, id } = await params
-  const t = await requireTenant(tenant)
-  if ('error' in t) return t.error
-  const sb = svc()
-  const roleErr = await requireRole(sb, t.userId)
-  if (roleErr) return NextResponse.json({ error: roleErr.error }, { status: roleErr.status })
+  try {
+    const { tenant, id } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+    const sb = svc()
+    const roleErr = await requireRole(sb, t.userId)
+    if (roleErr) return NextResponse.json({ error: roleErr.error }, { status: roleErr.status })
 
-  const body = await req.json()
+    const body = await req.json()
 
-  if (body?.action === 'regenerate') {
-    const { data: draft, error } = await sb
+    if (body?.action === 'regenerate') {
+      const { data: draft, error } = await sb
+        .from('reel_drafts')
+        .select('*')
+        .eq('id', id)
+        .eq('tenant_id', t.tenantId)
+        .single()
+      if (error || !draft) return NextResponse.json({ error: 'Borrador no encontrado' }, { status: 404 })
+      if (!draft.source_media_id)
+        return NextResponse.json({ error: 'Este borrador no tiene un reel de origen asociado' }, { status: 400 })
+
+      const { data: media, error: mediaErr } = await sb
+        .from('ig_competitor_media')
+        .select(
+          'id, competitor_id, caption, media_url, thumbnail_url, permalink, transcript, ai_analysis, published_at'
+        )
+        .eq('id', draft.source_media_id)
+        .eq('tenant_id', t.tenantId)
+        .single()
+      if (mediaErr || !media)
+        return NextResponse.json(
+          { error: 'No se encontró el reel de origen (¿se eliminó de Competencia?)' },
+          { status: 404 }
+        )
+
+      const { data: comp } = await sb
+        .from('ig_competitors')
+        .select('username')
+        .eq('id', media.competitor_id)
+        .eq('tenant_id', t.tenantId)
+        .single()
+      const groqKey = (await getTenantConfigWithFallback(t.tenantId)).GROQ_API_KEY
+      const result = await generateDraftForMedia(
+        sb,
+        media,
+        comp?.username || draft.source_account || '',
+        id,
+        t.tenantId,
+        groqKey
+      )
+      if (!result.ok) return NextResponse.json({ error: result.error || 'No se pudo regenerar' }, { status: 500 })
+
+      const { data: updated } = await sb
+        .from('reel_drafts')
+        .select('*')
+        .eq('id', id)
+        .eq('tenant_id', t.tenantId)
+        .single()
+      return NextResponse.json({ ok: true, draft: updated })
+    }
+
+    const { status, adapted_script, carousel_idea, testimonio_id } = body as {
+      status?: string
+      adapted_script?: string
+      carousel_idea?: string
+      testimonio_id?: string | null
+    }
+    const patch: Record<string, unknown> = {}
+    if (status !== undefined) {
+      if (!ALLOWED_STATUS.includes(status)) return NextResponse.json({ error: 'Estado no válido' }, { status: 400 })
+      patch.status = status
+    }
+    if (adapted_script !== undefined) patch.adapted_script = adapted_script
+    if (carousel_idea !== undefined) patch.carousel_idea = carousel_idea
+    // Testimonio que lleva el reel: el editor lo marca para saber de qué caso coger material.
+    // null / '' lo desvincula.
+    if (testimonio_id !== undefined) {
+      if (testimonio_id) {
+        const { data: testimonio } = await sb
+          .from('testimonios')
+          .select('id')
+          .eq('id', testimonio_id)
+          .eq('tenant_id', t.tenantId)
+          .maybeSingle()
+        if (!testimonio) return NextResponse.json({ error: 'Ese testimonio no existe' }, { status: 400 })
+        patch.testimonio_id = testimonio_id
+      } else {
+        patch.testimonio_id = null
+      }
+    }
+    if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 })
+
+    const { data, error } = await sb
       .from('reel_drafts')
-      .select('*')
+      .update(patch)
       .eq('id', id)
       .eq('tenant_id', t.tenantId)
+      .select('*')
       .single()
-    if (error || !draft) return NextResponse.json({ error: 'Borrador no encontrado' }, { status: 404 })
-    if (!draft.source_media_id)
-      return NextResponse.json({ error: 'Este borrador no tiene un reel de origen asociado' }, { status: 400 })
-
-    const { data: media, error: mediaErr } = await sb
-      .from('ig_competitor_media')
-      .select('id, competitor_id, caption, media_url, thumbnail_url, permalink, transcript, ai_analysis, published_at')
-      .eq('id', draft.source_media_id)
-      .eq('tenant_id', t.tenantId)
-      .single()
-    if (mediaErr || !media)
-      return NextResponse.json(
-        { error: 'No se encontró el reel de origen (¿se eliminó de Competencia?)' },
-        { status: 404 }
-      )
-
-    const { data: comp } = await sb
-      .from('ig_competitors')
-      .select('username')
-      .eq('id', media.competitor_id)
-      .eq('tenant_id', t.tenantId)
-      .single()
-    const groqKey = (await getTenantConfigWithFallback(t.tenantId)).GROQ_API_KEY
-    const result = await generateDraftForMedia(
-      sb,
-      media,
-      comp?.username || draft.source_account || '',
-      id,
-      t.tenantId,
-      groqKey
-    )
-    if (!result.ok) return NextResponse.json({ error: result.error || 'No se pudo regenerar' }, { status: 500 })
-
-    const { data: updated } = await sb.from('reel_drafts').select('*').eq('id', id).eq('tenant_id', t.tenantId).single()
-    return NextResponse.json({ ok: true, draft: updated })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true, draft: data })
+  } catch (err) {
+    console.error('[api/reels/id PATCH]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
-
-  const { status, adapted_script, carousel_idea, testimonio_id } = body as {
-    status?: string
-    adapted_script?: string
-    carousel_idea?: string
-    testimonio_id?: string | null
-  }
-  const patch: Record<string, unknown> = {}
-  if (status !== undefined) {
-    if (!ALLOWED_STATUS.includes(status)) return NextResponse.json({ error: 'Estado no válido' }, { status: 400 })
-    patch.status = status
-  }
-  if (adapted_script !== undefined) patch.adapted_script = adapted_script
-  if (carousel_idea !== undefined) patch.carousel_idea = carousel_idea
-  // Testimonio que lleva el reel: el editor lo marca para saber de qué caso coger material.
-  // null / '' lo desvincula.
-  if (testimonio_id !== undefined) {
-    if (testimonio_id) {
-      const { data: testimonio } = await sb
-        .from('testimonios')
-        .select('id')
-        .eq('id', testimonio_id)
-        .eq('tenant_id', t.tenantId)
-        .maybeSingle()
-      if (!testimonio) return NextResponse.json({ error: 'Ese testimonio no existe' }, { status: 400 })
-      patch.testimonio_id = testimonio_id
-    } else {
-      patch.testimonio_id = null
-    }
-  }
-  if (Object.keys(patch).length === 0) return NextResponse.json({ error: 'Nada que actualizar' }, { status: 400 })
-
-  const { data, error } = await sb
-    .from('reel_drafts')
-    .update(patch)
-    .eq('id', id)
-    .eq('tenant_id', t.tenantId)
-    .select('*')
-    .single()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true, draft: data })
 }

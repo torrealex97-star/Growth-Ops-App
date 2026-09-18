@@ -170,7 +170,7 @@ test('la ruta de Data Health expone los controles cruzados sin abortar por una t
   assert.match(ruta, /crossSummary: resumenCross\(crossChecks\)/)
   // Las consultas extra NO cortan la respuesta: si una falla, su conjunto va como null y el control
   // dice "no se pudo comprobar" en vez de dejar la pantalla en blanco por una tabla.
-  assert.match(ruta, /salesResult\.error \? null :/)
+  assert.match(ruta, /salesResult\.error\s*\?\s*null\s*:/)
   assert.match(ruta, /stripeResult\.error\s*\n?\s*\? null/)
   assert.match(ruta, /adAccountsResult\.error\s*\n?\s*\? null/)
   // Las cuentas seleccionadas salen de la MISMA función que usa la pantalla de Integraciones.

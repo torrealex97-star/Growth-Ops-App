@@ -26,46 +26,51 @@ export const runtime = 'nodejs'
 // y se devuelve como tal en vez de inventar una clave de configuración que no existe. Cuando una
 // integración futura admita varias cuentas, su lista se añade AQUÍ y las pantallas no cambian.
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
-  const { tenant } = await params
-  const auth = await requireTenant(tenant)
-  if ('error' in auth) return auth.error
+  try {
+    const { tenant } = await params
+    const auth = await requireTenant(tenant)
+    if ('error' in auth) return auth.error
 
-  const cfg = await getTenantConfigWithFallback(auth.tenantId)
-  const meta = parseAccountIds(cfg.META_AD_ACCOUNT_ID)
+    const cfg = await getTenantConfigWithFallback(auth.tenantId)
+    const meta = parseAccountIds(cfg.META_AD_ACCOUNT_ID)
 
-  // Nombres legibles de las cuentas seleccionadas, sacados de las campañas YA SINCRONIZADAS
-  // (campaigns.account_name). Sin llamada externa a Meta: el dashboard no debe depender de la
-  // Graph API para pintar un <select>. Si una cuenta aún no tiene campañas sincronizadas, cae a
-  // su id tal cual — mejor que fingir un nombre que no sabemos.
-  const nombres: Record<string, string> = {}
-  if (meta.length > 0) {
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    })
-    const { data: campañas } = await sb
-      .from('campaigns')
-      .select('account_id, account_name')
-      .eq('tenant_id', auth.tenantId)
-      .in('account_id', meta)
-      .limit(1000)
-    for (const c of campañas ?? []) {
-      const id = (c as { account_id: string | null }).account_id
-      const name = (c as { account_name: string | null }).account_name
-      if (id && name && !nombres[id]) nombres[id] = name
+    // Nombres legibles de las cuentas seleccionadas, sacados de las campañas YA SINCRONIZADAS
+    // (campaigns.account_name). Sin llamada externa a Meta: el dashboard no debe depender de la
+    // Graph API para pintar un <select>. Si una cuenta aún no tiene campañas sincronizadas, cae a
+    // su id tal cual — mejor que fingir un nombre que no sabemos.
+    const nombres: Record<string, string> = {}
+    if (meta.length > 0) {
+      const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      })
+      const { data: campañas } = await sb
+        .from('campaigns')
+        .select('account_id, account_name')
+        .eq('tenant_id', auth.tenantId)
+        .in('account_id', meta)
+        .limit(1000)
+      for (const c of campañas ?? []) {
+        const id = (c as { account_id: string | null }).account_id
+        const name = (c as { account_name: string | null }).account_name
+        if (id && name && !nombres[id]) nombres[id] = name
+      }
     }
-  }
 
-  return NextResponse.json(
-    {
-      meta: { seleccionadas: meta, todas: meta.length === 0, nombres },
-      // Instagram no tiene selección de cuenta: la cuenta ES la del token configurado.
-      instagram: { seleccionadas: [], todas: true, motivo: 'una cuenta por token' },
-    },
-    {
-      headers: {
-        'Cache-Control': 'private, max-age=60, stale-while-revalidate=300',
-        Vary: 'Cookie',
+    return NextResponse.json(
+      {
+        meta: { seleccionadas: meta, todas: meta.length === 0, nombres },
+        // Instagram no tiene selección de cuenta: la cuenta ES la del token configurado.
+        instagram: { seleccionadas: [], todas: true, motivo: 'una cuenta por token' },
       },
-    }
-  )
+      {
+        headers: {
+          'Cache-Control': 'private, max-age=60, stale-while-revalidate=300',
+          Vary: 'Cookie',
+        },
+      }
+    )
+  } catch (err) {
+    console.error('[api/integraciones/cuentas-activas GET]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+  }
 }

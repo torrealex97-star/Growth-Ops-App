@@ -8,38 +8,43 @@ import type { EmailOtpType } from '@supabase/supabase-js'
 //   - PKCE:  ?code=...            → exchangeCodeForSession
 //   - OTP:   ?token_hash=&type=   → verifyOtp  (invite / recovery / signup / email)
 export async function GET(request: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
-  const { tenant } = await params
-  const { searchParams, origin } = new URL(request.url)
-  const code = searchParams.get('code')
-  const tokenHash = searchParams.get('token_hash')
-  const type = (searchParams.get('type') as EmailOtpType | null) ?? undefined
-  const next = searchParams.get('next') ?? `/${tenant}/dashboard`
+  try {
+    const { tenant } = await params
+    const { searchParams, origin } = new URL(request.url)
+    const code = searchParams.get('code')
+    const tokenHash = searchParams.get('token_hash')
+    const type = (searchParams.get('type') as EmailOtpType | null) ?? undefined
+    const next = searchParams.get('next') ?? `/${tenant}/dashboard`
 
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll(cookiesToSet: { name: string; value: string; options?: Parameters<typeof cookieStore.set>[2] }[]) {
+            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+          },
         },
-        setAll(cookiesToSet: { name: string; value: string; options?: Parameters<typeof cookieStore.set>[2] }[]) {
-          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
-        },
-      },
+      }
+    )
+
+    let ok = false
+    if (code) {
+      const { error } = await supabase.auth.exchangeCodeForSession(code)
+      ok = !error
+    } else if (tokenHash && type) {
+      const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type })
+      ok = !error
     }
-  )
 
-  let ok = false
-  if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    ok = !error
-  } else if (tokenHash && type) {
-    const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type })
-    ok = !error
+    if (ok) return NextResponse.redirect(`${origin}${next}`)
+    return NextResponse.redirect(`${origin}/${tenant}/login?error=auth_callback_failed`)
+  } catch (err) {
+    console.error('[api/auth/callback GET]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
-
-  if (ok) return NextResponse.redirect(`${origin}${next}`)
-  return NextResponse.redirect(`${origin}/${tenant}/login?error=auth_callback_failed`)
 }

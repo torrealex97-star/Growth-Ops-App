@@ -8,28 +8,38 @@ export const runtime = 'nodejs'
 type Ctx = { params: Promise<{ tenant: string }> }
 
 export async function GET(_req: NextRequest, { params }: Ctx) {
-  const { tenant } = await params
-  const t = await requireTenant(tenant)
-  if ('error' in t) return t.error
-  const user = await getCarruselUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  const brand = await getBrand(t.tenantId)
-  return NextResponse.json(brand)
+  try {
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+    const user = await getCarruselUser()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    const brand = await getBrand(t.tenantId)
+    return NextResponse.json(brand)
+  } catch (err) {
+    console.error('[api/carruseles/brand GET]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+  }
 }
 
 export async function PUT(req: NextRequest, { params }: Ctx) {
-  const { tenant } = await params
-  const t = await requireTenant(tenant)
-  if ('error' in t) return t.error
-  const user = await getCarruselUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  const body = await req.json().catch(() => ({}))
-  const brand = await updateBrand(t.tenantId, {
-    name: body.name,
-    colors: body.colors,
-    fonts: body.fonts,
-    logoUrl: body.logoUrl,
-    styleKeywords: body.styleKeywords,
-  })
-  return NextResponse.json(brand)
+  try {
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+    const user = await getCarruselUser()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    const body = await req.json().catch(() => ({}))
+    const brand = await updateBrand(t.tenantId, {
+      name: body.name,
+      colors: body.colors,
+      fonts: body.fonts,
+      logoUrl: body.logoUrl,
+      styleKeywords: body.styleKeywords,
+    })
+    return NextResponse.json(brand)
+  } catch (err) {
+    console.error('[api/carruseles/brand PUT]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+  }
 }
