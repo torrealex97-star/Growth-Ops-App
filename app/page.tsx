@@ -19,8 +19,8 @@ interface TenantOption {
 // otros clientes no es información pública, así que anónimamente se muestra solo el
 // formulario de acceso directo.
 //
-// Estética "terminal cinematográfico": video full-bleed + scrim, Sora para display,
-// JetBrains Mono para UI. Cada tarjeta de subcuenta lleva el color de su tenant
+// Estética "terminal cinematográfico": video full-bleed + scrim, con las tipografías
+// del shell. Cada tarjeta de subcuenta lleva el color de su tenant
 // (resolveTenantBranding — la misma fuente de verdad que pinta el login y el shell).
 export default function HomePage() {
   const [tenants, setTenants] = useState<TenantOption[] | null>(null)
