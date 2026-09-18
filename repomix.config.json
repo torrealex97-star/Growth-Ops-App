@@ -1,0 +1,47 @@
+{
+  "$schema": "https://repomix.com/schemas/configuration-schema.json",
+  "include": [
+    "app/**",
+    "lib/**",
+    "components/**",
+    "supabase/migrations/**",
+    "tests/**",
+    "worker/**",
+    "scripts/**",
+    "*.json",
+    "*.ts",
+    "*.js",
+    "*.md"
+  ],
+  "ignore": {
+    "useGitignore": true,
+    "useDefaultPatterns": true,
+    "customPatterns": [
+      "node_modules/**",
+      ".next/**",
+      ".git/**",
+      ".vercel/**",
+      ".freebuff/**",
+      ".agents/**",
+      ".claude/**",
+      ".cursor/**",
+      ".vscode/**",
+      ".interface-design/**",
+      "public/**",
+      "*.tsbuildinfo",
+      "package-lock.json"
+    ]
+  },
+  "output": {
+    "filePath": "repomix-output.xml",
+    "format": "xml",
+    "style": "xml",
+    "removeComments": false,
+    "removeEmptyLines": false,
+    "compress": false,
+    "topFilesLength": 10,
+    "showLineNumbers": false,
+    "copyToClipboard": false,
+    "tokenCountTree": true
+  }
+}
