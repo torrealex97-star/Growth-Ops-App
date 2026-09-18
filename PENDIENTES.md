@@ -29,6 +29,8 @@ Feature completo y desplegado: Config → Datos de empresa, plantillas (pega tex
 
 ## 🟡 Datos a alimentar para que las métricas salgan reales
 
+- [~] **Instalar el snippet del pixel en la web real** — caso F verificado end-to-end el 18-sep: site `wdc-landing` creado (activo, orígenes: womendigitalclosers.com + localhost), evento del navegador → `raw_events` (normalized) → `canonical_events` → visible en Data Health (3 eventos, 0 errores). **Fix incluido**: el índice único de `canonical_events` era parcial y el upsert del ingest fallaba con 42P10 en silencio (raws atascados); convertido en índice completo (mismas garantías: NULL nunca colisiona) + replay de los atascados. Falta: pegar `<script defer src="https://growth-ops-weld.vercel.app/tracker.js" data-site="gop_pk_efec…"></script>` en el `<head>` de womendigitalclosers.com y (opcional) wirear `window.gop('lead')` / `window.gop('purchase')` en los formularios de la web.
+
 - [ ] **`event_type` (Demo / Sales Call) en las agendas** — sin marcarlo, el doble embudo de "Métricas ventas" no separa Demo vs Sales Call. Que GHL lo mande o marcarlo a mano.
 - [ ] **KPIs diarios del equipo** — el dashboard de **Prospección** se nutre de "KPI Diario". Si el equipo no lo rellena, sale vacío.
 - [ ] **`campaign_id` en leads/citas** — el embudo de marketing (Unit Economics) atribuye por ahí. Enlazar campañas (webhook GHL o asignación manual).
