@@ -462,6 +462,10 @@ async function syncDailyOneAccount(
         reach: d.reach,
         link_clicks: d.linkClicks,
         landing_views: d.landingViews,
+        // Acciones normalizadas por action_type (§6 del dashboard Meta): null = Meta no devolvió
+        // el array ese día; {} = array presente y sin acciones (0 confirmado).
+        meta_actions: d.actions ?? null,
+        meta_action_values: d.actionValues ?? null,
         updated_at: new Date().toISOString(),
       }
     })

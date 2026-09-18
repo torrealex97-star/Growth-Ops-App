@@ -10,6 +10,7 @@ import { META_API_VERSION } from '@/lib/meta/api-version'
 import { classifyMetaError, MetaError } from '@/lib/meta/errors'
 import { isRetryableCode } from '@/lib/integrations/sync-runs'
 import { parseAccountIds } from '@/lib/meta/accounts'
+import { normalizeMetaActions, normalizeMetaActionValues, type MetaActionKey } from '@/lib/meta/actions'
 
 export type MetaConfig = {
   token: string
@@ -376,6 +377,10 @@ type MetaDailyInsight = {
   reach: number
   linkClicks: number // clics en el enlace (inline_link_clicks) de ESE día
   landingViews: number // visitas a la página (landing_page_view) de ESE día
+  // Acciones normalizadas (mapa métrica → valor) tal y como Meta las devolvió ESE día.
+  // Mapa VACÍO = Meta midió y confirmó 0; UNDEFINED = Meta no devolvió actions (§7).
+  actions?: Partial<Record<MetaActionKey, number>>
+  actionValues?: Partial<Record<MetaActionKey, number>>
 }
 
 function ymd(d: Date): string {
@@ -389,7 +394,7 @@ export async function fetchMetaDailyInsights(cfg: MetaConfig, sinceDays = 180): 
   const since = new Date()
   since.setDate(since.getDate() - Math.max(1, sinceDays))
   const timeRange = encodeURIComponent(JSON.stringify({ since: ymd(since), until: ymd(until) }))
-  const fields = 'campaign_id,campaign_name,spend,impressions,clicks,inline_link_clicks,reach,actions'
+  const fields = 'campaign_id,campaign_name,spend,impressions,clicks,inline_link_clicks,reach,actions,action_values'
   const url =
     `${GRAPH}/${cfg.version}/${cfg.accountId}/insights` +
     `?level=campaign&fields=${fields}&time_increment=1&time_range=${timeRange}&limit=500` +
@@ -410,6 +415,10 @@ export async function fetchMetaDailyInsights(cfg: MetaConfig, sinceDays = 180): 
     reach: Number(r.reach) || 0,
     linkClicks: Number(r.inline_link_clicks) || 0,
     landingViews: sumAction(r.actions, 'landing_page_view'),
+    // Normalizador central (§6): actions[] y action_values[] → mapas por action_type.
+    // Si Meta no devolvió el array, el campo queda ausente (undefined = NULL, no 0).
+    ...(Array.isArray(r.actions) ? { actions: normalizeMetaActions(r.actions) } : {}),
+    ...(Array.isArray(r.action_values) ? { actionValues: normalizeMetaActionValues(r.action_values) } : {}),
   }))
   return { rows: mapped, truncated }
 }

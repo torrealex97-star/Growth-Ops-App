@@ -13,6 +13,7 @@ import { readEnum } from '@/lib/filters/url-state'
 import { AdsFunnelPanel, type CampaignTargets } from '@/components/os/AdsFunnelPanel'
 import { DailyMetricsPanel } from '@/components/os/DailyMetricsPanel'
 import { AdsTable } from '@/components/os/AdsTable'
+import { MetaAdsView } from '@/components/os/MetaAdsView'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { useSesion, useTenant } from '@/lib/tenant-context'
 import { useCuentasMetaActivas } from '@/lib/meta/use-cuentas-activas'
@@ -146,7 +147,7 @@ export default function CampaignsPage() {
   const [syncingDaily, setSyncingDaily] = useState(false)
   const [migrating, setMigrating] = useState(false)
   const [croning, setCroning] = useState(false)
-  const [view, setView] = useState<'campaigns' | 'ads'>('campaigns')
+  const [view, setView] = useState<'meta' | 'campaigns' | 'ads'>('meta')
   const [syncingAds, setSyncingAds] = useState(false)
   const [adsVersion, setAdsVersion] = useState(0)
   const [targets, setTargets] = useState<CampaignTargets | null>(null)
@@ -667,6 +668,12 @@ export default function CampaignsPage() {
 
       <div className="inline-flex rounded-lg border border-border bg-card p-1 text-sm">
         <button
+          onClick={() => setView('meta')}
+          className={`px-4 py-1.5 rounded-md transition ${view === 'meta' ? 'bg-brand-600 text-white' : 'text-muted-foreground hover:text-foreground'}`}
+        >
+          Análisis Meta
+        </button>
+        <button
           onClick={() => setView('campaigns')}
           className={`px-4 py-1.5 rounded-md transition ${view === 'campaigns' ? 'bg-brand-600 text-white' : 'text-muted-foreground hover:text-foreground'}`}
         >
@@ -733,6 +740,21 @@ export default function CampaignsPage() {
             />
           </div>
         </PeriodFilterBar>
+      )}
+
+      {view === 'meta' && (
+        <MetaAdsView
+          tenant={tenant}
+          campaigns={itemsFiltrados.map((c) => ({
+            id: c.id,
+            name: c.name,
+            provider: c.provider,
+            account_id: c.account_id,
+          }))}
+          rangeFrom={rangeFrom}
+          rangeTo={rangeTo}
+          periodActive={periodActive}
+        />
       )}
 
       {view === 'ads' && <AdsTable campaigns={items} accounts={accounts} version={adsVersion} />}
