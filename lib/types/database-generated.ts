@@ -1,4 +1,4 @@
-// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-18T12:55:04.265Z).
+// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-18T16:46:21.462Z).
 // Regenerar con: npm run tipos:bd  (y commitear). El test tests/esquema-tenant-invariante.test.mjs
 // comprueba que este artefacto sigue fresco respecto al esquema vivo.
 // Espejo exacto del esquema public de Supabase; los tipos de APP siguen en lib/types/database.ts.
@@ -1281,6 +1281,53 @@ export type EsquemaPublico = {
         created_at: string | undefined
       }
     }
+    CollaboratorProfiles: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        user_id: string | null
+        code: string | null
+        name: string | null
+        status: string | null
+        contract_id: string | null
+        contract_version: string | null
+        contract_signed_at: string | null
+        default_commission_percent: number | string | null
+        notes: string | null
+        created_at: string | null
+        updated_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        user_id: string | null | undefined
+        code: string | null | undefined
+        name: string | null | undefined
+        status: string | null | undefined
+        contract_id: string | null | undefined
+        contract_version: string | null | undefined
+        contract_signed_at: string | null | undefined
+        default_commission_percent: number | string | null | undefined
+        notes: string | null | undefined
+        created_at: string | null | undefined
+        updated_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        user_id: string | undefined
+        code: string | undefined
+        name: string | undefined
+        status: string | undefined
+        contract_id: string | undefined
+        contract_version: string | undefined
+        contract_signed_at: string | undefined
+        default_commission_percent: number | string | undefined
+        notes: string | undefined
+        created_at: string | undefined
+        updated_at: string | undefined
+      }
+    }
     Collections: {
       Row: {
         id: string | null
@@ -1598,6 +1645,7 @@ export type EsquemaPublico = {
         last_utm_content: string | null
         last_utm_term: string | null
         tenant_id: string | null
+        collaborator_id: string | null
       }
       Insert: {
         id: string | null | undefined
@@ -1626,6 +1674,7 @@ export type EsquemaPublico = {
         last_utm_content: string | null | undefined
         last_utm_term: string | null | undefined
         tenant_id: string | null | undefined
+        collaborator_id: string | null | undefined
       }
       Update: {
         id: string | undefined
@@ -1654,6 +1703,7 @@ export type EsquemaPublico = {
         last_utm_content: string | undefined
         last_utm_term: string | undefined
         tenant_id: string | undefined
+        collaborator_id: string | undefined
       }
     }
     ContactNotes: {

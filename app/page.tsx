@@ -3,11 +3,14 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { resolveTenantBranding } from '@/lib/tenant-branding'
 import { Loader2 } from 'lucide-react'
+import './panel.css'
 
 interface TenantOption {
   slug: string
   name: string
+  settings: unknown
 }
 
 // Selector de subcuenta. NO enumera todas las subcuentas del sistema: si estuviéramos
@@ -15,6 +18,10 @@ interface TenantOption {
 // tenants_select_member); si no lo estamos, no se lista NINGUNA — conocer los nombres de
 // otros clientes no es información pública, así que anónimamente se muestra solo el
 // formulario de acceso directo.
+//
+// Estética "terminal cinematográfico": video full-bleed + scrim, Sora para display,
+// JetBrains Mono para UI. Cada tarjeta de subcuenta lleva el color de su tenant
+// (resolveTenantBranding — la misma fuente de verdad que pinta el login y el shell).
 export default function HomePage() {
   const [tenants, setTenants] = useState<TenantOption[] | null>(null)
   const [autenticado, setAutenticado] = useState<boolean | null>(null)
@@ -29,46 +36,97 @@ export default function HomePage() {
     const supabase = createClient()
     supabase
       .from('tenants')
-      .select('slug, name')
+      .select('slug, name, settings')
       .eq('status', 'active')
       .order('name')
       .then(({ data }) => setTenants(data ?? []))
   }, [autenticado])
 
   return (
-    <div className="dark min-h-screen bg-background flex items-center justify-center p-4" data-theme="os">
-      <div className="w-full max-w-sm text-center">
-        <span className="text-3xl font-semibold tracking-tight text-white">Growth Ops</span>
-        <p className="text-muted-foreground text-sm mt-2 mb-8">Elige tu subcuenta para entrar.</p>
-
-        {tenants === null && (
-          <div className="flex justify-center text-muted-foreground">
-            <Loader2 className="w-5 h-5 animate-spin" />
-          </div>
-        )}
-
-        {tenants !== null && tenants.length === 0 && (
-          <p className="text-muted-foreground text-sm">
-            {autenticado
-              ? 'No tienes subcuentas asignadas todavía. Pide acceso a tu administrador.'
-              : 'Introduce la dirección de tu subcuenta o entra desde el enlace que te compartieron.'}
-          </p>
-        )}
-
-        {tenants !== null && tenants.length > 0 && (
-          <div className="space-y-2">
-            {tenants.map((t) => (
-              <Link
-                key={t.slug}
-                href={`/${t.slug}/login`}
-                className="block w-full rounded-lg border border-[#26262A] bg-[#141416] px-4 py-3 text-left text-white text-sm font-medium hover:bg-[#1C1C1F] hover:border-[#343438] transition-colors"
-              >
-                {t.name}
-              </Link>
-            ))}
-          </div>
-        )}
+    <main className="go-hero">
+      {/* Medio: video cinematográfico full-bleed. Con prefers-reduced-motion el CSS oculta el
+          video y muestra el póster como fondo — cero animación. */}
+      <div className="go-hero__media" aria-hidden>
+        <video
+          className="go-hero__video"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
+          poster="/panel/hero-poster.png"
+          src="/panel/hero.mp4"
+        />
       </div>
-    </div>
+      {/* Scrim doble: horizontal (la zona del panel se oscurece para el texto) y vertical
+          (arranque y cierre de la escena). Espejo exacto del scrim ECHOID. */}
+      <div className="go-hero__scrim" aria-hidden />
+
+      {/* Fila 1 — cabecera. Logo (Sora) + enlace directo de acceso. */}
+      <header className="go-nav">
+        <Link href="/" className="go-nav__logo">
+          GROWTH OPS
+        </Link>
+        <nav className="go-nav__cluster">
+          <Link href="#acceso" className="go-nav__link">
+            Subcuentas
+          </Link>
+          <Link href="#acceso" className="go-nav__cta">
+            Acceder
+          </Link>
+        </nav>
+      </header>
+
+      {/* Fila 2 — cuerpo: panel a la derecha (columna única: chip, display, formulario). */}
+      <div className="go-hero__body" id="acceso">
+        <section className="go-panel">
+          <span className="go-chip">[ Panel de acceso ]</span>
+          <h1 className="go-display">Growth Ops</h1>
+          <p className="go-tagline">Elige tu subcuenta para entrar al sistema.</p>
+
+          {tenants === null && (
+            <div className="go-form" aria-live="polite">
+              <Loader2 className="go-loader" aria-label="Cargando subcuentas" />
+            </div>
+          )}
+
+          {tenants !== null && tenants.length === 0 && (
+            <p className="go-empty">
+              {autenticado
+                ? 'No tienes subcuentas asignadas todavía. Pide acceso a tu administrador.'
+                : 'Introduce la dirección de tu subcuenta o entra desde el enlace que te compartieron.'}
+            </p>
+          )}
+
+          {tenants !== null && tenants.length > 0 && (
+            <div className="go-form">
+              {tenants.map((t) => {
+                const branding = resolveTenantBranding(t.settings)
+                return (
+                  <Link key={t.slug} href={`/${t.slug}/login`} className="go-tile" data-accent={branding.accent}>
+                    <span className="go-tile__top">
+                      <span className="go-tile__name">{branding.name}</span>
+                      <span className="go-tile__slug">/{t.slug}</span>
+                    </span>
+                    <span className="go-tile__row">
+                      <span className="go-tile__hint">Iniciar sesión</span>
+                      <span aria-hidden className="go-tile__arrow">
+                        →
+                      </span>
+                    </span>
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* Fila 3 — pie legal. */}
+      <footer className="go-legal">
+        Growth Ops · Acceso privado del equipo. Cada subcuenta opera como un negocio independiente dentro de la
+        plataforma.
+      </footer>
+    </main>
   )
 }
