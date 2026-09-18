@@ -91,7 +91,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     .slice(0, 20)
 
   const sb = serviceSb()
-  if (!sb) return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY no configurada en este entorno' }, { status: 500 })
+  if (!sb)
+    return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY no configurada en este entorno' }, { status: 500 })
   const { data, error } = await sb
     .from('tracking_sites')
     .insert({
@@ -143,12 +144,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
   if (typeof body.allow_localhost === 'boolean') patch.allow_localhost = body.allow_localhost
 
   const sb = serviceSb()
-  if (!sb) return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY no configurada en este entorno' }, { status: 500 })
-  const { error } = await sb
-    .from('tracking_sites')
-    .update(patch)
-    .eq('id', body.id)
-    .eq('tenant_id', t.tenantId)
+  if (!sb)
+    return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY no configurada en este entorno' }, { status: 500 })
+  const { error } = await sb.from('tracking_sites').update(patch).eq('id', body.id).eq('tenant_id', t.tenantId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

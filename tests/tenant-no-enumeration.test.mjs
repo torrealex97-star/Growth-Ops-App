@@ -29,13 +29,29 @@ test('la home no enumera subcuentas sin sesión previa', () => {
 test('localStorage con estado de negocio lleva namespace por subcuenta', () => {
   // Cola de guiones (contenido de negocio por tenant)
   const queue = read('components/os/ScriptQueue.tsx')
-  assert.match(queue, /lsKeyFor\s*=\s*\(tenant[^)]*\)\s*=>\s*`tenant:\$\{tenant\}/, 'ScriptQueue debe keyear su cola por tenant')
-  assert.doesNotMatch(queue, /localStorage\.(get|set)Item\('iaw_script_jobs'\)/, 'ScriptQueue no debe usar la clave global antigua')
+  assert.match(
+    queue,
+    /lsKeyFor\s*=\s*\(tenant[^)]*\)\s*=>\s*`tenant:\$\{tenant\}/,
+    'ScriptQueue debe keyear su cola por tenant'
+  )
+  assert.doesNotMatch(
+    queue,
+    /localStorage\.(get|set)Item\('iaw_script_jobs'\)/,
+    'ScriptQueue no debe usar la clave global antigua'
+  )
 
   // Columnas de contactos (preferencia de trabajo por tenant)
   const cols = read('components/crm/ContactsAllView.tsx')
-  assert.match(cols, /colsKeyFor\s*=\s*\(tenant[^)]*\)\s*=>\s*`tenant:\$\{tenant\}/, 'ContactsAllView debe keyear columnas por tenant')
-  assert.doesNotMatch(cols, /localStorage\.(get|set)Item\('contacts_unified_cols'\)/, 'ContactsAllView no debe usar la clave global antigua')
+  assert.match(
+    cols,
+    /colsKeyFor\s*=\s*\(tenant[^)]*\)\s*=>\s*`tenant:\$\{tenant\}/,
+    'ContactsAllView debe keyear columnas por tenant'
+  )
+  assert.doesNotMatch(
+    cols,
+    /localStorage\.(get|set)Item\('contacts_unified_cols'\)/,
+    'ContactsAllView no debe usar la clave global antigua'
+  )
 })
 
 // Las preferencias de carga deben re-evaluarse al cambiar de subcuenta: si el useEffect
@@ -43,13 +59,13 @@ test('localStorage con estado de negocio lleva namespace por subcuenta', () => {
 // Comprobación simple y robusta: entre la lectura por-tenant y su cierre debe aparecer [tenant].
 test('los useEffect de estado por-tenant se re-ejecutan al cambiar de tenant', () => {
   const queue = read('components/os/ScriptQueue.tsx')
-  const resumeIdx = queue.indexOf("localStorage.getItem(lsKeyFor(tenant))")
+  const resumeIdx = queue.indexOf('localStorage.getItem(lsKeyFor(tenant))')
   assert.ok(resumeIdx >= 0, 'ScriptQueue debe leer su cola con clave por tenant')
   const afterResume = queue.slice(resumeIdx, resumeIdx + 900)
   assert.match(afterResume, /\}, \[tenant\]\)/, 'el useEffect de reanudación debe depender de tenant')
 
   const cols = read('components/crm/ContactsAllView.tsx')
-  const colsIdx = cols.indexOf("localStorage.getItem(colsKeyFor(tenant))")
+  const colsIdx = cols.indexOf('localStorage.getItem(colsKeyFor(tenant))')
   assert.ok(colsIdx >= 0, 'ContactsAllView debe leer columnas con clave por tenant')
   const afterCols = cols.slice(colsIdx, colsIdx + 600)
   assert.match(afterCols, /\}, \[tenant\]\)/, 'el useEffect de columnas debe depender de tenant')

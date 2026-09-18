@@ -48,7 +48,13 @@ import type { AppointmentWithRelations, AppointmentStatus, User, Contact, Sale }
 import { guessContactTimezone, DEFAULT_TIMEZONE, TIMEZONE_OPTIONS } from '@/lib/timezone'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
-import { DEFAULT_PERIOD,  getPeriodRange, getPreviousPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
+import {
+  DEFAULT_PERIOD,
+  getPeriodRange,
+  getPreviousPeriodRange,
+  inPeriod,
+  type PeriodPreset,
+} from '@/lib/filters/period'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 import {
   CATEGORY_BADGE_CLASSES,
@@ -1739,7 +1745,9 @@ export default function AppointmentsPage() {
                                   <p className="text-[10px] text-muted-foreground truncate">{appt.setter.full_name}</p>
                                 )}
                                 <div className="flex items-center gap-1 flex-wrap mt-1">
-                                  <Badge className={`border text-[10px] gap-1 whitespace-nowrap ${CATEGORY_BADGE_CLASSES[category]}`}>
+                                  <Badge
+                                    className={`border text-[10px] gap-1 whitespace-nowrap ${CATEGORY_BADGE_CLASSES[category]}`}
+                                  >
                                     {category === 'compra' && <Banknote className="w-3 h-3" />}
                                     {CATEGORY_LABELS[category]}
                                   </Badge>
@@ -1749,7 +1757,9 @@ export default function AppointmentsPage() {
                                     </Badge>
                                   ) : null}
                                   {appt.duration_minutes ? (
-                                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">{appt.duration_minutes} min</span>
+                                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                      {appt.duration_minutes} min
+                                    </span>
                                   ) : null}
                                 </div>
                               </>

@@ -6,7 +6,7 @@ import { activeUserNamesQuery } from '@/lib/users'
 import { CalendarCheck, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
-import { DEFAULT_PERIOD,  getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
+import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { useSesion } from '@/lib/tenant-context'
 

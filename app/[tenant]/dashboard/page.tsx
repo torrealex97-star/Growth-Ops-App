@@ -14,7 +14,7 @@ import { DailyQuoteWidget } from '@/components/os/DailyQuoteWidget'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { FunnelStrip } from '@/components/os/FunnelStrip'
 import { MarketingEfficiencyCard } from '@/components/os/MarketingEfficiencyCard'
-import { DEFAULT_PERIOD,  getPeriodRange, inPeriod, toDateInputValue, type PeriodPreset } from '@/lib/filters/period'
+import { DEFAULT_PERIOD, getPeriodRange, inPeriod, toDateInputValue, type PeriodPreset } from '@/lib/filters/period'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import {
   TrendingUp,

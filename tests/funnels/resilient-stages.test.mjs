@@ -48,7 +48,12 @@ describe('resilient stage loading', () => {
   })
 
   it('when a source wrapper succeeds, its stages resolve normally', () => {
-    const crm = { leads: fromCount(100, 'crm'), agendas: fromCount(50, 'crm'), llamadas: fromCount(30, 'crm'), cierres: fromCount(10, 'crm') }
+    const crm = {
+      leads: fromCount(100, 'crm'),
+      agendas: fromCount(50, 'crm'),
+      llamadas: fromCount(30, 'crm'),
+      cierres: fromCount(10, 'crm'),
+    }
     assert.equal(isSourceError(crm), false)
     assert.equal(crm.leads.value, 100)
     assert.equal(crm.leads.status, 'ok')
@@ -56,7 +61,12 @@ describe('resilient stage loading', () => {
 
   it('when crm fails but meta succeeds, meta stages are unaffected', () => {
     const crm = { error: 'timeout' }
-    const meta = { impresiones: fromCount(5000, 'meta'), clics: fromCount(200, 'meta'), alcance: fromCount(3000, 'meta'), inversion: 150.5 }
+    const meta = {
+      impresiones: fromCount(5000, 'meta'),
+      clics: fromCount(200, 'meta'),
+      alcance: fromCount(3000, 'meta'),
+      inversion: 150.5,
+    }
     // CRM stages → error
     assert.equal(isSourceError(crm), true)
     assert.equal(isSourceError(meta), false)

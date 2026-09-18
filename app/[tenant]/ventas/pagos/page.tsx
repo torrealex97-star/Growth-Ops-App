@@ -15,8 +15,8 @@ import { toast } from 'sonner'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 import type { SaleWithRelations, Collection, SaleExpectedInstallment } from '@/lib/types/database'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
-import { DEFAULT_PERIOD,  getCustomDateRange } from '@/lib/filters/period'
-import {  getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
+import { DEFAULT_PERIOD, getCustomDateRange } from '@/lib/filters/period'
+import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
 import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
 
 function csvEscape(value: string): string {

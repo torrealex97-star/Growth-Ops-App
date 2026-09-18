@@ -10,10 +10,16 @@ const base = 'http://localhost:3000'
 const env = Object.fromEntries(
   readFileSync('/tmp/growthops-preview/.env.local', 'utf8')
     .split('\n')
-    .filter(l => /^[A-Z_]+=.+/.test(l))
-    .map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)])
+    .filter((l) => /^[A-Z_]+=.+/.test(l))
+    .map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)])
 )
-const j = async (r) => { try { return await r.json() } catch { return null } }
+const j = async (r) => {
+  try {
+    return await r.json()
+  } catch {
+    return null
+  }
+}
 
 // 1) ruta legacy de ingesta con clave INCORRECTA → 401 (rechazo)
 const bad = await fetch(`${base}/api/women-digital-closer/evergreen/tracking/events`, {
@@ -50,4 +56,3 @@ const ghlGood = await fetch(`${base}/api/women-digital-closer/evergreen/webhooks
 const gg = await j(ghlGood)
 console.log('4) GHL secreto CORRECTO (auth) →', ghlGood.status, (gg?.error || '').slice(0, 80))
 console.log('   ¿pasó autenticación?:', ghlGood.status !== 401 ? 'SÍ' : 'NO')
-

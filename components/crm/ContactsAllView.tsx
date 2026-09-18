@@ -96,8 +96,18 @@ const HOT_PCT = 75
 const DAY_MS = 1000 * 60 * 60 * 24
 
 const FOLLOWUP: { value: string; label: string; color: string; dot: string }[] = [
-  { value: 'sin_contacto', label: 'Sin contactar', color: 'bg-red-500/20 text-red-300 border-red-500/40', dot: 'bg-red-500' },
-  { value: 'hoy', label: 'Contactado hoy', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40', dot: 'bg-emerald-500' },
+  {
+    value: 'sin_contacto',
+    label: 'Sin contactar',
+    color: 'bg-red-500/20 text-red-300 border-red-500/40',
+    dot: 'bg-red-500',
+  },
+  {
+    value: 'hoy',
+    label: 'Contactado hoy',
+    color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+    dot: 'bg-emerald-500',
+  },
   { value: 'd1', label: 'Día 1', color: 'bg-lime-500/20 text-lime-300 border-lime-500/40', dot: 'bg-lime-500' },
   { value: 'd2', label: 'Día 2', color: 'bg-amber-500/20 text-amber-300 border-amber-500/40', dot: 'bg-amber-500' },
   { value: 'd3', label: 'Día 3', color: 'bg-orange-500/20 text-orange-300 border-orange-500/40', dot: 'bg-orange-500' },
@@ -106,10 +116,29 @@ const FOLLOWUP: { value: string; label: string; color: string; dot: string }[] =
 const followupMeta = (b: string) => FOLLOWUP.find((x) => x.value === b) ?? FOLLOWUP[0]
 
 type ColumnKey =
-  | 'nombre' | 'telefono' | 'email' | 'instagram' | 'empresa' | 'pais'
-  | 'fuente' | 'utm_source' | 'utm_medium' | 'utm_campaign' | 'utm_content' | 'utm_term'
-  | 'first_source' | 'first_campaign' | 'last_source' | 'last_campaign'
-  | 'vsl' | 'estado' | 'canal' | 'fuente_lead' | 'seguimiento' | 'notas' | 'creado'
+  | 'nombre'
+  | 'telefono'
+  | 'email'
+  | 'instagram'
+  | 'empresa'
+  | 'pais'
+  | 'fuente'
+  | 'utm_source'
+  | 'utm_medium'
+  | 'utm_campaign'
+  | 'utm_content'
+  | 'utm_term'
+  | 'first_source'
+  | 'first_campaign'
+  | 'last_source'
+  | 'last_campaign'
+  | 'vsl'
+  | 'estado'
+  | 'canal'
+  | 'fuente_lead'
+  | 'seguimiento'
+  | 'notas'
+  | 'creado'
 
 const COLUMNS: { key: ColumnKey; label: string; group: string }[] = [
   { key: 'nombre', label: 'Nombre', group: 'Datos' },
@@ -175,7 +204,11 @@ function lastActivityAt(l: ContactRow, appts: ApptLite[]): number | null {
 
 type FollowupBucket = 'sin_contacto' | 'hoy' | 'd1' | 'd2' | 'd3' | 'd4plus'
 
-function followupBucket(l: ContactRow, appts: ApptLite[], now: number): { bucket: FollowupBucket; days: number | null } {
+function followupBucket(
+  l: ContactRow,
+  appts: ApptLite[],
+  now: number
+): { bucket: FollowupBucket; days: number | null } {
   const last = lastActivityAt(l, appts)
   if (last == null) return { bucket: 'sin_contacto', days: null }
   const days = Math.floor((now - last) / DAY_MS)
@@ -240,13 +273,19 @@ export function ContactsAllView() {
         const parsed = JSON.parse(raw)
         if (Array.isArray(parsed) && parsed.length > 0) setVisibleCols(parsed)
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [tenant])
 
   const toggleCol = (key: ColumnKey) => {
     setVisibleCols((prev) => {
       const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-      try { localStorage.setItem(colsKeyFor(tenant), JSON.stringify(next)) } catch { /* ignore */ }
+      try {
+        localStorage.setItem(colsKeyFor(tenant), JSON.stringify(next))
+      } catch {
+        /* ignore */
+      }
       return next
     })
   }
@@ -258,7 +297,8 @@ export function ContactsAllView() {
     const [contactsRes, apptRes] = await Promise.all([
       supabase
         .from('contacts')
-        .select(`
+        .select(
+          `
           id, full_name, first_name, last_name, email, phone, country, company_name, instagram, notes,
           lead_status, lead_channel, vsl_watch_pct, lead_score, created_at, first_seen_at, last_seen_at,
           set_source, first_contact_at, contact_attempts,
@@ -266,7 +306,8 @@ export function ContactsAllView() {
             first_utm_source, first_utm_medium, first_utm_campaign, first_utm_content, first_utm_term,
             last_utm_source, last_utm_medium, last_utm_campaign, last_utm_content, last_utm_term),
           contact_notes(note, created_at)
-        `)
+        `
+        )
         .is('merged_into', null)
         .order('created_at', { ascending: false }),
       supabase.from('appointments').select('contact_id, appointment_datetime, created_at, status'),
@@ -281,7 +322,9 @@ export function ContactsAllView() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+  }, [])
 
   // ── Derivados ────────────────────────────────────────────────────────────
 
@@ -331,7 +374,9 @@ export function ContactsAllView() {
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {}
-    leads.forEach((l) => { c[l.lead_status] = (c[l.lead_status] || 0) + 1 })
+    leads.forEach((l) => {
+      c[l.lead_status] = (c[l.lead_status] || 0) + 1
+    })
     return c
   }, [leads])
 
@@ -363,7 +408,10 @@ export function ContactsAllView() {
       body: JSON.stringify(formData),
     })
     const json = await res.json().catch(() => ({}))
-    if (!res.ok) { toast.error('Error al crear', { description: json.error }); return }
+    if (!res.ok) {
+      toast.error('Error al crear', { description: json.error })
+      return
+    }
     toast.success('Contacto creado')
     setNewOpen(false)
     await load()
@@ -374,9 +422,14 @@ export function ContactsAllView() {
     if (!note) return
     setSavingNote(true)
     const supabase = createClient()
-    const { error } = await supabase.from('contact_notes').insert({ contact_id: id, author_id: sesion?.userId ?? null, note })
+    const { error } = await supabase
+      .from('contact_notes')
+      .insert({ contact_id: id, author_id: sesion?.userId ?? null, note })
     setSavingNote(false)
-    if (error) { toast.error('No se pudo guardar la nota'); return }
+    if (error) {
+      toast.error('No se pudo guardar la nota')
+      return
+    }
     toast.success('Nota añadida')
     setNoteDraft('')
     setNoteOpenFor(null)
@@ -404,18 +457,29 @@ export function ContactsAllView() {
             className="w-full pl-9 pr-8 py-2 bg-muted border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-500"
           />
           {q && (
-            <button onClick={() => setQ('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+            <button
+              onClick={() => setQ('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
               <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
-        <span className="text-xs text-muted-foreground">{filtered.length} de {leads.length}</span>
+        <span className="text-xs text-muted-foreground">
+          {filtered.length} de {leads.length}
+        </span>
         <div className="flex items-center gap-2 ml-auto">
-          <button onClick={() => setNewOpen(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white hover:bg-brand-500">
+          <button
+            onClick={() => setNewOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white hover:bg-brand-500"
+          >
             <UserPlus className="w-3.5 h-3.5" /> Nuevo contacto
           </button>
           <div className="relative">
-            <button onClick={() => setColsMenuOpen((v) => !v)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-card text-foreground border-border hover:border-brand-500/50">
+            <button
+              onClick={() => setColsMenuOpen((v) => !v)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-card text-foreground border-border hover:border-brand-500/50"
+            >
               <Columns3 className="w-3.5 h-3.5" /> Columnas
             </button>
             {colsMenuOpen && (
@@ -424,10 +488,20 @@ export function ContactsAllView() {
                 <div className="absolute right-0 mt-2 w-60 rounded-lg border border-border bg-card shadow-xl z-20 p-2 max-h-96 overflow-y-auto">
                   {['Datos', 'CRM', 'VSL', 'Atribución', 'Detalle'].map((group) => (
                     <div key={group}>
-                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground px-2 pt-2 pb-1">{group}</p>
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground px-2 pt-2 pb-1">
+                        {group}
+                      </p>
                       {COLUMNS.filter((c) => c.group === group).map((c) => (
-                        <label key={c.key} className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-muted cursor-pointer text-xs text-foreground">
-                          <input type="checkbox" checked={isVisible(c.key)} onChange={() => toggleCol(c.key)} className="accent-brand-500" />
+                        <label
+                          key={c.key}
+                          className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-muted cursor-pointer text-xs text-foreground"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isVisible(c.key)}
+                            onChange={() => toggleCol(c.key)}
+                            className="accent-brand-500"
+                          />
                           {c.label}
                         </label>
                       ))}
@@ -442,11 +516,18 @@ export function ContactsAllView() {
 
       {/* Filtros principales — fila horizontal */}
       <div className="flex flex-wrap gap-2">
-        <button onClick={() => setStatusFilter('all')} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${statusFilter === 'all' ? 'bg-brand-600 text-white border-brand-600' : 'bg-card text-muted-foreground border-border hover:border-brand-500/50'}`}>
+        <button
+          onClick={() => setStatusFilter('all')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${statusFilter === 'all' ? 'bg-brand-600 text-white border-brand-600' : 'bg-card text-muted-foreground border-border hover:border-brand-500/50'}`}
+        >
           Todos ({leads.length})
         </button>
         {STATUS.map((s) => (
-          <button key={s.value} onClick={() => setStatusFilter(s.value)} className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${statusFilter === s.value ? 'bg-brand-600 text-white border-brand-600' : 'bg-card text-muted-foreground border-border hover:border-brand-500/50'}`}>
+          <button
+            key={s.value}
+            onClick={() => setStatusFilter(s.value)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${statusFilter === s.value ? 'bg-brand-600 text-white border-brand-600' : 'bg-card text-muted-foreground border-border hover:border-brand-500/50'}`}
+          >
             {s.label} ({counts[s.value] || 0})
           </button>
         ))}
@@ -454,10 +535,16 @@ export function ContactsAllView() {
 
       {/* Filtros secundarios: seguimiento + canal + VSL */}
       <div className="flex flex-wrap items-center gap-2">
-        <button onClick={() => setHotOnly((v) => !v)} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${hotOnly ? 'bg-orange-500/20 text-orange-300 border-orange-500/50' : 'bg-card text-muted-foreground border-border hover:border-brand-500/50'}`}>
+        <button
+          onClick={() => setHotOnly((v) => !v)}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${hotOnly ? 'bg-orange-500/20 text-orange-300 border-orange-500/50' : 'bg-card text-muted-foreground border-border hover:border-brand-500/50'}`}
+        >
           🔥 Calientes VSL ≥ {HOT_PCT}%
         </button>
-        <button onClick={() => setSortByVsl((v) => !v)} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${sortByVsl ? 'bg-brand-600 text-white border-brand-600' : 'bg-card text-muted-foreground border-border hover:border-brand-500/50'}`}>
+        <button
+          onClick={() => setSortByVsl((v) => !v)}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${sortByVsl ? 'bg-brand-600 text-white border-brand-600' : 'bg-card text-muted-foreground border-border hover:border-brand-500/50'}`}
+        >
           <PlayCircle className="w-3.5 h-3.5" /> Ordenar por % VSL
         </button>
 
@@ -467,11 +554,18 @@ export function ContactsAllView() {
             <Filter className="w-3 h-3" /> Seguimiento <ChevronDown className="w-3 h-3" />
           </button>
           <div className="hidden group-hover:block absolute left-0 mt-1 w-48 rounded-lg border border-border bg-card shadow-xl z-20 p-1">
-            <button onClick={() => setFollowupFilter('all')} className={`w-full text-left px-2 py-1.5 rounded-md text-xs ${followupFilter === 'all' ? 'bg-brand-600/20 text-brand-300' : 'text-foreground hover:bg-muted'}`}>
+            <button
+              onClick={() => setFollowupFilter('all')}
+              className={`w-full text-left px-2 py-1.5 rounded-md text-xs ${followupFilter === 'all' ? 'bg-brand-600/20 text-brand-300' : 'text-foreground hover:bg-muted'}`}
+            >
               Todos ({leads.length})
             </button>
             {FOLLOWUP.map((f) => (
-              <button key={f.value} onClick={() => setFollowupFilter(followupFilter === f.value ? 'all' : f.value)} className={`w-full text-left px-2 py-1.5 rounded-md text-xs flex items-center gap-2 ${followupFilter === f.value ? 'bg-brand-600/20 text-brand-300' : 'text-foreground hover:bg-muted'}`}>
+              <button
+                key={f.value}
+                onClick={() => setFollowupFilter(followupFilter === f.value ? 'all' : f.value)}
+                className={`w-full text-left px-2 py-1.5 rounded-md text-xs flex items-center gap-2 ${followupFilter === f.value ? 'bg-brand-600/20 text-brand-300' : 'text-foreground hover:bg-muted'}`}
+              >
                 <span className={`w-1.5 h-1.5 rounded-full ${f.dot}`} />
                 {f.label} ({followupCounts[f.value] || 0})
               </button>
@@ -485,11 +579,23 @@ export function ContactsAllView() {
             <Filter className="w-3 h-3" /> Canal <ChevronDown className="w-3 h-3" />
           </button>
           <div className="hidden group-hover:block absolute left-0 mt-1 w-40 rounded-lg border border-border bg-card shadow-xl z-20 p-1">
-            <button onClick={() => setChannelFilter('all')} className={`w-full text-left px-2 py-1.5 rounded-md text-xs ${channelFilter === 'all' ? 'bg-brand-600/20 text-brand-300' : 'text-foreground hover:bg-muted'}`}>
+            <button
+              onClick={() => setChannelFilter('all')}
+              className={`w-full text-left px-2 py-1.5 rounded-md text-xs ${channelFilter === 'all' ? 'bg-brand-600/20 text-brand-300' : 'text-foreground hover:bg-muted'}`}
+            >
               Todos
             </button>
-            {[{ v: 'whatsapp', l: 'WhatsApp' }, { v: 'llamada', l: 'Llamada' }, { v: 'email', l: 'Email' }, { v: 'otro', l: 'Otro' }].map((c) => (
-              <button key={c.v} onClick={() => setChannelFilter(channelFilter === c.v ? 'all' : c.v)} className={`w-full text-left px-2 py-1.5 rounded-md text-xs ${channelFilter === c.v ? 'bg-brand-600/20 text-brand-300' : 'text-foreground hover:bg-muted'}`}>
+            {[
+              { v: 'whatsapp', l: 'WhatsApp' },
+              { v: 'llamada', l: 'Llamada' },
+              { v: 'email', l: 'Email' },
+              { v: 'otro', l: 'Otro' },
+            ].map((c) => (
+              <button
+                key={c.v}
+                onClick={() => setChannelFilter(channelFilter === c.v ? 'all' : c.v)}
+                className={`w-full text-left px-2 py-1.5 rounded-md text-xs ${channelFilter === c.v ? 'bg-brand-600/20 text-brand-300' : 'text-foreground hover:bg-muted'}`}
+              >
                 {c.l}
               </button>
             ))}
@@ -530,9 +636,17 @@ export function ContactsAllView() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={colCount} className="p-8 text-center text-muted-foreground">Cargando…</td></tr>
+              <tr>
+                <td colSpan={colCount} className="p-8 text-center text-muted-foreground">
+                  Cargando…
+                </td>
+              </tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={colCount} className="p-8 text-center text-muted-foreground">Sin contactos.</td></tr>
+              <tr>
+                <td colSpan={colCount} className="p-8 text-center text-muted-foreground">
+                  Sin contactos.
+                </td>
+              </tr>
             ) : (
               filtered.map((l) => {
                 const lNote = latestNote(l)
@@ -543,7 +657,10 @@ export function ContactsAllView() {
                     <tr className="border-b border-border/50 last:border-0 hover:bg-card/50 align-top">
                       {isVisible('nombre') && (
                         <td className="p-3">
-                          <Link href={`/${tenant}/crm/contactos/${l.id}`} className="font-medium text-foreground hover:text-brand-400 hover:underline">
+                          <Link
+                            href={`/${tenant}/crm/contactos/${l.id}`}
+                            className="font-medium text-foreground hover:text-brand-400 hover:underline"
+                          >
                             {capitalizeName(l.full_name)}
                           </Link>
                           <div className="flex flex-wrap gap-1 mt-1">
@@ -566,17 +683,33 @@ export function ContactsAllView() {
                         </td>
                       )}
                       {isVisible('telefono') && <td className="p-3 text-muted-foreground text-xs">{l.phone || '—'}</td>}
-                      {isVisible('email') && <td className="p-3 text-muted-foreground text-xs max-w-[200px] truncate">{l.email || '—'}</td>}
+                      {isVisible('email') && (
+                        <td className="p-3 text-muted-foreground text-xs max-w-[200px] truncate">{l.email || '—'}</td>
+                      )}
                       {isVisible('instagram') && (
                         <td className="p-3">
                           {l.instagram ? (
-                            <a href={l.instagram.startsWith('http') ? l.instagram : `https://instagram.com/${l.instagram.replace('@', '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-0.5 text-pink-400 text-xs">
-                              <AtSign className="w-3 h-3" />{l.instagram}
+                            <a
+                              href={
+                                l.instagram.startsWith('http')
+                                  ? l.instagram
+                                  : `https://instagram.com/${l.instagram.replace('@', '')}`
+                              }
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-0.5 text-pink-400 text-xs"
+                            >
+                              <AtSign className="w-3 h-3" />
+                              {l.instagram}
                             </a>
-                          ) : <span className="text-muted-foreground text-xs">—</span>}
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
                         </td>
                       )}
-                      {isVisible('empresa') && <td className="p-3 text-muted-foreground text-xs">{l.company_name || '—'}</td>}
+                      {isVisible('empresa') && (
+                        <td className="p-3 text-muted-foreground text-xs">{l.company_name || '—'}</td>
+                      )}
                       {isVisible('pais') && <td className="p-3 text-muted-foreground text-xs">{l.country || '—'}</td>}
                       {isVisible('estado') && (
                         <td className="p-3">
@@ -585,7 +718,11 @@ export function ContactsAllView() {
                             onChange={(e) => update(l.id, { lead_status: e.target.value as LeadStatus })}
                             className="text-[11px] bg-muted border border-border rounded px-2 py-1 text-foreground cursor-pointer"
                           >
-                            {STATUS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                            {STATUS.map((s) => (
+                              <option key={s.value} value={s.value}>
+                                {s.label}
+                              </option>
+                            ))}
                           </select>
                         </td>
                       )}
@@ -604,51 +741,93 @@ export function ContactsAllView() {
                           </select>
                         </td>
                       )}
-                      {isVisible('fuente_lead') && <td className="p-3 text-muted-foreground text-xs">{l.set_source || '—'}</td>}
+                      {isVisible('fuente_lead') && (
+                        <td className="p-3 text-muted-foreground text-xs">{l.set_source || '—'}</td>
+                      )}
                       {isVisible('seguimiento') && (
                         <td className="p-3">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${fuMeta.color}`}>
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${fuMeta.color}`}
+                          >
                             <span className={`w-1.5 h-1.5 rounded-full ${fuMeta.dot}`} />
                             {relativeDays(fu.days)}
                           </span>
                           {(l.contact_attempts ?? 0) > 0 && (
-                            <span className="block text-[10px] text-muted-foreground mt-0.5">{l.contact_attempts} intento{(l.contact_attempts ?? 0) > 1 ? 's' : ''}</span>
+                            <span className="block text-[10px] text-muted-foreground mt-0.5">
+                              {l.contact_attempts} intento{(l.contact_attempts ?? 0) > 1 ? 's' : ''}
+                            </span>
                           )}
                         </td>
                       )}
                       {isVisible('vsl') && (
                         <td className="p-3 text-center">
                           {l.vsl_watch_pct != null ? (
-                            <span className={`text-xs font-medium ${Number(l.vsl_watch_pct) >= HOT_PCT ? 'text-orange-400' : 'text-muted-foreground'}`}>
+                            <span
+                              className={`text-xs font-medium ${Number(l.vsl_watch_pct) >= HOT_PCT ? 'text-orange-400' : 'text-muted-foreground'}`}
+                            >
                               {Number(l.vsl_watch_pct)}%
                             </span>
-                          ) : <span className="text-muted-foreground text-xs">—</span>}
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
                         </td>
                       )}
                       {isVisible('fuente') && <td className="p-3 text-muted-foreground text-xs">{sourceOf(l)}</td>}
-                      {isVisible('utm_source') && <td className="p-3 text-muted-foreground text-xs">{utmOf(l, 'utm_source')}</td>}
-                      {isVisible('utm_medium') && <td className="p-3 text-muted-foreground text-xs">{utmOf(l, 'utm_medium')}</td>}
-                      {isVisible('utm_campaign') && <td className="p-3 text-muted-foreground text-xs">{utmOf(l, 'utm_campaign')}</td>}
-                      {isVisible('utm_content') && <td className="p-3 text-muted-foreground text-xs">{utmOf(l, 'utm_content')}</td>}
-                      {isVisible('utm_term') && <td className="p-3 text-muted-foreground text-xs">{utmOf(l, 'utm_term')}</td>}
-                      {isVisible('first_source') && <td className="p-3 text-muted-foreground text-xs">{utmOf(l, 'first_utm_source')}</td>}
-                      {isVisible('first_campaign') && <td className="p-3 text-muted-foreground text-xs">{utmOf(l, 'first_utm_campaign')}</td>}
-                      {isVisible('last_source') && <td className="p-3 text-muted-foreground text-xs">{utmOf(l, 'last_utm_source')}</td>}
-                      {isVisible('last_campaign') && <td className="p-3 text-muted-foreground text-xs">{utmOf(l, 'last_utm_campaign')}</td>}
+                      {isVisible('utm_source') && (
+                        <td className="p-3 text-muted-foreground text-xs">{utmOf(l, 'utm_source')}</td>
+                      )}
+                      {isVisible('utm_medium') && (
+                        <td className="p-3 text-muted-foreground text-xs">{utmOf(l, 'utm_medium')}</td>
+                      )}
+                      {isVisible('utm_campaign') && (
+                        <td className="p-3 text-muted-foreground text-xs">{utmOf(l, 'utm_campaign')}</td>
+                      )}
+                      {isVisible('utm_content') && (
+                        <td className="p-3 text-muted-foreground text-xs">{utmOf(l, 'utm_content')}</td>
+                      )}
+                      {isVisible('utm_term') && (
+                        <td className="p-3 text-muted-foreground text-xs">{utmOf(l, 'utm_term')}</td>
+                      )}
+                      {isVisible('first_source') && (
+                        <td className="p-3 text-muted-foreground text-xs">{utmOf(l, 'first_utm_source')}</td>
+                      )}
+                      {isVisible('first_campaign') && (
+                        <td className="p-3 text-muted-foreground text-xs">{utmOf(l, 'first_utm_campaign')}</td>
+                      )}
+                      {isVisible('last_source') && (
+                        <td className="p-3 text-muted-foreground text-xs">{utmOf(l, 'last_utm_source')}</td>
+                      )}
+                      {isVisible('last_campaign') && (
+                        <td className="p-3 text-muted-foreground text-xs">{utmOf(l, 'last_utm_campaign')}</td>
+                      )}
                       {isVisible('notas') && (
                         <td className="p-3 max-w-[180px]">
                           {lNote ? (
-                            <p className="text-xs text-muted-foreground truncate" title={lNote.note}>{lNote.note}</p>
-                          ) : <span className="text-muted-foreground text-xs">—</span>}
+                            <p className="text-xs text-muted-foreground truncate" title={lNote.note}>
+                              {lNote.note}
+                            </p>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
                         </td>
                       )}
-                      {isVisible('creado') && <td className="p-3 text-muted-foreground text-xs">{formatDate(l.created_at)}</td>}
+                      {isVisible('creado') && (
+                        <td className="p-3 text-muted-foreground text-xs">{formatDate(l.created_at)}</td>
+                      )}
                       <td className="p-3">
                         <div className="flex items-center gap-1">
-                          <button onClick={() => setNoteOpenFor(noteOpenFor === l.id ? null : l.id)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Nota">
+                          <button
+                            onClick={() => setNoteOpenFor(noteOpenFor === l.id ? null : l.id)}
+                            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                            title="Nota"
+                          >
                             <MessageSquarePlus className="w-3.5 h-3.5" />
                           </button>
-                          <Link href={`/${tenant}/crm/contactos/${l.id}`} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-brand-400" title="Ver ficha">
+                          <Link
+                            href={`/${tenant}/crm/contactos/${l.id}`}
+                            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-brand-400"
+                            title="Ver ficha"
+                          >
                             <ExternalLink className="w-3.5 h-3.5" />
                           </Link>
                         </div>
@@ -662,12 +841,18 @@ export function ContactsAllView() {
                             <input
                               value={noteDraft}
                               onChange={(e) => setNoteDraft(e.target.value)}
-                              onKeyDown={(e) => { if (e.key === 'Enter') submitNote(l.id) }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') submitNote(l.id)
+                              }}
                               placeholder="Escribe una nota…"
                               className="flex-1 bg-card border border-border rounded-lg px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-500"
                               autoFocus
                             />
-                            <button onClick={() => submitNote(l.id)} disabled={savingNote || !noteDraft.trim()} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white hover:bg-brand-500 disabled:opacity-50">
+                            <button
+                              onClick={() => submitNote(l.id)}
+                              disabled={savingNote || !noteDraft.trim()}
+                              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white hover:bg-brand-500 disabled:opacity-50"
+                            >
                               {savingNote ? '…' : 'Guardar'}
                             </button>
                           </div>
@@ -685,7 +870,9 @@ export function ContactsAllView() {
       {/* Diálogo nuevo contacto */}
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent className="bg-card border-border max-w-lg">
-          <DialogHeader><DialogTitle className="text-foreground">Nuevo contacto</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Nuevo contacto</DialogTitle>
+          </DialogHeader>
           <ContactForm onSubmit={createContact} onCancel={() => setNewOpen(false)} />
         </DialogContent>
       </Dialog>

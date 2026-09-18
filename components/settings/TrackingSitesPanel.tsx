@@ -148,15 +148,17 @@ export function TrackingSitesPanel() {
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div>
                   <p className="text-sm font-medium text-foreground">
-                    {site.name}{' '}
-                    <span className="text-muted-foreground font-normal">· /{site.slug}</span>
+                    {site.name} <span className="text-muted-foreground font-normal">· /{site.slug}</span>
                   </p>
                   <p className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
                     <span>
                       Eventos 24h: <strong className="text-foreground">{site.events24h}</strong>
                     </span>
                     <span>
-                      Errores: <strong className={site.errors24h > 0 ? 'text-red-400' : 'text-foreground'}>{site.errors24h}</strong>
+                      Errores:{' '}
+                      <strong className={site.errors24h > 0 ? 'text-red-400' : 'text-foreground'}>
+                        {site.errors24h}
+                      </strong>
                     </span>
                     <span>Último evento: {fmtTime(site.lastEventAt)}</span>
                     {site.allow_localhost && <span className="text-amber-400">· localhost permitido</span>}
@@ -180,7 +182,9 @@ export function TrackingSitesPanel() {
               <div className="space-y-1.5">
                 <p className="text-xs text-muted-foreground">
                   Pega esto antes de &lt;/head&gt; en la web
-                  {site.allowed_origins.length > 0 ? ` (orígenes: ${site.allowed_origins.join(', ')})` : ' (sin orígenes autorizados: el pixel rechazará eventos hasta que añadas el dominio)'}
+                  {site.allowed_origins.length > 0
+                    ? ` (orígenes: ${site.allowed_origins.join(', ')})`
+                    : ' (sin orígenes autorizados: el pixel rechazará eventos hasta que añadas el dominio)'}
                   :
                 </p>
                 <div className="flex items-stretch gap-2">
@@ -191,7 +195,11 @@ export function TrackingSitesPanel() {
                     onClick={() => void copySnippet(site)}
                     className="shrink-0 inline-flex items-center gap-1.5 px-3 rounded-md border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
                   >
-                    {copied === site.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copied === site.id ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
                     Copiar
                   </button>
                 </div>
@@ -238,7 +246,9 @@ export function TrackingSitesPanel() {
             </label>
           </div>
           <label className="space-y-1 block">
-            <span className="text-xs text-muted-foreground">Orígenes autorizados (uno por línea o separados por coma)</span>
+            <span className="text-xs text-muted-foreground">
+              Orígenes autorizados (uno por línea o separados por coma)
+            </span>
             <textarea
               value={newOrigins}
               onChange={(e) => setNewOrigins(e.target.value)}
