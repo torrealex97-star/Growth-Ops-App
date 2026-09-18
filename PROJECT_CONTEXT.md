@@ -164,7 +164,7 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | — | Panel "Puesta a punto" por tenant | — | Media |
 | — | Agente IA fase 3 (RAG/pgvector) | Embeddings provider | Baja |
 | — | Agente IA: smoke test real en navegador | Sesión admin/director | Media |
-| — | **Ejecutar los 7 crons retirados de vercel.json** (monthly, sequra-morosos, analyze-calls, ai-insights, meta, meta-daily, instagram) | GitHub Actions / pg_cron / worker externo — Vercel Hobby solo permite 2 | **Alta** |
+| ✅ | **7 crons retirados de vercel.json → GitHub Actions** (monthly, sequra-morosos, analyze-calls, ai-insights, meta, meta-daily, instagram) — HECHO 18-sep: workflows con `schedule` + `workflow_dispatch`, `Bearer CRON_SECRET` (secret creado en GitHub **y** Vercel production + redeploy; verificado 200 en vivo), 2 dispatches de prueba en verde | Cuidado: `name:` con dos puntos SIN comillas rompe el YAML de GitHub (422 silencioso) | — |
 
 ### 🐛 Conocido (no bloqueante)
 
