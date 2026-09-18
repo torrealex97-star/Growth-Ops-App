@@ -1,7 +1,7 @@
 # Growth-Ops-App — Contexto del Proyecto
 
 > **Fuente única de verdad** para Claude Code, Codex y Freebuff. Lee este archivo primero.
-> Última actualización: 2026-09-17 (post auditoría filtros fecha + contactos unificados)
+> Última actualización: 2026-09-18 (auditoría FASE 1-2 + hardening: hooks exhaustivos 49→0, 34 API routes con try/catch, **índices FK aplicados en producción — advisor 95→0**)
 
 ---
 
@@ -136,6 +136,11 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | — | Fix lint de build: comillas sin escapar en unit-economics (react/no-unescaped-entities) | `e41393c` | 09-17 |
 | — | Security: migración hardening EXECUTE de 10 helpers SECURITY DEFINER + 4 triggers + 2 utilidades (advisor Supabase) | `c3ca9e8` | 09-17 |
 | — | **Hardening APLICADO en producción** (28 sentencias DCL) + fix: GRANT service_role en RPCs de webhooks; verificado — RPC anon de `is_super_admin` → 401; advisor sin funciones para `anon`. **Aviso advisor restante:** leaked password protection (activar en Auth → Policies) y WARN intencional de helpers `authenticated` | `319c385` | 09-17 |
+| — | **Auditoría FASE 1** (Freebuff): mapeo de arquitectura + esquema BD vía MCP Supabase — ~90 tablas `public` con RLS activo; advisor de rendimiento detecta ~95 FKs sin índice; `lib/types/database.ts` desincronizado del esquema (1 sola mención de `tenant_id` vs ~90 tablas con él; incluía campos fantasma `attribution_conflict`/`attribution_meta` retirados de la BD) | MCP Supabase (advisors) | 09-18 |
+| — | **Auditoría FASE 2 — quality gate VERDE**: typecheck 0 errores · lint 0 errores (solo warnings preexistentes) · 375/375 tests · 659/659 test:metrics — nada que corregir por el compilador. Ejecutado en clon `/tmp/growthops-preview` (commit `8b1712f`; sandbox TCC §7). El gate se mantiene verde al cierre de la sesión con los cambios del working tree aplicados (sync de tipos núcleo, fix de `attribution_conflict` en `sales/update`, dead-code knip 73→32, triage de 28 warnings exhaustive-deps seguros) — pendiente de commitear | Clon local | 09-18 |
+| — | **Hooks: warnings `react-hooks/exhaustive-deps` 49 → 0** — 28 seguros corregidos (deps estables `tenant`/`router`), 20 fetchers envueltos en `useCallback` con deps reales, 2 `useMemo` de afiliados resueltos, refactor de agendas (cadena `fetchData`→`handleReassignConflict`→memo estabilizada, declaraciones movidas antes del memo) | Freebuff | 09-18 |
+| — | **Endurecimiento API routes: `try/catch` estándar en las 34 rutas / 56 handlers que no lo tenían** (patrón del proyecto: `console.error('[api/...]')` + `NextResponse.json` 500) — verde en clon (tsc, lint, 375/375, 659/659) y propagado al checkout principal byte a byte vía `git apply` | Freebuff | 09-18 |
+| — | **Índices FK APLICADOS en producción** (migración `20260918120000`, 95/95 `CREATE INDEX IF NOT EXISTS` ejecutados y verificados en `pg_indexes`; pre-flight validó las 95 parejas tabla.columna contra las FKs reales del catálogo). **Advisor después: `unindexed_foreign_keys` 95 → 0** ✅. Conexión directa vía pooler `aws-1-eu-west-1` (el host `db.<ref>.supabase.co` no resuelve) | Freebuff + postgres.js | 09-18 |
 
 ### ❌ Pendiente
 
@@ -152,6 +157,8 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | — | **Sincronizar env vars server-side** | `vercel env pull` hecho; los 11 valores **Secret** de Vercel no se pueden descargar → rellenar a mano (Supabase Settings → API) | Media |
 | — | **Pixel: crear primer site en producción** | Alta de site y snippet en la web real (la BD y las APIs están listas) | **Alta** |
 | — | **Auditoría: verificar queries filtran por columna correcta** | Fase 3 de auditoría | Alta |
+| — | ~~**Añadir índices a FKs (~95 halladas por advisor de rendimiento Supabase)**~~ **HECHO 18-sep: migración aplicada en producción (95/95), advisor `unindexed_foreign_keys` → 0.** La migración vive en `supabase/migrations/20260918120000_add_missing_fk_indexes.sql` (queda por commitear). Nota: los 95 índices nuevos figuran como `unused_index` hasta que las estadísticas acumulen tráfico — es esperado, no eliminar por eso | Resuelto | — |
+| — | **Regenerar `lib/types/database.ts` con `supabase gen types typescript`** — núcleo Contact/Appointment/Sale ya alineado a mano (09-18); faltan ~80 tablas restantes con `tenant_id` | MCP Supabase / CLI | Media |
 | — | **Pixel: aplicar hardening + crear primer site en producción** ~~aplicar hardening~~ | ~~Ejecutar migración c3ca9e8 en Supabase prod~~ HECHO (319c385); falta alta de site y snippet en la web real | **Alta** |
 | — | **Multitenant: Agency Home + switcher robusto** | UX definida, falta implementar | Alta |
 | — | **Multitenant: bloquear subcuenta archivada** (crons, logins, syncs) | RLS ya filtra, falta gate activo | Alta |
@@ -159,7 +166,7 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | — | **Dashboard: integraciones faltantes** (TikTok Ads/Org) | — | Media |
 | — | Dashboard: migrar agregaciones a SQL (RPCs) | — | Media |
 | — | **Activar protección contraseñas filtradas** | Auth → Policies en Supabase | Media |
-| — | Fiabilidad de APIs: estados de error honestos | — | Media |
+| — | Fiabilidad de APIs: estados de error honestos (la capa `try/catch` ya existe en todas las rutas; falta devolver estados útiles en el cuerpo de respuesta) | — | Media |
 | — | Mover agregaciones a SQL (RPCs) | — | Media |
 | — | Panel "Puesta a punto" por tenant | — | Media |
 | — | Agente IA fase 3 (RAG/pgvector) | Embeddings provider | Baja |
@@ -225,6 +232,7 @@ Ver `.env.local.example` para la lista completa. Resumen:
 - **Servidor:** launchd job `growthops-dev`, puerto 3000
 - **Node:** `/Users/[tenant]/Library/Caches/ms-playwright-go/1.57.0/node`
 - **Sync:** Editar en checkout principal → copiar archivos modificados al clon → hot-reload
+- **Conexión directa a Postgres:** `db.<ref>.supabase.co` no resuelve desde el sandbox (ni IPv4 ni IPv6). Usar el pooler `aws-1-eu-west-1.pooler.supabase.com:5432` con usuario `postgres.<ref>` y `ssl: 'require'` (el clúster `aws-0` rechaza el tenant: "tenant not found")
 - **Run doc:** `.freebuff/run.md` con procedimientos detallados
 - **Preview:** http://localhost:3000/ (verifica con `preview_evaluate` y `preview_screenshot`)
 
