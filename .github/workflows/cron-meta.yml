@@ -1,6 +1,6 @@
 # Cron retirado de vercel.json (Vercel Hobby: máx. 2 crons). GitHub Actions lo ejecuta con el
 # mismo horario UTC y la misma autenticación (Bearer CRON_SECRET) que usaba Vercel Cron.
-name: cron: meta
+name: "cron: meta"
 on:
   schedule:
     - cron: '0 3 * * *' # diario 03:00 UTC — sincroniza campañas de Meta Ads
