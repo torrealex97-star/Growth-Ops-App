@@ -43,7 +43,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const { data: appt } = await sb
       .from('appointments')
       .select(
-        'id, setter_id, closer_id, status, utm_content, calendly_event_uuid, calendar_name, updated_at, notes, recording_url'
+        'id, setter_id, closer_id, status, offered, utm_content, calendly_event_uuid, calendar_name, updated_at, notes, recording_url'
       )
       .eq('id', appointmentId)
       .eq('tenant_id', t.tenantId)
@@ -71,6 +71,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       if (k in patch) {
         const v = patch[k]
         clean[k] = typeof v === 'string' && v.trim() ? v.trim() : null
+      }
+    }
+
+    // AUDITORÍA DE LA OFERTA (§5/§36): si el marcado definió `offered`, la escritura lleva quién
+    // y cuándo. Toma los valores DEFINITIVOS del parche validado (una venta implica oferta, un
+    // no-cualificado/no-show la dejan en false) — y solo cuando el marcado tocó la oferta
+    // explícitamente: `resultado: 'venta'` deduce offered=true sin que el closer la marcara.
+    const tocaOferta =
+      patch.marcado && typeof patch.marcado === 'object' && 'ofertaPresentada' in patch.marcado
+        ? (patch.marcado as { ofertaPresentada?: unknown }).ofertaPresentada !== undefined
+        : false
+    if (tocaOferta && typeof desdeMarcado.offered === 'boolean') {
+      if (desdeMarcado.offered) {
+        clean.offered_by = t.userId
+        clean.offered_at = new Date().toISOString()
+      } else {
+        clean.offered_by = null
+        clean.offered_at = null
       }
     }
     // Compartir/ocultar en la biblioteca de llamadas (boolean).
