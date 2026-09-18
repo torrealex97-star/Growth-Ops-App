@@ -24,6 +24,7 @@ Feature completo y desplegado: Config → Datos de empresa, plantillas (pega tex
   - [x] `TRACKING_INGEST_KEY` — auto-emitida (la ruta legacy de ingesta la acepta); smoke: 401 mal / auth OK buena.
   - [ ] **NO restaurar a ciegas `CONFIG_ENC_KEY`** — inventar un valor rompe el descifrado de los secretos ya cifrados en la BD (`enc:v1:` en `integration_settings`: Meta, Google OAuth…). O se recupera el original o se planifica rotación re-cifrando.
   - [ ] Claves de terceros sin registro (repegarlas a mano del dashboard del proveedor; producción las tiene): `ANTHROPIC_API_KEY`, `GROQ_API_KEY` (solo worker), `CALENDLY_API_TOKEN`, `SEQURA_MCP_TOKEN`.
+  - [ ] **`SEQURA_MERCHANT_REFERENCE` no existe en producción** (descubierto 18-sep): el cron `sequra-morosos` responde 500 `Falta configurar SEQURA_MERCHANT_REFERENCE` — el workflow de GHA está bien (auth OK, endpoint ejecutó) pero la credencial de negocio (merchant reference de Sequra, p. ej. "mi-negocio") nunca se cargó en Vercel ni en `.env.local`. Pedirla al dashboard/proveedor de Sequra y cargarla en Vercel Production + redeploy. Integraciones tampoco la exige (solo `SEQURA_MCP_TOKEN`) — añadir al catálogo.
   - Nota: 7 placeholders más (`SUPABASE_SECRET_KEY`, `JWT_SECRET`, `POSTGRES_*` variantes, `*_SESSION_SECRET`) no los usa el código — cosméticos.
   - Nota: el checkout principal `~/Documents/…` necesita copia manual de estas 4 claves (el sandbox no puede leer/escribir sus ficheros `.env*`).
 
