@@ -45,7 +45,7 @@ export const PESO_DIMENSION: Record<DimensionSalud, number> = {
   capacidad: 0.1,
 }
 
-export type Fiabilidad = 'alta' | 'media' | 'baja'
+type Fiabilidad = 'alta' | 'media' | 'baja'
 
 /** Lo que aportó UNA métrica a su dimensión. Esto es lo que hace auditable la nota. */
 type ComponenteSalud = {

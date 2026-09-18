@@ -11,7 +11,7 @@
 
 import type { Medicion } from './agregados'
 import { medir, type MetricaMedida } from './modelo'
-import { buscarMetrica, TODAS_LAS_METRICAS } from './registro'
+import { TODAS_LAS_METRICAS } from './registro'
 
 /**
  * Convierte las mediciones en métricas pintables, en el orden del registro.
@@ -80,5 +80,3 @@ export function coberturaDeCategoria(medidas: MetricaMedida[]): { medidas: numbe
 export function clavesDeCategoria(categoria: string): string[] {
   return TODAS_LAS_METRICAS.filter((m) => m.category === categoria).map((m) => m.key)
 }
-
-export { buscarMetrica }

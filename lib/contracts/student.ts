@@ -82,7 +82,7 @@ function durationLabel(months: number | null): string {
   return `${months} meses`
 }
 
-export function methodLabel(method: string | null): string {
+function methodLabel(method: string | null): string {
   switch (method) {
     case 'stripe':
       return 'Pago con tarjeta (Stripe)'

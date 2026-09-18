@@ -50,7 +50,7 @@ export function getInitials(name: string): string {
     .toUpperCase()
 }
 
-export function slugify(text: string): string {
+function slugify(text: string): string {
   return text
     .toLowerCase()
     .normalize('NFD')
@@ -84,7 +84,7 @@ export function formatDate(dateStr: string | null | undefined): string {
   }
 }
 
-export function truncate(str: string, maxLen: number): string {
+function truncate(str: string, maxLen: number): string {
   if (!str || str.length <= maxLen) return str
   return str.slice(0, maxLen) + '…'
 }

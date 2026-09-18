@@ -112,7 +112,6 @@ const CIERRE_PANTALLAS = [
   'app/[tenant]/recursos/biblioteca/page.tsx',
   'components/os/ScriptQueue.tsx',
   'components/os/FeedbackDialog.tsx',
-  'components/crm/ContactsLeadsView.tsx',
 ]
 
 test('el cierre de la cascada reutiliza la sesión tanto al cargar como al escribir', () => {

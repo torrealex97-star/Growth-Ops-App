@@ -19,7 +19,7 @@ export const SCOPES: Record<'ga4' | 'gmail', string[]> = {
  * un callback por subcuenta obligaría a editar la consola cada vez que se crea una. La subcuenta
  * viaja firmada en `state` (ver lib/google/oauth-state.ts).
  */
-export function redirectUri(): string {
+function redirectUri(): string {
   const base = (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').replace(/\/$/, '')
   return `${base}/api/oauth/google/callback`
 }

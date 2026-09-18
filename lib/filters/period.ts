@@ -249,7 +249,7 @@ export function periodFileTag(preset: PeriodPreset, customFrom: string, customTo
 }
 
 // ---- CSV ----
-export function csvEscape(value: string | number | null | undefined): string {
+function csvEscape(value: string | number | null | undefined): string {
   if (value == null) return ''
   const str = String(value)
   if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`

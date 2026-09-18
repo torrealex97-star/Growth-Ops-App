@@ -59,7 +59,7 @@ const ORDEN_NIVEL: Record<NivelDiagnostico, number> = {
  */
 type Certeza = 'probable' | 'posible' | 'requiere_investigacion'
 
-export type Confianza = 'alta' | 'media' | 'baja'
+type Confianza = 'alta' | 'media' | 'baja'
 
 type Severidad = 'critico' | 'aviso' | 'ok'
 

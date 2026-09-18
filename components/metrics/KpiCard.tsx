@@ -39,7 +39,7 @@ const ETIQUETA_DATO: Record<string, string> = {
 }
 
 /** Formatea según la unidad declarada. El número nunca se pinta "a pelo". */
-export function formatearValor(valor: number | null, unidad: MetricaMedida['unit']): string {
+function formatearValor(valor: number | null, unidad: MetricaMedida['unit']): string {
   if (valor === null || !Number.isFinite(valor)) return '—'
   switch (unidad) {
     case 'eur':

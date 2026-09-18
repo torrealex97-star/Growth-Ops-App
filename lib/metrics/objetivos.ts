@@ -15,7 +15,7 @@ type ClaseObjetivo = 'acumulativa' | 'tasa'
 
 type PeriodoObjetivo = 'mes' | 'trimestre' | 'año' | 'permanente'
 
-export type Objetivo = {
+type Objetivo = {
   key: string
   nombre: string
   periodo: PeriodoObjetivo

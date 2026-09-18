@@ -1,7 +1,7 @@
 import { addMonths, startOfMonth } from 'date-fns'
 import type { Collection, Commission, InsertCommission, Sale, CommissionRule, Refund } from '@/lib/types/database'
 
-export function getLiquidationMonth(collectedAt: Date): string {
+function getLiquidationMonth(collectedAt: Date): string {
   // First day of NEXT month
   const nextMonth = addMonths(collectedAt, 1)
   const firstDay = startOfMonth(nextMonth)

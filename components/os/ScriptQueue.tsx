@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Loader2, CheckCircle2, AlertCircle, RotateCcw, ChevronDown, ChevronUp, X, Copy } from 'lucide-react'
 
-export type ScriptDraft = {
+type ScriptDraft = {
   title: string
   hook: string
   script: string
