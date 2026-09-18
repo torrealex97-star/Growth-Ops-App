@@ -67,7 +67,7 @@ export type User = {
 
 type InsertUser = Omit<User, 'created_at' | 'updated_at' | 'data_scope'>
 
-export type UserWithRole = User & {
+type UserWithRole = User & {
   roles: Role
 }
 
@@ -118,6 +118,14 @@ export type Contact = {
   promise_fulfilled: 'si' | 'no' | 'en_proceso' | null
   // v4 — enlace con GHL
   ghl_contact_id: string | null
+  // Multi-tenant + dedupe (esquema real de Supabase, verificado 2026-09-18)
+  tenant_id: string
+  merged_into: string | null // contacto canónico tras fusión (dedupe de leads)
+  qualification: Record<string, unknown> | null // respuestas del formulario de cualificación (jsonb)
+  qualification_updated_at: string | null
+  // Columnas generadas por Postgres (normalización para dedupe) — solo lectura
+  email_normalized: string | null
+  phone_normalized: string | null
   created_at: string
   updated_at: string
 }
@@ -229,6 +237,11 @@ export type Appointment = {
   meeting_url: string | null
   reschedule_url: string | null
   calendly_event_uuid: string | null
+  // Multi-tenant + limpieza de eventos duplicados de Calendly (esquema real)
+  tenant_id: string
+  library_shared: boolean
+  calendly_cleanup_pending: boolean | null
+  calendly_cleanup_event_uuid: string | null
   created_at: string
   updated_at: string
 }
@@ -426,9 +439,6 @@ export type Sale = {
   onboarding_session_at: string | null
   first_coaching_date: string | null
   graduation_date: string | null
-  // v18 — conflicto de atribución (first vs last touch): último toque prevalece, admin revisa
-  attribution_conflict: boolean
-  attribution_meta: Record<string, unknown> | null
   // v29 — justificante de pago + plan de pagos personalizado
   payment_proof_url: string | null
   // signed URL corta generada bajo demanda (nunca guardada) — ver
@@ -439,6 +449,20 @@ export type Sale = {
   buyer_is_scheduler: boolean
   payer_data: PayerData | null
   access_email: string | null
+  // Verificación de documentos + acceso al curso (esquema real de Supabase)
+  documents_verified: boolean
+  documents_verified_at: string | null
+  documents_verified_by: string | null
+  documents_verified_override: boolean
+  documents_override_reason: string | null
+  documents_override_by: string | null
+  documents_override_at: string | null
+  course_access_granted_at: string | null
+  course_access_revoked_at: string | null
+  student_document_type: 'dni' | 'pasaporte' | 'nie' | 'otro' | null
+  student_document_number: string | null
+  // Multi-tenant (esquema real)
+  tenant_id: string
   created_at: string
   updated_at: string
 }
@@ -735,7 +759,7 @@ export type CampaignAd = {
 }
 
 // ==================== EXPENSES (Finanzas) ====================
-export type Expense = {
+type Expense = {
   id: string
   concept: string
   category: 'publicidad' | 'sueldos' | 'comisiones' | 'herramientas' | 'eventos' | 'cogs' | 'impuestos' | 'otros'
@@ -761,7 +785,7 @@ export type Expense = {
 type InsertExpense = Omit<Expense, 'id' | 'created_at' | 'updated_at'>
 
 // ==================== ACTIVITIES (Ventas) ====================
-export type Activity = {
+type Activity = {
   id: string
   contact_id: string
   person_id: string | null
@@ -799,7 +823,7 @@ type CsmEvent = {
 type InsertCsmEvent = Omit<CsmEvent, 'id' | 'created_at' | 'updated_at'>
 
 // ==================== DROPS / CANCELACIONES (Producto / Alumnos) ====================
-export type Drop = {
+type Drop = {
   id: string
   sale_id: string | null
   contact_id: string
