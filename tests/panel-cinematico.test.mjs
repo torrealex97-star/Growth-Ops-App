@@ -26,14 +26,17 @@ test('la home lleva el medio cinematográfico con sus atributos completos', () =
   assert.match(css, /linear-gradient\(\s*to bottom/)
 })
 
-test('tipografías del panel: Sora + JetBrains Mono cargadas en el layout raíz', () => {
+test('tipografías del panel: las del shell, sin cargas nuevas', () => {
   const layout = read('app/layout.tsx')
-  assert.match(layout, /import \{[^}]*Sora[^}]*JetBrains_Mono[^}]*\} from 'next\/font\/google'/)
-  assert.match(layout, /variable: '--font-sora'/)
-  assert.match(layout, /variable: '--font-jbmono'/)
+  // El branding tipográfico de la app NO cambia con el rediseño: ni Sora ni JetBrains Mono.
+  assert.doesNotMatch(layout, /Sora|JetBrains_Mono/, 'no se añaden fuentes nuevas al layout raíz')
+  assert.match(layout, /variable: '--font-sans'/)
+  assert.match(layout, /variable: '--font-display'/)
   const css = read('app/panel.css')
-  assert.match(css, /var\(--font-sora\)/)
-  assert.match(css, /var\(--font-jbmono\)/)
+  // El panel consume las variables del shell (Space Grotesk display, Inter UI).
+  assert.match(css, /var\(--font-display\)/)
+  assert.match(css, /var\(--font-sans\)/)
+  assert.doesNotMatch(css, /--font-sora|--font-jbmono/)
 })
 
 test('cada tarjeta usa el acento de su tenant vía la fuente única de branding', () => {
