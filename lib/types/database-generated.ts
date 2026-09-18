@@ -1,4 +1,4 @@
-// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-18T16:46:21.462Z).
+// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-18T20:25:31.517Z).
 // Regenerar con: npm run tipos:bd  (y commitear). El test tests/esquema-tenant-invariante.test.mjs
 // comprueba que este artefacto sigue fresco respecto al esquema vivo.
 // Espejo exacto del esquema public de Supabase; los tipos de APP siguen en lib/types/database.ts.
@@ -621,6 +621,8 @@ export type EsquemaPublico = {
         library_shared: boolean | null
         tenant_id: string | null
         fathom_meeting_id: string | null
+        offered_by: string | null
+        offered_at: string | null
       }
       Insert: {
         id: string | null | undefined
@@ -679,6 +681,8 @@ export type EsquemaPublico = {
         library_shared: boolean | null | undefined
         tenant_id: string | null | undefined
         fathom_meeting_id: string | null | undefined
+        offered_by: string | null | undefined
+        offered_at: string | null | undefined
       }
       Update: {
         id: string | undefined
@@ -737,6 +741,8 @@ export type EsquemaPublico = {
         library_shared: boolean | undefined
         tenant_id: string | undefined
         fathom_meeting_id: string | undefined
+        offered_by: string | undefined
+        offered_at: string | undefined
       }
     }
     AuditLogs: {
@@ -4320,6 +4326,59 @@ export type EsquemaPublico = {
         subscription_id: string | undefined
         current_period_end: string | undefined
         last_synced_at: string | undefined
+        created_at: string | undefined
+        updated_at: string | undefined
+      }
+    }
+    StripePayments: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        payment_id: string | null
+        charge_id: string | null
+        customer_id: string | null
+        customer_email: string | null
+        amount: number | string | null
+        refunded_amount: number | string | null
+        currency: string | null
+        status: string | null
+        paid_at: string | null
+        metadata: Json | null
+        synced_at: string | null
+        created_at: string | null
+        updated_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        payment_id: string | null | undefined
+        charge_id: string | null | undefined
+        customer_id: string | null | undefined
+        customer_email: string | null | undefined
+        amount: number | string | null | undefined
+        refunded_amount: number | string | null | undefined
+        currency: string | null | undefined
+        status: string | null | undefined
+        paid_at: string | null | undefined
+        metadata: Json | null | undefined
+        synced_at: string | null | undefined
+        created_at: string | null | undefined
+        updated_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        payment_id: string | undefined
+        charge_id: string | undefined
+        customer_id: string | undefined
+        customer_email: string | undefined
+        amount: number | string | undefined
+        refunded_amount: number | string | undefined
+        currency: string | undefined
+        status: string | undefined
+        paid_at: string | undefined
+        metadata: Json | undefined
+        synced_at: string | undefined
         created_at: string | undefined
         updated_at: string | undefined
       }
