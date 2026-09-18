@@ -52,12 +52,17 @@ export const SOURCE_REGISTRY: Record<string, SourceOfTruth> = {
   cash_collected: {
     metric: 'cash_collected',
     label: 'Cash Collected',
+    // OPERATIVO (migration 20260918170000 + lib/canonical/cash.ts): el espejo
+    // stripe_payments alimenta la primaria; `collections` entra como
+    // internal_payments para los cobros sin Stripe (transferencia, SeQura, manual).
+    // `bank` sigue como respaldo declarado para cuando exista conexión bancaria.
     primary: 'stripe',
     fallbacks: ['bank', 'internal_payments', 'manual'],
     dedupKey: ['payment_id', 'transaction_id', 'customer_id+amount+timestamp'],
     manualOverride: true,
     what: 'Dinero efectivamente cobrado (pagos liquidados, no facturado ni pactado).',
-    formula: 'SUM(successful_settled_payments) − refunds según lógica financiera. Excluye failed/pending/void.',
+    formula:
+      'Stripe (stripe_payments, neto de su refunded_amount) + cobros internos sin Stripe − refunds internos. Dedup por payment_reference; conflicto de importe registrado.',
   },
   revenue_closed: {
     metric: 'revenue_closed',

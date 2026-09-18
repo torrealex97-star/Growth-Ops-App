@@ -59,7 +59,7 @@ export const SYNCS_BY_GROUP: Record<string, string[]> = {
   youtube: ['youtube-backfill'],
   ai: ['analyze-calls', 'ai-insights'],
   sequra: ['sequra-morosos'],
-  stripe: ['stripe-customers'],
+  stripe: ['stripe-customers', 'stripe-payments'],
   email: ['reminders'],
 }
 
