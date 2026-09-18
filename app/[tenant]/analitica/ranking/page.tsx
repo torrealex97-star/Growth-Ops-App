@@ -32,7 +32,6 @@ import { CONTACTED_LEAD_STATUSES } from '@/lib/lead-status'
 import { isAttended, isNoShow } from '@/lib/appointments/status'
 import { resolverOferta } from '@/lib/metrics/oferta'
 
-
 type ContactRow = {
   id: string
   created_at: string
@@ -275,9 +274,8 @@ export default function PipelinePage() {
     const citas = new Set(cohortAppointments.map((a) => a.contact_id)).size
     // Con el resolver canónico (declarado > derivado > asumido): la cláusula muerta
     // result='offer_made' ya no existe en el vocabulario de `result`.
-    const ofertas = new Set(
-      cohortAppointments.filter((a) => resolverOferta(a).valor === true).map((a) => a.contact_id)
-    ).size
+    const ofertas = new Set(cohortAppointments.filter((a) => resolverOferta(a).valor === true).map((a) => a.contact_id))
+      .size
     const cierres = new Set(
       cohortSales.filter((s) => s.status === 'active' || s.status === 'partial_refund').map((s) => s.contact_id)
     ).size
