@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Inter, Space_Grotesk } from 'next/font/google'
+import { Toaster } from 'sonner'
 import { WebVitalsReporter } from '@/components/observability/WebVitalsReporter'
 import './globals.css'
 
@@ -24,6 +25,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="bg-background text-foreground antialiased">
         <WebVitalsReporter />
+        {/* Sonner: ~80 pantallas llaman a toast() pero nadie lo había montado — los avisos
+            (incluidos los de error de la vista de Colaboradores) se tragaban en silencio. */}
+        <Toaster position="bottom-right" richColors closeButton />
         {children}
       </body>
     </html>
