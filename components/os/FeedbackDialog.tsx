@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Lightbulb, Bug, MessageSquare, Loader2, Send, Inbox, Trophy, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -59,7 +59,7 @@ export function FeedbackDialog() {
     setMessage('')
   }
 
-  const loadMine = async () => {
+  const loadMine = useCallback(async () => {
     setLoadingMine(true)
     try {
       const res = await fetch(`/api/${tenant}/evergreen/suggestions?mine=1`)
@@ -71,14 +71,14 @@ export function FeedbackDialog() {
     } finally {
       setLoadingMine(false)
     }
-  }
+  }, [tenant])
 
   // Al abrir el tablón "Mis sugerencias" (o al enviar una nueva) refrescamos la lista.
   useEffect(() => {
     if (open && tab === 'mias') loadMine()
-  }, [open, tab])
+  }, [open, tab, loadMine])
 
-  const loadTeam = async () => {
+  const loadTeam = useCallback(async () => {
     setLoadingTeam(true)
     try {
       const res = await fetch(`/api/${tenant}/evergreen/suggestions/team-stats`)
@@ -90,11 +90,11 @@ export function FeedbackDialog() {
     } finally {
       setLoadingTeam(false)
     }
-  }
+  }, [tenant])
 
   useEffect(() => {
     if (open && tab === 'equipo') loadTeam()
-  }, [open, tab])
+  }, [open, tab, loadTeam])
 
   useEffect(() => {
     if (!open || myUserId) return

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSesion } from '@/lib/tenant-context'
 import { createClient } from '@/lib/supabase/client'
 import { KPICard } from '@/components/os/DashboardKPICard'
@@ -169,30 +169,36 @@ export default function AfiliadosPage() {
   }, [sales, contactUtmMap, affiliates])
 
   // Filtrado por periodo seleccionado (sobre sale_date, ventas activas)
-  function statsForCode(code: string | null) {
-    if (!code) return { salesActive: [], count: 0, gross: 0, cash: 0 }
-    const allSales = salesByAffiliateCode.get(code) || []
-    const periodSales = allSales.filter((s) => isActiveSale(s) && inPeriod(s.sale_date, range))
-    const saleIds = new Set(periodSales.map((s) => s.id))
-    const gross = periodSales.reduce((acc, s) => acc + num(s.gross_amount), 0)
-    const cash = collections
-      .filter((c) => isCollected(c) && saleIds.has(c.sale_id) && inPeriod(c.collected_at, range))
-      .reduce((acc, c) => acc + num(c.gross_amount), 0)
-    return { salesActive: periodSales, count: periodSales.length, gross, cash }
-  }
+  const statsForCode = useCallback(
+    (code: string | null) => {
+      if (!code) return { salesActive: [], count: 0, gross: 0, cash: 0 }
+      const allSales = salesByAffiliateCode.get(code) || []
+      const periodSales = allSales.filter((s) => isActiveSale(s) && inPeriod(s.sale_date, range))
+      const saleIds = new Set(periodSales.map((s) => s.id))
+      const gross = periodSales.reduce((acc, s) => acc + num(s.gross_amount), 0)
+      const cash = collections
+        .filter((c) => isCollected(c) && saleIds.has(c.sale_id) && inPeriod(c.collected_at, range))
+        .reduce((acc, c) => acc + num(c.gross_amount), 0)
+      return { salesActive: periodSales, count: periodSales.length, gross, cash }
+    },
+    [salesByAffiliateCode, collections, range]
+  )
 
   // Ventas del afiliado dentro del periodo seleccionado — para la tabla de detalle
-  function allSalesForCode(code: string | null) {
-    if (!code) return []
-    return (salesByAffiliateCode.get(code) || [])
-      .filter((s) => inPeriod(s.sale_date, range))
-      .slice()
-      .sort((a, b) => {
-        const da = a.sale_date || ''
-        const db = b.sale_date || ''
-        return db.localeCompare(da)
-      })
-  }
+  const allSalesForCode = useCallback(
+    (code: string | null) => {
+      if (!code) return []
+      return (salesByAffiliateCode.get(code) || [])
+        .filter((s) => inPeriod(s.sale_date, range))
+        .slice()
+        .sort((a, b) => {
+          const da = a.sale_date || ''
+          const db = b.sale_date || ''
+          return db.localeCompare(da)
+        })
+    },
+    [salesByAffiliateCode, range]
+  )
 
   const ranking = useMemo(() => {
     return affiliates
@@ -212,8 +218,7 @@ export default function AfiliadosPage() {
         }
       })
       .sort((a, b) => b.cash - a.cash)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [affiliates, salesByAffiliateCode, collections, range])
+  }, [affiliates, statsForCode])
 
   const totalRanking = useMemo(() => {
     return ranking.reduce(
@@ -242,11 +247,8 @@ export default function AfiliadosPage() {
     ? currentAffiliateCode || meAsAffiliate?.affiliate_code || null
     : selectedAffiliate?.affiliate_code || null
 
-  const selectedStats = useMemo(
-    () => statsForCode(selectedCode),
-    [selectedCode, salesByAffiliateCode, collections, range]
-  )
-  const selectedSalesList = useMemo(() => allSalesForCode(selectedCode), [selectedCode, salesByAffiliateCode, range])
+  const selectedStats = useMemo(() => statsForCode(selectedCode), [selectedCode, statsForCode])
+  const selectedSalesList = useMemo(() => allSalesForCode(selectedCode), [selectedCode, allSalesForCode])
 
   const selectedCommission = useMemo(() => {
     const pct = num(

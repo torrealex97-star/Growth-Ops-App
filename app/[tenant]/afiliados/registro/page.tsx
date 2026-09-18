@@ -43,7 +43,7 @@ export default function RegistroAfiliadoPage() {
       .then((data: FormConfig) => setConfig(data))
       .catch(() => setError('No se pudo cargar el formulario. Inténtalo más tarde.'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [tenant])
 
   const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setValues((prev) => ({ ...prev, [key]: e.target.value }))

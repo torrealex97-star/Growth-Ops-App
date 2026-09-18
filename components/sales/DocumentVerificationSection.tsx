@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, CheckCircle2, Shield, Upload, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
@@ -57,11 +57,7 @@ export function DocumentVerificationSection({
   const [documentType, setDocumentType] = useState<DocumentType | ''>('')
   const [documentNumber, setDocumentNumber] = useState('')
 
-  useEffect(() => {
-    loadDocumentState()
-  }, [saleId])
-
-  const loadDocumentState = async () => {
+  const loadDocumentState = useCallback(async () => {
     try {
       const res = await fetch(`/api/${tenant}/evergreen/documents/state?saleId=${saleId}`)
       const data = await res.json()
@@ -69,7 +65,11 @@ export function DocumentVerificationSection({
     } finally {
       setLoading(false)
     }
-  }
+  }, [saleId, tenant])
+
+  useEffect(() => {
+    loadDocumentState()
+  }, [saleId, tenant, loadDocumentState])
 
   const submitDocument = async () => {
     if (!documentType) {

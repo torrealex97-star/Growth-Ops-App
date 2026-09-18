@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Radio, Plus, X, Pencil, Receipt, CheckCircle2, RefreshCw, AlertTriangle, Zap } from 'lucide-react'
 import { toast } from 'sonner'
@@ -231,7 +231,7 @@ export default function CampaignsPage() {
     return () => {
       active = false
     }
-  }, [periodPreset, rangeFrom, rangeTo])
+  }, [periodPreset, rangeFrom, rangeTo, tenant])
 
   // ¿Tenemos serie diaria para este rango? Si aún no se ha sincronizado (mapa vacío), caemos al
   // comportamiento anterior (filtro por fecha de inicio) para no dejar la página en blanco.
@@ -285,7 +285,7 @@ export default function CampaignsPage() {
     })
   }, [filteredItems, periodActive, hasDaily, rangeMap])
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const supabase = createClient()
     const { data, error } = await supabase.from('campaigns').select('*').order('created_at', { ascending: false })
     if (error) toast.error('Error al cargar campañas', { description: error.message })
@@ -308,12 +308,12 @@ export default function CampaignsPage() {
         setAccountingIds(map)
       }
     }
-  }
+  }, [period])
   useEffect(() => {
     load()
-  }, [])
+  }, [load])
 
-  const loadTargets = async () => {
+  const loadTargets = useCallback(async () => {
     try {
       const res = await fetch(`/api/${tenant}/evergreen/settings/campaign-targets`)
       if (!res.ok) return
@@ -327,10 +327,10 @@ export default function CampaignsPage() {
     } catch {
       // Sin objetivos configurados: los KPIs se muestran sin alerta, no es un error.
     }
-  }
+  }, [tenant])
   useEffect(() => {
     loadTargets()
-  }, [tenant])
+  }, [loadTargets])
 
   const saveTargets = async () => {
     setSavingTargets(true)

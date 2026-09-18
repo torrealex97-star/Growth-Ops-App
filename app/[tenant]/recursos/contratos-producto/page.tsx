@@ -57,7 +57,7 @@ export default function ContratosProductoPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [tenant])
 
   const filtered = useMemo(() => {
     const nq = normalizeText(q.trim())

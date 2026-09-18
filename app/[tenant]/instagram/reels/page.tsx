@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import {
   Clapperboard,
@@ -54,7 +54,7 @@ export default function ReelsDelDiaPage() {
   const [busy, setBusy] = useState<Record<string, boolean>>({})
   const [testimonios, setTestimonios] = useState<Testimonio[]>([])
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
@@ -72,17 +72,17 @@ export default function ReelsDelDiaPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [day, status, tenant])
   useEffect(() => {
     load()
-  }, [day, status])
+  }, [load])
   // Catálogo de testimonios para poder marcar cuál lleva cada reel.
   useEffect(() => {
     fetch(`/api/${tenant}/evergreen/testimonios`)
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => j && setTestimonios((j.testimonios || []).filter((t: Testimonio) => t.active)))
       .catch(() => {})
-  }, [])
+  }, [tenant])
 
   const setBusyFor = (id: string, v: boolean) => setBusy((b) => ({ ...b, [id]: v }))
 

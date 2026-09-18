@@ -76,7 +76,7 @@ export default function NewCollectionPage() {
       setRules(data ?? [])
     }
     fetchRules()
-  }, [])
+  }, [tenantId])
 
   // Al elegir la venta, calcula el cash collected acumulado del setter y closer
   // (para que el calculador elija el tramo de comisión correcto).
@@ -106,7 +106,7 @@ export default function NewCollectionPage() {
       setCashByRep(acc)
     }
     loadRepCash()
-  }, [selectedSale])
+  }, [selectedSale, tenantId])
 
   // Plan personalizado: si esta venta ya tiene un cobro elegible previo (reserva/entrada u otra
   // cuota ya aprobada), este nuevo cobro NO debe comisionar automáticamente — va a revisión.
@@ -128,7 +128,7 @@ export default function NewCollectionPage() {
       setHasEligiblePriorCollection(!!data && data.length > 0)
     }
     checkPriorEligible()
-  }, [selectedSale])
+  }, [selectedSale, tenantId])
 
   const searchSales = useCallback(
     async (query: string) => {

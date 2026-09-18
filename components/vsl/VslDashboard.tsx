@@ -72,17 +72,20 @@ export function VslDashboard() {
     setVideos(d.videos || [])
     setLoading(false)
     if (!selected && d.videos?.[0]) setSelected(d.videos[0].slug)
-  }, [selected])
+  }, [selected, tenant])
 
   useEffect(() => {
     loadVideos()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadMetrics = useCallback(async (slug: string) => {
-    setMetrics(null)
-    const r = await fetch(`/api/${tenant}/evergreen/vsl/metrics/${slug}`)
-    if (r.ok) setMetrics(await r.json())
-  }, [])
+  const loadMetrics = useCallback(
+    async (slug: string) => {
+      setMetrics(null)
+      const r = await fetch(`/api/${tenant}/evergreen/vsl/metrics/${slug}`)
+      if (r.ok) setMetrics(await r.json())
+    },
+    [tenant]
+  )
 
   useEffect(() => {
     if (selected) loadMetrics(selected)

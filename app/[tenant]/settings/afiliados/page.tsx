@@ -67,7 +67,7 @@ export default function AfiliadosSettingsPage() {
         }
         setLoading(false)
       })
-  }, [])
+  }, [tenant, tenantId])
 
   const updateField = (i: number, patch: Partial<AffiliateFormField>) =>
     setS((prev) => ({

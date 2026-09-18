@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Lightbulb,
   Bug,
@@ -59,7 +59,7 @@ export default function SugerenciasPage() {
   const [showTeam, setShowTeam] = useState(true)
   const [teamStats, setTeamStats] = useState<SuggestionTeamStat[]>([])
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/${tenant}/evergreen/suggestions`)
       const data = await res.json()
@@ -72,11 +72,11 @@ export default function SugerenciasPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [tenant])
 
   // Ranking Kaizen: agregados de TODO el equipo, no solo lo que ve este usuario
   // en `items` (un rep normal solo recibe sus propias sugerencias de /suggestions).
-  const loadTeamStats = async () => {
+  const loadTeamStats = useCallback(async () => {
     try {
       const res = await fetch(`/api/${tenant}/evergreen/suggestions/team-stats`)
       const data = await res.json()
@@ -85,12 +85,12 @@ export default function SugerenciasPage() {
     } catch (err) {
       console.error('[sugerencias] Error al cargar ranking Kaizen:', err)
     }
-  }
+  }, [tenant])
 
   useEffect(() => {
     load()
     loadTeamStats()
-  }, [])
+  }, [load, loadTeamStats])
 
   const patch = async (id: string, body: Record<string, unknown>) => {
     setSavingId(id)

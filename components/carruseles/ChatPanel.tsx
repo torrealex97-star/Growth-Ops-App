@@ -135,7 +135,7 @@ export function ChatPanel({ projectId, referenceImages, onStreamStart, onRefresh
         onRefresh?.()
       }
     },
-    [isStreaming, messages, projectId, onStreamStart, onStreamEnd, onRefresh, persist]
+    [isStreaming, messages, projectId, onStreamStart, onStreamEnd, onRefresh, persist, tenant]
   )
 
   return (

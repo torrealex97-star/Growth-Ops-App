@@ -66,7 +66,7 @@ export default function RefundsPage() {
   const [customFrom, setCustomFrom] = useState<string>('')
   const [customTo, setCustomTo] = useState<string>('')
 
-  const fetchRefunds = async () => {
+  const fetchRefunds = useCallback(async () => {
     const supabase = createClient()
     const { data, error } = await supabase
       .from('refunds')
@@ -80,11 +80,11 @@ export default function RefundsPage() {
       setRefunds(data as RefundWithSale[])
     }
     setLoading(false)
-  }
+  }, [tenantId])
 
   useEffect(() => {
     fetchRefunds()
-  }, [])
+  }, [fetchRefunds])
 
   const searchSales = useCallback(
     async (query: string) => {

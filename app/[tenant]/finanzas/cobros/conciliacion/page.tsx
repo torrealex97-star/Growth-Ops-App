@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Scale, Loader2, RefreshCw, Download, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTenant } from '@/lib/tenant-context'
@@ -85,26 +85,28 @@ export default function ConciliacionPage() {
   const [formNotes, setFormNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  const load = async (isReload = false) => {
-    if (isReload) setReloading(true)
-    else setLoading(true)
-    try {
-      const res = await fetch(`/api/${tenant}/evergreen/finanzas/conciliacion`)
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        toast.error('No se pudo cargar la conciliación', { description: data.error })
-        return
+  const load = useCallback(
+    async (isReload = false) => {
+      if (isReload) setReloading(true)
+      else setLoading(true)
+      try {
+        const res = await fetch(`/api/${tenant}/evergreen/finanzas/conciliacion`)
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          toast.error('No se pudo cargar la conciliación', { description: data.error })
+          return
+        }
+        setRows(data.rows || [])
+      } finally {
+        setLoading(false)
+        setReloading(false)
       }
-      setRows(data.rows || [])
-    } finally {
-      setLoading(false)
-      setReloading(false)
-    }
-  }
-
+    },
+    [tenant]
+  )
   useEffect(() => {
     load()
-  }, [])
+  }, [load])
 
   const filteredRows = useMemo(() => {
     return rows.filter((r) => {

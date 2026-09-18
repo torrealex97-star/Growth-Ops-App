@@ -37,7 +37,7 @@ export default function CarruselesDashboard() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [tenant])
 
   useEffect(() => {
     load()

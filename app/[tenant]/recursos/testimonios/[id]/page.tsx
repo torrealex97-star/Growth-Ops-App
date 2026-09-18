@@ -39,7 +39,7 @@ export default function TestimonioDetallePage() {
     } finally {
       setLoading(false)
     }
-  }, [id])
+  }, [id, tenant])
 
   useEffect(() => {
     load()

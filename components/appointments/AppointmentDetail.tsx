@@ -207,7 +207,7 @@ export function AppointmentDetail({
     return () => {
       cancelled = true
     }
-  }, [appointment.contact_id])
+  }, [appointment.contact_id, tenant])
 
   const submitActivity = async () => {
     if (!appointment.contact_id) return
@@ -274,7 +274,7 @@ export function AppointmentDetail({
     return () => {
       cancelled = true
     }
-  }, [showReschedule, rsDate, appointment.closer_id])
+  }, [showReschedule, rsDate, appointment.closer_id, tenant])
 
   const resetRescheduleForm = () => {
     setRsDate(null)

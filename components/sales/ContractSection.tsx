@@ -87,7 +87,7 @@ export function ContractSection({ saleId }: { saleId: string }) {
     } finally {
       setLoading(false)
     }
-  }, [saleId])
+  }, [saleId, tenant])
 
   useEffect(() => {
     load()

@@ -45,7 +45,7 @@ export default function TestimoniosPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [tenant])
 
   useEffect(() => {
     load()

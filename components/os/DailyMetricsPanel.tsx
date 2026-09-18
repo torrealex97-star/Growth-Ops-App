@@ -123,7 +123,7 @@ export function DailyMetricsPanel({ from, to }: { from?: string | null; to?: str
     return () => {
       active = false
     }
-  }, [effFrom, effTo, campaign, paidOnly])
+  }, [effFrom, effTo, campaign, paidOnly, tenant])
 
   const total = useMemo(() => (rows.length ? sumDailyRows(rows) : null), [rows])
   const chartData = useMemo(() => rows.map((r) => ({ ...r, short: shortDate(r.date) })), [rows])

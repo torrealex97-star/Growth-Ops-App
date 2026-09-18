@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Trophy, Plus, Trash2, Loader2, Save } from 'lucide-react'
@@ -39,7 +39,7 @@ export default function TramosSettingsPage() {
   const [nReward, setNReward] = useState('')
   const [adding, setAdding] = useState(false)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const sb = createClient()
     const [tRes, cRes] = await Promise.all([
       sb.from('sales_tramos').select('*').eq('tenant_id', tenantId).order('threshold', { ascending: true }),
@@ -51,11 +51,11 @@ export default function TramosSettingsPage() {
     if (cfg?.metric) setMetric(cfg.metric)
     if (cfg?.period) setPeriod(cfg.period)
     setLoading(false)
-  }
+  }, [tenantId])
 
   useEffect(() => {
     load()
-  }, [])
+  }, [load])
 
   const saveConfig = async (nextMetric: Metric, nextPeriod: Period) => {
     setSavingCfg(true)

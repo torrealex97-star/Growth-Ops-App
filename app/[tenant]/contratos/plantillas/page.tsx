@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -74,7 +74,7 @@ export default function PlantillasPage() {
   const [body, setBody] = useState('')
   const bodyRef = useRef<HTMLTextAreaElement>(null)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const sb = createClient()
     const { data } = await sb
       .from('contract_templates')
@@ -83,10 +83,10 @@ export default function PlantillasPage() {
       .order('created_at', { ascending: false })
     setTemplates((data ?? []) as ContractTemplate[])
     setLoading(false)
-  }
+  }, [tenantId])
   useEffect(() => {
     load()
-  }, [])
+  }, [load])
 
   const openNew = () => {
     setEditing(null)
