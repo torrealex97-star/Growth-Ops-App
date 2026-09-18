@@ -15,6 +15,9 @@ import { FunnelStrip } from '@/components/os/FunnelStrip'
 import { MarketingEfficiencyCard } from '@/components/os/MarketingEfficiencyCard'
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, toDateInputValue, type PeriodPreset } from '@/lib/filters/period'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
+import ColaboradorDashboard from '@/components/collaborators/ColaboradorDashboard'
+import { resolverScopeColaborador, type ScopeColaborador } from '@/lib/collaborators/scope'
+import { useTenantId } from '@/lib/tenant-context'
 import {
   TrendingUp,
   ShoppingCart,
@@ -100,10 +103,39 @@ const FILTER_ROLES = [
   { key: 'affiliate', label: 'Colaborador' },
 ]
 
+// GATE del dashboard (§16, §23-25): resuelve el scope de colaborador UNA VEZ y decide qué modo
+// del MISMO /dashboard renderizar. Va en un componente aparte —un early-return dentro del cuerpo
+// del equipo rompería el orden de sus hooks— y evita un portal aparte: misma ruta, mismo login.
 export default function DashboardPage() {
+  const sesion = useSesion()
+  const tenantId = useTenantId()
+
+  const [colaboradorScope, setColaboradorScope] = useState<ScopeColaborador | null>(null)
+  useEffect(() => {
+    let vivo = true
+    ;(async () => {
+      if (!sesion || !tenantId) return
+      const s = await resolverScopeColaborador(createClient(), sesion.userId, tenantId)
+      if (vivo) setColaboradorScope(s)
+    })()
+    return () => {
+      vivo = false
+    }
+  }, [sesion, tenantId])
+
+  // DASHBOARD DEL COLABORADOR (§23-25): sus KPIs acotados a su scope con las mismas
+  // definiciones canónicas y el mismo filtro de periodo global que el equipo.
+  if (sesion && colaboradorScope?.tipo === 'collaborator') {
+    return <ColaboradorDashboard sesion={sesion} scope={colaboradorScope} />
+  }
+  return <DashboardEquipo />
+}
+
+function DashboardEquipo() {
   const tenant = useTenant()
   // La sesión que el layout ya resolvió: evita repetir auth.getUser() + from('users') en esta pantalla.
   const sesion = useSesion()
+
   const [loading, setLoading] = useState(true)
   const [userName, setUserName] = useState('')
   const [userId, setUserId] = useState<string | null>(null)

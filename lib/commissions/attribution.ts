@@ -74,21 +74,22 @@ export async function resolveSaleAttribution(
   }
 
   // 2b) El colaborador del contacto pasa a ser el affiliate_id de la venta.
-  // El ledger de comisiones (participant_type 'affiliate'→'collaborator') lee de
-  // sale.affiliate_id: apuntarlo al UUID del collaborator_profile hace que TODO el
-  // motor existente (cash collected, refunds espejo, tramos fuera, UNIQUE de
-  // idempotencia) funcione sin crear un segundo camino. Solo rellena lo vacío:
-  // una asignación manual del admin no se pisa nunca.
+  // OJO: sales.affiliate_id tiene FK a users(id) — lo que se guarda es el USER_ID del
+  // colaborador, nunca el UUID del perfil (la FK lo rechazaría). El lane 'collaborator'
+  // del ledger lo decide después participantTypeForUser() comparando contra los perfiles
+  // activos; aquí solo rellena lo vacío: una asignación manual del admin no se pisa nunca.
   if (needAffiliate && !patch.affiliate_id && colaboradorIdDelContacto) {
-    patch.affiliate_id = colaboradorIdDelContacto
-    if (sale.affiliate_commission_percent == null) {
-      const { data: cp } = await sb
-        .from('collaborator_profiles')
-        .select('default_commission_percent')
-        .eq('id', colaboradorIdDelContacto)
-        .maybeSingle()
-      const pct = (cp as { default_commission_percent: number | string | null } | null)?.default_commission_percent
-      if (pct != null) patch.affiliate_commission_percent = Number(pct)
+    const { data: perfil } = await sb
+      .from('collaborator_profiles')
+      .select('user_id, default_commission_percent')
+      .eq('id', colaboradorIdDelContacto)
+      .maybeSingle()
+    const p = perfil as { user_id: string; default_commission_percent: number | string | null } | null
+    if (p?.user_id) {
+      patch.affiliate_id = p.user_id
+      if (sale.affiliate_commission_percent == null && p.default_commission_percent != null) {
+        patch.affiliate_commission_percent = Number(p.default_commission_percent)
+      }
     }
   }
 
