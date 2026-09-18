@@ -1,10 +1,10 @@
 # Cron retirado de vercel.json (Vercel Hobby: máx. 2 crons). GitHub Actions lo ejecuta con el
 # mismo horario UTC y la misma autenticación (Bearer CRON_SECRET) que usaba Vercel Cron.
-name: cron: instagram
+name: "cron: instagram"
 on:
   schedule:
     - cron: '30 2 * * *' # diario 02:30 UTC — sincroniza Instagram orgánico (ig_media, audiencia…)
-  workflow_dispatch: {}
+  workflow_dispatch:
 permissions: {}
 concurrency:
   group: cron-instagram
