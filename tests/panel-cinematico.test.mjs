@@ -79,3 +79,15 @@ test('rectángulos nítidos: sin border-radius en tarjetas ni chip (estética de
   const chip = css.match(/\.go-chip \{([^}]*)\}/)?.[1] ?? ''
   assert.doesNotMatch(chip, /border-radius/)
 })
+
+test('pantallas bajas: hero de altura fija y scroll interno del panel, sin scroll de página', () => {
+  // Defecto detectado en la auditoría responsive (landscape 740×375): con min-height la grid
+  // crecía con el contenido y el pie legal quedaba bajo el pliegue con scroll de página.
+  const css = read('app/panel.css')
+  const hero = css.match(/\.go-hero \{([^}]*)\}/)?.[1] ?? ''
+  assert.match(hero, /height: 100svh;/, 'el hero debe ocupar exactamente el viewport')
+  assert.doesNotMatch(hero, /min-height: 100s(vh|vh)\s*;/, 'min-height permite crecer la grid y empuja el pie fuera')
+  const body = css.match(/\.go-hero__body \{([^}]*)\}/)?.[1] ?? ''
+  assert.match(body, /overflow-y: auto;/)
+  assert.match(body, /min-height: 0;/, 'la fila 1fr necesita min-height:0 para hacer scroll interno')
+})

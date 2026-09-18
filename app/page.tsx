@@ -62,7 +62,7 @@ export default function HomePage() {
           (arranque y cierre de la escena). Espejo exacto del scrim ECHOID. */}
       <div className="go-hero__scrim" aria-hidden />
 
-      {/* Fila 1 — cabecera. Logo (Sora) + enlace directo de acceso. */}
+      {/* Fila 1 — cabecera. Logo (display del shell) + enlace directo de acceso. */}
       <header className="go-nav">
         <Link href="/" className="go-nav__logo">
           GROWTH OPS
