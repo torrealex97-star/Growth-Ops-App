@@ -1,0 +1,29 @@
+# Cron retirado de vercel.json (Vercel Hobby: máx. 2 crons). GitHub Actions lo ejecuta con el
+# mismo horario UTC y la misma autenticación (Bearer CRON_SECRET) que usaba Vercel Cron.
+# El endpoint recorre TODAS las subcuentas activas (patrón estándar de los crons del proyecto).
+name: cron: monthly
+on:
+  schedule:
+    - cron: '0 6 1 * *' # 1º de cada mes 06:00 UTC — gastos mensuales automáticos (sueldos + recurrentes)
+  workflow_dispatch: {}
+permissions: {}
+concurrency:
+  group: cron-monthly
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: GET /api/_/evergreen/cron/monthly
+        env:
+          APP_URL: ${{ vars.CRON_APP_URL || 'https://growth-ops-weld.vercel.app' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o response.json -w '%{http_code}' --max-time 120 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/_/evergreen/cron/monthly")
+          echo "HTTP $code"
+          cat response.json; echo
+          case "$code" in 2*) exit 0 ;; *) exit 1 ;; esac
