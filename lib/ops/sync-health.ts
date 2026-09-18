@@ -143,6 +143,22 @@ export const SYNC_DEFS: SyncDef[] = [
       'Se actualiza desde Integraciones › Stripe cuando lo pides. La ruta de cron ya está escrita: para automatizarla, añade "/api/_/evergreen/cron/stripe-customers" a vercel.json — antes comprueba en Vercel cuántos crons admite el plan, porque ya hay nueve declarados.',
   },
   {
+    // El ESPEJO de pagos: la fuente primaria de Cash Collected (§2). PaymentIntents liquidados con
+    // su devolución, upsert idempotente en stripe_payments, y cotejo con collections vía
+    // lib/canonical/cash.ts. Manual como stripe-customers (mismo motivo de los crons del plan
+    // Hobby); los pagos NUEVOS además llegan en tiempo real por el webhook.
+    id: 'stripe-payments',
+    label: 'Stripe — pagos (cash collected)',
+    // `route: null` = se dispara desde la interfaz (Integraciones › Stripe), sin cron: es la
+    // convención del catálogo para lo manual puro, nunca una ruta inventada para encajar.
+    route: null,
+    table: 'stripe_payments',
+    requiredKeys: ['STRIPE_SECRET_KEY'],
+    scheduler: 'manual',
+    manualReason:
+      'Se lanza desde Integraciones › Stripe ("Sincronizar pagos"): rellena el espejo que alimenta Cash Collected. Los pagos nuevos además entran en tiempo real por el webhook.',
+  },
+  {
     id: 'youtube-backfill',
     label: 'Backfill de reels antiguos a YouTube',
     route: 'cron/youtube-backfill',

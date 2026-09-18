@@ -26,10 +26,15 @@ import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset, type PeriodRange } from '@/lib/filters/period'
 import { isCancelled } from '@/lib/unit-economics'
 import type { FunnelOperativo, FiltroAtribucion } from '@/lib/metrics/operativo'
-import { canonicalizeLeads, canonicalizeAppointments, dedupeSales, canonicalizePayments } from '@/lib/canonical/dedup'
+import { canonicalizeLeads, canonicalizeAppointments, dedupeSales } from '@/lib/canonical/dedup'
+import { canonicalCash, type StripePaymentRow } from '@/lib/canonical/cash'
+import { resolverOferta, CONFIG_OFERTA_POR_DEFECTO } from '@/lib/metrics/oferta'
 import { DataQualityPanel, type QualityStats } from '@/components/os/DataQualityPanel'
 
 type CollectionRow = {
+  id?: string
+  /** `payment_reference` = id de Stripe cuando el cobro vino de ahí: la clave del dedup (§2). */
+  payment_reference?: string | null
   gross_amount: number | string | null
   collected_at: string | null
   status: string
@@ -358,6 +363,9 @@ export default function UnitEconomicsPage() {
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([])
   const [sales, setSales] = useState<SaleRow[]>([])
   const [collections, setCollections] = useState<CollectionRow[]>([])
+  // Espejo de pagos de Stripe (§2): fuente PRIMARIA del cash. Vacío = Stripe sin sincronizar →
+  // el merge resuelve por el fallback (collections), nunca un 0 por "no conectado" (§39).
+  const [stripePagos, setStripePagos] = useState<StripePaymentRow[]>([])
   const [contacts, setContacts] = useState<ContactRow[]>([])
   const [appointments, setAppointments] = useState<AppointmentRow[]>([])
   // Selección de cuentas Meta para las métricas de anuncios: 'todas' o un subconjunto de las
@@ -376,7 +384,7 @@ export default function UnitEconomicsPage() {
     let mounted = true
     async function load() {
       const supabase = createClient()
-      const [campRes, salesRes, collRes, contactsRes, apptRes, dailyRes, fathomRes] = await Promise.all([
+      const [campRes, salesRes, collRes, stripeRes, contactsRes, apptRes, dailyRes, fathomRes] = await Promise.all([
         supabase
           .from('campaigns')
           .select('id, channel, adspend, leads_generated, impressions, clicks, account_id')
@@ -385,7 +393,17 @@ export default function UnitEconomicsPage() {
           .from('sales')
           .select('id, gross_amount, status, contact_id, sale_date')
           .range(0, FINANCE_QUERY_ROW_CAP),
-        supabase.from('collections').select('gross_amount, collected_at, status').range(0, FINANCE_QUERY_ROW_CAP),
+        supabase
+          .from('collections')
+          .select('id, gross_amount, collected_at, status, payment_reference')
+          .range(0, FINANCE_QUERY_ROW_CAP),
+        // Fuente PRIMARIA del cash (§2): espejo de pagos de Stripe (succeeded, neto de su
+        // refunded_amount). Sin filas el merge resuelve por collections — y el desglose por
+        // fuente lo deja visible en vez de suponer que Stripe está al día.
+        supabase
+          .from('stripe_payments')
+          .select('payment_id, charge_id, amount, refunded_amount, status, paid_at, customer_email')
+          .range(0, FINANCE_QUERY_ROW_CAP),
         // email/phone entran para la consolidación canónica de leads (dedup por persona, §6/§17).
         supabase.from('contacts').select('id, campaign_id, created_at, email, phone').range(0, FINANCE_QUERY_ROW_CAP),
         supabase
@@ -409,6 +427,7 @@ export default function UnitEconomicsPage() {
       setCampaigns(campRes.data || [])
       setSales(salesRes.data || [])
       setCollections(collRes.data || [])
+      setStripePagos((stripeRes.data || []) as StripePaymentRow[])
       setContacts(contactsRes.data || [])
       setAppointments(apptRes.data || [])
       setDaily(dailyRes.data || [])
@@ -478,12 +497,34 @@ export default function UnitEconomicsPage() {
     [campanasParaTotales, ventasVisibles, contacts]
   )
 
+  // CASH COLLECTED CANÓNICO (§2): fuente primaria Stripe (espejo) + cobros internos sin
+  // contraparte en Stripe; dedup por payment_reference — el mismo dinero cuenta UNA vez y gana
+  // la primaria; devoluciones restadas una sola vez y conflictos de importe registrados. La
+  // tabla `refunds` aún no entra como tercer argumento: el reverso de un cobro interno ya
+  // queda reflejado en su status 'reversed' en collections.
+  const cash = useMemo(
+    () =>
+      canonicalCash(
+        stripePagos.filter((p) => !hayPeriodo || inPeriod(p.paid_at, rango)),
+        collections
+          .filter((c) => !hayPeriodo || inPeriod(c.collected_at, rango))
+          .map((c) => ({
+            id: c.id ?? `${c.collected_at}:${c.gross_amount}`,
+            payment_reference: c.payment_reference ?? null,
+            gross_amount: num(c.gross_amount),
+            status: c.status,
+            collected_at: c.collected_at,
+          })),
+        []
+      ),
+    [stripePagos, collections, hayPeriodo, rango]
+  )
+
   const totals = useMemo(() => {
     const totalAdspend = campanasParaTotales.reduce((a, c) => a + num(c.adspend), 0)
-    const totalCashCollected = collections
-      .filter((c) => c.status === 'collected')
-      .filter((c) => !hayPeriodo || inPeriod(c.collected_at, rango))
-      .reduce((a, c) => a + num(c.gross_amount), 0)
+    // Neto del merge canónico (§2): NUNCA la suma de las dos fuentes — contar Stripe y la app
+    // por separado convertiría un mismo cobro en dos.
+    const totalCashCollected = cash.net
     const activeSales = ventasVisibles.filter((s) => ACTIVE_SALE_STATUSES.includes(s.status))
     // Clientes ÚNICOS, no nº de ventas — mismo fix que buildChannelRows. Antes dividía por
     // nº de ventas: un cliente que compra 2 veces contaba como "2 clientes", lo que infla el
@@ -498,7 +539,7 @@ export default function UnitEconomicsPage() {
     const ltvCacRatio = cacGlobal && ltvMedio ? ltvMedio / cacGlobal : null
 
     return { totalAdspend, totalCashCollected, totalCustomers, mer, cacGlobal, ltvMedio, ltvCacRatio }
-  }, [campanasParaTotales, collections, ventasVisibles, hayPeriodo, rango])
+  }, [campanasParaTotales, ventasVisibles, cash])
 
   const marketingFunnel = useMemo(
     () => buildMarketingFunnel(campanasParaTotales, contacts, appointments, ventasVisibles),
@@ -581,15 +622,18 @@ export default function UnitEconomicsPage() {
         amount: num(s.gross_amount),
       }))
     )
-    const { duplicates: dupPays } = canonicalizePayments(
+    // Duplicados y conflictos de pagos (§38/§19): cruce Stripe↔collections sobre TODO el
+    // histórico — la ventana del periodo no cambia lo que la integración duplicó una vez.
+    const { duplicatedPayments: dupPays, amountConflicts } = canonicalCash(
+      stripePagos,
       collections.map((c) => ({
-        id: `${c.collected_at}:${c.gross_amount}`,
-        transaction_id: null,
-        customer_id: null,
-        amount: num(c.gross_amount),
-        paid_at: c.collected_at,
-        status: c.status === 'collected' ? 'collected' : 'other',
-      }))
+        id: c.id ?? `${c.collected_at}:${c.gross_amount}`,
+        payment_reference: c.payment_reference ?? null,
+        gross_amount: num(c.gross_amount),
+        status: c.status,
+        collected_at: c.collected_at,
+      })),
+      []
     )
     const ventasActivasQ = sales.filter((s) => ACTIVE_SALE_STATUSES.includes(s.status))
     const conCampaign = contacts.filter((c) => !!c.campaign_id).length
@@ -611,6 +655,7 @@ export default function UnitEconomicsPage() {
       salesWithoutProduct: 0, // sales aún no enlaza product_id (§16); cuando exista, se cuenta aquí
       appointmentsWithoutLead: leadsSinAppt,
       paymentsWithoutSale: null as unknown as number,
+      sourceConflicts: amountConflicts.length,
       unattributedLeads: contacts.length - conCampaign,
       unattributedSales: ventasActivasQ.length - ventasConCampaign,
       totalLeads: contacts.length,
@@ -618,11 +663,13 @@ export default function UnitEconomicsPage() {
       revenueTotal: revenueTotalQ,
       revenueAttributed: revenueAtribQ,
     }
-  }, [contacts, appointments, sales, collections])
+  }, [contacts, appointments, sales, collections, stripePagos])
 
   // Funnel GLOBAL canónico (§22/§23): leads únicos → agendas consolidadas → shows confirmados →
-  // ofertas → ventas. offer_made aún no existe en appointments (§23); cuando llegue, ofertas deja
-  // de derivarse de result='offer_made' y pasa a leer el campo explícito.
+  // ofertas → ventas. La etapa OFERTA usa el resolver canónico del negocio (lib/metrics/oferta.ts):
+  // declarado > derivado > asumido — nunca la cláusula muerta result='offer_made' (el vocabulario
+  // cerrado de result la eliminó; ese filtro solo sumaba 0 para siempre). El desglose
+  // medido/asumido entra al panel para que el número diga cuánta suposición lleva dentro.
   const funnelGlobal = useMemo(() => {
     const { leads } = canonicalizeLeads(
       contacts.map((c) => ({
@@ -642,12 +689,15 @@ export default function UnitEconomicsPage() {
         status: a.status,
       }))
     )
-    const ofertas = appointments.filter((a) => a.offered === true || a.result === 'offer_made').length
+    const resueltas = appointments.map((a) => resolverOferta(a, CONFIG_OFERTA_POR_DEFECTO))
+    const ofertas = resueltas.filter((r) => r.valor === true).length
+    const ofertasDeclaradas = resueltas.filter((r) => r.valor === true && r.origen === 'declarado').length
     return {
       newUniqueLeads: leads.length,
       booked: apptsCanon.length,
       shows: funnelOperativo.asistencias,
       offers: ofertas,
+      offersDeclaradas,
       sales: funnelOperativo.cierres,
     }
   }, [contacts, appointments, funnelOperativo])
@@ -933,7 +983,13 @@ export default function UnitEconomicsPage() {
           }
           icon={TrendingUp}
           loading={loading}
-          description="Cash collected / ad spend"
+          description={
+            cash.bySource.stripe > 0 && cash.bySource.internal > 0
+              ? `Cash neto: Stripe ${formatCurrency(cash.bySource.stripe)} + interno ${formatCurrency(cash.bySource.internal)} / ad spend`
+              : cash.bySource.stripe > 0
+                ? 'Cash neto de Stripe / ad spend'
+                : 'Cash neto de cobros internos (Stripe sin sincronizar) / ad spend'
+          }
         />
         <KPICard
           title="CAC global"

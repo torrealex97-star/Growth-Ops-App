@@ -416,6 +416,7 @@ export default function IntegracionesPage() {
   // Importador de pagos de Stripe a ventas. Nada se escribe sin que aquí se elija producto y plan.
   const [backfill, setBackfill] = useState<BackfillRow[] | null>(null)
   const [backfillLoading, setBackfillLoading] = useState(false)
+  const [syncingPayments, setSyncingPayments] = useState(false)
   const [catalogo, setCatalogo] = useState<{
     products: { id: string; name: string }[]
     plans: { id: string; name: string; method: string | null }[]
@@ -763,6 +764,33 @@ export default function IntegracionesPage() {
       toast.error('No se pudo revisar Stripe', { description: error instanceof Error ? error.message : String(error) })
     } finally {
       setReviewingStripe(false)
+    }
+  }
+
+  // ESPEJO DE PAGOS (fuente primaria de Cash Collected, §2): lee PaymentIntents liquidados con
+  // su devolución y hace upsert idempotente en stripe_payments. Idempotente: pulsar de nuevo
+  // nunca duplica; con `truncated`, repetir continúa donde se quedó.
+  async function syncStripePayments() {
+    setSyncingPayments(true)
+    try {
+      const r = await fetch(`/api/${tenant}/evergreen/stripe-payments-sync`, { method: 'POST' })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        toast.error(j.error || j.message || 'No se pudo sincronizar los pagos')
+        return
+      }
+      const d = j.detail ?? {}
+      toast.success(
+        d.truncado
+          ? `Pagos sincronizados en parte: ${d.pagos ?? 0}. Quedaban más por leer — pulsa de nuevo para continuar.`
+          : `Pagos sincronizados: ${d.pagos ?? 0} (${d.devueltos ?? 0} con devolución).`
+      )
+    } catch (error) {
+      toast.error('No se pudo sincronizar los pagos', {
+        description: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setSyncingPayments(false)
     }
   }
 
@@ -1428,6 +1456,32 @@ export default function IntegracionesPage() {
                                 </div>
                               </div>
                             )}
+                          </div>
+                        )}
+
+                        {g.id === 'stripe' && (
+                          <div className="border-border mt-5 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
+                            <div>
+                              <p className="text-sm font-medium">Sincronizar pagos (Cash Collected)</p>
+                              <p className="text-muted-foreground text-xs">
+                                Rellena el espejo que alimenta Cash Collected como fuente primaria: pagos liquidados de
+                                Stripe con su devolución, deduplicados contra los cobros internos.
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={syncStripePayments}
+                              disabled={syncingPayments || state.STRIPE_SECRET_KEY?.source === 'none'}
+                            >
+                              {syncingPayments ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                              )}
+                              Sincronizar pagos
+                            </Button>
                           </div>
                         )}
 

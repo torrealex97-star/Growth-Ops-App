@@ -17,6 +17,8 @@ export type QualityStats = {
   salesWithoutProduct: number
   appointmentsWithoutLead: number
   paymentsWithoutSale: number | null
+  /** Pagos donde Stripe y la app discrepan en importe: la primaria gana, el conflicto queda visto (§19). */
+  sourceConflicts: number | null
   unattributedLeads: number
   unattributedSales: number
   totalLeads: number
@@ -30,6 +32,8 @@ export type FunnelGlobal = {
   booked: number
   shows: number
   offers: number
+  /** Ofertas DECLARADAS (alguien marcó Sí/No en la ficha): distinguen el dato real de la suposición. */
+  offersDeclaradas: number
   sales: number
 }
 
@@ -86,7 +90,14 @@ export function DataQualityPanel({ quality, funnel }: { quality: QualityStats; f
     return [
       { from: 'Leads', to: 'Agendas', value: funnel.booked, rate: conTasa(funnel.booked, funnel.newUniqueLeads) },
       { from: 'Agendas', to: 'Shows', value: funnel.shows, rate: conTasa(funnel.shows, funnel.booked) },
-      { from: 'Shows', to: 'Ofertas', value: funnel.offers, rate: conTasa(funnel.offers, funnel.shows) },
+      {
+        from: 'Shows',
+        // Sin NINGUNA marca, la etapa es la suposición del negocio y hay que decirlo: un Show →
+        // Oferta "100%" que nadie midió no es un logro, es el criterio por defecto.
+        to: funnel.offersDeclaradas === 0 && funnel.offers > 0 ? 'Ofertas (supuestas)' : 'Ofertas',
+        value: funnel.offers,
+        rate: conTasa(funnel.offers, funnel.shows),
+      },
       { from: 'Ofertas', to: 'Ventas', value: funnel.sales, rate: conTasa(funnel.sales, funnel.offers) },
     ]
   }, [funnel])
@@ -104,6 +115,12 @@ export function DataQualityPanel({ quality, funnel }: { quality: QualityStats; f
         <p className="mt-0.5 text-xs text-muted-foreground">
           Entidades canónicas: leads únicos, agendas consolidadas, shows confirmados, ventas sin doble conteo.
         </p>
+        {funnel.offersDeclaradas === 0 && funnel.offers > 0 && (
+          <p className="mt-1 text-xs text-amber-400/90">
+            Nadie ha marcado todavía si presentó la oferta: las llamadas celebradas cuentan como oferta por la regla del
+            negocio. En cuanto alguien marque un “No” en la ficha de la agenda, la etapa pasa a dato real.
+          </p>
+        )}
         <div className="mt-4 space-y-3">
           <div className="flex items-baseline justify-between">
             <span className="text-sm font-medium">Nuevos leads únicos</span>
@@ -178,6 +195,12 @@ export function DataQualityPanel({ quality, funnel }: { quality: QualityStats; f
               label="Pagos duplicados"
               value={quality.duplicatePayments}
               hint="mismo pago en Stripe y banco"
+            />
+            <QualityRow
+              label="Conflictos de importe"
+              value={quality.sourceConflicts ?? null}
+              hint="Stripe ≠ app en el mismo pago"
+              bad
             />
             <QualityRow label="Ventas sin producto" value={quality.salesWithoutProduct} hint="sin product_id" />
             <QualityRow label="Agendas sin lead" value={quality.appointmentsWithoutLead} hint="sin contact_id" />
