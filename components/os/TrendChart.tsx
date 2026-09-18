@@ -115,7 +115,8 @@ export function TrendChart({ title, data, format, previousTotal, aggregate = 'su
               axisLine={false}
               tickLine={false}
               width={44}
-              tickFormatter={(v) => fmt(Number(v))}
+              // El "0" en el origen es ruido: lo marca la geometría, no el eje.
+              tickFormatter={(v) => (v === 0 ? '' : fmt(Number(v)))}
             />
             <Tooltip
               contentStyle={{
