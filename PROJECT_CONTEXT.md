@@ -164,7 +164,7 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | — | Panel "Puesta a punto" por tenant | — | Media |
 | — | Agente IA fase 3 (RAG/pgvector) | Embeddings provider | Baja |
 | — | Agente IA: smoke test real en navegador | Sesión admin/director | Media |
-| ✅ | **7 crons retirados de vercel.json → GitHub Actions** (monthly, sequra-morosos, analyze-calls, ai-insights, meta, meta-daily, instagram) — HECHO 18-sep: workflows con `schedule` + `workflow_dispatch`, `Bearer CRON_SECRET` (secret creado en GitHub **y** Vercel production + redeploy; verificado 200 en vivo), 2 dispatches de prueba en verde | Cuidado: `name:` con dos puntos SIN comillas rompe el YAML de GitHub (422 silencioso) | — |
+| ✅ | **7 crons retirados de vercel.json → GitHub Actions** (monthly, sequra-morosos, analyze-calls, ai-insights, meta, meta-daily, instagram) — HECHO 18-sep: workflows con `schedule` + `workflow_dispatch`, `Bearer CRON_SECRET` (secret creado en GitHub **y** Vercel production + redeploy; verificado 200 en vivo), **7/7 con dispatch en verde** (sequra-morosos falla en rojo por falta de `SEQURA_MERCHANT_REFERENCE` en producción — credencial de negocio pendiente del usuario; la tubería GHA→endpoint funciona) | Cuidado: `name:` con dos puntos SIN comillas rompe el YAML de GitHub (422 silencioso) | — |
 
 ### 🐛 Conocido (no bloqueante)
 
@@ -234,9 +234,9 @@ Ver `.env.local.example` para la lista completa. Resumen:
 
 - **Remote:** `https://github.com/torrealex97-star/Growth-Ops-App.git`
 - **Branch principal:** `main`
-- **Último commit:** `0e8b265` — "docs: 7 crons migrados a GitHub Actions con CRON_SECRET (hecho y verificado)"
-- **Historial reciente:** docs crons GHA (0e8b265) + fix YAML names (13ad8e8) + workflows crons (be082ad) + caso F pixel (7b62fa8) + skills del stack (815d1c9) + is_monitoring (c90b00b) + docs crons recorte (72f4ec0)
-- **Antes de push:** Ejecutar `npm run quality` completo
+- **Último commit:** `8b1712f` — "style: formatea deuda de Prettier (29 ficheros) para desbloquear format:check del CI"
+- **Historial reciente:** prettier CI verde (8b1712f) + docs crons GHA (0e8b265) + fix YAML names (13ad8e8) + workflows crons (be082ad) + caso F pixel (7b62fa8) + skills del stack (815d1c9) + is_monitoring (c90b00b) + docs crons recorte (72f4ec0)
+- **Antes de push:** Ejecutar `npm run quality` completo (ahora gateado también por CI en cada push a main: format → lint → typecheck → dead-code → test → test:metrics → build)
 - **Vercel:** Deploy automático al hacer push a `main` → `https://growth-ops-weld.vercel.app`
 
 ---
@@ -290,4 +290,4 @@ Leer `docs/ACTIVE_HANDOFF.md` cuando se necesite contexto histórico detallado.
 ### Notas de verificación (18-sep)
 - El secret vive coherente en 3 sitios: GitHub (secret), Vercel Production (+ redeploy) y `.env.local` local.
 - Los runs "failure" de 0s en los `cron-*` son zombis del push de transición YAML: no indican fallo del endpoint.
-- El workflow `CI` (push a main) estuvo en rojo por `format:check` (29 ficheros sin Prettier) — pendiente de arreglar antes de confiar en ese gate.
+- ~~El workflow `CI` (push a main) estuvo en rojo por `format:check` (29 ficheros sin Prettier)~~ **Resuelto 18-sep (commit `8b1712f`): CI en verde** (format + lint + typecheck + dead-code + test + test:metrics + build) — primer run verde del gate en GitHub.
