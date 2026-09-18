@@ -106,7 +106,9 @@ export function QualificationInsights() {
             dist = { key, label: labelFor(key), bars: [], total: 0 }
             distribuciones.push(dist)
             // Mantener el orden de DISTRIBUCION_KEYS
-            distribuciones.sort((a, b) => DISTRIBUCION_KEYS.indexOf(a.key as never) - DISTRIBUCION_KEYS.indexOf(b.key as never))
+            distribuciones.sort(
+              (a, b) => DISTRIBUCION_KEYS.indexOf(a.key as never) - DISTRIBUCION_KEYS.indexOf(b.key as never)
+            )
           }
           const label = normVal(respuesta)
           const bar = dist.bars.find((b) => b.label === label)
@@ -139,7 +141,7 @@ export function QualificationInsights() {
             Reintentar
           </button>
         </div>
-    </div>
+      </div>
     )
   }
 
@@ -168,7 +170,11 @@ export function QualificationInsights() {
       </h2>
       <p className="text-muted-foreground text-xs mb-4">
         Respuestas del formulario de agendamiento (GHL, Calendly, Typeform). {conFormulario} agendas con formulario de{' '}
-        {total} con payload ({pct(conFormulario, total)}%){estructuradas < conFormulario ? ` · ${estructuradas} estructuradas + ${conFormulario - estructuradas} texto libre` : ''}.
+        {total} con payload ({pct(conFormulario, total)}%)
+        {estructuradas < conFormulario
+          ? ` · ${estructuradas} estructuradas + ${conFormulario - estructuradas} texto libre`
+          : ''}
+        .
       </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -189,7 +195,7 @@ export function QualificationInsights() {
                       <span className="text-muted-foreground shrink-0">
                         {b.count} · {p}%
                       </span>
-                      </div>
+                    </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
                       <div className="h-full rounded-full bg-brand-500" style={{ width: `${p}%` }} />
                     </div>
@@ -208,11 +214,11 @@ export function QualificationInsights() {
             </h3>
             <ul className="space-y-2.5">
               {motivosLibres.map((m, i) => (
-                    <li key={i} className="text-sm">
-                      <span className="text-muted-foreground">{m.name}: </span>
-                      <span className="text-foreground">&ldquo;{m.text}&rdquo;</span>
-                    </li>
-                  ))}
+                <li key={i} className="text-sm">
+                  <span className="text-muted-foreground">{m.name}: </span>
+                  <span className="text-foreground">&ldquo;{m.text}&rdquo;</span>
+                </li>
+              ))}
             </ul>
             <p className="text-muted-foreground text-xs mt-3">
               De {estructuradas} agendas con formulario estructurado y {conFormulario - estructuradas} con texto libre

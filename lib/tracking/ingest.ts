@@ -14,10 +14,30 @@ export function classifyBot(userAgent: string | null | undefined): BotClassifica
   if (!userAgent || userAgent.trim() === '') return 'unknown'
   const ua = userAgent.toLowerCase()
   const BOT_PATTERNS = [
-    'bot', 'crawler', 'spider', 'crawling', 'slurp', 'bingpreview', 'yandex',
-    'facebookexternalhit', 'linkedinbot', 'twitterbot', 'whatsapp', 'telegrambot',
-    'headlesschrome', 'phantomjs', 'puppeteer', 'playwright', 'lighthouse', 'pagespeed',
-    'curl/', 'wget/', 'python-requests', 'axios/', 'node-fetch', 'postman',
+    'bot',
+    'crawler',
+    'spider',
+    'crawling',
+    'slurp',
+    'bingpreview',
+    'yandex',
+    'facebookexternalhit',
+    'linkedinbot',
+    'twitterbot',
+    'whatsapp',
+    'telegrambot',
+    'headlesschrome',
+    'phantomjs',
+    'puppeteer',
+    'playwright',
+    'lighthouse',
+    'pagespeed',
+    'curl/',
+    'wget/',
+    'python-requests',
+    'axios/',
+    'node-fetch',
+    'postman',
   ]
   if (BOT_PATTERNS.some((p) => ua.includes(p))) return 'likely_bot'
   // UA mínimamente plausible (algo/navegador) y sin patrones → humano probable.
@@ -33,11 +53,7 @@ export function classifyBot(userAgent: string | null | undefined): BotClassifica
  * la petición llega del mismo host que sirve el pixel — el navegador SIEMPRE manda Origin en
  * sendBeacon/fetch cross-origin, así que null solo ocurre en same-origin: no se rechaza.
  */
-export function originAllowed(
-  origin: string | null,
-  allowedOrigins: string[],
-  allowLocalhost: boolean
-): boolean {
+export function originAllowed(origin: string | null, allowedOrigins: string[], allowLocalhost: boolean): boolean {
   if (!origin) return true
   const normalized = origin.replace(/\/+$/, '')
   if (allowedOrigins.includes(normalized)) return true
@@ -109,10 +125,7 @@ export class MinuteRateLimiter {
 }
 
 /** Canal de negocio derivado del primer touch: lo que las métricas ya agrupan por fuente. */
-export function deriveChannel(
-  utmSource: string | null | undefined,
-  referrer: string | null | undefined
-): string {
+export function deriveChannel(utmSource: string | null | undefined, referrer: string | null | undefined): string {
   const s = (utmSource ?? '').toLowerCase()
   if (s) return s
   if (!referrer) return 'direct'

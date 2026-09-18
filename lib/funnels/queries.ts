@@ -326,7 +326,7 @@ async function vslSessionStage(
   // y eso se declara. countRows ya devuelve rows:null con el error — lo aprovechamos.
   if (stageId !== 'visitas' && stageId !== 'registros') return null
   const dateCol = stageId === 'visitas' ? 'created_at' : 'updated_at'
-  const extra = stageId === 'registros' ? { column: 'lead_email', neq: (null as unknown as string) } : undefined
+  const extra = stageId === 'registros' ? { column: 'lead_email', neq: null as unknown as string } : undefined
   const res = await countVslSessions(sb, tenantId, dateCol, range, extra)
   return res
 }

@@ -16,8 +16,8 @@ import { toast } from 'sonner'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import type { CommissionWithRelations, ParticipantType } from '@/lib/types/database'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
-import { DEFAULT_PERIOD,  getCustomDateRange, inPeriod } from '@/lib/filters/period'
-import {  getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
+import { DEFAULT_PERIOD, getCustomDateRange, inPeriod } from '@/lib/filters/period'
+import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
 import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
 
 type SimpleMember = { id: string; full_name: string }

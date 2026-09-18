@@ -21,7 +21,7 @@ import {
 import { useTenant } from '@/lib/tenant-context'
 import { useCuentasMetaActivas } from '@/lib/meta/use-cuentas-activas'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
-import { DEFAULT_PERIOD,  getPeriodRange, inPeriod, type PeriodPreset, type PeriodRange } from '@/lib/filters/period'
+import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset, type PeriodRange } from '@/lib/filters/period'
 import { isCancelled } from '@/lib/unit-economics'
 import type { FunnelOperativo, FiltroAtribucion } from '@/lib/metrics/operativo'
 
@@ -103,11 +103,13 @@ function FiltrosAtribucion({
           <Filter className="h-3.5 w-3.5" /> Origen
         </span>
         <div className="flex gap-1" role="group" aria-label="Origen de los leads">
-          {([
-            ['todos', 'Todos'],
-            ['ads', 'Solo anuncios'],
-            ['organico', 'Orgánico y directo'],
-          ] as const).map(([id, label]) => (
+          {(
+            [
+              ['todos', 'Todos'],
+              ['ads', 'Solo anuncios'],
+              ['organico', 'Orgánico y directo'],
+            ] as const
+          ).map(([id, label]) => (
             <button
               key={id}
               onClick={() => onOrigenChange(id)}
@@ -122,17 +124,21 @@ function FiltrosAtribucion({
         </div>
         <span className="text-muted-foreground text-xs font-medium">Atribución</span>
         <div className="flex gap-1" role="group" aria-label="Cobertura de atribución">
-          {([
-            ['todos', 'Todos'],
-            ['atribuidos', 'Atribuidos'],
-            ['no_atribuidos', 'No atribuidos'],
-          ] as const).map(([id, label]) => (
+          {(
+            [
+              ['todos', 'Todos'],
+              ['atribuidos', 'Atribuidos'],
+              ['no_atribuidos', 'No atribuidos'],
+            ] as const
+          ).map(([id, label]) => (
             <button
               key={id}
               onClick={() => onAtribucionChange(id)}
               aria-pressed={atribucion === id}
               className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                atribucion === id ? 'bg-brand-500 text-zinc-950' : 'bg-muted text-muted-foreground hover:text-foreground'
+                atribucion === id
+                  ? 'bg-brand-500 text-zinc-950'
+                  : 'bg-muted text-muted-foreground hover:text-foreground'
               }`}
             >
               {label}
@@ -150,9 +156,9 @@ function FiltrosAtribucion({
       {avanzadosAbiertos && (
         <div className="border-border/60 text-muted-foreground mt-3 space-y-1 border-t pt-3 text-xs">
           <p>
-            <span className="text-foreground font-medium">Canal y cuenta:</span> el canal lo determina el origen de
-            la campaña sincronizada (Meta Ads hoy; Google, Instagram y TikTok cuando su integración traiga datos) y
-            la cuenta se elige en el selector de Meta Ads de arriba.
+            <span className="text-foreground font-medium">Canal y cuenta:</span> el canal lo determina el origen de la
+            campaña sincronizada (Meta Ads hoy; Google, Instagram y TikTok cuando su integración traiga datos) y la
+            cuenta se elige en el selector de Meta Ads de arriba.
           </p>
           <p>
             <span className="text-foreground font-medium">Campaña:</span> se filtra en{' '}
@@ -161,8 +167,8 @@ function FiltrosAtribucion({
           </p>
           <p>
             <span className="text-foreground font-medium">Nota honesta:</span> hoy casi ningún contacto lleva
-            campaign_id (la tabla de atribución está vacía), así que «Atribuidos» puede mostrar 0 aunque los totales
-            del negocio no lo sean. No es un fallo de esta pantalla: es el estado real de la cobertura de datos.
+            campaign_id (la tabla de atribución está vacía), así que «Atribuidos» puede mostrar 0 aunque los totales del
+            negocio no lo sean. No es un fallo de esta pantalla: es el estado real de la cobertura de datos.
           </p>
         </div>
       )}
@@ -257,7 +263,9 @@ function buildFunnelOperativo(
 ): FunnelOperativo {
   const ahora = new Date()
   const contactos = hayPeriodo ? contacts.filter((c) => c.created_at && inPeriod(c.created_at, rango)) : contacts
-  const agendasVisibles = hayPeriodo ? appointments.filter((a) => inPeriod(a.appointment_datetime, rango)) : appointments
+  const agendasVisibles = hayPeriodo
+    ? appointments.filter((a) => inPeriod(a.appointment_datetime, rango))
+    : appointments
   const ventas = hayPeriodo ? sales.filter((s) => inPeriod(s.sale_date, rango)) : sales
   const ventasActivas = ventas.filter((s) => ACTIVE_SALE_STATUSES.includes(s.status))
 
@@ -595,21 +603,30 @@ export default function UnitEconomicsPage() {
             <p className="text-muted-foreground">Agendas atribuidas a anuncios</p>
             <p className="text-base font-semibold text-foreground mt-1">
               {formatNumber(funnelOperativo.atribuidos.agendas)}
-              <span className="text-muted-foreground text-xs font-normal"> de {formatNumber(funnelOperativo.agendas)}</span>
+              <span className="text-muted-foreground text-xs font-normal">
+                {' '}
+                de {formatNumber(funnelOperativo.agendas)}
+              </span>
             </p>
           </div>
           <div className="dashboard-card p-3">
             <p className="text-muted-foreground">Cierres atribuidos</p>
             <p className="text-base font-semibold text-foreground mt-1">
               {formatNumber(funnelOperativo.atribuidos.cierres)}
-              <span className="text-muted-foreground text-xs font-normal"> de {formatNumber(funnelOperativo.cierres)}</span>
+              <span className="text-muted-foreground text-xs font-normal">
+                {' '}
+                de {formatNumber(funnelOperativo.cierres)}
+              </span>
             </p>
           </div>
           <div className="dashboard-card p-3">
             <p className="text-muted-foreground">Facturación atribuida</p>
             <p className="text-base font-semibold text-foreground mt-1">
               {formatCurrency(funnelOperativo.atribuidos.facturacion)}
-              <span className="text-muted-foreground text-xs font-normal"> de {formatCurrency(funnelOperativo.facturacion)}</span>
+              <span className="text-muted-foreground text-xs font-normal">
+                {' '}
+                de {formatCurrency(funnelOperativo.facturacion)}
+              </span>
             </p>
           </div>
         </div>

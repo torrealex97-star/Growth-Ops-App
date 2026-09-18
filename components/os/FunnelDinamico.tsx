@@ -46,10 +46,7 @@ type Props = {
 }
 
 type EstadoMotor =
-  | { kind: 'idle' }
-  | { kind: 'loading' }
-  | { kind: 'motor'; result: FunnelResult }
-  | { kind: 'error'; message: string }
+  { kind: 'idle' } | { kind: 'loading' } | { kind: 'motor'; result: FunnelResult } | { kind: 'error'; message: string }
 
 export function FunnelDinamico({ tenant, operativo, loading, rango }: Props) {
   const [opcion, setOpcion] = useState<OpcionFunnel>('todos')
@@ -83,7 +80,11 @@ export function FunnelDinamico({ tenant, operativo, loading, rango }: Props) {
     return [
       { label: 'Leads', value: operativo.leads, conversion: null as number | null },
       { label: 'Agendas', value: operativo.agendas, conversion: conv(operativo.agendas, operativo.leads) },
-      { label: 'Asistencias', value: operativo.asistencias, conversion: conv(operativo.asistencias, operativo.agendas) },
+      {
+        label: 'Asistencias',
+        value: operativo.asistencias,
+        conversion: conv(operativo.asistencias, operativo.agendas),
+      },
       { label: 'Cierres', value: operativo.cierres, conversion: conv(operativo.cierres, operativo.asistencias) },
     ]
   }, [operativo])

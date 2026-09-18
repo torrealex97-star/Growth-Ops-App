@@ -814,7 +814,9 @@ export default function NewSalePage() {
           //ni las comisiones futuras la verán. Aviso al usuario y fallback a data/error log.
           if (instErr) {
             console.error('[nueva-venta] insert cuotas sequra:', instErr.message)
-            alert(`La venta se registró pero NO se pudo crear el calendario de cuotas: ${instErr.message}. Avísale a soporte para repararlo.`)
+            alert(
+              `La venta se registró pero NO se pudo crear el calendario de cuotas: ${instErr.message}. Avísale a soporte para repararlo.`
+            )
           }
         }
         if (upfront) {
@@ -836,7 +838,9 @@ export default function NewSalePage() {
           //Nunca silencioso (mismo motivo que arriba): el fallo de cuotas rompe finanzas aguas abajo.
           if (instErr) {
             console.error('[nueva-venta] insert cuotas financiación:', instErr.message)
-            alert(`La venta se registró pero NO se pudo crear el calendario de cuotas: ${instErr.message}. Avísale a soporte para repararlo.`)
+            alert(
+              `La venta se registró pero NO se pudo crear el calendario de cuotas: ${instErr.message}. Avísale a soporte para repararlo.`
+            )
           }
         }
       }

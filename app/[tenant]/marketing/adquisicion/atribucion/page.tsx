@@ -17,7 +17,7 @@ import {
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
-import { DEFAULT_PERIOD,  getPeriodRange, type PeriodPreset } from '@/lib/filters/period'
+import { DEFAULT_PERIOD, getPeriodRange, type PeriodPreset } from '@/lib/filters/period'
 import { isPaidSource } from '@/lib/ads/funnel'
 import { QUALIFICATION_KEYS, labelFor, type QualificationAnswer } from '@/lib/qualification'
 import { countryISOForPhone, countryNameForISO } from '@/lib/phone'

@@ -26,7 +26,7 @@ import {
 } from '@/lib/analytics'
 import { formatCurrency } from '@/lib/utils'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
-import { DEFAULT_PERIOD,  getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
+import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import type { Target } from '@/lib/types/database'
 import { CONTACTED_LEAD_STATUSES } from '@/lib/lead-status'
 import { isAttended, isNoShow } from '@/lib/appointments/status'

@@ -8,7 +8,7 @@ import { BarChart3, PhoneCall, Wallet, Trophy, Banknote, Undo2, Gauge, Clipboard
 import { lastNMonths, monthLabel } from '@/lib/analytics'
 import { formatCurrency, formatPercent } from '@/lib/utils'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
-import { DEFAULT_PERIOD,  getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
+import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { originLabel } from '@/lib/ads/funnel'
 import { isAttended } from '@/lib/appointments/status'
 import { countryISOForPhone, regionForISO } from '@/lib/phone'

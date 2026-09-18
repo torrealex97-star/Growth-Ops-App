@@ -63,11 +63,7 @@ function serviceClient() {
   })
 }
 function clientIp(req: NextRequest): string | null {
-  return (
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    req.headers.get('x-real-ip') ||
-    null
-  )
+  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || null
 }
 
 /**
@@ -109,7 +105,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const sb = serviceClient()
-  if (!sb) return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY no configurada en este entorno' }, { status: 500 })
+  if (!sb)
+    return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY no configurada en este entorno' }, { status: 500 })
 
   // 1) Resolver site+tenant por la clave pública (única global por diseño de la migración).
   const { data: site } = await sb
@@ -170,7 +167,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!anonymousId) {
     await sb
       .from('raw_events')
-      .update({ processing_status: 'skipped', rejection_reason: 'sin_anonymous_id', processed_at: new Date().toISOString() })
+      .update({
+        processing_status: 'skipped',
+        rejection_reason: 'sin_anonymous_id',
+        processed_at: new Date().toISOString(),
+      })
       .eq('id', rawRow.id)
     return NextResponse.json({ accepted: false, reason: 'sin_anonymous_id' }, { status: 200 })
   }
