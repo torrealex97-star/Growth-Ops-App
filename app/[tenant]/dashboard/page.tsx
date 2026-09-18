@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
-import { AreaChart, Area, ResponsiveContainer } from 'recharts'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { TeamRanking } from '@/components/os/TeamRanking'
 import { AttributionTable } from '@/components/os/AttributionTable'
@@ -653,29 +652,6 @@ export default function DashboardPage() {
             icon={TrendingUp}
             loading={loading}
             compareLabel="vs mes anterior"
-            spark={
-              series.length > 1 && (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={series} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
-                    <defs>
-                      <linearGradient id="kpiSparkFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="hsl(var(--brand-500))" stopOpacity={0.4} />
-                        <stop offset="100%" stopColor="hsl(var(--brand-500))" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <Area
-                      type="monotone"
-                      dataKey="amount"
-                      stroke="hsl(var(--brand-500))"
-                      strokeWidth={1.5}
-                      fill="url(#kpiSparkFill)"
-                      isAnimationActive
-                      animationDuration={300}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              )
-            }
             {...delta(cur.gross, prev.gross)}
           />
           <KPICard
@@ -706,17 +682,19 @@ export default function DashboardPage() {
       </div>
 
       {/* Evolución + Objetivos */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
         <div className="lg:col-span-2">
-          <SalesChart data={series} title="Facturación últimos 6 meses" />
+          <SalesChart data={series} title="Facturación últimos 6 meses" className="h-full" />
         </div>
-        <div className="dashboard-card p-5">
+        <div className="dashboard-card p-5 flex flex-col">
           <div className="flex items-center gap-2 mb-4">
             <TargetIcon className="w-4 h-4 text-brand-400" />
             <h3 className="text-sm font-semibold text-foreground">Objetivos de empresa</h3>
           </div>
           {targets.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">No hay objetivos de empresa activos.</p>
+            <p className="text-sm text-muted-foreground py-6 text-center mt-auto mb-auto">
+              No hay objetivos de empresa activos.
+            </p>
           ) : (
             <div className="space-y-4">
               {targets.slice(0, 4).map((t) => {
@@ -752,7 +730,7 @@ export default function DashboardPage() {
 
       {/* Facturación del mes seleccionado (live) */}
       {myFijo && (
-        <div className="rounded-lg border border-brand-500/30 bg-gradient-to-br from-brand-500/10 to-zinc-900 p-5">
+        <div className="dashboard-card p-5">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-wider text-brand-300/80">Tu retribución de {monthLabel(ym)}</p>
