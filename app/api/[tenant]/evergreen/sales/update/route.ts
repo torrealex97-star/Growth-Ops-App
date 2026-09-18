@@ -62,10 +62,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
     if ('status' in body && body.status) payload.status = body.status
     if ('notes' in body) payload.notes = body.notes || null
-    // Si el admin toca la atribución (setter/closer/afiliado), damos por resuelto el conflicto.
-    if ('setter_id' in body || 'closer_id' in body || 'affiliate_id' in body) {
-      payload.attribution_conflict = false
-    }
+    // NOTA: el flag attribution_conflict vivía en columnas que ya NO existen en la BD (su DDL se retiró —
+    // commit 67600c7). Enviarlo a Supabase provocaba un 500 al reasignar un representante.
 
     const { error: updErr } = await sb.from('sales').update(payload).eq('id', saleId).eq('tenant_id', t.tenantId)
     if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 })

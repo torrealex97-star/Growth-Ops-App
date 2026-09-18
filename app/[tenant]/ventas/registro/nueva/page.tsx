@@ -79,8 +79,6 @@ export default function NewSalePage() {
   const [currentUserId, setCurrentUserId] = useState('')
   const [currentRoleKey, setCurrentRoleKey] = useState('')
   // Conflicto de atribución (primer toque ≠ último): se aplica el último y se marca para el admin.
-  const [attributionConflict, setAttributionConflict] = useState(false)
-  const [attributionMeta, setAttributionMeta] = useState<Record<string, unknown> | null>(null)
   const [appointmentSearch, setAppointmentSearch] = useState('')
   const [appointmentResults, setAppointmentResults] = useState<Appointment[]>([])
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null)
@@ -366,8 +364,6 @@ export default function NewSalePage() {
       // Último toque prevalece
       const appliedSetter = apptSetter || lastSetter || firstSetter
       const appliedAff = apptAff || lastAff || firstAff
-      const setterConflict = !!(firstSetter && appliedSetter && firstSetter !== appliedSetter)
-      const affConflict = !!(firstAff && appliedAff && firstAff !== appliedAff)
 
       if (appliedSetter) {
         setSetterId(appliedSetter)
@@ -388,17 +384,9 @@ export default function NewSalePage() {
         return prev
       })
 
-      setAttributionConflict(setterConflict || affConflict)
-      setAttributionMeta({
-        setter: {
-          first: firstSetter,
-          last: lastSetter,
-          appointment: apptSetter,
-          applied: appliedSetter,
-          conflict: setterConflict,
-        },
-        affiliate: { first: firstAff, last: lastAff, appointment: apptAff, applied: appliedAff, conflict: affConflict },
-      })
+      // NOTA: si el primer toque difiere del aplicado antes se marcaba la venta como conflicto
+      // (sales.attribution_conflict/attribution_meta), columnas retiradas de la BD. Si vuelven,
+      // restaurar aquí el cálculo setterConflict/affConflict y su persistencia.
     })()
     return () => {
       active = false
@@ -574,8 +562,6 @@ export default function NewSalePage() {
       affiliate_id: affiliateId && affiliateId !== 'none' ? affiliateId : null,
       affiliate_commission_percent:
         affiliateId && affiliateId !== 'none' && affiliatePercent ? parseFloat(affiliatePercent) : null,
-      attribution_conflict: attributionConflict,
-      attribution_meta: attributionMeta,
     }
 
     // Tomador (comprador) distinto del agendador: datos del pagador + a qué email van los accesos.
@@ -1334,13 +1320,11 @@ export default function NewSalePage() {
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-foreground">Equipo</h2>
 
-            {attributionConflict && (
-              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-300">
-                ⚠️ <b>Conflicto de atribución:</b> el primer contacto y el último son de reps distintos. Se aplica el{' '}
-                <b>último</b> (el que agendó/reactivó) y la venta queda marcada para que un <b>admin</b> la revise y
-                ajuste si procede.
-              </div>
-            )}
+            <div className="rounded-lg border border-border bg-muted px-3 py-2.5 text-xs text-muted-foreground">
+              ℹ️ <b>Regla de atribución:</b> el primer contacto y el último determinan setter/closer/afiliado. Si
+              difieren, se aplica el <b>último</b> (el que agendó/reactivó) y un admin puede ajustarlo al editar la
+              venta.
+            </div>
 
             <div className="space-y-2">
               <Label>Setter / Cold caller (opcional)</Label>

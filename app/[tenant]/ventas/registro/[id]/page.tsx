@@ -148,7 +148,7 @@ export default function SaleDetailPage() {
     const data = await res.json()
     if (res.ok) setFollowUps(data.notes || [])
     setLoadingFollowUps(false)
-  }, [id])
+  }, [id, tenant])
 
   useEffect(() => {
     fetchFollowUps()
@@ -661,45 +661,9 @@ export default function SaleDetailPage() {
         )}
       </div>
 
-      {/* Aviso de conflicto de atribución (primer toque ≠ último). Se aplicó el último; el admin confirma. */}
-      {sale.attribution_conflict &&
-        (() => {
-          const meta = (sale.attribution_meta ?? {}) as {
-            setter?: { first?: string | null; applied?: string | null; conflict?: boolean }
-            affiliate?: { first?: string | null; applied?: string | null; conflict?: boolean }
-          }
-          const nameOf = (uid?: string | null) => {
-            if (!uid) return '—'
-            if (uid === sale.setter?.id) return sale.setter?.full_name ?? uid
-            if (uid === sale.affiliate?.id) return sale.affiliate?.full_name ?? uid
-            const u = teamUsers.find((x) => x.id === uid)
-            return u?.full_name ?? uid
-          }
-          return (
-            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-              <p className="font-semibold mb-1">⚠️ Conflicto de atribución — revisar</p>
-              <p className="text-amber-200/90 text-xs">
-                El primer contacto y el último son de reps distintos. Se aplicó el <b>último</b> toque (regla por
-                defecto).
-                {meta.setter?.conflict && (
-                  <>
-                    {' '}
-                    Setter: primer toque <b>{nameOf(meta.setter.first)}</b> · aplicado{' '}
-                    <b>{nameOf(meta.setter.applied)}</b>.
-                  </>
-                )}
-                {meta.affiliate?.conflict && (
-                  <>
-                    {' '}
-                    Afiliado: primer toque <b>{nameOf(meta.affiliate.first)}</b> · aplicado{' '}
-                    <b>{nameOf(meta.affiliate.applied)}</b>.
-                  </>
-                )}{' '}
-                Pulsa <b>Editar</b> para confirmar o cambiar quién se lleva la comisión (se recalcula sola).
-              </p>
-            </div>
-          )
-        })()}
+      {/* NOTA: el aviso de conflicto de atribución (primer toque ≠ último) vivía en
+          sales.attribution_conflict/attribution_meta — columnas retiradas de la BD (DDL eliminado).
+          Si se vuelven a añadir, restaurar el banner desde el historial de git (bloque borrado aquí). */}
 
       {/* Tabs */}
       <Tabs defaultValue="detail">
