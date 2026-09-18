@@ -11,6 +11,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,mjs,json,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,mjs,json,css}\"",
     "dead-code": "knip --no-exit-code",
+    "tipos:bd": "node scripts/generar-tipos-bd.mjs",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/*.test.mjs",
     "test:metrics": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/metrics/register.mjs --test tests/metrics/*.test.mjs",
     "quality": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:metrics",
