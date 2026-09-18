@@ -697,7 +697,7 @@ export default function UnitEconomicsPage() {
       booked: apptsCanon.length,
       shows: funnelOperativo.asistencias,
       offers: ofertas,
-      offersDeclaradas,
+      offersDeclaradas: ofertasDeclaradas,
       sales: funnelOperativo.cierres,
     }
   }, [contacts, appointments, funnelOperativo])
