@@ -338,7 +338,7 @@ export default function NewSalePage() {
         const { data: attr } = await supabase
           .from('contact_attributions')
           .select(
-            'utm_term, first_utm_term, last_utm_term, utm_content, first_utm_content, last_utm_content, is_primary, last_touch_at'
+            'utm_term, first_utm_term, last_utm_term, utm_content, first_utm_content, last_utm_content, collaborator_id, is_primary, last_touch_at'
           )
           .eq('contact_id', selectedContact.id)
           .eq('tenant_id', tenantId)
@@ -356,6 +356,24 @@ export default function NewSalePage() {
             lc = norm(a.last_utm_content || a.utm_content)
           if (fc) firstAff = byAff(fc)
           if (lc) lastAff = byAff(lc)
+          // COLABORADOR estructurado (FK contact_attributions.collaborator_id): manda
+          // sobre el texto de utm_content — la comisión no se deduce comparando strings.
+          const collabId = a.collaborator_id
+          if (collabId) {
+            const { data: cp } = await supabase
+              .from('collaborator_profiles')
+              .select('user_id, default_commission_percent')
+              .eq('id', collabId)
+              .maybeSingle()
+            const perfil = cp as { user_id: string; default_commission_percent: number | string | null } | null
+            if (perfil?.user_id && has(perfil.user_id)) {
+              lastAff = perfil.user_id
+              if (!firstAff) firstAff = perfil.user_id
+              if (perfil.default_commission_percent != null) {
+                setAffiliatePercent((prev) => (prev ? prev : String(perfil.default_commission_percent)))
+              }
+            }
+          }
         }
       }
 
@@ -1367,7 +1385,7 @@ export default function NewSalePage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Afiliado (opcional)</Label>
+              <Label>Colaborador (opcional)</Label>
               <Select
                 value={affiliateId}
                 disabled={lockAffiliate}

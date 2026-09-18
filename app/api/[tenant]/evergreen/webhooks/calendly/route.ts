@@ -8,6 +8,7 @@ import { notifyCreatuagente, toZonedISO, addMinutesISO } from '@/lib/creatuagent
 import { getTenantConfigWithFallback } from '@/lib/config'
 import { getOrCreateContact } from '@/lib/contacts/resolve'
 import { leerToque, registrarToque, toqueTieneDatos } from '@/lib/contacts/atribucion'
+import { resolverColaboradorPorCodigo } from '@/lib/collaborators/scope'
 
 export const runtime = 'nodejs'
 
@@ -200,10 +201,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // enlaces de reserva no los llevan (0 de 559 citas tienen utm_source). El camino queda puesto para
     // cuando empiecen a llegar. Un fallo al atribuir NO tumba el webhook: la cita y el contacto valen más
     // que su procedencia.
+    // COLABORADOR del enlace (?ref=CODIGO, aceptado como tracking.ref / referral):
+    // resuelto server-side a UUID del perfil, primera-atribución-válida-gana la
+    // fija registrarToque. El utm_content sigue para reporting; el dinero va por FK.
+    let colaboradorId: string | null = null
+    const refCruda = body as { ref?: unknown; referral?: unknown; colaborador?: unknown }
+    const refValor =
+      typeof refCruda?.ref === 'string'
+        ? refCruda.ref
+        : typeof refCruda?.referral === 'string'
+          ? refCruda.referral
+          : typeof refCruda?.colaborador === 'string'
+            ? refCruda.colaborador
+            : null
+    if (refValor) {
+      try {
+        const perfil = await resolverColaboradorPorCodigo(sb, tenantId, refValor)
+        colaboradorId = perfil?.id ?? null
+      } catch (e) {
+        console.warn('[colaborador] no se pudo resolver el ref:', e instanceof Error ? e.message : e)
+      }
+    }
     try {
       const toque = leerToque(body)
-      if (toqueTieneDatos(toque)) {
-        await registrarToque(sb, tenantId, contact.id, { ...toque, enEl: now })
+      if (colaboradorId || toqueTieneDatos(toque)) {
+        await registrarToque(sb, tenantId, contact.id, { ...toque, enEl: now, colaboradorId })
       }
     } catch (e) {
       console.warn('[atribucion] no se pudo registrar el toque:', e instanceof Error ? e.message : e)

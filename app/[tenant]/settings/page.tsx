@@ -89,7 +89,7 @@ const SETTINGS_CARDS = [
     bg: 'bg-emerald-500/10',
   },
   {
-    title: 'Programa de afiliados',
+    title: 'Programa de colaboradores',
     description: 'Formulario público de alta y comisión por defecto',
     icon: TrendingUp,
     href: '/settings/afiliados',

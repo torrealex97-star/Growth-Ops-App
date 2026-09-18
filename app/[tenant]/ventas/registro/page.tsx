@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { resolverScopeColaborador, contactIdsDeScope } from '@/lib/collaborators/scope'
 import { SalesTable } from '@/components/sales/SalesTable'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -42,8 +43,8 @@ function channelLabel(source: string | null | undefined): string {
     whatsapp: 'WhatsApp',
     organic: 'Orgánico',
     referral: 'Referido',
-    afiliado: 'Afiliado',
-    affiliate: 'Afiliado',
+    afiliado: 'Colaborador',
+    affiliate: 'Colaborador',
   }
   return map[s] ?? source!.trim()
 }
@@ -108,14 +109,25 @@ export default function SalesPage() {
     const fetchData = async () => {
       const supabase = createClient()
 
+      // SCOPE DE COLABORADOR (capa de datos): el colaborador activo solo ve las
+      // ventas de SUS contactos atribuidos — sin selector que quitar (§16). Para
+      // el resto de roles es un no-op. RLS como backstop.
+      const scopeColab = sesion
+        ? await resolverScopeColaborador(supabase, sesion.userId, tenantId)
+        : ({ tipo: 'none' } as const)
+      const contactIds = await contactIdsDeScope(supabase, tenantId, scopeColab)
+
+      const salesQuery = supabase
+        .from('sales')
+        .select(
+          `*, contacts(*), products(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name)`
+        )
+        .eq('tenant_id', tenantId)
+        .order('sale_date', { ascending: false })
+      const salesScoped = contactIds ? salesQuery.in('contact_id', contactIds) : salesQuery
+
       const [salesRes, usersRes, productsRes, attrRes] = await Promise.all([
-        supabase
-          .from('sales')
-          .select(
-            `*, contacts(*), products(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name)`
-          )
-          .eq('tenant_id', tenantId)
-          .order('sale_date', { ascending: false }),
+        salesScoped,
         supabase.from('users').select('*, roles(key)').eq('is_active', true),
         supabase.from('products').select('*').eq('is_active', true).eq('tenant_id', tenantId),
         supabase

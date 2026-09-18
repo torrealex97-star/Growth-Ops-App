@@ -50,11 +50,17 @@ function buildTrackedUrl(baseUrl: string, role: AppRole, code: string): string {
   try {
     const url = new URL(baseUrl)
     url.searchParams.set(param, code)
+    // COLABORADORES: además del UTM (marketing/reporting), el enlace lleva
+    // ?ref=<código> — el identificador estructurado que los webhooks resuelven
+    // server-side al UUID del perfil y guardan como FK (contact_attributions.
+    // collaborator_id). El UTM sigue; el dinero ya no depende de él.
+    if (role === 'affiliate') url.searchParams.set('ref', code)
     return url.toString()
   } catch {
     // base_url puede no ser una URL absoluta válida; hacemos append manual
     const separator = baseUrl.includes('?') ? '&' : '?'
-    return `${baseUrl}${separator}${param}=${encodeURIComponent(code)}`
+    const refPart = role === 'affiliate' ? `&ref=${encodeURIComponent(code)}` : ''
+    return `${baseUrl}${separator}${param}=${encodeURIComponent(code)}${refPart}`
   }
 }
 

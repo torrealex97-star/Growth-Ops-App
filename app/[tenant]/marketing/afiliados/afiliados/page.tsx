@@ -282,10 +282,10 @@ export default function AfiliadosPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <TrendingUp className="w-6 h-6 text-brand-400" />
-            Afiliados
+            Colaboradores
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {isAffiliateUser ? 'Tu negocio de afiliado' : 'Ranking y detalle de afiliados por código UTM'}
+            {isAffiliateUser ? 'Tu negocio como colaborador' : 'Ranking y detalle de colaboradores por código UTM'}
           </p>
         </div>
       </div>
@@ -305,8 +305,8 @@ export default function AfiliadosPage() {
               })),
               member: selectedAffiliateId,
               onMemberChange: setSelectedAffiliateId,
-              memberLabel: 'Afiliado',
-              allMembersLabel: 'Todos los afiliados',
+              memberLabel: 'Colaborador',
+              allMembersLabel: 'Todos los colaboradores',
             }
           : {})}
         onClear={clearFilters}
@@ -315,7 +315,7 @@ export default function AfiliadosPage() {
 
       {!hasAnyAttributedSales && (
         <div className="bg-card border border-border rounded-lg p-8 text-center text-sm text-muted-foreground">
-          Aún no hay ventas atribuidas a afiliados (por utm_content).
+          Aún no hay ventas atribuidas a colaboradores (por utm_content / ?ref=).
         </div>
       )}
 
@@ -349,7 +349,7 @@ export default function AfiliadosPage() {
             </div>
             {selectedSalesList.length === 0 ? (
               <div className="p-6 text-center text-sm text-muted-foreground">
-                Aún no hay ventas atribuidas a afiliados (por utm_content).
+                Aún no hay ventas atribuidas a colaboradores (por utm_content / ?ref=).
               </div>
             ) : (
               <table className="w-full text-sm">
@@ -404,12 +404,12 @@ export default function AfiliadosPage() {
               <div className="bg-card border border-border rounded-lg overflow-hidden">
                 <div className="px-4 py-3 border-b border-border">
                   <h2 className="text-sm font-semibold text-foreground">
-                    Ranking de afiliados — {PERIOD_LABELS[periodPreset]}
+                    Ranking de colaboradores — {PERIOD_LABELS[periodPreset]}
                   </h2>
                 </div>
                 {ranking.every((r) => r.sales === 0) ? (
                   <div className="p-6 text-center text-sm text-muted-foreground">
-                    Aún no hay ventas atribuidas a afiliados (por utm_content).
+                    Aún no hay ventas atribuidas a colaboradores (por utm_content / ?ref=).
                   </div>
                 ) : (
                   <table className="w-full text-sm">
@@ -487,7 +487,7 @@ export default function AfiliadosPage() {
                   </div>
                   {selectedSalesList.length === 0 ? (
                     <div className="p-6 text-center text-sm text-muted-foreground">
-                      Aún no hay ventas atribuidas a afiliados (por utm_content).
+                      Aún no hay ventas atribuidas a colaboradores (por utm_content / ?ref=).
                     </div>
                   ) : (
                     <table className="w-full text-sm">

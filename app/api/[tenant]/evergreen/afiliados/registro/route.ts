@@ -175,6 +175,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       { onConflict: 'user_id' }
     )
 
+    // 7-c) PERFIL DE COLABORADOR (migración 20260918150000): identidad estructurada
+    // del colaborador (UUID + código + estado). El alta pública nace 'active' con
+    // el mismo % del programa; el contrato se gestiva luego desde Colaboradores.
+    // Idempotente: si ya existía, no se pisa nada.
+    await supabase.from('collaborator_profiles').upsert(
+      {
+        tenant_id: tenantId,
+        user_id: invited.user.id,
+        code,
+        name: fullName,
+        status: 'active',
+        default_commission_percent: commissionPct,
+      },
+      { onConflict: 'tenant_id,user_id' }
+    )
+
     // 7b) Alta en la subcuenta (sin esto, el afiliado no podría entrar al panel).
     await ensureTenantMembership(invited.user.id)
 

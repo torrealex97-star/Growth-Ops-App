@@ -282,7 +282,8 @@ export default function CampanasAfiliadosPage() {
   if (!canManage) {
     return (
       <div className="bg-card border border-border rounded-lg p-8 text-center text-sm text-muted-foreground">
-        No tienes permisos para gestionar campañas de afiliados.
+        {' '}
+        No tienes permisos para gestionar campañas de colaboradores.
       </div>
     )
   }
@@ -295,7 +296,7 @@ export default function CampanasAfiliadosPage() {
             <Megaphone className="w-5 h-5 text-brand-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Campañas de afiliados</h1>
+            <h1 className="text-2xl font-bold text-foreground">Campañas de colaboradores</h1>
             <p className="text-muted-foreground text-sm mt-0.5">
               Enlaces por evento, lanzamiento o VSL. Comparte el enlace de registro para dar de alta y asignar afiliados
               en masa, o asígnalos a mano.
@@ -310,7 +311,7 @@ export default function CampanasAfiliadosPage() {
       {campaigns.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center border border-border rounded-lg">
           <Megaphone className="w-10 h-10 text-muted-foreground mb-3" />
-          <p className="text-muted-foreground text-sm mb-4">Aún no hay campañas de afiliados</p>
+          <p className="text-muted-foreground text-sm mb-4">Aún no hay campañas de colaboradores</p>
           <Button onClick={openCreate} size="sm">
             <Plus className="w-4 h-4 mr-2" /> Crear la primera
           </Button>
@@ -444,7 +445,7 @@ export default function CampanasAfiliadosPage() {
       <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
         <DialogContent className="bg-card border-border text-foreground max-w-md max-h-[85vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>Afiliados — {assignCampaign?.name}</DialogTitle>
+            <DialogTitle>Colaboradores — {assignCampaign?.name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 mt-2 flex-1 min-h-0 flex flex-col">
             <SearchBox

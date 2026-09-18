@@ -46,13 +46,18 @@ export async function resolveSaleAttribution(
   }
 
   // 2) UTM del contacto (atribución primaria; si no, la más reciente). Coalesce first → plano → last.
+  // COLABORADOR (FK estructurada, migración 20260918150000): si el contacto trae
+  // contact_attributions.collaborator_id, esa relación ES la fuente para el
+  // colaborador — el texto de utm_content queda como respaldo/interoperabilidad,
+  // nunca como base financiera (§7 del brief: no comparar strings para dinero).
   let term = ''
   let content = ''
+  let colaboradorIdDelContacto: string | null = null
   if (sale.contact_id && ((needSetter && !patch.setter_id) || needAffiliate)) {
     const { data: attr } = await sb
       .from('contact_attributions')
       .select(
-        'utm_term, first_utm_term, last_utm_term, utm_content, first_utm_content, last_utm_content, is_primary, last_touch_at'
+        'utm_term, first_utm_term, last_utm_term, utm_content, first_utm_content, last_utm_content, collaborator_id, is_primary, last_touch_at'
       )
       .eq('contact_id', sale.contact_id)
       .eq('tenant_id', tenantId)
@@ -64,6 +69,26 @@ export async function resolveSaleAttribution(
       const a = attr as Record<string, string | null>
       term = norm(a.first_utm_term || a.utm_term || a.last_utm_term)
       content = norm(a.first_utm_content || a.utm_content || a.last_utm_content)
+      colaboradorIdDelContacto = a.collaborator_id ?? null
+    }
+  }
+
+  // 2b) El colaborador del contacto pasa a ser el affiliate_id de la venta.
+  // El ledger de comisiones (participant_type 'affiliate'→'collaborator') lee de
+  // sale.affiliate_id: apuntarlo al UUID del collaborator_profile hace que TODO el
+  // motor existente (cash collected, refunds espejo, tramos fuera, UNIQUE de
+  // idempotencia) funcione sin crear un segundo camino. Solo rellena lo vacío:
+  // una asignación manual del admin no se pisa nunca.
+  if (needAffiliate && !patch.affiliate_id && colaboradorIdDelContacto) {
+    patch.affiliate_id = colaboradorIdDelContacto
+    if (sale.affiliate_commission_percent == null) {
+      const { data: cp } = await sb
+        .from('collaborator_profiles')
+        .select('default_commission_percent')
+        .eq('id', colaboradorIdDelContacto)
+        .maybeSingle()
+      const pct = (cp as { default_commission_percent: number | string | null } | null)?.default_commission_percent
+      if (pct != null) patch.affiliate_commission_percent = Number(pct)
     }
   }
 
