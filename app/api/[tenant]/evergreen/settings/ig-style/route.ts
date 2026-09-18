@@ -22,39 +22,50 @@ function svc() {
 // readStylePrompt()/readBusinessContext() (lib/app-settings.ts) filtran por tenant_id;
 // app_settings tiene PK (tenant_id, key) desde 20260911170000_tenant_scope_singleton_constraints.sql.
 export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
-  const { tenant } = await params
-  const t = await requireTenant(tenant)
-  if ('error' in t) return t.error
-  const sb = svc()
-  const role = await getRole(sb, t.userId)
-  if (!role) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-  if (!['admin', 'director', 'manager', 'marketing', 'editor'].includes(role))
-    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
-  const key = keyFrom(req.nextUrl.searchParams.get('key'))
-  const prompt =
-    key === 'ig_business_context' ? await readBusinessContext(t.tenantId) : await readStylePrompt(t.tenantId)
-  return NextResponse.json({ key, prompt })
+  try {
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+    const sb = svc()
+    const role = await getRole(sb, t.userId)
+    if (!role) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!['admin', 'director', 'manager', 'marketing', 'editor'].includes(role))
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+    const key = keyFrom(req.nextUrl.searchParams.get('key'))
+    const prompt =
+      key === 'ig_business_context' ? await readBusinessContext(t.tenantId) : await readStylePrompt(t.tenantId)
+    return NextResponse.json({ key, prompt })
+  } catch (err) {
+    console.error('[api/settings/ig-style GET]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+  }
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
-  const { tenant } = await params
-  const t = await requireTenant(tenant)
-  if ('error' in t) return t.error
-  const sb = svc()
-  const role = await getRole(sb, t.userId)
-  if (!role) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
-  if (!['admin', 'director'].includes(role)) return NextResponse.json({ error: 'Solo admin/director' }, { status: 403 })
-  const body = await req.json()
-  const key = keyFrom(body?.key ?? null)
-  const { error } = await sb.from('app_settings').upsert(
-    {
-      key,
-      tenant_id: t.tenantId,
-      value: { prompt: String(body?.prompt ?? '') },
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'tenant_id,key' }
-  )
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
+  try {
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+    const sb = svc()
+    const role = await getRole(sb, t.userId)
+    if (!role) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+    if (!['admin', 'director'].includes(role))
+      return NextResponse.json({ error: 'Solo admin/director' }, { status: 403 })
+    const body = await req.json()
+    const key = keyFrom(body?.key ?? null)
+    const { error } = await sb.from('app_settings').upsert(
+      {
+        key,
+        tenant_id: t.tenantId,
+        value: { prompt: String(body?.prompt ?? '') },
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'tenant_id,key' }
+    )
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    console.error('[api/settings/ig-style PUT]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+  }
 }

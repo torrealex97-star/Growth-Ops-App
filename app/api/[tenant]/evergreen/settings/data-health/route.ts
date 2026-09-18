@@ -28,144 +28,161 @@ type Appointment = {
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ tenant: string }> }) {
-  const { tenant } = await params
-  const auth = await requireTenant(tenant)
-  if ('error' in auth) return auth.error
-  const allowed = ['admin', 'director', 'manager', 'marketing', 'adscripcion']
-  if (!auth.isSuperAdmin && !allowed.includes(auth.role ?? ''))
-    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  try {
+    const { tenant } = await params
+    const auth = await requireTenant(tenant)
+    if ('error' in auth) return auth.error
+    const allowed = ['admin', 'director', 'manager', 'marketing', 'adscripcion']
+    if (!auth.isSuperAdmin && !allowed.includes(auth.role ?? ''))
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
 
-  const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  })
-  const cfg = await getTenantConfigWithFallback(auth.tenantId, true)
-  const [contactsResult, appointmentsResult, campaignsResult, instagramResult, eventsResult] = await Promise.all([
-    sb.from('contacts').select('id,email,phone,ghl_contact_id,updated_at').eq('tenant_id', auth.tenantId).limit(10000),
-    sb
-      .from('appointments')
-      .select(
-        'id,contact_id,external_source,external_id,appointment_datetime,recording_url,transcript,ai_summary,updated_at'
-      )
-      .eq('tenant_id', auth.tenantId)
-      .limit(10000),
-    sb.from('campaigns').select('id,synced_at').eq('tenant_id', auth.tenantId).eq('provider', 'meta').limit(10000),
-    sb.from('ig_media').select('id,synced_at').eq('tenant_id', auth.tenantId).limit(10000),
-    sb.from('canonical_events').select('id,received_at').eq('tenant_id', auth.tenantId).limit(10000),
-  ])
-  const queryError = [contactsResult, appointmentsResult, campaignsResult, instagramResult, eventsResult].find(
-    (result) => result.error
-  )?.error
-  if (queryError) return NextResponse.json({ error: queryError.message }, { status: 500 })
-
-  // Conjuntos extra para los controles CRUZADOS. Van aparte y NO abortan la respuesta: si uno falla,
-  // su control dice "no se pudo comprobar" y el resto sigue informando. Colapsar todo a un error
-  // dejaría la pantalla en blanco por una tabla.
-  const [salesResult, stripeResult, attributionsResult, adAccountsResult] = await Promise.all([
-    sb.from('sales').select('id,contact_id').eq('tenant_id', auth.tenantId).limit(10000),
-    sb.from('stripe_customers').select('id,contact_id').eq('tenant_id', auth.tenantId).limit(10000),
-    sb.from('contact_attributions').select('utm_campaign').eq('tenant_id', auth.tenantId).limit(10000),
-    sb.from('campaigns').select('account_id').eq('tenant_id', auth.tenantId).eq('provider', 'meta').limit(10000),
-  ])
-
-  const contacts = (contactsResult.data ?? []) as Contact[]
-  const appointments = (appointmentsResult.data ?? []) as Appointment[]
-  const campaigns = campaignsResult.data ?? []
-  const instagram = instagramResult.data ?? []
-  const events = eventsResult.data ?? []
-  const bySource = (source: string) => appointments.filter((item) => item.external_source === source)
-  const calendly = bySource('calendly')
-  const ghlAppointments = bySource('ghl')
-  const fathom = appointments.filter((item) => item.recording_url || item.transcript || item.ai_summary)
-  const ghlContacts = contacts.filter((item) => item.ghl_contact_id)
-  const latest = <T extends Record<string, unknown>>(rows: T[], field: keyof T) =>
-    rows
-      .map((row) => row[field])
-      .filter(Boolean)
-      .sort()
-      .at(-1) as string | undefined
-  const source = (id: string, label: string, configured: boolean, records: number, lastSeen?: string) => ({
-    id,
-    label,
-    configured,
-    records,
-    lastSeen: lastSeen ?? null,
-    status: deriveSourceStatus(configured, records),
-  })
-
-  const ventas = salesResult.error ? null : (salesResult.data ?? []).map((v) => ({ id: v.id, contactId: v.contact_id }))
-  const clientesStripe = stripeResult.error
-    ? null
-    : (stripeResult.data ?? []).map((c) => ({ id: c.id, contactId: c.contact_id }))
-  const campanasAtribuidas = attributionsResult.error
-    ? null
-    : new Set((attributionsResult.data ?? []).map((a) => a.utm_campaign).filter(Boolean))
-  const crossChecks = runCrossChecks({
-    cuentasSeleccionadas: parseAccountIds(cfg.META_AD_ACCOUNT_ID),
-    cuentasConCampanas: adAccountsResult.error
-      ? null
-      : [...new Set((adAccountsResult.data ?? []).map((c) => c.account_id).filter(Boolean))],
-    clientesStripe,
-    contactosConVenta: ventas === null ? null : [...new Set(ventas.map((v) => v.contactId).filter(Boolean))],
-    ventas,
-    contactos: contacts.map((c) => c.id),
-    // Una campaña cuenta como atribuida si algún contacto la trae en su utm_campaign. Se compara por
-    // nombre porque es lo que guarda la atribución; el id interno no viaja en la URL del anuncio.
-    campanas:
-      campanasAtribuidas === null
-        ? null
-        : campaigns.map((c) => ({ id: c.id, conAtribucion: campanasAtribuidas.has((c as { name?: string }).name) })),
-    agendas: appointments.map((a) => ({ id: a.id, contactId: a.contact_id })),
-    // Una llamada es una cita con grabación: si no hay cita, no hay grabación que colgar de nada.
-    llamadas: appointments
-      .filter((a) => a.recording_url)
-      .map((a) => ({ id: a.id, appointmentId: a.contact_id ? a.id : null })),
-    ultimaSyncPorFuente: {
-      // `latest` da undefined si no hay filas; para el control eso es "nunca sincronizada", que es
-      // null, no un hueco sin significado.
-      meta: latest(campaigns, 'synced_at') ?? null,
-      instagram: latest(instagram, 'synced_at') ?? null,
-      tracking: latest(events, 'received_at') ?? null,
-    },
-  })
-
-  return NextResponse.json({
-    totals: { contacts: contacts.length, appointments: appointments.length },
-    sources: [
-      source('meta', 'Meta Ads', Boolean(cfg.META_ACCESS_TOKEN), campaigns.length, latest(campaigns, 'synced_at')),
-      source('instagram', 'Instagram', Boolean(cfg.IG_USER_ID), instagram.length, latest(instagram, 'synced_at')),
-      source('calendly', 'Calendly', Boolean(cfg.CALENDLY_API_TOKEN), calendly.length, latest(calendly, 'updated_at')),
-      source(
-        'ghl',
-        'HighLevel',
-        Boolean(cfg.GHL_API_TOKEN && cfg.GHL_LOCATION_ID),
-        ghlContacts.length + ghlAppointments.length,
-        latest([...ghlContacts, ...ghlAppointments], 'updated_at')
-      ),
-      source('fathom', 'Fathom', Boolean(cfg.FATHOM_API_KEY), fathom.length, latest(fathom, 'updated_at')),
-      source(
-        'tracking',
-        'Tracking canónico',
-        Boolean(cfg.TRACKING_INGEST_KEY),
-        events.length,
-        latest(events, 'received_at')
-      ),
-    ],
-    integrity: {
-      duplicateEmails: countDuplicateValues(contacts.map((item) => item.email)),
-      duplicatePhones: countDuplicateValues(contacts.map((item) => item.phone)),
-      duplicateExternalAppointments: countDuplicateKeys(
-        appointments.map((item) =>
-          item.external_source && item.external_id ? `${item.external_source}:${item.external_id}` : null
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+    const cfg = await getTenantConfigWithFallback(auth.tenantId, true)
+    const [contactsResult, appointmentsResult, campaignsResult, instagramResult, eventsResult] = await Promise.all([
+      sb
+        .from('contacts')
+        .select('id,email,phone,ghl_contact_id,updated_at')
+        .eq('tenant_id', auth.tenantId)
+        .limit(10000),
+      sb
+        .from('appointments')
+        .select(
+          'id,contact_id,external_source,external_id,appointment_datetime,recording_url,transcript,ai_summary,updated_at'
         )
-      ),
-      duplicateContactTimes: countDuplicateKeys(
-        appointments.map((item) => (item.contact_id ? `${item.contact_id}:${item.appointment_datetime}` : null))
-      ),
-      appointmentsWithoutContact: appointments.filter((item) => !item.contact_id).length,
-    },
-    // Controles CRUZADOS: no "¿la fuente responde?" sino "¿lo que trajo encaja con el resto?". Cada
-    // fuente puede estar verde y el recorrido completo estar roto por la mitad.
-    crossSource: crossChecks,
-    crossSummary: resumenCross(crossChecks),
-  })
+        .eq('tenant_id', auth.tenantId)
+        .limit(10000),
+      sb.from('campaigns').select('id,synced_at').eq('tenant_id', auth.tenantId).eq('provider', 'meta').limit(10000),
+      sb.from('ig_media').select('id,synced_at').eq('tenant_id', auth.tenantId).limit(10000),
+      sb.from('canonical_events').select('id,received_at').eq('tenant_id', auth.tenantId).limit(10000),
+    ])
+    const queryError = [contactsResult, appointmentsResult, campaignsResult, instagramResult, eventsResult].find(
+      (result) => result.error
+    )?.error
+    if (queryError) return NextResponse.json({ error: queryError.message }, { status: 500 })
+
+    // Conjuntos extra para los controles CRUZADOS. Van aparte y NO abortan la respuesta: si uno falla,
+    // su control dice "no se pudo comprobar" y el resto sigue informando. Colapsar todo a un error
+    // dejaría la pantalla en blanco por una tabla.
+    const [salesResult, stripeResult, attributionsResult, adAccountsResult] = await Promise.all([
+      sb.from('sales').select('id,contact_id').eq('tenant_id', auth.tenantId).limit(10000),
+      sb.from('stripe_customers').select('id,contact_id').eq('tenant_id', auth.tenantId).limit(10000),
+      sb.from('contact_attributions').select('utm_campaign').eq('tenant_id', auth.tenantId).limit(10000),
+      sb.from('campaigns').select('account_id').eq('tenant_id', auth.tenantId).eq('provider', 'meta').limit(10000),
+    ])
+
+    const contacts = (contactsResult.data ?? []) as Contact[]
+    const appointments = (appointmentsResult.data ?? []) as Appointment[]
+    const campaigns = campaignsResult.data ?? []
+    const instagram = instagramResult.data ?? []
+    const events = eventsResult.data ?? []
+    const bySource = (source: string) => appointments.filter((item) => item.external_source === source)
+    const calendly = bySource('calendly')
+    const ghlAppointments = bySource('ghl')
+    const fathom = appointments.filter((item) => item.recording_url || item.transcript || item.ai_summary)
+    const ghlContacts = contacts.filter((item) => item.ghl_contact_id)
+    const latest = <T extends Record<string, unknown>>(rows: T[], field: keyof T) =>
+      rows
+        .map((row) => row[field])
+        .filter(Boolean)
+        .sort()
+        .at(-1) as string | undefined
+    const source = (id: string, label: string, configured: boolean, records: number, lastSeen?: string) => ({
+      id,
+      label,
+      configured,
+      records,
+      lastSeen: lastSeen ?? null,
+      status: deriveSourceStatus(configured, records),
+    })
+
+    const ventas = salesResult.error
+      ? null
+      : (salesResult.data ?? []).map((v) => ({ id: v.id, contactId: v.contact_id }))
+    const clientesStripe = stripeResult.error
+      ? null
+      : (stripeResult.data ?? []).map((c) => ({ id: c.id, contactId: c.contact_id }))
+    const campanasAtribuidas = attributionsResult.error
+      ? null
+      : new Set((attributionsResult.data ?? []).map((a) => a.utm_campaign).filter(Boolean))
+    const crossChecks = runCrossChecks({
+      cuentasSeleccionadas: parseAccountIds(cfg.META_AD_ACCOUNT_ID),
+      cuentasConCampanas: adAccountsResult.error
+        ? null
+        : [...new Set((adAccountsResult.data ?? []).map((c) => c.account_id).filter(Boolean))],
+      clientesStripe,
+      contactosConVenta: ventas === null ? null : [...new Set(ventas.map((v) => v.contactId).filter(Boolean))],
+      ventas,
+      contactos: contacts.map((c) => c.id),
+      // Una campaña cuenta como atribuida si algún contacto la trae en su utm_campaign. Se compara por
+      // nombre porque es lo que guarda la atribución; el id interno no viaja en la URL del anuncio.
+      campanas:
+        campanasAtribuidas === null
+          ? null
+          : campaigns.map((c) => ({ id: c.id, conAtribucion: campanasAtribuidas.has((c as { name?: string }).name) })),
+      agendas: appointments.map((a) => ({ id: a.id, contactId: a.contact_id })),
+      // Una llamada es una cita con grabación: si no hay cita, no hay grabación que colgar de nada.
+      llamadas: appointments
+        .filter((a) => a.recording_url)
+        .map((a) => ({ id: a.id, appointmentId: a.contact_id ? a.id : null })),
+      ultimaSyncPorFuente: {
+        // `latest` da undefined si no hay filas; para el control eso es "nunca sincronizada", que es
+        // null, no un hueco sin significado.
+        meta: latest(campaigns, 'synced_at') ?? null,
+        instagram: latest(instagram, 'synced_at') ?? null,
+        tracking: latest(events, 'received_at') ?? null,
+      },
+    })
+
+    return NextResponse.json({
+      totals: { contacts: contacts.length, appointments: appointments.length },
+      sources: [
+        source('meta', 'Meta Ads', Boolean(cfg.META_ACCESS_TOKEN), campaigns.length, latest(campaigns, 'synced_at')),
+        source('instagram', 'Instagram', Boolean(cfg.IG_USER_ID), instagram.length, latest(instagram, 'synced_at')),
+        source(
+          'calendly',
+          'Calendly',
+          Boolean(cfg.CALENDLY_API_TOKEN),
+          calendly.length,
+          latest(calendly, 'updated_at')
+        ),
+        source(
+          'ghl',
+          'HighLevel',
+          Boolean(cfg.GHL_API_TOKEN && cfg.GHL_LOCATION_ID),
+          ghlContacts.length + ghlAppointments.length,
+          latest([...ghlContacts, ...ghlAppointments], 'updated_at')
+        ),
+        source('fathom', 'Fathom', Boolean(cfg.FATHOM_API_KEY), fathom.length, latest(fathom, 'updated_at')),
+        source(
+          'tracking',
+          'Tracking canónico',
+          Boolean(cfg.TRACKING_INGEST_KEY),
+          events.length,
+          latest(events, 'received_at')
+        ),
+      ],
+      integrity: {
+        duplicateEmails: countDuplicateValues(contacts.map((item) => item.email)),
+        duplicatePhones: countDuplicateValues(contacts.map((item) => item.phone)),
+        duplicateExternalAppointments: countDuplicateKeys(
+          appointments.map((item) =>
+            item.external_source && item.external_id ? `${item.external_source}:${item.external_id}` : null
+          )
+        ),
+        duplicateContactTimes: countDuplicateKeys(
+          appointments.map((item) => (item.contact_id ? `${item.contact_id}:${item.appointment_datetime}` : null))
+        ),
+        appointmentsWithoutContact: appointments.filter((item) => !item.contact_id).length,
+      },
+      // Controles CRUZADOS: no "¿la fuente responde?" sino "¿lo que trajo encaja con el resto?". Cada
+      // fuente puede estar verde y el recorrido completo estar roto por la mitad.
+      crossSource: crossChecks,
+      crossSummary: resumenCross(crossChecks),
+    })
+  } catch (err) {
+    console.error('[api/settings/data-health GET]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+  }
 }

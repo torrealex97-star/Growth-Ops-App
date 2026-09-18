@@ -21,42 +21,47 @@ function svc() {
 // GET ?day=YYYY-MM-DD&status=pendiente|aprobado|descartado
 // Por defecto: borradores de HOY (o los más recientes si hoy no tiene nada aún).
 export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
-  const { tenant } = await params
-  const t = await requireTenant(tenant)
-  if ('error' in t) return t.error
-  const sb = svc()
-  const roleErr = await requireRole(sb, t.userId)
-  if (roleErr) return NextResponse.json({ error: roleErr.error }, { status: roleErr.status })
+  try {
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+    const sb = svc()
+    const roleErr = await requireRole(sb, t.userId)
+    if (roleErr) return NextResponse.json({ error: roleErr.error }, { status: roleErr.status })
 
-  const day = req.nextUrl.searchParams.get('day')
-  const status = req.nextUrl.searchParams.get('status')
+    const day = req.nextUrl.searchParams.get('day')
+    const status = req.nextUrl.searchParams.get('status')
 
-  let query = sb.from('reel_drafts').select('*').eq('tenant_id', t.tenantId).order('created_at', { ascending: false })
-  if (day) {
-    query = query.eq('draft_day', day)
-  } else {
-    const today = businessToday()
-    query = query.eq('draft_day', today)
+    let query = sb.from('reel_drafts').select('*').eq('tenant_id', t.tenantId).order('created_at', { ascending: false })
+    if (day) {
+      query = query.eq('draft_day', day)
+    } else {
+      const today = businessToday()
+      query = query.eq('draft_day', today)
+    }
+    if (status) query = query.eq('status', status)
+
+    const { data, error } = await query
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // Si no se pidió un día concreto y hoy no tiene nada, cae a los más recientes
+    // (por si el cron aún no ha corrido hoy).
+    if (!day && (!data || data.length === 0)) {
+      let fallback = sb
+        .from('reel_drafts')
+        .select('*')
+        .eq('tenant_id', t.tenantId)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      if (status) fallback = fallback.eq('status', status)
+      const { data: recent, error: recentErr } = await fallback
+      if (recentErr) return NextResponse.json({ error: recentErr.message }, { status: 500 })
+      return NextResponse.json({ drafts: recent || [] })
+    }
+
+    return NextResponse.json({ drafts: data || [] })
+  } catch (err) {
+    console.error('[api/reels GET]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
-  if (status) query = query.eq('status', status)
-
-  const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  // Si no se pidió un día concreto y hoy no tiene nada, cae a los más recientes
-  // (por si el cron aún no ha corrido hoy).
-  if (!day && (!data || data.length === 0)) {
-    let fallback = sb
-      .from('reel_drafts')
-      .select('*')
-      .eq('tenant_id', t.tenantId)
-      .order('created_at', { ascending: false })
-      .limit(20)
-    if (status) fallback = fallback.eq('status', status)
-    const { data: recent, error: recentErr } = await fallback
-    if (recentErr) return NextResponse.json({ error: recentErr.message }, { status: 500 })
-    return NextResponse.json({ drafts: recent || [] })
-  }
-
-  return NextResponse.json({ drafts: data || [] })
 }

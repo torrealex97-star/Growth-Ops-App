@@ -11,48 +11,58 @@ function svc() {
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
-  const { tenant } = await params
-  const t = await requireTenant(tenant)
-  if ('error' in t) return t.error
-  const sb = svc()
-  const { data, error } = await sb
-    .from('campaign_targets')
-    .select('target_roas,target_cac,target_cpl')
-    .eq('tenant_id', t.tenantId)
-    .maybeSingle()
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({
-    target_roas: data?.target_roas ?? null,
-    target_cac: data?.target_cac ?? null,
-    target_cpl: data?.target_cpl ?? null,
-  })
+  try {
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+    const sb = svc()
+    const { data, error } = await sb
+      .from('campaign_targets')
+      .select('target_roas,target_cac,target_cpl')
+      .eq('tenant_id', t.tenantId)
+      .maybeSingle()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({
+      target_roas: data?.target_roas ?? null,
+      target_cac: data?.target_cac ?? null,
+      target_cpl: data?.target_cpl ?? null,
+    })
+  } catch (err) {
+    console.error('[api/settings/campaign-targets GET]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+  }
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
-  const { tenant } = await params
-  const t = await requireTenant(tenant)
-  if ('error' in t) return t.error
-  if (!t.isSuperAdmin && !['admin', 'director'].includes(t.role ?? ''))
-    return NextResponse.json({ error: 'Solo admin/director pueden fijar objetivos' }, { status: 403 })
-  const sb = svc()
+  try {
+    const { tenant } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+    if (!t.isSuperAdmin && !['admin', 'director'].includes(t.role ?? ''))
+      return NextResponse.json({ error: 'Solo admin/director pueden fijar objetivos' }, { status: 403 })
+    const sb = svc()
 
-  const body = (await req.json().catch(() => ({}))) as {
-    target_roas?: number | null
-    target_cac?: number | null
-    target_cpl?: number | null
+    const body = (await req.json().catch(() => ({}))) as {
+      target_roas?: number | null
+      target_cac?: number | null
+      target_cpl?: number | null
+    }
+    const toNumOrNull = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v))
+
+    const { error } = await sb.from('campaign_targets').upsert(
+      {
+        tenant_id: t.tenantId,
+        target_roas: toNumOrNull(body.target_roas),
+        target_cac: toNumOrNull(body.target_cac),
+        target_cpl: toNumOrNull(body.target_cpl),
+        updated_by: t.userId,
+      },
+      { onConflict: 'tenant_id' }
+    )
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    console.error('[api/settings/campaign-targets PUT]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
   }
-  const toNumOrNull = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v))
-
-  const { error } = await sb.from('campaign_targets').upsert(
-    {
-      tenant_id: t.tenantId,
-      target_roas: toNumOrNull(body.target_roas),
-      target_cac: toNumOrNull(body.target_cac),
-      target_cpl: toNumOrNull(body.target_cpl),
-      updated_by: t.userId,
-    },
-    { onConflict: 'tenant_id' }
-  )
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
 }

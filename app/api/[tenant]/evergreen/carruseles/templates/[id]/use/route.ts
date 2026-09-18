@@ -8,12 +8,17 @@ export const runtime = 'nodejs'
 type Ctx = { params: Promise<{ tenant: string; id: string }> }
 
 export async function POST(_req: NextRequest, { params }: Ctx) {
-  const { tenant, id } = await params
-  const t = await requireTenant(tenant)
-  if ('error' in t) return t.error
-  const user = await getCarruselUser()
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-  const project = await createProjectFromTemplate(t.tenantId, id)
-  if (!project) return NextResponse.json({ error: 'Plantilla no encontrada' }, { status: 404 })
-  return NextResponse.json(project)
+  try {
+    const { tenant, id } = await params
+    const t = await requireTenant(tenant)
+    if ('error' in t) return t.error
+    const user = await getCarruselUser()
+    if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    const project = await createProjectFromTemplate(t.tenantId, id)
+    if (!project) return NextResponse.json({ error: 'Plantilla no encontrada' }, { status: 404 })
+    return NextResponse.json(project)
+  } catch (err) {
+    console.error('[api/carruseles/templates/id/use POST]', err)
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 })
+  }
 }
