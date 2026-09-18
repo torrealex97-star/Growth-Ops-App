@@ -44,7 +44,7 @@ export function BrandDialog({ open, onOpenChange }: Props) {
       )
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [open])
+  }, [open, tenant])
 
   const save = async () => {
     setSaving(true)

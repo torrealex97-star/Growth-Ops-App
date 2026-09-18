@@ -71,9 +71,8 @@ export function SalesTable({ sales, sorting = [], onSortingChange, isAdmin = fal
       }
       toast.success('Venta eliminada')
       onDeleted?.(saleId)
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
-    [isAdmin, onDeleted]
+    [onDeleted, tenant]
   )
 
   const columns = useMemo(
@@ -182,9 +181,8 @@ export function SalesTable({ sales, sorting = [], onSortingChange, isAdmin = fal
           </div>
         ),
       }),
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     ],
-    [isAdmin, handleDelete]
+    [isAdmin, handleDelete, router, tenant]
   )
 
   const table = useReactTable({

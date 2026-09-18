@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -53,7 +53,7 @@ export default function ContratosEquipoPage() {
     personalEmail: string | null
   } | null>(null)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const sb = createClient()
     const [u, r, t, c] = await Promise.all([
       sb.from('users').select('*, roles(*)').eq('is_active', true).order('full_name'),
@@ -76,10 +76,10 @@ export default function ContratosEquipoPage() {
     setTemplates((t.data ?? []) as ContractTemplate[])
     setContracts((c.data ?? []) as TeamContract[])
     setLoading(false)
-  }
+  }, [tenantId])
   useEffect(() => {
     load()
-  }, [])
+  }, [load])
 
   const selectedUser = useMemo(() => users.find((u) => u.id === userId), [users, userId])
 

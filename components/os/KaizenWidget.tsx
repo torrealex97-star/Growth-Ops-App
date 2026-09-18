@@ -18,7 +18,7 @@ export function KaizenWidget({ userId }: { userId: string }) {
       .then((r) => r.json())
       .then((d) => setItems(d.suggestions ?? []))
       .catch(() => setItems([]))
-  }, [])
+  }, [tenant])
 
   if (!items) return null
 

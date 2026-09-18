@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,7 +23,7 @@ export function ProductExtrasManager() {
   const [description, setDescription] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const fetchExtras = async () => {
+  const fetchExtras = useCallback(async () => {
     const supabase = createClient()
     const { data, error } = await supabase
       .from('product_extras')
@@ -37,11 +37,11 @@ export function ProductExtrasManager() {
     }
     setAvailable(true)
     setExtras((data as ProductExtra[]) ?? [])
-  }
+  }, [tenantId])
 
   useEffect(() => {
     fetchExtras()
-  }, [])
+  }, [fetchExtras])
 
   const addExtra = async () => {
     if (!name.trim()) {

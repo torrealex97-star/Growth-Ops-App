@@ -1,7 +1,7 @@
 'use client'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -205,7 +205,26 @@ export default function AppointmentsPage() {
     setNaContactTimezone(guessContactTimezone(naSelectedContact))
   }, [naSelectedContact])
 
-  const fetchData = async () => {
+  // Batch: consulta los conflictos de closer para todos los contactos visibles de una sola vez
+  // (no por fila) para no disparar N llamadas a la API.
+  const fetchCloserConflicts = useCallback(async (appts: AppointmentWithRelations[]) => {
+    const contactIds = Array.from(new Set(appts.map((a) => a.contact_id).filter((id): id is string => !!id)))
+    if (contactIds.length === 0) {
+      setCloserConflicts({})
+      return
+    }
+    try {
+      const res = await fetch(
+        `/api/${tenant}/evergreen/appointments/closer-conflicts?contactIds=${contactIds.join(',')}`
+      )
+      const json = await res.json()
+      if (res.ok) setCloserConflicts(json.conflicts || {})
+    } catch {
+      // No bloquea la carga de la tabla si esta alerta secundaria falla.
+    }
+  }, [tenant])
+
+  const fetchData = useCallback(async () => {
     const supabase = createClient()
 
     // DOS VIAJES DE RED MENOS, EN SERIE. Aquí había un `auth.getUser()` (envuelto en un Promise.all de
@@ -266,33 +285,13 @@ export default function AppointmentsPage() {
     setUsers(usersRes.data ?? [])
     setSales((salesRes.data as Sale[]) ?? [])
     setLoading(false)
-  }
-
-  // Batch: consulta los conflictos de closer para todos los contactos visibles de una sola vez
-  // (no por fila) para no disparar N llamadas a la API.
-  const fetchCloserConflicts = async (appts: AppointmentWithRelations[]) => {
-    const contactIds = Array.from(new Set(appts.map((a) => a.contact_id).filter((id): id is string => !!id)))
-    if (contactIds.length === 0) {
-      setCloserConflicts({})
-      return
-    }
-    try {
-      const res = await fetch(
-        `/api/${tenant}/evergreen/appointments/closer-conflicts?contactIds=${contactIds.join(',')}`
-      )
-      const json = await res.json()
-      if (res.ok) setCloserConflicts(json.conflicts || {})
-    } catch {
-      // No bloquea la carga de la tabla si esta alerta secundaria falla.
-    }
-  }
+  }, [sesion, tenantId, fetchCloserConflicts])
 
   useEffect(() => {
     fetchData()
     // `sesion` está memorizada en el layout, así que esto no entra en bucle: solo se vuelve a cargar si
-    // de verdad cambia la sesión (cambio de subcuenta, relogin).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sesion])
+    // de verdad cambia la sesión (cambio de subcuenta, relogin) — o cambia fetchData, misma condición.
+  }, [sesion, fetchData])
 
   useEffect(() => {
     if (!showNewModal) return
@@ -314,7 +313,7 @@ export default function AppointmentsPage() {
       setNaSearchLoading(false)
     }, 300)
     return () => clearTimeout(timer)
-  }, [naContactSearch, showNewModal])
+  }, [naContactSearch, showNewModal, tenantId])
 
   // Carga los huecos reales del Calendly del closer para la fecha elegida.
   useEffect(() => {
@@ -358,7 +357,7 @@ export default function AppointmentsPage() {
     return () => {
       cancelled = true
     }
-  }, [showNewModal, naCloserId, naSlotDate])
+  }, [showNewModal, naCloserId, naSlotDate, tenant])
 
   const resetNewAppointmentForm = () => {
     setNaContactSearch('')
@@ -765,8 +764,38 @@ export default function AppointmentsPage() {
     return { byContact, byAppointment }
   }, [sales])
 
-  const hasPurchased = (a: { id: string; contact_id: string | null }): boolean =>
-    purchased.byAppointment.has(a.id) || (a.contact_id != null && purchased.byContact.has(a.contact_id))
+  const hasPurchased = useCallback(
+    (a: { id: string; contact_id: string | null }): boolean =>
+      purchased.byAppointment.has(a.id) || (a.contact_id != null && purchased.byContact.has(a.contact_id)),
+    [purchased]
+  )
+
+  // Solo admin/director pueden reasignar desde el aviso de conflicto de closer (afecta comisiones).
+  // Declarado AQUÍ (y no junto a los otros flags de rol más abajo) para que el useMemo de columnas
+  // pueda depender de ambos sin TDZ.
+  const canReassignConflict = ['admin', 'director'].includes(currentUserRole)
+
+  const handleReassignConflict = useCallback(
+    async (appointmentId: string, closerId: string) => {
+      setReassigningConflictId(appointmentId)
+      try {
+        const res = await fetch(`/api/${tenant}/evergreen/appointments/reassign-closer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ appointmentId, closerId }),
+        })
+        const json = await res.json()
+        if (!res.ok || json?.error) throw new Error(json?.error || 'No se pudo reasignar el closer')
+        toast.success('Closer reasignado')
+        await fetchData()
+      } catch (err) {
+        toast.error('No se pudo reasignar el closer', { description: err instanceof Error ? err.message : undefined })
+      } finally {
+        setReassigningConflictId(null)
+      }
+    },
+    [tenant, fetchData]
+  )
 
   // Periodo de la vista "Métricas": permite comparar el tramo elegido con el inmediatamente
   // anterior de igual duración (mes vs mes pasado, día vs día pasado...) para tener referencia.
@@ -1154,9 +1183,16 @@ export default function AppointmentsPage() {
         header: 'UTM Content',
         cell: ({ getValue }) => <span className="text-muted-foreground text-sm">{getValue() || '—'}</span>,
       }),
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     ],
-    [purchased, closerConflicts, reassigningConflictId]
+    [
+      closerConflicts,
+      reassigningConflictId,
+      canReassignConflict,
+      handleReassignConflict,
+      hasPurchased,
+      router,
+      tenant,
+    ]
   )
 
   const table = useReactTable({
@@ -1174,27 +1210,8 @@ export default function AppointmentsPage() {
   const canChangeStatus = ['admin', 'director', 'manager', 'closer', 'setter', 'cold_caller'].includes(currentUserRole)
   // Borrar agendas es exclusivo de admin: es lo único que hace que dejen de contar en los KPIs.
   const isAdmin = currentUserRole === 'admin'
-  // Solo admin/director pueden reasignar desde el aviso de conflicto de closer (afecta comisiones).
-  const canReassignConflict = ['admin', 'director'].includes(currentUserRole)
-
-  const handleReassignConflict = async (appointmentId: string, closerId: string) => {
-    setReassigningConflictId(appointmentId)
-    try {
-      const res = await fetch(`/api/${tenant}/evergreen/appointments/reassign-closer`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appointmentId, closerId }),
-      })
-      const json = await res.json()
-      if (!res.ok || json?.error) throw new Error(json?.error || 'No se pudo reasignar el closer')
-      toast.success('Closer reasignado')
-      await fetchData()
-    } catch (err) {
-      toast.error('No se pudo reasignar el closer', { description: err instanceof Error ? err.message : undefined })
-    } finally {
-      setReassigningConflictId(null)
-    }
-  }
+  // canReassignConflict y handleReassignConflict se declaran junto a hasPurchased (arriba):
+  // el useMemo de columnas depende de ellos.
 
   return (
     <div className="space-y-6">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import {
   Radar,
@@ -111,7 +111,7 @@ export default function CompetenciaPage() {
   const [business, setBusiness] = useState('')
   const [savingSettings, setSavingSettings] = useState(false)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/${tenant}/evergreen/instagram/competitors`)
       const json = await res.json()
@@ -122,7 +122,7 @@ export default function CompetenciaPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [tenant])
   // Reels que ya se convirtieron en idea (para marcarlos en las tarjetas).
   const loadIdeas = async () => {
     const supabase = createClient()
@@ -149,7 +149,7 @@ export default function CompetenciaPage() {
     fetch(`/api/${tenant}/evergreen/testimonios`)
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => j && setTestimonios((j.testimonios || []).filter((t: Testimonio) => t.active)))
-  }, [])
+  }, [tenant, load])
   // Al volver a la pestaña, refresca qué reels ya están en Ideas (la cola pudo añadir alguno).
   useEffect(() => {
     const onFocus = () => loadIdeas()

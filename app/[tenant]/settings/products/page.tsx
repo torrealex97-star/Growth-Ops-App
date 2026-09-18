@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,7 +43,7 @@ export default function ProductsPage() {
   const [planRatio, setPlanRatio] = useState('1')
   const [planSortOrder, setPlanSortOrder] = useState('0')
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     const supabase = createClient()
     const { data, error } = await supabase
       .from('products')
@@ -57,11 +57,11 @@ export default function ProductsPage() {
       setProducts((data ?? []) as ProductWithPlans[])
     }
     setLoading(false)
-  }
+  }, [tenantId])
 
   useEffect(() => {
     fetchData()
-  }, [])
+  }, [fetchData])
 
   const openNewProduct = () => {
     setEditingProduct(null)

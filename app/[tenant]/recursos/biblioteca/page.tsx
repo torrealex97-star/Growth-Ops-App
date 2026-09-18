@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -71,7 +71,7 @@ export default function BibliotecaPage() {
 
   const leadership = isLeadership(role as AppRole)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     // Vía endpoint server-side (service role): la RLS acota a cada rep sus propias agendas, pero la
     // biblioteca muestra las llamadas COMPARTIDAS de todo el equipo para entrenamiento cruzado.
     try {
@@ -86,12 +86,12 @@ export default function BibliotecaPage() {
     setLoading(false)
     // Migración idempotente de library_shared (solo surte efecto para admin/director).
     fetch(`/api/${tenant}/evergreen/admin/migrate-page-overrides`, { method: 'POST' }).catch(() => {})
-  }
+  }, [tenant])
   useEffect(() => {
     load()
-  }, [])
+  }, [load])
 
-  const loadRoleplays = async () => {
+  const loadRoleplays = useCallback(async () => {
     const sb = createClient()
     const [{ data: rps }, { data: us }] = await Promise.all([
       sb.from('roleplays').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }),
@@ -99,10 +99,10 @@ export default function BibliotecaPage() {
     ])
     setRoleplays((rps as Roleplay[]) ?? [])
     setTeamUsers((us as TeamUser[]) ?? [])
-  }
+  }, [tenantId])
   useEffect(() => {
     loadRoleplays()
-  }, [tenantId])
+  }, [loadRoleplays])
 
   const saveRoleplay = async () => {
     if (!rp.title.trim()) {

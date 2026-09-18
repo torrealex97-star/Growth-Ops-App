@@ -181,7 +181,7 @@ export default function ContentPage() {
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => j && setTestimonios((j.testimonios || []).filter((t: Testimonio) => t.active)))
       .catch(() => {})
-  }, [])
+  }, [tenant])
 
   // Recupera la configuración de columnas y el orden guardados.
   useEffect(() => {

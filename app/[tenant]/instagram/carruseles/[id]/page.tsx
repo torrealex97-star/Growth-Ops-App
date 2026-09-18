@@ -45,7 +45,7 @@ export default function CarruselEditorPage() {
     } catch {
       /* ignore */
     }
-  }, [id])
+  }, [id, tenant])
 
   useEffect(() => {
     fetchProject()

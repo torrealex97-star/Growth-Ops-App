@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Handshake, Plus, Trash2, Loader2 } from 'lucide-react'
@@ -40,7 +40,7 @@ export default function SociosSettingsPage() {
     setCanWrite(sesion?.rol === 'admin' || sesion?.rol === 'director')
   }, [sesion])
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const sb = createClient()
     const { data, error } = await sb
       .from('partners')
@@ -52,11 +52,11 @@ export default function SociosSettingsPage() {
     if (error && (error.code === '42P01' || /relation .* does not exist/i.test(error.message))) setTableMissing(true)
     setPartners((data as Partner[]) ?? [])
     setLoading(false)
-  }
+  }, [tenantId])
 
   useEffect(() => {
     load()
-  }, [])
+  }, [load])
 
   const totalPercent = partners.filter((p) => p.is_active).reduce((sum, p) => sum + Number(p.profit_percent), 0)
 
