@@ -1,0 +1,28 @@
+# Cron retirado de vercel.json (Vercel Hobby: máx. 2 crons). GitHub Actions lo ejecuta con el
+# mismo horario UTC y la misma autenticación (Bearer CRON_SECRET) que usaba Vercel Cron.
+name: cron: sequra-morosos
+on:
+  schedule:
+    - cron: '0 8 * * 1' # lunes 08:00 UTC — sincroniza morosos reales de Sequra
+  workflow_dispatch: {}
+permissions: {}
+concurrency:
+  group: cron-sequra-morosos
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: GET /api/_/evergreen/cron/sequra-morosos
+        env:
+          APP_URL: ${{ vars.CRON_APP_URL || 'https://growth-ops-weld.vercel.app' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o response.json -w '%{http_code}' --max-time 120 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/_/evergreen/cron/sequra-morosos")
+          echo "HTTP $code"
+          cat response.json; echo
+          case "$code" in 2*) exit 0 ;; *) exit 1 ;; esac
