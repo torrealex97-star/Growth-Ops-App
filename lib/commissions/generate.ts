@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { calculateCommissionsForCollection, pickCommissionRule } from './calculator'
 import { resolveSaleAttribution } from './attribution'
 import { tramoIdByReps } from './tramos'
+import { usuariosColaboradoresActivos } from '@/lib/collaborators/scope'
 import type { Collection, Sale, CommissionRule, InsertCommission } from '@/lib/types/database'
 
 type Role = 'setter' | 'closer'
@@ -157,7 +158,19 @@ export async function generateCommissionsForCollection(
   // Tramo/nivel actual por rep (para reglas de comisión enlazadas a un tramo).
   const tramoByRep = await tramoIdByReps(sb, tenantId, [sale.setter_id, sale.closer_id])
 
-  const commissions = calculateCommissionsForCollection(tenantId, collection, sale, rules, cashByRep, tramoByRep)
+  // Colaboradores activos de la subcuenta: sus comisiones van con
+  // participant_type='collaborator' (misma matemática, lane propia del ledger).
+  const colaboradoresActivos = await usuariosColaboradoresActivos(sb, tenantId)
+
+  const commissions = calculateCommissionsForCollection(
+    tenantId,
+    collection,
+    sale,
+    rules,
+    cashByRep,
+    tramoByRep,
+    colaboradoresActivos
+  )
   // Se devuelven las filas ESCRITAS, no las calculadas, y un fallo se propaga. Antes se devolvía
   // `commissions.length` con el error del insert descartado: la pantalla decía "3 comisiones
   // generadas" con cero filas en la base de datos.
@@ -261,9 +274,12 @@ export async function reconcileSaleCommissions(
   // Tramo/nivel actual por rep (para reglas de comisión enlazadas a un tramo).
   const tramoByRep = await tramoIdByReps(sb, tenantId, [s.setter_id, s.closer_id])
 
+  // Colaboradores activos: lane 'collaborator' del ledger, igual que en el hot path.
+  const colaboradoresActivos = await usuariosColaboradoresActivos(sb, tenantId)
+
   const toInsert: InsertCommission[] = []
   for (const col of colls) {
-    const rows = calculateCommissionsForCollection(tenantId, col, s, rules, cashByRep, tramoByRep)
+    const rows = calculateCommissionsForCollection(tenantId, col, s, rules, cashByRep, tramoByRep, colaboradoresActivos)
     for (const r of rows) {
       const key = `${r.collection_id}|${r.user_id}|${r.participant_type}`
       if (liqKeys.has(key)) continue // ya pagada, no duplicar

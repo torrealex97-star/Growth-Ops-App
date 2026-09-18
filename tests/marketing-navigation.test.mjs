@@ -70,7 +70,7 @@ test('los detalles de carruseles conservan el id al redirigir', () => {
 // KPIs': entrar en Marketing debe responder de dónde vienen los resultados. La vista OPERATIVA de
 // Campañas no se renombró ni se movió de sitio — sigue siendo una entrada propia, y este test lo
 // comprueba para que el renombrado no se lleve la operativa por delante.
-test('Marketing contiene el hub de métricas, Instagram, Contenido, Afiliados y Setting AI como hubs de primer nivel', () => {
+test('Marketing contiene el hub de métricas, Instagram, Contenido, Colaboradores y Setting AI como hubs de primer nivel', () => {
   const nav = readFileSync(join(root, 'lib/nav.ts'), 'utf8')
   const marketingStart = nav.indexOf("dept: 'marketing'")
   const marketingEnd = nav.indexOf("dept: 'producto'", marketingStart)
@@ -81,7 +81,7 @@ test('Marketing contiene el hub de métricas, Instagram, Contenido, Afiliados y 
   assert.match(marketingSection, /label: 'Campañas',\n\s+href: '\/marketing\/adquisicion\/campanas'/)
   assert.match(marketingSection, /label: 'Instagram'/)
   assert.match(marketingSection, /label: 'Contenido'/)
-  assert.match(marketingSection, /label: 'Afiliados'/)
+  assert.match(marketingSection, /label: 'Colaboradores'/)
   assert.match(marketingSection, /label: 'Setting AI'/)
   assert.doesNotMatch(marketingSection, /label: 'Data Health'/)
 })

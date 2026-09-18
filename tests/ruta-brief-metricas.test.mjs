@@ -169,7 +169,8 @@ test('los webhooks registran el toque sin arriesgar la cita', () => {
   ]) {
     const codigo = sinComentarios(leer(w))
     assert.match(codigo, /registrarToque\(sb, tenantId, contact\.id/, w)
-    assert.match(codigo, /if \(toqueTieneDatos\(toque\)\)/, w)
+    // Guard: registra si hay datos de toque O si viene ?ref= de colaborador (FK estructurada).
+    assert.match(codigo, /if \(colaboradorId \|\| toqueTieneDatos\(toque\)\)/, w)
     // En try/catch: la cita y el contacto valen más que su procedencia.
     assert.match(codigo, /try \{[\s\S]{0,320}registrarToque[\s\S]{0,200}\} catch/, w)
   }

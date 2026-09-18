@@ -97,7 +97,7 @@ const FILTER_ROLES = [
   { key: 'closer', label: 'Closer' },
   { key: 'setter', label: 'Setter' },
   { key: 'cold_caller', label: 'Cold caller' },
-  { key: 'affiliate', label: 'Afiliado' },
+  { key: 'affiliate', label: 'Colaborador' },
 ]
 
 export default function DashboardPage() {

@@ -11,6 +11,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { resolverScopeColaborador, contactIdsDeScope } from '@/lib/collaborators/scope'
 import {
   Columns3,
   UserPlus,
@@ -31,7 +32,7 @@ import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-b
 import { ContactForm, type ContactFormData } from '@/components/contacts/ContactForm'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { LEAD_STATUSES, leadStatusMeta, type LeadStatus } from '@/lib/lead-status'
-import { useSesion, useTenant } from '@/lib/tenant-context'
+import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { formatDate } from '@/lib/utils'
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
@@ -239,6 +240,7 @@ const latestNote = (l: ContactRow): Note | null => {
 
 export function ContactsAllView() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const sesion = useSesion()
   const [leads, setLeads] = useState<ContactRow[]>([])
   const [appts, setAppts] = useState<ApptLite[]>([])
@@ -294,11 +296,20 @@ export function ContactsAllView() {
 
   const load = async () => {
     const supabase = createClient()
-    const [contactsRes, apptRes] = await Promise.all([
-      supabase
-        .from('contacts')
-        .select(
-          `
+
+    // SCOPE DE COLABORADOR (capa de datos, no de UI): si el usuario tiene perfil
+    // de colaborador activo, sus queries nacen acotadas a SUS contactos y no hay
+    // selector "todos" que quitar. Para el resto de roles es un no-op.
+    const scope = sesion ? await resolverScopeColaborador(supabase, sesion.userId, tenantId) : { tipo: 'none' as const }
+    const contactIds = await contactIdsDeScope(supabase, tenantId, scope)
+
+    // Queries con scope aplicado: para colaboradores, el filtro por SUS contactos
+    // va dentro de la propia query (más el backstop RLS); para el resto, sin cambio.
+    const contactsQuery = contactIds
+      ? supabase
+          .from('contacts')
+          .select(
+            `
           id, full_name, first_name, last_name, email, phone, country, company_name, instagram, notes,
           lead_status, lead_channel, vsl_watch_pct, lead_score, created_at, first_seen_at, last_seen_at,
           set_source, first_contact_at, contact_attempts,
@@ -307,11 +318,35 @@ export function ContactsAllView() {
             last_utm_source, last_utm_medium, last_utm_campaign, last_utm_content, last_utm_term),
           contact_notes(note, created_at)
         `
-        )
-        .is('merged_into', null)
-        .order('created_at', { ascending: false }),
-      supabase.from('appointments').select('contact_id, appointment_datetime, created_at, status'),
-    ])
+          )
+          .is('merged_into', null)
+          .in('id', contactIds)
+          .order('created_at', { ascending: false })
+      : supabase
+          .from('contacts')
+          .select(
+            `
+          id, full_name, first_name, last_name, email, phone, country, company_name, instagram, notes,
+          lead_status, lead_channel, vsl_watch_pct, lead_score, created_at, first_seen_at, last_seen_at,
+          set_source, first_contact_at, contact_attempts,
+          contact_attributions(source, utm_source, utm_medium, utm_campaign, utm_content, utm_term, is_primary,
+            first_utm_source, first_utm_medium, first_utm_campaign, first_utm_content, first_utm_term,
+            last_utm_source, last_utm_medium, last_utm_campaign, last_utm_content, last_utm_term),
+          contact_notes(note, created_at)
+        `
+          )
+          .is('merged_into', null)
+          .order('created_at', { ascending: false })
+
+    const apptsQuery = contactIds
+      ? supabase
+          .from('appointments')
+          .select('contact_id, appointment_datetime, created_at, status')
+          .in('contact_id', contactIds)
+      : supabase.from('appointments').select('contact_id, appointment_datetime, created_at, status')
+
+    const [contactsRes, apptRes] = await Promise.all([contactsQuery, apptsQuery])
+
     if (contactsRes.error) toast.error('Error al cargar contactos', { description: contactsRes.error.message })
     if (apptRes.error) toast.error('Error al cargar agendas', { description: apptRes.error.message })
     const sorted = ((contactsRes.data as ContactRow[]) || [])

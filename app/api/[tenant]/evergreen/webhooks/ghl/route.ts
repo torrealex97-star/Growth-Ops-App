@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { getOrCreateContact } from '@/lib/contacts/resolve'
 import { leerToque, registrarToque, toqueTieneDatos } from '@/lib/contacts/atribucion'
+import { resolverColaboradorPorCodigo } from '@/lib/collaborators/scope'
 import { firstMemberOf, resolveUserIdByTrackingCode } from '@/lib/tracking'
 import { isValidWebhookSecret } from '@/lib/webhooks/verifySecret'
 
@@ -234,10 +235,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // enlaces de reserva no los llevan (0 de 559 citas tienen utm_source). El camino queda puesto para
     // cuando empiecen a llegar. Un fallo al atribuir NO tumba el webhook: la cita y el contacto valen más
     // que su procedencia.
+    // COLABORADOR del enlace (?ref=CODIGO): se resuelve server-side al UUID del
+    // perfil (el código legible nunca es identidad) y entra en el toque como
+    // relación estructurada (contact_attributions.collaborator_id). utm_content
+    // sigue viviendo para reporting/interoperabilidad; esto es la FK que usa el
+    // dinero. Regla: first-collaborator-wins — la fija registrarToque.
+    let colaboradorId: string | null = null
+    const refCruda = pick(payload.ref, payload.referral, payload.colaborador, payload.collaborator_code) as
+      string | null
+    if (refCruda) {
+      try {
+        const perfil = await resolverColaboradorPorCodigo(sb, tenantId, refCruda)
+        colaboradorId = perfil?.id ?? null
+      } catch (e) {
+        console.warn('[colaborador] no se pudo resolver el ref:', e instanceof Error ? e.message : e)
+      }
+    }
     try {
       const toque = leerToque(payload)
-      if (toqueTieneDatos(toque)) {
-        await registrarToque(sb, tenantId, contact.id, { ...toque, enEl: now })
+      if (colaboradorId || toqueTieneDatos(toque)) {
+        await registrarToque(sb, tenantId, contact.id, { ...toque, enEl: now, colaboradorId })
       }
     } catch (e) {
       console.warn('[atribucion] no se pudo registrar el toque:', e instanceof Error ? e.message : e)

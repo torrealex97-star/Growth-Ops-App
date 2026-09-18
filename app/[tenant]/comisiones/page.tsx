@@ -40,7 +40,8 @@ type FutureRow = {
 const PARTICIPANT_LABELS: Record<ParticipantType, string> = {
   setter: 'Setter',
   closer: 'Closer',
-  affiliate: 'Afiliado',
+  affiliate: 'Colaborador (clásico)',
+  collaborator: 'Colaborador',
 }
 
 function csvEscape(value: string): string {
@@ -369,6 +370,7 @@ export default function CommissionsPage() {
       setter: { count: 0, total: 0 },
       closer: { count: 0, total: 0 },
       affiliate: { count: 0, total: 0 },
+      collaborator: { count: 0, total: 0 },
     }
     filteredCommissions.forEach((c) => {
       if (!map[c.participant_type]) map[c.participant_type] = { count: 0, total: 0 }
@@ -541,7 +543,8 @@ export default function CommissionsPage() {
                 <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="setter">Setter</SelectItem>
                 <SelectItem value="closer">Closer</SelectItem>
-                <SelectItem value="affiliate">Afiliado</SelectItem>
+                <SelectItem value="affiliate">Colaborador (clásico)</SelectItem>
+                <SelectItem value="collaborator">Colaborador</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -572,11 +575,11 @@ export default function CommissionsPage() {
           description={`${totalsByType.closer?.count ?? 0} comisiones`}
         />
         <KPICard
-          title="Afiliados"
-          value={formatCurrency(totalsByType.affiliate?.total ?? 0)}
+          title="Colaboradores"
+          value={formatCurrency((totalsByType.affiliate?.total ?? 0) + (totalsByType.collaborator?.total ?? 0))}
           icon={Percent}
           loading={loading}
-          description={`${totalsByType.affiliate?.count ?? 0} comisiones`}
+          description={`${(totalsByType.affiliate?.count ?? 0) + (totalsByType.collaborator?.count ?? 0)} comisiones · clásicos + colaboradores`}
         />
       </div>
 

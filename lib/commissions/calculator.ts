@@ -1,5 +1,27 @@
 import { addMonths, startOfMonth } from 'date-fns'
-import type { Collection, Commission, InsertCommission, Sale, CommissionRule, Refund } from '@/lib/types/database'
+import type {
+  Collection,
+  Commission,
+  InsertCommission,
+  Sale,
+  CommissionRule,
+  Refund,
+  ParticipantType,
+} from '@/lib/types/database'
+
+// COLABORADORES (migración 20260918150000): los beneficiarios con perfil de
+// colaborador ACTIVO emiten su comisión con participant_type='collaborator'
+// (lane nativa del ledger) en vez de 'affiliate'. Mismo motor, misma base (cash
+// collected), mismos estados y misma idempotencia; la etiqueta distingue al
+// colectivo para permisos, UI y reporting. Los 'affiliate' históricos (usuarios
+// con affiliate_code sin perfil) siguen saliendo exactamente igual.
+export function participantTypeForUser(
+  userId: string | null | undefined,
+  colaboradoresActivos?: Set<string> | null
+): ParticipantType {
+  if (userId && colaboradoresActivos && colaboradoresActivos.has(userId)) return 'collaborator'
+  return 'affiliate'
+}
 
 function getLiquidationMonth(collectedAt: Date): string {
   // First day of NEXT month
@@ -47,7 +69,9 @@ export function calculateCommissionsForCollection(
   cashByRep?: Record<string, number>,
   // Tramo/nivel de gamificación actual por rep (userId → tramoId). Si el rep tiene un tramo y hay
   // una regla enlazada a ese tramo, esa regla gana sobre el modelo por cash collected. Opcional.
-  tramoByRep?: Record<string, string | null>
+  tramoByRep?: Record<string, string | null>,
+  // user_ids con perfil de colaborador activo → participant_type='collaborator'. Opcional.
+  colaboradoresActivos?: Set<string> | null
 ): InsertCommission[] {
   const commissions: InsertCommission[] = []
   const collectedAt = new Date(collection.collected_at)
@@ -117,7 +141,7 @@ export function calculateCommissionsForCollection(
     })
   }
 
-  // Affiliate commission
+  // Affiliate / Collaborator commission
   if (sale.affiliate_id && sale.affiliate_commission_percent) {
     const percent = sale.affiliate_commission_percent
     commissions.push({
@@ -126,7 +150,7 @@ export function calculateCommissionsForCollection(
       collection_id: collection.id,
       refund_id: null,
       user_id: sale.affiliate_id,
-      participant_type: 'affiliate',
+      participant_type: participantTypeForUser(sale.affiliate_id, colaboradoresActivos),
       percent,
       base_amount: baseAmount,
       commission_amount: (baseAmount * percent) / 100,

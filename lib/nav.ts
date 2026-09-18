@@ -267,13 +267,13 @@ export const NAV_SECTIONS: NavSection[] = [
       },
       { label: 'Contenido', href: '/marketing/contenido', icon: Clapperboard, roles: [...LEAD, 'marketing', 'editor'] },
       {
-        label: 'Afiliados',
+        label: 'Colaboradores',
         href: '/marketing/afiliados/afiliados',
         icon: TrendingUp,
         roles: [...LEAD, 'affiliate'],
         children: [
           {
-            label: 'Afiliados',
+            label: 'Colaboradores',
             href: '/marketing/afiliados/afiliados',
             icon: TrendingUp,
             roles: [...LEAD, 'affiliate'],

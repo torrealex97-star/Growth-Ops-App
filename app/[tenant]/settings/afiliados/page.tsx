@@ -33,7 +33,7 @@ export default function AfiliadosSettingsPage() {
   const tenantId = useTenantId()
   const [s, setS] = useState<State>({
     default_commission_percent: 20,
-    program_name: 'Programa de Afiliados',
+    program_name: 'Programa de Colaboradores',
     intro: '',
     success_message: '',
     form_fields: DEFAULT_FIELDS,
@@ -59,7 +59,7 @@ export default function AfiliadosSettingsPage() {
           const row = data as AffiliateProgramSettings
           setS({
             default_commission_percent: Number(row.default_commission_percent ?? 20),
-            program_name: row.program_name ?? 'Programa de Afiliados',
+            program_name: row.program_name ?? 'Programa de Colaboradores',
             intro: row.intro ?? '',
             success_message: row.success_message ?? '',
             form_fields: Array.isArray(row.form_fields) && row.form_fields.length ? row.form_fields : DEFAULT_FIELDS,
@@ -87,7 +87,7 @@ export default function AfiliadosSettingsPage() {
         id: 1,
         tenant_id: tenantId,
         default_commission_percent: s.default_commission_percent,
-        program_name: s.program_name.trim() || 'Programa de Afiliados',
+        program_name: s.program_name.trim() || 'Programa de Colaboradores',
         intro: s.intro,
         success_message: s.success_message,
         form_fields: s.form_fields,
@@ -138,7 +138,7 @@ export default function AfiliadosSettingsPage() {
           <Users className="w-5 h-5 text-brand-400" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Programa de afiliados</h1>
+          <h1 className="text-2xl font-bold text-foreground">Programa de colaboradores</h1>
           <p className="text-muted-foreground text-sm">
             Configura el formulario público de alta y la comisión por defecto de los nuevos afiliados.
           </p>

@@ -10,7 +10,11 @@ export default function AfiliadosLayout({ children }: { children: React.ReactNod
   const relPathname = pathname.replace(`/${tenant}`, '') || '/'
 
   const TABS: RouteTab[] = [
-    { label: 'Afiliados', href: `/${tenant}/marketing/afiliados/afiliados`, match: '/marketing/afiliados/afiliados' },
+    {
+      label: 'Colaboradores',
+      href: `/${tenant}/marketing/afiliados/afiliados`,
+      match: '/marketing/afiliados/afiliados',
+    },
     { label: 'Campañas', href: `/${tenant}/marketing/afiliados/campanas`, match: '/marketing/afiliados/campanas' },
   ]
 

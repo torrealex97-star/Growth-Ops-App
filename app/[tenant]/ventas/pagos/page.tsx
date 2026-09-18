@@ -14,7 +14,8 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 import type { SaleWithRelations, Collection, SaleExpectedInstallment } from '@/lib/types/database'
-import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { useTenant, useTenantId, useSesion } from '@/lib/tenant-context'
+import { resolverScopeColaborador, contactIdsDeScope } from '@/lib/collaborators/scope'
 import { DEFAULT_PERIOD, getCustomDateRange } from '@/lib/filters/period'
 import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
 import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
@@ -78,6 +79,7 @@ type SaleAggregate = {
 export default function PaymentsPipelinePage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
+  const sesion = useSesion()
   const [sales, setSales] = useState<SaleWithRelations[]>([])
   const [collections, setCollections] = useState<Collection[]>([])
   const [installments, setInstallments] = useState<SaleExpectedInstallment[]>([])
@@ -123,14 +125,24 @@ export default function PaymentsPipelinePage() {
     const fetchData = async () => {
       const supabase = createClient()
 
+      // SCOPE DE COLABORADOR (capa de datos): kanban de pagos acotado a las
+      // ventas de SUS contactos atribuidos (§16). No-op para el resto de roles.
+      const scopeColab = sesion
+        ? await resolverScopeColaborador(supabase, sesion.userId, tenantId)
+        : ({ tipo: 'none' } as const)
+      const contactIds = await contactIdsDeScope(supabase, tenantId, scopeColab)
+
+      const salesQuery = supabase
+        .from('sales')
+        .select(
+          `*, contacts(*), products(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name)`
+        )
+        .eq('tenant_id', tenantId)
+        .order('sale_date', { ascending: false })
+      const salesScoped = contactIds ? salesQuery.in('contact_id', contactIds) : salesQuery
+
       const [salesRes, collectionsRes, installmentsRes] = await Promise.all([
-        supabase
-          .from('sales')
-          .select(
-            `*, contacts(*), products(*), payment_plans(*), setter:setter_id(id, full_name), closer:closer_id(id, full_name), affiliate:affiliate_id(id, full_name)`
-          )
-          .eq('tenant_id', tenantId)
-          .order('sale_date', { ascending: false }),
+        salesScoped,
         // Solo 'collected': igual que Finanzas › Resumen y el resto de pantallas de Cash Collected —
         // antes incluía también cobros 'reversed'/'disputed', lo que sobrestimaba el total aquí
         // respecto a las demás pantallas.
@@ -172,7 +184,9 @@ export default function PaymentsPipelinePage() {
     }
 
     fetchData()
-  }, [tenantId])
+    // `sesion` incluida a propósito: si no estuviera resuelta todavía, no cargar nada antes de
+    // conocer el scope (evitaría servir un frame con TODAS las ventas antes del filtro).
+  }, [tenantId, sesion])
 
   const periodRange = useMemo(
     () => getPeriodRange(periodPreset, customFrom, customTo),

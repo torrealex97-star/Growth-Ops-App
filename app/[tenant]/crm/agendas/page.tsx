@@ -47,6 +47,7 @@ import { toast } from 'sonner'
 import type { AppointmentWithRelations, AppointmentStatus, User, Contact, Sale } from '@/lib/types/database'
 import { guessContactTimezone, DEFAULT_TIMEZONE, TIMEZONE_OPTIONS } from '@/lib/timezone'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
+import { resolverScopeColaborador, contactIdsDeScope } from '@/lib/collaborators/scope'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import {
   DEFAULT_PERIOD,
@@ -264,13 +265,35 @@ export default function AppointmentsPage() {
       }
     }
 
+    // SCOPE DE COLABORADOR (capa de datos): un colaborador activo ve SOLO las
+    // agendas de SUS contactos atribuidos — no hay selector que quitar ni query
+    // param que lo esquive (el backstop es la policy RLS enmendada). Se aplica
+    // DESPUÉS del filtro por rol: si algún día un rol coincidiera, el scope del
+    // colaborador es el más estrecho y gana.
+    const scopeColab = sesion
+      ? await resolverScopeColaborador(supabase, sesion.userId, tenantId)
+      : { tipo: 'none' as const }
+    if (scopeColab.tipo === 'collaborator') {
+      const contactIds = await contactIdsDeScope(supabase, tenantId, scopeColab)
+      appointmentsQuery = appointmentsQuery.in('contact_id', contactIds ?? [])
+    }
+
+    // Consulta auxiliar de ventas (pinta las citas con compra). Para un colaborador, acotada a SUS
+    // contactos: sin esto, su navegador recibiría ventas de contactos ajenos y podría inferir los
+    // importes del tenant entero (§17/§49 — también las fugas indirectas).
+    let salesQuery = supabase
+      .from('sales')
+      .select('id, contact_id, appointment_id, closer_id, setter_id, status, gross_amount')
+      .eq('tenant_id', tenantId)
+    if (scopeColab.tipo === 'collaborator') {
+      const contactIdsVentas = await contactIdsDeScope(supabase, tenantId, scopeColab)
+      salesQuery = salesQuery.in('contact_id', contactIdsVentas ?? [])
+    }
+
     const [appRes, usersRes, salesRes] = await Promise.all([
       appointmentsQuery,
       supabase.from('users').select('*, roles(key)').eq('is_active', true),
-      supabase
-        .from('sales')
-        .select('id, contact_id, appointment_id, closer_id, setter_id, status, gross_amount')
-        .eq('tenant_id', tenantId),
+      salesQuery,
     ])
 
     if (appRes.error) {

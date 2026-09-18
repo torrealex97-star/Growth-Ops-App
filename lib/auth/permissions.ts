@@ -34,7 +34,7 @@ export const ROLE_LABELS: Record<AppRole, string> = {
   closer: 'Closer',
   triager: 'Triager',
   cold_caller: 'Cold Caller',
-  affiliate: 'Afiliado',
+  affiliate: 'Colaborador',
   marketing: 'Marketing',
   adscripcion: 'Adscripción',
   editor: 'Editor',
@@ -157,8 +157,8 @@ export const NAV_PAGES: { href: string; label: string; dept: Department }[] = [
   { href: '/finanzas/cobros/devoluciones', label: 'Cobros & Conciliación · Devoluciones', dept: 'finanzas' },
   { href: '/finanzas/cobros/conciliacion', label: 'Cobros & Conciliación · Conciliación', dept: 'finanzas' },
   { href: '/finanzas/morosidad', label: 'Morosidad', dept: 'finanzas' },
-  { href: '/marketing/afiliados/afiliados', label: 'Afiliados · Gestión', dept: 'marketing' },
-  { href: '/marketing/afiliados/campanas', label: 'Afiliados · Campañas', dept: 'marketing' },
+  { href: '/marketing/afiliados/afiliados', label: 'Colaboradores · Gestión', dept: 'marketing' },
+  { href: '/marketing/afiliados/campanas', label: 'Colaboradores · Campañas', dept: 'marketing' },
   { href: '/contratos/equipo', label: 'Contratos de equipo (confidencial)', dept: 'sistema' },
   { href: '/contratos/plantillas', label: 'Plantillas de contratos', dept: 'sistema' },
   { href: '/actividad', label: 'Actividad', dept: 'sistema' },
@@ -246,6 +246,12 @@ const ROLE_ALLOWED_PREFIXES: Partial<Record<AppRole, string[]>> = {
   cobros: ['/finanzas/morosidad', '/finanzas/cobros/cobros', '/finanzas/cobros/conciliacion', '/ventas/pagos'],
 }
 
+// NOTA DE NOMENCLATURA: "Colaborador" es el nombre visible del rol affiliate
+// (migración Colaboradores 2026-09). Los identificadores internos
+// (affiliate_id, affiliate_code, participant_type 'affiliate' legacy, rutas
+// /marketing/afiliados) NO se renombran destructivamente: la UI habla de
+// "Colaborador" y el modelo interno queda estable. El participant_type
+// 'collaborator' nuevo convive con el 'affiliate' histórico (mismo motor).
 export const PERMISSIONS = {
   // --- Ventas ---
   canViewAllSales: (role: AppRole) => isLeadership(role),
@@ -298,9 +304,13 @@ export const PERMISSIONS = {
     ['admin', 'director', 'manager', 'setter', 'closer', 'cold_caller', 'affiliate'].includes(role),
   canManageLinkTemplates: (role: AppRole) => ['admin', 'director'].includes(role),
 
-  // --- Programa de afiliados ---
+  // --- Programa de colaboradores (antes "afiliados"; los internos affiliate_ se
+  // conservan por compatibilidad — columnas/endpoints intactos, solo cambió la UI) ---
   canManageAffiliateProgram: (role: AppRole) => ['admin', 'director'].includes(role),
   canManageAffiliateCampaigns: (role: AppRole) => ['admin', 'director'].includes(role),
+  // Alias de nomenclatura nueva: mismos permisos, nombre del módulo nuevo.
+  canManageCollaborators: (role: AppRole) => ['admin', 'director'].includes(role),
+  canViewCollaborators: (role: AppRole) => ['admin', 'director', 'manager'].includes(role) || role === 'affiliate',
 
   // --- Sistema ---
   canManageUsers: (role: AppRole) => role === 'admin',

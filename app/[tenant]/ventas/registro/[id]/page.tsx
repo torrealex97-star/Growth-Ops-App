@@ -712,7 +712,7 @@ export default function SaleDetailPage() {
                 { label: 'Plazo devolucion', value: formatDate(sale.refund_deadline_at) },
                 { label: 'Setter', value: sale.setter?.full_name ?? '—' },
                 { label: 'Closer', value: sale.closer?.full_name ?? '—' },
-                { label: 'Afiliado', value: sale.affiliate?.full_name ?? '—' },
+                { label: 'Colaborador', value: sale.affiliate?.full_name ?? '—' },
                 {
                   label: 'Comision afiliado',
                   value: sale.affiliate_commission_percent ? formatPercent(sale.affiliate_commission_percent) : '—',
@@ -1311,7 +1311,7 @@ export default function SaleDetailPage() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Afiliado</Label>
+                <Label className="text-xs text-muted-foreground">Colaborador</Label>
                 <Select
                   value={editForm.affiliate_id}
                   onValueChange={(v) => setEditForm((f) => ({ ...f, affiliate_id: v }))}

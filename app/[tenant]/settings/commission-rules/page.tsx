@@ -26,15 +26,18 @@ import type { CommissionRule, ParticipantType } from '@/lib/types/database'
 import { useSesion, useTenantId } from '@/lib/tenant-context'
 
 const PARTICIPANT_LABELS: Record<ParticipantType, string> = {
+  // 'collaborator' entra con la migración de Colaboradores (20260918150000).
   setter: 'Setter',
   closer: 'Closer',
-  affiliate: 'Afiliado',
+  affiliate: 'Colaborador (clásico)',
+  collaborator: 'Colaborador',
 }
 
 const PARTICIPANT_COLORS: Record<ParticipantType, string> = {
   setter: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
   closer: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
   affiliate: 'bg-zinc-500/20 text-muted-foreground border-border/30',
+  collaborator: 'bg-brand-500/20 text-brand-400 border-brand-500/30',
 }
 
 type SimpleUser = {
@@ -441,7 +444,8 @@ export default function CommissionRulesPage() {
                 <SelectContent className="bg-card border-border">
                   <SelectItem value="setter">Setter</SelectItem>
                   <SelectItem value="closer">Closer</SelectItem>
-                  <SelectItem value="affiliate">Afiliado</SelectItem>
+                  <SelectItem value="affiliate">Colaborador (clásico)</SelectItem>
+                  <SelectItem value="collaborator">Colaborador</SelectItem>
                 </SelectContent>
               </Select>
             </div>

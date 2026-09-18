@@ -21,6 +21,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 //   después vuelve por un email, el anuncio es quien lo trajo. Machacar el primer toque con el último
 //   hace que el canal que cierra se lleve el mérito del canal que capta, y con eso se decide el
 //   presupuesto: se acabaría apagando lo que trae gente para reforzar lo que solo la remata.
+//
+//   Lo mismo vale para el COLABORADOR (migración 20260918150000): el primer colaborador válido que
+//   atribuye un contacto se queda (first-collaborator-wins); los toques posteriores no lo roban.
+//   Corregirlo es tarea de un admin CON motivo y auditoría (ruta colaboradores/attribution).
 
 /** Lo que se puede saber del origen en una entrega. Todo opcional: casi nunca viene completo. */
 export type ToqueAtribucion = {
@@ -32,13 +36,30 @@ export type ToqueAtribucion = {
   utmCampaign?: string | null
   utmContent?: string | null
   utmTerm?: string | null
+  /**
+   * UUID del collaborator_profile cuando el toque viene de un enlace de
+   * colaborador (?ref=CODIGO resuelto server-side a id, nunca el código como
+   * identidad). La relación canónica contacto↔colaborador vive ESTRUCTURADA en
+   * contact_attributions.collaborator_id; utm_content sigue llenándose para el
+   * reporting/interoperabilidad, pero las comisiones no dependen de texto.
+   */
+  colaboradorId?: string | null
   /** Momento del toque. Por defecto, ahora. */
   enEl?: string
 }
 
 /** ¿Trae este toque algo que merezca guardarse? Un toque vacío no se escribe. */
 export function toqueTieneDatos(t: ToqueAtribucion): boolean {
-  return Boolean(t.utmSource || t.utmMedium || t.utmCampaign || t.utmContent || t.utmTerm || t.source || t.landingUrl)
+  return Boolean(
+    t.utmSource ||
+    t.utmMedium ||
+    t.utmCampaign ||
+    t.utmContent ||
+    t.utmTerm ||
+    t.source ||
+    t.landingUrl ||
+    t.colaboradorId
+  )
 }
 
 const texto = (v: unknown): string | null => {
@@ -107,7 +128,7 @@ export async function registrarToque(
 
   const { data: existente, error: errorLectura } = await sb
     .from('contact_attributions')
-    .select('id, first_touch_at')
+    .select('id, first_touch_at, collaborator_id')
     .eq('tenant_id', tenantId)
     .eq('contact_id', contactId)
     .eq('is_primary', true)
@@ -134,14 +155,41 @@ export async function registrarToque(
 
   if (existente) {
     // OJO: aquí NO van los `first_*`. Es la línea que protege el origen.
+    // Y aquí NO va `collaborator_id` en el update: FIRST VALID COLLABORATOR
+    // ATTRIBUTION WINS — si el contacto ya tiene colaborador, un toque posterior
+    // de otro enlace JAMÁS lo roba (la comisión de alguien no cambia en silencio).
     const { error } = await sb.from('contact_attributions').update(ultimos).eq('id', existente.id)
-    return error ? { ok: false, error: error.message } : { ok: true, accion: 'actualizada' }
+    if (error) return { ok: false, error: error.message }
+
+    // Relleno solo si estaba VACÍO (NULL = "Directo / Sin colaborador" es un
+    // estado válido, y el primer colaborador válido se queda). El cambio queda
+    // en audit_logs: quién/qué/cuándo, para poder explicar comisiones futuras.
+    const colaboradorEntrante = toque.colaboradorId ?? null
+    const colaboradorActual = (existente as { collaborator_id: string | null }).collaborator_id ?? null
+    if (colaboradorEntrante && !colaboradorActual) {
+      const { error: errorFill } = await sb
+        .from('contact_attributions')
+        .update({ collaborator_id: colaboradorEntrante })
+        .eq('id', existente.id)
+        .eq('collaborator_id', null) // guard: si otra entrega lo llenó mientras tanto, no pisa
+      if (errorFill) return { ok: false, error: errorFill.message }
+      await sb.from('audit_logs').insert({
+        tenant_id: tenantId,
+        entity_type: 'contact_attribution',
+        entity_id: existente.id,
+        action: 'collaborator_attribution',
+        old_values: { collaborator_id: null },
+        new_values: { collaborator_id: colaboradorEntrante, via: 'referral_touch' },
+      })
+    }
+    return { ok: true, accion: 'actualizada' }
   }
 
   const { error } = await sb.from('contact_attributions').insert({
     tenant_id: tenantId,
     contact_id: contactId,
     is_primary: true,
+    collaborator_id: toque.colaboradorId ?? null,
     source: toque.source ?? null,
     funnel: toque.funnel ?? null,
     first_utm_source: toque.utmSource ?? null,

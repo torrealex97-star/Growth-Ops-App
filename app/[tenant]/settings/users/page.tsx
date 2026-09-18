@@ -528,7 +528,7 @@ export default function UsersPage() {
                 <TableHead className="text-muted-foreground">Email</TableHead>
                 <TableHead className="text-muted-foreground">Rol</TableHead>
                 <TableHead className="text-muted-foreground">Estado</TableHead>
-                <TableHead className="text-muted-foreground">Comision Afiliado</TableHead>
+                <TableHead className="text-muted-foreground">Comisión Colaborador</TableHead>
                 <TableHead className="text-muted-foreground">Sueldo</TableHead>
                 <TableHead className="text-muted-foreground">Código tracking</TableHead>
                 <TableHead className="text-muted-foreground">Acciones</TableHead>
