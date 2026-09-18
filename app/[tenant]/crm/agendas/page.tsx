@@ -207,22 +207,25 @@ export default function AppointmentsPage() {
 
   // Batch: consulta los conflictos de closer para todos los contactos visibles de una sola vez
   // (no por fila) para no disparar N llamadas a la API.
-  const fetchCloserConflicts = useCallback(async (appts: AppointmentWithRelations[]) => {
-    const contactIds = Array.from(new Set(appts.map((a) => a.contact_id).filter((id): id is string => !!id)))
-    if (contactIds.length === 0) {
-      setCloserConflicts({})
-      return
-    }
-    try {
-      const res = await fetch(
-        `/api/${tenant}/evergreen/appointments/closer-conflicts?contactIds=${contactIds.join(',')}`
-      )
-      const json = await res.json()
-      if (res.ok) setCloserConflicts(json.conflicts || {})
-    } catch {
-      // No bloquea la carga de la tabla si esta alerta secundaria falla.
-    }
-  }, [tenant])
+  const fetchCloserConflicts = useCallback(
+    async (appts: AppointmentWithRelations[]) => {
+      const contactIds = Array.from(new Set(appts.map((a) => a.contact_id).filter((id): id is string => !!id)))
+      if (contactIds.length === 0) {
+        setCloserConflicts({})
+        return
+      }
+      try {
+        const res = await fetch(
+          `/api/${tenant}/evergreen/appointments/closer-conflicts?contactIds=${contactIds.join(',')}`
+        )
+        const json = await res.json()
+        if (res.ok) setCloserConflicts(json.conflicts || {})
+      } catch {
+        // No bloquea la carga de la tabla si esta alerta secundaria falla.
+      }
+    },
+    [tenant]
+  )
 
   const fetchData = useCallback(async () => {
     const supabase = createClient()
@@ -1184,15 +1187,7 @@ export default function AppointmentsPage() {
         cell: ({ getValue }) => <span className="text-muted-foreground text-sm">{getValue() || '—'}</span>,
       }),
     ],
-    [
-      closerConflicts,
-      reassigningConflictId,
-      canReassignConflict,
-      handleReassignConflict,
-      hasPurchased,
-      router,
-      tenant,
-    ]
+    [closerConflicts, reassigningConflictId, canReassignConflict, handleReassignConflict, hasPurchased, router, tenant]
   )
 
   const table = useReactTable({
