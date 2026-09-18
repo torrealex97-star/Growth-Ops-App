@@ -38,31 +38,29 @@ function rowTo(r: any): Testimonio {
   }
 }
 
-// `tenantId` se añade como parámetro OPCIONAL (en vez de obligatorio) para no
-// romper otros llamadores de este helper fuera del alcance de este cambio (p.ej.
-// el generador de guiones). Las rutas de app/api/[tenant]/evergreen/testimonios/**
-// SIEMPRE lo pasan (vía requireTenant).
-export async function listTestimonios(includeInactive = false, tenantId?: string): Promise<Testimonio[]> {
+// FASE 3 (multitenant): `tenantId` es OBLIGATORIO en todos los helpers. Este módulo consulta
+// con service_role (RLS bypaseado), así que un tenant omitido NO significa "sin filtro": significa
+// leer/escribir filas de OTRAS subcuentas. Ocurrió de verdad: el generador de guiones IA pedía
+// listTestimonios() sin tenant y el catálogo (nombres, cifras de facturación) de todas las
+// subcuentas entraba en sus prompts. Con el parámetro requerido, typecheck impide repetirlo.
+export async function listTestimonios(includeInactive: boolean, tenantId: string): Promise<Testimonio[]> {
   const sb = svc()
-  let q = sb.from('testimonios').select('*').order('sort_order', { ascending: true })
+  let q = sb.from('testimonios').select('*').eq('tenant_id', tenantId).order('sort_order', { ascending: true })
   if (!includeInactive) q = q.eq('active', true)
-  if (tenantId) q = q.eq('tenant_id', tenantId)
   const { data, error } = await q
   if (error) throw new Error(error.message)
   return (data ?? []).map(rowTo)
 }
 
-export async function getTestimonio(id: string, tenantId?: string): Promise<Testimonio | null> {
+export async function getTestimonio(id: string, tenantId: string): Promise<Testimonio | null> {
   const sb = svc()
-  let q = sb.from('testimonios').select('*').eq('id', id)
-  if (tenantId) q = q.eq('tenant_id', tenantId)
-  const { data, error } = await q.maybeSingle()
+  const { data, error } = await sb.from('testimonios').select('*').eq('id', id).eq('tenant_id', tenantId).maybeSingle()
   if (error) throw new Error(error.message)
   return data ? rowTo(data) : null
 }
 
-/** Slug estable a partir del nombre, único dentro de la tabla (y del tenant, si se indica). */
-async function uniqueSlug(name: string, tenantId?: string): Promise<string> {
+/** Slug estable a partir del nombre, único dentro del tenant. */
+async function uniqueSlug(name: string, tenantId: string): Promise<string> {
   const base =
     name
       .normalize('NFD')
@@ -72,9 +70,7 @@ async function uniqueSlug(name: string, tenantId?: string): Promise<string> {
       .replace(/^-|-$/g, '')
       .slice(0, 40) || 'testimonio'
   const sb = svc()
-  let q = sb.from('testimonios').select('slug').like('slug', `${base}%`)
-  if (tenantId) q = q.eq('tenant_id', tenantId)
-  const { data } = await q
+  const { data } = await sb.from('testimonios').select('slug').eq('tenant_id', tenantId).like('slug', `${base}%`)
   const taken = new Set((data ?? []).map((r: { slug: string }) => r.slug))
   if (!taken.has(base)) return base
   for (let i = 2; i < 100; i++) if (!taken.has(`${base}-${i}`)) return `${base}-${i}`
@@ -83,14 +79,18 @@ async function uniqueSlug(name: string, tenantId?: string): Promise<string> {
 
 export async function createTestimonio(
   input: Omit<TestimonioPatch, 'sortOrder'> & { name: string },
-  tenantId?: string
+  tenantId: string
 ): Promise<Testimonio> {
   const sb = svc()
   const slug = await uniqueSlug(input.name, tenantId)
   // Los nuevos se colocan al final de la lista.
-  let lastQ = sb.from('testimonios').select('sort_order').order('sort_order', { ascending: false }).limit(1)
-  if (tenantId) lastQ = lastQ.eq('tenant_id', tenantId)
-  const { data: last } = await lastQ.maybeSingle()
+  const { data: last } = await sb
+    .from('testimonios')
+    .select('sort_order')
+    .eq('tenant_id', tenantId)
+    .order('sort_order', { ascending: false })
+    .limit(1)
+    .maybeSingle()
   const sortOrder = ((last?.sort_order as number | undefined) ?? 100) + 10
 
   const { data, error } = await sb
@@ -112,7 +112,7 @@ export async function createTestimonio(
       consent: input.consent === true,
       sort_order: sortOrder,
       active: input.active !== false,
-      ...(tenantId ? { tenant_id: tenantId } : {}),
+      tenant_id: tenantId,
     })
     .select('*')
     .single()
@@ -120,11 +120,9 @@ export async function createTestimonio(
   return rowTo(data)
 }
 
-export async function deleteTestimonio(id: string, tenantId?: string): Promise<boolean> {
+export async function deleteTestimonio(id: string, tenantId: string): Promise<boolean> {
   const sb = svc()
-  let q = sb.from('testimonios').delete().eq('id', id)
-  if (tenantId) q = q.eq('tenant_id', tenantId)
-  const { error } = await q
+  const { error } = await sb.from('testimonios').delete().eq('id', id).eq('tenant_id', tenantId)
   if (error) throw new Error(error.message)
   return true
 }
@@ -132,7 +130,7 @@ export async function deleteTestimonio(id: string, tenantId?: string): Promise<b
 export async function updateTestimonio(
   id: string,
   patch: TestimonioPatch,
-  tenantId?: string
+  tenantId: string
 ): Promise<Testimonio | null> {
   const sb = svc()
   const p: Record<string, unknown> = { updated_at: new Date().toISOString() }
@@ -151,9 +149,13 @@ export async function updateTestimonio(
   if (patch.consent !== undefined) p.consent = patch.consent
   if (patch.sortOrder !== undefined) p.sort_order = patch.sortOrder
   if (patch.active !== undefined) p.active = patch.active
-  let q = sb.from('testimonios').update(p).eq('id', id)
-  if (tenantId) q = q.eq('tenant_id', tenantId)
-  const { data, error } = await q.select('*').maybeSingle()
+  const { data, error } = await sb
+    .from('testimonios')
+    .update(p)
+    .eq('id', id)
+    .eq('tenant_id', tenantId)
+    .select('*')
+    .maybeSingle()
   if (error) throw new Error(error.message)
   return data ? rowTo(data) : null
 }

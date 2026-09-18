@@ -22,7 +22,10 @@ const ALLOWED_ROLES = ['admin', 'director', 'manager', 'marketing', 'editor']
 //
 // Devuelve el bloque para el prompt, el id ya resuelto (si se pidió uno concreto) y los
 // candidatos, para poder deducir a posteriori cuál eligió la IA en modo 'auto'.
-async function resolveTestimonio(testimonio: unknown): Promise<{
+async function resolveTestimonio(
+  testimonio: unknown,
+  tenantId: string
+): Promise<{
   block: string | null
   id: string | null
   candidates: { id: string; name: string }[]
@@ -31,7 +34,9 @@ async function resolveTestimonio(testimonio: unknown): Promise<{
   if (!value) return { block: null, id: null, candidates: [] }
 
   if (value === 'auto') {
-    const all = await listTestimonios()
+    // FASE 3: SIEMPRE acotado a esta subcuenta. Antes se pedía el catálogo sin tenant y con
+    // service_role el prompt recibía nombres y cifras de facturación de TODAS las subcuentas.
+    const all = await listTestimonios(false, tenantId)
     if (!all.length) return { block: null, id: null, candidates: [] }
     const catalogo = all.map((t) => `### ${t.name}\n${testimonioForPrompt(t)}`).join('\n\n')
     return {
@@ -41,7 +46,7 @@ async function resolveTestimonio(testimonio: unknown): Promise<{
     }
   }
 
-  const t = await getTestimonio(value)
+  const t = await getTestimonio(value, tenantId)
   if (!t || !t.active) return { block: null, id: null, candidates: [] }
   return { block: testimonioForPrompt(t), id: t.id, candidates: [{ id: t.id, name: t.name }] }
 }
@@ -112,7 +117,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     // Prueba social opcional: "auto" deja que la IA elija el caso que mejor encaje con
     // el tema del reel; un id concreto fuerza ese testimonio. Vacío = guión sin testimonio.
-    const testimonioPick = await resolveTestimonio(testimonio)
+    const testimonioPick = await resolveTestimonio(testimonio, t.tenantId)
 
     const draft = await generateScript(
       {
