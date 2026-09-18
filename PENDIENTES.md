@@ -18,7 +18,14 @@
 Feature completo y desplegado: Config → Datos de empresa, plantillas (pega texto → IA inserta variables), rol seleccionable, el firmante completa DNI/dirección al firmar, PDF firmado guardado en Supabase Storage (bucket `contratos`) y descargable. Pendiente solo:
 - [x] **Envío automático por email (Resend) — ACTIVO.** `RESEND_API_KEY` + `RESEND_FROM (ver Vercel)` en Vercel (Production). Dominio `[tenant]` verificado en Resend (DNS en Cloudflare). Invitaciones, recovery y contratos se envían por email automáticamente. Key de tipo "solo envío" (no gestiona dominios por API).
 - [ ] **Poner el CIF/razón social reales** en Config → Datos de empresa (ahora placeholder `B-00000000`).
-- [ ] **Restaurar secretos en `.env.local` local** (los borró el CLI de `vercel blob`; son *Sensitive*, no se recuperan por CLI). Producción OK. Repegar desde Supabase dashboard / registros: `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `CALENDLY_API_TOKEN`, `POSTGRES_URL`; `GHL_WEBHOOK_SECRET=[tenant]`.
+- [~] **Secretos en `.env.local` local** — restaurados 4/5 críticos (18-sep) y verificados con smoke (`scripts/env-smoke.mjs`, sin imprimir valores):
+  - [x] `SUPABASE_SERVICE_ROLE_KEY` + `POSTGRES_URL` — recuperados del runtime de Edge Functions de Supabase (función efímera, retirada después). Formato nuevo `sb_secret_`.
+  - [x] `GHL_WEBHOOK_SECRET` — del registro del proyecto (`[tenant]`); smoke: 401 con secreto malo, pasa auth con el bueno.
+  - [x] `TRACKING_INGEST_KEY` — auto-emitida (la ruta legacy de ingesta la acepta); smoke: 401 mal / auth OK buena.
+  - [ ] **NO restaurar a ciegas `CONFIG_ENC_KEY`** — inventar un valor rompe el descifrado de los secretos ya cifrados en la BD (`enc:v1:` en `integration_settings`: Meta, Google OAuth…). O se recupera el original o se planifica rotación re-cifrando.
+  - [ ] Claves de terceros sin registro (repegarlas a mano del dashboard del proveedor; producción las tiene): `ANTHROPIC_API_KEY`, `GROQ_API_KEY` (solo worker), `CALENDLY_API_TOKEN`, `SEQURA_MCP_TOKEN`.
+  - Nota: 7 placeholders más (`SUPABASE_SECRET_KEY`, `JWT_SECRET`, `POSTGRES_*` variantes, `*_SESSION_SECRET`) no los usa el código — cosméticos.
+  - Nota: el checkout principal `~/Documents/…` necesita copia manual de estas 4 claves (el sandbox no puede leer/escribir sus ficheros `.env*`).
 
 ## 🟡 Datos a alimentar para que las métricas salgan reales
 
