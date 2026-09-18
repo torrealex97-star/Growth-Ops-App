@@ -10,5 +10,7 @@
     "types": "warn",
     "nsExports": "warn",
     "nsTypes": "warn"
-  }
+  },
+  "ignoreExportsUsedInFile": true,
+  "ignore": ["components/ui/**", "lib/types/database-generated.ts"]
 }

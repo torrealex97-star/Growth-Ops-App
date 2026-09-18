@@ -35,7 +35,16 @@ jobs:
           # El runner estándar se queda sin memoria con la carga actual de tipos.
           NODE_OPTIONS: --max-old-space-size=6144
       - run: npm run dead-code
-      - run: npm test
+      - name: Unit tests (incluye invariante multitenant contra el esquema vivo)
+        run: npm test
+        env:
+          # Secrets de SOLO LECTURA: el test del invariante consulta el OpenAPI de PostgREST
+          # para verificar que ninguna tabla puede nacer fuera de una subcuenta, y que el
+          # artefacto lib/types/database-generated.ts no se ha quedado viejo. Sin secrets el
+          # test se salta (la ausencia de env no es una violación).
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       - run: npm run test:metrics
 
   build:

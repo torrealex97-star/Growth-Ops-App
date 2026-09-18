@@ -4,7 +4,10 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 import { generateScript, type ReelAnalysis } from '@/lib/ai/claude'
 import { readStylePrompt, readBusinessContext } from '@/lib/app-settings'
 import { ctasForPrompt, CTA_CODES } from '@/lib/ctas'
-import { getTestimonio, listTestimonios, testimonioForPrompt } from '@/lib/testimonios'
+import { getTestimonio, listTestimonios } from '@/lib/testimonios'
+// Directo de la fuente: testimonioForPrompt vive en testimonios-shared y lib/testimonios ya no
+// lo re-exporta (knip). Los CRUD sí van por lib/testimonios (RLS por tenant).
+import { testimonioForPrompt } from '@/lib/testimonios-shared'
 import { tenantAiEnv } from '@/lib/ai/provider'
 
 export const runtime = 'nodejs'

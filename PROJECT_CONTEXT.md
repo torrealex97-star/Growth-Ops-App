@@ -1,7 +1,7 @@
 # Growth-Ops-App — Contexto del Proyecto
 
 > **Fuente única de verdad** para Claude Code, Codex y Freebuff. Lee este archivo primero.
-> Última actualización: 2026-09-18 (auditoría FASE 1-2 + hardening: hooks exhaustivos 49→0, 34 API routes con try/catch, **índices FK aplicados en producción — advisor 95→0**)
+> Última actualización: 2026-09-18 (auditoría FASE 1-2 + hardening: hooks exhaustivos 49→0, 34 API routes con try/catch, índices FK aplicados en producción — advisor 95→0 —, **knip 32→0**, **invariante multitenant en CI** y espejo de tipos del esquema vivo)
 
 ---
 
@@ -141,6 +141,8 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | — | **Hooks: warnings `react-hooks/exhaustive-deps` 49 → 0** — 28 seguros corregidos (deps estables `tenant`/`router`), 20 fetchers envueltos en `useCallback` con deps reales, 2 `useMemo` de afiliados resueltos, refactor de agendas (cadena `fetchData`→`handleReassignConflict`→memo estabilizada, declaraciones movidas antes del memo) | Freebuff | 09-18 |
 | — | **Endurecimiento API routes: `try/catch` estándar en las 34 rutas / 56 handlers que no lo tenían** (patrón del proyecto: `console.error('[api/...]')` + `NextResponse.json` 500) — verde en clon (tsc, lint, 375/375, 659/659) y propagado al checkout principal byte a byte vía `git apply` | Freebuff | 09-18 |
 | — | **Índices FK APLICADOS en producción** (migración `20260918120000`, 95/95 `CREATE INDEX IF NOT EXISTS` ejecutados y verificados en `pg_indexes`; pre-flight validó las 95 parejas tabla.columna contra las FKs reales del catálogo). **Advisor después: `unindexed_foreign_keys` 95 → 0** ✅. Conexión directa vía pooler `aws-1-eu-west-1` (el host `db.<ref>.supabase.co` no resuelve) | Freebuff + postgres.js | 09-18 |
+| — | **Dead code: knip 32 → 0 hallazgos** — 25 exports de primitivas shadcn/ui excluidos por patrón (superficie vendida), 8 falsos positivos resueltos con `ignoreExportsUsedInFile`, 2 re-exports muertos eliminados en `lib/testimonios.ts` e import directo a `testimonios-shared` en `instagram/script` | Freebuff | 09-18 |
+| — | **Invariante multitenant en CI**: `tests/esquema-tenant-invariante.test.mjs` comprueba contra el OpenAPI de PostgREST que TODA tabla `public` lleva `tenant_id NOT NULL` (excepciones cerradas: tenants, users, roles, resource_links) y que el artefacto de tipos no se queda viejo. CI consume secrets de SOLO LECTURA (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`); sin ellos el test se salta | Freebuff | 09-18 |
 
 ### ❌ Pendiente
 
@@ -157,11 +159,12 @@ Ver `.env.local.example` para la lista completa. Resumen:
 | — | **Sincronizar env vars server-side** | `vercel env pull` hecho; los 11 valores **Secret** de Vercel no se pueden descargar → rellenar a mano (Supabase Settings → API) | Media |
 | — | **Pixel: crear primer site en producción** | Alta de site y snippet en la web real (la BD y las APIs están listas) | **Alta** |
 | — | **Auditoría: verificar queries filtran por columna correcta** | Fase 3 de auditoría | Alta |
+| — | **Branch protection: exigir CI verde en `main`** | La API de GitHub devuelve 404 en plan Free (requiere pago). Alternativa actual: el CI ya corre en cada push y es el gate de facto | Baja |
 | — | ~~**Añadir índices a FKs (~95 halladas por advisor de rendimiento Supabase)**~~ **HECHO 18-sep: migración aplicada en producción (95/95), advisor `unindexed_foreign_keys` → 0.** La migración vive en `supabase/migrations/20260918120000_add_missing_fk_indexes.sql` (queda por commitear). Nota: los 95 índices nuevos figuran como `unused_index` hasta que las estadísticas acumulen tráfico — es esperado, no eliminar por eso | Resuelto | — |
-| — | **Regenerar `lib/types/database.ts` con `supabase gen types typescript`** — núcleo Contact/Appointment/Sale ya alineado a mano (09-18); faltan ~80 tablas restantes con `tenant_id` | MCP Supabase / CLI | Media |
+| — | ~~**Regenerar `lib/types/database.ts` con `supabase gen types typescript`**~~ **HECHO 18-sep con otro enfoque**: el espejo del esquema vivo vive en `lib/types/database-generated.ts` (94 relaciones), regenerado mecánicamente con `npm run tipos:bd` (OpenAPI de PostgREST, sin CLI ni login ni proyecto linked). El CI rompe si el artefacto se desfasa. `lib/types/database.ts` sigue siendo el modelo de la APP (a mano, por diseño — no es un espejo) | Resuelto | — |
 | — | **Pixel: aplicar hardening + crear primer site en producción** ~~aplicar hardening~~ | ~~Ejecutar migración c3ca9e8 en Supabase prod~~ HECHO (319c385); falta alta de site y snippet en la web real | **Alta** |
 | — | **Multitenant: Agency Home + switcher robusto** | UX definida, falta implementar | Alta |
-| — | **Multitenant: bloquear subcuenta archivada** (crons, logins, syncs) | RLS ya filtra, falta gate activo | Alta |
+| — | ~~**Multitenant: bloquear subcuenta archivada**~~ **VERIFICADO 18-sep: el gate YA EXISTE completo** — `requireTenant` rechaza status≠active (404 en las 158 rutas API), el layout server de `[tenant]` bloquea el render, RLS `tenants_select_anon_by_slug` solo expone activas a anon, y los 12 crons con enumeración filtran `.eq('status','active')` (verificado uno a uno). No había nada que parchear | Resuelto | — |
 | — | **Multitenant: constraint FK cross-tenant** campaign↔ad_account | Riesgo de FK entre tenants | Media |
 | — | **Dashboard: integraciones faltantes** (TikTok Ads/Org) | — | Media |
 | — | Dashboard: migrar agregaciones a SQL (RPCs) | — | Media |
