@@ -125,5 +125,36 @@ export async function detectAnomalies(tenantId: string, sb: SupabaseClient): Pro
     })
   }
 
+  // ── ASISTENCIAS SIN MARCAR (petición explícita del dashboard global §reglas agente):
+  // el agente PREGUNTA cuando hay agendas pasadas cuya asistencia nadie marcó — son shows
+  // probables que el funnel está subestimando. Detección determinista: citas vivas ya pasadas
+  // que siguen en 'scheduled/confirmed' sin resolver, en la ventana reciente.
+  try {
+    const { current } = last7DaysWindows()
+    const hace14 = new Date()
+    hace14.setDate(hace14.getDate() - 14)
+    const { count: pendientes } = await sb
+      .from('appointments')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .in('status', ['scheduled', 'confirmed', 'rescheduled'])
+      .lt('appointment_datetime', current.to)
+      .gte('appointment_datetime', hace14.toISOString())
+    if ((pendientes ?? 0) >= 5) {
+      anomalies.push({
+        type: 'asistencias_sin_marcar',
+        severity: 'warning',
+        title: `Hay ${pendientes ?? 0} agendas pasadas sin marcar asistencia`,
+        metric: 'Asistencias',
+        current: pendientes ?? 0,
+        previous: 0,
+        pct_change: 0,
+        fingerprint: `asistencias_sin_marcar_${wk}`,
+      })
+    }
+  } catch {
+    // La consulta de asistencia es best-effort: si falla, el resto de anomalías sigue viva.
+  }
+
   return anomalies
 }
