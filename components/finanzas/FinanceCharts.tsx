@@ -20,6 +20,10 @@ const tooltipStyle = {
 
 type Slice = { label: string; amount: number }
 
+// Máximo de porciones del anillo (§ skill data-viz: pie con >5 porciones es anti-patrón):
+// top 4 + "Otros" = 5 porciones como tope, agregando por label para no duplicar categorías.
+const MAX_RING_SLICES = 5
+
 /** Only parts of the same positive total belong in a ring; signed amounts stay in the legend. */
 export function FinanceBreakdown({
   title,
@@ -33,6 +37,20 @@ export function FinanceBreakdown({
   const positive = slices.filter((s) => Number.isFinite(s.amount) && s.amount > 0)
   const total = positive.reduce((sum, s) => sum + s.amount, 0)
   const hasNegative = slices.some((s) => s.amount < 0)
+  // Anillo capado: agregado por label (un 'Otros' preexistente se fusiona con el bucket) y top 4.
+  const porLabel = new Map<string, number>()
+  for (const s of positive) porLabel.set(s.label, (porLabel.get(s.label) ?? 0) + s.amount)
+  const ordered = [...porLabel.entries()]
+    .map(([label, amount]) => ({ label, amount }))
+    .sort((a, b) => b.amount - a.amount)
+  const ringSlices: Slice[] =
+    ordered.length > MAX_RING_SLICES
+      ? [
+          ...ordered.slice(0, MAX_RING_SLICES - 1),
+          { label: 'Otros', amount: ordered.slice(MAX_RING_SLICES - 1).reduce((sum, s) => sum + s.amount, 0) },
+        ]
+      : ordered
+  const restantes = slices.filter((s) => !ringSlices.some((r) => r.label === s.label))
   return (
     <section className="dashboard-card flex h-full flex-col p-5">
       <h2 className="text-sm font-medium text-foreground">{title}</h2>
@@ -48,17 +66,17 @@ export function FinanceBreakdown({
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
-                data={positive}
+                data={ringSlices}
                 dataKey="amount"
                 nameKey="label"
                 innerRadius={46}
                 outerRadius={65}
-                paddingAngle={positive.length > 1 ? 4 : 0}
+                paddingAngle={ringSlices.length > 1 ? 4 : 0}
                 cornerRadius={6}
                 stroke="none"
                 isAnimationActive={false}
               >
-                {positive.map((s, i) => (
+                {ringSlices.map((s, i) => (
                   <Cell key={s.label} fill={COLORS[i % COLORS.length]} />
                 ))}
               </Pie>
@@ -68,25 +86,35 @@ export function FinanceBreakdown({
         </div>
       )}
       <ul className="mt-auto space-y-2">
-        {slices.map((s) => (
-          <li key={s.label} className="flex items-start justify-between gap-3 text-xs">
-            <span className="flex items-center gap-2 text-muted-foreground">
-              <span
-                aria-hidden="true"
-                className="h-2 w-2 shrink-0 rounded-full"
-                style={{
-                  background:
-                    s.amount > 0
-                      ? COLORS[positive.findIndex((part) => part.label === s.label) % COLORS.length]
-                      : 'hsl(var(--muted-foreground))',
-                }}
-              />
-              {s.label}
-            </span>
-            <span className="shrink-0 tabular-nums">{formatCurrency(s.amount)}</span>
-          </li>
-        ))}
+        {slices.map((s) => {
+          const enAnillo = ringSlices.findIndex((r) => r.label === s.label)
+          const pct = total > 0 && s.amount > 0 ? Math.round((s.amount / total) * 100) : null
+          return (
+            <li key={s.label} className="flex items-start justify-between gap-3 text-xs">
+              <span className="flex items-center gap-2 text-muted-foreground">
+                <span
+                  aria-hidden="true"
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{
+                    background: enAnillo >= 0 ? COLORS[enAnillo % COLORS.length] : 'hsl(var(--muted-foreground))',
+                  }}
+                />
+                {s.label}
+              </span>
+              <span className="flex shrink-0 items-baseline gap-2 tabular-nums">
+                {pct != null && <span className="text-muted-foreground">{pct}%</span>}
+                {formatCurrency(s.amount)}
+              </span>
+            </li>
+          )
+        })}
       </ul>
+      {restantes.length > 0 && (
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          El anillo muestra el top {Math.min(ringSlices.length, MAX_RING_SLICES - 1)} y agrupa el resto como “Otros”; el
+          desglose completo está en la lista.
+        </p>
+      )}
     </section>
   )
 }
