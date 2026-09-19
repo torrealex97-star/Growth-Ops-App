@@ -138,7 +138,10 @@ export function ControlPagosPersonas({ tenant, q }: { tenant: string; q: string 
     [filtradas]
   )
 
-  const enCurso = (resumen?.clientes ?? 0) - (resumen?.suscripciones ?? 0) - (resumen?.reservasPendientes ?? 0)
+  // Calculado desde personas (no por resta del resumen): debe cuadrar con la sección "En curso".
+  const enCurso = personas.filter(
+    (p) => p.estadoCliente === 'cliente_activo' || p.estadoCliente === 'plan_a_plazos'
+  ).length
 
   return (
     <div className="space-y-6">
