@@ -47,6 +47,9 @@ export const CLASE_TOOL: Record<string, ClaseTool> = {
   getBusinessMemory: 'lectura',
   getDataCoverage: 'lectura',
   getRecentInsights: 'lectura',
+  // Recuperación del conocimiento canónico (skills ventas/marketing): lectura pura, acotada por
+  // tenant en la RPC. La regla de citar categoría/módulo va en la descripción de la tool.
+  searchKnowledge: 'lectura',
   // Anotar un hecho que el usuario acaba de confirmar no mueve dinero ni toca a un cliente: es la
   // memoria del propio agente. Va en su propia clase para que no se confunda con lectura ni con acción.
   recordBusinessFact: 'escritura_memoria',
@@ -247,6 +250,12 @@ export type OpcionesPrompt = {
   screen?: string
   /** El brief del día ya calculado, para no gastar rondas de tools en lo que el panel ya sabe. */
   briefResumen?: string
+  /**
+   * Conocimiento canónico recuperado (RAG) para el tema del turno, ya formateado por
+   * formatearContextoKnowledge (lib/ai/knowledge.ts). El agente además tiene la tool
+   * searchKnowledge para tirar más del hilo: esto es el contexto estático del turno.
+   */
+  knowledgeContexto?: string
 }
 
 /**
@@ -274,6 +283,9 @@ export function construirSystemPrompt(o: OpcionesPrompt): string {
     BLOQUE_CONFIANZA,
     describirContexto(o.contexto ?? CONTEXTO_VACIO),
   ]
+  if (o.knowledgeContexto) {
+    bloques.push(o.knowledgeContexto)
+  }
   if (o.briefResumen) {
     bloques.push(
       `BRIEF DE HOY (ya calculado por el panel; úsalo como punto de partida y no lo recalcules a mano):\n${o.briefResumen}`

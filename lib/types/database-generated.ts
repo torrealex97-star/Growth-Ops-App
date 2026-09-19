@@ -1,4 +1,4 @@
-// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-19T17:44:30.505Z).
+// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-19T19:06:37.779Z).
 // Regenerar con: npm run tipos:bd  (y commitear). El test tests/esquema-tenant-invariante.test.mjs
 // comprueba que este artefacto sigue fresco respecto al esquema vivo.
 // Espejo exacto del esquema public de Supabase; los tipos de APP siguen en lib/types/database.ts.
@@ -3203,6 +3203,53 @@ export type EsquemaPublico = {
         error_message: string | undefined
         detail: Json | undefined
         created_at: string | undefined
+      }
+    }
+    KnowledgeChunks: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        source: string | null
+        module: number | null
+        section: string | null
+        category: string | null
+        title: string | null
+        content: string | null
+        metadata: Json | null
+        is_active: boolean | null
+        created_at: string | null
+        updated_at: string | null
+        embedding: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        source: string | null | undefined
+        module: number | null | undefined
+        section: string | null | undefined
+        category: string | null | undefined
+        title: string | null | undefined
+        content: string | null | undefined
+        metadata: Json | null | undefined
+        is_active: boolean | null | undefined
+        created_at: string | null | undefined
+        updated_at: string | null | undefined
+        embedding: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        source: string | undefined
+        module: number | undefined
+        section: string | undefined
+        category: string | undefined
+        title: string | undefined
+        content: string | undefined
+        metadata: Json | undefined
+        is_active: boolean | undefined
+        created_at: string | undefined
+        updated_at: string | undefined
+        embedding: string | undefined
       }
     }
     KpiDailyReports: {
