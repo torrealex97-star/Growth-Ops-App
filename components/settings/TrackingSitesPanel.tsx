@@ -135,8 +135,8 @@ export function TrackingSitesPanel() {
         </summary>
         <ol className="list-decimal space-y-1.5 px-8 py-3 text-xs leading-relaxed text-muted-foreground">
           <li>
-            <strong className="text-foreground">Crea UN sitio por dominio</strong> (no por página): «Landing VSL» si
-            tu embudo vive en midominio.com. Botón «Añadir sitio» de abajo.
+            <strong className="text-foreground">Crea UN sitio por dominio</strong> (no por página): «Landing VSL» si tu
+            embudo vive en midominio.com. Botón «Añadir sitio» de abajo.
           </li>
           <li>
             <strong className="text-foreground">Pega el MISMO snippet en TODAS las páginas</strong> del dominio (antes
@@ -144,8 +144,8 @@ export function TrackingSitesPanel() {
             distingue las páginas solo por su URL — no hace falta configurar nada por página.
           </li>
           <li>
-            <strong className="text-foreground">Autoriza el dominio</strong> en «Orígenes autorizados» y comprueba
-            que «Eventos 24h» sube de 0 al navegar la web.
+            <strong className="text-foreground">Autoriza el dominio</strong> en «Orígenes autorizados» y comprueba que
+            «Eventos 24h» sube de 0 al navegar la web.
           </li>
         </ol>
         <p className="border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground">

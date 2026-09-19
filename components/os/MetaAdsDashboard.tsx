@@ -33,7 +33,11 @@ const fmts = { eur: fmtEur, num: fmtNum2, int: fmtInt, pct: fmtPct, x: fmtX } as
 
 // ── Tooltip CSS puro (§40): qué es, fórmula y origen ─────────────────────────
 function MetricHint({ text, calculated }: { text: string; calculated?: boolean }) {
-  return <InfoHint text={`${text}\n${calculated ? 'Calculado usando datos de Meta.' : 'Dato directo de la Meta Marketing API.'}`} />
+  return (
+    <InfoHint
+      text={`${text}\n${calculated ? 'Calculado usando datos de Meta.' : 'Dato directo de la Meta Marketing API.'}`}
+    />
+  )
 }
 
 // Badge de origen (§41): pequeño, discreto, con tooltip.
