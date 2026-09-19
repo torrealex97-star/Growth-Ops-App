@@ -112,19 +112,25 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   // Branding: se resuelve SIEMPRE, incluso en login/recover — esas páginas están fuera del
   // `if (isAuthRoute)` de más abajo (que corta antes de tocar Supabase para no exigir sesión
   // donde no la hay), pero también deben verse con la marca/acento de esta subcuenta.
+  // Fuente: RPC `public_tenant_branding` (SECURITY DEFINER que solo devuelve settings->'branding'
+  // del slug pedido). Los anon ya NO leen la tabla `tenants` — solo esta RPC (migración
+  // 20260919110000). Respuesta vacía/unknown slug → resolveTenantBranding pinta los defaults.
   useEffect(() => {
     let mounted = true
     const cancelar = new AbortController()
     void Promise.resolve(
-      createClient().from('tenants').select('settings').eq('slug', tenant).abortSignal(cancelar.signal).maybeSingle()
-    )
-      .then(({ data }) => {
-        if (mounted && !cancelar.signal.aborted && data) setBranding(resolveTenantBranding(data.settings))
-      })
-      .catch((error: unknown) => {
-        if (error instanceof Error && error.name === 'AbortError') return
-        // La marca tiene fallback local; un fallo aquí no debe tumbar el shell ni quedar sin manejar.
-      })
+      createClient()
+        .rpc('public_tenant_branding', { p_slug: tenant })
+        .abortSignal(cancelar.signal)
+        .then(({ data }: { data: { branding: unknown }[] | null }) => {
+          const settings = data?.[0]?.branding ?? null
+          if (mounted && !cancelar.signal.aborted && settings)
+            setBranding(resolveTenantBranding({ branding: settings }))
+        })
+    ).catch((error: unknown) => {
+      if (error instanceof Error && error.name === 'AbortError') return
+      // La marca tiene fallback local; un fallo aquí no debe tumbar el shell ni quedar sin manejar.
+    })
     return () => {
       mounted = false
       cancelar.abort()
