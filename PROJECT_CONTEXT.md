@@ -1,7 +1,7 @@
 # Growth-Ops-App — Contexto del Proyecto
 
 > **Fuente única de verdad** para Claude Code, Codex y Freebuff. Lee este archivo primero.
-> Última actualización: 2026-09-19 (**historial reescrito por filtración de secretos/datos de tenant** — ver §9 y `docs/SECURITY_PRIVACY.md`; auditoría FASE 1-2, hardening y espejo de tipos en la entrada del 18-sep)
+> Última actualización: 2026-09-19 (**historial reescrito por filtración de secretos/datos de tenant** — ver §9 y `docs/SECURITY_PRIVACY.md`; §13: gotchas de sesiones — ediciones perdidas y verificación real)
 
 ---
 
@@ -322,7 +322,7 @@ Leer `docs/ACTIVE_HANDOFF.md` cuando se necesite contexto histórico detallado.
 
 1. **Redeploy obligatorio en Vercel:** tras añadir o modificar `CRON_SECRET` (o cualquier `.env`) en Vercel, ES OBLIGATORIO forzar un redeploy de producción. Sin él, los endpoints responden `401 Unauthorized` porque la función serverless mantiene el runtime antiguo (le pasó a meta-ads/reminders el 18-sep).
 2. **Sintaxis YAML en GitHub Workflows:** SIEMPRE entrecomillar el campo `name` si contiene dos puntos: `name: "cron: meta"` (nunca `name: cron: meta` — rompe el parser de YAML en silencio y GitHub rechaza el `workflow_dispatch` con 422).
-3. **Edición segura de `.env.local`:** al añadir variables por script (`echo "VAR=val" >> .env.local`), verificar antes que el fichero acaba en salto de línea (`\n`); si no, se fusiona con la última línea y corrompe ambas claves (ocurrió con `GHL_WEBHOOK_SECRET` el 18-sep; detectable con `grep -c '^VAR='`).
+3. **Edición segura de `.env.local` y de cualquier fichero por `echo >>`:** al añadir variables por script (`echo "VAR=val" >> .env.local`), verificar antes que el fichero acaba en salto de línea (`\n`); si no, se fusiona con la última línea y corrompe ambas claves (ocurrió con `GHL_WEBHOOK_SECRET` el 18-sep; detectable con `grep -c '^VAR='`). Aplica igual a ficheros de texto editados por script: el mismo defecto fusionó dos secciones de `CLAUDE.md` (19-sep).
 4. **Base de datos (Supabase):** `pg_cron` NO está instalado en la BD. La rotación de `CRON_SECRET` no afecta a trabajos internos de Postgres.
 5. **`CONFIG_ENC_KEY` es la llave maestra de las credenciales de Integraciones y NO tiene recuperación:** las claves secretas se cifran con AES-256-GCM (esquema de `lib/config.ts`, sin cambios desde su introducción) y solo el runtime que guardó la credencial puede leerla. Las env de producción de Vercel marcadas `sensitive` NO se pueden descargar ni por API ni por CLI (`vercel env pull` devuelve `«...»` enmascarado). Si se pierde la clave con la que se cifró (rotación, otro entorno), la credencial queda HUÉRFANA: descifra con GCM autenticado falla (`Unsupported state or unable to authenticate data`) y hay que re-guardarla desde Integraciones. Verificado 19-sep: TODAS las credenciales cifradas de WDC no descifran con la clave local — pero producción sí las usa (Meta sync 15-sep, health `stripe ok`), lo que confirma que prod usa OTRA clave (correcta). Nunca depender de descifrar en scripts externos: el backfill correcto es ejecutar el sync DESDE la app de producción (cron/endpoint), que es quien tiene la clave.
 6. **Runs "cancelled" ≠ errores (19-sep):** el CI lleva `cancel-in-progress: true` — cada push CANCELA el run del anterior. Dos runs cancelled hicieron creer que un push había fallado cuando el run del último commit estaba en success. El único run que valida `main` es el del último commit: compruébalo con `gh run list --commit <sha>` antes de diagnosticar.
@@ -334,3 +334,15 @@ Leer `docs/ACTIVE_HANDOFF.md` cuando se necesite contexto histórico detallado.
 - El secret vive coherente en 3 sitios: GitHub (secret), Vercel Production (+ redeploy) y `.env.local` local.
 - Los runs "failure" de 0s en los `cron-*` son zombis del push de transición YAML: no indican fallo del endpoint.
 - ~~El workflow `CI` (push a main) estuvo en rojo por `format:check` (29 ficheros sin Prettier)~~ **Resuelto 18-sep (commit `8b1712f`): CI en verde** (format + lint + typecheck + dead-code + test + test:metrics + build) — primer run verde del gate en GitHub.
+
+---
+
+## 13. GOTCHAS de sesiones Freebuff — ediciones perdidas y verificación real (19-sep)
+
+Lecciones del barrido data-viz (skill `data-visualization-pro`) que se repitieron DOS veces en la misma sesión. No volver a pagarlas.
+
+1. **Las ediciones del clon `/tmp` NO sobreviven a reinicios ni a merges.** Freebuff reinicia y mata procesos sin tocar ficheros, pero OTRA hebra puede hacer `git checkout`/`merge`/`reset` sobre `/tmp/growthops-preview` y arrastrar tus cambios sin commitear (ocurrió 2 veces con los mismos ficheros de Instagram/paneles). Rutina obligatoria: tras editar en el clon, **commitear o copiar al checkout principal en la misma pasada**; antes de validar, re-verificar con `grep` de un marcador propio que el cambio sigue en disco. Para persistir hacia `~/Documents` sin TCC: `git hash-object -w` + `git cat-file` → tools de fichero (ver CLAUDE.md).
+2. **Typecheck verde ≠ página verificada.** Validar un cambio de gráficas solo compilando deja pasar contenido invisible (hex viejos servidos por bundle cacheado, gráfica que no monta por datos condicionales). Verificación mínima del RENDER: `preview_evaluate` con `getComputedStyle` del elemento Recharts concreto (`.recharts-bar-rectangle path`, `.recharts-area-area`, `.recharts-line-curve`) afirmando el valor esperado (`hsl(var(--brand-500)...)`), + `preview_logs` sin errores. Si el servidor sirvió código viejo tras reinicio: relanzar dev server con la receta de detach y re-registrar la preview.
+3. **Sesión de prueba: cuenta QA por el formulario real.** Entrar con la cuenta QA vía el formulario de login (admin API solo para rotar su contraseña). Nunca cookies copiadas de otra sesión ni credenciales escritas en docs/commits; rotar la contraseña de la cuenta QA al terminar.
+4. **Un solo autor de commits por fichero.** El WIP de otra sesión (comisiones/`stripeFees`) convive en el checkout principal: commitear SIEMPRE con pathspec explícito de tus ficheros (nunca `git add -A` ni `git commit -am`), y comprobar con `git status --short` que lo staged es solo tuyo antes del commit. Si algo ajeno entra staged: `git reset --soft HEAD~1` y rehacer acotado.
+5. **Hex hardcodeados en gráficas = deuda al primer cambio de branding.** Toda nueva gráfica Recharts usa tokens (`hsl(var(--brand-500) / alpha)`, etc.) desde el primer commit. El barrido de `grep -rn "#hex" components/ app/` con listas de las tablas de la skill es el paso de cierre de cualquier tarea visual.

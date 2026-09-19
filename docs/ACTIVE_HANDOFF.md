@@ -1,5 +1,11 @@
 # Relevo activo
 
+## Barrido data-viz (skill data-visualization-pro) — 2026-09-19 (hebra Freebuff)
+
+**Estado:** `b32966c` (FinanceCharts: anillos top-4+"Otros", % en leyenda) y `bd539f9` (Instagram hex→tokens) pusheados con CI verde. En working tree SIN commitear: `DailyMetricsPanel`, `AdsFunnelPanel` y `VslDashboard` ya con tokens de diseño. Pendiente: verificación en vivo de las pestañas Campañas (paneles de ads) y VSL con sesión real — la página VSL no montó su gráfica de retención en la última pasada (probablemente lazy/data condicional) — y commitear esos 3 ficheros.
+
+**Lecciones de esta hebra** (detalladas en `PROJECT_CONTEXT.md` §13): las ediciones del clon `/tmp` NO sobreviven a reinicios de sesión ni a merges de otras hebras (se perdió el mismo cambio 2 veces) — re-verificar con grep antes de validar; typecheck verde ≠ página verificada (comprobar el render con `getComputedStyle` del elemento Recharts); sesión de prueba por formulario real con credencial rotada al terminar, nunca cookies copiadas ni contraseñas documentadas.
+
 ## Base neta de comisiones + lecciones de CI/sesiones — 2026-09-19 (hebra Freebuff)
 
 **Base de comisión neta de pasarela (implementada, sin commitear en MAIN):** la comisión de TODO el
