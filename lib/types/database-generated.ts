@@ -1,4 +1,4 @@
-// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-19T07:21:22.941Z).
+// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-19T17:44:30.505Z).
 // Regenerar con: npm run tipos:bd  (y commitear). El test tests/esquema-tenant-invariante.test.mjs
 // comprueba que este artefacto sigue fresco respecto al esquema vivo.
 // Espejo exacto del esquema public de Supabase; los tipos de APP siguen en lib/types/database.ts.
@@ -952,6 +952,35 @@ export type EsquemaPublico = {
         link_clicks: number | string | undefined
         landing_views: number | string | undefined
         tenant_id: string | undefined
+      }
+    }
+    CampaignFunnelAssignments: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        campaign_id: string | null
+        funnel_type: string | null
+        custom_funnel_id: string | null
+        assigned_by: string | null
+        assigned_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        campaign_id: string | null | undefined
+        funnel_type: string | null | undefined
+        custom_funnel_id: string | null | undefined
+        assigned_by: string | null | undefined
+        assigned_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        campaign_id: string | undefined
+        funnel_type: string | undefined
+        custom_funnel_id: string | undefined
+        assigned_by: string | undefined
+        assigned_at: string | undefined
       }
     }
     CampaignTargets: {
