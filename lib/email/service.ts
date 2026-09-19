@@ -29,9 +29,9 @@ import {
 } from './resend'
 import { defaultBody, defaultSubject, templateVars, renderTemplate, expandSkeletonDirectives } from './templates'
 import type { EmailTemplateKey, EmailVars } from './templates'
+import type { EmailStatus } from './estados'
+import { mapResendEventToStatus, shouldAdvanceStatus } from './estados'
 import type { CompanyProfile } from '@/lib/contracts/company'
-
-export type EmailStatus = 'QUEUED' | 'SENT' | 'DELIVERED' | 'OPENED' | 'CLICKED' | 'BOUNCED' | 'COMPLAINED' | 'FAILED'
 
 export type EmailAttachment = {
   filename: string
@@ -113,18 +113,15 @@ export async function resolveTenantTemplate(
   return { subject: defaultSubject(key, vars), html: defaultBody(key, vars), disabled: false }
 }
 
-// ── Envío único por tipo (resend.ts sigue siendo el provider; aquí el orquestado) ──
-type SendFn = (opts: Record<string, unknown>) => Promise<{ ok: boolean; error?: string; messageId?: string }>
-
-// La mayoría de send* de resend.ts aún no devuelven el id del proveedor: se
-// registra lo que hay (subject/from/error) y el webhook asocia por identidad
-// de envío si hiciera falta. El id real de Resend queda en el payload del webhook.
+// El id del proveedor llega de los send* (data.id de Resend) y queda en
+// provider_message_id: es la clave con la que el webhook asocia los eventos
+// de entrega. En fallo no hay id (status FAILED sin provider_message_id).
 async function recordMessage(
   sb: SupabaseClient,
   input: EmailSendInput,
   identity: TenantEmailIdentity,
   company: CompanyProfile,
-  result: { ok: boolean; error?: string },
+  result: { ok: boolean; error?: string; messageId?: string },
   fromEmail: string,
   subject: string,
   usedGlobalFallback: boolean
@@ -133,6 +130,7 @@ async function recordMessage(
     await sb.from('email_messages').insert({
       tenant_id: input.tenantId,
       template_key: input.templateKey,
+      provider_message_id: result.ok ? (result.messageId ?? null) : null,
       to_email: input.recipient,
       cc_json: input.cc ? (Array.isArray(input.cc) ? input.cc : [input.cc]) : null,
       bcc_json: input.bcc ? (Array.isArray(input.bcc) ? input.bcc : [input.bcc]) : null,
@@ -161,8 +159,8 @@ async function dispatchByTemplateKey(
   input: EmailSendInput,
   identity: TenantEmailIdentity,
   company: CompanyProfile,
-  mail: { RESEND_API_KEY?: string; RESEND_FROM?: string }
-): Promise<{ ok: boolean; error?: string }> {
+  mail: { RESEND_API_KEY?: string; RESEND_FROM?: string; REPLY_TO?: string }
+): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   const common = { mail, to: input.recipient, company }
   switch (input.templateKey) {
     case 'invite':
@@ -268,50 +266,13 @@ export async function sendEmail(input: EmailSendInput): Promise<EmailSendResult>
   }
 
   const result = await dispatchByTemplateKey(input, identity, input.company, mail)
+  // dispatchByTemplateKey devuelve el shape de los send* (ok/error/messageId)
 
   const fromEmail = identity.fromEmail || mail.RESEND_FROM || `${input.company.name} <onboarding@resend.dev>`
   await recordMessage(sb, input, identity, input.company, result, fromEmail, tpl.subject, usedGlobalFallback)
 
-  return { ok: result.ok, error: result.error, usedGlobalFallback }
+  return { ok: result.ok, error: result.error, messageId: result.messageId, usedGlobalFallback }
 }
 
-// Mapper de eventos del webhook (namespace de Resend) → estado interno.
-export function mapResendEventToStatus(type: string): EmailStatus | null {
-  switch (type) {
-    case 'email.sent':
-      return 'SENT'
-    case 'email.delivered':
-      return 'DELIVERED'
-    case 'email.opened':
-      return 'OPENED'
-    case 'email.clicked':
-      return 'CLICKED'
-    case 'email.bounced':
-    case 'email.bounced.hard':
-    case 'email.bounced.soft':
-      return 'BOUNCED'
-    case 'email.complained':
-      return 'COMPLAINED'
-    case 'email.failed':
-      return 'FAILED'
-    default:
-      return null
-  }
-}
-
-// ¿El nuevo estado avanza la línea temporal? (no retroceder DELIVERED→SENT)
-const ORDER: Record<EmailStatus, number> = {
-  QUEUED: 0,
-  SENT: 1,
-  DELIVERED: 2,
-  OPENED: 3,
-  CLICKED: 4,
-  BOUNCED: 5,
-  COMPLAINED: 5,
-  FAILED: 5,
-}
-export function shouldAdvanceStatus(current: string, next: EmailStatus): boolean {
-  return (ORDER[next] ?? 0) > (ORDER[current as EmailStatus] ?? 0)
-}
-
-export { expandSkeletonDirectives }
+export { expandSkeletonDirectives, mapResendEventToStatus, shouldAdvanceStatus }
+export type { EmailStatus }

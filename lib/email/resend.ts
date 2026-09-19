@@ -14,6 +14,10 @@ import type { EmailTemplateKey, EmailVars } from './templates'
 // acabar firmando los correos de otra. `process.env` queda como fallback para los flujos públicos
 // (firma de contratos por enlace) que no tienen subcuenta resuelta.
 //
+// IDENTIDAD DE MENSAJE: los send* devuelven `messageId` (el id `re_…` que Resend
+// asigna en el momento del envío, `data.id` de la respuesta). EmailService lo
+// persiste en email_messages.provider_message_id y el webhook asocia así los
+// eventos (delivered/opened/…) con el envío. En fallo no hay id.
 // PLANTILLAS: asunto y cuerpo salen de la plantilla de la subcuenta (tabla email_templates,
 // editable en Configuración › Correos) o del default del catálogo (lib/email/templates.ts)
 // si no hay override. `resolveTemplate` falla en silencio al default: un problema de lectura
@@ -100,13 +104,13 @@ export async function sendInviteEmail(opts: {
   fullName: string
   company: CompanyProfile
   url: string
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
     const resend = new Resend(resendKey(opts.mail))
     const vars: EmailVars = { company: opts.company, memberName: opts.fullName, url: opts.url }
     const tpl = await resolveTemplate('invite', opts.company, vars)
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
       ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
@@ -114,7 +118,7 @@ export async function sendInviteEmail(opts: {
       html: tpl.html,
     })
     if (error) return { ok: false, error: error.message }
-    return { ok: true }
+    return { ok: true, messageId: data?.id }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
@@ -127,12 +131,12 @@ export async function sendRecoveryEmail(opts: {
   to: string
   company: CompanyProfile
   url: string
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
     const resend = new Resend(resendKey(opts.mail))
     const tpl = await resolveTemplate('recovery', opts.company, { company: opts.company, url: opts.url })
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
       ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
@@ -140,7 +144,7 @@ export async function sendRecoveryEmail(opts: {
       html: tpl.html,
     })
     if (error) return { ok: false, error: error.message }
-    return { ok: true }
+    return { ok: true, messageId: data?.id }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
@@ -157,7 +161,7 @@ export async function sendSignedContractEmail(opts: {
   company: CompanyProfile
   pdfUrl: string | null
   pdfBytes?: Uint8Array | null
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
     const resend = new Resend(resendKey(opts.mail))
@@ -172,7 +176,7 @@ export async function sendSignedContractEmail(opts: {
     const attachments = opts.pdfBytes
       ? [{ filename: 'contrato-firmado.pdf', content: Buffer.from(opts.pdfBytes) }]
       : undefined
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
       ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
@@ -182,7 +186,7 @@ export async function sendSignedContractEmail(opts: {
       ...(attachments ? { attachments } : {}),
     })
     if (error) return { ok: false, error: error.message }
-    return { ok: true }
+    return { ok: true, messageId: data?.id }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
@@ -202,7 +206,7 @@ export async function sendTaskAssignedEmail(opts: {
   dueDate?: string | null
   priority?: string | null
   url: string
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
     const resend = new Resend(resendKey(opts.mail))
@@ -215,7 +219,7 @@ export async function sendTaskAssignedEmail(opts: {
       dueDate: opts.dueDate,
       priority: opts.priority,
     })
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
       ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
@@ -223,7 +227,7 @@ export async function sendTaskAssignedEmail(opts: {
       html: tpl.html,
     })
     if (error) return { ok: false, error: error.message }
-    return { ok: true }
+    return { ok: true, messageId: data?.id }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
@@ -240,7 +244,7 @@ export async function sendStudentContractEmail(opts: {
   company: CompanyProfile
   signUrl: string
   welcome: string
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
     const resend = new Resend(resendKey(opts.mail))
@@ -250,7 +254,7 @@ export async function sendStudentContractEmail(opts: {
       url: opts.signUrl,
       welcome: opts.welcome,
     })
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
       ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
@@ -258,7 +262,7 @@ export async function sendStudentContractEmail(opts: {
       html: tpl.html,
     })
     if (error) return { ok: false, error: error.message }
-    return { ok: true }
+    return { ok: true, messageId: data?.id }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
@@ -276,7 +280,7 @@ export async function sendStudentOnboardingEmail(opts: {
   studentName: string
   company: CompanyProfile
   landingUrl?: string
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
     const resend = new Resend(resendKey(opts.mail))
@@ -285,7 +289,7 @@ export async function sendStudentOnboardingEmail(opts: {
       memberName: opts.studentName,
       url: opts.landingUrl || ONBOARDING_LANDING_URL,
     })
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
       ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
@@ -293,7 +297,7 @@ export async function sendStudentOnboardingEmail(opts: {
       html: tpl.html,
     })
     if (error) return { ok: false, error: error.message }
-    return { ok: true }
+    return { ok: true, messageId: data?.id }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
@@ -308,7 +312,7 @@ export async function sendStudentSignedEmail(opts: {
   company: CompanyProfile
   pdfUrl: string | null
   pdfBytes?: Uint8Array | null
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
     const resend = new Resend(resendKey(opts.mail))
@@ -317,7 +321,7 @@ export async function sendStudentSignedEmail(opts: {
     const attachments = opts.pdfBytes
       ? [{ filename: 'contrato-firmado.pdf', content: Buffer.from(opts.pdfBytes) }]
       : undefined
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
       ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
@@ -326,7 +330,7 @@ export async function sendStudentSignedEmail(opts: {
       ...(attachments ? { attachments } : {}),
     })
     if (error) return { ok: false, error: error.message }
-    return { ok: true }
+    return { ok: true, messageId: data?.id }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
@@ -343,7 +347,7 @@ export async function sendContractEmail(opts: {
   memberName: string
   company: CompanyProfile
   signUrl: string
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
     const resend = new Resend(resendKey(opts.mail))
@@ -355,7 +359,7 @@ export async function sendContractEmail(opts: {
       .map((c) => norm(c))
       .filter((c) => c && c !== to)
     const cc = Array.from(new Set(ccList))
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
       ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
@@ -364,7 +368,7 @@ export async function sendContractEmail(opts: {
       html: tpl.html,
     })
     if (error) return { ok: false, error: error.message }
-    return { ok: true }
+    return { ok: true, messageId: data?.id }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
