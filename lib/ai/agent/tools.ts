@@ -9,6 +9,11 @@ import { computeAdFunnel, perCampaign, type AdFunnel } from '@/lib/ads/funnel'
 import { buildContactTimeline, type TimelineEvent } from '@/lib/contact-timeline'
 import { isActiveSale } from '@/lib/analytics'
 import { getMetricDefinition as lookupMetricDefinition } from '@/lib/ai/metrics/registry'
+import { searchKnowledge as buscarKnowledgeChunks, type KnowledgeCategory } from '@/lib/ai/knowledge'
+
+// El gateway referencia `tools.KnowledgeCategory` en el schema de la tool: re-exportar el tipo
+// mantiene la definición en un solo sitio (lib/ai/knowledge.ts).
+export type { KnowledgeCategory }
 import type { Campaign, ContactAttribution, Appointment, Sale, ContactNote } from '@/lib/types/database'
 
 export type ToolContext = { tenantId: string; sb: SupabaseClient; userId?: string }
@@ -23,6 +28,47 @@ const inPeriod = (dateStr: string | null, p: Period): boolean => {
   if (p.from && d < p.from) return false
   if (p.to && d > p.to) return false
   return true
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// searchKnowledge — recuperación RAG del conocimiento canónico (skills de ventas y marketing).
+// Las fórmulas y guiones viven en la base (knowledge_chunks): el agente los RECUPERA en vez de
+// improvisarlos (regla de CLAUDE.md). El tenant va cerrado por ToolContext y la RPC filtra por
+// p_tenant; las categorías se exponen al modelo para afinar la búsqueda sin abrir el scope.
+// ─────────────────────────────────────────────────────────────────────────────
+export type KnowledgeHit = {
+  id: string
+  category: string
+  title: string
+  content: string
+  source: string
+  module: number
+  section: string
+}
+
+export async function searchKnowledge(
+  ctx: ToolContext,
+  query: string,
+  categories?: KnowledgeCategory[],
+  limit = 5
+): Promise<KnowledgeHit[]> {
+  const r = await buscarKnowledgeChunks(ctx.sb, ctx.tenantId, query, { categories, limit })
+  // Error de la RPC (tabla sin migrar, pgvector ausente...): se degrada a lista vacía — la tool
+  // NO debe tumbar el turno del agente por un problema de índice de conocimiento. El gateway
+  // registra el aviso en su log para detectar ingesta pendiente.
+  if (!r.ok) {
+    console.warn(`[knowledge] búsqueda fallida para tenant ${ctx.tenantId}: ${r.error}`)
+    return []
+  }
+  return r.chunks.map((c) => ({
+    id: c.id,
+    category: c.category,
+    title: c.title,
+    content: c.content,
+    source: c.source,
+    module: c.module,
+    section: c.section,
+  }))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

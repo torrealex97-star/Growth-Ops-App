@@ -11,6 +11,7 @@ import { deepseekModel, selectEngine, type AiEnv } from '@/lib/ai/provider'
 import { estimateCostUsd } from '@/lib/ai/pricing'
 import { autorizarTool, construirSystemPrompt, type ContextoNegocio } from '@/lib/ai/agent/growth-operator'
 import { avisoRespuestaCortada, serializarResultadoTool } from '@/lib/ai/agent/serializar'
+import { searchKnowledge, formatearContextoKnowledge } from '@/lib/ai/knowledge'
 import * as tools from './tools'
 import { formatCurrency, formatPercent } from '@/lib/utils'
 
@@ -213,6 +214,41 @@ const TOOL_DEFS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'searchKnowledge',
+    description:
+      'Recupera conocimiento canónico del sistema (skills de ventas y marketing): guiones textuales de cierre y objeciones, fórmulas de KPIs con sus targets, frameworks de posicionamiento, embudos y copywriting. Úsalo SIEMPRE antes de citar una fórmula de métrica o recitar un guion de venta, y cuando te pregunten cómo hacer algo del oficio (cómo manejar una objeción, cómo estructurar un VSL, cómo diagnosticar el funnel). Cita la categoría y el módulo del fragmento.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Qué buscar: "objeción descuento", "fórmula CAC", "estructura VSL"...' },
+        categories: {
+          type: 'array',
+          items: {
+            type: 'string',
+            enum: [
+              'objection_handling',
+              'pain_cycle',
+              'kpis',
+              'frame_control',
+              'hiring',
+              'prospecting',
+              'post_call',
+              'uvp_and_angles',
+              'avatar_icp',
+              'funnel_architecture',
+              'copywriting_swipe',
+              'marketing_metrics',
+            ],
+          },
+          description:
+            'Filtra por categoría (opcional). kpis/marketing_metrics para métricas; objection_handling/frame_control para ejecución de venta.',
+        },
+        limit: { type: 'number', description: 'Máximo de fragmentos (por defecto 5, máximo 10)' },
+      },
+      required: ['query'],
+    },
+  },
+  {
     name: 'getDataCoverage',
     description:
       'Qué fuentes de datos tienen información cargada en este negocio y desde qué fecha hasta cuál (ventas, campañas/ads, cobros, contactos, citas, atribución). Úsala SIEMPRE que una métrica salga 0 o vacía, y antes de afirmar cualquier cosa "desde el lanzamiento" o "en todo el histórico": si la fuente está vacía o solo cubre parte del periodo, el 0 no es un resultado del negocio sino falta de datos, y hay que decirlo.',
@@ -355,6 +391,21 @@ async function callTool(
       const r = await tools.getBusinessMemory(ctx, input.type as string | undefined)
       return { result: r, summary: `${r.length} hecho(s) en la memoria de negocio` }
     }
+    case 'searchKnowledge': {
+      const r = await tools.searchKnowledge(
+        ctx,
+        String(input.query || ''),
+        input.categories as tools.KnowledgeCategory[] | undefined,
+        Math.min(Number(input.limit) || 5, 10)
+      )
+      return {
+        result: r,
+        summary:
+          r.length > 0
+            ? `${r.length} fragmento(s) canónico(s) sobre "${input.query}"`
+            : 'Sin coincidencias en la base de conocimiento',
+      }
+    }
     case 'getDataCoverage': {
       const r = await tools.getDataCoverage(ctx)
       return {
@@ -418,11 +469,30 @@ export async function runAgent(opts: {
   const messages: Anthropic.MessageParam[] = opts.history.map((m) => ({ role: m.role, content: m.content }))
 
   // Se construye una vez: es el mismo prompt en todas las rondas de tool-use del turno.
+  // CONTEXTO RAG DEL TURNO: búsqueda de conocimiento con el último mensaje del usuario (acotada,
+  // falla suave). Complementa a la tool searchKnowledge: aquí el agente ARRANCA con los fragmentos
+  // relevantes ya en el prompt; la tool le sirve para tirar más del hilo cuando los necesite.
+  let knowledgeContexto: string | undefined
+  try {
+    const lastUser = [...opts.history].reverse().find((m) => m.role === 'user')?.content
+    if (lastUser && lastUser.trim().length >= 8) {
+      const kr = await searchKnowledge(opts.sb, opts.tenantId, lastUser, { limit: 3 })
+      if (kr.ok && kr.chunks.length > 0) {
+        knowledgeContexto = formatearContextoKnowledge(kr.chunks)
+      }
+    }
+  } catch (e) {
+    // La disponibilidad de la base de conocimiento no puede tumbar el turno: sin resultados, el
+    // agente simplemente no lleva contexto estático y depende de sus tools.
+    console.warn('[knowledge] contexto RAG del turno no disponible:', e instanceof Error ? e.message : e)
+  }
+
   const system = construirSystemPrompt({
     tenantName: opts.tenantName,
     screen: opts.screen,
     contexto: opts.contexto,
     briefResumen: opts.briefResumen,
+    knowledgeContexto,
   })
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
