@@ -1,7 +1,7 @@
 # Growth-Ops-App — Contexto del Proyecto
 
 > **Fuente única de verdad** para Claude Code, Codex y Freebuff. Lee este archivo primero.
-> Última actualización: 2026-09-18 (auditoría FASE 1-2 + hardening: hooks exhaustivos 49→0, 34 API routes con try/catch, índices FK aplicados en producción — advisor 95→0 —, **knip 32→0**, **invariante multitenant en CI** y espejo de tipos del esquema vivo)
+> Última actualización: 2026-09-19 (**historial reescrito por filtración de secretos/datos de tenant** — ver §9 y `docs/SECURITY_PRIVACY.md`; auditoría FASE 1-2, hardening y espejo de tipos en la entrada del 18-sep)
 
 ---
 
@@ -241,7 +241,7 @@ Ver `.env.local.example` para la lista completa. Resumen:
 
 - **Clon de trabajo:** `/tmp/growthops-preview` (necesario por sandbox TCC)
 - **Servidor:** launchd job `growthops-dev`, puerto 3000
-- **Node:** `/Users/[tenant]/Library/Caches/ms-playwright-go/1.57.0/node`
+- **Node:** el binario de Playwright (`/Users/*/Library/Caches/ms-playwright-go/*/node`) — resolver con glob, nunca rutas personales
 - **Sync:** Editar en checkout principal → copiar archivos modificados al clon → hot-reload
 - **Conexión directa a Postgres:** `db.<ref>.supabase.co` no resuelve desde el sandbox (ni IPv4 ni IPv6). Usar el pooler `aws-1-eu-west-1.pooler.supabase.com:5432` con usuario `postgres.<ref>` y `ssl: 'require'` (el clúster `aws-0` rechaza el tenant: "tenant not found")
 - **Run doc:** `.freebuff/run.md` con procedimientos detallados
@@ -253,14 +253,25 @@ Ver `.env.local.example` para la lista completa. Resumen:
 
 - **Remote:** `https://github.com/torrealex97-star/Growth-Ops-App.git`
 - **Branch principal:** `main`
-- **Último commit:** `8b1712f` — "style: formatea deuda de Prettier (29 ficheros) para desbloquear format:check del CI"
-- **Historial reciente:** prettier CI verde (8b1712f) + docs crons GHA (0e8b265) + fix YAML names (13ad8e8) + workflows crons (be082ad) + caso F pixel (7b62fa8) + skills del stack (815d1c9) + is_monitoring (c90b00b) + docs crons recorte (72f4ec0)
+- **Último commit:** ver `git log --oneline -1` (el historial se reescribió el 2026-09-19; los SHAs citados en docs antiguos ya no existen) — ver §9
 - **Antes de push:** Ejecutar `npm run quality` completo (ahora gateado también por CI en cada push a main: format → lint → typecheck → dead-code → test → test:metrics → build)
 - **Vercel:** Deploy automático al hacer push a `main` → `https://growth-ops-weld.vercel.app`
 
 ---
 
-## 9. Handoff doc
+## 9. Seguridad y privacidad
+
+**2026-09-19: historial reescrito con `git filter-repo`** (force-push; SHAs nuevos desde el primer commit). Motivo: la historia contenía una private key de Google service account, emails reales, un webhook secret, credenciales de staging y marcas/nombres de clientes de un tenant. Todo purgado (los blobs antiguos llevan el marcador de redacción, reparado después a placeholders legibles), ficheros de marketing del tenant eliminados de la historia y autores anonimizados a `alex@growthops.dev`.
+
+- **Regla permanente:** el repo puede ser público — nada que identifique un tenant, persona o credencial entra en un commit (código, comentarios, docs, mensajes). Lista cerrada de lo prohibido y procedimiento de purga en `docs/SECURITY_PRIVACY.md`.
+- **Pendiente de rotar (lado usuario):** la Google SA afectada (borrar la key en IAM), `GHL_WEBHOOK_SECRET` (era débil y activo) y las credenciales de staging documentadas — la contraseña que estaba en `docs/FLUJO-DEPLOY.md` estuvo expuesta en el historial, así que rota también ese login.
+- **Los `refs/pull/*` de GitHub retienen commits viejos** (~90 días, no se borran con git): para publicar sin esperar, recrear el repo desde el historial limpio.
+- **Backup pre-rewrite** con los datos viejos: `/tmp/growthops-backup-mirror.git` — borrar tras verificar que todo funciona.
+- Tras un filter-repo: si el working tree se ve viejo o sucio, `git reset --hard HEAD` (el index queda desalineado tras el fast-import).
+
+---
+
+## 10. Handoff doc
 
 `docs/ACTIVE_HANDOFF.md` contiene el historial detallado de todas las sesiones de Claude Code y Codex, incluyendo:
 
@@ -294,10 +305,11 @@ Leer `docs/ACTIVE_HANDOFF.md` cuando se necesite contexto histórico detallado.
 - Launchd para procesos persistentes (sobreviven reinicios).
 - Usar Finder vía AppleScript para copiar archivos desde `~/Documents`.
 - `PROJECT_CONTEXT.md` se actualiza con cada PR mergeado; mantenerlo como fuente única de verdad.
+- **Privacidad:** cero datos de tenants/personas/credenciales en commits — ver §9 y `docs/SECURITY_PRIVACY.md`.
 
 ---
 
-## 11. GOTCHAS de arquitectura — Crons, Vercel & GitHub Actions
+## 12. GOTCHAS de arquitectura — Crons, Vercel & GitHub Actions
 
 ### Arquitectura de Crons (límite Vercel Free)
 

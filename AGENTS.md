@@ -33,6 +33,15 @@ Codex y Claude Code trabajan **por relevos, no en paralelo**. La regla operativa
 - **Ante la duda, no decidas: encola.** Si no se puede saber a qué registro pertenece un dato externo, va a una cola de revisión humana. Escribirlo "en todos los candidatos por si acaso" corrompe datos y encima parece idempotente. Ver `lib/fathom/match.ts`.
 - **No inventes datos financieros ni vocabularios.** Si `sales` exige un producto que el pago externo no indica, el resultado es un informe con la decisión pendiente, no un importe elegido a dedo. Y si `canonical_events.event_name` es texto libre, el mapeo lo elige el usuario. Ver `lib/finance/stripeBackfill.ts`.
 
+## Seguridad y privacidad: el repo puede ser público
+
+El historial ya se tuvo que reescribir (2026-09-19) por secretos y datos de tenants commiteados.
+Regla única: **nada que identifique una persona, empresa, tenant o credencial entra en un commit**
+— ni en código, ni en comentarios, ni en docs, ni en mensajes, ni "solo en privado". Los datos de
+cada tenant viven en su BD y env vars; el repo es la herramienta, no su registro. Placeholders
+neutros para ejemplos, cero credenciales reales (tampoco las de staging), y ante una filtración:
+rotar primero, purgar después. Lista cerrada y procedimiento en `docs/SECURITY_PRIVACY.md`.
+
 ## Migraciones: dry-run obligatorio
 
 Antes de aplicar una migración, pruébala con `BEGIN … ROLLBACK` comprobando el **comportamiento** (que la constraint rechaza lo que debe, que el único no es global, que un re-sync actualiza en vez de duplicar), no solo que la DDL compile. En la sesión del 2026-09-13 ese paso cazó un mensaje de error mal formado, un id de destino nulo y un unique que habría sido global — todo antes de tocar producción.

@@ -9,6 +9,8 @@ npm run dev       # next dev en localhost:3000
 ```
 
 ## Convenciones clave
+- **Privacidad (obligatorio):** nada de tenants, personas o credenciales en commits — ni en docs,
+  comentarios ni "solo en privado". Placeholders neutros y procedimiento en `docs/SECURITY_PRIVACY.md`
 - Helpers de formato: `formatNumber`/`formatPercent` de `@/lib/utils` (NO inline `toLocaleString`)
 - API routes: `app/api/[tenant]/evergreen/...` con `requireTenant()` de `lib/auth/`
 - Tests: `tests/*.test.mjs` con Node.js test runner nativo

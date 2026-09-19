@@ -42,7 +42,9 @@ Scripts equivalentes sin instalación global: `npm run mcp:supabase`, `mcp:searc
 - **Responde conciso**: resúmenes con bullets, sin repetir el contenido de los archivos.
 
 ## Convenciones clave
-- Helpers de formato: `formatNumber`/`formatPercent` de `@/lib/utils` (NO inline `toLocaleString`)
+- **Privacidad (obligatorio):** nada de tenants, personas o credenciales en commits — ni en docs,
+  comentarios ni "solo en privado". Placeholders neutros y procedimiento en `docs/SECURITY_PRIVACY.md`
+- Helpers de formato: `formatNumber`/`formatPercent` de `@/lib/utils` (NO inline `toLocaleString`))
 - API routes: `app/api/[tenant]/evergreen/...` con `requireTenant()` de `lib/auth/`
 - Tests: `tests/*.test.mjs` con Node.js test runner nativo
 - Multi-tenancy: Rutas `[tenant]/...` con RLS en Supabase
