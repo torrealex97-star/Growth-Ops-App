@@ -127,6 +127,34 @@ export function TrackingSitesPanel() {
         </div>
       </div>
 
+      {/* Guía rápida: la confusión típica es creer que se necesita un pixel por página o que el
+          embudo se configura aquí. Un sitio = un dominio = UN snippet para TODAS sus páginas. */}
+      <details className="rounded-lg border border-border bg-muted/30">
+        <summary className="cursor-pointer select-none px-4 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground">
+          ¿Cómo pixelo mi embudo? (3 pasos, 2 minutos)
+        </summary>
+        <ol className="list-decimal space-y-1.5 px-8 py-3 text-xs leading-relaxed text-muted-foreground">
+          <li>
+            <strong className="text-foreground">Crea UN sitio por dominio</strong> (no por página): «Landing VSL» si
+            tu embudo vive en midominio.com. Botón «Añadir sitio» de abajo.
+          </li>
+          <li>
+            <strong className="text-foreground">Pega el MISMO snippet en TODAS las páginas</strong> del dominio (antes
+            de &lt;/head&gt;): la portada, la VSL, el webinar y la página de gracias llevan el mismo código. El pixel
+            distingue las páginas solo por su URL — no hace falta configurar nada por página.
+          </li>
+          <li>
+            <strong className="text-foreground">Autoriza el dominio</strong> en «Orígenes autorizados» y comprueba
+            que «Eventos 24h» sube de 0 al navegar la web.
+          </li>
+        </ol>
+        <p className="border-t border-border/60 px-4 py-2.5 text-xs text-muted-foreground">
+          Las etapas del embudo (qué página es la VSL, cuál el webinar, cuál la gracias) se eligen en los dashboards:
+          Métricas y KPIs › filtro de embudo, y Marketing › Campañas › «Configurar funnels». Aquí solo se envían
+          eventos.
+        </p>
+      </details>
+
       {error && <p className="text-sm text-red-400">{error}</p>}
 
       {sites === null && !error && (
@@ -181,7 +209,7 @@ export function TrackingSitesPanel() {
 
               <div className="space-y-1.5">
                 <p className="text-xs text-muted-foreground">
-                  Pega esto antes de &lt;/head&gt; en la web
+                  Este MISMO snippet va en todas las páginas del dominio, antes de &lt;/head&gt;
                   {site.allowed_origins.length > 0
                     ? ` (orígenes: ${site.allowed_origins.join(', ')})`
                     : ' (sin orígenes autorizados: el pixel rechazará eventos hasta que añadas el dominio)'}
