@@ -41,6 +41,7 @@ export default function ProductsPage() {
   const [planPayments, setPlanPayments] = useState('1')
   const [planProvider, setPlanProvider] = useState('')
   const [planRatio, setPlanRatio] = useState('1')
+  const [planFeePercent, setPlanFeePercent] = useState('0')
   const [planSortOrder, setPlanSortOrder] = useState('0')
 
   const fetchData = useCallback(async () => {
@@ -88,6 +89,7 @@ export default function ProductsPage() {
     setPlanPayments('1')
     setPlanProvider('')
     setPlanRatio('1')
+    setPlanFeePercent('0')
     setPlanSortOrder('0')
     setPlanDialog(true)
   }
@@ -101,6 +103,7 @@ export default function ProductsPage() {
     setPlanPayments(String(plan.number_of_payments))
     setPlanProvider(plan.financing_provider ?? '')
     setPlanRatio(String(plan.cash_collection_ratio))
+    setPlanFeePercent(String(plan.fee_percent ?? 0))
     setPlanSortOrder(String(plan.sort_order))
     setPlanDialog(true)
   }
@@ -160,6 +163,9 @@ export default function ProductsPage() {
       number_of_payments: parseInt(planPayments),
       financing_provider: planProvider || null,
       cash_collection_ratio: parseFloat(planRatio),
+      // % de coste de plataforma/pasarela sobre lo cobrado: referencia pública de la
+      // comisión de plataforma para ventas manuales (base neta del motor de comisiones).
+      fee_percent: planFeePercent.trim() === '' ? 0 : Math.min(100, Math.max(0, parseFloat(planFeePercent) || 0)),
       sort_order: parseInt(planSortOrder),
       is_active: true,
     }
@@ -308,6 +314,9 @@ export default function ProductsPage() {
                             </p>
                           </div>
                           <span className="text-xs text-muted-foreground">ratio: {plan.cash_collection_ratio}</span>
+                          <span className="text-xs text-muted-foreground">
+                            comisión plataforma: {(plan.fee_percent ?? 0) > 0 ? `${plan.fee_percent}%` : '—'}
+                          </span>
                           <div className="flex gap-1">
                             <Button
                               variant="ghost"
@@ -457,15 +466,32 @@ export default function ProductsPage() {
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Orden</Label>
-              <Input
-                type="number"
-                min="0"
-                value={planSortOrder}
-                onChange={(e) => setPlanSortOrder(e.target.value)}
-                className="bg-muted border-border"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Orden</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={planSortOrder}
+                  onChange={(e) => setPlanSortOrder(e.target.value)}
+                  className="bg-muted border-border"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Comisión plataforma (%)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={planFeePercent}
+                  onChange={(e) => setPlanFeePercent(e.target.value)}
+                  className="bg-muted border-border"
+                />
+                <p className="text-xs text-muted-foreground">
+                  % que se lleva la pasarela. Se descuenta de la base de comisión del equipo en cobros manuales.
+                </p>
+              </div>
             </div>
             <div className="flex justify-end gap-3">
               <Button variant="outline" onClick={() => setPlanDialog(false)} disabled={submitting}>
