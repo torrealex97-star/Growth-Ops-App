@@ -190,6 +190,79 @@
   letter-spacing: 0.02em;
 }
 
+/* Acceso directo sin sesión: campo de dirección + botón Entrar. Misma gramática que
+   .go-tile (borde nítido, fill ghost, foco con línea fuerte) — acento neutro porque
+   aún no conocemos el tenant. */
+.go-direct {
+  display: flex;
+  width: 100%;
+  border: 1px solid var(--go-line);
+  background: var(--go-fill-ghost);
+  transition:
+    background 0.25s ease,
+    border-color 0.25s ease;
+}
+.go-direct:focus-within {
+  background: var(--go-fill-solid);
+  border-color: var(--go-line-strong);
+}
+.go-direct__input {
+  flex: 1;
+  min-width: 0;
+  padding: clamp(14px, 1.2vw, 20px) clamp(16px, 1.4vw, 24px);
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: var(--go-text);
+  font: inherit;
+  font-weight: 300;
+  font-size: clamp(13px, 0.94vw, 17px);
+  letter-spacing: 0.06em;
+}
+.go-direct__input::placeholder {
+  color: var(--go-text-dimmer);
+}
+.go-direct__btn {
+  padding: 0 clamp(16px, 1.4vw, 24px);
+  background: transparent;
+  border: 0;
+  border-left: 1px solid var(--go-line);
+  color: var(--go-text-dim);
+  font: inherit;
+  font-weight: 400;
+  font-size: clamp(10px, 0.72vw, 12px);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color 0.25s ease,
+    background 0.25s ease;
+}
+.go-direct__btn:hover:not(:disabled),
+.go-direct__btn:focus-visible:not(:disabled) {
+  background: var(--go-fill-solid);
+  color: var(--go-text);
+}
+.go-direct__btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.go-direct__label {
+  font-weight: 400;
+  font-size: clamp(10px, 0.72vw, 12px);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--go-text-dimmer);
+}
+.go-direct__hint {
+  font-weight: 300;
+  font-size: clamp(11px, 0.78vw, 14px);
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  color: var(--go-text-dim);
+}
+
 /* Tarjeta de subcuenta: rectángulo nítido con barra de acento del color del tenant.
    data-accent='pink' → rampa rosa de WDC (misma que [data-accent='pink'] de globals.css). */
 .go-tile[data-accent='pink'] {

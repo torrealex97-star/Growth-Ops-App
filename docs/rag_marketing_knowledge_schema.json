@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://growth-ops.app/schemas/rag_marketing_knowledge_schema.json",
+  "title": "Esquema RAG de conocimiento de Marketing (High-Ticket OS)",
+  "description": "Metadatos para indexar en base vectorial los frameworks de posicionamiento, avatares, embudos, copywriting y métricas de marketing. Fuente canónica: .claude/skills/marketing-and-copywriting.md (módulos 1-6). El agente (src/prompts/marketing_agent_system_prompt.ts) cita estas categorías al recuperar contextos.",
+  "version": "1.0.0",
+  "categories": ["uvp_and_angles", "avatar_icp", "funnel_architecture", "copywriting_swipe", "marketing_metrics"],
+  "category_descriptions": {
+    "uvp_and_angles": "Módulo 1: Big Promise, Mecanismo Único, categoría de mercado y los 5 ángulos primarios de marketing.",
+    "avatar_icp": "Módulo 2: avatares afluente/aspiracional, Life-Force 8, dolores, deseos, niveles de conciencia y absolución de culpa.",
+    "funnel_architecture": "Módulo 3: secuencia del embudo, VSL Master, webinar high-ticket, lead magnets, canales y fórmula de ads en 3 partes.",
+    "copywriting_swipe": "Módulo 4: tono, legibilidad/Flesch, 4 U's, fórmulas de titulares, palabras permitidas/prohibidas, dolores literales y garantías.",
+    "marketing_metrics": "Módulo 5: fórmulas canónicas de marketing economics (CAC, ROAS, CPL, CPQBC, LTGP:CAC...) con targets, y Módulo 6: árboles de diagnóstico."
+  },
+  "document_schema": {
+    "type": "object",
+    "required": ["id", "tenant_id", "category", "module", "content", "metadata"],
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Identificador único del chunk (determinístico por fuente+ancla para idempotencia del indexado)."
+      },
+      "tenant_id": {
+        "type": ["string", "null"],
+        "description": "Subcuenta propietaria del contenido. null = conocimiento global (los módulos 1-6 son globales por defecto)."
+      },
+      "category": {
+        "enum": ["uvp_and_angles", "avatar_icp", "funnel_architecture", "copywriting_swipe", "marketing_metrics"],
+        "description": "Categoría del chunk — debe ser una de las declaradas en categories."
+      },
+      "module": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 6,
+        "description": "Módulo de la skill del que proviene el contenido (1-6)."
+      },
+      "content": {
+        "type": "string",
+        "description": "Texto a vectorizar: framework, fórmula, script o secuencia sin resumir."
+      },
+      "metadata": {
+        "type": "object",
+        "required": ["source", "type"],
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "Ruta del fichero fuente (p. ej. .claude/skills/marketing-and-copywriting.md) o URL de la fuente."
+          },
+          "module": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 6,
+            "description": "Módulo de la skill (1-6); debe coincidir con el module del documento."
+          },
+          "section": { "type": "string", "description": "Ancla de la sección dentro del módulo." },
+          "language": { "type": "string", "default": "es", "description": "Idioma del contenido (es/en)." },
+          "type": {
+            "enum": ["script", "formula", "framework", "sequence", "checklist", "swipe"],
+            "description": "Tipo de contenido para filtros de recuperación."
+          },
+          "kpi": {
+            "type": "object",
+            "description": "Obligatorio si type=formula y category=marketing_metrics.",
+            "required": ["name", "formula"],
+            "properties": {
+              "name": { "type": "string" },
+              "formula": { "type": "string", "description": "Fórmula canónica, idéntica a la del Módulo 5." },
+              "target": { "type": "string" },
+              "implementation_anchor": {
+                "type": "string",
+                "description": "Ancla a la implementación en el repo (ruta, query canónica o docs/SALES_METRICS_MAP.md)."
+              }
+            }
+          },
+          "angle": {
+            "type": ["string", "null"],
+            "description": "Para category=uvp_and_angles: new_opportunity | emotional_relief | big_secret | hero_status | proclamation."
+          },
+          "avatar": {
+            "type": ["string", "null"],
+            "description": "Para category=avatar_icp: high_ticket_affluent | b2c_mass_market | ambos."
+          },
+          "awareness_level": {
+            "type": ["string", "null"],
+            "description": "unaware | problem_aware | solution_aware | product_aware | most_aware."
+          },
+          "lf8": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Impulsos biológicos (Life-Force 8) que activa el contenido."
+          },
+          "copy_type": {
+            "type": ["string", "null"],
+            "description": "Para copywriting_swipe: headline | ad_hook | ad_body | cta | vsl_block | email | guarantee | landing_hero."
+          },
+          "sequence_stage": {
+            "type": ["string", "null"],
+            "description": "Fase del embudo si aplica: opt_in | confirmation | vsl | webinar | application | gauntlet_email_1..n."
+          },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Etiquetas libres para filtrado (p. ej. ads, vsl, garantias)."
+          },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "id": "uvp-angles-new-opportunity-001",
+      "tenant_id": null,
+      "category": "uvp_and_angles",
+      "module": 1,
+      "content": "Nueva Oportunidad (New Opportunity vs Old): El fracaso previo no fue tu culpa, fue del vehículo antiguo.",
+      "metadata": {
+        "source": ".claude/skills/marketing-and-copywriting.md",
+        "module": 1,
+        "section": "angulos-primarios",
+        "language": "es",
+        "type": "framework",
+        "angle": "new_opportunity",
+        "tags": ["uvp", "angulos"]
+      }
+    },
+    {
+      "id": "kpi-cpl-001",
+      "tenant_id": null,
+      "category": "marketing_metrics",
+      "module": 5,
+      "content": "CPL = Spend / Leads. Opt-in Rate = (Leads / LP Visitors) * 100. Target de Opt-in Rate: 30-50% (>=15% directo).",
+      "metadata": {
+        "source": ".claude/skills/marketing-and-copywriting.md",
+        "module": 5,
+        "section": "leads-applications",
+        "language": "es",
+        "type": "formula",
+        "kpi": {
+          "name": "CPL",
+          "formula": "Spend / Leads",
+          "target": "Diagnosticar con el árbol del Módulo 6: CPL alto -> revisar Landing Page Conversion o Link CPC",
+          "implementation_anchor": "docs/SALES_METRICS_MAP.md + tracking existente de leads"
+        },
+        "tags": ["ads", "embudo"]
+      }
+    },
+    {
+      "id": "copy-dolor-ads-basura-001",
+      "tenant_id": null,
+      "category": "copywriting_swipe",
+      "module": 4,
+      "content": "Hook literal del cliente: \"Gasto miles en ads y los tiro a la basura\".",
+      "metadata": {
+        "source": ".claude/skills/marketing-and-copywriting.md",
+        "module": 4,
+        "section": "dolores-palabras-cliente",
+        "language": "es",
+        "type": "script",
+        "copy_type": "ad_hook",
+        "awareness_level": "problem_aware",
+        "lf8": ["ganar_estatus_social"],
+        "forbidden_patterns": ["parafrasear el dolor del cliente", "jerga corporativa"],
+        "tags": ["hooks", "dolores"]
+      }
+    },
+    {
+      "id": "funnel-secuencia-001",
+      "tenant_id": null,
+      "category": "funnel_architecture",
+      "module": 3,
+      "content": "Ads Direct Response -> Opt-in Page (30-50% opt-in) -> Confirmation Page (How Video + VSL Why Video) -> VSL Masterclass / Webinar -> Application / Calendar -> Back-End Gauntlet Series (6-10+ emails en 2 semanas, extensible a 12 meses).",
+      "metadata": {
+        "source": ".claude/skills/marketing-and-copywriting.md",
+        "module": 3,
+        "section": "estructura-del-embudo",
+        "language": "es",
+        "type": "sequence",
+        "sequence_stage": null,
+        "tags": ["embudo", "vsl", "gauntlet"]
+      }
+    }
+  ],
+  "retrieval_rules": {
+    "always_cite_category": true,
+    "default_top_k_per_category": 3,
+    "description": "El agente debe citar la categoría del chunk recuperado. Para fórmulas, recuperar por metadata.kpi.name con coincidencia exacta; para copy, por angle/copy_type y awareness_level; para embudos, por sequence_stage."
+  }
+}
