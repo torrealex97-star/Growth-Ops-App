@@ -36,7 +36,11 @@ test('el cron recorre subcuentas con su config explícita y deja registro de la 
   assert.match(code, /from\('tenants'\)\.select\('id, slug'\)\.eq\('status', 'active'\)/)
   assert.match(code, /getTenantConfigWithFallback\(tn\.id/, 'la config de la subcuenta se lee, no se hereda')
   assert.doesNotMatch(code, /ensureConfig\(/, 'prohibido volcar credenciales en process.env')
-  assert.match(code, /syncStripePayments\(\s*sb,\s*tn\.id,\s*cfg\.STRIPE_SECRET_KEY/, 'la sync recibe la clave de SU subcuenta')
+  assert.match(
+    code,
+    /syncStripePayments\(\s*sb,\s*tn\.id,\s*cfg\.STRIPE_SECRET_KEY/,
+    'la sync recibe la clave de SU subcuenta'
+  )
   assert.match(code, /recordSyncRun\(/, 'sin registro de corrida, la tabla vacía no tiene causa')
   assert.match(code, /job: 'stripe-payments'/, 'la corrida debe registrarse bajo el job del espejo')
 })

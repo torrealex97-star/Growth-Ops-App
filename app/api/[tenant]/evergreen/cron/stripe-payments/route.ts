@@ -37,7 +37,10 @@ export async function GET(req: NextRequest) {
       const cfg = await getTenantConfigWithFallback(tn.id, true)
       if (!cfg.STRIPE_SECRET_KEY) {
         // Sin clave no es un fallo: esa subcuenta simplemente no usa Stripe.
-        porSubcuenta[tn.slug] = { omitida: true, motivo: 'Stripe no está configurado en esta subcuenta' }
+        porSubcuenta[tn.slug] = {
+          omitida: true,
+          motivo: 'Stripe no está configurado en esta subcuenta',
+        }
         continue
       }
       try {
@@ -52,13 +55,21 @@ export async function GET(req: NextRequest) {
           },
           // Presupuesto por subcuenta para no pisar las demás: si Stripe tiene más historial del
           // que cabe, `truncated` lo declara y la siguiente ejecución continúa (upsert idempotente).
-          () => syncStripePayments(sb, tn.id, cfg.STRIPE_SECRET_KEY!, cfg.STRIPE_ACCOUNT_ID, { deadline: Date.now() + 30_000 }),
+          () =>
+            syncStripePayments(sb, tn.id, cfg.STRIPE_SECRET_KEY!, cfg.STRIPE_ACCOUNT_ID, {
+              deadline: Date.now() + 30_000,
+            }),
           (r) => ({
             rowsWritten: r.written,
             failures: r.truncated
               ? ['Stripe tenía más pagos por leer de los que caben en una ejecución: se completará en la siguiente.']
               : [],
-            detail: { pagos: r.written, devueltos: r.refunded, paginas: r.pages, truncado: r.truncated },
+            detail: {
+              pagos: r.written,
+              devueltos: r.refunded,
+              paginas: r.pages,
+              truncado: r.truncated,
+            },
           })
         )
       } catch (e) {
