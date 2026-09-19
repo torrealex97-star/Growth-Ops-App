@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://growth-ops.app/schemas/rag_sales_knowledge_schema.json",
+  "title": "Esquema RAG de conocimiento comercial (High-Ticket OS)",
+  "description": "Metadatos para indexar en base vectorial los KPIs, scripts y frameworks del sistema Sales Engineering & Commercial Operations. Fuente canónica: .claude/skills/sales-engineering.md (módulos 1-7). El agente (src/prompts/sales_agent_system_prompt.ts) cita estas categorías al recuperar contextos.",
+  "version": "1.0.0",
+  "categories": ["objection_handling", "pain_cycle", "kpis", "frame_control", "hiring", "prospecting", "post_call"],
+  "category_descriptions": {
+    "objection_handling": "Módulo 3: matriz de objeciones con guiones textuales de reencuadre (tiempo, dinero, recursos, competencia, descuentos, pareja/socio, incertidumbre, riesgo, ID Trick) y algoritmo de bucle del módulo 2.",
+    "pain_cycle": "Módulo 2: descubrimiento NEPQ, Pain Cycle de 9 pasos, GPCT, consequence y guion de stacking pain.",
+    "kpis": "Módulo 7: fórmulas canónicas de metrología (show rate, close rate, offers per slot, CPTQO, PIF, cash collected, CRR, GPM) con targets y benchmarks.",
+    "frame_control": "Módulo 6: pastor y oveja, 5 dimensiones de verdad, regla de las 2 ventas, quemar puentes, 10 reglas de oro de Hormozi.",
+    "hiring": "Módulo 5: Roberge framework, referidos forzados, onboarding 14 días, ramp-up por puntos, reglas de desvinculación y OTE tiers.",
+    "prospecting": "Módulo 1: speed to lead, touch density, listas P1-P4, scoring 1-4, formulario pre-llamada, rolling 2-day window, protocolo LNS, doble video y call notes.",
+    "post_call": "Módulo 4: inmunización, referidos en caliente, BAMFAM, value-driven follow-up, Going Negative y EOD checklist."
+  },
+  "document_schema": {
+    "type": "object",
+    "required": ["id", "tenant_id", "category", "module", "content", "metadata"],
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Identificador único del chunk (determinístico por fuente+ancla para idempotencia del indexado)."
+      },
+      "tenant_id": {
+        "type": ["string", "null"],
+        "description": "Subcuenta propietaria del contenido. null = conocimiento global del sistema (los módulos 1-7 son globales por defecto)."
+      },
+      "category": {
+        "enum": ["objection_handling", "pain_cycle", "kpis", "frame_control", "hiring", "prospecting", "post_call"],
+        "description": "Categoría del chunk — debe ser una de las declaradas en categories."
+      },
+      "module": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 7,
+        "description": "Módulo de la skill del que proviene el contenido (1-7)."
+      },
+      "content": {
+        "type": "string",
+        "description": "Texto a vectorizar: script literal, fórmula o framework sin resumir."
+      },
+      "metadata": {
+        "type": "object",
+        "required": ["source", "type"],
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "Ruta del fichero fuente (p. ej. .claude/skills/sales-engineering.md) o URL de la fuente."
+          },
+          "module": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 7,
+            "description": "Módulo de la skill (1-7); debe coincidir con el module del documento."
+          },
+          "section": {
+            "type": "string",
+            "description": "Ancla de la sección dentro del módulo."
+          },
+          "language": {
+            "type": "string",
+            "default": "es",
+            "description": "Idioma del contenido (es/en)."
+          },
+          "type": {
+            "enum": ["script", "formula", "framework", "sequence", "checklist"],
+            "description": "Tipo de contenido para filtros de recuperación."
+          },
+          "kpi": {
+            "type": "object",
+            "description": "Obligatorio si type=formula y category=kpis.",
+            "required": ["name", "formula"],
+            "properties": {
+              "name": { "type": "string" },
+              "formula": {
+                "type": "string",
+                "description": "Fórmula canónica, idéntica a la del módulo 7."
+              },
+              "target": { "type": "string" },
+              "benchmark": { "type": "string" },
+              "implementation_anchor": {
+                "type": "string",
+                "description": "Ancla a la implementación en el repo (ruta o query canónica)."
+              }
+            }
+          },
+          "objection": {
+            "type": "object",
+            "description": "Obligatorio si category=objection_handling y type=script.",
+            "required": ["name", "response_script"],
+            "properties": {
+              "name": { "type": "string" },
+              "loop_step": {
+                "enum": ["confirm_value", "isolate", "acknowledge", "address", "ask"]
+              },
+              "response_script": { "type": "string" },
+              "forbidden_patterns": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Patrones prohibidos, p. ej. usar Pero tras validar."
+              }
+            }
+          },
+          "sequence_stage": {
+            "type": ["string", "null"],
+            "description": "Fase de secuencia si aplica (lns_inmediato, lns_24h, lns_8h, lns_1h, lns_15m, going_negative, bamfam...)."
+          },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Etiquetas libres para filtrado (p. ej. setter, closer, csm)."
+          },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "id": "kpis-show-rate-001",
+      "tenant_id": null,
+      "category": "kpis",
+      "module": 7,
+      "content": "Show Rate % = (Llamadas Asistidas Live / Citas Agendadas) * 100. Benchmarks: 55-65% bueno, >65% elite.",
+      "metadata": {
+        "source": ".claude/skills/sales-engineering.md",
+        "module": 7,
+        "section": "show-rate",
+        "language": "es",
+        "type": "formula",
+        "kpi": {
+          "name": "Show Rate",
+          "formula": "(Llamadas Asistidas Live / Citas Agendadas) * 100",
+          "target": "55-65% bueno, >65% elite",
+          "implementation_anchor": "app/[tenant]/metricas + appointments (isAttended/isNoShow canónicos)"
+        },
+        "tags": ["closer", "ops"]
+      }
+    },
+    {
+      "id": "obj-descuentos-001",
+      "tenant_id": null,
+      "category": "objection_handling",
+      "module": 3,
+      "content": "Descuentos: Uhh... podríamos hacerlo por más dinero (jaja). Si reduzco el precio, reduzco el soporte que garantiza tu resultado. ¿Prefieres tarjetas o transferencia?",
+      "metadata": {
+        "source": ".claude/skills/sales-engineering.md",
+        "module": 3,
+        "section": "descuentos",
+        "language": "es",
+        "type": "script",
+        "objection": {
+          "name": "Descuentos",
+          "loop_step": "address",
+          "response_script": "Uhh... podríamos hacerlo por más dinero (jaja). Si reduzco el precio, reduzco el soporte que garantiza tu resultado. ¿Prefieres tarjetas o transferencia?",
+          "forbidden_patterns": ["Pero", "ofrecer descuento en caliente"]
+        },
+        "tags": ["closer", "precio"]
+      }
+    },
+    {
+      "id": "pain-cycle-connecting-001",
+      "tenant_id": null,
+      "category": "pain_cycle",
+      "module": 2,
+      "content": "Connecting: ¿Qué fue lo que te llevó a buscar una solución hoy en lugar de seguir posponiéndolo?",
+      "metadata": {
+        "source": ".claude/skills/sales-engineering.md",
+        "module": 2,
+        "section": "nepq-connecting",
+        "language": "es",
+        "type": "script",
+        "sequence_stage": null,
+        "tags": ["discovery"]
+      }
+    },
+    {
+      "id": "kpi-offers-per-slot-001",
+      "tenant_id": null,
+      "category": "kpis",
+      "module": 7,
+      "content": "Offers per Slot = (Total Ofertas Presentadas en el Día) / (Total Slots Disponibles en Calendario). Target: 3+ ofertas/día por closer.",
+      "metadata": {
+        "source": ".claude/skills/sales-engineering.md",
+        "module": 7,
+        "section": "offers-per-slot",
+        "language": "es",
+        "type": "formula",
+        "kpi": {
+          "name": "Offers per Slot",
+          "formula": "(Total Ofertas Presentadas en el Día) / (Total Slots Disponibles en Calendario)",
+          "target": "3+ ofertas/día por closer"
+        },
+        "tags": ["ops", "closer"]
+      }
+    }
+  ],
+  "retrieval_rules": {
+    "always_cite_category": true,
+    "default_top_k_per_category": 3,
+    "description": "El agente debe citar la categoría del chunk recuperado. Consulta por category + module + tags; para fórmulas, recuperar por metadata.kpi.name con coincidencia exacta."
+  }
+}
