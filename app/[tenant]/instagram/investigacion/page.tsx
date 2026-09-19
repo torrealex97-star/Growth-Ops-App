@@ -175,7 +175,7 @@ export default function InvestigacionPage() {
             <select
               value={platform}
               onChange={(e) => setPlatform(e.target.value as Platform)}
-              className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-zinc-300 bg-white text-zinc-900 placeholder:text-zinc-400 px-3 py-2 text-sm"
             >
               <option value="instagram">Instagram</option>
               <option value="tiktok">TikTok</option>
@@ -187,7 +187,7 @@ export default function InvestigacionPage() {
             <select
               value={jobType}
               onChange={(e) => setJobType(e.target.value as JobType)}
-              className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-zinc-300 bg-white text-zinc-900 placeholder:text-zinc-400 px-3 py-2 text-sm"
             >
               <option value="profile">Perfil (seguidores, bio, últimos posts)</option>
               <option value="reels">Reels / vídeos recientes</option>
@@ -199,7 +199,7 @@ export default function InvestigacionPage() {
               value={users}
               onChange={(e) => setUsers(e.target.value)}
               placeholder="@competidor1, @competidor2"
-              className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-zinc-300 bg-white text-zinc-900 placeholder:text-zinc-400 px-3 py-2 text-sm"
             />
           </div>
           <div>
@@ -210,7 +210,7 @@ export default function InvestigacionPage() {
               max={100}
               value={resultsLimit}
               onChange={(e) => setResultsLimit(Number(e.target.value) || 30)}
-              className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-zinc-300 bg-white text-zinc-900 placeholder:text-zinc-400 px-3 py-2 text-sm"
             />
           </div>
         </div>
