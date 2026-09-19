@@ -16,6 +16,7 @@ import {
   Plug,
   Handshake,
   Building,
+  Mail,
 } from 'lucide-react'
 import { useSesion, useTenant } from '@/lib/tenant-context'
 
@@ -47,6 +48,14 @@ const SETTINGS_CARDS = [
     href: '/settings/empresa',
     color: 'text-indigo-400',
     bg: 'bg-indigo-500/10',
+  },
+  {
+    title: 'Correos',
+    description: 'Personaliza asunto y cuerpo de los emails que envía la plataforma',
+    icon: Mail,
+    href: '/settings/correos',
+    color: 'text-violet-400',
+    bg: 'bg-violet-500/10',
   },
   {
     title: 'Contratos de equipo',

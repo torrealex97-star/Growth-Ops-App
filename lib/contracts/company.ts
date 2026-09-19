@@ -6,6 +6,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // equipo tiene que firmar manualmente.
 
 export type CompanyProfile = {
+  /** Subcuenta propietaria del perfil. La rellena getCompanyProfile al leer la fila;
+   *  permite a los envíos de email resolver la plantilla personalizada de ESTA
+   *  subcuenta sin que cada llamada tenga que pasar el tenantId aparte. */
+  tenantId?: string
   name: string
   legal_name: string | null
   cif: string | null
@@ -45,8 +49,9 @@ export function companySignatureLabel(c: CompanyProfile): string {
 // Lee la fila de company_profile de esta subcuenta y la fusiona con los defaults.
 export async function getCompanyProfile(sb: SupabaseClient, tenantId: string): Promise<CompanyProfile> {
   const { data } = await sb.from('company_profile').select('*').eq('id', 1).eq('tenant_id', tenantId).maybeSingle()
-  if (!data) return DEFAULT_COMPANY
+  if (!data) return { ...DEFAULT_COMPANY, tenantId }
   return {
+    tenantId,
     name: data.name || DEFAULT_COMPANY.name,
     legal_name: data.legal_name ?? DEFAULT_COMPANY.legal_name,
     cif: data.cif ?? DEFAULT_COMPANY.cif,
