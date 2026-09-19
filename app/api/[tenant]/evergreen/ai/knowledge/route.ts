@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { createClient } from '@/lib/supabase/server'
 import { searchKnowledge, type KnowledgeCategory } from '@/lib/ai/knowledge'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
 
@@ -44,9 +45,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   const limit = Math.min(Math.max(limitRaw, 1), 20)
 
   const sb = await createClient()
+  // Instantánea de config del tenant: OPENAI_API_KEY para la rama semántica (embeddings).
+  // Sin clave configurada, searchKnowledge degrada sola a la rama léxica.
+  const env = await getTenantConfigWithFallback(auth.tenantId)
   const r = await searchKnowledge(sb, auth.tenantId, q, {
     categories: categories.length ? categories : undefined,
     limit,
+    embeddingEnv: env,
   })
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 500 })
   return NextResponse.json({ chunks: r.chunks })

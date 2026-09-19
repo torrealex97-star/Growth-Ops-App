@@ -7,8 +7,13 @@
 //   node scripts/ingestar-knowledge.mjs --dry-run  # solo muestra qué insertaría
 //
 // Idempotente: ON CONFLICT (tenant_id, source, section) DO UPDATE. Re-ejecutar tras editar una
-// skill actualiza el contenido sin duplicar. Embeddings: la columna vector(1536) queda NULL hasta
-// que exista pipeline de embeddings; la búsqueda léxica (match_knowledge_chunks) funciona sin ella.
+// skill actualiza el contenido sin duplicar.
+//
+// EMBEDDINGS (migración 20260919230000): si hay OPENAI_API_KEY (entorno o .env.local), cada chunk
+// se vectoriza con text-embedding-3-small (nativo 1536 dims = columna vector(1536)) y se guarda en
+// la columna embedding — la RPC match_knowledge_chunks lo usa para la rama semántica de la búsqueda
+// híbrida (RRF con la léxica). Sin clave, se siembra con embedding NULL y el sistema queda 100%
+// léxico (degradación por diseño). Re-ingestar SIN clave NO borra embeddings existentes (COALESCE).
 import { readFileSync } from 'node:fs'
 import postgres from 'postgres'
 
@@ -127,6 +132,36 @@ for (const c of chunks) porCategoria[c.category] = (porCategoria[c.category] || 
 console.log(`Parseados ${chunks.length} chunks:`)
 for (const [cat, n] of Object.entries(porCategoria).sort()) console.log(`  ${cat}: ${n}`)
 
+// ─── EMBEDDINGS ─────────────────────────────────────────────────────────────────
+// El modelo DEBE coincidir con el de embedQuery (lib/ai/knowledge.ts): cambiar uno implica
+// cambiar el otro y re-ingestar todo — mezclar espacios de embeddings rompe la semántica.
+const OPENAI_KEY = process.env.OPENAI_API_KEY || env.OPENAI_API_KEY
+const EMBED_MODEL = 'text-embedding-3-small'
+const EMBED_DIMS = 1536
+
+async function embeberLotes(textos, apiKey) {
+  const out = []
+  const BATCH = 64
+  for (let i = 0; i < textos.length; i += BATCH) {
+    const lote = textos.slice(i, i + BATCH).map((t) => t.slice(0, 24000))
+    const res = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: EMBED_MODEL, input: lote }),
+    })
+    if (!res.ok) throw new Error(`OpenAI embeddings HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`)
+    const json = await res.json()
+    const orden = [...(json.data ?? [])].sort((a, b) => a.index - b.index)
+    for (const d of orden) {
+      if (!Array.isArray(d.embedding) || d.embedding.length !== EMBED_DIMS)
+        throw new Error(`Embedding con dims inesperadas (${d.embedding?.length})`)
+      out.push(`[${d.embedding.join(',')}]`)
+    }
+    console.log(`  embeddings ${Math.min(i + BATCH, textos.length)}/${textos.length}`)
+  }
+  return out
+}
+
 // prepare: false imprescindible tras poolers en modo transacción (PgBouncer); inofensivo en conexión directa.
 const sql = postgres(POSTGRES_URL, { ssl: 'require', max: 1, prepare: false, idle_timeout: 20 })
 try {
@@ -140,7 +175,25 @@ try {
     console.log('(dry-run: no se escribe nada)')
     process.exit(0)
   }
-  const filas = tenants.flatMap((t) => chunks.map((c) => ({ tenant_id: t.id, ...c, is_active: true })))
+  // Vectorización: título+contenido (el título aporta señales de categoría/módulo al espacio).
+  let mapaEmbeddings = null
+  if (!OPENAI_KEY) {
+    console.warn('Sin OPENAI_API_KEY (entorno o .env.local): se siembra SIN embeddings (solo búsqueda léxica).')
+  } else {
+    console.log(`Calculando embeddings (${chunks.length} chunks · ${EMBED_MODEL})...`)
+    mapaEmbeddings = await embeberLotes(
+      chunks.map((c) => `${c.title}\n${c.content}`),
+      OPENAI_KEY
+    )
+  }
+  const filas = tenants.flatMap((t) =>
+    chunks.map((c, i) => ({
+      tenant_id: t.id,
+      ...c,
+      is_active: true,
+      embedding: mapaEmbeddings ? mapaEmbeddings[i] : null,
+    }))
+  )
   await sql`
     INSERT INTO public.knowledge_chunks ${sql(filas)}
     ON CONFLICT (tenant_id, source, section) DO UPDATE SET
@@ -149,9 +202,13 @@ try {
       module     = EXCLUDED.module,
       content    = EXCLUDED.content,
       metadata   = EXCLUDED.metadata,
+      -- COALESCE: re-ingesta sin clave NO debe borrar embeddings ya calculados.
+      embedding  = COALESCE(EXCLUDED.embedding, knowledge_chunks.embedding),
       updated_at = NOW()
   `
-  console.log(`Sembradas ${filas.length} filas (${chunks.length} chunks × ${tenants.length} tenants).`)
+  console.log(
+    `Sembradas ${filas.length} filas (${chunks.length} chunks × ${tenants.length} tenants)${mapaEmbeddings ? ' con embeddings' : ' sin embeddings (sin clave)'}.`
+  )
 } catch (err) {
   console.error('Error de ingesta:', err.message)
   process.exit(1)

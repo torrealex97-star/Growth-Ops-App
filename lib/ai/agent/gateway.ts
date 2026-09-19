@@ -455,7 +455,14 @@ export async function runAgent(opts: {
   ) => void
 }): Promise<AgentTurn> {
   const { client, model } = agentProvider(opts.aiEnv)
-  const ctx: tools.ToolContext = { tenantId: opts.tenantId, sb: opts.sb, userId: opts.userId }
+  const ctx: tools.ToolContext = {
+    tenantId: opts.tenantId,
+    sb: opts.sb,
+    userId: opts.userId,
+    // Instantánea de config de la subcuenta: las tools que necesitan credenciales (hoy el
+    // embedder OPENAI_API_KEY del RAG semántico) la leen de aquí, nunca de process.env.
+    env: opts.aiEnv,
+  }
   const evidence: ToolEvidence[] = []
   const startedAt = Date.now()
   const totals = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, rounds: 0 }
@@ -476,7 +483,7 @@ export async function runAgent(opts: {
   try {
     const lastUser = [...opts.history].reverse().find((m) => m.role === 'user')?.content
     if (lastUser && lastUser.trim().length >= 8) {
-      const kr = await searchKnowledge(opts.sb, opts.tenantId, lastUser, { limit: 3 })
+      const kr = await searchKnowledge(opts.sb, opts.tenantId, lastUser, { limit: 3, embeddingEnv: opts.aiEnv })
       if (kr.ok && kr.chunks.length > 0) {
         knowledgeContexto = formatearContextoKnowledge(kr.chunks)
       }
