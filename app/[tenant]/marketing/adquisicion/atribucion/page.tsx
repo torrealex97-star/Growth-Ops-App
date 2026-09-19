@@ -19,6 +19,7 @@ import { KPICard } from '@/components/os/DashboardKPICard'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { DEFAULT_PERIOD, getPeriodRange, type PeriodPreset } from '@/lib/filters/period'
 import { isPaidSource } from '@/lib/ads/funnel'
+import { AttributionCoverage } from '@/components/os/AttributionCoverage'
 import { QUALIFICATION_KEYS, labelFor, type QualificationAnswer } from '@/lib/qualification'
 import { countryISOForPhone, countryNameForISO } from '@/lib/phone'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
@@ -60,6 +61,8 @@ type LeadQualityRow = {
 type BarItem = { label: string; count: number }
 
 const NO_UTM = 'Directo/Sin UTM'
+// Etiqueta que la RPC attribution_funnel_for_tenant usa para leads sin fuente ni UTM.
+const DIRECTO_RPC = 'Directo / Sin atribuir'
 
 // Fecha local → YYYY-MM-DD (para los límites de la consulta, sin desfase de zona).
 const ymdLocal = (d: Date) =>
@@ -419,6 +422,22 @@ export default function AttributionPage() {
 
   const hasApptFilters = periodPreset !== 'all' || !!campaignFilter.trim() || sourceFilter !== 'all'
 
+  // COBERTURA DE ATRIBUCIÓN (§21): parte de leads/ventas/revenue con origen conocido, calculada
+  // sobre los mismos totales de la RPC por fuente (coherente con las barras de arriba).
+  const coverage = useMemo(() => {
+    const pctOrNull = (attributed: number, total: number) => (total > 0 ? (attributed / total) * 100 : null)
+    const directo = rows.find((r) => r.source === DIRECTO_RPC)
+    const attributedLeads = totals.leads - (directo?.leads ?? 0)
+    const attributedSales = totals.sales - (directo?.sales ?? 0)
+    return {
+      leads: pctOrNull(attributedLeads, totals.leads),
+      sales: pctOrNull(attributedSales, totals.sales),
+      // Revenue: la RPC no separa el revenue atribuido del directo — no se inventa (§39): '—' hasta
+      // que el desglose por fuente lo exponga.
+      revenue: null,
+    }
+  }, [rows, totals])
+
   return (
     <div className="dashboard-surface space-y-5">
       <div>
@@ -441,6 +460,10 @@ export default function AttributionPage() {
           loading={loading}
         />
       </div>
+
+      {/* Cobertura de atribución (§21): movida aquí desde Métricas y KPIs — pertenece al panel
+          donde se diagnostica la atribución, no al resumen del negocio. */}
+      <AttributionCoverage coverage={coverage} />
 
       {/* Top campañas First / Last touch */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

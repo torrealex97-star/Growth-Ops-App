@@ -1,6 +1,7 @@
 'use client'
 
 import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
+import { QualificationInsights } from '@/components/os/QualificationInsights'
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -854,6 +855,11 @@ export default function VentasMetricasPage() {
           )}
         </>
       )}
+
+      {/* Qué responde la gente (respuestas del formulario de cualificación de leads):
+          movida aquí desde el dashboard principal — es lectura de cierre de venta, no vista
+          general del negocio (§ jerarquía de lectura del dashboard). */}
+      <QualificationInsights />
     </div>
   )
 }

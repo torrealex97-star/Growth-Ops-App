@@ -915,119 +915,8 @@ export default function UnitEconomicsPage() {
         onFunnelChange={setFunnelOpcion}
       />
 
-      {/* EVOLUCIÓN TEMPORAL: día/semana/mes de las métricas que se gestionan por tendencia.
-          Solo las series con datos entran; sin ninguna, la sección no se renderiza. */}
-      {evolucionVisible && (
-        <section className="dashboard-card p-5 sm:p-6 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="font-display text-xl font-semibold">Evolución</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Variación en el tiempo del periodo seleccionado. Las campañas de anuncios aportan gasto; sin periodo se
-                muestran los últimos 90 días.
-              </p>
-            </div>
-            <div
-              className="bg-muted border-border flex rounded-lg border p-0.5"
-              role="tablist"
-              aria-label="Granularidad"
-            >
-              {(
-                [
-                  ['dia', 'Día'],
-                  ['semana', 'Semana'],
-                  ['mes', 'Mes'],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  role="tab"
-                  aria-selected={granularidad === id}
-                  onClick={() => setGranularidad(id)}
-                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                    granularidad === id ? 'bg-brand-500 text-zinc-950' : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {hayEvolucion.leads && (
-              <TrendChart title={`Leads por ${etiquetaGranularidad}`} data={seriesEvolucion.leads} />
-            )}
-            {hayEvolucion.spend && (
-              <TrendChart
-                title={`Gasto publicitario por ${etiquetaGranularidad}`}
-                data={seriesEvolucion.spend}
-                format={formatCurrency}
-              />
-            )}
-            {hayEvolucion.agendas && (
-              <TrendChart title={`Agendas por ${etiquetaGranularidad}`} data={seriesEvolucion.agendas} />
-            )}
-            {hayEvolucion.cierres && (
-              <TrendChart title={`Cierres por ${etiquetaGranularidad}`} data={seriesEvolucion.cierres} />
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* FUNNEL DINÁMICO: la familia la elige la barra de filtros global (controlado). */}
-      <FunnelDinamico
-        tenant={tenant}
-        operativo={funnelOperativo}
-        loading={loading}
-        opcion={funnelOpcion}
-        rango={{ from: rangoISO(rango.from), to: rangoISO(rango.to) }}
-      />
-
-      {/* ATRIBUCIÓN declarada aparte: nunca se resta del total del negocio. Solo tiene sentido en
-          la vista de anuncios; en "todos" la pantalla describe el negocio completo. */}
-      {vistaAnuncios && hasAdsData && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-          <div className="dashboard-card p-3">
-            <p className="text-muted-foreground">Agendas atribuidas a anuncios</p>
-            <p className="text-base font-semibold text-foreground mt-1">
-              {formatNumber(funnelOperativo.atribuidos.agendas)}
-              <span className="text-muted-foreground text-xs font-normal">
-                {' '}
-                de {formatNumber(funnelOperativo.agendas)}
-              </span>
-            </p>
-          </div>
-          <div className="dashboard-card p-3">
-            <p className="text-muted-foreground">Cierres atribuidos</p>
-            <p className="text-base font-semibold text-foreground mt-1">
-              {formatNumber(funnelOperativo.atribuidos.cierres)}
-              <span className="text-muted-foreground text-xs font-normal">
-                {' '}
-                de {formatNumber(funnelOperativo.cierres)}
-              </span>
-            </p>
-          </div>
-          <div className="dashboard-card p-3">
-            <p className="text-muted-foreground">Facturación atribuida</p>
-            <p className="text-base font-semibold text-foreground mt-1">
-              {formatCurrency(funnelOperativo.atribuidos.facturacion)}
-              <span className="text-muted-foreground text-xs font-normal">
-                {' '}
-                de {formatCurrency(funnelOperativo.facturacion)}
-              </span>
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* CALIDAD + FUNNEL GLOBAL (dashboard global §20-§23/§38): una única versión coherente
-          de la realidad — leads canónicos, agendas consolidadas y diagnóstico de duplicados,
-          con la cobertura de atribución para saber hasta dónde llegan los datos. */}
-      {!loading && (contacts.length > 0 || appointments.length > 0 || sales.length > 0) && (
-        <DataQualityPanel quality={calidad} funnel={funnelGlobal} />
-      )}
-
-      {/* Top cards */}
+      {/* Top cards: los datos principales del negocio, lo primero (jerarquía de lectura del
+          dashboard: números que deciden presupuesto → funnel → detalle por departamento). */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
           title="MER"
@@ -1092,6 +981,15 @@ export default function UnitEconomicsPage() {
           )}
         </div>
       </div>
+
+      {/* FUNNEL DINÁMICO: la familia la elige la barra de filtros global (controlado). */}
+      <FunnelDinamico
+        tenant={tenant}
+        operativo={funnelOperativo}
+        loading={loading}
+        opcion={funnelOpcion}
+        rango={{ from: rangoISO(rango.from), to: rangoISO(rango.to) }}
+      />
 
       {/* VENTAS Y AGENDAS — todas, vengan de donde vengan. El embudo de marketing de abajo mide lo
           atribuible a los anuncios y por eso deja fuera lo orgánico; esto NO puede heredar ese
@@ -1158,6 +1056,109 @@ export default function UnitEconomicsPage() {
           />
         </div>
       </div>
+
+      {/* EVOLUCIÓN TEMPORAL: día/semana/mes de las métricas que se gestionan por tendencia.
+          Solo las series con datos entran; sin ninguna, la sección no se renderiza. */}
+      {evolucionVisible && (
+        <section className="dashboard-card p-5 sm:p-6 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-display text-xl font-semibold">Evolución</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Variación en el tiempo del periodo seleccionado. Las campañas de anuncios aportan gasto; sin periodo se
+                muestran los últimos 90 días.
+              </p>
+            </div>
+            <div
+              className="bg-muted border-border flex rounded-lg border p-0.5"
+              role="tablist"
+              aria-label="Granularidad"
+            >
+              {(
+                [
+                  ['dia', 'Día'],
+                  ['semana', 'Semana'],
+                  ['mes', 'Mes'],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  role="tab"
+                  aria-selected={granularidad === id}
+                  onClick={() => setGranularidad(id)}
+                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                    granularidad === id ? 'bg-brand-500 text-zinc-950' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {hayEvolucion.leads && (
+              <TrendChart title={`Leads por ${etiquetaGranularidad}`} data={seriesEvolucion.leads} />
+            )}
+            {hayEvolucion.spend && (
+              <TrendChart
+                title={`Gasto publicitario por ${etiquetaGranularidad}`}
+                data={seriesEvolucion.spend}
+                format={formatCurrency}
+              />
+            )}
+            {hayEvolucion.agendas && (
+              <TrendChart title={`Agendas por ${etiquetaGranularidad}`} data={seriesEvolucion.agendas} />
+            )}
+            {hayEvolucion.cierres && (
+              <TrendChart title={`Cierres por ${etiquetaGranularidad}`} data={seriesEvolucion.cierres} />
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* CALIDAD + FUNNEL GLOBAL (dashboard global §20-§23/§38): una única versión coherente
+          de la realidad — leads canónicos, agendas consolidadas y diagnóstico de duplicados.
+          La cobertura de atribución vive en Marketing › Atribución, no aquí. */}
+      {!loading && (contacts.length > 0 || appointments.length > 0 || sales.length > 0) && (
+        <DataQualityPanel quality={calidad} funnel={funnelGlobal} />
+      )}
+
+      {/* ATRIBUCIÓN declarada aparte: nunca se resta del total del negocio. Solo tiene sentido en
+          la vista de anuncios; en "todos" la pantalla describe el negocio completo. */}
+      {vistaAnuncios && hasAdsData && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+          <div className="dashboard-card p-3">
+            <p className="text-muted-foreground">Agendas atribuidas a anuncios</p>
+            <p className="text-base font-semibold text-foreground mt-1">
+              {formatNumber(funnelOperativo.atribuidos.agendas)}
+              <span className="text-muted-foreground text-xs font-normal">
+                {' '}
+                de {formatNumber(funnelOperativo.agendas)}
+              </span>
+            </p>
+          </div>
+          <div className="dashboard-card p-3">
+            <p className="text-muted-foreground">Cierres atribuidos</p>
+            <p className="text-base font-semibold text-foreground mt-1">
+              {formatNumber(funnelOperativo.atribuidos.cierres)}
+              <span className="text-muted-foreground text-xs font-normal">
+                {' '}
+                de {formatNumber(funnelOperativo.cierres)}
+              </span>
+            </p>
+          </div>
+          <div className="dashboard-card p-3">
+            <p className="text-muted-foreground">Facturación atribuida</p>
+            <p className="text-base font-semibold text-foreground mt-1">
+              {formatCurrency(funnelOperativo.atribuidos.facturacion)}
+              <span className="text-muted-foreground text-xs font-normal">
+                {' '}
+                de {formatCurrency(funnelOperativo.facturacion)}
+              </span>
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* DETALLE DE ANUNCIOS — solo en la vista de anuncios (vistaAnuncios): en "todos" la
           pantalla describe el negocio entero y este embudo mediría otra cosa. */}

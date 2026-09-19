@@ -7,7 +7,6 @@ import { KPICard } from '@/components/os/DashboardKPICard'
 import { TeamRanking } from '@/components/os/TeamRanking'
 import { AttributionTable } from '@/components/os/AttributionTable'
 import { SetterAgendas } from '@/components/os/SetterAgendas'
-import { QualificationInsights } from '@/components/os/QualificationInsights'
 import { KaizenWidget } from '@/components/os/KaizenWidget'
 import { DailyQuoteWidget } from '@/components/os/DailyQuoteWidget'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
@@ -826,8 +825,6 @@ function DashboardEquipo() {
       {/* Atribución */}
       <AttributionTable rows={attribution} />
 
-      {/* Qué responde la gente (respuestas del formulario) */}
-      <QualificationInsights />
       <div className="grid gap-4 lg:grid-cols-2">
         <DailyQuoteWidget />
         {userId && <KaizenWidget userId={userId} />}

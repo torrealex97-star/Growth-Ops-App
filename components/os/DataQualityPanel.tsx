@@ -6,8 +6,8 @@
 
 import { useMemo } from 'react'
 import { formatPercent } from '@/lib/utils'
-import { coveragePct } from '@/lib/canonical/dedup'
 import { SOURCE_REGISTRY } from '@/lib/sources/registry'
+import { InfoHint } from '@/components/ui/info-hint'
 
 export type QualityStats = {
   duplicateLeads: number
@@ -55,34 +55,16 @@ function QualityRow({ label, value, hint, bad }: { label: string; value: number 
 }
 
 // Etiqueta de fuente con tooltip (§37): qué es, fórmula, source of truth y fallbacks.
+// InfoHint: el cartel queda ~20 s tras salir del hover — tiempo de leer la fórmula entera.
 function SourceHint({ metric }: { metric: string }) {
   const def = SOURCE_REGISTRY[metric]
   if (!def) return null
   const fallbacks = def.fallbacks.length ? def.fallbacks.join(' › ') : 'ninguno'
   const text = `${def.what}\nFórmula: ${def.formula}\nSource of Truth: ${def.primary}. Fallback: ${fallbacks}.`
-  return (
-    <span className="group/hint relative inline-flex cursor-help align-middle">
-      <svg viewBox="0 0 16 16" className="h-3 w-3 text-muted-foreground/70" fill="currentColor" aria-hidden>
-        <path d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM8.75 12h-1.5V7h1.5v5zm0-6h-1.5V4.5h1.5V6z" />
-      </svg>
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 w-64 -translate-x-1/2 whitespace-pre-line rounded-lg border border-border bg-popover p-2.5 text-[11px] font-normal leading-snug text-popover-foreground opacity-0 shadow-lg transition-opacity group-hover/hint:opacity-100">
-        {text}
-      </span>
-    </span>
-  )
+  return <InfoHint text={text} />
 }
 
 export function DataQualityPanel({ quality, funnel }: { quality: QualityStats; funnel: FunnelGlobal }) {
-  // Cobertura (§21): leads / ventas / revenue atribuidos.
-  const cobertura = useMemo(
-    () => ({
-      leads: coveragePct({ total: quality.totalLeads, attributed: quality.totalLeads - quality.unattributedLeads }),
-      sales: coveragePct({ total: quality.totalSales, attributed: quality.totalSales - quality.unattributedSales }),
-      revenue: quality.revenueTotal > 0 ? Math.round((quality.revenueAttributed / quality.revenueTotal) * 100) : null,
-    }),
-    [quality]
-  )
-
   // Funnel global (§23): conversiones y drop-off por etapa. Oferta incluida con offer_made cuando
   // exista; si ninguna oferta está registrada, la etapa se muestra sin romper el resto.
   const etapas = useMemo(() => {
@@ -151,29 +133,9 @@ export function DataQualityPanel({ quality, funnel }: { quality: QualityStats; f
         </div>
       </div>
 
-      {/* COBERTURA + CALIDAD (§21/§38) */}
-      <div className="space-y-4">
-        <div className="dashboard-card p-5">
-          <h3 className="font-display text-lg font-semibold">Cobertura de atribución</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Parte del negocio con origen conocido. Baja cobertura = decisiones de presupuesto a ciegas.
-          </p>
-          <div className="mt-3 grid grid-cols-3 gap-3 text-center">
-            {(
-              [
-                ['Leads', cobertura.leads],
-                ['Ventas', cobertura.sales],
-                ['Revenue', cobertura.revenue],
-              ] as const
-            ).map(([label, v]) => (
-              <div key={label} className="rounded-lg border border-border bg-muted/30 p-3">
-                <p className="text-xs text-muted-foreground">{label}</p>
-                <p className="mt-1 font-display text-xl font-semibold tabular-nums">{pct(v)}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
+      {/* CALIDAD (§38): la cobertura de atribución vive en Marketing › Atribución
+          (components/os/AttributionCoverage), no aquí. */}
+      <div>
         <div className="dashboard-card p-5">
           <h3 className="font-display text-lg font-semibold">Calidad de datos</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
