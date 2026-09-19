@@ -8,7 +8,7 @@
 // vehículo) del texto libre que pega el usuario. Ver:
 //   app/api/${tenant}/evergreen/carruseles/caso-exito/route.ts
 //
-// NOTA: scripts/gen-carruseles-testimonios.mjs mantiene una copia equivalente de estas
+// NOTA: esta es la copia canónica de estos títulos (el script generador se retiró del repo)
 // plantillas porque es un script standalone de Node y no puede importar TypeScript.
 // Si cambias el estilo aquí, cámbialo también allí.
 
