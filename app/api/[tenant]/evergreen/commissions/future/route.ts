@@ -4,6 +4,7 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 import { pickCommissionRule } from '@/lib/commissions/calculator'
 import { repNetCash } from '@/lib/commissions/generate'
 import { tramoIdByReps } from '@/lib/commissions/tramos'
+import { resolverScopeColaborador } from '@/lib/collaborators/scope'
 import type { CommissionRule } from '@/lib/types/database'
 
 export const runtime = 'nodejs'
@@ -72,6 +73,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
     const tramoByRep = await tramoIdByReps(sb, t.tenantId, repIdsForTramo)
 
     const now = new Date()
+    // SCOPE DE COLABORADOR (§55): su proyección futura solo trae SU lane (affiliate) — las
+    // proyecciones setter/closer de las ventas de sus contactos son datos de otros lanes.
+    let esColaborador = false
+    if (!canSeeAll) {
+      const scope = await resolverScopeColaborador(sb, t.userId, t.tenantId)
+      esColaborador = scope.tipo === 'collaborator'
+    }
     const rateCache = new Map<string, number>() // `${rep}|${role}` -> percent
     const getRate = async (repId: string, r: 'setter' | 'closer') => {
       const key = `${repId}|${r}`
@@ -127,6 +135,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       ) => {
         if (!repId) return
         if (!canSeeAll && repId !== t.userId) return
+        // El colaborador no proyecta lanes setter/closer (ni siquiera las de "sus" ventas):
+        // esas proyecciones pertenecen a otros miembros y expondrían sus importes.
+        if (esColaborador && (pType === 'setter' || pType === 'closer')) return
         const percent = pType === 'affiliate' ? Number(fixedPercent ?? 0) : await getRate(repId, pType)
         if (!percent) return
         rows.push({

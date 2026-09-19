@@ -15,6 +15,12 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { formatCurrency, formatPercent, formatDate } from '@/lib/utils'
 import type { CommissionWithRelations } from '@/lib/types/database'
 
+// COMISIÓN DE LA PLATAFORMA (fee de pasarela) por fila. El motor ya comisiona sobre la base
+// neta (comisionable − fee, migración 20260919100000): en las positivas el fee se deduce de la
+// propia fila (comisionable del cobro − base neta); en las negativas se replica el mismo fee
+// que descontó la positiva. Es el dato que pide el negocio: cuánto se lleva la pasarela que
+// procesó el pago, visible para todo el equipo (no es información de otros lanes).
+
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pendiente',
   approved: 'Aprobada',
@@ -33,6 +39,16 @@ const PARTICIPANT_COLORS: Record<string, string> = {
   setter: 'bg-amber-500/20 text-amber-400',
   closer: 'bg-emerald-500/20 text-emerald-400',
   affiliate: 'bg-zinc-500/20 text-muted-foreground',
+}
+
+// Fee de pasarela implícito en la fila: comisionable del cobro − base neta comisionada.
+// NULL si no hay cobro embebido o la resta no cuadra (histórico previo a la base neta).
+function feeDePasarela(c: CommissionWithRelations): number | null {
+  const cobro = c.collections
+  if (!cobro || c.direction !== 'positive') return null
+  const fee = Number(cobro.commissionable_amount ?? 0) - Number(c.base_amount ?? 0)
+  const fee2 = Math.round(fee * 100) / 100
+  return fee2 > 0.009 ? fee2 : null
 }
 
 interface CommissionsTableProps {
@@ -96,6 +112,18 @@ export function CommissionsTable({ commissions, canApprove = false, onApprove }:
       columnHelper.accessor('base_amount', {
         header: 'Base',
         cell: ({ getValue }) => <span className="text-muted-foreground">{formatCurrency(getValue())}</span>,
+      }),
+      columnHelper.display({
+        id: 'fee_pasarela',
+        header: 'Comisión plataforma',
+        cell: ({ row }) => {
+          const fee = feeDePasarela(row.original)
+          return (
+            <span className={fee != null ? 'text-orange-400' : 'text-muted-foreground/40'}>
+              {fee != null ? formatCurrency(fee) : '—'}
+            </span>
+          )
+        },
       }),
       columnHelper.accessor('percent', {
         header: '%',

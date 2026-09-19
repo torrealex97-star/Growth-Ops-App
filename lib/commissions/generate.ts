@@ -3,6 +3,8 @@ import { calculateCommissionsForCollection, pickCommissionRule } from './calcula
 import { resolveSaleAttribution } from './attribution'
 import { tramoIdByReps } from './tramos'
 import { usuariosColaboradoresActivos } from '@/lib/collaborators/scope'
+import { fetchStripeFeesForReferences } from '@/lib/finance/stripeFees'
+import { getTenantConfigWithFallback } from '@/lib/config'
 import type { Collection, Sale, CommissionRule, InsertCommission } from '@/lib/types/database'
 
 type Role = 'setter' | 'closer'
@@ -132,6 +134,71 @@ async function activeRules(sb: SupabaseClient, tenantId: string): Promise<Commis
   return (data ?? []) as CommissionRule[]
 }
 
+/**
+ * Fee de pasarela por cobro (collection_id → fee) para la BASE NETA de comisión.
+ *
+ * Prioridad (función SQL commission_base_for_collection, migración 20260919100000):
+ *   1. Fee REAL de Stripe: cobros con `payment_reference` cruzan contra el espejo
+ *      `stripe_payments.stripe_fee` (poblado por el sync vía balance_transaction).
+ *      Si hay referencias que el espejo aún no conoce y hay clave de Stripe
+ *      configurada, se van a buscar a la API en el momento (pull bajo demanda).
+ *   2. Sin Stripe (venta manual): `collections.processing_fee` — la referencia del
+ *      plan que el formulario de cobro manual ya guardaba.
+ *
+ * Fallos de Stripe NO bloquean el cobro: devuelven lo que haya (el fallback del
+ * plan) y el cron de sync cuadrará el espejo después.
+ */
+export async function feesForCollections(
+  sb: SupabaseClient,
+  tenantId: string,
+  collections: Collection[]
+): Promise<Map<string, number>> {
+  const fees = new Map<string, number>()
+  const conRef = collections.filter((c) => c.payment_reference)
+  const refs = [...new Set(conRef.map((c) => c.payment_reference as string))]
+
+  if (refs.length) {
+    const { data: mirror } = await sb
+      .from('stripe_payments')
+      .select('payment_id, charge_id, stripe_fee')
+      .eq('tenant_id', tenantId)
+      .in('payment_id', refs)
+    const rows = (mirror ?? []) as { payment_id: string; charge_id: string | null; stripe_fee: number | string | null }[]
+    const byRef = new Map<string, number>()
+    for (const r of rows) {
+      if (r.stripe_fee == null) continue
+      byRef.set(r.payment_id, Number(r.stripe_fee))
+      if (r.charge_id) byRef.set(r.charge_id, Number(r.stripe_fee))
+    }
+    // Referencias que el espejo aún no conoce → pull puntual a la API de Stripe.
+    const faltan = refs.filter((r) => !byRef.has(r))
+    if (faltan.length) {
+      const cfg = await getTenantConfigWithFallback(tenantId, true)
+      if (cfg.STRIPE_SECRET_KEY) {
+        try {
+          const traidos = await fetchStripeFeesForReferences(cfg.STRIPE_SECRET_KEY, cfg.STRIPE_ACCOUNT_ID, faltan)
+          for (const [ref, fee] of traidos) byRef.set(ref, fee)
+        } catch {
+          // Stripe caído/lento: el fee del plan (fallback) cubre el cobro y el sync cuadrará el espejo.
+        }
+      }
+    }
+    for (const c of conRef) {
+      const fee = byRef.get(c.payment_reference as string)
+      if (fee != null) fees.set(c.id, fee)
+    }
+  }
+
+  // 2) Sin fee real de Stripe: la referencia del plan del cobro manual (si la hay).
+  for (const c of collections) {
+    if (!fees.has(c.id)) {
+      const planFee = Number(c.processing_fee ?? 0)
+      if (planFee > 0) fees.set(c.id, planFee)
+    }
+  }
+  return fees
+}
+
 // Genera las comisiones (setter/closer/afiliado) para un cobro concreto y las inserta como
 // PENDIENTES. Se llama en CADA cobro (cuota, reserva, entrada o cobro manual) para que la
 // comisión aparezca al instante en Comisiones y en el P&L. Tras insertarlas, recalcula los tramos
@@ -162,6 +229,10 @@ export async function generateCommissionsForCollection(
   // participant_type='collaborator' (misma matemática, lane propia del ledger).
   const colaboradoresActivos = await usuariosColaboradoresActivos(sb, tenantId)
 
+  // BASE NETA de pasarela: el fee real (Stripe por espejo/API o el del plan) descuenta de la base
+  // de TODAS las comisiones de este cobro — setter, closer, clásico y colaborador por igual.
+  const fees = await feesForCollections(sb, tenantId, [collection])
+
   const commissions = calculateCommissionsForCollection(
     tenantId,
     collection,
@@ -169,7 +240,8 @@ export async function generateCommissionsForCollection(
     rules,
     cashByRep,
     tramoByRep,
-    colaboradoresActivos
+    colaboradoresActivos,
+    fees.get(collection.id) ?? 0
   )
   // Se devuelven las filas ESCRITAS, no las calculadas, y un fallo se propaga. Antes se devolvía
   // `commissions.length` con el error del insert descartado: la pantalla decía "3 comisiones
@@ -277,9 +349,21 @@ export async function reconcileSaleCommissions(
   // Colaboradores activos: lane 'collaborator' del ledger, igual que en el hot path.
   const colaboradoresActivos = await usuariosColaboradoresActivos(sb, tenantId)
 
+  // BASE NETA: mismo fee por cobro que usa el hot path (espejo/API Stripe o plan del cobro manual).
+  const fees = await feesForCollections(sb, tenantId, colls)
+
   const toInsert: InsertCommission[] = []
   for (const col of colls) {
-    const rows = calculateCommissionsForCollection(tenantId, col, s, rules, cashByRep, tramoByRep, colaboradoresActivos)
+    const rows = calculateCommissionsForCollection(
+      tenantId,
+      col,
+      s,
+      rules,
+      cashByRep,
+      tramoByRep,
+      colaboradoresActivos,
+      fees.get(col.id) ?? 0
+    )
     for (const r of rows) {
       const key = `${r.collection_id}|${r.user_id}|${r.participant_type}`
       if (liqKeys.has(key)) continue // ya pagada, no duplicar

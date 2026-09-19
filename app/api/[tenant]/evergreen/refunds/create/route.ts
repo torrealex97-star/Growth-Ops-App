@@ -2,8 +2,8 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { calculateNegativeCommissionsForRefund } from '@/lib/commissions/calculator'
-import { recomputeRepCommissionTiers } from '@/lib/commissions/generate'
-import type { Refund, Commission } from '@/lib/types/database'
+import { recomputeRepCommissionTiers, feesForCollections } from '@/lib/commissions/generate'
+import type { Refund, Commission, Collection } from '@/lib/types/database'
 import { businessToday } from '@/lib/dates/business'
 
 export const runtime = 'nodejs'
@@ -106,15 +106,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (refErr || !refund)
       return NextResponse.json({ error: 'Error registrando devolución', detail: refErr?.message }, { status: 500 })
 
-    // 2) Comisiones negativas (se restan de las comisiones del rep)
+    // 2) Comisiones negativas (se restan de las comisiones del rep). La positiva se calculó sobre
+    // (comisionable − fee de pasarela); el espejo negativo replica ese reparto: el fee por cobro
+    // se resuelve con la MISMA función del motor (espejo Stripe → fee del plan → 0).
     const { data: commissions } = await sb
       .from('commissions')
       .select('*')
       .eq('tenant_id', t.tenantId)
       .eq('sale_id', saleId)
-    const negatives = calculateNegativeCommissionsForRefund(refund as Refund, (commissions ?? []) as Commission[]).map(
-      (n) => ({ ...n, tenant_id: t.tenantId })
-    )
+    const { data: cobrosDeVenta } = await sb
+      .from('collections')
+      .select('*')
+      .eq('tenant_id', t.tenantId)
+      .eq('sale_id', saleId)
+    const feeMap = await feesForCollections(sb, t.tenantId, (cobrosDeVenta ?? []) as Collection[])
+    const negatives = calculateNegativeCommissionsForRefund(
+      refund as Refund,
+      (commissions ?? []) as Commission[],
+      feeMap
+    ).map((n) => ({ ...n, tenant_id: t.tenantId }))
     if (negatives.length) {
       const { error } = await sb.from('commissions').insert(negatives)
       if (error) {

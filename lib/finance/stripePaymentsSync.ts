@@ -19,6 +19,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { stripeList } from '@/lib/stripe/client'
+import { fetchStripeFeeForCharge } from './stripeFees'
 
 export type StripePaymentsSyncResult = {
   /** Pagos vistos en esta pasada (los que entraron o se refrescaron). */
@@ -75,7 +76,7 @@ export async function syncStripePayments(
     { maxPages: opts.maxPages ?? 20, deadline: opts.deadline }
   )
 
-  const filas = intents
+  const filasBase = intents
     .filter((i) => i.status === 'succeeded' && !!i.id)
     .map((i) => {
       const charge = typeof i.latest_charge === 'object' ? i.latest_charge : null
@@ -104,6 +105,15 @@ export async function syncStripePayments(
         metadata: i.metadata ?? null,
       }
     })
+
+  // FEE REAL por pago (balance_transaction del charge): la base de comisión de todo el
+  // equipo es el comisionable MENOS este fee, y el motor la lee del espejo. Un fallo o un
+  // fee no disponible deja `stripe_fee` NULL (el motor usa su fallback) — nunca bloquea el sync.
+  const filas = []
+  for (const fila of filasBase) {
+    const stripe_fee = fila.charge_id ? await fetchStripeFeeForCharge(stripeSecretKey, stripeAccountId, fila.charge_id) : null
+    filas.push({ ...fila, stripe_fee })
+  }
 
   // UPSERT por (tenant_id, payment_id): reejecutar nunca duplica; refresca refunded_amount/status
   // por si la devolución llegó entre ejecuciones y el webhook no pudo escribir el espejo.

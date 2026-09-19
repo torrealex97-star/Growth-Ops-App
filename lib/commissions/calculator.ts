@@ -71,12 +71,22 @@ export function calculateCommissionsForCollection(
   // una regla enlazada a ese tramo, esa regla gana sobre el modelo por cash collected. Opcional.
   tramoByRep?: Record<string, string | null>,
   // user_ids con perfil de colaborador activo → participant_type='collaborator'. Opcional.
-  colaboradoresActivos?: Set<string> | null
+  colaboradoresActivos?: Set<string> | null,
+  // Comisión de la pasarela que procesó el pago (Stripe por API, o la del plan en el
+  // cobro manual). La base de TODAS las comisiones es el comisionable MENOS este fee:
+  // el equipo comisiona sobre lo realmente entrado. Opcional; 0 = comportamiento previo.
+  gatewayFee?: number | null
 ): InsertCommission[] {
   const commissions: InsertCommission[] = []
   const collectedAt = new Date(collection.collected_at)
   const liquidationMonth = getLiquidationMonth(collectedAt)
-  const baseAmount = collection.commissionable_amount
+  const fee = Math.max(Number(gatewayFee ?? 0), 0)
+  // El fee de pasarela NUNCA puede partir la base: se acota al comisionable (si el fee
+  // superara el cobro, la base es 0 — sin comisión — pero jamás negativa).
+  const baseAmount = Math.max(Number(collection.commissionable_amount ?? 0) - fee, 0)
+  // Alias histórico de la base neta: los tres lanes (setter/closer/colaborador) comisionan
+  // sobre el comisionable MENOS el fee de la pasarela que procesó el pago.
+  const baseNeta = baseAmount
 
   // Selecciona la regla aplicable: activa y vigente, priorizando la del rep concreto
   // sobre la genérica. Si el rep está en un TRAMO/nivel y existe regla enlazada a ese tramo, esa
@@ -109,8 +119,8 @@ export function calculateCommissionsForCollection(
       user_id: sale.setter_id,
       participant_type: 'setter',
       percent,
-      base_amount: baseAmount,
-      commission_amount: (baseAmount * percent) / 100,
+      base_amount: baseNeta,
+      commission_amount: (baseNeta * percent) / 100,
       direction: 'positive',
       status: 'pending',
       liquidation_month: liquidationMonth,
@@ -131,8 +141,8 @@ export function calculateCommissionsForCollection(
       user_id: sale.closer_id,
       participant_type: 'closer',
       percent,
-      base_amount: baseAmount,
-      commission_amount: (baseAmount * percent) / 100,
+      base_amount: baseNeta,
+      commission_amount: (baseNeta * percent) / 100,
       direction: 'positive',
       status: 'pending',
       liquidation_month: liquidationMonth,
@@ -152,8 +162,8 @@ export function calculateCommissionsForCollection(
       user_id: sale.affiliate_id,
       participant_type: participantTypeForUser(sale.affiliate_id, colaboradoresActivos),
       percent,
-      base_amount: baseAmount,
-      commission_amount: (baseAmount * percent) / 100,
+      base_amount: baseNeta,
+      commission_amount: (baseNeta * percent) / 100,
       direction: 'positive',
       status: 'pending',
       liquidation_month: liquidationMonth,
@@ -190,7 +200,10 @@ export function pickCommissionRule(
 
 export function calculateNegativeCommissionsForRefund(
   refund: Refund,
-  existingCommissions: Commission[]
+  existingCommissions: Commission[],
+  // Fee de pasarela por cobro (collection_id → fee), la MISMA base neta que usó la positiva.
+  // Si no se aporta, la negativa replica la base original (comportamiento previo).
+  gatewayFeeByCollection?: Map<string, number>
 ): InsertCommission[] {
   const liquidationMonth = getCurrentLiquidationMonth()
   const negativeCommissions: InsertCommission[] = []
@@ -202,6 +215,12 @@ export function calculateNegativeCommissionsForRefund(
 
   for (const existing of positiveCommissions) {
     // Proportionally scale the negative commission based on refund amount vs original base
+    // MISMO TRATO DEL FEE que la positiva: la positiva comisionó sobre (comisionable − fee);
+    // el espejo negativo replica ESE reparto sin re-estimar el fee. Si la positiva se calculó
+    // con fee, su base ya lo descuenta y la negativa usa la misma base proporcional; si no
+    // (histórico sin fee), se replica la base original — nunca se inventa un fee al devolver.
+    const escala = refund.commissionable_refund_amount / Math.max(existing.base_amount, 0.01)
+    const negativeBase = Math.round(existing.base_amount * Math.min(escala, 1) * 100) / 100
     const negativeCommission: InsertCommission = {
       // La subcuenta la hereda de la comisión que está espejando: es la misma venta.
       tenant_id: existing.tenant_id,
@@ -211,8 +230,8 @@ export function calculateNegativeCommissionsForRefund(
       user_id: existing.user_id,
       participant_type: existing.participant_type,
       percent: existing.percent,
-      base_amount: refund.commissionable_refund_amount,
-      commission_amount: (refund.commissionable_refund_amount * existing.percent) / 100,
+      base_amount: negativeBase,
+      commission_amount: (negativeBase * existing.percent) / 100,
       direction: 'negative',
       status: 'pending',
       liquidation_month: liquidationMonth,

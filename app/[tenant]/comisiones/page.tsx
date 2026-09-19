@@ -16,6 +16,7 @@ import { toast } from 'sonner'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import type { CommissionWithRelations, ParticipantType } from '@/lib/types/database'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
+import { resolverScopeColaborador } from '@/lib/collaborators/scope'
 import { DEFAULT_PERIOD, getCustomDateRange, inPeriod } from '@/lib/filters/period'
 import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
 import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
@@ -78,6 +79,10 @@ export default function CommissionsPage() {
   const [loading, setLoading] = useState(true)
   const [currentUserRole, setCurrentUserRole] = useState('')
   const [currentUserId, setCurrentUserId] = useState('')
+  // SCOPE (§55): el colaborador ve SU lane y nada más — el KPI de Setters/Closers expone
+  // importes de otros lanes aunque la tabla solo traiga sus filas (la query filtra por
+  // user_id, pero los totales agregan por tipo). `esColaborador` oculta esos agregados.
+  const [esColaborador, setEsColaborador] = useState(false)
 
   // Filtros
   const [q, setQ] = useState('')
@@ -103,11 +108,19 @@ export default function CommissionsPage() {
 
     const canSeeAll = ['admin', 'director'].includes(role)
 
+    // ¿Es colaborador (perfil activo en esta subcuenta)? Decide qué agregados ve:
+    // sus filas ya vienen filtradas por user_id; lo que se oculta es el desglose ajeno.
+    resolverScopeColaborador(supabase, sesion.userId, tenantId)
+      .then((s) => setEsColaborador(s.tipo === 'collaborator'))
+      .catch(() => setEsColaborador(false))
+
     let query = supabase
       .from('commissions')
       // `commissions` tiene DOS FK a `users` (user_id y approved_by); hay que desambiguar el embed
       // con el nombre del FK, o PostgREST devuelve PGRST201 y la consulta entera falla (lista vacía).
-      .select(`*, users!commissions_user_id_fkey(id, full_name), sales(id, contact_id, contacts(full_name))`)
+      .select(
+        `*, users!commissions_user_id_fkey(id, full_name), sales(id, contact_id, contacts(full_name)), collections(commissionable_amount, processing_fee, payment_reference)`
+      )
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
 
@@ -541,8 +554,8 @@ export default function CommissionsPage() {
               </SelectTrigger>
               <SelectContent className="bg-card border-border">
                 <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="setter">Setter</SelectItem>
-                <SelectItem value="closer">Closer</SelectItem>
+                {!esColaborador && <SelectItem value="setter">Setter</SelectItem>}
+                {!esColaborador && <SelectItem value="closer">Closer</SelectItem>}
                 <SelectItem value="affiliate">Colaborador (clásico)</SelectItem>
                 <SelectItem value="collaborator">Colaborador</SelectItem>
               </SelectContent>
@@ -551,7 +564,8 @@ export default function CommissionsPage() {
         </div>
       </div>
 
-      {/* KPIs del filtro aplicado */}
+      {/* KPIs del filtro aplicado — el colaborador solo ve SU lane (§55-56): los agregados
+          de Setters/Closers expondrían importes de otros lanes aunque su tabla venga filtrada. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
           title="Total Filtrado"
@@ -560,20 +574,24 @@ export default function CommissionsPage() {
           loading={loading}
           description={`${filteredCount} comisiones`}
         />
-        <KPICard
-          title="Setters"
-          value={formatCurrency(totalsByType.setter?.total ?? 0)}
-          icon={Users}
-          loading={loading}
-          description={`${totalsByType.setter?.count ?? 0} comisiones`}
-        />
-        <KPICard
-          title="Closers"
-          value={formatCurrency(totalsByType.closer?.total ?? 0)}
-          icon={Users}
-          loading={loading}
-          description={`${totalsByType.closer?.count ?? 0} comisiones`}
-        />
+        {!esColaborador && (
+          <KPICard
+            title="Setters"
+            value={formatCurrency(totalsByType.setter?.total ?? 0)}
+            icon={Users}
+            loading={loading}
+            description={`${totalsByType.setter?.count ?? 0} comisiones`}
+          />
+        )}
+        {!esColaborador && (
+          <KPICard
+            title="Closers"
+            value={formatCurrency(totalsByType.closer?.total ?? 0)}
+            icon={Users}
+            loading={loading}
+            description={`${totalsByType.closer?.count ?? 0} comisiones`}
+          />
+        )}
         <KPICard
           title="Colaboradores"
           value={formatCurrency((totalsByType.affiliate?.total ?? 0) + (totalsByType.collaborator?.total ?? 0))}
