@@ -7,7 +7,10 @@ name: CI
 #
 # AHORRO DE MINUTOS (repo privado: cada minuto cuenta contra la cuota):
 #   · Solo pushes a main y PRs — antes corría en TODAS las ramas y cada push repetía todo.
-#   · paths-ignore: cambios solo de docs/markdown/.freebuff no disparan CI (no afectan código).
+#   · paths-ignore en push: cambios solo de docs/markdown/.freebuff no disparan CI.
+#   · pull_request SIN paths-ignore (obligatorio): con branch protection, los required
+#     checks deben existir en TODO PR — un PR de solo docs sin run quedaría bloqueado
+#     para siempre (mergeable_state "blocked" sin checks que esperear).
 
 on:
   push:
@@ -17,10 +20,6 @@ on:
       - 'docs/**'
       - '.freebuff/**'
   pull_request:
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.freebuff/**'
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
