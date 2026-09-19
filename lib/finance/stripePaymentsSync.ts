@@ -111,7 +111,9 @@ export async function syncStripePayments(
   // fee no disponible deja `stripe_fee` NULL (el motor usa su fallback) — nunca bloquea el sync.
   const filas = []
   for (const fila of filasBase) {
-    const stripe_fee = fila.charge_id ? await fetchStripeFeeForCharge(stripeSecretKey, stripeAccountId, fila.charge_id) : null
+    const stripe_fee = fila.charge_id
+      ? await fetchStripeFeeForCharge(stripeSecretKey, stripeAccountId, fila.charge_id)
+      : null
     filas.push({ ...fila, stripe_fee })
   }
 

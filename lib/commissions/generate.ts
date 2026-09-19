@@ -163,7 +163,11 @@ export async function feesForCollections(
       .select('payment_id, charge_id, stripe_fee')
       .eq('tenant_id', tenantId)
       .in('payment_id', refs)
-    const rows = (mirror ?? []) as { payment_id: string; charge_id: string | null; stripe_fee: number | string | null }[]
+    const rows = (mirror ?? []) as {
+      payment_id: string
+      charge_id: string | null
+      stripe_fee: number | string | null
+    }[]
     const byRef = new Map<string, number>()
     for (const r of rows) {
       if (r.stripe_fee == null) continue

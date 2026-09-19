@@ -724,10 +724,19 @@ export default function InstagramPage() {
           <ChartCard title="Seguidores">
             <LineChart data={daily}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="snapshot_date" tickFormatter={fecha} stroke="hsl(var(--muted-foreground))" fontSize={11} />
+              <XAxis
+                dataKey="snapshot_date"
+                tickFormatter={fecha}
+                stroke="hsl(var(--muted-foreground))"
+                fontSize={11}
+              />
               <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} width={50} />
               <Tooltip
-                contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 8 }}
+                contentStyle={{
+                  background: 'hsl(var(--popover))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: 8,
+                }}
                 labelFormatter={fecha}
               />
               <Line
@@ -743,13 +752,29 @@ export default function InstagramPage() {
           <ChartCard title="Reach y visitas al perfil (diario)">
             <LineChart data={daily}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="snapshot_date" tickFormatter={fecha} stroke="hsl(var(--muted-foreground))" fontSize={11} />
+              <XAxis
+                dataKey="snapshot_date"
+                tickFormatter={fecha}
+                stroke="hsl(var(--muted-foreground))"
+                fontSize={11}
+              />
               <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} width={50} />
               <Tooltip
-                contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 8 }}
+                contentStyle={{
+                  background: 'hsl(var(--popover))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: 8,
+                }}
                 labelFormatter={fecha}
               />
-              <Line type="monotone" dataKey="reach" name="Reach" stroke="hsl(var(--brand-500))" strokeWidth={2} dot={false} />
+              <Line
+                type="monotone"
+                dataKey="reach"
+                name="Reach"
+                stroke="hsl(var(--brand-500))"
+                strokeWidth={2}
+                dot={false}
+              />
               <Line
                 type="monotone"
                 dataKey="profile_views"
@@ -800,8 +825,20 @@ export default function InstagramPage() {
                 <ChartCard key={dim} title={`Audiencia por ${label.toLowerCase()}`}>
                   <BarChart data={rows} layout="vertical">
                     <XAxis type="number" hide />
-                    <YAxis type="category" dataKey="bucket" stroke="hsl(var(--muted-foreground))" fontSize={11} width={70} />
-                    <Tooltip contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
+                    <YAxis
+                      type="category"
+                      dataKey="bucket"
+                      stroke="hsl(var(--muted-foreground))"
+                      fontSize={11}
+                      width={70}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: 'hsl(var(--popover))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: 8,
+                      }}
+                    />
                     <Bar dataKey="value" fill="hsl(var(--brand-500))" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ChartCard>
@@ -845,10 +882,19 @@ export default function InstagramPage() {
             <ChartCard title="Conversaciones en el tiempo">
               <LineChart data={convos}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="snapshot_date" tickFormatter={fecha} stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                <XAxis
+                  dataKey="snapshot_date"
+                  tickFormatter={fecha}
+                  stroke="hsl(var(--muted-foreground))"
+                  fontSize={11}
+                />
                 <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} width={50} />
                 <Tooltip
-                  contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 8 }}
+                  contentStyle={{
+                    background: 'hsl(var(--popover))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: 8,
+                  }}
                   labelFormatter={fecha}
                 />
                 <Line
@@ -865,10 +911,19 @@ export default function InstagramPage() {
           <ChartCard title="Nuevos seguidores por día">
             <BarChart data={daily}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="snapshot_date" tickFormatter={fecha} stroke="hsl(var(--muted-foreground))" fontSize={11} />
+              <XAxis
+                dataKey="snapshot_date"
+                tickFormatter={fecha}
+                stroke="hsl(var(--muted-foreground))"
+                fontSize={11}
+              />
               <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} width={50} />
               <Tooltip
-                contentStyle={{ background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 8 }}
+                contentStyle={{
+                  background: 'hsl(var(--popover))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: 8,
+                }}
                 labelFormatter={fecha}
               />
               <Bar dataKey="new_follows" name="Nuevos seguidores" fill="#10b981" radius={[4, 4, 0, 0]} />
