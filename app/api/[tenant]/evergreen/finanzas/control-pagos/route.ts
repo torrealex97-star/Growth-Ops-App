@@ -76,12 +76,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       gross_amount: number
       [k: string]: unknown
     }>
-    const productos = await sb.from('products').select('id,name,duration_months').eq('tenant_id', auth.tenantId)
-    const productoPorId = new Map(
-      ((productos.data ?? []) as Array<{ id: string; name: string; duration_months: number | null }>).map(
-        (p) => [p.id, { name: p.name, duration_months: p.duration_months }] as const
-      )
-    )
+    const productosRes = await sb.from('products').select('id,name,duration_months').eq('tenant_id', auth.tenantId)
+    const productoPorId = new Map<string, { name: string; duration_months: number | null }>()
+    for (const p of (productosRes.data ?? []) as Array<{ id: string; name: string; duration_months: number | null }>) {
+      productoPorId.set(p.id, { name: p.name, duration_months: p.duration_months })
+    }
 
     let ventasFiltradas = ventas
     if (contactIds) {
@@ -109,18 +108,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
         payment_reference: string | null
         collected_at: string | null
       }>,
-      (productos.data ?? []) as Array<{ id: string; name: string; duration_months: number | null }>,
-      new Map(
-        ventas
-          .filter((v) => v.product_id && productoPorId.get(String(v.product_id)))
-          .map((v) => [
-            v.id,
-            {
-              name: productoPorId.get(String(v.product_id))!.name,
-              duration_months: productoPorId.get(String(v.product_id))!.duration_months,
-            },
-          ])
-      )
+      (productosRes.data ?? []) as Array<{ id: string; name: string; duration_months: number | null }>,
+      (() => {
+        const productoDeVenta = new Map<string, { name: string; duration_months: number | null }>()
+        for (const v of ventas) {
+          const prod = v.product_id ? productoPorId.get(String(v.product_id)) : undefined
+          if (prod) productoDeVenta.set(v.id, prod)
+        }
+        return productoDeVenta
+      })()
     )
 
     const personasFinales = contactIds
