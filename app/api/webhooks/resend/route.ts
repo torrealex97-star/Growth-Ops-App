@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { mapResendEventToStatus, shouldAdvanceStatus } from '@/lib/email/service'
+import { mapResendEventToStatus, shouldAdvanceStatus, missingMessageAction } from '@/lib/email/estados'
 
 export const runtime = 'nodejs'
 
@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
   const insecureDev = process.env.EMAIL_WEBHOOK_INSECURE === '1'
 
   const raw = await req.text()
+  let svixOk = false
 
   // ── Verificación svix (HMAC-SHA256 sobre `${id}.${timestamp}.${payload}`) ──
   if (secret && svixId && svixTimestamp && svixSignature) {
@@ -65,6 +66,7 @@ export async function POST(req: NextRequest) {
       }
     })
     if (!ok) return NextResponse.json({ error: 'firma inválida' }, { status: 401 })
+    svixOk = true
   } else if (!insecureDev) {
     // fail-closed: sin secreto configurado no se procesa nada en producción.
     return NextResponse.json({ error: 'webhook sin verificar' }, { status: 401 })
@@ -96,10 +98,23 @@ export async function POST(req: NextRequest) {
     .eq('provider_message_id', providerMessageId)
     .eq('provider', 'resend')
     .maybeSingle()
-  if (!msg) return NextResponse.json({ ok: true, ignored: 'mensaje no registrado' })
+  if (!msg) {
+    // El evento puede llegar ANTES de que el INSERT del envío se haya commitado
+    // (Resend es rapidísimo). Con verificación válida y evento reciente pedimos
+    // reintento con 500; Resend lo re-entregará y el registro ya existirá.
+    // Un id desconocido con evento viejo (>10 min) no es una carrera: ignorar.
+    const ageSec = svixTimestamp ? Math.abs(Date.now() / 1000 - Number(svixTimestamp)) : null
+    const action = missingMessageAction({ verified: svixOk, eventAgeSec: ageSec })
+    if (action === 'retry') {
+      return NextResponse.json({ error: 'mensaje aún no registrado — reintentar' }, { status: 500 })
+    }
+    return NextResponse.json({ ok: true, ignored: 'mensaje no registrado' })
+  }
 
-  // 1) Timeline idempotente (UNIQUE provider+provider_event_id).
-  await sb.from('email_events').upsert(
+  // 1) Timeline idempotente (UNIQUE provider+provider_event_id). Si el insert
+  // falla, NO actualizamos el estado: devolvemos 500 para que Resend reintente
+  // y el evento (y su estado) no se pierdan.
+  const { error: evErr } = await sb.from('email_events').upsert(
     {
       tenant_id: msg.tenant_id,
       email_message_id: msg.id,
@@ -111,6 +126,10 @@ export async function POST(req: NextRequest) {
     },
     { onConflict: 'provider,provider_event_id', ignoreDuplicates: true }
   )
+  if (evErr) {
+    console.error('[resend-webhook] insert de evento falló:', evErr.message)
+    return NextResponse.json({ error: 'no se pudo registrar el evento' }, { status: 500 })
+  }
 
   // 2) Estado del mensaje: solo avanza (nunca DELIVERED→SENT) + timestamps.
   if (shouldAdvanceStatus(msg.status, status)) {
@@ -120,7 +139,11 @@ export async function POST(req: NextRequest) {
     if (status === 'FAILED' || status === 'BOUNCED') {
       patch.error_message = body.data?.error_message ?? `Evento ${type} del proveedor`
     }
-    await sb.from('email_messages').update(patch).eq('id', msg.id)
+    const { error: updErr } = await sb.from('email_messages').update(patch).eq('id', msg.id)
+    if (updErr) {
+      console.error('[resend-webhook] update de estado falló:', updErr.message)
+      return NextResponse.json({ error: 'no se pudo actualizar el estado' }, { status: 500 })
+    }
   }
 
   return NextResponse.json({ ok: true })

@@ -37,7 +37,7 @@ test('EmailService: única puerta de entrada, sin HTML propio ni credenciales in
 })
 
 test('mapper de estados: eventos Resend → estado interno normalizado', () => {
-  const svc = read('lib/email/service.ts')
+  const svc = read('lib/email/estados.ts')
   for (const ev of [
     'email.sent',
     'email.delivered',
