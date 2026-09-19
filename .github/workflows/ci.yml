@@ -1,14 +1,26 @@
 name: CI
 
 # Quality gate: nada de esto existía antes (el único workflow era deploy.yml, manual y sin
-# ningún check previo). Corre en cada push y PR. Los checks baratos (format/lint/typecheck)
-# van primero y en paralelo con los tests; build solo arranca si esos pasan, para no gastar
-# minutos de CI compilando código que ya se sabe roto.
+# ningún check previo). Los checks baratos (format/lint/typecheck) van primero y en paralelo
+# con los tests; build solo arranca si esos pasan, para no gastar minutos de CI compilando
+# código que ya se sabe roto.
+#
+# AHORRO DE MINUTOS (repo privado: cada minuto cuenta contra la cuota):
+#   · Solo pushes a main y PRs — antes corría en TODAS las ramas y cada push repetía todo.
+#   · paths-ignore: cambios solo de docs/markdown/.freebuff no disparan CI (no afectan código).
 
 on:
   push:
-    branches: ['**']
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.freebuff/**'
   pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.freebuff/**'
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
