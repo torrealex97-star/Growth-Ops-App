@@ -277,11 +277,16 @@ export function clasificarPersona(
       const kPrecio = Math.round(precioBase / importeCuota)
       const kMenosReserva = Math.round((precioBase - 50) / importeCuota)
       const cuadraPrecio = mismaCantidad(kPrecio * importeCuota, precioBase)
-      const cuadraMenosReserva = !cuadraPrecio && kMenosReserva >= 2 && mismaCantidad(kMenosReserva * importeCuota, precioBase - 50)
+      const cuadraMenosReserva =
+        !cuadraPrecio && kMenosReserva >= 2 && mismaCantidad(kMenosReserva * importeCuota, precioBase - 50)
       // reserva YA DEVUELTA y el plan cubre precio − (reservasDevueltas × 50)
       const kMenosDevueltas = Math.round((precioBase - reservasDevueltas * 50) / importeCuota)
       const cuadraMenosDevueltas =
-        !cuadraPrecio && !cuadraMenosReserva && reservasDevueltas > 0 && kMenosDevueltas >= 2 && mismaCantidad(kMenosDevueltas * importeCuota, precioBase - reservasDevueltas * 50)
+        !cuadraPrecio &&
+        !cuadraMenosReserva &&
+        reservasDevueltas > 0 &&
+        kMenosDevueltas >= 2 &&
+        mismaCantidad(kMenosDevueltas * importeCuota, precioBase - reservasDevueltas * 50)
       if (cuadraPrecio) {
         cuotasTotalesInferidas = kPrecio
         totalPlan = kPrecio * importeCuota

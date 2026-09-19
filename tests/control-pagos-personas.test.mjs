@@ -88,7 +88,11 @@ test('reserva devuelta + cuotas que cuadran con precio−50 = reserva ASUMIDA en
 test('suscripción mensual: van X de N e impago cuando la cuota vence sin cobro', () => {
   // cuota de 166.33 (1997/12), 6 pagadas, la primera hace 8 meses → 2 impagos
   const pagos = Array.from({ length: 6 }, (_, i) =>
-    pago({ payment_id: `pi_s${i}`, amount: 166.33, paid_at: new Date(Date.now() - (8 - i) * 30.44 * 86400e3).toISOString() })
+    pago({
+      payment_id: `pi_s${i}`,
+      amount: 166.33,
+      paid_at: new Date(Date.now() - (8 - i) * 30.44 * 86400e3).toISOString(),
+    })
   )
   const r = clasificarPersona(entrada({ pagos }), 1997, 'WDC', 12)
   assert.equal(r.estadoCliente, 'suscripcion')
@@ -100,7 +104,11 @@ test('suscripción mensual: van X de N e impago cuando la cuota vence sin cobro'
 
 test('suscripción al día no tiene impagos', () => {
   const pagos = Array.from({ length: 3 }, (_, i) =>
-    pago({ payment_id: `pi_d${i}`, amount: 166.33, paid_at: new Date(Date.now() - (3 - i) * 30.44 * 86400e3).toISOString() })
+    pago({
+      payment_id: `pi_d${i}`,
+      amount: 166.33,
+      paid_at: new Date(Date.now() - (3 - i) * 30.44 * 86400e3).toISOString(),
+    })
   )
   const r = clasificarPersona(entrada({ pagos }), 1997, 'WDC', 12)
   assert.equal(r.impagos, 0)
@@ -123,7 +131,14 @@ test('un pago único del precio completo es cliente_completado', () => {
 })
 
 test('venta interna sin pagos reales = solo_interno (antes del espejo u otro canal)', () => {
-  const r = clasificarPersona(entrada({ ventas: [{ id: 's1', contact_id: 'c1', gross_amount: 1997, status: 'active', sale_date: '2026-05-01' }] }), null, null, null)
+  const r = clasificarPersona(
+    entrada({
+      ventas: [{ id: 's1', contact_id: 'c1', gross_amount: 1997, status: 'active', sale_date: '2026-05-01' }],
+    }),
+    null,
+    null,
+    null
+  )
   assert.equal(r.estadoCliente, 'solo_interno')
 })
 
@@ -152,11 +167,28 @@ test('controlPorPersona agrupa por contacto vía stripe_customers y separa huér
 
 test('el pago real atado por payment_reference a un cobro interno hereda su persona', () => {
   const personas = controlPorPersona(
-    [pago({ payment_id: 'pi_ref1', customer_id: null, amount: 50, paid_at: '2026-08-24T10:00:00Z', ref_interna: 'pi_ref1' })],
+    [
+      pago({
+        payment_id: 'pi_ref1',
+        customer_id: null,
+        amount: 50,
+        paid_at: '2026-08-24T10:00:00Z',
+        ref_interna: 'pi_ref1',
+      }),
+    ],
     [],
     [{ id: 'c9', full_name: 'Luis', email: null }],
     [{ id: 's9', contact_id: 'c9', gross_amount: 1997, status: 'active', sale_date: '2026-08-24' }],
-    [{ id: 'col1', sale_id: 's9', gross_amount: 50, status: 'collected', payment_reference: 'pi_ref1', collected_at: '2026-08-24' }],
+    [
+      {
+        id: 'col1',
+        sale_id: 's9',
+        gross_amount: 50,
+        status: 'collected',
+        payment_reference: 'pi_ref1',
+        collected_at: '2026-08-24',
+      },
+    ],
     [],
     new Map()
   )

@@ -57,7 +57,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       refunded_amount: Number(p.refunded_amount ?? 0),
       status: String(p.status),
       paid_at: (p.paid_at as string) ?? null,
-      ref_interna: refsInternas.has(String(p.payment_id)) ? String(p.payment_id) : refsInternas.has(String(p.charge_id ?? '')) ? String(p.charge_id) : null,
+      ref_interna: refsInternas.has(String(p.payment_id))
+        ? String(p.payment_id)
+        : refsInternas.has(String(p.charge_id ?? ''))
+          ? String(p.charge_id)
+          : null,
     }))
 
     // SCOPE DE COLABORADOR: ver solo las personas de SUS contactos atribuidos (§16).
@@ -66,11 +70,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
     const contactIds = await contactIdsDeScope(sb, auth.tenantId, scope)
 
     // Producto por venta (precio/duración) para inferir planes y suscripciones.
-    const ventas = (ventasRes.data ?? []) as Array<{ id: string; product_id: string | null; gross_amount: number; [k: string]: unknown }>
+    const ventas = (ventasRes.data ?? []) as Array<{
+      id: string
+      product_id: string | null
+      gross_amount: number
+      [k: string]: unknown
+    }>
     const productos = await sb.from('products').select('id,name,duration_months').eq('tenant_id', auth.tenantId)
     const productoPorId = new Map(
-      (productos.data ?? []) as Array<{ id: string; name: string; duration_months: number | null }>
-    ).valueOf() as Map<string, { name: string; duration_months: number | null }>
+      ((productos.data ?? []) as Array<{ id: string; name: string; duration_months: number | null }>).map(
+        (p) => [p.id, { name: p.name, duration_months: p.duration_months }] as const
+      )
+    )
 
     let ventasFiltradas = ventas
     if (contactIds) {
@@ -90,25 +101,41 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
         status: String(v.status),
         sale_date: (v.sale_date as string) ?? null,
       })),
-      (cobrosRes.data ?? []) as Array<{ id: string; sale_id: string; gross_amount: number; status: string; payment_reference: string | null; collected_at: string | null }>,
+      (cobrosRes.data ?? []) as Array<{
+        id: string
+        sale_id: string
+        gross_amount: number
+        status: string
+        payment_reference: string | null
+        collected_at: string | null
+      }>,
       (productos.data ?? []) as Array<{ id: string; name: string; duration_months: number | null }>,
       new Map(
         ventas
           .filter((v) => v.product_id && productoPorId.get(String(v.product_id)))
           .map((v) => [
             v.id,
-            { name: productoPorId.get(String(v.product_id))!.name, duration_months: productoPorId.get(String(v.product_id))!.duration_months },
+            {
+              name: productoPorId.get(String(v.product_id))!.name,
+              duration_months: productoPorId.get(String(v.product_id))!.duration_months,
+            },
           ])
       )
     )
 
-    const personasFinales = contactIds ? personas.filter((p) => p.contact_id && new Set(contactIds).has(p.contact_id)) : personas
+    const personasFinales = contactIds
+      ? personas.filter((p) => p.contact_id && new Set(contactIds).has(p.contact_id))
+      : personas
 
     return NextResponse.json({
       personas: personasFinales,
       resumen: {
         totalPersonas: personasFinales.length,
-        clientes: personasFinales.filter((p) => ['cliente_activo', 'cliente_completado', 'suscripcion', 'plan_a_plazos', 'reserva_pendiente'].includes(p.estadoCliente)).length,
+        clientes: personasFinales.filter((p) =>
+          ['cliente_activo', 'cliente_completado', 'suscripcion', 'plan_a_plazos', 'reserva_pendiente'].includes(
+            p.estadoCliente
+          )
+        ).length,
         suscripciones: personasFinales.filter((p) => p.estadoCliente === 'suscripcion').length,
         conImpago: personasFinales.filter((p) => p.impagos > 0).length,
         reservasPendientes: personasFinales.filter((p) => p.estadoCliente === 'reserva_pendiente').length,
