@@ -50,7 +50,7 @@ export type FunnelConfig = {
 // ── Métricas reutilizables ───────────────────────────────────────────────────
 const spend: MetricDef = {
   key: 'spend',
-  label: 'Inversión',
+  label: 'Spend',
   fmt: 'eur',
   tooltip: 'Inversión total del periodo. Métrica directa de la Insights API de Meta (spend).',
   get: () => null, // se resuelve aparte (viene de la base, no de MetaCalc)
@@ -58,7 +58,7 @@ const spend: MetricDef = {
 
 const impressions: MetricDef = {
   key: 'impressions',
-  label: 'Impresiones',
+  label: 'Impressions',
   fmt: 'int',
   tooltip: 'Nº de veces que se mostraron los anuncios. Directo de Meta (impressions).',
   get: () => null,
@@ -75,7 +75,7 @@ const cpm: MetricDef = {
 
 const clicks: MetricDef = {
   key: 'linkClicks',
-  label: 'Link clicks',
+  label: 'Inline link clicks',
   fmt: 'int',
   tooltip: 'Clics en el enlace del anuncio. Directo de Meta (inline_link_clicks).',
   // Se resuelve por la base (resolveMetric), no por MetaCalc.
@@ -103,7 +103,7 @@ const cpc: MetricDef = {
 
 const lpv: MetricDef = {
   key: 'lpv',
-  label: 'LP views',
+  label: 'Landing page views',
   fmt: 'int',
   tooltip: 'Visitas reales a la página de destino atribuidas por el píxel de Meta (landing_page_view).',
   get: (m) => m.lpv,
@@ -172,7 +172,7 @@ const costSchedule: MetricDef = {
 
 const purchases: MetricDef = {
   key: 'purchases',
-  label: 'Meta purchases',
+  label: 'Purchases (Meta)',
   fmt: 'int',
   tooltip:
     'Compras atribuidas por Meta (evento Purchase). Meta-attributed: puede no coincidir con el revenue contable.',
@@ -190,7 +190,7 @@ const costPurchase: MetricDef = {
 
 const purchaseValue: MetricDef = {
   key: 'purchaseValue',
-  label: 'Purchase value',
+  label: 'Purchase conversion value',
   fmt: 'eur',
   tooltip: 'Valor de las compras atribuidas (action_values de Meta). Meta-attributed, no revenue contable.',
   get: (m) => m.purchaseValue,
@@ -234,7 +234,7 @@ const regRate: MetricDef = {
 
 const conversations: MetricDef = {
   key: 'conversations',
-  label: 'Messaging conversations',
+  label: 'Messaging conversations started',
   fmt: 'int',
   tooltip: 'Conversaciones de messaging iniciadas, atribuidas por Meta (messaging_conversation_started_7d).',
   get: (m) => m.conversations,
@@ -251,7 +251,7 @@ const costConversation: MetricDef = {
 
 const engagements: MetricDef = {
   key: 'engagements',
-  label: 'Engagements',
+  label: 'Post engagements',
   fmt: 'int',
   tooltip: 'Interacciones con las publicaciones (post_engagement de Meta: reacciones, comentarios, clics…).',
   get: (m) => m.engagements,
@@ -315,19 +315,19 @@ export function resolveMetric(
 // ── Etapas de funnel visual ──────────────────────────────────────────────────
 const stageImpressions: StageDef = {
   key: 'impressions',
-  label: 'Impresiones',
+  label: 'Impressions',
   fmt: 'num',
   tooltip: 'Impresiones (Meta).',
 }
 const stageClicks: StageDef = {
   key: 'linkClicks',
-  label: 'Link clicks',
+  label: 'Inline link clicks',
   fmt: 'num',
   tooltip: 'Clics en el enlace (Meta).',
 }
 const stageLpv: StageDef = {
   key: 'landing_page_view',
-  label: 'LP views',
+  label: 'Landing page views',
   fmt: 'num',
   tooltip: 'Visitas a la página (Meta: landing_page_view).',
 } as StageDef

@@ -110,16 +110,19 @@ export function MetaAdsView({
   }, [tenant, showAssigner])
 
   // Filas de la selección: campaña visible + (fuera de "todo") funnel asignado.
-  const filasSeleccion = useMemo(
-    () =>
-      rows.filter((r) => {
-        const c = byId.get(r.campaign_id)
-        if (!c) return false
-        if (funnel !== 'todo') return asignaciones[r.campaign_id] === funnel
-        return true
-      }),
-    [rows, byId, funnel, asignaciones]
-  )
+  // Si NINGUNA campaña tiene el funnel asignado, no se filtra: un selector que devuelve siempre
+  // vacío no es un filtro, es una pared — con asignaciones el filtro acota, sin ellas se ve todo
+  // y el aviso debajo invita a asignar (§2: la clasificación es manual y corregible).
+  const filasSeleccion = useMemo(() => {
+    const hayAsignadas = funnel === 'todo' || Object.values(asignaciones).some((f) => f === funnel)
+    return rows.filter((r) => {
+      const c = byId.get(r.campaign_id)
+      if (!c) return false
+      if (funnel !== 'todo') return !hayAsignadas || asignaciones[r.campaign_id] === funnel
+      return true
+    })
+  }, [rows, byId, funnel, asignaciones])
+  const funnelSinAsignar = funnel !== 'todo' && !Object.values(asignaciones).some((f) => f === funnel)
 
   // ── Agregaciones ────────────────────────────────────────────────────────────
   const totalAgg = useMemo(() => aggregateRows(filasSeleccion), [filasSeleccion])
@@ -165,7 +168,6 @@ export function MetaAdsView({
     return kpiDefs
       .map((def) => ({ def, value: resolveMetric(def, totalAgg.calc, totalAgg.base) }))
       .filter((k) => k.value != null)
-      .slice(0, 8)
   }, [kpiDefs, totalAgg])
 
   // ── Performance by funnel (§26) ─────────────────────────────────────────────
@@ -266,6 +268,21 @@ export function MetaAdsView({
 
       {error && (
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{error}</div>
+      )}
+
+      {funnelSinAsignar && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+          <span>
+            Ninguna campaña tiene asignado el funnel {config.label}: se muestran todas. Asígnalas en «Configurar
+            funnels» para acotar el panel a ese embudo.
+          </span>
+          <button
+            onClick={() => setShowAssigner(true)}
+            className="rounded-md border border-amber-500/40 px-2 py-1 font-medium hover:bg-amber-500/20"
+          >
+            Asignar campañas
+          </button>
+        </div>
       )}
 
       {/* TODO (§26): universales + performance por funnel */}

@@ -6,6 +6,8 @@
 // Nada de CRM, Stripe, Typeform, GA4 ni first-party en este panel.
 
 import { useMemo } from 'react'
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { InfoHint } from '@/components/ui/info-hint'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import { aggregateActions, calcMeta, type BaseMeta, type MetaActionKey, type Metrica } from '@/lib/meta/actions'
 import {
@@ -31,19 +33,7 @@ const fmts = { eur: fmtEur, num: fmtNum2, int: fmtInt, pct: fmtPct, x: fmtX } as
 
 // ── Tooltip CSS puro (§40): qué es, fórmula y origen ─────────────────────────
 function MetricHint({ text, calculated }: { text: string; calculated?: boolean }) {
-  return (
-    <span className="group/hint relative inline-flex cursor-help">
-      <svg viewBox="0 0 16 16" className="h-3 w-3 text-muted-foreground/70" fill="currentColor" aria-hidden>
-        <path d="M8 1.5a6.5 6.5 0 100 13 6.5 6.5 0 000-13zM8.75 12h-1.5V7h1.5v5zm0-6h-1.5V4.5h1.5V6z" />
-      </svg>
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 w-60 -translate-x-1/2 rounded-lg border border-border bg-popover p-2.5 text-[11px] font-normal leading-snug text-popover-foreground opacity-0 shadow-lg transition-opacity group-hover/hint:opacity-100">
-        {text}
-        <span className="mt-1 block text-muted-foreground">
-          {calculated ? 'Calculado usando datos de Meta.' : 'Dato directo de la Meta Marketing API.'}
-        </span>
-      </span>
-    </span>
-  )
+  return <InfoHint text={`${text}\n${calculated ? 'Calculado usando datos de Meta.' : 'Dato directo de la Meta Marketing API.'}`} />
 }
 
 // Badge de origen (§41): pequeño, discreto, con tooltip.
@@ -349,7 +339,16 @@ export function PerformanceByFunnel({ rows }: { rows: FunnelRowByFunnel[] }) {
   )
 }
 
-// ── Tendencia temporal (§30): línea, día/semana/mes, métricas del funnel ────
+// ── Tendencia temporal (§30): LÍNEA estilo trading, no barras horizontales ────
+// La evolución de una métrica se lee en una línea: dirección, picos y caídas. Las barras
+// horizontales que había aquí son un ranking, no una serie temporal. Mismo criterio visual que
+// TrendChart (dashboard global): un eje, huecos como huecos (connectNulls=false) y variación de la
+// segunda mitad de la serie contra la primera.
+const fmtFecha = (iso: string) => {
+  const d = new Date(`${iso}T00:00:00`)
+  return isNaN(d.getTime()) ? iso : d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })
+}
+
 export function MetaTrend({ metric, rows }: { metric: MetricDef; rows: { date: string; agg: Aggregated }[] }) {
   const data = useMemo(
     () =>
@@ -359,32 +358,84 @@ export function MetaTrend({ metric, rows }: { metric: MetricDef; rows: { date: s
       })),
     [rows, metric]
   )
+  const variacion = useMemo(() => {
+    const conDato = data.filter((d) => d.value != null) as { value: number }[]
+    if (conDato.length < 4) return null
+    const mitad = Math.floor(conDato.length / 2)
+    const sum = (arr: { value: number }[]) => arr.reduce((s, d) => s + d.value, 0)
+    const previo = sum(conDato.slice(0, mitad))
+    const reciente = sum(conDato.slice(mitad))
+    return previo !== 0 ? ((reciente - previo) / Math.abs(previo)) * 100 : null
+  }, [data])
   if (data.length === 0) return null
   return (
     <div className="dashboard-card p-5">
-      <p className="flex items-center gap-1.5 text-sm font-medium">
-        {metric.label}
-        <MetricHint text={metric.tooltip} calculated={metric.calculated} />
-      </p>
-      <div className="mt-3 space-y-1">
-        {data.slice(-14).map((d) => (
-          <div key={d.date} className="flex items-center gap-2">
-            <span className="w-16 shrink-0 text-xs tabular-nums text-muted-foreground">
-              {new Date(`${d.date}T00:00:00`).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
-            </span>
-            <div className="h-2 flex-1 rounded-full bg-muted">
-              <div
-                className="h-2 rounded-full bg-brand-500"
-                style={{
-                  width: `${Math.min(100, Math.max(2, ((d.value ?? 0) / Math.max(...data.map((x) => x.value ?? 0), 1)) * 100))}%`,
-                }}
-              />
-            </div>
-            <span className="w-24 shrink-0 text-right text-xs tabular-nums text-foreground">
-              {fmts[metric.fmt](d.value)}
-            </span>
-          </div>
-        ))}
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-sm font-medium">
+          {metric.label}
+          <MetricHint text={metric.tooltip} calculated={metric.calculated} />
+        </p>
+        {variacion != null && (
+          <span
+            className={`text-xs tabular-nums ${
+              variacion > 0 ? 'text-emerald-400' : variacion < 0 ? 'text-red-400' : 'text-muted-foreground'
+            }`}
+          >
+            {variacion > 0 ? '▲' : variacion < 0 ? '▼' : '='} {formatPercent(Math.abs(variacion), 1)} vs periodo
+            anterior
+          </span>
+        )}
+      </div>
+      <div className="mt-3 h-44 w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id={`meta-trend-${metric.key.replace(/\W/g, '')}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.16} />
+                <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke="hsl(var(--border))" strokeOpacity={0.4} vertical={false} />
+            <XAxis
+              dataKey="date"
+              tickFormatter={fmtFecha}
+              tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+              axisLine={false}
+              tickLine={false}
+              minTickGap={24}
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+              axisLine={false}
+              tickLine={false}
+              width={52}
+              tickFormatter={(v) => (v === 0 ? '' : fmts[metric.fmt](Number(v)))}
+            />
+            <Tooltip
+              cursor={{ stroke: 'hsl(var(--border))' }}
+              content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null
+                const v = (payload[0]?.value as number | undefined) ?? null
+                return (
+                  <div className="rounded-lg border border-border bg-popover px-2.5 py-1.5 text-xs shadow-lg">
+                    <span className="text-muted-foreground">{fmtFecha(String(label))}</span>{' '}
+                    <span className="font-semibold tabular-nums text-foreground">{fmts[metric.fmt](v)}</span>
+                  </div>
+                )
+              }}
+            />
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke="hsl(var(--primary))"
+              strokeWidth={2}
+              fill={`url(#meta-trend-${metric.key.replace(/\W/g, '')})`}
+              connectNulls={false}
+              dot={false}
+              activeDot={{ r: 3 }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
     </div>
   )
