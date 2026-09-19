@@ -17,6 +17,9 @@ const PUBLIC_PATHS = [
   // leyendo el contrato por signing_token (índice UNIQUE global). El token es el mecanismo de
   // seguridad, no la subcuenta.
   '/api/public-contracts',
+  // Webhook de Resend (estados de entrega del módulo Emails): se autentica con la firma
+  // svix de RESEND_WEBHOOK_SECRET — fail-closed en producción, como los demás webhooks.
+  '/api/webhooks/resend',
   // Callback de OAuth con Google. No puede llevar la subcuenta en la ruta porque el URI de
   // redirección se registra literalmente en Google Cloud, así que no hay tenant del que exigir
   // sesión aquí. La ruta se autentica con el `state` FIRMADO que verifica ella misma: sin firma
