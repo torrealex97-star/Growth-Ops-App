@@ -145,18 +145,20 @@ export const SYNC_DEFS: SyncDef[] = [
   {
     // El ESPEJO de pagos: la fuente primaria de Cash Collected (§2). PaymentIntents liquidados con
     // su devolución, upsert idempotente en stripe_payments, y cotejo con collections vía
-    // lib/canonical/cash.ts. Manual como stripe-customers (mismo motivo de los crons del plan
-    // Hobby); los pagos NUEVOS además llegan en tiempo real por el webhook.
+    // lib/canonical/cash.ts. La ruta de cron EXISTE (cron/stripe-payments) y se ejecuta por
+    // GitHub Actions (cron-stripe-payments.yml, diario 04:40 UTC) igual que los otros 7 crons
+    // delegados del plan Hobby; los pagos NUEVOS además llegan en tiempo real por el webhook.
     id: 'stripe-payments',
     label: 'Stripe — pagos (cash collected)',
-    // `route: null` = se dispara desde la interfaz (Integraciones › Stripe), sin cron: es la
-    // convención del catálogo para lo manual puro, nunca una ruta inventada para encajar.
-    route: null,
+    route: 'cron/stripe-payments',
     table: 'stripe_payments',
     requiredKeys: ['STRIPE_SECRET_KEY'],
+    // Los crons delegados a GitHub no viven en vercel.json: si se declarara `vercel`, assessSync
+    // los marcaría "sin planificador" por no estar ahí. Manual-por-delegación es lo que el panel
+    // puede decir con verdad (ver cron-stripe-payments.yml para el horario y el dispatch).
     scheduler: 'manual',
     manualReason:
-      'Se lanza desde Integraciones › Stripe ("Sincronizar pagos"): rellena el espejo que alimenta Cash Collected. Los pagos nuevos además entran en tiempo real por el webhook.',
+      'Se ejecuta a diario por GitHub Actions (04:40 UTC) y también desde Integraciones › Stripe ("Sincronizar pagos"): rellena el espejo que alimenta Cash Collected. Los pagos nuevos además entran en tiempo real por el webhook.',
   },
   {
     id: 'youtube-backfill',

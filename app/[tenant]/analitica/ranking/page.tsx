@@ -375,12 +375,7 @@ export default function PipelinePage() {
   }, [filteredContacts, filteredSales])
 
   const usersWithRole = useMemo(
-    () =>
-      usersWithRoles.map((u) => ({
-        id: u.id,
-        full_name: u.full_name,
-        role: u.roles?.key ?? null,
-      })),
+    () => usersWithRoles.map((u) => ({ id: u.id, full_name: u.full_name, role: u.roles?.key ?? null })),
     [usersWithRoles]
   )
   const closers = useMemo(() => teamRanking(filteredSales, [], usersWithRole, 'closer'), [filteredSales, usersWithRole])
@@ -431,10 +426,7 @@ export default function PipelinePage() {
         customTo={customTo}
         onCustomFromChange={setCustomFrom}
         onCustomToChange={setCustomTo}
-        members={usersWithRoles.map((u) => ({
-          id: u.id,
-          full_name: u.full_name,
-        }))}
+        members={usersWithRoles.map((u) => ({ id: u.id, full_name: u.full_name }))}
         member={personId}
         onMemberChange={setPersonId}
         hasActiveFilters={periodPreset !== 'all' || personId !== 'all'}
@@ -494,9 +486,7 @@ export default function PipelinePage() {
                       <div className="w-full h-2 bg-muted rounded-full overflow-hidden mb-2">
                         <div
                           className={`h-full ${barColor} rounded-full transition-all`}
-                          style={{
-                            width: `${Math.min(100, Math.max(0, pct))}%`,
-                          }}
+                          style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
                         />
                       </div>
                       <div className="text-xs text-muted-foreground">
@@ -516,26 +506,10 @@ export default function PipelinePage() {
               <ConnectedFunnel
                 stages={[
                   { label: 'Leads', value: funnel.leads, conversion: null },
-                  {
-                    label: 'Contactado',
-                    value: funnel.contacted,
-                    conversion: pctOf(funnel.contacted, funnel.leads),
-                  },
-                  {
-                    label: 'Cita',
-                    value: funnel.citas,
-                    conversion: pctOf(funnel.citas, funnel.contacted),
-                  },
-                  {
-                    label: 'Oferta',
-                    value: funnel.ofertas,
-                    conversion: pctOf(funnel.ofertas, funnel.citas),
-                  },
-                  {
-                    label: 'Cierre',
-                    value: funnel.cierres,
-                    conversion: pctOf(funnel.cierres, funnel.ofertas),
-                  },
+                  { label: 'Contactado', value: funnel.contacted, conversion: pctOf(funnel.contacted, funnel.leads) },
+                  { label: 'Cita', value: funnel.citas, conversion: pctOf(funnel.citas, funnel.contacted) },
+                  { label: 'Oferta', value: funnel.ofertas, conversion: pctOf(funnel.ofertas, funnel.citas) },
+                  { label: 'Cierre', value: funnel.cierres, conversion: pctOf(funnel.cierres, funnel.ofertas) },
                 ]}
               />
             </div>

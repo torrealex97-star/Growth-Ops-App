@@ -1,0 +1,28 @@
+# Backfill y refresco diario del espejo de pagos Stripe (fuente primaria de Cash Collected).
+# Autenticación idéntica a los demás crons delegados: Bearer CRON_SECRET contra producción.
+name: "cron: stripe-payments"
+on:
+  schedule:
+    - cron: '40 4 * * *' # diario 04:40 UTC — hueco libre entre analyze-calls (04:00) y monthly/sequra; rellena el espejo stripe_payments
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: cron-stripe-payments
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: GET /api/_/evergreen/cron/stripe-payments
+        env:
+          APP_URL: ${{ vars.CRON_APP_URL || 'https://growth-ops-weld.vercel.app' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o response.json -w '%{http_code}' --max-time 120 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/_/evergreen/cron/stripe-payments")
+          echo "HTTP $code"
+          cat response.json; echo
+          case "$code" in 2*) exit 0 ;; *) exit 1 ;; esac
