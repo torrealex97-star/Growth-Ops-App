@@ -206,14 +206,14 @@ export function DailyMetricsPanel({ from, to }: { from?: string | null; to?: str
                   />
                   <XAxis
                     dataKey="short"
-                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                     axisLine={false}
                     tickLine={false}
                     interval="preserveStartEnd"
                     minTickGap={16}
                   />
                   <YAxis
-                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(v) => `${v}%`}
@@ -257,7 +257,7 @@ export function DailyMetricsPanel({ from, to }: { from?: string | null; to?: str
                   />
                   <XAxis
                     dataKey="short"
-                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                     axisLine={false}
                     tickLine={false}
                     interval="preserveStartEnd"
@@ -265,7 +265,7 @@ export function DailyMetricsPanel({ from, to }: { from?: string | null; to?: str
                   />
                   <YAxis
                     yAxisId="l"
-                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                     axisLine={false}
                     tickLine={false}
                     allowDecimals={false}
@@ -273,19 +273,30 @@ export function DailyMetricsPanel({ from, to }: { from?: string | null; to?: str
                   <YAxis
                     yAxisId="r"
                     orientation="right"
-                    tick={{ fontSize: 10, fill: '#71717a' }}
+                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(v) => `${formatNumber(v)}€`}
                   />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(16, 185, 129, 0.08)' }} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--brand-500) / 0.08)' }} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar yAxisId="l" dataKey="agendas" name="Agendas" fill="#10b981" radius={[7, 7, 0, 0]} />
+                  {/* Barra con contorno del acento (marca diferencial frente a la línea de coste):
+                      nº de agendas vs €/agenda viven en escalas distintas y no comparten eje honesto. */}
+                  <Bar
+                    yAxisId="l"
+                    dataKey="agendas"
+                    name="Agendas"
+                    fill="hsl(var(--brand-500) / 0.85)"
+                    stroke="hsl(var(--brand-500))"
+                    strokeWidth={1}
+                    radius={[7, 7, 0, 0]}
+                  />
                   <Line
                     yAxisId="r"
                     dataKey="costeAgenda"
                     name="Coste/Agenda"
-                    stroke="#f59e0b"
+                    stroke="hsl(var(--brand-300))"
+                    strokeDasharray="6 3"
                     strokeWidth={2}
                     dot={false}
                     connectNulls

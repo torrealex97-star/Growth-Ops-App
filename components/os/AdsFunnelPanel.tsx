@@ -351,9 +351,18 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
                     tickLine={false}
                     tickFormatter={(v) => `${formatNumber(v)}€`}
                   />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(16, 185, 129, 0.08)' }} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--brand-500) / 0.08)' }} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar yAxisId="l" dataKey="agendas" name="Agendas" fill="#10b981" radius={[7, 7, 0, 0]} />
+                  {/* Barra con contorno del acento (marca diferencial frente a la línea de coste). */}
+                  <Bar
+                    yAxisId="l"
+                    dataKey="agendas"
+                    name="Agendas"
+                    fill="hsl(var(--brand-500) / 0.85)"
+                    stroke="hsl(var(--brand-500))"
+                    strokeWidth={1}
+                    radius={[7, 7, 0, 0]}
+                  />
                   <Line
                     type="monotone"
                     yAxisId="r"

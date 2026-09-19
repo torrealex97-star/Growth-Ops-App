@@ -222,13 +222,24 @@ export function VslDashboard() {
                         <stop offset="100%" stopColor={BLUE} stopOpacity={0.03} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                    <XAxis dataKey="sec" tickFormatter={fmt} stroke="#64748b" fontSize={11} minTickGap={40} />
-                    <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="#64748b" fontSize={11} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis
+                      dataKey="sec"
+                      tickFormatter={fmt}
+                      stroke="hsl(var(--muted-foreground))"
+                      fontSize={11}
+                      minTickGap={40}
+                    />
+                    <YAxis
+                      domain={[0, 100]}
+                      tickFormatter={(v) => `${v}%`}
+                      stroke="hsl(var(--muted-foreground))"
+                      fontSize={11}
+                    />
                     <Tooltip
                       contentStyle={{
-                        background: '#12121f',
-                        border: '1px solid rgba(255,255,255,0.1)',
+                        background: 'hsl(var(--popover))',
+                        border: '1px solid hsl(var(--border))',
                         borderRadius: 8,
                         fontSize: 12,
                       }}
