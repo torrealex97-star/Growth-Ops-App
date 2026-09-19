@@ -11,6 +11,14 @@ import { type FunnelFamily, stagesOf } from '@/lib/funnels/definitions'
 import { type EventMap, namesFor } from '@/lib/funnels/event-map'
 import { errorFuente, fromCount, noConfigurada, type MetricValue } from '@/lib/funnels/types'
 
+// Familia del motor → tipo de asignación manual (campaign_funnel_assignments.funnel_type).
+// web_seo es orgánico/GA4: no filtra campañas de pago.
+const FAMILIA_A_ASIGNACION: Partial<Record<FunnelFamily, 'dm' | 'vsl' | 'webinar'>> = {
+  vsl: 'vsl',
+  webinar: 'webinar',
+  profile: 'dm',
+}
+
 export type DateRange = { from: string; to: string } // ISO, inclusivo por fecha
 
 type CountResult = { rows: number | null; error?: string }
@@ -69,24 +77,49 @@ async function crmStages(sb: SupabaseClient, tenantId: string, range: DateRange)
 
 // ── Etapas de Meta: campaign_daily es la fuente por día ya sincronizada ─────
 
-async function metaStages(sb: SupabaseClient, tenantId: string, range: DateRange) {
+// Ids de campaña asignados MANUALMENTE a la familia (campaign_funnel_assignments, la fuente de
+// verdad que llena MetaFunnelAssigner). Sin asignaciones devolvemos null (no []) para que el
+// llamador distinga "nadie ha asignado nada" de "asignaron 0 campañas": con la sugerencia por
+// nombre sin guardar no se calcula nada — §2 dice que es solo sugerencia.
+async function campanasAsignadas(sb: SupabaseClient, tenantId: string, family: FunnelFamily): Promise<string[] | null> {
+  const tipo = FAMILIA_A_ASIGNACION[family]
+  if (!tipo) return null
+  try {
+    const { data, error } = await sb
+      .from('campaign_funnel_assignments')
+      .select('campaign_id')
+      .eq('tenant_id', tenantId)
+      .eq('funnel_type', tipo)
+    if (error) return null
+    return (data ?? []).map((r: { campaign_id: string }) => r.campaign_id)
+  } catch {
+    return null
+  }
+}
+
+async function metaStages(sb: SupabaseClient, tenantId: string, range: DateRange, campaignIds: string[] | null) {
   // Paginado: `campaign_daily` tiene una fila por campaña y día, así que unos meses de histórico
   // pasan de las 1.000 filas que devuelve PostgREST como máximo. Sin paginar, el gasto y las
   // impresiones del embudo salían recortados sin ningún aviso — más bajos que los reales.
+  const ids = campaignIds && campaignIds.length > 0 ? campaignIds : null
   const { rows: data, error } = await fetchAllRows<{
     impressions: number | null
     link_clicks: number | null
     reach: number | null
     spend: number | null
-  }>(() =>
-    sb
+  }>(() => {
+    let q = sb
       .from('campaign_daily')
       .select('impressions,link_clicks,reach,spend,date')
       .eq('tenant_id', tenantId)
       .gte('date', range.from)
       .lte('date', range.to)
       .not('date', 'is', null)
-  )
+    // Con asignaciones manuales, las etapas Meta de la familia cuentan SOLO esas campañas.
+    // Sin asignación (null) se mantiene el total del tenant: no convertir "sin clasificar" en 0.
+    if (ids) q = q.in('campaign_id', ids)
+    return q
+  })
   if (error) {
     const fail = { rows: null as number | null, error }
     return {
@@ -204,7 +237,8 @@ export async function loadFunnelCounts(
   const metaSafe = async () => {
     if (!needsMeta) return null
     try {
-      return await metaStages(sb, tenantId, range)
+      const ids = await campanasAsignadas(sb, tenantId, family)
+      return await metaStages(sb, tenantId, range, ids)
     } catch (e) {
       return { error: e instanceof Error ? e.message : 'Error al leer Meta' } as const
     }
