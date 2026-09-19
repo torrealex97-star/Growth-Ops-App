@@ -1,9 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Mail, Loader2, RotateCcw, Save, Eye } from 'lucide-react'
+import { Mail, Loader2, RotateCcw, Save, Eye, Send } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { LABELS } from './email-labels'
 
 // ── Editor de plantillas de correo (Configuración › Correos) ────────────────
 // Lista los 8 correos transaccionales del sistema. Cada uno puede:
@@ -19,17 +20,6 @@ type TemplateRow = {
   body_html: string
   skeleton: { subject: string; body: string }
   updated_at: string | null
-}
-
-const LABELS: Record<string, string> = {
-  invite: 'Invitación · crear contraseña',
-  recovery: 'Recuperar contraseña',
-  contract: 'Contrato para firmar',
-  contract_signed: 'Contrato firmado · copia (colaborador)',
-  student_contract: 'Contrato alumno · bienvenida',
-  student_onboarding: 'Onboarding alumno · accesos',
-  student_contract_signed: 'Contrato firmado · copia (alumno)',
-  task_assigned: 'Tarea asignada',
 }
 
 const VARIABLES_DOC: Record<string, string> = {
@@ -89,6 +79,8 @@ export function EmailTemplatesPanel() {
   const [empresa, setEmpresa] = useState('Tu Empresa')
   const [saving, setSaving] = useState(false)
   const [preview, setPreview] = useState(false)
+  const [testTo, setTestTo] = useState('')
+  const [sendingTest, setSendingTest] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -149,6 +141,28 @@ export function EmailTemplatesPanel() {
       toast.error(e instanceof Error ? e.message : 'Error al guardar')
     } finally {
       setSaving(false)
+    }
+  }
+
+  // Enviar prueba (§14): renderiza esta plantilla con datos ficticios y la envía
+  // al email indicado. La API NO ejecuta ningún flujo de negocio y el envío se
+  // marca is_test en el historial.
+  const enviarPrueba = async () => {
+    if (!selected || !testTo.trim()) return
+    setSendingTest(true)
+    try {
+      const res = await fetch(`/api/${tenant}/evergreen/emails`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template_key: selected, to: testTo.trim() }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) throw new Error(json.error || 'Error al enviar la prueba')
+      toast.success(`Prueba enviada a ${testTo.trim()}${json.usedGlobalFallback ? ' (credencial global)' : ''}`)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Error al enviar la prueba')
+    } finally {
+      setSendingTest(false)
     }
   }
 
@@ -258,6 +272,24 @@ export function EmailTemplatesPanel() {
             <p className="text-xs text-muted-foreground">
               Variables: <span className="font-mono">{VARIABLES_DOC[sel.key]}</span>
             </p>
+
+            <div className="flex flex-wrap items-center gap-2 border-t border-border mt-3 pt-3">
+              <input
+                value={testTo}
+                onChange={(e) => setTestTo(e.target.value)}
+                placeholder="tu@email.com"
+                type="email"
+                className="bg-muted border border-border rounded-md px-3 py-1.5 text-xs text-foreground w-56"
+              />
+              <button
+                onClick={enviarPrueba}
+                disabled={sendingTest || !testTo.trim() || !subject.trim()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border hover:bg-muted/50 disabled:opacity-50"
+              >
+                {sendingTest ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}{' '}
+                Enviar prueba
+              </button>
+            </div>
 
             {preview ? (
               <div className="border border-border rounded-lg overflow-hidden">
