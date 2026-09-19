@@ -1,0 +1,15 @@
+# Config de gitleaks para el CI (job "Secretos") y uso local: `gitleaks detect --redact`.
+# Extiende las reglas por defecto y solo permite, POR VALOR EXACTO, los fixtures falsos que
+# usan los tests del redactor de secretos. Ojo: no hay allowlist por ruta — si algún día una
+# credencial REAL cae en esos ficheros de test, gitleaks debe señalarla igualmente.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Valores falsos usados por los tests del redactor de secretos (no son credenciales)"
+regexes = [
+  '''sk_test_1234567890''',
+  '''sk_live_abcdef123456''',
+  '''sk_test_51Hxyz9876''',
+]

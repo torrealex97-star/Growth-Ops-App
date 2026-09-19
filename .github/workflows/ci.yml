@@ -69,3 +69,21 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
           SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
           NEXT_PUBLIC_SITE_URL: http://localhost:3000
+
+  # Repo PÚBLICO: el historial es legible por cualquiera, así que un secreto filtrado es
+  # compromiso inmediato. Escaneo de TODOS los commits en cada push/PR. --redact es fijo:
+  # si algún día detecta algo, el log del job nunca imprime el valor. Config en .gitleaks.toml
+  # (reglas por defecto + allowlist POR VALOR de los fixtures falsos de test).
+  gitleaks:
+    name: Secretos (gitleaks, historial completo)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # historial completo, no solo el último commit
+      - name: Descargar gitleaks (versión fijada)
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz -o gitleaks.tgz
+          tar -xzf gitleaks.tgz gitleaks
+      - name: Escanear secretos (--redact: nunca imprime valores)
+        run: ./gitleaks detect --source . --log-opts="--all" --redact --config .gitleaks.toml
