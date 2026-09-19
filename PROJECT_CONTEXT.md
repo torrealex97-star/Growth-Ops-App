@@ -241,10 +241,10 @@ Ver `.env.local.example` para la lista completa. Resumen:
 ## 7. Entorno de desarrollo (Freebuff)
 
 - **Clon de trabajo:** `/tmp/growthops-preview` (necesario por sandbox TCC)
-- **Servidor:** launchd job `growthops-dev`, puerto 3000
+- **Servidor:** un job launchd por hebra (`growthops-preview-<puerto>`); cada hebra conserva su propio puerto (vistos en paralelo: 3000, 3002, 3003, 3010) y el clon `/tmp` es compartido entre hebras
 - **Node:** el binario de Playwright (`/Users/*/Library/Caches/ms-playwright-go/*/node`) — resolver con glob, nunca rutas personales
 - **Sync:** Editar en checkout principal → copiar archivos modificados al clon → hot-reload
-- **Conexión directa a Postgres:** `db.<ref>.supabase.co` no resuelve desde el sandbox (ni IPv4 ni IPv6). Usar el pooler `aws-1-eu-west-1.pooler.supabase.com:5432` con usuario `postgres.<ref>` y `ssl: 'require'` (el clúster `aws-0` rechaza el tenant: "tenant not found")
+- **Conexión directa a Postgres:** `db.<ref>.supabase.co` no resuelve desde el sandbox (IPv6-only). Vía verificada: transaction pooler `aws-1-eu-west-1.pooler.supabase.com:6543` con usuario `postgres.<ref>`, `ssl: 'require'` y `prepare: false` en postgres-js (fallback `aws-0`; existe también el 5432 de sesión)
 - **Run doc:** `.freebuff/run.md` con procedimientos detallados
 - **Preview:** http://localhost:3000/ (verifica con `preview_evaluate` y `preview_screenshot`)
 
@@ -325,6 +325,9 @@ Leer `docs/ACTIVE_HANDOFF.md` cuando se necesite contexto histórico detallado.
 3. **Edición segura de `.env.local`:** al añadir variables por script (`echo "VAR=val" >> .env.local`), verificar antes que el fichero acaba en salto de línea (`\n`); si no, se fusiona con la última línea y corrompe ambas claves (ocurrió con `GHL_WEBHOOK_SECRET` el 18-sep; detectable con `grep -c '^VAR='`).
 4. **Base de datos (Supabase):** `pg_cron` NO está instalado en la BD. La rotación de `CRON_SECRET` no afecta a trabajos internos de Postgres.
 5. **`CONFIG_ENC_KEY` es la llave maestra de las credenciales de Integraciones y NO tiene recuperación:** las claves secretas se cifran con AES-256-GCM (esquema de `lib/config.ts`, sin cambios desde su introducción) y solo el runtime que guardó la credencial puede leerla. Las env de producción de Vercel marcadas `sensitive` NO se pueden descargar ni por API ni por CLI (`vercel env pull` devuelve `«...»` enmascarado). Si se pierde la clave con la que se cifró (rotación, otro entorno), la credencial queda HUÉRFANA: descifra con GCM autenticado falla (`Unsupported state or unable to authenticate data`) y hay que re-guardarla desde Integraciones. Verificado 19-sep: TODAS las credenciales cifradas de WDC no descifran con la clave local — pero producción sí las usa (Meta sync 15-sep, health `stripe ok`), lo que confirma que prod usa OTRA clave (correcta). Nunca depender de descifrar en scripts externos: el backfill correcto es ejecutar el sync DESDE la app de producción (cron/endpoint), que es quien tiene la clave.
+6. **Runs "cancelled" ≠ errores (19-sep):** el CI lleva `cancel-in-progress: true` — cada push CANCELA el run del anterior. Dos runs cancelled hicieron creer que un push había fallado cuando el run del último commit estaba en success. El único run que valida `main` es el del último commit: compruébalo con `gh run list --commit <sha>` antes de diagnosticar.
+7. **Alcance del CI (ahorro de minutos, 19-sep):** `ci.yml` solo corre en push a `main` y en PRs, con `paths-ignore` de markdown/docs/.freebuff. Un push a rama secundaria NO pasa el gate: ahí la validación local (`npm run quality`) es la única red. Con el repo público los minutos dejan de consumirse, pero el recorte sigue siendo buena higiene.
+8. **Colisiones entre hebras sobre el mismo checkout (19-sep):** otra sesión puede pisar ficheros sin commitear a mitad de tu edición (git restore/checkout/reset) y el clon `/tmp` es compartido. Antes de editar: `git status` + relee el estado real del fichero. Después de editar: re-verifica que tu cambio sigue presente (grep de un marcador propio) antes de typecheck/commitear. Commitea acotado por pathspec y sincroniza con `origin/main` antes de pushear.
 
 ### Notas de verificación (18-sep)
 

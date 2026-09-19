@@ -33,6 +33,13 @@ Codex y Claude Code trabajan **por relevos, no en paralelo**. La regla operativa
 - **Ante la duda, no decidas: encola.** Si no se puede saber a qué registro pertenece un dato externo, va a una cola de revisión humana. Escribirlo "en todos los candidatos por si acaso" corrompe datos y encima parece idempotente. Ver `lib/fathom/match.ts`.
 - **No inventes datos financieros ni vocabularios.** Si `sales` exige un producto que el pago externo no indica, el resultado es un informe con la decisión pendiente, no un importe elegido a dedo. Y si `canonical_events.event_name` es texto libre, el mapeo lo elige el usuario. Ver `lib/finance/stripeBackfill.ts`.
 
+## Reglas de CI y de sesiones paralelas (19-sep, no repetir)
+
+- **Un run "cancelled" no es un fallo.** El CI lleva `cancel-in-progress: true`: cada push cancela el run del anterior. El único run que valida `main` es el del último commit — diagnostica SIEMPRE con `gh run list --commit <sha>` (o el último SHA de `origin/main`), nunca por el color de la lista general. Ya se confundió una lista de cancelados con "el push dio error".
+- **El CI no corre en toda rama.** Solo push a `main` y PRs (con `paths-ignore` de docs/markdown/.freebuff). En rama secundaria la única red es la validación local: `npm run quality` antes de pushear, sin excepción.
+- **El checkout y el clon `/tmp` son compartidos.** Otra hebra puede restaurar/sobrescribir tus ficheros sin commitear a mitad de tu trabajo (ya pasó: una edición a medio aplicar y una reversión de ficheros completos). Rutina: re-verifica tu cambio en disco (grep de un marcador propio) antes de validar; commitea con pathspec acotado, nunca `git add -A`; alinea con `origin/main` antes de pushear y aborta si el push es rechazado (protección compare-and-push en vez de forzar).
+- **Formatea siempre dentro del árbol del repo.** Prettier resuelve la config por la ruta del fichero: formatear desde `/tmp` o fuera del árbol aplica la config por defecto (comillas dobles, punto y coma) y rompe `format:check` en CI — ocurrió dos veces el 19-sep.
+
 ## Seguridad y privacidad: el repo puede ser público
 
 El historial ya se tuvo que reescribir (2026-09-19) por secretos y datos de tenants commiteados.

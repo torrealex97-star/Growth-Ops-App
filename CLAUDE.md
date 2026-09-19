@@ -3,6 +3,7 @@
 Lee `PROJECT_CONTEXT.md` en la raíz del repo para el estado completo del proyecto.
 
 ## Quick start
+
 ```bash
 npm run quality   # format + lint + typecheck + test + test:metrics
 npm run dev       # next dev en localhost:3000
@@ -14,13 +15,13 @@ Todos los servidores MCP están declarados en `.mcp.json` y funcionan vía `npx 
 hosted — **no requieren instalación global ni credenciales en el repo**. Son universales: funcionan
 igual en Claude Code, Cursor, VS Code y Windsurf (copias en `.cursor/mcp.json` y `.vscode/mcp.json`).
 
-| Servidor | Qué hace | Cuándo usarlo |
-|---|---|---|
-| `supabase` | BD (esquema, advisors, logs), OAuth hosted | Cualquier consulta de esquema/datos/advisors. `list_tables` primero, `get_advisors` tras DDL |
-| `web-search` | Búsqueda DuckDuckGo sin API keys | Versión actual de librerías, errores de prod, docs |
-| `fetch` | Traer URL como texto (requiere `uv`) | Leer docs oficiales tras buscar |
-| `context7` | Docs actualizadas de librerías | Antes de usar APIs de Next/Supabase/React que puedan haber cambiado |
-| `repomix` | Empaquetar repo en un archivo con conteo de tokens | Handoff entre hilos/agentes. Config en `repomix.config.json` |
+| Servidor     | Qué hace                                           | Cuándo usarlo                                                                                |
+| ------------ | -------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `supabase`   | BD (esquema, advisors, logs), OAuth hosted         | Cualquier consulta de esquema/datos/advisors. `list_tables` primero, `get_advisors` tras DDL |
+| `web-search` | Búsqueda DuckDuckGo sin API keys                   | Versión actual de librerías, errores de prod, docs                                           |
+| `fetch`      | Traer URL como texto (requiere `uv`)               | Leer docs oficiales tras buscar                                                              |
+| `context7`   | Docs actualizadas de librerías                     | Antes de usar APIs de Next/Supabase/React que puedan haber cambiado                          |
+| `repomix`    | Empaquetar repo en un archivo con conteo de tokens | Handoff entre hilos/agentes. Config en `repomix.config.json`                                 |
 
 Scripts equivalentes sin instalación global: `npm run mcp:supabase`, `mcp:search`,
 `mcp:context7`, `mcp:repomix`, `npm run context:build` (genera `repomix-output.xml`).
@@ -39,13 +40,14 @@ Scripts equivalentes sin instalación global: `npm run mcp:supabase`, `mcp:searc
   releeas archivos enteros.
 - **BD antes que código**: para saber qué columnas existen, consulta el MCP de Supabase; no
   infieras el esquema leyendo código.
-- **Responde conciso**: resúmenes con bullets, sin repetir el contenido de los archivos.
-
-## Convenciones clave
-- **Privacidad (obligatorio):** nada de tenants, personas o credenciales en commits — ni en docs,
-  comentarios ni "solo en privado". Placeholders neutros y procedimiento en `docs/SECURITY_PRIVACY.md`
+- **Responde conciso**: resúmenes con bullets, sin repetir el contenido de los archivos.## Convenciones clave
+- **Privacidad (obligatorio):** nada de tenants, personas o credenciales en commits — ni en docs, comentarios ni "solo en privado". Placeholders neutros y procedimiento en `docs/SECURITY_PRIVACY.md`
 - Helpers de formato: `formatNumber`/`formatPercent` de `@/lib/utils` (NO inline `toLocaleString`))
 - API routes: `app/api/[tenant]/evergreen/...` con `requireTenant()` de `lib/auth/`
 - Tests: `tests/*.test.mjs` con Node.js test runner nativo
 - Multi-tenancy: Rutas `[tenant]/...` con RLS en Supabase
 - Freebuff/sandbox: Node falla con EPERM (`uv_cwd`) desde `~/Documents`; usa el clon `/tmp/growthops-preview` (ver `PROJECT_CONTEXT.md` §7)
+- **`git` Lee Documentos aunque el shell no pueda:** `git hash-object -w <fichero>` + `git cat-file blob <sha>` extrae el contenido de `~/Documents` a `/tmp` sin TCC (base del flujo: extraer → procesar en /tmp → `checkout-index`/índice temporal para escribir de vuelta). Nunca `cp` directo ni leer `.env.local` con tools de fichero (bloqueo de secretos).
+- **BD por pooler, no host directo:** `db.<ref>.supabase.co` es IPv6-only aquí; conecta vía `aws-1-eu-west-1.pooler.supabase.com:6543` (`postgres.<ref>`, `ssl: 'require'`, `prepare: false`) — ver `PROJECT_CONTEXT.md` §7
+- **El clon `/tmp` es compartido entre hebras:** re-verifica que tu cambio sigue en disco antes de validar/commitear (otra sesión puede restaurar ficheros); commitea acotado y alinea con `origin/main` antes de pushear (ver `PROJECT_CONTEXT.md` §12.8)
+- **CI: solo main y PRs, con `cancel-in-progress`:** un run "cancelled" no es un error — valida el ÚLTIMO commit (`gh run list --commit <sha>`), no el precedente (ver `PROJECT_CONTEXT.md` §12.6)

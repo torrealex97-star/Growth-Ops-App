@@ -1,5 +1,29 @@
 # Relevo activo
 
+## Base neta de comisiones + lecciones de CI/sesiones — 2026-09-19 (hebra Freebuff)
+
+**Base de comisión neta de pasarela (implementada, sin commitear en MAIN):** la comisión de TODO el
+equipo (setter, closer, clásico y colaborador) se calcula sobre `comisionable − fee de pasarela`.
+El fee se resuelve en un solo sitio (`feesForCollections` en `lib/commissions/generate.ts`):
+(1) fee real de Stripe — espejo `stripe_payments.stripe_fee` (migración `20260919100000`, aplicada
+en producción; poblado por el sync vía `balance_transaction`, fetch puntual en
+`lib/finance/stripeFees.ts`) o (2) sin Stripe, la referencia del plan (`collections.processing_fee`).
+La UI de Comisiones añade la columna "Comisión plataforma" y oculta KPIs/filtro de setter/closer al
+colaborador; devoluciones y proyección futura replican la misma base (la negativa nunca supera lo
+comisionado: la pasarela no devuelve su fee). Tests: `tests/metrics/commission-base-neta.test.mjs`
+(7). Pendiente de commitear junto al recorte de `ci.yml` (push solo a main + paths-ignore).
+
+**Lecciones operativas de esta sesión (ya en rulebooks, resumen):**
+
+- El workflow CI tiene `cancel-in-progress: true`: los runs "cancelled" de `4907ba9`/`4ea6d1c`
+  hicieron creer que el push había fallado; el run del último commit (`5f4cbf0`) estaba en success
+  (3/3 jobs). Diagnosticar SIEMPRE por `gh run list --commit <sha>`.
+- Un par de ficheros se editó a medias por colisión con otra hebra y el clon `/tmp` barría cambios
+  sin commitear: re-verificar el disco antes de validar, commitear acotado, sincronizar con origin
+  antes de pushear (las reglas quedaron en `AGENTS.md` y `PROJECT_CONTEXT.md` §12).
+- Formatear siempre desde el árbol del repo (la config de Prettier se resuelve por ruta); formatear
+  fuera produjo dos fallos de `format:check` el mismo día.
+
 ## Copy de analítica del embudo — 2026-09-16
 
 En la analítica de ventas/admisión se eliminó la presentación visual de demos y se dejó un único
@@ -827,13 +851,15 @@ Requieren acción tuya, no son cosas que pueda cerrar solo:
 Pendiente de trabajo mío, no bloqueado: el aprovisionador de subcuentas en un clic
 (`/platform/tenants` + `POST /api/platform/tenants` + blueprint versionado), que va en **PR aparte**
 una vez cerrados los P0 de #30.
+
 ## Filtros de fecha — PR #64 (2026-09-16)
 
 - **Estado:** commit `a640fb8` publicado en `torrealex97-star-unify-date-filters`; PR abierto contra `main`.
 - **Implementado:** `PeriodFilterBar` usa un popover compacto con presets en español, calendario de día/rango, foco/ARIA, responsive y cierre por click fuera. Gastos elimina el selector temporal redundante y usa el filtro compartido.
 - **Validación:** `git diff --check` PASS. `format:check`, `typecheck` y tests no ejecutables en este entorno: no existe `node`/`npm`; `pnpm` falla en postinstall al invocar `node`.
 - **Siguiente acción exacta:** ejecutar quality gate en CI/entorno con Node y revisar el PR antes de mergear. No se ha hecho deploy.
-=======
+  \=======
+
 ## CRM agendas y ficha de contacto — 2026-09-16
 
 Commit local: `b89b7ea` (`feat: improve CRM agenda and contact workflows`) en la única rama activa
