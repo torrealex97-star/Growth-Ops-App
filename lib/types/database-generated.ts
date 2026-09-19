@@ -1,4 +1,4 @@
-// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-19T20:25:32.228Z).
+// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-19T21:58:39.182Z).
 // Regenerar con: npm run tipos:bd  (y commitear). El test tests/esquema-tenant-invariante.test.mjs
 // comprueba que este artefacto sigue fresco respecto al esquema vivo.
 // Espejo exacto del esquema public de Supabase; los tipos de APP siguen en lib/types/database.ts.
@@ -4513,6 +4513,212 @@ export type EsquemaPublico = {
         created_at: string | undefined
         updated_at: string | undefined
         tenant_id: string | undefined
+      }
+    }
+    SocialPosts: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        platform: string | null
+        external_id: string | null
+        profile_id: string | null
+        content_type: string | null
+        caption: string | null
+        post_url: string | null
+        media_url: string | null
+        thumbnail_url: string | null
+        published_at: string | null
+        views_count: number | string | null
+        likes_count: number | string | null
+        comments_count: number | string | null
+        shares_count: number | string | null
+        duration_seconds: number | string | null
+        metadata_json: Json | null
+        collected_at: string | null
+        source: string | null
+        job_id: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        platform: string | null | undefined
+        external_id: string | null | undefined
+        profile_id: string | null | undefined
+        content_type: string | null | undefined
+        caption: string | null | undefined
+        post_url: string | null | undefined
+        media_url: string | null | undefined
+        thumbnail_url: string | null | undefined
+        published_at: string | null | undefined
+        views_count: number | string | null | undefined
+        likes_count: number | string | null | undefined
+        comments_count: number | string | null | undefined
+        shares_count: number | string | null | undefined
+        duration_seconds: number | string | null | undefined
+        metadata_json: Json | null | undefined
+        collected_at: string | null | undefined
+        source: string | null | undefined
+        job_id: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        platform: string | undefined
+        external_id: string | undefined
+        profile_id: string | undefined
+        content_type: string | undefined
+        caption: string | undefined
+        post_url: string | undefined
+        media_url: string | undefined
+        thumbnail_url: string | undefined
+        published_at: string | undefined
+        views_count: number | string | undefined
+        likes_count: number | string | undefined
+        comments_count: number | string | undefined
+        shares_count: number | string | undefined
+        duration_seconds: number | string | undefined
+        metadata_json: Json | undefined
+        collected_at: string | undefined
+        source: string | undefined
+        job_id: string | undefined
+      }
+    }
+    SocialProfiles: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        platform: string | null
+        external_id: string | null
+        username: string | null
+        display_name: string | null
+        profile_url: string | null
+        avatar_url: string | null
+        followers_count: number | string | null
+        following_count: number | string | null
+        posts_count: number | string | null
+        verified: boolean | null
+        biography: string | null
+        metadata_json: Json | null
+        collected_at: string | null
+        source: string | null
+        job_id: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        platform: string | null | undefined
+        external_id: string | null | undefined
+        username: string | null | undefined
+        display_name: string | null | undefined
+        profile_url: string | null | undefined
+        avatar_url: string | null | undefined
+        followers_count: number | string | null | undefined
+        following_count: number | string | null | undefined
+        posts_count: number | string | null | undefined
+        verified: boolean | null | undefined
+        biography: string | null | undefined
+        metadata_json: Json | null | undefined
+        collected_at: string | null | undefined
+        source: string | null | undefined
+        job_id: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        platform: string | undefined
+        external_id: string | undefined
+        username: string | undefined
+        display_name: string | undefined
+        profile_url: string | undefined
+        avatar_url: string | undefined
+        followers_count: number | string | undefined
+        following_count: number | string | undefined
+        posts_count: number | string | undefined
+        verified: boolean | undefined
+        biography: string | undefined
+        metadata_json: Json | undefined
+        collected_at: string | undefined
+        source: string | undefined
+        job_id: string | undefined
+      }
+    }
+    SocialRawPayloads: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        job_id: string | null
+        payload: Json | null
+        created_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        job_id: string | null | undefined
+        payload: Json | null | undefined
+        created_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        job_id: string | undefined
+        payload: Json | undefined
+        created_at: string | undefined
+      }
+    }
+    SocialResearchJobs: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        platform: string | null
+        provider: string | null
+        job_type: string | null
+        actor_id: string | null
+        provider_run_id: string | null
+        provider_dataset_id: string | null
+        status: string | null
+        input_json: Json | null
+        idempotency_key: string | null
+        records_processed: number | null
+        error_message: string | null
+        created_at: string | null
+        started_at: string | null
+        completed_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        platform: string | null | undefined
+        provider: string | null | undefined
+        job_type: string | null | undefined
+        actor_id: string | null | undefined
+        provider_run_id: string | null | undefined
+        provider_dataset_id: string | null | undefined
+        status: string | null | undefined
+        input_json: Json | null | undefined
+        idempotency_key: string | null | undefined
+        records_processed: number | null | undefined
+        error_message: string | null | undefined
+        created_at: string | null | undefined
+        started_at: string | null | undefined
+        completed_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        platform: string | undefined
+        provider: string | undefined
+        job_type: string | undefined
+        actor_id: string | undefined
+        provider_run_id: string | undefined
+        provider_dataset_id: string | undefined
+        status: string | undefined
+        input_json: Json | undefined
+        idempotency_key: string | undefined
+        records_processed: number | undefined
+        error_message: string | undefined
+        created_at: string | undefined
+        started_at: string | undefined
+        completed_at: string | undefined
       }
     }
     StripeCustomers: {
