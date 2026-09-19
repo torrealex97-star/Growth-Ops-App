@@ -43,6 +43,15 @@ Scripts equivalentes sin instalación global: `npm run mcp:supabase`, `mcp:searc
 - **Responde conciso**: resúmenes con bullets, sin repetir el contenido de los archivos.
 
 ## Convenciones clave
+
+- **Skill sales-engineering (obligatoria antes de codificar ventas):** cualquier trabajo sobre flujos de ventas, CRM, agents de IA comerciales, secuencias SMS/email, dashboards de KPIs comerciales o landing pages de captación DEBE consultar primero `.claude/skills/sales-engineering.md` (módulos 1-7: pre-llamada, cierre, objeciones, post-llamada, hiring, frame control, metrología). Las fórmulas de KPIs del §7 son canónicas — no se redefinen en código; los scripts provienen de las categorías RAG de `docs/rag_sales_knowledge_schema.json` y el system prompt del agente vive en `src/prompts/sales_agent_system_prompt.ts`
+- **Skill marketing-and-copywriting (obligatoria antes de escribir marketing):** consulta
+  `.claude/skills/marketing-and-copywriting.md` antes de escribir o programar páginas de aterrizaje,
+  copys, VSLs, campañas o analizar métricas de marketing (módulos 1-6: UVP/ángulos, avatares/ICP,
+  embudos, swipe file de copy, marketing economics, árboles de diagnóstico). Las fórmulas del §5
+  (CAC, ROAS, CPL, CPQBC, LTGP:CAC...) son canónicas — no se redefinen en código; los copy/scripts
+  provienen de las categorías RAG de `docs/rag_marketing_knowledge_schema.json` y el system prompt
+  del agente de marketing vive en `src/prompts/marketing_agent_system_prompt.ts`
 - **Privacidad (obligatorio):** nada de tenants, personas o credenciales en commits — ni en docs, comentarios ni "solo en privado". Placeholders neutros y procedimiento en `docs/SECURITY_PRIVACY.md`
 - Helpers de formato: `formatNumber`/`formatPercent` de `@/lib/utils` (NO inline `toLocaleString`))
 - API routes: `app/api/[tenant]/evergreen/...` con `requireTenant()` de `lib/auth/`
