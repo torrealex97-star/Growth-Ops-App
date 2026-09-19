@@ -1,4 +1,4 @@
-// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-19T19:46:49.805Z).
+// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-19T20:25:32.228Z).
 // Regenerar con: npm run tipos:bd  (y commitear). El test tests/esquema-tenant-invariante.test.mjs
 // comprueba que este artefacto sigue fresco respecto al esquema vivo.
 // Espejo exacto del esquema public de Supabase; los tipos de APP siguen en lib/types/database.ts.
@@ -2361,6 +2361,41 @@ export type EsquemaPublico = {
         tenant_id: string | undefined
       }
     }
+    EmailEvents: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        email_message_id: string | null
+        provider: string | null
+        provider_event_id: string | null
+        event_type: string | null
+        event_payload: Json | null
+        event_timestamp: string | null
+        created_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        email_message_id: string | null | undefined
+        provider: string | null | undefined
+        provider_event_id: string | null | undefined
+        event_type: string | null | undefined
+        event_payload: Json | null | undefined
+        event_timestamp: string | null | undefined
+        created_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        email_message_id: string | undefined
+        provider: string | undefined
+        provider_event_id: string | undefined
+        event_type: string | undefined
+        event_payload: Json | undefined
+        event_timestamp: string | undefined
+        created_at: string | undefined
+      }
+    }
     EmailInvoices: {
       Row: {
         id: string | null
@@ -2429,6 +2464,83 @@ export type EsquemaPublico = {
         updated_at: string | undefined
       }
     }
+    EmailMessages: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        provider: string | null
+        provider_message_id: string | null
+        template_key: string | null
+        to_email: string | null
+        cc_json: Json | null
+        bcc_json: Json | null
+        from_email: string | null
+        reply_to_email: string | null
+        subject: string | null
+        status: string | null
+        is_test: boolean | null
+        related_entity_type: string | null
+        related_entity_id: string | null
+        error_message: string | null
+        sent_at: string | null
+        delivered_at: string | null
+        opened_at: string | null
+        clicked_at: string | null
+        bounced_at: string | null
+        created_at: string | null
+        updated_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        provider: string | null | undefined
+        provider_message_id: string | null | undefined
+        template_key: string | null | undefined
+        to_email: string | null | undefined
+        cc_json: Json | null | undefined
+        bcc_json: Json | null | undefined
+        from_email: string | null | undefined
+        reply_to_email: string | null | undefined
+        subject: string | null | undefined
+        status: string | null | undefined
+        is_test: boolean | null | undefined
+        related_entity_type: string | null | undefined
+        related_entity_id: string | null | undefined
+        error_message: string | null | undefined
+        sent_at: string | null | undefined
+        delivered_at: string | null | undefined
+        opened_at: string | null | undefined
+        clicked_at: string | null | undefined
+        bounced_at: string | null | undefined
+        created_at: string | null | undefined
+        updated_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        provider: string | undefined
+        provider_message_id: string | undefined
+        template_key: string | undefined
+        to_email: string | undefined
+        cc_json: Json | undefined
+        bcc_json: Json | undefined
+        from_email: string | undefined
+        reply_to_email: string | undefined
+        subject: string | undefined
+        status: string | undefined
+        is_test: boolean | undefined
+        related_entity_type: string | undefined
+        related_entity_id: string | undefined
+        error_message: string | undefined
+        sent_at: string | undefined
+        delivered_at: string | undefined
+        opened_at: string | undefined
+        clicked_at: string | undefined
+        bounced_at: string | undefined
+        created_at: string | undefined
+        updated_at: string | undefined
+      }
+    }
     EmailTemplates: {
       Row: {
         id: string | null
@@ -2439,6 +2551,9 @@ export type EsquemaPublico = {
         updated_by: string | null
         created_at: string | null
         updated_at: string | null
+        name: string | null
+        description: string | null
+        enabled: boolean | null
       }
       Insert: {
         id: string | null | undefined
@@ -2449,6 +2564,9 @@ export type EsquemaPublico = {
         updated_by: string | null | undefined
         created_at: string | null | undefined
         updated_at: string | null | undefined
+        name: string | null | undefined
+        description: string | null | undefined
+        enabled: boolean | null | undefined
       }
       Update: {
         id: string | undefined
@@ -2459,6 +2577,9 @@ export type EsquemaPublico = {
         updated_by: string | undefined
         created_at: string | undefined
         updated_at: string | undefined
+        name: string | undefined
+        description: string | undefined
+        enabled: boolean | undefined
       }
     }
     Expenses: {
@@ -4642,6 +4763,35 @@ export type EsquemaPublico = {
         updated_at: string | undefined
         priority: string | undefined
         tenant_id: string | undefined
+      }
+    }
+    TenantEmailSettings: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        from_name: string | null
+        from_email: string | null
+        reply_to_email: string | null
+        created_at: string | null
+        updated_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        from_name: string | null | undefined
+        from_email: string | null | undefined
+        reply_to_email: string | null | undefined
+        created_at: string | null | undefined
+        updated_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        from_name: string | undefined
+        from_email: string | undefined
+        reply_to_email: string | undefined
+        created_at: string | undefined
+        updated_at: string | undefined
       }
     }
     TenantMembers: {

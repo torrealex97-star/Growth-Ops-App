@@ -21,6 +21,9 @@ import type { EmailTemplateKey, EmailVars } from './templates'
 export type MailEnv = {
   RESEND_API_KEY?: string
   RESEND_FROM?: string
+  /** Reply-To opcional del sobre de envío. Lo inyecta EmailService desde la
+   *  identidad del tenant (tenant_email_settings) sin tocar cada firma. */
+  REPLY_TO?: string
 }
 
 function resendKey(mail?: MailEnv): string | undefined {
@@ -105,6 +108,7 @@ export async function sendInviteEmail(opts: {
     const tpl = await resolveTemplate('invite', opts.company, vars)
     const { error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
+      ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
       subject: tpl.subject,
       html: tpl.html,
@@ -130,6 +134,7 @@ export async function sendRecoveryEmail(opts: {
     const tpl = await resolveTemplate('recovery', opts.company, { company: opts.company, url: opts.url })
     const { error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
+      ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
       subject: tpl.subject,
       html: tpl.html,
@@ -169,6 +174,7 @@ export async function sendSignedContractEmail(opts: {
       : undefined
     const { error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
+      ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
       ...(cc.length ? { cc } : {}),
       subject: tpl.subject,
@@ -211,6 +217,7 @@ export async function sendTaskAssignedEmail(opts: {
     })
     const { error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
+      ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
       subject: tpl.subject,
       html: tpl.html,
@@ -245,6 +252,7 @@ export async function sendStudentContractEmail(opts: {
     })
     const { error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
+      ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
       subject: tpl.subject,
       html: tpl.html,
@@ -279,6 +287,7 @@ export async function sendStudentOnboardingEmail(opts: {
     })
     const { error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
+      ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
       subject: tpl.subject,
       html: tpl.html,
@@ -310,6 +319,7 @@ export async function sendStudentSignedEmail(opts: {
       : undefined
     const { error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
+      ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
       subject: tpl.subject,
       html: tpl.html,
@@ -347,6 +357,7 @@ export async function sendContractEmail(opts: {
     const cc = Array.from(new Set(ccList))
     const { error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
+      ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
       ...(cc.length ? { cc } : {}),
       subject: tpl.subject,
