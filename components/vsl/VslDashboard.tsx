@@ -58,6 +58,7 @@ export function VslDashboard() {
   const tenant = useTenant()
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [editing, setEditing] = useState<Partial<Video> | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [metrics, setMetrics] = useState<Metrics | null>(null)
@@ -68,8 +69,10 @@ export function VslDashboard() {
   const loadVideos = useCallback(async () => {
     setLoading(true)
     const r = await fetch(`/api/${tenant}/evergreen/vsl/videos`)
-    const d = await r.json()
-    setVideos(d.videos || [])
+    const d = await r.json().catch(() => ({}))
+    // Un fallo del API nunca se muestra como «sin vídeos» (error ≠ vacío).
+    setLoadError(!r.ok)
+    setVideos(r.ok ? d.videos || [] : [])
     setLoading(false)
     if (!selected && d.videos?.[0]) setSelected(d.videos[0].slug)
   }, [selected, tenant])
@@ -144,7 +147,13 @@ export function VslDashboard() {
             {v.name}
           </button>
         ))}
-        {!loading && videos.length === 0 && (
+        {!loading && loadError && (
+          <p className="text-sm text-destructive">
+            No se pudieron cargar los vídeos (error del servidor). Comprueba la conexión a la base de datos e inténtalo
+            de nuevo.
+          </p>
+        )}
+        {!loading && !loadError && videos.length === 0 && (
           <p className="text-sm text-muted-foreground">Aún no hay vídeos. Crea el primero.</p>
         )}
       </div>
