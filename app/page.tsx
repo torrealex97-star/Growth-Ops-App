@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { resolveTenantBranding } from '@/lib/tenant-branding'
 import { Loader2 } from 'lucide-react'
@@ -25,6 +26,8 @@ interface TenantOption {
 export default function HomePage() {
   const [tenants, setTenants] = useState<TenantOption[] | null>(null)
   const [autenticado, setAutenticado] = useState<boolean | null>(null)
+  const [slug, setSlug] = useState('')
+  const router = useRouter()
 
   useEffect(() => {
     const supabase = createClient()
@@ -41,6 +44,15 @@ export default function HomePage() {
       .order('name')
       .then(({ data }) => setTenants(data ?? []))
   }, [autenticado])
+
+  // Acceso directo sin sesión: el usuario escribe el identificador de su subcuenta y
+  // saltamos a su login. NO revela subcuentas (misma privacidad que antes) — solo
+  // transporta al espacio privado indicado, igual que escribir la URL a mano.
+  const accesoDirecto = (e: React.FormEvent) => {
+    e.preventDefault()
+    const s = slug.trim().toLowerCase().replace(/\s+/g, '-')
+    if (s) router.push(`/${s}/login`)
+  }
 
   return (
     <main className="go-hero">
@@ -90,12 +102,36 @@ export default function HomePage() {
             </div>
           )}
 
-          {tenants !== null && tenants.length === 0 && (
-            <p className="go-empty">
-              {autenticado
-                ? 'No tienes subcuentas asignadas todavía. Pide acceso a tu administrador.'
-                : 'Introduce la dirección de tu subcuenta o entra desde el enlace que te compartieron.'}
-            </p>
+          {tenants !== null && tenants.length === 0 && !autenticado && (
+            <form className="go-form" onSubmit={accesoDirecto}>
+              <label className="go-direct__label" htmlFor="tenant-slug">
+                Dirección de tu subcuenta
+              </label>
+              <div className="go-direct">
+                <input
+                  id="tenant-slug"
+                  className="go-direct__input"
+                  value={slug}
+                  onChange={(e) => setSlug(e.target.value)}
+                  placeholder="mi-empresa"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+                <button type="submit" className="go-direct__btn" disabled={!slug.trim()}>
+                  Entrar →
+                </button>
+              </div>
+              <p className="go-direct__hint">
+                Introduce el identificador de tu subcuenta — te lo compartió tu administrador. También puedes entrar
+                desde el enlace directo.
+              </p>
+            </form>
+          )}
+
+          {tenants !== null && tenants.length === 0 && autenticado && (
+            <p className="go-empty">No tienes subcuentas asignadas todavía. Pide acceso a tu administrador.</p>
           )}
 
           {tenants !== null && tenants.length > 0 && (
