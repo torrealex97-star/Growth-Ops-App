@@ -67,9 +67,10 @@ const slugify = (s) =>
     .replace(/^-+|-+$/g, '')
 
 // Parseo: `## MÓDULO N: TÍTULO` abre módulo; `### Título` abre sección; todo hasta el siguiente
-// header es el chunk. Si un módulo NO tiene secciones `###` (caso de la skill de ventas), el
-// módulo COMPLETO es un chunk (section = modulo-N). Cualquier `## ` que no sea MÓDULO (apéndices,
-// notas) cierra y desactiva el parseo: no es conocimiento de negocio.
+// header es el chunk. Si un módulo NO tiene secciones `###`, el módulo COMPLETO es un chunk
+// (section = modulo-N) — fallback de robustez: ambas skills (ventas v1.1 y marketing) trocean
+// por `###` porque chunks granulares permiten citar el guion/fórmula concreta. Cualquier `## `
+// que no sea MÓDULO (apéndices, notas) cierra y desactiva el parseo: no es conocimiento de negocio.
 function parsearSkill(path) {
   const texto = readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
   const chunks = []
