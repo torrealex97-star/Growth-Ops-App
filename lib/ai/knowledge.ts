@@ -9,9 +9,10 @@
 // BÚSQUEDA HÍBRIDA (20260919230000): la RPC match_knowledge_chunks fusiona semántica (cosine
 // sobre la columna embedding de pgvector, cuando recibimos el vector de la consulta) y léxica
 // (FTS español + trigram) con RRF. El embedding de consulta se calcula aquí con la API de
-// embeddings (OpenAI text-embedding-3-small, nativo 1536 dims — mismo espacio que la columna);
-// SIN clave configurada, o si la API falla/tarda, se manda p_embedding NULL y la RPC responde
-// solo con la rama léxica: degradación por diseño, nunca un error para el caller.
+// embeddings de Google (gemini-embedding-001, recortado a 1536 dims — mismo espacio que la
+// columna y que la ingesta). SIN clave configurada, o si la API falla/tarda, se manda
+// p_embedding NULL y la RPC responde solo con la rama léxica: degradación por diseño, nunca
+// un error para el caller.
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type KnowledgeCategory =
@@ -42,10 +43,13 @@ export type KnowledgeChunk = {
 
 export type KnowledgeSearch = { ok: true; chunks: KnowledgeChunk[] } | { ok: false; error: string }
 
-// ─── Embeddings de consulta (OpenAI) ─────────────────────────────────────────────
+// ─── Embeddings de consulta (Google: gemini-embedding-001) ───────────────────────
 // El modelo DEBE ser el mismo que vectorizó los chunks de la ingesta: mezclar espacios de
 // embeddings produce vecinos sin sentido (pgvector no puede saberlo por ti).
-const EMBEDDING_MODEL = 'text-embedding-3-small'
+// Google elegido sobre OpenAI: gratis (free tier ~1.500 req/día), multilingüe de primera
+// (crítico: las skills están en español) y permite recortar el vector a 1536 dims
+// (outputDimensionality) para casar con la columna vector(1536) sin migrar nada.
+const EMBEDDING_MODEL = 'gemini-embedding-001'
 const EMBEDDING_DIMS = 1536
 const EMBED_TIMEOUT_MS = 8_000
 
@@ -55,7 +59,7 @@ const EMBED_TIMEOUT_MS = 8_000
  * lee process.env — ver lib/config.ts sobre por qué no se vuelca al entorno).
  */
 export function embeddingKeyFromEnv(env?: Record<string, string | undefined>): string | null {
-  const k = env?.OPENAI_API_KEY?.trim()
+  const k = env?.GEMINI_API_KEY?.trim() || env?.OPENAI_API_KEY?.trim()
   return k || null
 }
 
@@ -65,20 +69,25 @@ export function embeddingKeyFromEnv(env?: Record<string, string | undefined>): s
  */
 export async function embedQuery(query: string, apiKey: string | null): Promise<number[] | null> {
   if (!apiKey) return null
-  const q = query.slice(0, 8_000) // límite de contexto del modelo (8191 tokens) — sobra
+  const q = query.slice(0, 8_000) // límite de contexto del modelo (2048 tokens) — sobra
   try {
     const ctrl = new AbortController()
     const timer = setTimeout(() => ctrl.abort(), EMBED_TIMEOUT_MS)
-    const res = await fetch('https://api.openai.com/v1/embeddings', {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:embedContent`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: EMBEDDING_MODEL, input: q }),
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+      body: JSON.stringify({
+        model: `models/${EMBEDDING_MODEL}`,
+        content: { parts: [{ text: q }] },
+        taskType: 'RETRIEVAL_QUERY',
+        outputDimensionality: EMBEDDING_DIMS,
+      }),
       signal: ctrl.signal,
     })
     clearTimeout(timer)
     if (!res.ok) return null
-    const json = (await res.json()) as { data?: { embedding?: unknown }[] }
-    const emb = json.data?.[0]?.embedding
+    const json = (await res.json()) as { embedding?: { values?: unknown } }
+    const emb = json.embedding?.values
     if (!Array.isArray(emb) || emb.length !== EMBEDDING_DIMS) return null
     return emb as number[]
   } catch {
