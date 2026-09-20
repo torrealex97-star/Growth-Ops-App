@@ -84,7 +84,7 @@ export function PanelOrganico() {
       })
       const j = await r.json()
       if (!r.ok) {
-        const primerError = Object.values(j.resultado || {}).find((e: any) => e?.error)?.error
+        const primerError = (Object.values(j.resultado || {}) as { error?: string }[]).find((e) => e?.error)?.error
         setAviso(j.error || primerError || 'No se pudo lanzar la sincronización')
       } else {
         setAviso('Sincronización en marcha: los datos aparecen al terminar (puedes seguir navegando).')
