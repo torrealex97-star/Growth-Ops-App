@@ -45,7 +45,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   const limit = Math.min(Math.max(limitRaw, 1), 20)
 
   const sb = await createClient()
-  // Instantánea de config del tenant: OPENAI_API_KEY para la rama semántica (embeddings).
+  // Instantánea de config del tenant: GEMINI_API_KEY para la rama semántica (embeddings).
   // Sin clave configurada, searchKnowledge degrada sola a la rama léxica.
   const env = await getTenantConfigWithFallback(auth.tenantId)
   const r = await searchKnowledge(sb, auth.tenantId, q, {
@@ -54,5 +54,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     embeddingEnv: env,
   })
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 500 })
-  return NextResponse.json({ chunks: r.chunks })
+  // `modo` dice a la UI si la consulta usó la rama semántica o solo la léxica
+  // (indicador visual del inspector: el admin debe saber de qué calidad es lo que ve).
+  return NextResponse.json({ chunks: r.chunks, modo: r.modo })
 }

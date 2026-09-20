@@ -41,7 +41,15 @@ export type KnowledgeChunk = {
   similarity: number
 }
 
-export type KnowledgeSearch = { ok: true; chunks: KnowledgeChunk[] } | { ok: false; error: string }
+export type KnowledgeSearch =
+  { ok: true; chunks: KnowledgeChunk[]; modo: 'hibrida' | 'lexica' } | { ok: false; error: string }
+
+// `modo` — qué rama de la RPC alimentó el ranking:
+//  · 'hibrida': el embedding de la consulta se calculó (GEMINI_API_KEY disponible) y la RPC
+//    fusionó semántica (coseno) + léxica (FTS español + trigram) con RRF.
+//  · 'lexica': degradación por diseño — sin clave, API caída o timeout: solo FTS + trigram.
+// El inspector de la UI lo muestra como indicador para que el admin sepa SIEMPRE de qué
+// calidad es el resultado que está viendo (y detectar que falta la clave).
 
 // ─── Embeddings de consulta (Google: gemini-embedding-001) ───────────────────────
 // El modelo DEBE ser el mismo que vectorizó los chunks de la ingesta: mezclar espacios de
@@ -115,7 +123,7 @@ export async function searchKnowledge(
   opts?: { categories?: KnowledgeCategory[]; limit?: number; embeddingEnv?: Record<string, string | undefined> }
 ): Promise<KnowledgeSearch> {
   const q = query.trim()
-  if (!q) return { ok: true, chunks: [] }
+  if (!q) return { ok: true, chunks: [], modo: 'lexica' }
   // Semántica best-effort: un fallo aquí deja p_embedding NULL y la RPC responde léxica.
   let pEmbedding: string | null = null
   try {
@@ -132,7 +140,7 @@ export async function searchKnowledge(
     p_embedding: pEmbedding,
   })
   if (error) return { ok: false, error: error.message }
-  return { ok: true, chunks: (data ?? []) as KnowledgeChunk[] }
+  return { ok: true, chunks: (data ?? []) as KnowledgeChunk[], modo: pEmbedding ? 'hibrida' : 'lexica' }
 }
 
 /**
