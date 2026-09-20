@@ -78,7 +78,7 @@ Hecho: skills canónicas `.claude/skills/sales-engineering.md` (§1-7) y `.claud
 Pendiente:
 
 - [x] **Pipeline de embeddings** (hecho): `gemini-embedding-001` de Google (gratis, multilingüe) recortado a 1536 dims — misma columna `vector(1536)`, sin migración. Clave `GEMINI_API_KEY` en Vercel + ingesta sembrada; la RPC `match_knowledge_chunks` fusiona semántica+léxica con RRF y degrada a léxica sin clave. Re-ingesta tras editar skills: `GEMINI_API_KEY=… POSTGRES_URL=<pooler-ipv4> node scripts/ingestar-knowledge.mjs` (idempotente).
-- [ ] **Inspector de conocimiento en UI admin**: buscador conectado al endpoint `/ai/knowledge` con filtros por categoría y visor de chunks.
+- [x] **Inspector de conocimiento en UI admin** (hecho): Configuración › Conocimiento IA (`/settings/ai-knowledge`) — buscador conectado a `/ai/knowledge` con filtro por categoría, visor de chunks y **indicador de rama** (Semántica + léxica vs Solo léxica) para detectar una clave de embeddings caída.
 - [ ] **Re-ingesta tras editar skills**: `POSTGRES_URL=<pooler-ipv4> node scripts/ingestar-knowledge.mjs` (ON CONFLICT actualiza; ver run doc para el pooler IPv4).
 - [x] **Alta de colaboradores encadena el contrato de equipo** (hallazgo E2E 19-sep, resuelto): la ruta admin de Colaboradores y el registro público de afiliados crean y envían el contrato automáticamente vía `lib/contracts/team-contract.ts` (helper compartido con la ruta manual de Contratos › Equipo, con dedup idempotente y el % del alta mandando en las condiciones). Estado `pending_contract` hasta que el colaborador FIRMA — la firma (public-contracts/sign) lo activa a `active`.
 

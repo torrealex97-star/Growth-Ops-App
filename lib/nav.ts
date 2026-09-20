@@ -376,6 +376,15 @@ export const NAV_SECTIONS: NavSection[] = [
             roles: ['admin', 'director'],
           },
           { label: 'Integraciones', href: '/settings/integraciones', icon: Plug, roles: ['admin'] },
+          {
+            // Inspector del RAG que consulta el agente (mismo endpoint/RPC): el admin ve qué
+            // recupera la búsqueda y CON QUÉ RAMA — el indicador semántica/léxica deja visible
+            // una clave de embeddings caducada, que de otro modo pasaría inadvertida.
+            label: 'Conocimiento IA',
+            href: '/settings/ai-knowledge',
+            icon: Bot,
+            roles: ['admin', 'director'],
+          },
           { label: 'Formularios KPI', href: '/kpi/templates', icon: FileText, roles: ['admin', 'director'] },
           { label: 'Auditoría', href: '/audit', icon: Shield, roles: ['admin', 'director'] },
         ],
