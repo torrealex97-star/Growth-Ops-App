@@ -29,6 +29,11 @@ export type KnowledgeCategory =
   | 'copywriting_swipe'
   | 'marketing_metrics'
 
+// Tipo de contenido del chunk (enum canónico de docs/rag_*_knowledge_schema.json):
+// qué ES el fragmento — guion textual, fórmula, framework, secuencia temporal o checklist.
+// Permite al agente/UI filtrar la recuperación: "dame guiones" vs "dame fórmulas con target".
+export type KnowledgeType = 'script' | 'formula' | 'framework' | 'sequence' | 'checklist'
+
 export type KnowledgeChunk = {
   id: string
   category: string
@@ -120,7 +125,12 @@ export async function searchKnowledge(
   sb: SupabaseClient,
   tenantId: string,
   query: string,
-  opts?: { categories?: KnowledgeCategory[]; limit?: number; embeddingEnv?: Record<string, string | undefined> }
+  opts?: {
+    categories?: KnowledgeCategory[]
+    types?: KnowledgeType[]
+    limit?: number
+    embeddingEnv?: Record<string, string | undefined>
+  }
 ): Promise<KnowledgeSearch> {
   const q = query.trim()
   if (!q) return { ok: true, chunks: [], modo: 'lexica' }
@@ -138,6 +148,7 @@ export async function searchKnowledge(
     p_categories: opts?.categories ?? null,
     p_limit: Math.min(Math.max(opts?.limit ?? 5, 1), 20),
     p_embedding: pEmbedding,
+    p_types: opts?.types ?? null,
   })
   if (error) return { ok: false, error: error.message }
   return { ok: true, chunks: (data ?? []) as KnowledgeChunk[], modo: pEmbedding ? 'hibrida' : 'lexica' }
@@ -152,7 +163,8 @@ export function formatearContextoKnowledge(chunks: KnowledgeChunk[], maxChars = 
   const lineas: string[] = []
   let total = 0
   for (const [i, c] of chunks.entries()) {
-    const linea = `[${i + 1}] (${c.category} · §${c.module}) ${c.title}: ${c.content}`
+    const tipo = typeof c.metadata?.type === 'string' ? c.metadata.type : null
+    const linea = `[${i + 1}] (${c.category} · §${c.module}${tipo ? ` · ${tipo}` : ''}) ${c.title}: ${c.content}`
     if (total + linea.length > maxChars) break
     lineas.push(linea)
     total += linea.length

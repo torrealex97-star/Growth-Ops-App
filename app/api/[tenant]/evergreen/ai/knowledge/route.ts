@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { createClient } from '@/lib/supabase/server'
-import { searchKnowledge, type KnowledgeCategory } from '@/lib/ai/knowledge'
+import { searchKnowledge, type KnowledgeCategory, type KnowledgeType } from '@/lib/ai/knowledge'
 import { getTenantConfigWithFallback } from '@/lib/config'
 
 export const runtime = 'nodejs'
@@ -26,6 +26,9 @@ const CATEGORIAS_VALIDAS = new Set<KnowledgeCategory>([
   'marketing_metrics',
 ])
 
+// Enums canónicos de docs/rag_*_knowledge_schema.json (swipe de marketing → script en la ingesta).
+const TIPOS_VALIDOS = new Set<KnowledgeType>(['script', 'formula', 'framework', 'sequence', 'checklist'])
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
   const auth = await requireTenant(tenant)
@@ -41,6 +44,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     .map((c) => c.trim())
     .filter((c): c is KnowledgeCategory => CATEGORIAS_VALIDAS.has(c as KnowledgeCategory))
 
+  // Filtra por TIPO de contenido (script/formula/framework/sequence/checklist):
+  // "dame guiones" vs "dame fórmulas" — mismo cierre que las categorías (validado contra enum).
+  const types = (req.nextUrl.searchParams.get('types') || '')
+    .split(',')
+    .map((t) => t.trim())
+    .filter((t): t is KnowledgeType => TIPOS_VALIDOS.has(t as KnowledgeType))
+
   const limitRaw = Number(req.nextUrl.searchParams.get('limit')) || 5
   const limit = Math.min(Math.max(limitRaw, 1), 20)
 
@@ -50,6 +60,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   const env = await getTenantConfigWithFallback(auth.tenantId)
   const r = await searchKnowledge(sb, auth.tenantId, q, {
     categories: categories.length ? categories : undefined,
+    types: types.length ? types : undefined,
     limit,
     embeddingEnv: env,
   })

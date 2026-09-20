@@ -243,6 +243,15 @@ const TOOL_DEFS: Anthropic.Tool[] = [
           description:
             'Filtra por categoría (opcional). kpis/marketing_metrics para métricas; objection_handling/frame_control para ejecución de venta.',
         },
+        types: {
+          type: 'array',
+          items: {
+            type: 'string',
+            enum: ['script', 'formula', 'framework', 'sequence', 'checklist'],
+          },
+          description:
+            'Filtra por tipo de contenido (opcional): script = guion textual para decir en una llamada; formula = fórmula de KPI con target; framework = método/estructura conceptual; sequence = secuencia temporal de mensajes; checklist = lista de comprobación. Úsalo cuando la petición pida un formato concreto: "dame el guion" → script, "¿cuál es la fórmula y target?" → formula.',
+        },
         limit: { type: 'number', description: 'Máximo de fragmentos (por defecto 5, máximo 10)' },
       },
       required: ['query'],
@@ -396,7 +405,8 @@ async function callTool(
         ctx,
         String(input.query || ''),
         input.categories as tools.KnowledgeCategory[] | undefined,
-        Math.min(Number(input.limit) || 5, 10)
+        Math.min(Number(input.limit) || 5, 10),
+        input.types as tools.KnowledgeType[] | undefined
       )
       return {
         result: r,
