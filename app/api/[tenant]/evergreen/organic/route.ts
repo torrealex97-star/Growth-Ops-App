@@ -84,7 +84,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     sb
       .from('social_posts')
       .select(
-        'platform, username, content_type, published_at, views_count, likes_count, comments_count, shares_count, collected_at, post_url'
+        // `username` vive en social_profiles (vía profile_id); el agregador no lo
+        // consume de los posts — pedirlo aquí era un 400 de PostgREST en silencio.
+        'platform, content_type, published_at, views_count, likes_count, comments_count, shares_count, collected_at, post_url'
       )
       .eq('tenant_id', auth.tenantId)
       .in('platform', PLATAFORMAS)
