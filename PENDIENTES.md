@@ -80,7 +80,7 @@ Pendiente:
 - [ ] **Pipeline de embeddings**: generar `vector(1536)` para los chunks (columna lista, hoy NULL), índice HNSW y búsqueda híbrida (vector + FTS) en la RPC. La búsqueda léxica española ya funciona sin esto.
 - [ ] **Inspector de conocimiento en UI admin**: buscador conectado al endpoint `/ai/knowledge` con filtros por categoría y visor de chunks.
 - [ ] **Re-ingesta tras editar skills**: `POSTGRES_URL=<pooler-ipv4> node scripts/ingestar-knowledge.mjs` (ON CONFLICT actualiza; ver run doc para el pooler IPv4).
-- [ ] **Alta de colaboradores no encadena el envío del contrato de equipo** (hallazgo E2E 19-sep): el colaborador nace activo pero bloqueado hasta firma manual — cablear el envío automático.
+- [x] **Alta de colaboradores encadena el contrato de equipo** (hallazgo E2E 19-sep, resuelto): la ruta admin de Colaboradores y el registro público de afiliados crean y envían el contrato automáticamente vía `lib/contracts/team-contract.ts` (helper compartido con la ruta manual de Contratos › Equipo, con dedup idempotente y el % del alta mandando en las condiciones). Estado `pending_contract` hasta que el colaborador FIRMA — la firma (public-contracts/sign) lo activa a `active`.
 
 ## 💡 Mejoras futuras / ideas
 
