@@ -1,5 +1,8 @@
 import { Resend } from 'resend'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { CompanyProfile } from '@/lib/contracts/company'
+import { defaultSubject, defaultBody, templateVars, renderTemplate } from './templates'
+import type { EmailTemplateKey, EmailVars } from './templates'
 
 // Envío de emails con Resend. Requiere RESEND_API_KEY.
 // RESEND_FROM: remitente verificado, p.ej. "Tu Empresa <contratos@tudominio.com>".
@@ -10,9 +13,21 @@ import type { CompanyProfile } from '@/lib/contracts/company'
 // correos salían con la del entorno de Vercel, o no salían— y el remitente de una subcuenta podía
 // acabar firmando los correos de otra. `process.env` queda como fallback para los flujos públicos
 // (firma de contratos por enlace) que no tienen subcuenta resuelta.
+//
+// IDENTIDAD DE MENSAJE: los send* devuelven `messageId` (el id `re_…` que Resend
+// asigna en el momento del envío, `data.id` de la respuesta). EmailService lo
+// persiste en email_messages.provider_message_id y el webhook asocia así los
+// eventos (delivered/opened/…) con el envío. En fallo no hay id.
+// PLANTILLAS: asunto y cuerpo salen de la plantilla de la subcuenta (tabla email_templates,
+// editable en Configuración › Correos) o del default del catálogo (lib/email/templates.ts)
+// si no hay override. `resolveTemplate` falla en silencio al default: un problema de lectura
+// de plantilla nunca debe bloquear un envío.
 export type MailEnv = {
   RESEND_API_KEY?: string
   RESEND_FROM?: string
+  /** Reply-To opcional del sobre de envío. Lo inyecta EmailService desde la
+   *  identidad del tenant (tenant_email_settings) sin tocar cada firma. */
+  REPLY_TO?: string
 }
 
 function resendKey(mail?: MailEnv): string | undefined {
@@ -30,61 +45,56 @@ function fromAddress(company: CompanyProfile, mail?: MailEnv): string {
   return `${company.name} <onboarding@resend.dev>`
 }
 
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-
-function contractEmailHtml(opts: {
-  memberName: string
-  companyName: string
-  signUrl: string
-  signature: string | null
-}): string {
-  const { memberName, companyName, signUrl, signature } = opts
-  return `<!doctype html>
-<html><body style="margin:0;background:#f4f4f5;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#18181b">
-  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
-    <div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:32px">
-      <h1 style="margin:0 0 4px;font-size:20px;color:#09090b">${esc(companyName)}</h1>
-      <p style="margin:0 0 24px;font-size:12px;color:#a1a1aa">Contrato para firmar</p>
-      <p style="font-size:15px;line-height:1.6">Hola ${esc(memberName)},</p>
-      <p style="font-size:15px;line-height:1.6">Tienes un contrato listo para revisar y firmar. Podrás completar tus datos (DNI, dirección…) directamente en la página de firma.</p>
-      <div style="text-align:center;margin:28px 0">
-        <a href="${esc(signUrl)}" style="display:inline-block;background:#18181b;color:#fff;text-decoration:none;padding:13px 28px;border-radius:10px;font-size:15px;font-weight:600">Revisar y firmar contrato</a>
-      </div>
-      <p style="font-size:12px;color:#71717a;line-height:1.6">Si el botón no funciona, copia y pega este enlace en tu navegador:<br><span style="color:#3b82f6;word-break:break-all">${esc(signUrl)}</span></p>
-      <hr style="border:none;border-top:1px solid #e4e4e7;margin:24px 0">
-      <p style="font-size:13px;color:#52525b;line-height:1.6;white-space:pre-line">${esc(signature || `Un saludo,\n${companyName}`)}</p>
-    </div>
-    <p style="text-align:center;font-size:11px;color:#a1a1aa;margin-top:16px">Firma electrónica simple (eIDAS). Este enlace es personal, no lo compartas.</p>
-  </div>
-</body></html>`
+// Cliente de servicio para leer overrides de plantilla. Se crea perezosamente y
+// solo si company.tenantId está presente (los flujos públicos también pasan por
+// aquí con tenantId resuelto; si no lo llevara, se usa el default directamente).
+let sbAdmin: SupabaseClient | null = null
+function sbForTemplates(): SupabaseClient | null {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return null
+  if (!sbAdmin) {
+    sbAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+  }
+  return sbAdmin
 }
 
-function inviteEmailHtml(opts: {
-  fullName: string
-  companyName: string
-  url: string
-  signature: string | null
-}): string {
-  const { fullName, companyName, url, signature } = opts
-  return `<!doctype html>
-<html><body style="margin:0;background:#f4f4f5;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#18181b">
-  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
-    <div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:32px">
-      <h1 style="margin:0 0 4px;font-size:20px;color:#09090b">${esc(companyName)}</h1>
-      <p style="margin:0 0 24px;font-size:12px;color:#a1a1aa">Acceso al panel del equipo</p>
-      <p style="font-size:15px;line-height:1.6">Hola ${esc(fullName)},</p>
-      <p style="font-size:15px;line-height:1.6">Te damos acceso al panel de ${esc(companyName)}. Para entrar, primero <b>crea tu contraseña</b> pulsando el botón:</p>
-      <div style="text-align:center;margin:28px 0">
-        <a href="${esc(url)}" style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:13px 28px;border-radius:10px;font-size:15px;font-weight:600">Crear mi contraseña</a>
-      </div>
-      <p style="font-size:12px;color:#71717a;line-height:1.6">Si el botón no funciona, copia y pega este enlace en tu navegador:<br><span style="color:#7c3aed;word-break:break-all">${esc(url)}</span></p>
-      <hr style="border:none;border-top:1px solid #e4e4e7;margin:24px 0">
-      <p style="font-size:13px;color:#52525b;line-height:1.6;white-space:pre-line">${esc(signature || `Un saludo,\n${companyName}`)}</p>
-    </div>
-    <p style="text-align:center;font-size:11px;color:#a1a1aa;margin-top:16px">Este enlace es personal y caduca. Si no esperabas este correo, ignóralo.</p>
-  </div>
-</body></html>`
+type ResolvedTemplate = { subject: string; html: string }
+
+async function resolveTemplate(
+  key: EmailTemplateKey,
+  company: CompanyProfile,
+  vars: EmailVars
+): Promise<ResolvedTemplate> {
+  const sb = company.tenantId ? sbForTemplates() : null
+  if (sb && company.tenantId) {
+    try {
+      const { data } = await sb
+        .from('email_templates')
+        .select('subject, body_html')
+        .eq('tenant_id', company.tenantId)
+        .eq('template_key', key)
+        .maybeSingle()
+      if (data?.subject && data?.body_html) {
+        const map = templateVars(key, vars)
+        // firma/description de plantillas guardadas llegan en plano: se escapan al renderizar
+        map.firma = escapeHtml(map.firma)
+        map.descripcion = escapeHtml(map.descripcion)
+        map.bienvenida = escapeHtml(map.bienvenida)
+        return { subject: renderTemplate(data.subject, map), html: renderTemplate(data.body_html, map) }
+      }
+    } catch {
+      // tabla ausente (migración pendiente) o error puntual → default
+    }
+  }
+  return { subject: defaultSubject(key, vars), html: defaultBody(key, vars) }
 }
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+// ── Envíos (firmas sin cambios; las 9 llamadas de la app no se tocan) ────────
 
 // Envía el email de invitación (crear contraseña) al nuevo miembro.
 export async function sendInviteEmail(opts: {
@@ -94,23 +104,21 @@ export async function sendInviteEmail(opts: {
   fullName: string
   company: CompanyProfile
   url: string
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
     const resend = new Resend(resendKey(opts.mail))
-    const { error } = await resend.emails.send({
+    const vars: EmailVars = { company: opts.company, memberName: opts.fullName, url: opts.url }
+    const tpl = await resolveTemplate('invite', opts.company, vars)
+    const { data, error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
+      ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
-      subject: `${opts.company.name} · Crea tu contraseña para acceder`,
-      html: inviteEmailHtml({
-        fullName: opts.fullName,
-        companyName: opts.company.name,
-        url: opts.url,
-        signature: opts.company.email_signature,
-      }),
+      subject: tpl.subject,
+      html: tpl.html,
     })
     if (error) return { ok: false, error: error.message }
-    return { ok: true }
+    return { ok: true, messageId: data?.id }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
@@ -123,66 +131,23 @@ export async function sendRecoveryEmail(opts: {
   to: string
   company: CompanyProfile
   url: string
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
     const resend = new Resend(resendKey(opts.mail))
-    const html = `<!doctype html>
-<html><body style="margin:0;background:#f4f4f5;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#18181b">
-  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
-    <div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:32px">
-      <h1 style="margin:0 0 4px;font-size:20px;color:#09090b">${esc(opts.company.name)}</h1>
-      <p style="margin:0 0 24px;font-size:12px;color:#a1a1aa">Restablecer contraseña</p>
-      <p style="font-size:15px;line-height:1.6">Has solicitado restablecer tu contraseña. Pulsa el botón para crear una nueva:</p>
-      <div style="text-align:center;margin:28px 0">
-        <a href="${esc(opts.url)}" style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:13px 28px;border-radius:10px;font-size:15px;font-weight:600">Crear nueva contraseña</a>
-      </div>
-      <p style="font-size:12px;color:#71717a;line-height:1.6">Si no funciona el botón, copia este enlace:<br><span style="color:#7c3aed;word-break:break-all">${esc(opts.url)}</span></p>
-      <p style="font-size:12px;color:#a1a1aa;line-height:1.6;margin-top:16px">Si no fuiste tú, ignora este correo; tu contraseña no cambiará.</p>
-    </div>
-  </div>
-</body></html>`
-    const { error } = await resend.emails.send({
+    const tpl = await resolveTemplate('recovery', opts.company, { company: opts.company, url: opts.url })
+    const { data, error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
+      ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
-      subject: `${opts.company.name} · Restablecer contraseña`,
-      html,
+      subject: tpl.subject,
+      html: tpl.html,
     })
     if (error) return { ok: false, error: error.message }
-    return { ok: true }
+    return { ok: true, messageId: data?.id }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
-}
-
-function signedContractEmailHtml(opts: {
-  memberName: string
-  companyName: string
-  signature: string | null
-  pdfUrl: string | null
-}): string {
-  const { memberName, companyName, signature, pdfUrl } = opts
-  return `<!doctype html>
-<html><body style="margin:0;background:#f4f4f5;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#18181b">
-  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
-    <div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:32px">
-      <h1 style="margin:0 0 4px;font-size:20px;color:#09090b">${esc(companyName)}</h1>
-      <p style="margin:0 0 24px;font-size:12px;color:#a1a1aa">Contrato firmado — copia</p>
-      <p style="font-size:15px;line-height:1.6">Hola ${esc(memberName)},</p>
-      <p style="font-size:15px;line-height:1.6">Tu contrato ha quedado <b>firmado correctamente</b>. Adjuntamos una copia en PDF para tus registros.</p>
-      ${
-        pdfUrl
-          ? `<div style="text-align:center;margin:28px 0">
-        <a href="${esc(pdfUrl)}" style="display:inline-block;background:#18181b;color:#fff;text-decoration:none;padding:13px 28px;border-radius:10px;font-size:15px;font-weight:600">Descargar contrato firmado</a>
-      </div>`
-          : ''
-      }
-      <hr style="border:none;border-top:1px solid #e4e4e7;margin:24px 0">
-      <p style="font-size:13px;color:#52525b;line-height:1.6;white-space:pre-line">${esc(signature || `Un saludo,\n${companyName}`)}</p>
-    </div>
-    <p style="text-align:center;font-size:11px;color:#a1a1aa;margin-top:16px">Firma electrónica simple (eIDAS). Conserva esta copia.</p>
-  </div>
-</body></html>`
 }
 
 // Envía una copia del contrato YA FIRMADO (PDF adjunto) al colaborador.
@@ -196,10 +161,12 @@ export async function sendSignedContractEmail(opts: {
   company: CompanyProfile
   pdfUrl: string | null
   pdfBytes?: Uint8Array | null
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
     const resend = new Resend(resendKey(opts.mail))
+    const vars: EmailVars = { company: opts.company, memberName: opts.memberName, url: opts.pdfUrl ?? undefined }
+    const tpl = await resolveTemplate('contract_signed', opts.company, vars)
     const norm = (s: string) => s.trim().toLowerCase()
     const to = norm(opts.to)
     const ccList = (Array.isArray(opts.cc) ? opts.cc : opts.cc ? [opts.cc] : [])
@@ -209,21 +176,17 @@ export async function sendSignedContractEmail(opts: {
     const attachments = opts.pdfBytes
       ? [{ filename: 'contrato-firmado.pdf', content: Buffer.from(opts.pdfBytes) }]
       : undefined
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
+      ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
       ...(cc.length ? { cc } : {}),
-      subject: `${opts.company.name} · Copia de tu contrato firmado`,
-      html: signedContractEmailHtml({
-        memberName: opts.memberName,
-        companyName: opts.company.name,
-        signature: opts.company.email_signature,
-        pdfUrl: opts.pdfUrl,
-      }),
+      subject: tpl.subject,
+      html: tpl.html,
       ...(attachments ? { attachments } : {}),
     })
     if (error) return { ok: false, error: error.message }
-    return { ok: true }
+    return { ok: true, messageId: data?.id }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
@@ -243,73 +206,34 @@ export async function sendTaskAssignedEmail(opts: {
   dueDate?: string | null
   priority?: string | null
   url: string
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
     const resend = new Resend(resendKey(opts.mail))
-    const meta = [
-      opts.priority ? `Prioridad: ${esc(opts.priority)}` : '',
-      opts.dueDate ? `Vence: ${esc(opts.dueDate)}` : '',
-    ]
-      .filter(Boolean)
-      .join(' · ')
-    const html = `<!doctype html>
-<html><body style="margin:0;background:#f4f4f5;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#18181b">
-  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
-    <div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:32px">
-      <h1 style="margin:0 0 4px;font-size:20px;color:#09090b">${esc(opts.company.name)}</h1>
-      <p style="margin:0 0 20px;font-size:12px;color:#a1a1aa">Nueva tarea asignada</p>
-      <p style="font-size:15px;line-height:1.6">Hola ${esc(opts.assigneeName)}, tienes una tarea nueva por realizar:</p>
-      <div style="background:#f9fafb;border:1px solid #e4e4e7;border-radius:10px;padding:16px;margin:16px 0">
-        <p style="font-size:15px;font-weight:600;margin:0 0 6px">${esc(opts.taskTitle)}</p>
-        ${opts.taskDescription ? `<p style="font-size:13px;color:#52525b;line-height:1.5;margin:0 0 6px;white-space:pre-line">${esc(opts.taskDescription)}</p>` : ''}
-        ${meta ? `<p style="font-size:12px;color:#a1a1aa;margin:0">${meta}</p>` : ''}
-      </div>
-      <div style="text-align:center;margin:24px 0">
-        <a href="${esc(opts.url)}" style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:12px 26px;border-radius:10px;font-size:14px;font-weight:600">Ver mis tareas</a>
-      </div>
-    </div>
-  </div>
-</body></html>`
-    const { error } = await resend.emails.send({
+    const tpl = await resolveTemplate('task_assigned', opts.company, {
+      company: opts.company,
+      memberName: opts.assigneeName,
+      url: opts.url,
+      taskTitle: opts.taskTitle,
+      taskDescription: opts.taskDescription,
+      dueDate: opts.dueDate,
+      priority: opts.priority,
+    })
+    const { data, error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
+      ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
-      subject: `${opts.company.name} · Nueva tarea: ${opts.taskTitle}`,
-      html,
+      subject: tpl.subject,
+      html: tpl.html,
     })
     if (error) return { ok: false, error: error.message }
-    return { ok: true }
+    return { ok: true, messageId: data?.id }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
 }
 
 // ==================== ALUMNOS ====================
-
-function studentContractEmailHtml(opts: {
-  studentName: string
-  companyName: string
-  signUrl: string
-  welcome: string
-}): string {
-  const { studentName, companyName, signUrl, welcome } = opts
-  return `<!doctype html>
-<html><body style="margin:0;background:#f4f4f5;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#18181b">
-  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
-    <div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:32px">
-      <h1 style="margin:0 0 4px;font-size:20px;color:#09090b">${esc(companyName)}</h1>
-      <p style="margin:0 0 20px;font-size:12px;color:#a1a1aa">Bienvenido a la Academia</p>
-      <p style="font-size:16px;line-height:1.6;font-weight:600;color:#7c3aed">${esc(welcome)}</p>
-      <p style="font-size:15px;line-height:1.6">Hola ${esc(studentName)}, pulsa el botón para revisar y aceptar las condiciones. En cuanto aceptes, recibirás tus accesos.</p>
-      <div style="text-align:center;margin:28px 0">
-        <a href="${esc(signUrl)}" style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:14px 30px;border-radius:10px;font-size:15px;font-weight:700">Aceptar condiciones y entrar</a>
-      </div>
-      <p style="font-size:12px;color:#71717a;line-height:1.6">Si el botón no funciona, copia y pega este enlace:<br><span style="color:#7c3aed;word-break:break-all">${esc(signUrl)}</span></p>
-    </div>
-    <p style="text-align:center;font-size:11px;color:#a1a1aa;margin-top:16px">Firma electrónica simple (eIDAS). Este enlace es personal, no lo compartas.</p>
-  </div>
-</body></html>`
-}
 
 // Envía al ALUMNO el contrato para aceptar ("Bienvenido Winner…" + enlace cortafuegos).
 export async function sendStudentContractEmail(opts: {
@@ -320,23 +244,25 @@ export async function sendStudentContractEmail(opts: {
   company: CompanyProfile
   signUrl: string
   welcome: string
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
     const resend = new Resend(resendKey(opts.mail))
-    const { error } = await resend.emails.send({
+    const tpl = await resolveTemplate('student_contract', opts.company, {
+      company: opts.company,
+      memberName: opts.studentName,
+      url: opts.signUrl,
+      welcome: opts.welcome,
+    })
+    const { data, error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
+      ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
-      subject: `${opts.company.name} · ¡Bienvenida! Acepta tus condiciones`,
-      html: studentContractEmailHtml({
-        studentName: opts.studentName,
-        companyName: opts.company.name,
-        signUrl: opts.signUrl,
-        welcome: opts.welcome,
-      }),
+      subject: tpl.subject,
+      html: tpl.html,
     })
     if (error) return { ok: false, error: error.message }
-    return { ok: true }
+    return { ok: true, messageId: data?.id }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
@@ -344,32 +270,6 @@ export async function sendStudentContractEmail(opts: {
 
 // Landing de onboarding donde el alumno encuentra sus accesos y el paso a paso.
 const ONBOARDING_LANDING_URL = process.env.ONBOARDING_LANDING_URL || ''
-
-function studentOnboardingEmailHtml(opts: {
-  studentName: string
-  companyName: string
-  landingUrl: string
-  signature: string | null
-}): string {
-  const { studentName, companyName, landingUrl, signature } = opts
-  return `<!doctype html>
-<html><body style="margin:0;background:#f4f4f5;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#18181b">
-  <div style="max-width:560px;margin:0 auto;padding:32px 16px">
-    <div style="background:#fff;border:1px solid #e4e4e7;border-radius:14px;padding:32px">
-      <h1 style="margin:0 0 4px;font-size:20px;color:#09090b">${esc(companyName)}</h1>
-      <p style="margin:0 0 20px;font-size:12px;color:#a1a1aa">Tus accesos están listos 🚀</p>
-      <p style="font-size:16px;line-height:1.6;font-weight:600;color:#7c3aed">¡Ya eres un Winner, ${esc(studentName)}!</p>
-      <p style="font-size:15px;line-height:1.6">Hemos activado tus accesos a la Academia. Sigue el paso a paso de onboarding para empezar hoy mismo: ahí encontrarás cómo entrar a la plataforma, el vídeo de inicio y todo lo que necesitas.</p>
-      <div style="text-align:center;margin:28px 0">
-        <a href="${esc(landingUrl)}" style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:14px 30px;border-radius:10px;font-size:15px;font-weight:700">Ver mis accesos y empezar</a>
-      </div>
-      <p style="font-size:12px;color:#71717a;line-height:1.6">Si el botón no funciona, copia y pega este enlace:<br><span style="color:#7c3aed;word-break:break-all">${esc(landingUrl)}</span></p>
-      <hr style="border:none;border-top:1px solid #e4e4e7;margin:24px 0">
-      <p style="font-size:13px;color:#52525b;line-height:1.6;white-space:pre-line">${esc(signature || `Un saludo,\n${companyName}`)}</p>
-    </div>
-  </div>
-</body></html>`
-}
 
 // Envía al ALUMNO el correo de onboarding con los pasos + enlace a la landing de accesos.
 // Se dispara automáticamente cuando el webhook de accesos (GHL) se ha completado.
@@ -380,23 +280,24 @@ export async function sendStudentOnboardingEmail(opts: {
   studentName: string
   company: CompanyProfile
   landingUrl?: string
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
     const resend = new Resend(resendKey(opts.mail))
-    const { error } = await resend.emails.send({
+    const tpl = await resolveTemplate('student_onboarding', opts.company, {
+      company: opts.company,
+      memberName: opts.studentName,
+      url: opts.landingUrl || ONBOARDING_LANDING_URL,
+    })
+    const { data, error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
+      ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
-      subject: `${opts.company.name} · Tus accesos están listos — empieza aquí`,
-      html: studentOnboardingEmailHtml({
-        studentName: opts.studentName,
-        companyName: opts.company.name,
-        landingUrl: opts.landingUrl || ONBOARDING_LANDING_URL,
-        signature: opts.company.email_signature,
-      }),
+      subject: tpl.subject,
+      html: tpl.html,
     })
     if (error) return { ok: false, error: error.message }
-    return { ok: true }
+    return { ok: true, messageId: data?.id }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
@@ -411,27 +312,25 @@ export async function sendStudentSignedEmail(opts: {
   company: CompanyProfile
   pdfUrl: string | null
   pdfBytes?: Uint8Array | null
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
     const resend = new Resend(resendKey(opts.mail))
+    const vars: EmailVars = { company: opts.company, memberName: opts.studentName, url: opts.pdfUrl ?? undefined }
+    const tpl = await resolveTemplate('student_contract_signed', opts.company, vars)
     const attachments = opts.pdfBytes
       ? [{ filename: 'contrato-firmado.pdf', content: Buffer.from(opts.pdfBytes) }]
       : undefined
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
+      ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
-      subject: `${opts.company.name} · Copia de tu contrato firmado`,
-      html: signedContractEmailHtml({
-        memberName: opts.studentName,
-        companyName: opts.company.name,
-        signature: opts.company.email_signature,
-        pdfUrl: opts.pdfUrl,
-      }),
+      subject: tpl.subject,
+      html: tpl.html,
       ...(attachments ? { attachments } : {}),
     })
     if (error) return { ok: false, error: error.message }
-    return { ok: true }
+    return { ok: true, messageId: data?.id }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
@@ -448,30 +347,28 @@ export async function sendContractEmail(opts: {
   memberName: string
   company: CompanyProfile
   signUrl: string
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; messageId?: string }> {
   if (!resendConfigured(opts.mail)) return { ok: false, error: 'RESEND_API_KEY no configurada' }
   try {
     const resend = new Resend(resendKey(opts.mail))
+    const vars: EmailVars = { company: opts.company, memberName: opts.memberName, url: opts.signUrl }
+    const tpl = await resolveTemplate('contract', opts.company, vars)
     const norm = (s: string) => s.trim().toLowerCase()
     const to = norm(opts.to)
     const ccList = (Array.isArray(opts.cc) ? opts.cc : opts.cc ? [opts.cc] : [])
       .map((c) => norm(c))
       .filter((c) => c && c !== to)
     const cc = Array.from(new Set(ccList))
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: fromAddress(opts.company, opts.mail),
+      ...(opts.mail?.REPLY_TO ? { reply_to: opts.mail.REPLY_TO } : {}),
       to: opts.to,
       ...(cc.length ? { cc } : {}),
-      subject: `${opts.company.name} · Contrato para firmar`,
-      html: contractEmailHtml({
-        memberName: opts.memberName,
-        companyName: opts.company.name,
-        signUrl: opts.signUrl,
-        signature: opts.company.email_signature,
-      }),
+      subject: tpl.subject,
+      html: tpl.html,
     })
     if (error) return { ok: false, error: error.message }
-    return { ok: true }
+    return { ok: true, messageId: data?.id }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }

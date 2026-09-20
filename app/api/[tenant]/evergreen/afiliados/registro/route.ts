@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { generateUniqueTrackingCode } from '@/lib/tracking'
+import { crearContratoEquipo } from '@/lib/contracts/team-contract'
 import type { AffiliateFormField } from '@/lib/types/database'
 
 // Columnas propias de affiliate_profiles; cualquier otro campo del formulario va a `extra`.
@@ -176,9 +177,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     )
 
     // 7-c) PERFIL DE COLABORADOR (migración 20260918150000): identidad estructurada
-    // del colaborador (UUID + código + estado). El alta pública nace 'active' con
-    // el mismo % del programa; el contrato se gestiva luego desde Colaboradores.
-    // Idempotente: si ya existía, no se pisa nada.
+    // del colaborador (UUID + código + estado). Nace 'active' y, si el contrato
+    // (7-d) se envía bien, pasa a 'pending_contract' hasta la firma. Idempotente:
+    // si ya existía, no se pisa nada.
     await supabase.from('collaborator_profiles').upsert(
       {
         tenant_id: tenantId,
@@ -194,16 +195,50 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // 7b) Alta en la subcuenta (sin esto, el afiliado no podría entrar al panel).
     await ensureTenantMembership(invited.user.id)
 
+    // 7d) CADENA AUTOMÁTICA DEL CONTRATO (hallazgo E2E 19-sep): el alta pública
+    // también deja el contrato de equipo creado y enviado — estado
+    // 'pending_contract', activación definitiva al FIRMAR. No bloquea el alta:
+    // si falla, el perfil queda 'active' como hasta ahora y el admin envía el
+    // contrato manualmente desde Contratos › Equipo.
+    let contratoEnviado = false
+    const contrato = await crearContratoEquipo({
+      sb: supabase,
+      tenantId,
+      userId: invited.user.id,
+      createdBy: null,
+      baseUrl: siteUrl,
+      roleKey: 'affiliate',
+      affiliatePercent: commissionPct,
+    })
+    if (contrato.ok) {
+      if (contrato.estado === 'enviado' || contrato.estado === 'ya_enviado') {
+        contratoEnviado = contrato.estado === 'enviado'
+        await supabase
+          .from('collaborator_profiles')
+          .update({ status: 'pending_contract' })
+          .eq('tenant_id', tenantId)
+          .eq('user_id', invited.user.id)
+      } else if (contrato.estado === 'ya_firmado') {
+        // Ya tiene un contrato firmado: nace directamente activo.
+        await supabase
+          .from('collaborator_profiles')
+          .update({ status: 'active' })
+          .eq('tenant_id', tenantId)
+          .eq('user_id', invited.user.id)
+      }
+    }
+
     // 8) Asignación a la campaña del enlace (si venía una)
     await assignToCampaign(invited.user.id)
 
     const baseMessage = settings?.success_message || '¡Listo! Revisa tu email para crear tu contraseña.'
-    return NextResponse.json({
-      ok: true,
-      message: campaign
-        ? `¡Listo! Te has dado de alta y quedas asignado a la campaña "${campaign.name}". Revisa tu email para crear tu contraseña.`
-        : baseMessage,
-    })
+    let mensaje = campaign
+      ? `¡Listo! Te has dado de alta y quedas asignado a la campaña "${campaign.name}". Revisa tu email para crear tu contraseña.`
+      : baseMessage
+    if (contratoEnviado && contrato.emailed) {
+      mensaje += ' También te hemos enviado el contrato de colaboración para que lo firmes.'
+    }
+    return NextResponse.json({ ok: true, message: mensaje })
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }

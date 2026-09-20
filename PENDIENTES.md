@@ -1,21 +1,23 @@
 # PENDIENTES — [tenant] OS
 
-> Doc vivo de tareas pendientes. Última actualización: 2026-07-01.
-> App en producción: https://tu-dominio.com · Deploy: `vercel --prod --yes`
+> Doc vivo de tareas pendientes. Última actualización: 2026-09-19.
+> App en producción: https://growth-ops-weld.vercel.app · Deploy por PR (protección de rama: CI required en main — nada se pushea directo).
+> Contribuir: rama → PR → CI verde (format/lint/typecheck/tests/build/gitleaks) → merge squash.
 
 ---
 
 ## 🔴 Bloqueantes / infra a montar
 
 - [ ] **Worker de transcripción → desplegar a Railway.**
-  Código listo en `worker/` (poll Supabase → descarga Drive → ffmpeg 16kHz mono troceado → Groq Whisper → Claude → guarda + tareas). Sin límite de duración.
-  Falta: crear servicio en Railway (`railway init --workspace <?>` + `railway up` desde `worker/`), setear env (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GROQ_API_KEY`, `ANTHROPIC_API_KEY`, opcional `GOOGLE_SERVICE_ACCOUNT_JSON`, `POLL_INTERVAL_MS`).
-  Decidir workspace de Railway (hay varios; CLI logueado como info@creatuagente.io).
+      Código listo en `worker/` (poll Supabase → descarga Drive → ffmpeg 16kHz mono troceado → Groq Whisper → Claude → guarda + tareas). Sin límite de duración.
+      Falta: crear servicio en Railway (`railway init --workspace <?>` + `railway up` desde `worker/`), setear env (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GROQ_API_KEY`, `ANTHROPIC_API_KEY`, opcional `GOOGLE_SERVICE_ACCOUNT_JSON`, `POLL_INTERVAL_MS`).
+      Decidir workspace de Railway (hay varios; CLI logueado como info@creatuagente.io).
 - [ ] **Google service account (opcional pero recomendado)** para transcribir grabaciones de Drive **privadas** sin compartirlas a mano. Crear en Google Cloud, activar Drive API, compartir la carpeta de grabaciones con el email del SA, y meter el JSON en `GOOGLE_SERVICE_ACCOUNT_JSON` del worker. Sin esto, los archivos deben ser "Cualquiera con el enlace".
 
 ## 📄 Contratos de equipo (firma digital — ya en producción)
 
 Feature completo y desplegado: Config → Datos de empresa, plantillas (pega texto → IA inserta variables), rol seleccionable, el firmante completa DNI/dirección al firmar, PDF firmado guardado en Supabase Storage (bucket `contratos`) y descargable. Pendiente solo:
+
 - [x] **Envío automático por email (Resend) — ACTIVO.** `RESEND_API_KEY` + `RESEND_FROM (ver Vercel)` en Vercel (Production). Dominio `[tenant]` verificado en Resend (DNS en Cloudflare). Invitaciones, recovery y contratos se envían por email automáticamente. Key de tipo "solo envío" (no gestiona dominios por API).
 - [ ] **Poner el CIF/razón social reales** en Config → Datos de empresa (ahora placeholder `B-00000000`).
 - [~] **Secretos en `.env.local` local** — restaurados 4/5 críticos (18-sep) y verificados con smoke (`scripts/env-smoke.mjs`, sin imprimir valores):
@@ -47,13 +49,15 @@ Feature completo y desplegado: Config → Datos de empresa, plantillas (pega tex
 
 Crons ya hechos: `cron/monthly` (sueldos + gastos recurrentes) y `cron/reminders` (marca cuotas vencidas).
 Faltan como automatización con aviso real (necesitan canal: WhatsApp/email/Slack):
+
 - [ ] Alerta de impago (Pago atrasado ≥3 días → aviso admin + WhatsApp alumno)
 - [ ] Alerta de vencimiento de acceso (email renovación + tarea al closer)
 - [ ] Lead no contactado >2h → aviso al setter
 - [ ] No-show → crear follow-up + secuencia
 - [ ] Onboarding incompleto >7 días → aviso CSM
 - [ ] Engagement bajo >14 días → tarea de reactivación
-- [ ] **Sync pasarela de pago (Stripe/PayPal)** → actualizar pagos automáticamente
+- [x] **Sync pasarela de pago (Stripe)** — HECHO 19-sep: espejo `stripe_payments` con cron (`cron-stripe-payments`), `stripe_fee` poblado del `balance_transaction` real (69/69 pagos WDC, incluidos refunded) y reconciliación idempotente (`POST /sales/reconcile-all`). Base de comisiones NETA de fee de pasarela para TODO el equipo (migración `20260919100000`): 49/49 comisiones cuadradas al céntimo (~1.258 € de fees fuera de comisión).
+- [ ] PayPal: mismo patrón que Stripe cuando haya cuenta que integrar.
 
 ## ✅ Verificaciones en vivo (probar con datos reales)
 
@@ -63,9 +67,20 @@ Faltan como automatización con aviso real (necesitan canal: WhatsApp/email/Slac
 - [ ] Transcripción end-to-end con una grabación real (audio ≤25MB o vía worker).
 
 ## 💳 Sistema de pagos — refinar
+
 - [ ] **Sequra**: recibimos 70% por adelantado, pero las cuotas Sequra generadas son para MONITORIZAR impago del alumno con Sequra (no son cash nuestro). Hoy se tratan como cobros normales → refinar para no doble-contar el cash.
 - [ ] **Reserva "completar pago"**: hoy la reserva de 300€ se mete a mano como `reservation_amount` en el alta. Falta el flujo de registrar una reserva y luego "completar pago" reutilizándola.
-- [ ] **UI de planes de pago** en Configuración → Productos (editar method/fee_percent/cash_collection_ratio sin SQL).
+- [~] **UI de planes de pago** en Configuración → Productos: `cash_collection_ratio` y `fee_percent` editables sin SQL (fee_percent = 19-sep, referencia pública de la comisión de plataforma para cobros manuales → base neta). Falta: editar `method` desde la UI.
+
+## 🧠 Sistema de conocimiento (skills + RAG) — nuevo 19-sep
+
+Hecho: skills canónicas `.claude/skills/sales-engineering.md` (§1-7) y `.claude/skills/marketing-and-copywriting.md` (§1-6) · system prompts en `src/prompts/` · esquemas RAG en `docs/rag_*_knowledge_schema.json` · reglas obligatorias en CLAUDE.md (PR #71) · tabla `knowledge_chunks` con pgvector + RPC `match_knowledge_chunks` (RLS admin-only, sin ciclos) · tool `searchKnowledge` del agente + contexto RAG en su system prompt · endpoint `/api/[tenant]/evergreen/ai/knowledge` · ingesta idempotente sembrada (88 filas, PR #73).
+Pendiente:
+
+- [ ] **Pipeline de embeddings**: generar `vector(1536)` para los chunks (columna lista, hoy NULL), índice HNSW y búsqueda híbrida (vector + FTS) en la RPC. La búsqueda léxica española ya funciona sin esto.
+- [ ] **Inspector de conocimiento en UI admin**: buscador conectado al endpoint `/ai/knowledge` con filtros por categoría y visor de chunks.
+- [ ] **Re-ingesta tras editar skills**: `POSTGRES_URL=<pooler-ipv4> node scripts/ingestar-knowledge.mjs` (ON CONFLICT actualiza; ver run doc para el pooler IPv4).
+- [x] **Alta de colaboradores encadena el contrato de equipo** (hallazgo E2E 19-sep, resuelto): la ruta admin de Colaboradores y el registro público de afiliados crean y envían el contrato automáticamente vía `lib/contracts/team-contract.ts` (helper compartido con la ruta manual de Contratos › Equipo, con dedup idempotente y el % del alta mandando en las condiciones). Estado `pending_contract` hasta que el colaborador FIRMA — la firma (public-contracts/sign) lo activa a `active`.
 
 ## 💡 Mejoras futuras / ideas
 
@@ -75,5 +90,8 @@ Faltan como automatización con aviso real (necesitan canal: WhatsApp/email/Slac
 - [ ] Revisar métrica a métrica contra el Google Sheets antiguo por si falta algún ratio concreto.
 
 ---
+
 ### Hecho recientemente (para contexto)
-Arquitectura por departamentos + RBAC · webhook GHL (matching por ID, customData) · IA facturas + análisis de llamadas (Groq+Claude) · Morosidad + rol Cobros · gastos recurrentes/sueldos (crons) · devoluciones · agendas (calendario + duración + métricas equipo + análisis IA) · biblioteca de facturas · dashboards del sheet antiguo (Company, Calls_Sales, Marketing funnel, Prospección, CSM, Leaderboards por rol) · recuperación de contraseña + invitaciones.
+
+**19-sep**: skills ventas/marketing + system prompts + esquemas RAG + reglas CLAUDE.md (#71) · protección de rama main con CI required (#70) · RAG: knowledge_chunks + tool searchKnowledge + endpoint + ingesta (#73) · fee_percent en UI de planes (base neta de comisiones) · sync Stripe con stripe_fee real + reconcile-all verificado al céntimo.
+Anteriores: Arquitectura por departamentos + RBAC · webhook GHL (matching por ID, customData) · IA facturas + análisis de llamadas (Groq+Claude) · Morosidad + rol Cobros · gastos recurrentes/sueldos (crons) · devoluciones · agendas (calendario + duración + métricas equipo + análisis IA) · biblioteca de facturas · dashboards del sheet antiguo (Company, Calls_Sales, Marketing funnel, Prospección, CSM, Leaderboards por rol) · recuperación de contraseña + invitaciones.
