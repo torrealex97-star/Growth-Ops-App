@@ -9,11 +9,15 @@ import { computeAdFunnel, perCampaign, type AdFunnel } from '@/lib/ads/funnel'
 import { buildContactTimeline, type TimelineEvent } from '@/lib/contact-timeline'
 import { isActiveSale } from '@/lib/analytics'
 import { getMetricDefinition as lookupMetricDefinition } from '@/lib/ai/metrics/registry'
-import { searchKnowledge as buscarKnowledgeChunks, type KnowledgeCategory } from '@/lib/ai/knowledge'
+import {
+  searchKnowledge as buscarKnowledgeChunks,
+  type KnowledgeCategory,
+  type KnowledgeType,
+} from '@/lib/ai/knowledge'
 
-// El gateway referencia `tools.KnowledgeCategory` en el schema de la tool: re-exportar el tipo
-// mantiene la definición en un solo sitio (lib/ai/knowledge.ts).
-export type { KnowledgeCategory }
+// El gateway referencia `tools.KnowledgeCategory` y `tools.KnowledgeType` en el schema de la
+// tool: re-exportar los tipos mantiene la definición en un solo sitio (lib/ai/knowledge.ts).
+export type { KnowledgeCategory, KnowledgeType }
 import type { Campaign, ContactAttribution, Appointment, Sale, ContactNote } from '@/lib/types/database'
 
 export type ToolContext = {
@@ -60,9 +64,15 @@ export async function searchKnowledge(
   ctx: ToolContext,
   query: string,
   categories?: KnowledgeCategory[],
-  limit = 5
+  limit = 5,
+  types?: KnowledgeType[]
 ): Promise<KnowledgeHit[]> {
-  const r = await buscarKnowledgeChunks(ctx.sb, ctx.tenantId, query, { categories, limit, embeddingEnv: ctx.env })
+  const r = await buscarKnowledgeChunks(ctx.sb, ctx.tenantId, query, {
+    categories,
+    types,
+    limit,
+    embeddingEnv: ctx.env,
+  })
   // Error de la RPC (tabla sin migrar, pgvector ausente...): se degrada a lista vacía — la tool
   // NO debe tumbar el turno del agente por un problema de índice de conocimiento. El gateway
   // registra el aviso en su log para detectar ingesta pendiente.

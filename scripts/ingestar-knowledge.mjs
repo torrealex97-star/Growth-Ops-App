@@ -58,6 +58,48 @@ const CATEGORIAS = {
 }
 const FUENTES = Object.keys(CATEGORIAS)
 
+// ─── TIPO y TAGS (enums canónicos de docs/rag_*_knowledge_schema.json) ──────────
+// type = qué ES el chunk (para filtrar la recuperación: "dame guiones", "dame fórmulas").
+// Los chunks de KPIs SON fórmulas; objeciones y LNS son scripts textuales (swipe → script);
+// el resto son frameworks. tags = etiquetas de rol/uso para filtrado fino.
+const TIPO_POR_CATEGORIA = {
+  kpis: 'formula',
+  marketing_metrics: 'formula',
+  objection_handling: 'script',
+  post_call: 'script',
+  pain_cycle: 'framework',
+  frame_control: 'framework',
+  prospecting: 'framework',
+  hiring: 'framework',
+  uvp_and_angles: 'framework',
+  copywriting_swipe: 'script',
+  funnel_architecture: 'framework',
+  avatar_icp: 'framework',
+}
+const TAGS_POR_CATEGORIA = {
+  prospecting: ['setter', 'ops'],
+  pain_cycle: ['discovery', 'closer'],
+  objection_handling: ['closer', 'precio'],
+  post_call: ['csm', 'closer'],
+  hiring: ['sales-leadership'],
+  frame_control: ['closer'],
+  kpis: ['ops', 'closer'],
+  uvp_and_angles: ['marketing'],
+  avatar_icp: ['marketing'],
+  funnel_architecture: ['marketing', 'embudo'],
+  copywriting_swipe: ['marketing', 'copy'],
+  marketing_metrics: ['marketing', 'ads'],
+}
+
+// Excepciones puntuales dentro de la categoría (match por slug de sección):
+// el protocolo LNS y la secuencia SMS son SECUENCIAS temporales; la ficha de call notes y la
+// checklist EOD son checklists; los árboles de diagnóstico de marketing son frameworks.
+const EXCEPCIONES_TIPO = [
+  { test: /lns|sms-sequence/, tipo: 'sequence', tags: ['setter', 'secuencias'] },
+  { test: /call-notes|eod-checklist/, tipo: 'checklist', tags: ['closer', 'ops'] },
+  { test: /arbol-de-diagnostico/, tipo: 'framework', tags: ['marketing', 'ads'] },
+]
+
 const slugify = (s) =>
   s
     .normalize('NFD')
@@ -88,6 +130,13 @@ function parsearSkill(path) {
       process.exit(1)
     }
     const tituloSeccion = seccion ? seccion.titulo : 'Módulo completo'
+    // Excepciones primero (afinan el default de la categoría y AÑADEN sus tags).
+    const excepcion = EXCEPCIONES_TIPO.find((e) => e.test.test(slugify(tituloSeccion)))
+    const tipo = excepcion?.tipo ?? TIPO_POR_CATEGORIA[categoria]
+    if (!tipo) {
+      console.error(`ERROR: categoría "${categoria}" sin tipo en TIPO_POR_CATEGORIA — chunk rechazado (fail-loud)`)
+      process.exit(1)
+    }
     chunks.push({
       source: path,
       module: modulo,
@@ -95,7 +144,12 @@ function parsearSkill(path) {
       category: categoria,
       title: `${moduloTitulo} · ${tituloSeccion}`,
       content,
-      metadata: { skill: path.includes('sales') ? 'sales' : 'marketing', language: 'es', type: 'framework' },
+      metadata: {
+        skill: path.includes('sales') ? 'sales' : 'marketing',
+        language: 'es',
+        type: tipo,
+        tags: [...(TAGS_POR_CATEGORIA[categoria] ?? []), ...(excepcion?.tags ?? [])],
+      },
     })
   }
   for (const line of texto.split('\n')) {

@@ -28,6 +28,7 @@ type KnowledgeChunk = {
   source: string
   module: number
   section: string
+  metadata: { type?: string; tags?: string[] } | null
   similarity: number
 }
 
@@ -48,12 +49,31 @@ const CATEGORIAS: { value: string; label: string }[] = [
   { value: 'marketing_metrics', label: 'Métricas de marketing' },
 ]
 
+// Qué ES cada chunk (metadata.type, enum de docs/rag_*_knowledge_schema.json):
+// permite filtrar "guiones" vs "fórmulas" — el mismo filtro que tiene la tool del agente.
+const TIPOS: { value: string; label: string }[] = [
+  { value: 'script', label: 'Guiones (script)' },
+  { value: 'formula', label: 'Fórmulas de KPI' },
+  { value: 'framework', label: 'Frameworks' },
+  { value: 'sequence', label: 'Secuencias' },
+  { value: 'checklist', label: 'Checklists' },
+]
+
+const ETIQUETA_TIPO: Record<string, string> = {
+  script: 'Guion',
+  formula: 'Fórmula',
+  framework: 'Framework',
+  sequence: 'Secuencia',
+  checklist: 'Checklist',
+}
+
 const MAX_CONTENT = 520
 
 export default function AiKnowledgePage() {
   const tenant = useTenant()
   const [q, setQ] = useState('')
   const [categoria, setCategoria] = useState<string>('todas')
+  const [tipo, setTipo] = useState<string>('todos')
   const [chunks, setChunks] = useState<KnowledgeChunk[]>([])
   const [modo, setModo] = useState<Modo | null>(null)
   const [loading, setLoading] = useState(false)
@@ -69,6 +89,7 @@ export default function AiKnowledgePage() {
     try {
       const params = new URLSearchParams({ q: consulta, limit: '8' })
       if (categoria !== 'todas') params.set('categories', categoria)
+      if (tipo !== 'todos') params.set('types', tipo)
       const res = await fetch(`/api/${tenant}/evergreen/ai/knowledge?${params.toString()}`)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Error de búsqueda')
@@ -84,7 +105,7 @@ export default function AiKnowledgePage() {
     } finally {
       setLoading(false)
     }
-  }, [q, categoria, tenant])
+  }, [q, categoria, tipo, tenant])
 
   return (
     <div className="space-y-4">
@@ -118,6 +139,19 @@ export default function AiKnowledgePage() {
             {CATEGORIAS.map((c) => (
               <SelectItem key={c.value} value={c.value}>
                 {c.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={tipo} onValueChange={setTipo}>
+          <SelectTrigger className="w-full sm:w-44">
+            <SelectValue placeholder="Tipo" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos los tipos</SelectItem>
+            {TIPOS.map((t) => (
+              <SelectItem key={t.value} value={t.value}>
+                {t.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -181,6 +215,16 @@ export default function AiKnowledgePage() {
                 <Badge variant="outline" className="border-brand-500/30 bg-brand-500/10 text-brand-300">
                   {CATEGORIAS.find((cat) => cat.value === c.category)?.label ?? c.category}
                 </Badge>
+                {c.metadata?.type && (
+                  <Badge variant="outline" className="border-border/60 text-zinc-300">
+                    {ETIQUETA_TIPO[c.metadata.type] ?? c.metadata.type}
+                  </Badge>
+                )}
+                {c.metadata?.tags?.slice(0, 3).map((t) => (
+                  <Badge key={t} variant="outline" className="border-border/30 text-muted-foreground">
+                    {t}
+                  </Badge>
+                ))}
                 <span className="text-xs text-muted-foreground">§{c.module}</span>
                 <span className="text-sm font-medium flex-1 min-w-0 truncate">{c.title}</span>
                 <Badge variant="outline" className="font-mono text-xs border-border/40">
