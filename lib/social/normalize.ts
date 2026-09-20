@@ -166,6 +166,52 @@ export const TikTokAdapter: ActorAdapter = {
       if (!it || typeof it !== 'object') continue
       const row = it as FilaJson
       const author = (row.author as FilaJson) || {}
+      // clockworks/tiktok-profile-scraper devuelve UN item por PERFIL con recentVideos[] embebido:
+      // se extrae el perfil (followers, likes totales, videoCount) y se aplanan sus vídeos.
+      const recentVideos = (row.recentVideos as FilaJson[]) || (row.videos as FilaJson[]) || null
+      if (recentVideos) {
+        const username = (str(firstOf(row, ['uniqueId', 'username', 'authorMeta.name'])) || usernames[0] || '').replace(
+          /^@/,
+          ''
+        )
+        pushProfileOnce(profiles, seen, username, {
+          externalId: str(firstOf(row, ['id', 'userId'])),
+          displayName: str(firstOf(row, ['nickname', 'name'])),
+          profileUrl:
+            str(firstOf(row, ['bioLink', 'url'])) || (username ? `https://www.tiktok.com/@${username}` : undefined),
+          avatarUrl: str(firstOf(row, ['avatar', 'profilePicture'])),
+          followersCount: num(firstOf(row, ['followers', 'followerCount', 'fans'])),
+          followingCount: num(firstOf(row, ['following', 'followsCount'])),
+          postsCount: num(firstOf(row, ['videoCount', 'videos'])),
+          verified: Boolean(firstOf(row, ['verified', 'isVerified'])) || undefined,
+          biography: str(firstOf(row, ['bioDescription', 'bio', 'signature'])),
+          metadata: row,
+        })
+        for (const v of recentVideos) {
+          const vid = typeof v === 'object' && v ? (v as FilaJson) : {}
+          const id = str(firstOf(vid, ['id', 'videoId', 'awemeId']))
+          if (!id) continue
+          posts.push({
+            externalId: id,
+            username: username || undefined,
+            contentType: 'video',
+            caption: str(firstOf(vid, ['text', 'description', 'caption'])),
+            postUrl:
+              str(firstOf(vid, ['webVideoUrl', 'url'])) ||
+              (username ? `https://www.tiktok.com/@${username}/video/${id}` : undefined),
+            thumbnailUrl: str(firstOf(vid, ['coverUrl', 'thumbnail', 'image'])),
+            publishedAt: str(firstOf(vid, ['createTimeISO', 'createTime', 'createdAt'])),
+            viewsCount: num(firstOf(vid, ['playCount', 'views'])),
+            likesCount: num(firstOf(vid, ['diggCount', 'likes'])),
+            commentsCount: num(firstOf(vid, ['commentCount', 'comments'])),
+            sharesCount: num(firstOf(vid, ['shareCount', 'shares'])),
+            durationSeconds: num(firstOf(vid, ['video.duration', 'duration'])),
+            metadata: vid,
+          })
+        }
+        continue
+      }
+      // Fila plana de vídeo (Actors de búsqueda/scraping por vídeo).
       const username = (
         str(firstOf(row, ['authorMeta.name', 'author.uniqueId'])) ||
         str(author.uniqueId) ||
