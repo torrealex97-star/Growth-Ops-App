@@ -546,6 +546,36 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
           : 'El token vale, pero falta IG_USER_ID: sin él no se sabe qué cuenta sincronizar.',
       }
     }
+    if (group === 'apify') {
+      // §4/§12: comprobar conexión con /users/me (no gasta plataforma) y avisar si falta
+      // configurar algún Actor — sin token no hay investigación, sin Actor tampoco.
+      const token = cfg.APIFY_API_TOKEN
+      if (!token) return { ok: false, message: 'Falta el API Token de Apify.' }
+      const r = await fetch('https://api.apify.com/v2/users/me', {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(10_000),
+      })
+      const j = (await r.json().catch(() => ({}))) as { data?: { username?: string }; error?: { message?: string } }
+      if (!r.ok || !j.data) {
+        return {
+          ok: false,
+          message: j.error?.message || `Apify respondió ${r.status}.`,
+          code: codeFromStatus(r.status),
+        }
+      }
+      const actors = [
+        cfg.APIFY_INSTAGRAM_REELS_ACTOR_ID,
+        cfg.APIFY_INSTAGRAM_PROFILE_ACTOR_ID,
+        cfg.APIFY_TIKTOK_ACTOR_ID,
+        cfg.APIFY_YOUTUBE_ACTOR_ID,
+      ].filter((a) => a && String(a).trim())
+      return {
+        ok: true,
+        message: actors.length
+          ? `Conectado como ${j.data.username || 'OK'} · ${actors.length} Actor(es) configurado(s).`
+          : `Conectado como ${j.data.username || 'OK'}, pero falta configurar al menos un Actor en Opciones avanzadas.`,
+      }
+    }
     if (group === 'calendly') {
       const token = cfg.CALENDLY_API_TOKEN
       if (!token) return { ok: false, message: 'Falta el PAT de Calendly.' }
