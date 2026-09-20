@@ -32,6 +32,7 @@ import { canonicalizeLeads, canonicalizeAppointments, dedupeSales } from '@/lib/
 import { canonicalCash, type StripePaymentRow } from '@/lib/canonical/cash'
 import { resolverOferta, CONFIG_OFERTA_POR_DEFECTO } from '@/lib/metrics/oferta'
 import { DataQualityPanel, type QualityStats } from '@/components/os/DataQualityPanel'
+import { PanelOrganico } from '@/components/os/PanelOrganico'
 
 // Objetivo de dashboard (§27): fila mínima de `targets` para comparar contra lo del periodo.
 type TargetRowEstado = {
@@ -1114,6 +1115,10 @@ export default function UnitEconomicsPage() {
           </div>
         </section>
       )}
+
+      {/* ADQUISICIÓN ORGÁNICA (prototipo): contenido público del negocio vía Apify. Números con
+          fuente visible; sin Apify configurado la sección muestra un estado honesto y nada más. */}
+      <PanelOrganico />
 
       {/* CALIDAD + FUNNEL GLOBAL (dashboard global §20-§23/§38): una única versión coherente
           de la realidad — leads canónicos, agendas consolidadas y diagnóstico de duplicados.
