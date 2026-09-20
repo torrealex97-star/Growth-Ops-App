@@ -17,16 +17,16 @@ agendas sin rastro: no hay capa raw que permita reprocesar.
 **Volumen**: 972 contactos, 559 citas.
 **Traza**: `POST /api/[tenant]/evergreen/webhooks/ghl` — 482 líneas.
 
-| Paso | Qué hace                                                                                        | Tabla                                 |
-| ---- | ----------------------------------------------------------------------------------------------- | ------------------------------------- |
-| 0    | Valida `x-ghl-secret` contra `GHL_WEBHOOK_SECRET`, fail-closed                                  | —                                     |
-| 1    | Normaliza el payload: aplana `contact`, `appointment`, `full_contact`; `customData` sobrescribe | —                                     |
-| 2    | Resuelve tenant por slug de la ruta, exigiendo `status = 'active'`                              | `tenants`                             |
-| 3    | Resuelve contacto: `ghl_contact_id` → `email` → `phone`; si no existe, lo crea                  | `contacts`                            |
-| 4    | Vuelca la cualificación del formulario                                                          | `qualification_questions`, `contacts` |
-| 5    | Escribe atribución **solo si llegan UTMs o `source`**                                           | `contact_attributions`                |
-| 6    | Upsert de la cita por `onConflict: 'tenant_id,external_id'`                                     | `appointments`                        |
-| 7    | Marca `lead_status` y registra auditoría                                                        | `contacts`, `audit_logs`              |
+| Paso | Qué hace                                                                                                       | Tabla                                 |
+| ---- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| 0    | Valida `x-ghl-secret` contra `GHL_WEBHOOK_SECRET`, fail-closed                                                 | —                                     |
+| 1    | Normaliza el payload: aplana `contact`, `appointment`, `full_contact`; `customData` sobrescribe                | —                                     |
+| 2    | Resuelve tenant por slug de la ruta, exigiendo `status = 'active'`                                             | `tenants`                             |
+| 3    | Resuelve o crea el contacto con la RPC atómica `contacts_get_or_create` (`ghl_contact_id` → `email` → `phone`) | `contacts`                            |
+| 4    | Vuelca la cualificación del formulario                                                                         | `qualification_questions`, `contacts` |
+| 5    | Escribe atribución **solo si llegan UTMs o `source`**                                                          | `contact_attributions`                |
+| 6    | Upsert de la cita por `onConflict: 'tenant_id,external_id'`                                                    | `appointments`                        |
+| 7    | Marca `lead_status` y registra auditoría                                                                       | `contacts`, `audit_logs`              |
 
 **Aislamiento**: service role, sin sesión. El tenant sale del slug, nunca del body. Todas las
 queries del cuerpo filtran por `tenant_id`.
@@ -38,7 +38,13 @@ S0.1). Es el núcleo de F1.
 (`{ tenant_id, slug }` con `onConflict: 'tenant_id,slug'` y el error registrado). Un bug anterior
 que lo hacía fallar en silencio ya está corregido.
 
-**Hueco de cobertura**: no existe ningún test que ejerza este webhook.
+**Resolución de contacto**: vive en la RPC `contacts_get_or_create`
+(`supabase/migrations/20260914150000`), no en la ruta. Una secuencia de selects seguida de un
+insert tenía una carrera entre dos webhooks simultáneos; la RPC la cierra.
+
+**Cobertura**: cubierto desde S0.3 por `tests/webhook-ghl.test.mjs` — 13 invariantes estáticos
+sobre autenticación, frontera de subcuenta, idempotencia y manejo de errores, verificados por
+mutación. No ejecutan la ruta: fijan estructura y orden, no valores calculados.
 
 ### Qué debe fijar el test golden (S0.3)
 
@@ -161,7 +167,7 @@ not code". Conviene renombrarlo antes de F8 (segundo tenant real), no ahora.
 | #   | Hallazgo                                                               | Prioridad | Journey | Destino                             |
 | --- | ---------------------------------------------------------------------- | --------- | ------- | ----------------------------------- |
 | 1   | El webhook de GHL no escribe capa raw: no hay replay                   | P1        | J1      | **F1**                              |
-| 2   | Ningún test ejerce el webhook de GHL                                   | P2        | J1      | **S0.3**                            |
+| 2   | ~~Ningún test ejerce el webhook de GHL~~ — cubierto en S0.3            | P2        | J1      | **hecho**                           |
 | 3   | El porcentaje de comisión está en el código, no en configuración       | P1        | J2      | **F3 / MONEY.md**                   |
 | 4   | Cobro y comisión sin frontera transaccional                            | P2        | J2      | **F5**                              |
 | 5   | `contact_attributions` vacía: GHL no envía UTMs                        | P1        | J1      | **Bloqueo de Alex** (config de GHL) |
