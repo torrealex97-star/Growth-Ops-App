@@ -1,4 +1,4 @@
-// Ingesta RAG: parsea las skills canónicas (.claude/skills/*.md), las trocea por módulo/sección,
+// Ingesta RAG: parsea las skills canónicas (.agents/skills/*/SKILL.md), las trocea por módulo/sección,
 // asigna la categoría RAG de docs/rag_*_knowledge_schema.json y siembra knowledge_chunks
 // replicado en TODAS las subcuentas activas (conocimiento global de plataforma).
 //
@@ -9,7 +9,7 @@
 // Idempotente: ON CONFLICT (tenant_id, source, section) DO UPDATE. Re-ejecutar tras editar una
 // skill actualiza el contenido sin duplicar.
 //
-// EMBEDDINGS (migración 20260919230000): si hay OPENAI_API_KEY (entorno o .env.local), cada chunk
+// EMBEDDINGS (migración 20260919230000): si hay GEMINI_API_KEY (entorno o .env.local), cada chunk
 // se vectoriza con text-embedding-3-small (nativo 1536 dims = columna vector(1536)) y se guarda en
 // la columna embedding — la RPC match_knowledge_chunks lo usa para la rama semántica de la búsqueda
 // híbrida (RRF con la léxica). Sin clave, se siembra con embedding NULL y el sistema queda 100%
@@ -36,7 +36,9 @@ if (!POSTGRES_URL) {
 // docs/rag_marketing_knowledge_schema.json. Si se añade un módulo nuevo a una skill, añadirlo aquí:
 // sin categoría el chunk se rechaza (fail-loud, no silencio).
 const CATEGORIAS = {
-  '.claude/skills/sales-engineering.md': {
+  // Patrón único post-#85: las skills viven en .agents/skills/<nombre>/SKILL.md y
+  // .claude/skills es solo symlinks. La ingesta lee la fuente REAL, no el symlink.
+  '.agents/skills/sales-engineering/SKILL.md': {
     1: 'prospecting',
     2: 'pain_cycle',
     3: 'objection_handling',
@@ -45,7 +47,7 @@ const CATEGORIAS = {
     6: 'frame_control',
     7: 'kpis',
   },
-  '.claude/skills/marketing-and-copywriting.md': {
+  '.agents/skills/marketing-and-copywriting/SKILL.md': {
     1: 'uvp_and_angles',
     2: 'avatar_icp',
     3: 'funnel_architecture',
@@ -135,27 +137,36 @@ for (const [cat, n] of Object.entries(porCategoria).sort()) console.log(`  ${cat
 // ─── EMBEDDINGS ─────────────────────────────────────────────────────────────────
 // El modelo DEBE coincidir con el de embedQuery (lib/ai/knowledge.ts): cambiar uno implica
 // cambiar el otro y re-ingestar todo — mezclar espacios de embeddings rompe la semántica.
-const OPENAI_KEY = process.env.OPENAI_API_KEY || env.OPENAI_API_KEY
-const EMBED_MODEL = 'text-embedding-3-small'
+const GEMINI_KEY = process.env.GEMINI_API_KEY || env.GEMINI_API_KEY
+const EMBED_MODEL = 'gemini-embedding-001'
 const EMBED_DIMS = 1536
 
 async function embeberLotes(textos, apiKey) {
   const out = []
-  const BATCH = 64
+  const BATCH = 64 // límite de requests por batchEmbedContents
   for (let i = 0; i < textos.length; i += BATCH) {
-    const lote = textos.slice(i, i + BATCH).map((t) => t.slice(0, 24000))
-    const res = await fetch('https://api.openai.com/v1/embeddings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: EMBED_MODEL, input: lote }),
-    })
-    if (!res.ok) throw new Error(`OpenAI embeddings HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`)
+    const lote = textos.slice(i, i + BATCH).map((t) => t.slice(0, 6000)) // límite del modelo: 2048 tokens
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${EMBED_MODEL}:batchEmbedContents`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify({
+          requests: lote.map((t) => ({
+            model: `models/${EMBED_MODEL}`,
+            content: { parts: [{ text: t }] },
+            taskType: 'RETRIEVAL_DOCUMENT',
+            outputDimensionality: EMBED_DIMS,
+          })),
+        }),
+      }
+    )
+    if (!res.ok) throw new Error(`Gemini embeddings HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`)
     const json = await res.json()
-    const orden = [...(json.data ?? [])].sort((a, b) => a.index - b.index)
-    for (const d of orden) {
-      if (!Array.isArray(d.embedding) || d.embedding.length !== EMBED_DIMS)
-        throw new Error(`Embedding con dims inesperadas (${d.embedding?.length})`)
-      out.push(`[${d.embedding.join(',')}]`)
+    for (const d of json.embeddings ?? []) {
+      if (!Array.isArray(d.values) || d.values.length !== EMBED_DIMS)
+        throw new Error(`Embedding con dims inesperadas (${d.values?.length})`)
+      out.push(`[${d.values.join(',')}]`)
     }
     console.log(`  embeddings ${Math.min(i + BATCH, textos.length)}/${textos.length}`)
   }
@@ -177,13 +188,13 @@ try {
   }
   // Vectorización: título+contenido (el título aporta señales de categoría/módulo al espacio).
   let mapaEmbeddings = null
-  if (!OPENAI_KEY) {
-    console.warn('Sin OPENAI_API_KEY (entorno o .env.local): se siembra SIN embeddings (solo búsqueda léxica).')
+  if (!GEMINI_KEY) {
+    console.warn('Sin GEMINI_API_KEY (entorno o .env.local): se siembra SIN embeddings (solo búsqueda léxica).')
   } else {
     console.log(`Calculando embeddings (${chunks.length} chunks · ${EMBED_MODEL})...`)
     mapaEmbeddings = await embeberLotes(
       chunks.map((c) => `${c.title}\n${c.content}`),
-      OPENAI_KEY
+      GEMINI_KEY
     )
   }
   const filas = tenants.flatMap((t) =>
