@@ -59,7 +59,6 @@ type AppointmentRow = {
   status: string
   appointment_datetime: string | null
   pipe_value: number | string | null
-  calendly_event_id?: string | null
   offered?: boolean | null
   result?: string | null
 }
@@ -426,7 +425,7 @@ export default function UnitEconomicsPage() {
           supabase.from('contacts').select('id, campaign_id, created_at, email, phone').range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('appointments')
-            .select('id, contact_id, status, appointment_datetime, pipe_value, calendly_event_id, offered, result')
+            .select('id, contact_id, status, appointment_datetime, pipe_value, offered, result')
             .range(0, FINANCE_QUERY_ROW_CAP),
           // La serie DIARIA es lo que permite filtrar por periodo. El aviso que había aquí decía que no
           // se podía porque `campaigns.adspend` es un acumulado — cierto, pero `campaign_daily` existe
@@ -662,7 +661,7 @@ export default function UnitEconomicsPage() {
       appointments.map((a) => ({
         id: a.id,
         contact_id: a.contact_id,
-        calendly_event_id: a.calendly_event_id ?? null,
+        calendly_event_id: null,
         calendar_event_id: null,
         scheduled_at: a.appointment_datetime,
         status: a.status,
@@ -738,7 +737,7 @@ export default function UnitEconomicsPage() {
       appointments.map((a) => ({
         id: a.id,
         contact_id: a.contact_id,
-        calendly_event_id: a.calendly_event_id ?? null,
+        calendly_event_id: null,
         calendar_event_id: null,
         scheduled_at: a.appointment_datetime,
         status: a.status,
