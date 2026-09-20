@@ -16,7 +16,17 @@ import { searchKnowledge as buscarKnowledgeChunks, type KnowledgeCategory } from
 export type { KnowledgeCategory }
 import type { Campaign, ContactAttribution, Appointment, Sale, ContactNote } from '@/lib/types/database'
 
-export type ToolContext = { tenantId: string; sb: SupabaseClient; userId?: string }
+export type ToolContext = {
+  tenantId: string
+  sb: SupabaseClient
+  userId?: string
+  /**
+   * Instantánea de configuración del tenant (getTenantConfigWithFallback). La usan las tools que
+   * necesitan credenciales de integración — hoy, el embedder de knowledge (OPENAI_API_KEY) para
+   * la rama semántica del RAG. Nada se vuelca a process.env (lección de lib/config.ts).
+   */
+  env?: Record<string, string | undefined>
+}
 
 // Periodo en fechas YYYY-MM-DD. Sin "from"/"to" = todo el histórico disponible (acotado por
 // row limits en cada query, nunca "trae toda la tabla").
@@ -52,7 +62,7 @@ export async function searchKnowledge(
   categories?: KnowledgeCategory[],
   limit = 5
 ): Promise<KnowledgeHit[]> {
-  const r = await buscarKnowledgeChunks(ctx.sb, ctx.tenantId, query, { categories, limit })
+  const r = await buscarKnowledgeChunks(ctx.sb, ctx.tenantId, query, { categories, limit, embeddingEnv: ctx.env })
   // Error de la RPC (tabla sin migrar, pgvector ausente...): se degrada a lista vacía — la tool
   // NO debe tumbar el turno del agente por un problema de índice de conocimiento. El gateway
   // registra el aviso en su log para detectar ingesta pendiente.
