@@ -1,6 +1,7 @@
 # Guía operativa para agentes
 
 Estas reglas son obligatorias para cualquier agente que modifique este repositorio.
+**Lee `docs/00-CONSTITUCION.md` en toda sesión, antes que nada**: es la constitución del proyecto (tesis, principios no negociables, roadmap por fases y prioridades). Este archivo define _cómo_ se trabaja; la constitución define _qué_ se construye y en qué orden.
 GitHub `main` es la fuente de verdad del código. Supabase es la fuente de verdad de los datos persistentes y Vercel despliega la aplicación.
 
 ## Flujo de trabajo
