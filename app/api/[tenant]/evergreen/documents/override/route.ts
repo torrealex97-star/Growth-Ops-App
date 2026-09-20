@@ -86,12 +86,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       await supabase.from('audit_logs').insert({
         tenant_id: t.tenantId,
         action: 'document_verification_override',
-        target_table: 'sales',
-        target_id: saleId,
-        user_id: userId,
-        details: {
+        entity_type: 'sale',
+        entity_id: saleId,
+        new_values: {
           reason,
           timestamp: new Date().toISOString(),
+          actor: userId,
         },
       })
     } catch {

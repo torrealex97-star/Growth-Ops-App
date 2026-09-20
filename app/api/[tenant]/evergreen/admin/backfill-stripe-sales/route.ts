@@ -165,12 +165,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const cfg = await getTenantConfigWithFallback(auth.tenantId)
   if (!cfg.STRIPE_SECRET_KEY) return NextResponse.json({ error: 'Stripe no está configurado.' }, { status: 400 })
 
-  const owner = await sb
-    .from('users')
-    .select('id,full_name')
-    .eq('tenant_id', auth.tenantId)
-    .ilike('email', body.ownerEmail)
-    .maybeSingle()
+  // users es global (sin tenant_id): el email se resuelve globalmente y la pertenencia
+  // al tenant se verifica en tenant_members.
+  const ownerCandidate = await sb.from('users').select('id,full_name').ilike('email', body.ownerEmail).maybeSingle()
+  const owner = ownerCandidate.data
+    ? (
+        await sb
+          .from('tenant_members')
+          .select('user_id')
+          .eq('tenant_id', auth.tenantId)
+          .eq('user_id', ownerCandidate.data.id)
+          .maybeSingle()
+      ).data
+      ? ownerCandidate
+      : { data: null }
+    : { data: null }
   if (!owner.data) {
     return NextResponse.json(
       { error: `No se encontró ningún usuario con email ${body.ownerEmail} en este tenant` },

@@ -35,11 +35,11 @@ import { useTenantId, type SesionTenant } from '@/lib/tenant-context'
 import { Users, CalendarCheck, PhoneCall, Trophy, Euro, Clock, BadgeCheck, Banknote } from 'lucide-react'
 
 type ContactoRow = { id: string; full_name: string | null; lead_status: string | null; created_at: string | null }
-type CitaRow = { id: string; contact_id: string | null; start_time: string | null; status: string | null }
+type CitaRow = { id: string; contact_id: string | null; appointment_datetime: string | null; status: string | null }
 type VentaRow = {
   id: string
   contact_id: string | null
-  amount: number | null
+  gross_amount: number | string | null
   status: string | null
   created_at: string | null
 }
@@ -112,12 +112,12 @@ export default function ColaboradorDashboard({
           .in('id', contactIds),
         sb
           .from('appointments')
-          .select('id, contact_id, start_time, status')
+          .select('id, contact_id, appointment_datetime, status')
           .eq('tenant_id', tenantId)
           .in('contact_id', contactIds),
         sb
           .from('sales')
-          .select('id, contact_id, amount, status, created_at')
+          .select('id, contact_id, gross_amount, status, created_at')
           .eq('tenant_id', tenantId)
           .in('contact_id', contactIds),
         // Ledger del propio colaborador: participant_type='collaborator' sale de esta query.
@@ -152,13 +152,13 @@ export default function ColaboradorDashboard({
   // KPIs del periodo (§23-24) con las definiciones canónicas — sin fórmulas locales nuevas.
   const kpi = useMemo(() => {
     const contactosP = contactos.filter((c) => inPeriod(c.created_at, rango))
-    const citasP = citas.filter((c) => inPeriod(c.start_time, rango))
+    const citasP = citas.filter((c) => inPeriod(c.appointment_datetime, rango))
     const asistidasP = citasP.filter((c) => isAttended(c.status))
     const noShowP = citasP.filter((c) => isNoShow(c.status))
     const ventasActivasP = ventas.filter(
       (v) => isActiveSale({ status: v.status ?? '' }) && inPeriod(v.created_at, rango)
     )
-    const revenueP = ventasActivasP.reduce((acc, v) => acc + num(v.amount), 0)
+    const revenueP = ventasActivasP.reduce((acc, v) => acc + num(v.gross_amount), 0)
     const comisionesP = comisiones.filter((c) => c.status !== 'cancelled' && inPeriod(c.created_at, rango))
     const comisionesPrevias = comisiones.filter((c) => c.status !== 'cancelled' && inPeriod(c.created_at, rangoPrevio))
     const generadasP = comisionesP.reduce((acc, c) => acc + num(c.commission_amount), 0)
@@ -207,13 +207,13 @@ export default function ColaboradorDashboard({
       })),
       ...citas
         .slice()
-        .sort((a, b) => ((a.start_time ?? '') < (b.start_time ?? '') ? 1 : -1))
+        .sort((a, b) => ((a.appointment_datetime ?? '') < (b.appointment_datetime ?? '') ? 1 : -1))
         .slice(0, 10)
         .map((c) => ({
           id: `a-${c.id}`,
           tipo: 'cita' as const,
           titulo: nombreDe.get(c.contact_id ?? '') ?? 'Cita',
-          fecha: c.start_time,
+          fecha: c.appointment_datetime,
           detalle: c.status || 'Programada',
         })),
       ...ventas
@@ -225,7 +225,7 @@ export default function ColaboradorDashboard({
           tipo: 'venta' as const,
           titulo: nombreDe.get(v.contact_id ?? '') ?? 'Venta',
           fecha: v.created_at,
-          detalle: eur(num(v.amount)),
+          detalle: eur(num(v.gross_amount)),
         })),
     ]
     return eventos.sort((a, b) => ((a.fecha ?? '') < (b.fecha ?? '') ? 1 : -1)).slice(0, 12)

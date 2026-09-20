@@ -101,10 +101,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       await supabase.from('audit_logs').insert({
         tenant_id: t.tenantId,
         action: 'document_verification_register',
-        target_table: 'sales',
-        target_id: saleId,
-        user_id: t.userId,
-        details: { documentType, timestamp: new Date().toISOString() },
+        entity_type: 'sale',
+        entity_id: saleId,
+        new_values: { documentType, timestamp: new Date().toISOString(), actor: t.userId },
       })
     } catch {
       // No fallar si no existe la tabla
