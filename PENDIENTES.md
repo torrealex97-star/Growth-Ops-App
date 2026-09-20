@@ -1,6 +1,6 @@
 # PENDIENTES — [tenant] OS
 
-> Doc vivo de tareas pendientes. Última actualización: 2026-09-19.
+> Doc vivo de tareas pendientes. Última actualización: 2026-09-20.
 > App en producción: https://growth-ops-weld.vercel.app · Deploy por PR (protección de rama: CI required en main — nada se pushea directo).
 > Contribuir: rama → PR → CI verde (format/lint/typecheck/tests/build/gitleaks) → merge squash.
 
@@ -82,6 +82,12 @@ Pendiente:
 - [ ] **Re-ingesta tras editar skills**: `POSTGRES_URL=<pooler-ipv4> node scripts/ingestar-knowledge.mjs` (ON CONFLICT actualiza; ver run doc para el pooler IPv4).
 - [x] **Alta de colaboradores encadena el contrato de equipo** (hallazgo E2E 19-sep, resuelto): la ruta admin de Colaboradores y el registro público de afiliados crean y envían el contrato automáticamente vía `lib/contracts/team-contract.ts` (helper compartido con la ruta manual de Contratos › Equipo, con dedup idempotente y el % del alta mandando en las condiciones). Estado `pending_contract` hasta que el colaborador FIRMA — la firma (public-contracts/sign) lo activa a `active`.
 
+## 🧱 Deuda técnica (nuevo 20-sep)
+
+- [ ] **Tipar los clientes de Supabase** (`lib/supabase/client.ts` y `lib/supabase/server.ts` con el genérico `Database` de `lib/types/database-generated.ts`): hoy las queries NO se validan en compilación — las columnas fantasma pasan tsc y tests (así entraron `calendly_event_id` y `appointments.start_time`; 5 queries rotas corregidas el 20-sep, PR #89). Requiere barrido previo de casts `as` y payloads dinámicos que hoy silencian desfases; mientras no esté hecho, verificar toda columna nueva de query contra el esquema vivo (information_schema vía pooler) o contra `database-generated.ts`.
+- [ ] **Auditoría de columnas fantasma como test de CI**: el parser estático (selects/eq/order/or/inserts vs information_schema) ya demostró valor (5 queries rotas + el caso `calendly_event_id`); falta versionarlo en `scripts/` y gatearlo en el workflow. Límite conocido del parser: payloads por variable (no literales) no son verificables estáticamente — el tipado del punto anterior cubre ese hueco.
+- [ ] **Inventario esquema vs migraciones del repo** (relacionado, ya apuntado en 🔒 Seguridad): la auditoría de columnas cubre código→BD; el drift inverso (columnas en BD sin migración en el repo, tipo `flagged_delinquent`) sigue abierto.
+
 ## 💡 Mejoras futuras / ideas
 
 - [ ] Notificaciones push (definir canal) para las alertas de A3.
@@ -93,5 +99,6 @@ Pendiente:
 
 ### Hecho recientemente (para contexto)
 
+**20-sep**: **auditoría de columnas fantasma** — 5 queries rotas corregidas (PR #89): dashboard del colaborador sin citas/revenue (`start_time`/`amount`), audit de documentos que nunca se registró en `audit_logs` (columnas inexistentes tragadas por try/catch), backfill Stripe roto (`users.tenant_id`) · fix `calendly_event_id` en unit-economics (PR #86: el Funnel del negocio quedaba vacío en silencio) · cadena del `provider_message_id` de Resend + webhook idempotente con exención de middleware (PR #79/#82). Hallazgo estructural: clientes de Supabase sin tipar → nueva sección 🧱 Deuda técnica.
 **19-sep**: skills ventas/marketing + system prompts + esquemas RAG + reglas CLAUDE.md (#71) · protección de rama main con CI required (#70) · RAG: knowledge_chunks + tool searchKnowledge + endpoint + ingesta (#73) · fee_percent en UI de planes (base neta de comisiones) · sync Stripe con stripe_fee real + reconcile-all verificado al céntimo.
 Anteriores: Arquitectura por departamentos + RBAC · webhook GHL (matching por ID, customData) · IA facturas + análisis de llamadas (Groq+Claude) · Morosidad + rol Cobros · gastos recurrentes/sueldos (crons) · devoluciones · agendas (calendario + duración + métricas equipo + análisis IA) · biblioteca de facturas · dashboards del sheet antiguo (Company, Calls_Sales, Marketing funnel, Prospección, CSM, Leaderboards por rol) · recuperación de contraseña + invitaciones.
