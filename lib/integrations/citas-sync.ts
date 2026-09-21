@@ -26,6 +26,15 @@ export type CitasSyncOpts = {
   desdeInicio?: string
   /** Presupuesto de pared (Date.now()) por proveedor: al agotarse se devuelve el parcial. */
   deadlineMs?: number
+  /**
+   * 'completo' (botón): contactos primero, luego eventos — es lo que la API de GHL
+   *   exige para no saltarse eventos de contactos nuevos.
+   * 'soloEventos' (cron): salta la fase de contactos (paginarlos TODOS no cabe en el
+   *   corte de 60 s de Vercel: dos pasadas en producción acabaron en 504 y un run
+   *   colgado) y crea perezosamente, por fetch individual, SOLO el contacto de cada
+   *   evento que aún no está en la BD.
+   */
+  modo?: 'completo' | 'soloEventos'
 }
 
 export async function findOrCreateContact(sb: SupabaseClient, tenantId: string, source: Json) {
@@ -100,6 +109,10 @@ export async function syncGhl(
   const locationId = cfg.GHL_LOCATION_ID
   if (!token || !locationId) throw new Error('Faltan GHL_API_TOKEN o GHL_LOCATION_ID')
   const headers = { Authorization: `Bearer ${token}`, Version: '2021-07-28', Accept: 'application/json' }
+  const lazyContacts = opts.modo === 'soloEventos'
+  // Cache ghl_contact_id → contacto local (o null si GHL no lo tiene): evita re-crear
+  // contactos repetidos dentro de la misma pasada.
+  const contactoCache = new Map<string, { id: string } | null>()
   let startAfterId = ''
   let startAfter = ''
   let pages = 0
@@ -108,7 +121,8 @@ export async function syncGhl(
   let appointmentsImported = 0
   let appointmentsUpdated = 0
   let cortado = false
-  while (pages < 100) {
+  // En modo soloEventos esta fase NO corre: paginar todos los contactos no cabe en el cron.
+  while (pages < 100 && !lazyContacts) {
     if (opts.deadlineMs && Date.now() > opts.deadlineMs) {
       cortado = true
       break
@@ -169,12 +183,44 @@ export async function syncGhl(
       const ghlContactId = text(event.contactId)
       const startsAt = text(event.startTime)
       if (!eventId || !ghlContactId || !startsAt) continue
-      const contact = await sb
-        .from('contacts')
-        .select('id')
+      // Contacto: las citas ya importadas conservan su contact_id (no se re-resuelve en cada
+      // pasada diaria); solo las NUEVAS necesitan contacto, y en modo soloEventos se crea
+      // perezosamente con un fetch individual — nunca paginando todos los contactos.
+      const existing = await sb
+        .from('appointments')
+        .select('id, contact_id')
         .eq('tenant_id', tenantId)
-        .eq('ghl_contact_id', ghlContactId)
+        .eq('external_id', eventId)
         .maybeSingle()
+      let contact: { data: { id: string } | null } = {
+        data: existing.data ? { id: (existing.data as { contact_id: string }).contact_id } : null,
+      }
+      if (!contact.data && contactoCache.has(ghlContactId)) {
+        contact = { data: contactoCache.get(ghlContactId) ?? null }
+      }
+      if (!contact.data) {
+        const found = await sb
+          .from('contacts')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .eq('ghl_contact_id', ghlContactId)
+          .maybeSingle()
+        contactoCache.set(ghlContactId, found.data)
+        contact = { data: found.data }
+      }
+      if (!contact.data && lazyContacts) {
+        const contactoResponse = await fetch(
+          `https://services.leadconnectorhq.com/contacts/${encodeURIComponent(ghlContactId)}`,
+          { headers, signal: AbortSignal.timeout(15_000) }
+        )
+        const contactoBody = (await contactoResponse.json().catch(() => ({}))) as { contact?: Json }
+        const creado =
+          contactoResponse.ok && contactoBody.contact
+            ? await findOrCreateContact(sb, tenantId, contactoBody.contact)
+            : null
+        contactoCache.set(ghlContactId, creado ? { id: creado.id } : null)
+        contact = { data: creado ? { id: creado.id } : null }
+      }
       if (!contact.data) continue
       const rawStatus = (text(event.appointmentStatus) || text(event.status) || 'scheduled').toLowerCase()
       const status =
@@ -201,12 +247,6 @@ export async function syncGhl(
         calendar_name: text(calendar.name) || 'GoHighLevel',
         raw_payload: event,
       }
-      const existing = await sb
-        .from('appointments')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .eq('external_id', eventId)
-        .maybeSingle()
       if (existing.data) {
         const result = await sb.from('appointments').update(values).eq('tenant_id', tenantId).eq('id', existing.data.id)
         if (result.error) throw result.error

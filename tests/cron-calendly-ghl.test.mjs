@@ -42,9 +42,11 @@ test('el cron recorre subcuentas con su config explícita y registra la corrida 
   assert.match(code, /getTenantConfigWithFallback\(tn\.id/, 'la config de la subcuenta se lee, no se hereda')
   assert.doesNotMatch(code, /ensureConfig\(/, 'prohibido volcar credenciales en process.env')
   assert.match(code, /syncCalendly\(sb, tn\.id, cfg/, 'la sync de Calendly recibe la config de SU subcuenta')
-  // GHL NO va en el cron (dos pasadas en producción: 504 y run colgado): su API lista todos los
-  // contactos antes de tocar eventos y no cabe en los 60 s de Vercel. Lo cubren webhook + botón.
-  assert.doesNotMatch(code, /syncGhl\(/, 'GHL prohibido en el cron: timeout garantizado')
+  // GHL va en modo 'soloEventos': su sync COMPLETA lista todos los contactos antes de tocar
+  // eventos (dos pasadas en producción: 504 y run colgado). El modo soloEventos consulta
+  // eventos por ventana temporal y crea perezosamente solo el contacto de cada evento nuevo.
+  assert.match(code, /modo: 'soloEventos'/, 'GHL en el cron SOLO en modo soloEventos')
+  assert.match(code, /job: 'ghl-citas'/, 'la corrida de GHL se registra como sync de primera clase')
   assert.match(code, /recordSyncRun\(/, 'sin registro de corrida, la tabla vacía no tiene causa')
   assert.match(code, /job: 'calendly-citas'/)
 })
@@ -59,6 +61,14 @@ test('la lib de citas es idempotente y acotada por presupuesto', () => {
   const code = sinComentarios(read(LIB))
   assert.match(code, /deadlineMs/, 'sin presupuesto de tiempo el cron repite el colgado de 60 s')
   assert.match(code, /cortado/, 'el corte debe declararse, no tragarse')
+  assert.match(code, /modo\?: 'completo' \| 'soloEventos'/, 'el modo de GHL es parte del contrato de la lib')
+  // En soloEventos NO se pagina el listado de contactos (timeout garantizado); se crea perezoso.
+  assert.match(code, /lazyContacts/, 'el modo soloEventos salta la fase de contactos')
+  assert.match(
+    code,
+    /contacts\/\$\{encodeURIComponent\(ghlContactId\)\}/,
+    'el contacto perezoso es un fetch individual'
+  )
   // Idempotencia: upsert lógico por external_id — re-leer nunca duplica.
   assert.match(code, /eq\('external_id', eventId\)/, 'GHL deduplica por external_id')
   assert.match(code, /eq\('external_id', uri\)/, 'Calendly deduplica por external_id')
@@ -100,14 +110,16 @@ test('el horario 04:20 no colisiona con ningún otro cron delegado', () => {
   }
 })
 
-test('SYNC_DEFS declara las syncs de citas y GHL queda sin cron (timeout garantizado)', () => {
+test('SYNC_DEFS declara las syncs de citas con su ruta real', () => {
   const m = read('lib/ops/sync-health.ts')
   const bloque = m.slice(m.indexOf("id: 'calendly-citas'"))
   assert.match(bloque, /route: 'cron\/calendly-ghl'/, 'calendly-citas debe declarar su ruta, no quedar huérfano')
   assert.match(bloque, /table: 'appointments'/)
   assert.match(bloque, /manualReason:/, 'manual-por-delegación también se justifica')
   const ghl = m.slice(m.indexOf("id: 'ghl-citas'"))
-  assert.match(ghl, /route: null/, 'GHL sin cron: su API no cabe en los 60 s de Vercel')
+  assert.match(ghl, /route: 'cron\/calendly-ghl'/, 'GHL tiene cron en modo soloEventos')
+  assert.match(ghl, /scheduler: 'manual'/, 'representada como manual-por-delegación, como calendly-citas')
+  assert.match(ghl, /modo soloEventos/, 'el motivo declara el modo del cron')
   assert.match(ghl, /table: 'appointments'/)
 })
 
