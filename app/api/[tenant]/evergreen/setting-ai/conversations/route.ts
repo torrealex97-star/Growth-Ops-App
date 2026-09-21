@@ -41,12 +41,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   if (!cfg) return NextResponse.json({ configured: false, platform, conversations: [] })
 
   try {
-    const { id: igUserId } = await resolveIgUserId(cfg)
+    const { id: igUserId } = await conEtapa('resolver cuenta IG', () => resolveIgUserId(cfg))
     const pageId = await resolveFbPageId(cfg, igUserId)
     if (!pageId) return NextResponse.json({ configured: false, platform, conversations: [] })
-    const pat = await getPageAccessToken(cfg, pageId)
+    const pat = await conEtapa('obtener page access token', () => getPageAccessToken(cfg, pageId))
     if (!pat) return NextResponse.json({ configured: false, platform, conversations: [] })
-    const conversations = await fetchIgConversationsWithMessages(cfg, pageId, pat, igUserId, 20)
+    const conversations = await conEtapa('listar conversaciones', () =>
+      fetchIgConversationsWithMessages(cfg, pageId, pat, igUserId, 20)
+    )
     return NextResponse.json({ configured: true, platform, conversations })
   } catch (e) {
     if (e instanceof InstagramApiError) {
@@ -61,11 +63,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   }
 }
 
+// Cuando IG rechaza una llamada, el motivo debe decir QUÉ llamada fue: si no, el
+// diagnóstico en producción es adivinanza (el detalle por conversación ya se degrada solo).
+async function conEtapa<T>(etapa: string, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (e) {
+    if (e instanceof InstagramApiError) throw new InstagramApiError(`${etapa}: ${e.message}`, e.code)
+    throw e
+  }
+}
+
 function motivoLegible(code: InstagramErrorCode, message: string): string {
   if (code === 'token_caducado') return 'El token de Instagram ha caducado: renuévalo en Integraciones.'
   if (code === 'sin_permisos')
-    return 'Al token le falta el permiso instagram_manage_messages (acceso avanzado). Conéctalo en Integraciones.'
+    return `Al token le falta el permiso instagram_manage_messages (acceso avanzado). [${message}]`
   if (code === 'limite_de_uso') return 'Instagram está limitando las peticiones ahora mismo: inténtalo en unos minutos.'
   if (code === 'timeout') return 'Instagram tardó demasiado en responder. Inténtalo de nuevo.'
-  return `Instagram rechazó la petición: ${message}`
+  return message
 }
