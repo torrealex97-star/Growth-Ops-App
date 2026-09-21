@@ -45,6 +45,14 @@ export type IntegrationGroup = {
   // Configuración → Datos de empresa. Sigue en este catálogo porque su persistencia es la misma
   // (integration_settings vía el endpoint genérico, que solo acepta claves conocidas).
   surface?: 'integraciones' | 'empresa'
+  // Guía de puesta en marcha. Existe porque las credenciales no se "rellenan": se van a buscar a
+  // otro producto, y saber DÓNDE es la mitad del trabajo. Sin esto, configurar una integración
+  // exige que alguien técnico esté delante.
+  pasos?: { titulo: string; detalle: string }[]
+  // Ruta del webhook ENTRANTE de este proveedor, con `{tenant}` por rellenar. La pantalla la pinta
+  // ya montada y con botón de copiar: construir una URL a mano es donde se cuela la errata que
+  // luego tarda una tarde en encontrarse.
+  webhookPath?: string
   fields: IntegrationField[]
 }
 
@@ -308,6 +316,51 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     category: 'ventas',
     test: true,
     required: ['GHL_API_TOKEN', 'GHL_LOCATION_ID', 'GHL_WEBHOOK_SECRET'],
+    webhookPath: '/api/{tenant}/evergreen/webhooks/ghl',
+    pasos: [
+      {
+        titulo: 'Copia el Location ID desde la URL de GHL',
+        detalle:
+          'Entra en tu subcuenta de GoHighLevel y mira la barra de direcciones del navegador. ' +
+          'Verás algo como .../location/SZwf.../ — ese trozo entre barras es el Location ID. ' +
+          'Cópialo y pégalo abajo.',
+      },
+      {
+        titulo: 'Crea el token en GHL: Ajustes → Integraciones privadas',
+        detalle:
+          'En GHL, Settings (Ajustes) → Private Integrations → New. Dale un nombre (por ejemplo ' +
+          '"GrowthOps") y marca los permisos de contactos, calendarios y oportunidades. Al crearla ' +
+          'te enseña el token UNA sola vez y empieza por "pit-": cópialo antes de cerrar y pégalo abajo.',
+      },
+      {
+        titulo: 'Inventa una contraseña para el webhook y guárdala aquí',
+        detalle:
+          'No la da GHL: la eliges tú. Sirve para que nadie que conozca la dirección del webhook ' +
+          'pueda meter citas falsas. Usa algo largo y aleatorio (30 caracteres o más, letras y ' +
+          'números). Escríbela en el campo de abajo, guarda, y tenla a mano para el paso siguiente.',
+      },
+      {
+        titulo: 'Pega la dirección del webhook en GHL',
+        detalle:
+          'Copia la dirección que aparece aquí arriba y pégala en GHL, en la automatización que ' +
+          'avisa de las citas (Workflows → acción "Webhook", o Settings → Webhooks según tu plan). ' +
+          'Método POST. Añade una cabecera llamada x-ghl-secret y, como valor, EXACTAMENTE la misma ' +
+          'contraseña del paso 3: se compara carácter a carácter y un espacio de más la invalida.',
+      },
+      {
+        titulo: 'Elige qué eventos envía GHL',
+        detalle:
+          'Marca al menos: cita creada, cita actualizada (asistió, no asistió, cancelada) y alta de ' +
+          'lead. Cada uno de esos avisos es lo que mantiene el CRM al día sin que nadie copie nada ' +
+          'a mano.',
+      },
+      {
+        titulo: 'Comprueba que funciona',
+        detalle:
+          'Crea o mueve una cita de prueba en GHL y mira si aparece en Agendas. Si no aparece, lo ' +
+          'más probable es que la contraseña del paso 3 no sea idéntica en los dos sitios.',
+      },
+    ],
     fields: [
       {
         key: 'GHL_API_TOKEN',
@@ -315,7 +368,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         type: 'password',
         secret: true,
         placeholder: 'pit-…',
-        help: 'Token de Integración Privada de la subcuenta.',
+        help: 'Paso 2. GHL solo lo enseña al crearlo: si lo perdiste, crea otra integración privada.',
       },
       {
         key: 'GHL_LOCATION_ID',
@@ -323,14 +376,14 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         type: 'text',
         secret: false,
         placeholder: 've9EPM428h8vShlRW1KT',
-        help: 'ID de la subcuenta (en la URL /location/<ID>/).',
+        help: 'Paso 1. Está en la URL de GHL, entre /location/ y la barra siguiente.',
       },
       {
         key: 'GHL_WEBHOOK_SECRET',
         label: 'Webhook Secret (entrante)',
         type: 'password',
         secret: true,
-        help: 'Cabecera x-ghl-secret que validan los webhooks de GHL.',
+        help: 'Paso 3. La eliges tú, no la da GHL. Debe ser idéntica aquí y en la cabecera x-ghl-secret de GHL.',
       },
       {
         key: 'GHL_ONBOARDING_WEBHOOK_URL',
