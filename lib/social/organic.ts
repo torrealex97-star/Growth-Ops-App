@@ -1,64 +1,67 @@
-// CAPA SEMÁNTICA ORGÁNICA — prototipo de la capa de adquisición orgánica del dashboard.
+// CAPA ORGÁNICA — MÉTRICAS OFICIALES de las cuentas del negocio.
 //
-// QUÉ ES: agregación PURA de social_profiles/social_posts (datos ya normalizados por la capa
-// de investigación externa) en KPIs por plataforma. La UI consume esto; NUNCA llama a Apify por
-// pantalla (§16 del brief de captación: external APIs → sync → datos normalizados → dashboard).
+// Principio (brief del 21-sep): las métricas de las cuentas PROPIAS se traen por las APIs
+// OFICIALES de cada plataforma (Instagram Graph API aquí; TikTok/YouTube por su sync oficial
+// cuando exista). Apify queda para lo que puede costar baneos: investigación de TERCEROS.
+// Cero llamadas a Apify en este camino: es puro Supabase sobre los datos que el sync oficial
+// ya guardó (ig_media / ig_account_daily, poblados por lib/instagram/sync.ts → Graph API con
+// appsecret_proof). El dashboard NUNCA llama ni a Apify ni a Meta por render (§16).
 //
-// QUÉ NO ES: atribución publicitaria. Esto describe la realidad operacional del CONTENIDO de las
-// cuentas del negocio (seguidores, publicaciones, engagement) con datos PÚBLICOS traídos por un
-// proveedor externo (Apify). La cuenta conectada no participa (§1/§16-17): al Actor solo van
-// handles públicos, nunca credenciales. Cada número declara su fuente en la UI.
-//
-// HONESTIDAD (§15): solo se muestran métricas que el dato público da. Instagram público no da
-// alcance/impresiones (eso vive en la API oficial, en "Mi cuenta"); TikTok público da views por
-// vídeo. El engagement se calcula con lo disponible y se etiqueta cómo se calculó.
+// Métricas oficiales que el público no da: reach real, impresiones, shares, saved y watch time.
 
-import type { SocialPlatform } from './types'
-
-export type FilaPerfil = {
+export type FilaPerfilOficial = {
   platform: string
-  username?: string
+  username?: string | null
   followers_count?: number | null
   posts_count?: number | null
   collected_at?: string | null
 }
 
-export type FilaPost = {
-  platform: string
-  username?: string | null
-  content_type?: string | null
+export type FilaPostOficial = {
+  media_type?: string | null
   published_at?: string | null
-  views_count?: number | null
-  likes_count?: number | null
-  comments_count?: number | null
-  shares_count?: number | null
-  collected_at?: string | null
-  post_url?: string | null
+  likes?: number | null
+  comments?: number | null
+  views?: number | null
+  reach?: number | null
+  shares?: number | null
+  saved?: number | null
+  engagement_rate?: number | null
+  permalink?: string | null
+  synced_at?: string | null
 }
 
-export type OrganicoPlataforma = {
-  platform: SocialPlatform
+export type FilaSnapshotsOficial = {
+  snapshot_date: string
+  followers_count?: number | null
+  reach?: number | null
+  profile_views?: number | null
+  new_follows?: number | null
+  unfollows?: number | null
+}
+
+export type ResumenOficial = {
+  platform: 'instagram'
   handle?: string
-  /** Snapshot del perfil (última recolección). */
   followers?: number
   postsCount?: number
-  lastCollectedAt?: string
-  /** Actividad del perfil DENTRO del periodo seleccionado. */
+  lastSyncedAt?: string
   postsPeriodo: number
   likesPeriodo: number
   commentsPeriodo: number
-  sharesPeriodo?: number
   viewsPeriodo?: number
-  /** Cómo se calculó el engagement — la UI lo muestra junto al número (§15). */
+  reachPeriodo?: number
+  sharesPeriodo?: number
+  savedPeriodo?: number
   engagementRate?: number
-  engagementFormula?: 'likes+comments / views' | 'likes+comments / followers'
-  /** Top 3 contenidos del periodo por views (o likes si no hay views). */
+  engagementFormula: string
   topContenidos: { url?: string; views?: number; likes?: number }[]
 }
 
-export type RangoOrganico = { desde?: string; hasta?: string }
+const suma = (xs: (number | null | undefined)[]) =>
+  xs.reduce<number>((a, x) => a + (typeof x === 'number' && Number.isFinite(x) ? x : 0), 0)
 
-const DENTRO = (iso: string | null | undefined, r: RangoOrganico): boolean => {
+const enRango = (iso: string | null | undefined, r: { desde?: string; hasta?: string }) => {
   if (!iso) return false
   const t = Date.parse(iso)
   if (!Number.isFinite(t)) return false
@@ -67,72 +70,55 @@ const DENTRO = (iso: string | null | undefined, r: RangoOrganico): boolean => {
   return true
 }
 
-const ratio = (a: number, b: number): number | undefined => (b > 0 ? a / b : undefined)
-
 /**
- * Agrega los filas normalizados en un resumen por plataforma. Solo plataformas con perfil
- * snapshot aparecen; sin filas no se inventan ceros (§15: nada de falsas métricas).
+ * Resumen de la cuenta PROPIA de Instagram desde los datos OFICIALES ya sincronizados.
+ * Engagement = interacciones / reach (métrica oficial de Graph API, no estimación pública).
  */
-export function agregarOrganico(
-  perfiles: FilaPerfil[],
-  posts: FilaPost[],
-  rango: RangoOrganico = {}
-): OrganicoPlataforma[] {
-  const porPlataforma = new Map<SocialPlatform, OrganicoPlataforma>()
-
-  // Perfil: el snapshot más reciente por plataforma (collected_at máx).
-  for (const p of perfiles) {
-    const platform = p.platform as SocialPlatform
-    if (!porPlataforma.has(platform) && !['instagram', 'tiktok', 'youtube'].includes(platform)) continue
-    const actual = porPlataforma.get(platform)
-    const collected = p.collected_at || ''
-    if (actual?.lastCollectedAt && actual.lastCollectedAt >= collected) continue
-    porPlataforma.set(platform, {
-      platform,
-      handle: p.username,
-      followers: p.followers_count ?? undefined,
-      postsCount: p.posts_count ?? undefined,
-      lastCollectedAt: p.collected_at || undefined,
-      postsPeriodo: 0,
-      likesPeriodo: 0,
-      commentsPeriodo: 0,
-      topContenidos: [],
-    })
+export function agregarOrganicoOficial(
+  perfil: FilaPerfilOficial | null | undefined,
+  medias: FilaPostOficial[],
+  snapshots: FilaSnapshotsOficial[],
+  rango: { desde?: string; hasta?: string } = {}
+): ResumenOficial | null {
+  if (!perfil) return null
+  const delPeriodo = medias.filter((m) => enRango(m.published_at, rango))
+  const likes = suma(delPeriodo.map((m) => m.likes))
+  const comments = suma(delPeriodo.map((m) => m.comments))
+  const shares = suma(delPeriodo.map((m) => m.shares))
+  const saved = suma(delPeriodo.map((m) => m.saved))
+  const views = suma(delPeriodo.map((m) => m.views))
+  const reach = suma(delPeriodo.map((m) => m.reach))
+  const snap = [...snapshots].sort((a, b) => (a.snapshot_date < b.snapshot_date ? 1 : -1))[0]
+  const lastSyncedAt =
+    medias
+      .map((m) => m.synced_at)
+      .filter(Boolean)
+      .sort()
+      .at(-1) || undefined
+  // reach por media se solapa entre posts; el reach de CUENTA del snapshot diario es el válido.
+  const reachCuenta = typeof snap?.reach === 'number' ? snap.reach : undefined
+  const base = reachCuenta ?? (views > 0 ? views : undefined)
+  // Con 0 posts del periodo el engagement no es calculable: no se divide nada entre nada.
+  const engagementRate =
+    delPeriodo.length > 0 && base && base > 0 ? (likes + comments + shares + saved) / base : undefined
+  return {
+    platform: 'instagram',
+    handle: perfil.username || undefined,
+    followers: perfil.followers_count ?? snap?.followers_count ?? undefined,
+    postsCount: perfil.posts_count ?? undefined,
+    lastSyncedAt,
+    postsPeriodo: delPeriodo.length,
+    likesPeriodo: likes,
+    commentsPeriodo: comments,
+    viewsPeriodo: views > 0 ? views : undefined,
+    reachPeriodo: reachCuenta,
+    sharesPeriodo: shares > 0 ? shares : undefined,
+    savedPeriodo: saved > 0 ? saved : undefined,
+    engagementRate,
+    engagementFormula: 'interacciones / reach (Graph API)',
+    topContenidos: delPeriodo
+      .map((m) => ({ url: m.permalink || undefined, views: m.views ?? 0, likes: m.likes ?? 0 }))
+      .sort((a, b) => b.views - a.views || b.likes - a.likes)
+      .slice(0, 3),
   }
-
-  // Posts del periodo: se suman por plataforma y se guardan los top por views/likes.
-  for (const post of posts) {
-    const platform = post.platform as SocialPlatform
-    const resumen = porPlataforma.get(platform)
-    if (!resumen) continue
-    if (!DENTRO(post.published_at, rango)) continue
-    resumen.postsPeriodo += 1
-    resumen.likesPeriodo += post.likes_count ?? 0
-    resumen.commentsPeriodo += post.comments_count ?? 0
-    if (post.views_count != null) resumen.viewsPeriodo = (resumen.viewsPeriodo ?? 0) + post.views_count
-    if (post.shares_count != null) resumen.sharesPeriodo = (resumen.sharesPeriodo ?? 0) + post.shares_count
-    resumen.topContenidos.push({
-      url: post.post_url || undefined,
-      views: post.views_count ?? undefined,
-      likes: post.likes_count ?? undefined,
-    })
-  }
-
-  const resultado: OrganicoPlataforma[] = []
-  for (const resumen of porPlataforma.values()) {
-    resumen.topContenidos.sort((a, b) => (b.views ?? b.likes ?? 0) - (a.views ?? a.likes ?? 0))
-    resumen.topContenidos = resumen.topContenidos.slice(0, 3)
-    const interacciones = resumen.likesPeriodo + resumen.commentsPeriodo
-    if (resumen.viewsPeriodo) {
-      // TikTok: las views públicas permiten engagement sobre alcance real.
-      resumen.engagementRate = ratio(interacciones, resumen.viewsPeriodo)
-      resumen.engagementFormula = 'likes+comments / views'
-    } else if (resumen.followers) {
-      // Instagram público no da impresiones: engagement sobre seguidores (convención del sector).
-      resumen.engagementRate = ratio(interacciones, resumen.followers)
-      resumen.engagementFormula = 'likes+comments / followers'
-    }
-    resultado.push(resumen)
-  }
-  return resultado.sort((a, b) => a.platform.localeCompare(b.platform))
 }

@@ -118,6 +118,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const cfg = getApifyConfig(cfgEnv)
   if (!cfg) return NextResponse.json({ error: 'Apify no configurado', code: 'apify_no_configurado' }, { status: 400 })
 
+  // GUARD (regla del brief del 21-sep): Apify JAMÁS scrapea las cuentas PROPIAS del tenant.
+  // Scrapear la cuenta conectada es exactamente el patrón de bot no oficial que arriesga un
+  // baneo; sus métricas van por la API oficial (evergreen/instagram/sync). Se comparan los
+  // usernames pedidos contra los handles propios declarados en Integraciones (IG_HANDLE, etc.).
+  const propios = [cfgEnv.IG_HANDLE, cfgEnv.TIKTOK_HANDLE, cfgEnv.YOUTUBE_HANDLE]
+    .filter(Boolean)
+    .map((h) => String(h).trim().replace(/^@/, '').toLowerCase())
+  const chocan = usernames.filter((u) => propios.includes(u.toLowerCase()))
+  if (chocan.length) {
+    return NextResponse.json(
+      {
+        error: `Las cuentas propias (${chocan.map((c) => `@${c}`).join(', ')}) no se investigan por scraping: sus métricas se traen por la API oficial de la plataforma.`,
+        code: 'cuenta_propia_no_va_por_apify',
+      },
+      { status: 400 }
+    )
+  }
+
   const input: ResearchInput = {
     usernames,
     resultsLimit: Number(body.resultsLimit) || cfg.resultsLimit,
