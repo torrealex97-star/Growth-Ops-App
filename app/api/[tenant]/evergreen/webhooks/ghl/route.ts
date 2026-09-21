@@ -122,6 +122,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Subcuenta inexistente y secreto incorrecto responden IGUAL. Resolver el tenant antes de
     // autenticar permitiría, si no, distinguir 404 de 401 y enumerar slugs sin credencial alguna.
     if (!tenantRow) {
+      // Obsabilidad de alta: si GHL apunta a un slug mal, aquí se ve en los logs de Vercel.
+      console.warn('[ghl-webhook] 401: subcuenta inexistente o inactiva:', tenant)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     const tenantId = tenantRow.id
@@ -129,6 +131,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const cfg = await getTenantConfigWithFallback(tenantId, true)
     // Fail-closed: si el secret no está configurado o no coincide, rechazamos.
     if (!isValidWebhookSecret(secret, cfg.GHL_WEBHOOK_SECRET || process.env.GHL_WEBHOOK_SECRET)) {
+      // Sin registro de los rechazos, un webhook mal configurado en GHL es indetectable: la URL
+      // llega (cabecera ausente o errónea) y GHL no explica por qué su alta no produce datos.
+      console.warn('[ghl-webhook] 401: cabecera x-ghl-secret ausente o inválida en', tenant)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -391,6 +396,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const isAppointmentEvent = !!(externalId || aptRaw || status || event.startsWith('appointment'))
     if (!isAppointmentEvent) {
       // Solo era un lead opt-in (pre-VSL): contacto + atribución, sin agenda.
+      console.log('[ghl-webhook] ok: lead', contact.id)
       return NextResponse.json({ ok: true, kind: 'lead', contactId: contact.id })
     }
 
@@ -437,6 +443,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         action: 'update',
         new_values: upd,
       })
+      console.log('[ghl-webhook] ok: appointment.updated', appt.id, status ?? '')
       return NextResponse.json({
         ok: true,
         kind: 'appointment.updated',
@@ -483,6 +490,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       action: 'create',
       new_values: { contact_id: contact.id, source, ...utm },
     })
+    console.log('[ghl-webhook] ok: appointment.created', created.id)
     return NextResponse.json({
       ok: true,
       kind: 'appointment.created',

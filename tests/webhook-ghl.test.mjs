@@ -41,7 +41,9 @@ test('el secreto se valida fail-closed y antes de leer el payload', () => {
 })
 
 test('un secreto ausente o incorrecto devuelve 401 y corta', () => {
-  assert.match(codigo, /if \(!isValidWebhookSecret\([\s\S]{0,80}?\)\) \{\s*return NextResponse\.json\([^)]*status: 401/)
+  // El log de observabilidad (401: cabecera ausente o inválida) puede preceder al return: sin él,
+  // un webhook mal dado de alta en GHL era indetectable — la llamada llegaba y no quedaba rastro.
+  assert.match(codigo, /if \(!isValidWebhookSecret\([\s\S]{0,80}?\)\) \{[\s\S]{0,220}?status: 401/)
 })
 
 // ── FRONTERA DE SUBCUENTA ────────────────────────────────────────────────────────────────────
@@ -62,7 +64,8 @@ test('subcuenta inexistente y secreto incorrecto son indistinguibles: ambos 401'
   // tenant hay que resolverlo primero —su configuración guarda el secreto—, y devolver 404 dejaría
   // enumerar slugs sin credencial alguna comparando códigos de estado.
   assert.match(codigo, /\.from\('tenants'\)[\s\S]{0,200}?\.eq\('status', 'active'\)/)
-  assert.match(codigo, /if \(!tenantRow\) \{\s*\n?\s*return NextResponse\.json\([^)]*status: 401/)
+  // El warn de observabilidad puede preceder al return (401: subcuenta inexistente o inactiva).
+  assert.match(codigo, /if \(!tenantRow\) \{[\s\S]{0,220}?status: 401/)
   assert.doesNotMatch(codigo, /Subcuenta no encontrada/)
 })
 
