@@ -243,9 +243,9 @@ export async function erasePerson(
     await sb.from('audit_logs').insert({
       tenant_id: tenantId,
       action: 'erase_person',
-      entity: 'contacts',
+      entity_type: 'contacts',
       entity_id: null,
-      metadata: {
+      new_values: {
         persona_hash: informe.personaHash,
         completo: informe.completo,
         pasos: informe.pasos.map((p) => ({ store: p.store, estado: p.estado })),
