@@ -106,6 +106,30 @@ test('registrar ventas desde Stripe escribe solo bajo decisión humana y sin dup
   assert.match(code, /entity_type: 'sale'/)
 })
 
+// REGLA FINANCIERA DEL EQUIPO: TODA comisión (setter, closer, colaborador) se calcula sobre el
+// CASH COLLECTED de cada cobro MENOS la comisión de la pasarela que lo procesó, y cada cuota
+// mensual genera su comisión el mes en que se cobra. El registro de pagos Stripe es una vía de
+// entrada de esas cuotas: si no encadena el motor, el ledger del colaborador nacía a cero y solo
+// aparecía cuando alguien lanzaba la reparación masiva a mano.
+test('registrar encadena atribución + comisiones netas por venta (no depende del reconcile manual)', () => {
+  const registrar = read('app/api/[tenant]/evergreen/stripe-backfill/registrar/route.ts')
+  // El motor ÚNICO de comisiones (base = cash collected − fee de pasarela, deducción del
+  // colaborador por atribución estructurada), no una segunda implementación ad-hoc.
+  assert.match(registrar, /reconcileSaleCommissions\(sb, session\.tenantId, saleId\)/)
+  // El import del motor es el compartido con cobros manuales y cuotas (payments/mark).
+  assert.match(registrar, /from '@\/lib\/commissions\/generate'/)
+  // La respuesta declara cuántas comisiones se generaron (visible sin abrir el ledger).
+  assert.match(registrar, /comisionesGeneradas \+= resComisiones\.created/)
+  assert.match(registrar, /comisionesGeneradas,/)
+  // El fallo del motor NO deshace la venta ni el registro: avisa y el reconcile-all la cubre.
+  assert.match(registrar, /No bloquea el registro/)
+  assert.match(registrar, /Se cuadrarán con la reparación masiva/)
+  // La regla queda documentada en la propia ruta (cash collected, comisión de pasarela, cuota mensual).
+  assert.match(registrar, /CASH COLLECTED/)
+  assert.match(registrar, /pasarela/)
+  assert.match(registrar, /cuota posterior genera su comisión el mes en que se cobra/)
+})
+
 // El OTRO backfill (admin/backfill-stripe-sales) sí escribe ventas, pero a PRECIO FIJO y buscando un
 // producto por nombre: se escribió para la migración puntual de una subcuenta concreta. Ejecutarlo en
 // cualquier otra subcuenta inventa importes financieros que además parecen reales.
