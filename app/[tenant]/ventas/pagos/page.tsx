@@ -400,9 +400,41 @@ export default function PaymentsPipelinePage() {
 
       {vista === 'persona' && (
         <>
-          <div className="max-w-sm">
-            <Label className="text-xs text-muted-foreground">Buscar persona</Label>
-            <SearchBox value={q} onChange={setQ} placeholder="Nombre o email..." className="w-full mt-1.5" />
+          {/* Filtros (§4): búsqueda + periodo — los mismos que la vista por venta. */}
+          <div className="rounded-lg border border-border bg-card/50 p-4 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="space-y-1.5 lg:col-span-2">
+                <Label className="text-xs text-muted-foreground">Buscar persona</Label>
+                <SearchBox value={q} onChange={setQ} placeholder="Nombre o email..." className="w-full" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Periodo</Label>
+                <Select value={periodPreset} onValueChange={(v) => setPeriodPreset(v as PeriodPreset)}>
+                  <SelectTrigger className="bg-muted border-border h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    {PERIOD_PRESETS_STANDARD.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {PERIOD_LABELS[p]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {periodPreset === 'custom' && (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-xs text-muted-foreground">Periodo personalizado</Label>
+                  <DateRangeCalendarPopover
+                    from={customFrom}
+                    to={customTo}
+                    onFromChange={setCustomFrom}
+                    onToChange={setCustomTo}
+                    className="h-9"
+                  />
+                </div>
+              )}
+            </div>
           </div>
           <ControlPagosPersonas tenant={tenant} q={q} />
         </>

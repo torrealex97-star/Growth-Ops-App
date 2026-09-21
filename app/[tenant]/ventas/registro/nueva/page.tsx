@@ -145,13 +145,16 @@ export default function NewSalePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantId, sesion])
 
-  // Prefill desde query params (?contact=&reserva=&product=&reservationId=) al venir de "Completar pago" de una reserva
+  // Prefill desde query params (?contact=&reserva=&product=&reservationId=&plan=) al venir de
+  // "Completar pago" de una reserva o de "Nueva reserva" (?plan=reserva: preselecciona el plan
+  // de reserva del producto para registrar el cobro de la reserva en un paso).
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const contactId = params.get('contact')
     const reserva = params.get('reserva')
     const productId = params.get('product')
     const resId = params.get('reservationId')
+    const planPrefill = params.get('plan')
 
     if (reserva) {
       setReservationAmount(reserva)
@@ -189,7 +192,23 @@ export default function NewSalePage() {
           .single()
         if (!error && data) {
           setSelectedProduct(data)
-          loadPaymentPlans(data.id)
+          await loadPaymentPlans(data.id)
+          // Prefill del plan (solo alta de reserva: no pisa la elección del usuario en flujos
+          // normales ni al completar una reserva existente, que ya viene con reservationId).
+          if (planPrefill === 'reserva' && !resId) {
+            const { data: plans } = await supabase
+              .from('payment_plans')
+              .select('*')
+              .eq('product_id', productId)
+              .eq('is_active', true)
+              .eq('tenant_id', tenantId)
+              .order('sort_order')
+            const reservaPlan = (plans ?? []).find((p) => p.method === 'reserva')
+            if (reservaPlan) {
+              setSelectedPlan(reservaPlan)
+              setStep(3)
+            }
+          }
         }
       }
       loadProduct()
