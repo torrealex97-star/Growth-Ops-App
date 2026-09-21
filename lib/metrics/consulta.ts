@@ -104,12 +104,19 @@ export async function consultarMetricas(
     ),
     fetchAllRows<FilaContacto>(
       () =>
+        // COALESCE(first_seen_at, created_at) dentro del rango, expresado con or(): first_seen_at
+        // es la fecha real (GHL dateAdded) y created_at solo cuenta cuando no hay primera vista —
+        // filtrar por created_at a secas contaba TODA la importación histórica como "del periodo".
         sb
           .from('contacts')
-          .select('created_at, first_contact_at')
+          .select('created_at, first_seen_at, first_contact_at')
           .eq('tenant_id', tenantId)
-          .gte('created_at', `${periodo.desde}T00:00:00Z`)
-          .lte('created_at', `${periodo.hasta}T23:59:59Z`),
+          .or(
+            `first_seen_at.gte.${periodo.desde}T00:00:00Z,and(created_at.gte.${periodo.desde}T00:00:00Z,first_seen_at.is.null)`
+          )
+          .or(
+            `first_seen_at.lte.${periodo.hasta}T23:59:59Z,and(created_at.lte.${periodo.hasta}T23:59:59Z,first_seen_at.is.null)`
+          ),
       { maxPages: MAX_PAGINAS }
     ),
   ])

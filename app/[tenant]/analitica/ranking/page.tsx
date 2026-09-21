@@ -19,6 +19,7 @@ import {
   teamRanking,
   setterAgendaStats,
   targetCurrentValue,
+  leadDate,
   type SaleRow,
   type AppointmentRow,
   type UserRow,
@@ -35,6 +36,7 @@ import { resolverOferta } from '@/lib/metrics/oferta'
 type ContactRow = {
   id: string
   created_at: string
+  first_seen_at: string | null
   first_contact_at: string | null
   lead_status: string
 }
@@ -173,7 +175,7 @@ export default function PipelinePage() {
     async function load() {
       const supabase = createClient()
       const [contactsRes, apptRes, salesRes, collectionsRes, usersRes, usersRolesRes, targetsRes] = await Promise.all([
-        supabase.from('contacts').select('id, created_at, first_contact_at, lead_status'),
+        supabase.from('contacts').select('id, created_at, first_seen_at, first_contact_at, lead_status'),
         supabase
           .from('appointments')
           .select(
@@ -244,7 +246,10 @@ export default function PipelinePage() {
             }
             return contacts.filter((c) => contactIds.has(c.id))
           })()
-    return byPerson.filter((c) => inPeriod(c.created_at, range))
+    // Cohorte por FECHA REAL del lead (leadDate = first_seen_at → first_contact_at → created_at):
+    // created_at es cuándo se importó la fila (la importación histórica de GHL estampó todas las
+    // filas el mismo día), no cuándo llegó el lead. El type de abajo ya declara first_seen_at.
+    return byPerson.filter((c) => inPeriod(leadDate(c), range))
   }, [contacts, appointments, sales, personId, range])
 
   // Embudo por COHORTE: todas las etapas se miden sobre el MISMO grupo de leads (los creados en
@@ -289,7 +294,9 @@ export default function PipelinePage() {
     const diffs: number[] = []
     for (const c of filteredContacts) {
       if (!c.first_contact_at) continue
-      const created = new Date(c.created_at).getTime()
+      // leadDate: con leads importados, created_at (fecha de importación) puede ser posterior al
+      // primer contacto — la diferencia saldría negativa y la guarda la descartaba.
+      const created = new Date(leadDate(c)).getTime()
       const contacted = new Date(c.first_contact_at).getTime()
       if (isNaN(created) || isNaN(contacted)) continue
       const diffMin = (contacted - created) / 1000 / 60
@@ -316,7 +323,7 @@ export default function PipelinePage() {
     const diffs: number[] = []
     for (const c of filteredContacts) {
       if (!c.first_contact_at) continue
-      const created = new Date(c.created_at).getTime()
+      const created = new Date(leadDate(c)).getTime()
       const contacted = new Date(c.first_contact_at).getTime()
       if (isNaN(created) || isNaN(contacted)) continue
       const diffMin = (contacted - created) / 1000 / 60
@@ -331,7 +338,9 @@ export default function PipelinePage() {
     for (const c of filteredContacts) {
       const firstAppt = firstApptByContact.get(c.id)
       if (firstAppt === undefined) continue
-      const created = new Date(c.created_at).getTime()
+      // leadDate: con leads importados, created_at (fecha de importación) puede ser POSTERIOR a la
+      // primera cita — la guarda diffDays >= 0 ya lo descartaba y esos leads desaparecían del promedio.
+      const created = new Date(leadDate(c)).getTime()
       if (isNaN(created)) continue
       const diffDays = (firstAppt - created) / 1000 / 60 / 60 / 24
       if (diffDays >= 0) diffs.push(diffDays)
@@ -350,7 +359,9 @@ export default function PipelinePage() {
       const sold = new Date(s.sale_date).getTime()
       if (isNaN(sold)) continue
       const firstAppt = firstApptByContact.get(s.contact_id)
-      const reference = firstAppt !== undefined ? firstAppt : new Date(contact.created_at).getTime()
+      // leadDate: misma razón que leadToAgenda — con created_at de importación la referencia
+      // quedaba tras la venta y la diferencia negativa descartaba la muestra.
+      const reference = firstAppt !== undefined ? firstAppt : new Date(leadDate(contact)).getTime()
       if (isNaN(reference)) continue
       const diffDays = (sold - reference) / 1000 / 60 / 60 / 24
       if (diffDays >= 0) diffs.push(diffDays)
@@ -365,7 +376,9 @@ export default function PipelinePage() {
       if (!s.contact_id || !s.sale_date) continue
       const contact = contactById.get(s.contact_id)
       if (!contact) continue
-      const created = new Date(contact.created_at).getTime()
+      // leadDate: con created_at de importación el ciclo "duracion venta" salía negativo y se
+      // descartaba — media inventada por descarte, no medida.
+      const created = new Date(leadDate(contact)).getTime()
       const sold = new Date(s.sale_date).getTime()
       if (isNaN(created) || isNaN(sold)) continue
       const diffDays = (sold - created) / 1000 / 60 / 60 / 24

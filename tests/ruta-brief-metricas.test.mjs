@@ -82,8 +82,10 @@ test('el nombre de las columnas es el real, no el que uno recuerda', () => {
   // Y las respuestas del formulario están en raw_payload, no en qualification (0 de 559 en producción).
   assert.match(codigo, /qualification, raw_payload/)
   // Speed to Lead sale de dos timestamps reales del contacto; no de la fecha de la cita ni de una
-  // aproximación inventada en el frontend.
-  assert.match(codigo, /created_at, first_contact_at/)
+  // aproximación inventada en el frontend. El periodo se acota por FECHA REAL (first_seen_at con
+  // COALESCE a created_at): created_at es la fecha de importación de GHL, no la del lead.
+  assert.match(codigo, /created_at, first_seen_at, first_contact_at/)
+  assert.match(codigo, /first_seen_at\.gte\./)
 })
 
 // ---------------------------------------------------------------------------------------------

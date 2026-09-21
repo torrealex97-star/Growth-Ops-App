@@ -2,6 +2,26 @@
 // Sin I/O: reciben filas crudas de Supabase y devuelven datos listos para pintar.
 
 import { isNoShow } from '@/lib/appointments/status'
+
+/**
+ * FECHA REAL DE UN LEAD — para el filtro de periodo de cualquier métrica de leads.
+ *
+ * `created_at` es cuándo la fila entró en esta base (la importación histórica de GHL estampó
+ * todas las filas el mismo día), NO cuándo llegó el lead. La fecha de negocio vive en:
+ *   1. `first_seen_at` — el importador la guarda desde GHL `dateAdded` (history-sync).
+ *   2. `first_contact_at` — primer contacto registrado en la app.
+ *   3. `created_at` — la fila nació en la app (alta manual, webhooks en vivo): sí es fecha real.
+ * Se devuelve SIEMPRE un valor no nulo para que un lead importado sin fecha jamás desaparezca
+ * de los totales: peor mostrarlo en un mes equivocado que perderlo del cómputo total.
+ */
+export function leadDate(c: {
+  first_seen_at?: string | null
+  first_contact_at?: string | null
+  created_at?: string | null
+}): string {
+  return c.first_seen_at || c.first_contact_at || c.created_at || ''
+}
+
 export type SaleRow = {
   id: string
   gross_amount: number | string
