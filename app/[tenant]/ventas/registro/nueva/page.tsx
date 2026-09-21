@@ -204,10 +204,9 @@ export default function NewSalePage() {
               .eq('tenant_id', tenantId)
               .order('sort_order')
             const reservaPlan = (plans ?? []).find((p) => p.method === 'reserva')
-            if (reservaPlan) {
-              setSelectedPlan(reservaPlan)
-              setStep(3)
-            }
+            if (reservaPlan) setSelectedPlan(reservaPlan)
+            // El paso lo gestionan los prefills existentes (contacto → setStep(2)); sin contacto
+            // el usuario empieza en el paso 1 y ya ve el plan marcado al llegar al paso 2.
           }
         }
       }
