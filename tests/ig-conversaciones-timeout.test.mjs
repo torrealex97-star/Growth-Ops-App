@@ -83,7 +83,9 @@ test('la ruta responde configured:false con motivo en fallos de IG (no 500 ciego
   assert.match(route, /instagram_manage_messages/, 'nombra el permiso que falta')
   assert.match(route, /token_caducado/, 'cubre token caducado')
   assert.match(route, /limite_de_uso/, 'cubre rate limit')
-  assert.match(route, /maxDuration = 30/, 'presupuesto honesto (no 60s de rueda)')
+  assert.match(route, /conPlazo\(descargar/, 'plazo duro a nivel de ruta')
+  assert.match(route, /25_000/, 'responde siempre antes de que Vercel mate la lambda')
+  assert.match(route, /maxDuration = 60/, 'margen honesto: el plazo duro decide primero')
 })
 
 test('el front acota su espera y presenta el motivo', () => {

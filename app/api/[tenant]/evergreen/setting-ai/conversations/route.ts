@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { getTenantConfigWithFallback } from '@/lib/config'
-import { InstagramApiError, type InstagramErrorCode } from '@/lib/instagram/client'
+import { InstagramApiError, type InstagramErrorCode, type IgConversation } from '@/lib/instagram/client'
 import {
   getInstagramConfig,
   resolveIgUserId,
@@ -12,21 +12,25 @@ import {
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-// El trabajo real son ~9 llamadas a la Graph API (3 de resolución + listado + detalles en
-// paralelo con pool de 5). Con el timeout de 15s por llamada del cliente, el peor caso
-// honesto cabe de sobra aquí; 60 solo servía para que el usuario mirara una rueda girando
-// antes del error.
-export const maxDuration = 30
+// Vercel Hobby permite 60s. El trabajo sano tarda 5-20s; el plazo duro de abajo (25s) decide
+// SIEMPRE antes de que Vercel mate la función — 60 es solo margen para que la respuesta
+// tardía de Meta no reviente la lambda.
+export const maxDuration = 60
 
 // Lista conversaciones (DMs) con su transcripción, para la pestaña "Conversaciones" de
 // Setting AI. Instagram trae datos reales (mismo cliente que usa el sync orgánico);
 // Facebook y TikTok todavía no tienen integración de mensajería, así que devuelven
 // configured:false para que el front pinte un placeholder "próximamente".
 //
-// Un fallo de la Graph API NO es un error del servidor: si el token caducó o falta el
-// permiso de mensajería, la integración no está operativa y se responde como tal
-// (configured:false + motivo). Antes un 500 genérico —o el timeout de la lambda— dejaba
-// la pantalla muerta sin decirle al usuario qué arreglar.
+// Dos capas de defensa contra la lentitud de Meta (endpoint de conversaciones más pesado
+// que el resto de la Graph API: hoy dio error #1 y un timeout SUYO en la misma página):
+//   1. PLAZO DURO de 25s a nivel de ruta: cualquiera que sea lo que esté haciendo la
+//      descarga, a los 25s responde JSON usable (configured:false + motivo). Nunca más
+//      FUNCTION_INVOCATION_TIMEOUT ni rueda eterna.
+//   2. Presupuesto interno del cliente (ver fetchIgConversationsWithMessages): reintento
+//      ligero del listado y degradación de detalles que no lleguen.
+// Un fallo de la Graph API NO es un error del servidor: token caducado o falta de permiso
+// se responden como integración no operativa (configured:false + motivo accionable).
 export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
   const t = await requireTenant(tenant)
@@ -37,29 +41,50 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     return NextResponse.json({ configured: false, platform, conversations: [] })
   }
 
-  const cfg = getInstagramConfig(await getTenantConfigWithFallback(t.tenantId, true))
-  if (!cfg) return NextResponse.json({ configured: false, platform, conversations: [] })
+  const resultado = await conPlazo(descargar(tenant, platform), 25_000)
+  if (resultado === PLAZO) {
+    return NextResponse.json({
+      configured: false,
+      platform,
+      conversations: [],
+      motivo: 'Instagram no respondió a tiempo. Inténtalo de nuevo en unos minutos.',
+    })
+  }
+  return NextResponse.json(resultado)
+}
+
+const PLAZO = Symbol('plazo-agotado')
+function conPlazo<T>(p: Promise<T>, ms: number): Promise<T | typeof PLAZO> {
+  return Promise.race([p, new Promise<typeof PLAZO>((r) => setTimeout(() => r(PLAZO), ms))])
+}
+
+type RespuestaConvos = {
+  configured: boolean
+  platform: string
+  conversations: IgConversation[]
+  motivo?: string
+  error?: string
+}
+
+async function descargar(tenant: string, platform: string): Promise<RespuestaConvos> {
+  const cfg = getInstagramConfig(await getTenantConfigWithFallback(tenant, true))
+  if (!cfg) return { configured: false, platform, conversations: [] }
 
   try {
     const { id: igUserId } = await conEtapa('resolver cuenta IG', () => resolveIgUserId(cfg))
     const pageId = await resolveFbPageId(cfg, igUserId)
-    if (!pageId) return NextResponse.json({ configured: false, platform, conversations: [] })
+    if (!pageId) return { configured: false, platform, conversations: [] }
     const pat = await conEtapa('obtener page access token', () => getPageAccessToken(cfg, pageId))
-    if (!pat) return NextResponse.json({ configured: false, platform, conversations: [] })
+    if (!pat) return { configured: false, platform, conversations: [] }
     const conversations = await conEtapa('listar conversaciones', () =>
       fetchIgConversationsWithMessages(cfg, pageId, pat, igUserId, 20)
     )
-    return NextResponse.json({ configured: true, platform, conversations })
+    return { configured: true, platform, conversations }
   } catch (e) {
     if (e instanceof InstagramApiError) {
-      return NextResponse.json({
-        configured: false,
-        platform,
-        conversations: [],
-        motivo: motivoLegible(e.code, e.message),
-      })
+      return { configured: false, platform, conversations: [], motivo: motivoLegible(e.code, e.message) }
     }
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+    return { configured: false, platform, conversations: [], error: (e as Error).message }
   }
 }
 
