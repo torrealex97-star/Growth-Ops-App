@@ -100,3 +100,24 @@ test('firmar el contrato de equipo ACTIVA al colaborador', () => {
   assert.match(src, /\['invited', 'pending_contract'\]/)
   assert.match(src, /status: 'active'/)
 })
+
+// ---------------------------------------------------------------------------------------------
+// INVARIANTE EN LA BD (auditoría 21-sep): la creación del perfil no puede depender de cada
+// camino de código. Un trigger garantiza que TODO usuario affiliate tiene ficha, en cada
+// subcuenta de la que es miembro, con su tracking_code como código. Así ningún alta (invite,
+// edición de rol, import, SQL manual, endpoint futuro) deja un colaborador invisible otra vez.
+// ---------------------------------------------------------------------------------------------
+
+test('invariante en BD: trigger que crea el perfil de todo affiliate (users y tenant_members)', () => {
+  const mig = read('supabase/migrations/20260921190000_collaborator_profile_invariant.sql')
+  // Trigger tras INSERT/UPDATE del rol en users + tras INSERT de la pertenencia.
+  assert.match(mig, /trg_ensure_collaborator_profile ON public\.users/)
+  assert.match(mig, /trg_ensure_collaborator_profile_membership ON public\.tenant_members/)
+  // El perfil nace con el tracking_code del usuario como código (enlaces ?ref= intactos).
+  assert.match(mig, /UPPER\(COALESCE\(NEW\.tracking_code/)
+  assert.match(mig, /UPPER\(COALESCE\(u\.tracking_code/)
+  // Idempotente: nunca pisa % ni estado ya gestionados por el admin.
+  assert.match(mig, /ON CONFLICT \(tenant_id, user_id\) DO NOTHING/)
+  // Backfill único para affiliates históricos sin ficha.
+  assert.match(mig, /WHERE r\.key = 'affiliate'/)
+})
