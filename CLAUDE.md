@@ -1,6 +1,11 @@
 # Claude Code — Growth-Ops-App
 
-Antes de nada, lee `docs/00-CONSTITUCION.md`: tesis, principios, roadmap por fases y prioridades. Es el único documento que se lee en toda sesión.
+## Plan de implementación
+
+Fuente autoritativa: `docs/plan/`. Empieza siempre por `docs/plan/README.md`.
+Por sesión carga solo: `00-constitucion.md`, `07-prompts-base.md` (P0), el prompt de la fase
+(`08` o `09`) y los documentos que indique la matriz del README para esa fase.
+Una fase = una rama = un PR. No apliques migraciones de producción sin confirmación.
 
 Lee `PROJECT_CONTEXT.md` en la raíz del repo para el estado completo del proyecto.
 
