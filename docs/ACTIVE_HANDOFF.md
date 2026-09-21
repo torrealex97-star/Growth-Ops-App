@@ -1,5 +1,75 @@
 # Relevo activo
 
+> **Lee esto entero antes de tocar nada.** Este documento es el punto de coordinación entre los
+> agentes que trabajan en el proyecto (Claude Code, Freebuff, Codex, Copilot). Debajo de la sección
+> "Estado" hay un histórico por hebras que se conserva como registro; lo vigente es lo de arriba.
+
+## Reglas de trabajo (2026-09-21)
+
+Se escribieron tras encontrar una carpeta local que llevaba días trabajando sobre un linaje de git
+**sin ancestro común** con `origin/main`: todo lo hecho ahí era irrecuperable por merge. Existen
+para que no vuelva a pasar.
+
+1. **Una sola carpeta local y un solo repo.** El repo es
+   `github.com/torrealex97-star/Growth-Ops-App`. La carpeta de trabajo es
+   `~/GIT HUB/Growth-Ops-App`. No se crean clones paralelos "para probar".
+2. **Al empezar sesión, comprueba que no has derivado**:
+   ```
+   git fetch --prune && git rev-list --left-right --count main...origin/main
+   ```
+   Cualquier cosa que no sea `0 0` (o un simple "detrás") se investiga **antes** de escribir código.
+   Si `git merge-base main origin/main` no devuelve nada, la carpeta no sirve: para y avisa.
+3. **Rama corta, PR, merge.** Una rama por unidad de trabajo, PR en cuanto haya algo coherente y
+   merge a `main` con CI en verde. Nada de acumular días sin pushear: lo que no está en `main` es
+   invisible para los demás agentes y para Alex desde el móvil.
+4. **Ramas vivas, las mínimas.** Tras mergear se borra la rama. Una rama que sobrevive a su PR es
+   trabajo que otro agente rehará sin saberlo.
+5. **Antes de empezar algo, mira si ya está hecho.** Lee esta sección y `git log origin/main`. Si
+   dos agentes pueden tocar lo mismo, decláralo aquí primero.
+6. **Actualiza este documento al terminar**, aunque quede a medias: qué tocaste, qué validaste de
+   verdad y qué queda. Un relevo que no se escribe no existe.
+7. **Nada de PII ni credenciales en commits.** El repositorio es **público**: `docs/SECURITY_PRIVACY.md`.
+
+## Estado (2026-09-21)
+
+`main` = `a1908db`. Sin PRs abiertos. Sin ramas de trabajo vivas.
+
+**Fases cerradas** (`docs/00-CONSTITUCION.md` §5):
+
+| Fase | Entregable                                                              |
+| ---- | ----------------------------------------------------------------------- |
+| S0.1 | `docs/S0-1-INVENTARIO-CAPACIDADES.md`                                   |
+| S0.2 | `docs/S0-2-JOURNEYS-CRITICOS.md`                                        |
+| S0.3 | `tests/webhook-ghl.test.mjs` — 13 invariantes, verificados por mutación |
+| A0   | `docs/A0-CIERRE-AUDITORIA.md`                                           |
+
+Baseline medido: **498 tests, 495 pasan, 0 fallan**, 3 se auto-saltan sin credenciales y sí corren
+en CI. `typecheck` limpio.
+
+**Siguiente fase: F-1.** Buena parte ya existe (`gitleaks` sobre el historial completo,
+`esquema-tenant-invariante`, `tenant-isolation`, `fase3-tenant-queries`, `rls-acyclicity`). Falta:
+fixtures sintéticos Tenant A y B, y pruebas de prompt injection sobre las tools de lectura del
+agente — hoy nada verifica el principio "untrusted content is data".
+
+**Limpieza hecha el 2026-09-21**: la carpeta `~/GIT HUB/Growth-Ops-App` estaba en un linaje huérfano
+(previo a la reescritura con `git filter-repo` del 19-sep) y se repuntó a `origin/main`. Se
+desmontaron 5 worktrees y se borraron 20 ramas de ese linaje, tras verificar por `patch-id` y por
+contenido que **todo su trabajo ya estaba en `main`** — incluidas las cuatro ramas de Copilot (CRM
+UX, embudo, filtros de fecha, rebrand). Se conserva `rescate/linaje-viejo-20260913` apuntando al
+antiguo `b009cf3` como red de seguridad; puede borrarse cuando se quiera.
+
+**Bloqueos que dependen de Alex**, no de ningún agente:
+
+| Bloqueo                                                                    | Impacto                                              |
+| -------------------------------------------------------------------------- | ---------------------------------------------------- |
+| `RESEND_API_KEY` guardada en Vercel como valor legible (`readable-secret`) | P1 — rotar y recrear como sensible                   |
+| `CRON_SECRET` no existe en Preview                                         | Bloquea el staging que F1 necesita                   |
+| GHL no envía UTMs ni `source`                                              | `contact_attributions` a 0 — bloquea F7 y F4 de raíz |
+| Token de Meta de WDC sin permisos (`#10`)                                  | Sync de Meta parado                                  |
+| Proyecto `go-prod` de Vercel vacío                                         | Borrarlo para que nadie despliegue ahí               |
+
+---
+
 ## Barrido data-viz (skill data-visualization-pro) — 2026-09-19 (hebra Freebuff)
 
 **Estado (VERIFICADO EN VIVO con sesión real, 19-sep):** barrido completo y pusheado — `b32966c` (FinanceCharts), `bd539f9` (Instagram), tokens de DailyMetrics/AdsFunnel/VSL incluidos en `bd539f9`→`1ee5b48` (los arrolló el commit de formateo) y `a39df32` fix(vsl) error≠vacío. Evidencia del render: DailyMetricsPanel pinta 15 barras `rgba(211,85,137,0.85)` = `hsl(var(--brand-500)/0.85)` con datos reales; AdsFunnelPanel líneas brand-500/brand-300; gradiente de tendencia `hsl(var(--primary))`. Hallazgos ajenos al barrido documentados: `meta/campaign-funnels` responde 500 (la tabla `campaign_funnel_assignments` NO existe — falta migración); `vsl/videos` da 500 en LOCAL por DNS IPv6 de `db.<ref>.supabase.co` (conectar vía pooler, §12.4; producción no afectada); el checkbox «Solo tráfico pago» vacía el panel de agendas por no haber agendas atribuidas a pago (dato condicional, no bug).
