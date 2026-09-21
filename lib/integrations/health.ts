@@ -61,6 +61,8 @@ export const SYNCS_BY_GROUP: Record<string, string[]> = {
   sequra: ['sequra-morosos'],
   stripe: ['stripe-customers', 'stripe-payments'],
   email: ['reminders'],
+  calendly: ['calendly-citas'],
+  ghl: ['ghl-citas'],
 }
 
 export function isStale(checkedAt: string | null | undefined, now: number): boolean {

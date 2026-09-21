@@ -24,7 +24,11 @@ test('la carga histórica está limitada al tenant autenticado', async () => {
 test('los imports actualizan o insertan sin borrar históricos', async () => {
   const route = await read('app/api/[tenant]/evergreen/settings/integraciones/history-sync/route.ts')
   assert.doesNotMatch(route, /\.delete\(/)
-  assert.match(route, /appointmentsImported/)
-  assert.match(route, /appointmentsUpdated/)
   assert.match(route, /transcript_status: transcript \? 'listo' : 'no_aplica'/)
+  // La implementación de citas (Calendly/GHL) vive en la lib compartida con el cron: los
+  // invariantes de upsert idempotente se comprueban donde está el código.
+  const citas = await read('lib/integrations/citas-sync.ts')
+  assert.match(citas, /appointmentsImported/)
+  assert.match(citas, /appointmentsUpdated/)
+  assert.doesNotMatch(citas, /\.delete\(/)
 })
