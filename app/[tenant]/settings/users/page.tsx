@@ -421,6 +421,40 @@ export default function UsersPage() {
       return
     }
 
+    // ALTA COMO COLABORADOR DESDE EDITAR USUARIO (hallazgo 21-sep): cambiar el
+    // rol a Colaborador (affiliate) debe crear su ficha en el listado de
+    // Colaboradores — con el MISMO tracking_code como código público, para que
+    // sus enlaces ?ref= existentes sigan atribuyendo. Idempotente: si ya tiene
+    // perfil, no se toca (% y estado se gestionan en el panel de Colaboradores).
+    if (newRoleKey === 'affiliate') {
+      const { data: perfilPrevio } = await supabase
+        .from('collaborator_profiles')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('user_id', editingUser.id)
+        .limit(1)
+      if (!perfilPrevio || perfilPrevio.length === 0) {
+        const codigo = trackingCode ?? editAffiliateCode
+        const codigoFinal = codigo || (await generateUniqueTrackingCode(supabase))
+        const { error: perfilErr } = await supabase.from('collaborator_profiles').insert({
+          tenant_id: tenantId,
+          user_id: editingUser.id,
+          code: codigoFinal.toUpperCase(),
+          name: editingUser.full_name || editingUser.email,
+          status: 'invited',
+          default_commission_percent:
+            editAffiliatePercent && !Number.isNaN(parseFloat(editAffiliatePercent))
+              ? parseFloat(editAffiliatePercent)
+              : null,
+        })
+        if (perfilErr) {
+          toast.error('El usuario se actualizó, pero no se pudo crear su ficha de colaborador', {
+            description: perfilErr.message,
+          })
+        }
+      }
+    }
+
     toast.success('Usuario actualizado')
     setEditDialog(false)
     fetchData()
@@ -900,7 +934,7 @@ export default function UsersPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Comision afiliado por defecto (%)</Label>
+              <Label>Comisión de colaborador por defecto (%)</Label>
               <Input
                 type="number"
                 min="0"
@@ -1022,14 +1056,17 @@ export default function UsersPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Código de afiliado</Label>
+              <Label>Código de colaborador</Label>
               <Input
                 value={editAffiliateCode}
                 onChange={(e) => setEditAffiliateCode(e.target.value)}
                 className="bg-muted border-border"
                 placeholder="ej. juan10"
               />
-              <p className="text-xs text-muted-foreground">Se usa para atribuir ventas al afiliado por utm_content.</p>
+              <p className="text-xs text-muted-foreground">
+                Código legible histórico. La atribución estructurada vive en el perfil de colaborador; este campo queda
+                como respaldo.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Código de tracking (enlaces)</Label>
@@ -1053,7 +1090,7 @@ export default function UsersPage() {
               </div>
               <p className="text-xs text-muted-foreground">
                 Código privado y opaco (no revela el nombre). Se usa en los enlaces de la sección Enlaces (utm_term para
-                setter/cold caller, utm_content para afiliado).
+                setter/cold caller, utm_content para colaborador).
               </p>
             </div>
             <div className="space-y-2">

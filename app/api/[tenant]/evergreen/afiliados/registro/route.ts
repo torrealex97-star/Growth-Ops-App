@@ -102,7 +102,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const { data: role } = await supabase.from('roles').select('id').eq('key', 'affiliate').maybeSingle()
     const roleId = (role as { id?: string } | null)?.id
     if (!roleId) {
-      return NextResponse.json({ error: 'No existe el rol de afiliado en el sistema' }, { status: 500 })
+      return NextResponse.json({ error: 'No existe el rol de colaborador en el sistema' }, { status: 500 })
     }
 
     // 4) Dedupe por email.
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         })
       }
       return NextResponse.json(
-        { error: 'Ya existe una cuenta con este email. Si ya eres afiliado, inicia sesión.' },
+        { error: 'Ya existe una cuenta con este email. Si ya eres colaborador, inicia sesión.' },
         { status: 409 }
       )
     }
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       redirectTo: `${siteUrl}/api/${tenant}/evergreen/auth/callback?next=/${tenant}/settings/password`,
     })
     if (inviteError || !invited.user) {
-      return NextResponse.json({ error: inviteError?.message || 'No se pudo crear el afiliado' }, { status: 400 })
+      return NextResponse.json({ error: inviteError?.message || 'No se pudo crear el colaborador' }, { status: 400 })
     }
 
     // 6) Código: affiliate_code == tracking_code para que enlace (utm_content) y atribución casen

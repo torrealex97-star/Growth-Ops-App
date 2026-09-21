@@ -64,6 +64,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // El alta encadena el contrato de equipo: el estado efectivo de un
     // colaborador nuevo es 'pending_contract' (contrato enviado, pendiente de
     // firma), no 'invited' — la activación definitiva ocurre al FIRMAR.
+    // REGRESIÓN CORREGIDA (21-sep): el commit de la cadena del contrato (#83)
+    // eliminó esta línea y el POST entero casca 500 (TDZ de `status`) — desde
+    // entonces ningún alta desde la UI podía crear el perfil. Repuesta tal cual.
+    const status = body.status && ESTADOS.includes(body.status) ? body.status : 'invited'
 
     let userId = body.userId ?? null
 

@@ -60,6 +60,38 @@ test('el registro público de afiliados encadena el contrato igual que el alta a
   assert.match(src, /affiliatePercent: commissionPct/)
 })
 
+test('el POST de colaboradores define status (regresión #83: el TDZ rompía todo el alta)', () => {
+  const src = read('app/api/[tenant]/evergreen/colaboradores/route.ts')
+  // La línea eliminada por error en la cadena del contrato — sin ella el POST casca 500.
+  assert.match(src, /const status = body\.status && ESTADOS\.includes\(body\.status\) \? body\.status : 'invited'/)
+})
+
+test('invitar con rol colaborador crea SU perfil automáticamente (mismo tracking_code)', () => {
+  const src = read('app/api/[tenant]/evergreen/invite/route.ts')
+  // El perfil nace en la invitación cuando el rol es affiliate.
+  assert.match(src, /roleKey === 'affiliate'/)
+  assert.match(src, /from\('collaborator_profiles'\)/)
+  assert.match(src, /\.insert\(/)
+  // Código público = el tracking_code del usuario (los enlaces ?ref= existentes siguen valiendo).
+  assert.match(src, /trackingCode \?\?/)
+  // Idempotente: comprueba perfil previo antes de insertar.
+  assert.match(src, /perfilPrevio/)
+})
+
+test('editar un usuario a rol Colaborador también crea su ficha (vía UI de Usuarios)', () => {
+  const src = read('app/[tenant]/settings/users/page.tsx')
+  assert.match(src, /newRoleKey === 'affiliate'/)
+  assert.match(src, /from\('collaborator_profiles'\)/)
+  assert.match(src, /perfilPrevio/)
+})
+
+test('el rol colaborador accede a SU dashboard (misma app, scope distinto)', () => {
+  const src = read('lib/auth/permissions.ts')
+  // Sin '/dashboard' en los prefijos de affiliate, el layout expulsaba al colaborador
+  // de su propio dashboard (el root redirect manda a /dashboard).
+  assert.match(src, /affiliate: \['\/dashboard'/)
+})
+
 test('firmar el contrato de equipo ACTIVA al colaborador', () => {
   const src = read('app/api/public-contracts/sign/[token]/route.ts')
   // Solo contratos de equipo (los de alumno no tocan collaborator_profiles).

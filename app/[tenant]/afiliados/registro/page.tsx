@@ -152,7 +152,7 @@ export default function RegistroAfiliadoPage() {
                     <Loader2 className="w-4 h-4 animate-spin" /> Enviando...
                   </>
                 ) : (
-                  'Darme de alta como afiliado'
+                  'Darme de alta como colaborador'
                 )}
               </button>
             </form>
