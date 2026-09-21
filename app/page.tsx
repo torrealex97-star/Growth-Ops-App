@@ -27,7 +27,20 @@ export default function HomePage() {
   const [tenants, setTenants] = useState<TenantOption[] | null>(null)
   const [autenticado, setAutenticado] = useState<boolean | null>(null)
   const [slug, setSlug] = useState('')
+  // Atajo a la última subcuenta usada EN ESTE NAVEGADOR. Escribir el identificador a mano es la
+  // fuente de errores que dejó a alguien fuera por una `s` de más, pero listar las subcuentas del
+  // sistema sin sesión sigue estando prohibido (§42, `tests/tenant-no-enumeration.test.mjs`): eso
+  // revelaría los nombres de los clientes. El historial del propio usuario no revela nada ajeno.
+  const [ultima, setUltima] = useState<string | null>(null)
   const router = useRouter()
+
+  useEffect(() => {
+    try {
+      setUltima(localStorage.getItem('gop:ultima-subcuenta'))
+    } catch {
+      // Sin almacenamiento disponible no hay atajo; el acceso directo sigue funcionando.
+    }
+  }, [])
 
   useEffect(() => {
     const supabase = createClient()
@@ -103,31 +116,42 @@ export default function HomePage() {
           )}
 
           {tenants !== null && tenants.length === 0 && !autenticado && (
-            <form className="go-form" onSubmit={accesoDirecto}>
-              <label className="go-direct__label" htmlFor="tenant-slug">
-                Dirección de tu subcuenta
-              </label>
-              <div className="go-direct">
-                <input
-                  id="tenant-slug"
-                  className="go-direct__input"
-                  value={slug}
-                  onChange={(e) => setSlug(e.target.value)}
-                  placeholder="mi-empresa"
-                  autoComplete="off"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                />
-                <button type="submit" className="go-direct__btn" disabled={!slug.trim()}>
-                  Entrar →
-                </button>
-              </div>
-              <p className="go-direct__hint">
-                Introduce el identificador de tu subcuenta — te lo compartió tu administrador. También puedes entrar
-                desde el enlace directo.
-              </p>
-            </form>
+            <>
+              {ultima && (
+                <div className="go-direct__reciente">
+                  <p className="go-direct__label">Última subcuenta usada en este dispositivo</p>
+                  <button type="button" className="go-direct__btn" onClick={() => router.push(`/${ultima}/login`)}>
+                    Entrar en {ultima} →
+                  </button>
+                </div>
+              )}
+
+              <form className="go-form" onSubmit={accesoDirecto}>
+                <label className="go-direct__label" htmlFor="tenant-slug">
+                  Dirección de tu subcuenta
+                </label>
+                <div className="go-direct">
+                  <input
+                    id="tenant-slug"
+                    className="go-direct__input"
+                    value={slug}
+                    onChange={(e) => setSlug(e.target.value)}
+                    placeholder="mi-empresa"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                  <button type="submit" className="go-direct__btn" disabled={!slug.trim()}>
+                    Entrar →
+                  </button>
+                </div>
+                <p className="go-direct__hint">
+                  Introduce el identificador de tu subcuenta — te lo compartió tu administrador. También puedes entrar
+                  desde el enlace directo.
+                </p>
+              </form>
+            </>
           )}
 
           {tenants !== null && tenants.length === 0 && autenticado && (
