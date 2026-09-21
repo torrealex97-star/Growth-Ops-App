@@ -73,9 +73,21 @@ async function descargar(tenant: string, platform: string): Promise<RespuestaCon
   try {
     const { id: igUserId } = await conEtapa('resolver cuenta IG', () => resolveIgUserId(cfg))
     const pageId = await resolveFbPageId(cfg, igUserId)
-    if (!pageId) return { configured: false, platform, conversations: [] }
+    if (!pageId)
+      return {
+        configured: false,
+        platform,
+        conversations: [],
+        motivo: `Ninguna página de Facebook del token tiene vinculada la cuenta IG (${igUserId}). Revisa que la página esté asignada al System User. [ig=${igUserId}]`,
+      }
     const pat = await conEtapa('obtener page access token', () => getPageAccessToken(cfg, pageId))
-    if (!pat) return { configured: false, platform, conversations: [] }
+    if (!pat)
+      return {
+        configured: false,
+        platform,
+        conversations: [],
+        motivo: `La página ${pageId} no devolvió un page access token: revisa que esté asignada al System User del token y que este tenga pages_show_list. [page=${pageId}]`,
+      }
     const conversations = await conEtapa('listar conversaciones', () =>
       fetchIgConversationsWithMessages(cfg, pageId, pat, igUserId, 20)
     )
