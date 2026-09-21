@@ -32,41 +32,59 @@ para que no vuelva a pasar.
 
 ## Estado (2026-09-21)
 
-`main` = `a1908db`. Sin PRs abiertos. Sin ramas de trabajo vivas.
+`main` al día. Sin PRs abiertos ni ramas de trabajo vivas.
 
-**Fases cerradas** (`docs/00-CONSTITUCION.md` §5):
+**Fases cerradas** (`docs/plan/`, prompts en `08-fases-s0-f4.md` y `09-fases-f5-f9.md`):
 
-| Fase | Entregable                                                              |
-| ---- | ----------------------------------------------------------------------- |
-| S0.1 | `docs/S0-1-INVENTARIO-CAPACIDADES.md`                                   |
-| S0.2 | `docs/S0-2-JOURNEYS-CRITICOS.md`                                        |
-| S0.3 | `tests/webhook-ghl.test.mjs` — 13 invariantes, verificados por mutación |
-| A0   | `docs/A0-CIERRE-AUDITORIA.md`                                           |
+| Fase | Entregable                                                                                                                                                                | Estado                                   |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| S0.1 | `docs/S0-1-INVENTARIO-CAPACIDADES.md`                                                                                                                                     | cerrada                                  |
+| S0.2 | `docs/S0-2-JOURNEYS-CRITICOS.md`                                                                                                                                          | cerrada                                  |
+| S0.3 | `tests/webhook-ghl.test.mjs` (13 invariantes)                                                                                                                             | cerrada                                  |
+| A0   | `docs/A0-CIERRE-AUDITORIA.md`                                                                                                                                             | cerrada                                  |
+| F-1  | `tests/agente-contenido-hostil.test.mjs`, `tests/invariante-tenant-negativo.test.mjs`, `lib/seguridad/invariante-tenant.ts`, fixtures A/B, las 2 migraciones de seguridad | **cerrada salvo lo que depende de Alex** |
+| F6   | `docs/F6-MAPA-PII.md` (mapa de PII)                                                                                                                                       | **en curso**                             |
 
-Baseline medido: **498 tests, 495 pasan, 0 fallan**, 3 se auto-saltan sin credenciales y sí corren
-en CI. `typecheck` limpio.
+Baseline: **524 tests, 521 pasan, 0 fallan** (3 se auto-saltan sin credenciales y sí corren en CI).
+`typecheck` limpio. 68 migraciones.
 
-**Siguiente fase: F-1.** Buena parte ya existe (`gitleaks` sobre el historial completo,
-`esquema-tenant-invariante`, `tenant-isolation`, `fase3-tenant-queries`, `rls-acyclicity`). Falta:
-fixtures sintéticos Tenant A y B, y pruebas de prompt injection sobre las tools de lectura del
-agente — hoy nada verifica el principio "untrusted content is data".
+### Dónde se quedó F6 y qué sigue
 
-**Limpieza hecha el 2026-09-21**: la carpeta `~/GIT HUB/Growth-Ops-App` estaba en un linaje huérfano
-(previo a la reescritura con `git filter-repo` del 19-sep) y se repuntó a `origin/main`. Se
-desmontaron 5 worktrees y se borraron 20 ramas de ese linaje, tras verificar por `patch-id` y por
-contenido que **todo su trabajo ya estaba en `main`** — incluidas las cuatro ramas de Copilot (CRM
-UX, embudo, filtros de fecha, rebrand). Se conserva `rescate/linaje-viejo-20260913` apuntando al
-antiguo `b009cf3` como red de seguridad; puede borrarse cuando se quiera.
+El mapa de PII está hecho y deja el trabajo acotado:
 
-**Bloqueos que dependen de Alex**, no de ningún agente:
+1. **Vincular `fathom_match_review` a `contact_id`** — 177 emails de personas reales que hoy
+   `erase_person` no alcanzaría. Es prerrequisito: sin esto el informe de borrado mentiría.
+2. **Implementar `erase_person`** como comando de dominio por tenant y `contact_id`, idempotente,
+   con informe PASS/BLOCKED por store.
+3. **Test de borrado** con una persona en contacto, nota, transcripción, raw y storage.
 
-| Bloqueo                                                                    | Impacto                                              |
-| -------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `RESEND_API_KEY` guardada en Vercel como valor legible (`readable-secret`) | P1 — rotar y recrear como sensible                   |
-| `CRON_SECRET` no existe en Preview                                         | Bloquea el staging que F1 necesita                   |
-| GHL no envía UTMs ni `source`                                              | `contact_attributions` a 0 — bloquea F7 y F4 de raíz |
-| Token de Meta de WDC sin permisos (`#10`)                                  | Sync de Meta parado                                  |
-| Proyecto `go-prod` de Vercel vacío                                         | Borrarlo para que nadie despliegue ahí               |
+Se puede implementar y probar entero, pero **no gradúa** hasta que estén decididas las retenciones
+(ver `docs/F6-MAPA-PII.md` §7). Son decisiones de negocio y base legal, no técnicas.
+
+### Lo que NO hay que rehacer
+
+Verificado y cerrado; no volver a auditarlo:
+
+- Aislamiento: `requireTenant()` en 149 de 168 rutas; las 19 restantes son legítimamente sin sesión.
+- El esquema vivo cumple el invariante entero: 107 tablas, todas con RLS y al menos una política.
+- El RAG contiene **solo** skills de plataforma, no PII. La línea roja de F6 no se ha cruzado.
+- Las 4 ramas de Copilot del linaje viejo: su trabajo ya estaba en `main`. Se borraron.
+- Los crons no se solapan entre Vercel (2) y GitHub Actions (8).
+
+### Bloqueos que dependen de Alex
+
+Solo lo que ningún agente puede hacer. Detalle y razón en `docs/A0-CIERRE-AUDITORIA.md` y
+`docs/F6-MAPA-PII.md` §7.
+
+| Bloqueo                                                          | Bloquea           |
+| ---------------------------------------------------------------- | ----------------- |
+| Rotar `RESEND_API_KEY`, y confirmar las de Google, GHL y staging | Graduación de F-1 |
+| Activar leaked-password protection en Supabase Auth              | Graduación de F-1 |
+| Decidir retención de raw, transcripciones y hechos financieros   | Graduación de F6  |
+| Configurar UTMs y `source` en el webhook de GHL                  | F7 y F4 de raíz   |
+| Reconectar el token de Meta de WDC                               | Sync de Meta      |
+| Rellenar los `[definir]` de la etapa A (constitución §2)         | Arranque de F1    |
+| Commitear el WIP del checkout de `~/Documents` y retirarlo       | Carpeta única     |
 
 ---
 
