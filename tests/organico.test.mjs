@@ -1,8 +1,10 @@
-// Prototipo de la capa ORGÁNICA (20-sep): adapter TikTok con perfiles (recentVideos[]) y
-// agregación semántica agregarOrganico(). Los módulos son TS puro → import directo (mismo
-// patrón que tests/control-pagos-personas.test.mjs).
+// CAPA ORGÁNICA (21-sep): métricas de las cuentas PROPIAS por APIs OFICIALES (ig_media /
+// ig_account_daily, poblados por lib/instagram/sync.ts con Graph API). Apify JAMÁS scrapea
+// cuentas propias: los tests del guard lo fijan. Los módulos puros se importan directo
+// (mismo patrón que tests/control-pagos-personas.test.mjs); los guards se verifican sobre
+// el fuente de las rutas (mismo patrón que tests/social-research.test.mjs).
 import assert from 'node:assert/strict'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -10,21 +12,26 @@ import { dirname, join } from 'node:path'
 const aqui = dirname(fileURLToPath(import.meta.url))
 const NORMALIZE = join(aqui, '..', 'lib', 'social', 'normalize.ts')
 const ORGANIC = join(aqui, '..', 'lib', 'social', 'organic.ts')
+const ROUTE_ORGANIC = join(aqui, '..', 'app', 'api', '[tenant]', 'evergreen', 'organic', 'route.ts')
+const ROUTE_RESEARCH = join(aqui, '..', 'app', 'api', '[tenant]', 'evergreen', 'social', 'research', 'route.ts')
 if (!existsSync(NORMALIZE) || !existsSync(ORGANIC)) {
   console.log('skip: módulos no presentes en este checkout (se ejecuta desde el repo)')
   process.exit(0)
 }
 
 const { TikTokAdapter } = await import(NORMALIZE)
-const { agregarOrganico } = await import(ORGANIC)
+const { agregarOrganicoOficial } = await import(ORGANIC)
+const read = (p) => readFileSync(p, 'utf8')
+
+// ─── Adapter TikTok (terceros — sigue siendo Apify, eso sí es su sitio) ──────────────
 
 test('TikTok adapter: item de PERFIL con recentVideos[] (clockworks/tiktok-profile-scraper) → perfil + vídeos aplanados', () => {
   const { profiles, posts } = TikTokAdapter.normalize(
     [
       {
         id: 'user-1',
-        uniqueId: 'negocio',
-        nickname: 'Negocio Oficial',
+        uniqueId: 'competidor',
+        nickname: 'Competidor Oficial',
         followers: 12000,
         following: 300,
         videoCount: 240,
@@ -39,146 +46,150 @@ test('TikTok adapter: item de PERFIL con recentVideos[] (clockworks/tiktok-profi
             commentCount: 180,
             shareCount: 90,
             createTimeISO: '2026-09-10T10:00:00.000Z',
-            webVideoUrl: 'https://www.tiktok.com/@negocio/video/v1',
-          },
-          {
-            id: 'v2',
-            text: 'segundo',
-            playCount: 8000,
-            diggCount: 400,
-            commentCount: 20,
-            createTimeISO: '2026-08-01T10:00:00.000Z',
+            webVideoUrl: 'https://www.tiktok.com/@competidor/video/v1',
           },
         ],
       },
     ],
-    ['negocio']
+    ['competidor']
   )
   assert.equal(profiles.length, 1)
-  assert.equal(profiles[0].username, 'negocio')
+  assert.equal(profiles[0].username, 'competidor')
   assert.equal(profiles[0].followersCount, 12000)
-  assert.equal(profiles[0].postsCount, 240)
-  assert.equal(posts.length, 2)
-  assert.equal(posts[0].externalId, 'v1')
-  assert.equal(posts[0].viewsCount, 50000)
-  assert.equal(posts[0].likesCount, 3200)
-  assert.match(posts[0].postUrl || '', /tiktok\.com\/@negocio\/video\/v1/)
-})
-
-test('TikTok adapter: filas planas de vídeo siguen normalizando (Actors de scraping por vídeo)', () => {
-  const { profiles, posts } = TikTokAdapter.normalize(
-    [
-      {
-        id: 'v9',
-        author: { uniqueId: 'otro' },
-        text: 'vídeo plano',
-        playCount: 1000,
-        diggCount: 50,
-        commentCount: 5,
-        shareCount: 2,
-      },
-    ],
-    ['otro']
-  )
   assert.equal(posts.length, 1)
-  assert.equal(posts[0].username, 'otro')
-  assert.equal(posts[0].viewsCount, 1000)
-  assert.equal(profiles.length, 1)
+  assert.equal(posts[0].viewsCount, 50000)
 })
 
-const perfiles = [
-  {
-    platform: 'instagram',
-    username: 'negocio',
-    followers_count: 90000,
-    posts_count: 800,
-    collected_at: '2026-09-19T00:00:00Z',
-  },
-  {
-    platform: 'tiktok',
-    username: 'negocio',
-    followers_count: 12000,
-    posts_count: 240,
-    collected_at: '2026-09-19T00:00:00Z',
-  },
-  // Snapshot ANTIGUO de instagram: no debe ganarle al más reciente.
-  {
-    platform: 'instagram',
-    username: 'viejo',
-    followers_count: 88000,
-    posts_count: 790,
-    collected_at: '2026-09-01T00:00:00Z',
-  },
-]
+// ─── Métricas OFICIALES de la cuenta propia (agregarOrganicoOficial) ────────────────
 
-const posts = [
-  // Instagram: dentro del periodo.
+const perfil = { platform: 'instagram', followers_count: 2512, posts_count: 185, collected_at: '2026-09-21T10:00:00Z' }
+const medias = [
+  // Dentro del periodo, con métricas oficiales completas.
   {
-    platform: 'instagram',
+    media_type: 'VIDEO',
     published_at: '2026-09-10T10:00:00Z',
-    likes_count: 1500,
-    comments_count: 90,
-    post_url: 'https://instagram.com/p/a',
+    likes: 150,
+    comments: 20,
+    views: 5000,
+    reach: 4200,
+    shares: 30,
+    saved: 45,
+    engagement_rate: 4.6,
+    permalink: 'https://instagram.com/p/a',
+    synced_at: '2026-09-21T10:00:00Z',
   },
-  // Instagram: fuera del periodo (no cuenta).
-  { platform: 'instagram', published_at: '2026-07-01T10:00:00Z', likes_count: 9000, comments_count: 500 },
-  // TikTok: dentro, con views.
   {
-    platform: 'tiktok',
+    media_type: 'IMAGE',
     published_at: '2026-09-12T10:00:00Z',
-    views_count: 50000,
-    likes_count: 3200,
-    comments_count: 180,
-    shares_count: 90,
-    post_url: 'https://tiktok.com/@negocio/video/v1',
+    likes: 80,
+    comments: 10,
+    views: null,
+    reach: 1500,
+    shares: null,
+    saved: 12,
+    engagement_rate: null,
+    permalink: 'https://instagram.com/p/b',
+    synced_at: '2026-09-21T10:00:00Z',
+  },
+  // Fuera del periodo: no cuenta.
+  {
+    published_at: '2026-07-01T10:00:00Z',
+    likes: 9999,
+    comments: 999,
+    views: 99999,
+    reach: 99999,
+    synced_at: '2026-09-21T10:00:00Z',
+  },
+]
+const snapshots = [
+  {
+    snapshot_date: '2026-09-20',
+    followers_count: 2512,
+    reach: 12000,
+    profile_views: 800,
+    new_follows: 40,
+    unfollows: 9,
   },
   {
-    platform: 'tiktok',
-    published_at: '2026-09-13T10:00:00Z',
-    views_count: 30000,
-    likes_count: 2100,
-    comments_count: 60,
-    shares_count: 30,
-    post_url: 'https://tiktok.com/@negocio/video/v2',
+    snapshot_date: '2026-09-19',
+    followers_count: 2500,
+    reach: 11000,
+    profile_views: 700,
+    new_follows: 22,
+    unfollows: 4,
   },
-  // YouTube: sin perfil → no aparece (no se inventan plataformas).
-  { platform: 'youtube', published_at: '2026-09-12T10:00:00Z', views_count: 999 },
 ]
 
-const rango = { desde: '2026-08-20T00:00:00Z', hasta: '2026-09-20T00:00:00Z' }
-const resumen = agregarOrganico(perfiles, posts, rango)
-const ig = resumen.find((p) => p.platform === 'instagram')
-const tt = resumen.find((p) => p.platform === 'tiktok')
+const rango = { desde: '2026-08-20T00:00:00Z', hasta: '2026-09-21T23:59:59Z' }
+const r = agregarOrganicoOficial(perfil, medias, snapshots, rango)
 
-test('agregarOrganico: solo plataformas con perfil snapshot, el snapshot más reciente gana', () => {
-  assert.deepEqual(resumen.map((p) => p.platform).sort(), ['instagram', 'tiktok'])
-  assert.equal(ig.handle, 'negocio')
-  assert.equal(ig.followers, 90000)
+test('métricas oficiales: periodo filta, suma solo lo del periodo y usa datos de Graph API', () => {
+  assert.equal(r.platform, 'instagram')
+  assert.equal(r.postsPeriodo, 2)
+  assert.equal(r.likesPeriodo, 230)
+  assert.equal(r.commentsPeriodo, 30)
+  assert.equal(r.sharesPeriodo, 30)
+  assert.equal(r.savedPeriodo, 57)
+  assert.equal(r.viewsPeriodo, 5000)
+  // El alcance del periodo es el de CUENTA del snapshot diario (el por-media se solapa).
+  assert.equal(r.reachPeriodo, 12000)
+  assert.equal(r.followers, 2512)
 })
 
-test('agregarOrganico: periodo filtra posts, sin convertir "no atribuible" en cero operacional', () => {
-  assert.equal(ig.postsPeriodo, 1)
-  assert.equal(ig.likesPeriodo, 1500)
-  assert.equal(tt.postsPeriodo, 2)
-  assert.equal(tt.viewsPeriodo, 80000)
-  assert.equal(tt.sharesPeriodo, 120)
+test('métricas oficiales: engagement sobre REACH oficial, fórmula declarada', () => {
+  assert.equal(r.engagementFormula, 'interacciones / reach (Graph API)')
+  // (230 likes + 30 comments + 30 shares + 57 saved) / 12000 = 347/12000
+  assert.equal(r.engagementRate.toFixed(6), (347 / 12000).toFixed(6))
 })
 
-test('agregarOrganico: engagement con fórmula visible según lo que el dato público da', () => {
-  // TikTok: hay views → (likes+comments)/views.
-  assert.equal(tt.engagementFormula, 'likes+comments / views')
-  assert.equal(tt.engagementRate.toFixed(4), (5540 / 80000).toFixed(4))
-  // Instagram público no da impresiones → sobre seguidores, fórmula declarada en la UI.
-  assert.equal(ig.engagementFormula, 'likes+comments / followers')
-  assert.equal(ig.engagementRate.toFixed(5), (1590 / 90000).toFixed(5))
+test('métricas oficiales: top contenidos por views dentro del periodo', () => {
+  assert.equal(r.topContenidos.length, 2)
+  assert.equal(r.topContenidos[0].views, 5000)
+  assert.equal(r.topContenidos[0].likes, 150)
 })
 
-test('agregarOrganico: top contenidos por views dentro del periodo', () => {
-  assert.equal(tt.topContenidos.length, 2)
-  assert.equal(tt.topContenidos[0].views, 50000)
-  assert.equal(ig.topContenidos[0].likes, 1500)
+test('métricas oficiales: sin datos no se inventan ceros ni perfiles fantasma', () => {
+  assert.equal(agregarOrganicoOficial(null, medias, snapshots, rango), null)
+  const vacio = agregarOrganicoOficial(perfil, [], snapshots, rango)
+  assert.equal(vacio.postsPeriodo, 0)
+  assert.equal(vacio.likesPeriodo, 0)
+  assert.equal(vacio.engagementRate, undefined) // sin posts del periodo no se divide nada
+  assert.equal(vacio.viewsPeriodo, undefined)
 })
 
-test('agregarOrganico: sin filas no se inventan métricas', () => {
-  assert.deepEqual(agregarOrganico([], []), [])
+// ─── GUARDS: Apify nunca para cuentas propias ────────────────────────────────────────
+
+test('GUARD organic: el POST rechaza payloads con handles y deriva SIEMPRE a la sync oficial', () => {
+  const src = read(ROUTE_ORGANIC)
+  assert.ok(
+    src.includes('propietario_no_va_por_apify'),
+    'el POST organic debe rechazar handles con código propietario_no_va_por_apify'
+  )
+  assert.ok(
+    src.includes('evergreen/instagram/sync'),
+    'el POST organic debe derivar a la sync oficial de Instagram (Graph API)'
+  )
+  // El GET solo lee tablas oficiales: cero imports del cliente de Apify para datos.
+  assert.ok(
+    src.includes(".from('ig_media')") && src.includes(".from('ig_account_daily')"),
+    'el GET organic lee de ig_media/ig_account_daily'
+  )
+  assert.ok(!/createResearchJob/.test(src), 'el route organic NO debe lanzar jobs de Apify')
+})
+
+test('GUARD research: Apify rechaza explícitamente los handles PROPIOS del tenant', () => {
+  const src = read(ROUTE_RESEARCH)
+  assert.ok(
+    src.includes('cuenta_propia_no_va_por_apify'),
+    'la ruta de investigación debe rechazar handles propios con código cuenta_propia_no_va_por_apify'
+  )
+  // El guard compara contra los handles declarados en Integraciones (sin @, insensible a mayúsculas).
+  assert.ok(src.includes('IG_HANDLE') && src.includes('TIKTOK_HANDLE') && src.includes('YOUTUBE_HANDLE'))
+  assert.ok(src.includes('toLowerCase()'), 'la comparación de handles debe ser insensible a mayúsculas')
+})
+
+test('organic GET declara la fuente official y el uso de Apify como solo-terceros', () => {
+  const src = read(ROUTE_ORGANIC)
+  assert.ok(src.includes("source: 'official'"))
+  assert.ok(src.includes('solo investigación de terceros'))
 })

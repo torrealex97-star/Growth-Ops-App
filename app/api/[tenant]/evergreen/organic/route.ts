@@ -2,21 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { getTenantConfigWithFallback } from '@/lib/config'
-import { actorFor, createResearchJob, getApifyConfig, isApifyEnabled } from '@/lib/social/apify'
-import { agregarOrganico, type FilaPerfil, type FilaPost } from '@/lib/social/organic'
-import { RESEARCH_LIMITS, type SocialPlatform } from '@/lib/social/types'
+import { getApifyConfig, isApifyEnabled } from '@/lib/social/apify'
+import { agregarOrganicoOficial, type FilaPostOficial, type FilaPerfilOficial } from '@/lib/social/organic'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-// CAPA ORGÁNICA DEL DASHBOARD (prototipo) — métricas públicas de las cuentas del negocio
-// (Instagram/TikTok) traídas por Apify. NUNCA operamos sobre la cuenta conectada: al Actor solo
-// van handles públicos (§17), la cuenta de Meta no participa en estas consultas (§1/§16).
-// GET  → KPIs agregados de social_profiles/social_posts (§16: el dashboard NO llama a Apify).
-// POST → sync: crea jobs asíncronos (§7); el resultado entra por webhook y este GET lo refleja.
+// MÉTRICAS ORGÁNICAS DE LAS CUENTAS PROPIAS — SOLO APIs OFICIALES.
+//
+// Regla del brief (21-sep): lo que se puede ver con la API oficial de cada plataforma NUNCA
+// pasa por Apify (scrapear la cuenta propia es exactamente el patrón de bot no autorizado que
+// arriesga un baneo). Aquí servimos lo que lib/instagram/sync.ts ya trajo por Graph API a
+// ig_media / ig_account_daily. El disparador de la sync es el botón/cron oficial:
+// POST /api/${tenant}/evergreen/instagram/sync — este endpoint NO llama a Apify NI a Meta.
+// Apify queda reservado a la investigación de TERCEROS (evergreen/social/research).
 
 const ALLOWED_ROLES = ['admin', 'director', 'manager', 'marketing']
-const PLATAFORMAS: SocialPlatform[] = ['instagram', 'tiktok']
 
 function svc() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -32,40 +33,11 @@ async function requireRole(tenantSlug: string) {
   return t
 }
 
-/** Handle por plataforma: body → último username recolectado (se recuerda del sync anterior). */
-async function resolverHandles(
-  sb: ReturnType<typeof svc>,
-  tenantId: string,
-  body: { instagram?: string; tiktok?: string }
-): Promise<{ instagram?: string; tiktok?: string; faltan: string[] }> {
-  const { data: perfiles } = await sb
-    .from('social_profiles')
-    .select('platform, username, collected_at')
-    .eq('tenant_id', tenantId)
-    .in('platform', PLATAFORMAS)
-    .order('collected_at', { ascending: false })
-  const recordado = new Map<SocialPlatform, string>()
-  for (const p of perfiles || []) {
-    const plat = p.platform as SocialPlatform
-    if (!recordado.has(plat) && p.username) recordado.set(plat, String(p.username).replace(/^@/, ''))
-  }
-  const limpiar = (v?: string) => v?.trim().replace(/^@/, '') || undefined
-  const instagram = limpiar(body.instagram) || recordado.get('instagram')
-  const tiktok = limpiar(body.tiktok) || recordado.get('tiktok')
-  const faltan: string[] = []
-  if (!instagram) faltan.push('instagram')
-  if (!tiktok) faltan.push('tiktok')
-  return { instagram, tiktok, faltan }
-}
-
 export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
   const auth = await requireRole(tenant)
   if ('error' in auth) return auth.error
   const sb = svc()
-
-  const cfgEnv = await getTenantConfigWithFallback(auth.tenantId, true)
-  const cfg = getApifyConfig(cfgEnv)
 
   const url = new URL(req.url)
   const desde = url.searchParams.get('desde') || undefined
@@ -74,102 +46,91 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   if (desde) rango.desde = desde
   if (hasta) rango.hasta = hasta
 
-  const [{ data: perfiles }, { data: posts }, { data: jobs }] = await Promise.all([
+  // Datos OFICIALES ya en BD (poblados por la sync de Graph API). read-only.
+  const [perfilRes, mediasRes, snapsRes] = await Promise.all([
     sb
-      .from('social_profiles')
-      .select('platform, username, followers_count, posts_count, collected_at')
+      .from('ig_account_daily')
+      .select('snapshot_date, followers_count, media_count, reach, synced_at')
       .eq('tenant_id', auth.tenantId)
-      .in('platform', PLATAFORMAS)
-      .order('collected_at', { ascending: false }),
+      .order('snapshot_date', { ascending: false })
+      .limit(1),
     sb
-      .from('social_posts')
+      .from('ig_media')
       .select(
-        // `username` vive en social_profiles (vía profile_id); el agregador no lo
-        // consume de los posts — pedirlo aquí era un 400 de PostgREST en silencio.
-        'platform, content_type, published_at, views_count, likes_count, comments_count, shares_count, collected_at, post_url'
+        'media_type, published_at, likes, comments, views, reach, shares, saved, engagement_rate, permalink, synced_at'
       )
       .eq('tenant_id', auth.tenantId)
-      .in('platform', PLATAFORMAS)
       .order('published_at', { ascending: false })
-      .limit(500),
+      .limit(200),
     sb
-      .from('social_research_jobs')
-      .select('id, platform, job_type, status, created_at, completed_at, error_message')
+      .from('ig_account_daily')
+      .select('snapshot_date, followers_count, reach, profile_views, new_follows, unfollows')
       .eq('tenant_id', auth.tenantId)
-      .in('platform', PLATAFORMAS)
-      .order('created_at', { ascending: false })
-      .limit(10),
+      .order('snapshot_date', { ascending: false })
+      .limit(90),
   ])
 
-  const plataformas = agregarOrganico((perfiles || []) as FilaPerfil[], (posts || []) as FilaPost[], rango)
+  const perfil: FilaPerfilOficial | null = perfilRes.data?.[0]
+    ? {
+        platform: 'instagram',
+        followers_count: perfilRes.data[0].followers_count,
+        posts_count: perfilRes.data[0].media_count,
+        collected_at: perfilRes.data[0].synced_at,
+        username: undefined, // el handle lo sirve el panel desde la config de Integraciones
+      }
+    : null
 
-  // Estado honesto por plataforma (§25): falta token, falta Actor, o hay job en marcha.
-  const configPorPlataforma = Object.fromEntries(
-    PLATAFORMAS.map((p) => [
-      p,
-      {
-        enabled: !!cfg,
-        actorConfigurado: !!cfg && !!actorFor(p, 'profile', cfg),
-      },
-    ])
+  const instagram = agregarOrganicoOficial(
+    perfil,
+    (mediasRes.data || []) as FilaPostOficial[],
+    snapsRes.data || [],
+    rango
   )
-  const jobsEnMarcha = (jobs || []).filter((j: any) => ['pending', 'processing'].includes(j.status))
+
+  // Estado de las dos fuentes, para que la UI sea honesta (§25):
+  // - oficial: ¿hay credenciales de Instagram configuradas? (la sync es el camino de datos)
+  // - apify: SOLO para terceros; se informa pero no alimenta este panel.
+  const cfgEnv = await getTenantConfigWithFallback(auth.tenantId, true)
+  const oficialDisponible = !!(cfgEnv.INSTAGRAM_ACCESS_TOKEN || cfgEnv.META_ACCESS_TOKEN)
+  const apify = getApifyConfig(cfgEnv)
 
   return NextResponse.json({
-    source: 'external',
-    config: configPorPlataforma,
-    jobsEnMarcha,
-    ultimaSync: (jobs || []).find((j: any) => j.status === 'completed')?.completed_at || null,
-    plataformas,
+    source: 'official',
+    apis: {
+      instagram: { disponible: oficialDisponible, disparador: 'POST /api/${tenant}/evergreen/instagram/sync' },
+      apify: { configurado: !!apify, uso: 'solo investigación de terceros (evergreen/social/research)' },
+    },
+    ultimaSync: instagram?.lastSyncedAt ?? null,
+    plataformas: instagram ? [instagram] : [],
+    // Nota para la UI: TikTok/YouTube sin sync oficial aún → sin tarjeta (no se inventan datos).
   })
 }
 
+// POST → disparar la SYNC OFICIAL de Instagram (Graph API). Nunca lanza investigaciones Apify:
+// si alguien intenta pasar handles, se rechaza con una explicación accionable.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
   const auth = await requireRole(tenant)
   if ('error' in auth) return auth.error
-  const sb = svc()
 
-  const cfgEnv = await getTenantConfigWithFallback(auth.tenantId, true)
-  const cfg = getApifyConfig(cfgEnv)
-  if (!cfg) {
+  const body = (await req.json().catch(() => ({}))) as Record<string, unknown> | null
+  if (body && Object.keys(body).length > 0) {
     return NextResponse.json(
-      { error: 'Apify no configurado: falta el API Token', code: 'apify_no_configurado' },
+      {
+        error:
+          'Las métricas de las cuentas PROPIAS se traen por la API oficial (Instagram Graph), no por scraping: no se aceptan handles. Apify queda reservado a terceros.',
+        code: 'propietario_no_va_por_apify',
+      },
       { status: 400 }
     )
   }
 
-  let body: { instagram?: string; tiktok?: string } = {}
-  try {
-    body = (await req.json()) || {}
-  } catch {
-    // body vacío permitido: usa los handles recordados.
-  }
-  const { instagram, tiktok, faltan } = await resolverHandles(sb, auth.tenantId, body)
-
-  const resultado: Record<string, { ok: boolean; jobId?: string; error?: string; code?: string }> = {}
-  for (const [platform, handle] of [
-    ['instagram', instagram],
-    ['tiktok', tiktok],
-  ] as const) {
-    if (!handle) {
-      resultado[platform] = { ok: false, error: 'Falta el handle público de la cuenta', code: 'falta_handle' }
-      continue
-    }
-    const r = await createResearchJob(
-      sb,
-      auth.tenantId,
-      platform,
-      {
-        usernames: [handle],
-        resultsLimit: RESEARCH_LIMITS.defaultResultsPerProfile,
-        jobType: 'profile',
-      },
-      cfg
-    )
-    resultado[platform] = r.ok ? { ok: true, jobId: r.jobId } : { ok: false, error: r.error, code: r.code }
-  }
-
-  const ok = Object.values(resultado).some((r) => r.ok)
-  return NextResponse.json({ ok, resultado, faltan }, { status: ok ? 200 : 400 })
+  // Reenvía a la sync oficial conservando la sesión (cookies) del usuario.
+  const origin = new URL(req.url).origin
+  const r = await fetch(`${origin}/api/${tenant}/evergreen/instagram/sync`, {
+    method: 'POST',
+    headers: { cookie: req.headers.get('cookie') || '' },
+  })
+  const j = (await r.json().catch(() => ({}))) as Record<string, unknown>
+  return NextResponse.json(j, { status: r.status })
 }
