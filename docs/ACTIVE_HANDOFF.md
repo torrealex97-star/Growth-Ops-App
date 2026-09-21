@@ -117,9 +117,15 @@ cazó; conviene no gastar esa red dos veces.
 
 ### Incidencias abiertas
 
-- **12 pagos de Stripe sin cobro registrado: 5.095,41 €**, 6 de ellos en septiembre. Nadie cobró su
-  comisión de ese dinero y el cash del panel va corto. Detalle y consultas reproducibles en
-  `docs/S0-5-CONSISTENCIA-DATOS.md` y `scripts/consistencia-cash.sql`. **Es lo primero de S0.4.**
+- **12 pagos de Stripe sin cobro registrado: 5.095,41 €** — **CAUSA ENCONTRADA (S0.4, 2026-09-21)**.
+  No es el sync (funciona: 69 pagos leídos a diario por GitHub Actions). El cobro de Stripe se
+  registra A MANO y por lotes (mediana: 33 días de retraso; último lote 14-sep), y el único aviso
+  existente (`pago_stripe_sin_venta`) mira CLIENTES, no pagos: se le escapaban las **cuotas de
+  quien ya tiene venta** (748,50 y 332,83 repetidos) y los **pagos sin cliente en Stripe** (los
+  cinco de 50 €). Arreglo: controles `pago_stripe_sin_cobro` y `cobro_de_pago_devuelto` en Ajustes ›
+  Salud de datos, que dicen a dónde ir en cada caso. Además el sync guardaba el correo solo de
+  `receipt_email` (vacío en los 59): ahora cae al de facturación. **Los 12 siguen sin registrar**:
+  es trabajo de Alex/finanzas, con producto y plan, no se inventan. Detalle en S0.5 §1.1.
 - **Un cobro de 50 € contra un pago que Stripe devolvió**, con `refunds` a 0 filas: el camino de
   devolución no está cerrado.
 - **GHL**: el webhook YA FUNCIONA (contacto de prueba recibido el 21-sep a las 13:56). Falta

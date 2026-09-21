@@ -47,8 +47,13 @@ Consecuencias, por orden de gravedad:
 
 La causa no se determina desde los datos: puede ser que el registro del cobro sea manual y a veces
 no se haga, que el `payment_reference` se guarde con otro formato, o que la conciliación
-(`lib/finance/stripeReconciliation.ts`) exista pero no se ejecute. **Sin resolver**, y es lo primero
-que debería mirar S0.4.
+(`lib/finance/stripeReconciliation.ts`) exista pero no se ejecute.
+
+**Causa (S0.4, 2026-09-21).** El sync funciona. El cobro se registra a mano y por lotes (mediana 33
+días de retraso), y el único aviso miraba clientes en vez de pagos: no veía la segunda cuota de
+quien ya tiene venta ni los pagos sin cliente en Stripe. Ninguno de los 12 trae correo (el sync solo
+leía `receipt_email`, vacío en los 59 pagos). Arreglado el aviso (`pago_stripe_sin_cobro`,
+`cobro_de_pago_devuelto`) y el correo; **registrar los 12 sigue siendo una decisión humana**.
 
 ### 1.2 P1 — un cobro de 50 € contra un pago que Stripe devolvió
 
