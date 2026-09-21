@@ -174,16 +174,18 @@ export const SYNC_DEFS: SyncDef[] = [
       'Se ejecuta a diario por GitHub Actions (04:20 UTC, cron-calendly-ghl.yml) y también desde Integraciones › Calendly ("Sincronizar histórico"): ventana incremental de 14 días con upsert idempotente.',
   },
   {
-    // Pull diario de citas y contactos de GHL. El webhook (webhooks/ghl) cubre en tiempo real lo
-    // que GHL envíe; este cron es el pull que repara pérdidas y trae lo que ningún webhook notificó.
+    // GHL se sincroniza DESDE EL BOTÓN de Integraciones › GHL: su API lista TODOS los contactos de
+    // la ubicación antes de tocar eventos (minutos con la cuenta actual) y no cabe en el corte de
+    // 60 s de Vercel Hobby — dos pasadas del cron en producción acabaron en 504 y en un run colgado
+    // en 'running'. El tiempo real lo cubre el webhook (webhooks/ghl); el botón repara y completa.
     id: 'ghl-citas',
-    label: 'GHL — citas y contactos (pull diario)',
-    route: 'cron/calendly-ghl',
+    label: 'GHL — citas y contactos',
+    route: null,
     table: 'appointments',
     requiredKeys: ['GHL_API_TOKEN', 'GHL_LOCATION_ID'],
     scheduler: 'manual',
     manualReason:
-      'Se ejecuta a diario por GitHub Actions (04:20 UTC, cron-calendly-ghl.yml) y también desde Integraciones › GHL ("Sincronizar histórico"). El webhook cubre el tiempo real; el cron repara y completa.',
+      'Se sincroniza desde Integraciones › GHL ("Sincronizar histórico"). No tiene cron: su API tarda más que el límite de 60 s del plan. El webhook cubre el tiempo real de las agendas nuevas.',
   },
   {
     id: 'youtube-backfill',

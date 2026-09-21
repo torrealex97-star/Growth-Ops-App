@@ -36,16 +36,17 @@ test('el cron calendly-ghl existe y se autentica con CRON_SECRET', () => {
   assert.match(code, /401/, 'el rechazo debe ser 401')
 })
 
-test('el cron recorre subcuentas con su config explícita y registra la corrida por proveedor', () => {
+test('el cron recorre subcuentas con su config explícita y registra la corrida de Calendly', () => {
   const code = sinComentarios(read(ROUTE))
   assert.match(code, /from\('tenants'\)\.select\('id, slug'\)\.eq\('status', 'active'\)/)
   assert.match(code, /getTenantConfigWithFallback\(tn\.id/, 'la config de la subcuenta se lee, no se hereda')
   assert.doesNotMatch(code, /ensureConfig\(/, 'prohibido volcar credenciales en process.env')
   assert.match(code, /syncCalendly\(sb, tn\.id, cfg/, 'la sync de Calendly recibe la config de SU subcuenta')
-  assert.match(code, /syncGhl\(sb, tn\.id, cfg/, 'la sync de GHL recibe la config de SU subcuenta')
+  // GHL NO va en el cron (dos pasadas en producción: 504 y run colgado): su API lista todos los
+  // contactos antes de tocar eventos y no cabe en los 60 s de Vercel. Lo cubren webhook + botón.
+  assert.doesNotMatch(code, /syncGhl\(/, 'GHL prohibido en el cron: timeout garantizado')
   assert.match(code, /recordSyncRun\(/, 'sin registro de corrida, la tabla vacía no tiene causa')
   assert.match(code, /job: 'calendly-citas'/)
-  assert.match(code, /job: 'ghl-citas'/)
 })
 
 test('el cron omite sin error las subcuentas sin Calendly ni GHL y usa ventana incremental', () => {
@@ -99,18 +100,18 @@ test('el horario 04:20 no colisiona con ningún otro cron delegado', () => {
   }
 })
 
-test('SYNC_DEFS declara las dos syncs de citas con su ruta y su tabla', () => {
+test('SYNC_DEFS declara las syncs de citas y GHL queda sin cron (timeout garantizado)', () => {
   const m = read('lib/ops/sync-health.ts')
-  for (const id of ['calendly-citas', 'ghl-citas']) {
-    const bloque = m.slice(m.indexOf(`id: '${id}'`))
-    const siguiente = bloque.slice(0, bloque.indexOf('id:', 10) === -1 ? bloque.length : bloque.indexOf('id:', 10))
-    assert.match(siguiente, /route: 'cron\/calendly-ghl'/, `${id} debe declarar su ruta, no quedar huérfano`)
-    assert.match(siguiente, /table: 'appointments'/)
-    assert.match(siguiente, /manualReason:/, 'manual-por-delegación también se justifica')
-  }
+  const bloque = m.slice(m.indexOf("id: 'calendly-citas'"))
+  assert.match(bloque, /route: 'cron\/calendly-ghl'/, 'calendly-citas debe declarar su ruta, no quedar huérfano')
+  assert.match(bloque, /table: 'appointments'/)
+  assert.match(bloque, /manualReason:/, 'manual-por-delegación también se justifica')
+  const ghl = m.slice(m.indexOf("id: 'ghl-citas'"))
+  assert.match(ghl, /route: null/, 'GHL sin cron: su API no cabe en los 60 s de Vercel')
+  assert.match(ghl, /table: 'appointments'/)
 })
 
-test('los grupos calendly y ghl del panel incluyen sus pull diarios', () => {
+test('los grupos calendly y ghl del panel incluyen sus syncs', () => {
   const m = read('lib/integrations/health.ts')
   assert.match(m, /calendly: \['calendly-citas'\]/)
   assert.match(m, /ghl: \['ghl-citas'\]/)
