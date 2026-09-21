@@ -1,11 +1,14 @@
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 
+// Registrado para TODA la suite (no solo las métricas): cualquier test puede así importar
+// un módulo de lib/ que a su vez importe a un vecino.
+//
 // Los módulos de lib/ usan el alias '@/*' (definido en tsconfig.json) que solo
 // el bundler de Next.js resuelve. `node --test` no conoce ese alias, así que
 // este hook de resolución de módulos lo traduce a una ruta relativa a la raíz
 // del repo antes de dejar que Node resuelva el archivo normalmente.
-const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 export async function resolve(specifier, context, nextResolve) {
   if (specifier.startsWith('@/')) {

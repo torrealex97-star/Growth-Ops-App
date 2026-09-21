@@ -160,7 +160,9 @@ export function planificarBorrado(politica: PoliticaRetencion): PasoBorrado[] {
           }
   )
 
-  // Siempre el último: marca la cáscara. Si algo anterior quedó bloqueado, el ejecutor NO llega aquí.
+  // Siempre el último: si la ejecución se corta antes, queda una persona aún marcada como viva con
+  // parte de su PII borrada —estado detectable y reintentable—. El ejecutor SÍ llega aquí aunque
+  // otros stores queden bloqueados: la PII del contacto es lo más importante que hay que quitar.
   pasos.push({
     store: 'contacts',
     tratamiento: 'anonimizar',
