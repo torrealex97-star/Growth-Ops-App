@@ -4,7 +4,7 @@ import { getOrCreateContact } from '@/lib/contacts/resolve'
 import { leerToque, registrarToque, toqueTieneDatos } from '@/lib/contacts/atribucion'
 import { resolverColaboradorPorCodigo } from '@/lib/collaborators/scope'
 import { firstMemberOf, resolveUserIdByTrackingCode } from '@/lib/tracking'
-import { isValidWebhookSecret } from '@/lib/webhooks/verifySecret'
+import { isValidWebhookSecret, diagnosticoCabeceras } from '@/lib/webhooks/verifySecret'
 import { getTenantConfigWithFallback } from '@/lib/config'
 
 // Webhook único de GHL (+ player VSL). Maneja, de forma IDEMPOTENTE, varios eventos:
@@ -98,6 +98,29 @@ async function userIdByEmail(sb: SupabaseClient, tenantId: string, email?: strin
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
     const secret = req.headers.get('x-ghl-secret')
+
+    // MODO DIAGNÓSTICO del transporte (?diagnostico=1): eco medible de lo que GHL envía — nombres
+    // de cabeceras tal como llegó, presencia/huella del secret (sha256 truncado; JAMÁS el valor) y
+    // veredicto server-side contra lo configurado en el panel. No autentica, no toca datos: sirve
+    // para responder "¿la cabecera llega intacta?" cuando el alta en GHL no produce entregas 200.
+    if (req.nextUrl.searchParams.get('diagnostico') === '1') {
+      const sbDiag = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+      const { tenant: tenantDiag } = await params
+      const { data: filaDiag } = await sbDiag
+        .from('tenants')
+        .select('id')
+        .eq('slug', tenantDiag)
+        .eq('status', 'active')
+        .maybeSingle()
+      const cfgDiag = filaDiag ? await getTenantConfigWithFallback(filaDiag.id, true) : {}
+      return NextResponse.json({
+        ok: true,
+        modo: 'diagnostico',
+        subcuenta_encontrada: Boolean(filaDiag),
+        cabeceras_recibidas: [...req.headers.keys()],
+        diagnostico: diagnosticoCabeceras(req.headers, cfgDiag.GHL_WEBHOOK_SECRET || process.env.GHL_WEBHOOK_SECRET),
+      })
+    }
 
     // EL SECRETO ES POR SUBCUENTA, como en el webhook de Stripe.
     //
