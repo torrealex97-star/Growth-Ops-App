@@ -5,6 +5,7 @@ import { getTenantConfigWithFallback } from '@/lib/config'
 import { stripeGet } from '@/lib/stripe/client'
 import { classifyForBackfill, type BackfillRow } from '@/lib/finance/stripeBackfill'
 import { buildCollection, buildSaleFromPayments, type ImportChoice } from '@/lib/finance/stripeImport'
+import { reconcileSaleCommissions } from '@/lib/commissions/generate'
 import type { StripeIntent } from '@/lib/finance/stripeReconciliation'
 
 export const runtime = 'nodejs'
@@ -204,6 +205,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
   // PASO 3 — una venta por contacto, con todos sus cobros.
   let ventasCreadas = 0
+  let comisionesGeneradas = 0
   for (const [contactId, filas] of porContacto) {
     const built = buildSaleFromPayments(filas, choice)
     if ('error' in built) {
@@ -266,12 +268,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         gross_amount: built.sale.gross_amount,
       },
     })
+
+    // COMISIONES DE LA VENTA REGISTRADA — sin esto, su ledger nacía a cero y solo
+    // aparecía cuando alguien lanzaba la reparación masiva a mano. La regla financiera
+    // del equipo es que TODA comisión (setter, closer, colaborador) se calcula sobre el
+    // CASH COLLECTED de cada cobro MENOS la comisión de la pasarela que lo procesó
+    // (Stripe real por espejo/API o la del plan). Cada cuota posterior genera su comisión el mes en que se cobra.
+    // reconcileSaleCommissions aplica EXACTAMENTE eso
+    // con el motor único: deduce el colaborador/setter de la atribución estructurada
+    // del contacto (?ref= → contact_attributions), aplica el % del perfil y escribe el
+    // ledger con base neta. Idempotente.
+    try {
+      const resComisiones = await reconcileSaleCommissions(sb, session.tenantId, saleId)
+      comisionesGeneradas += resComisiones.created
+    } catch (e) {
+      // El fallo del motor NO bloquea ni deshace el registro: la venta y sus cobros ya
+      // están en la base (No bloquea el registro) y la reparación masiva (reconcile-all)
+      // es idempotente y la cubre. Se avisa en la respuesta para que nadie lo descubra
+      // tarde mirando el ledger.
+      resultados.push({
+        paymentId: filas[0]?.paymentId ?? saleId,
+        ok: true,
+        saleId,
+        motivo: `Venta y cobros registrados, pero las comisiones no se generaron ahora: ${
+          e instanceof Error ? e.message : String(e)
+        }. Se cuadrarán con la reparación masiva de comisiones.`,
+      })
+    }
   }
 
   return NextResponse.json({
     ok: true,
     registradas,
     ventasCreadas,
+    comisionesGeneradas,
     total: paymentIds.length,
     resultados,
   })
