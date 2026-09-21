@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { aplicarCustomFieldsGhl } from '@/lib/contacts/custom-fields-ghl'
 
 // Sincronización de CITAS (Calendly + GHL): la ÚNICA implementación, usada por
 //   · el botón manual de Integraciones › history-sync (ventana completa),
@@ -35,16 +36,22 @@ export type CitasSyncOpts = {
    *   evento que aún no está en la BD.
    */
   modo?: 'completo' | 'soloEventos'
+  /** Cache compartida field_key→id de custom_field_defs (rendimiento en pasadas grandes). */
+  customDefsCache?: Map<string, Map<string, string>>
 }
 
-export async function findOrCreateContact(sb: SupabaseClient, tenantId: string, source: Json) {
+export async function findOrCreateContact(
+  sb: SupabaseClient,
+  tenantId: string,
+  source: Json,
+  opts: CitasSyncOpts = {}
+) {
   const externalId = text(source.id) || text(source.contactId)
   const email = text(source.email)?.toLowerCase() || null
   const phone = text(source.phone)
   const firstName = text(source.firstName) || text(source.first_name)
   const lastName = text(source.lastName) || text(source.last_name)
   const fullName = text(source.name) || [firstName, lastName].filter(Boolean).join(' ') || 'Sin nombre'
-
   let row: { id: string } | null = null
   if (externalId) {
     const found = await sb
@@ -64,7 +71,7 @@ export async function findOrCreateContact(sb: SupabaseClient, tenantId: string, 
     row = found.data
   }
 
-  const values = {
+  const values: Record<string, unknown> = {
     full_name: fullName,
     first_name: firstName,
     last_name: lastName,
@@ -76,14 +83,68 @@ export async function findOrCreateContact(sb: SupabaseClient, tenantId: string, 
     last_seen_at: text(source.dateUpdated) || new Date().toISOString(),
   }
   if (row) {
+    // Custom fields de GHL (§ custom fields): merge idempotente sobre el jsonb del contacto.
+    // Con cache de definiciones compartida entre llamadas de la misma pasada (opcional, vía opts).
+    try {
+      const { customFields } = await aplicarCustomFieldsGhl(sb, tenantId, row.id, source, opts?.customDefsCache)
+      if (customFields) values.custom_fields = customFields
+    } catch (e) {
+      console.warn('[ghl] no se pudieron aplicar custom fields:', e instanceof Error ? e.message : e)
+    }
     const { error } = await sb.from('contacts').update(values).eq('tenant_id', tenantId).eq('id', row.id)
     if (error) throw error
     return { id: row.id, created: false }
   }
   if (!email && !phone && !externalId) return null
+  // Custom fields también en el alta (un contacto nuevo puede traerlos ya).
+  let customFields: Record<string, string | number | boolean> | null = null
+  try {
+    const applied = await aplicarCustomFieldsGhl(sb, tenantId, 'pending', source, opts?.customDefsCache)
+    // aplicarCustomFieldsGhl lee el contacto para el merge; para un insert nuevo basta el mapa
+    // mapeado directo (no hay valores previos que pisar).
+    const { mapearCustomFieldsGhl } = await import('@/lib/contacts/custom-fields-ghl')
+    const mapeo = mapearCustomFieldsGhl(source)
+    void applied
+    if (mapeo.valores.size > 0) {
+      const cache = opts?.customDefsCache ?? new Map()
+      if (!cache.has('map')) cache.set('map', new Map())
+      const keyToId = cache.get('map')!
+      customFields = {}
+      for (const [fieldKey, valor] of mapeo.valores) {
+        let id = keyToId.get(fieldKey)
+        if (!id) {
+          const def = mapeo.definiciones.get(fieldKey)!
+          const { data: existente } = await sb
+            .from('custom_field_defs')
+            .select('id')
+            .eq('tenant_id', tenantId)
+            .eq('field_key', fieldKey)
+            .maybeSingle()
+          id =
+            existente?.id ??
+            (
+              await sb
+                .from('custom_field_defs')
+                .insert({ tenant_id: tenantId, field_key: fieldKey, label: def.label, field_type: def.field_type })
+                .select('id')
+                .single()
+            ).data?.id
+          if (id) keyToId.set(fieldKey, id)
+        }
+        if (id) customFields[id] = valor
+      }
+    }
+  } catch (e) {
+    console.warn('[ghl] no se pudieron aplicar custom fields al crear:', e instanceof Error ? e.message : e)
+  }
   const { data, error } = await sb
     .from('contacts')
-    .insert({ tenant_id: tenantId, ...values, first_seen_at: text(source.dateAdded) || new Date().toISOString() })
+    .insert({
+      tenant_id: tenantId,
+      ...values,
+      ...(customFields && Object.keys(customFields).length > 0 ? { custom_fields: customFields } : {}),
+      first_seen_at: text(source.dateAdded) || new Date().toISOString(),
+    })
     .select('id')
     .single()
   if (error) throw error
@@ -113,6 +174,8 @@ export async function syncGhl(
   // Cache ghl_contact_id → contacto local (o null si GHL no lo tiene): evita re-crear
   // contactos repetidos dentro de la misma pasada.
   const contactoCache = new Map<string, { id: string } | null>()
+  // Cache compartida de definiciones de custom fields (1 query por campo nuevo, no por contacto).
+  const customDefsCache = new Map<string, Map<string, string>>()
   let startAfterId = ''
   let startAfter = ''
   let pages = 0
@@ -137,7 +200,7 @@ export async function syncGhl(
     if (!response.ok) throw new Error(body.message || `GHL respondió ${response.status}`)
     const contacts = body.contacts ?? []
     for (const contact of contacts) {
-      const saved = await findOrCreateContact(sb, tenantId, contact)
+      const saved = await findOrCreateContact(sb, tenantId, contact, { customDefsCache })
       if (saved?.created) imported++
       else if (saved) updated++
     }
@@ -216,7 +279,7 @@ export async function syncGhl(
         const contactoBody = (await contactoResponse.json().catch(() => ({}))) as { contact?: Json }
         const creado =
           contactoResponse.ok && contactoBody.contact
-            ? await findOrCreateContact(sb, tenantId, contactoBody.contact)
+            ? await findOrCreateContact(sb, tenantId, contactoBody.contact, { customDefsCache })
             : null
         contactoCache.set(ghlContactId, creado ? { id: creado.id } : null)
         contact = { data: creado ? { id: creado.id } : null }

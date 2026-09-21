@@ -811,6 +811,28 @@ export default function IntegracionesPage() {
     }
   }
 
+  // Backfill de custom fields de GHL: relee contactos en GHL y puebla contacts.custom_fields
+  // (merge idempotente). El resultado del run queda en el historial de syncs del panel.
+  async function backfillCustomFields() {
+    setSyncingId('ghl-custom-fields')
+    try {
+      const r = await fetch(`/api/${tenant}/evergreen/settings/integraciones/custom-fields-backfill`, {
+        method: 'POST',
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(j.error || 'El backfill falló')
+      toast.success('Campos personalizados importados', {
+        description: `${j.conCampos ?? 0} contactos actualizados · ${j.definicionesCreadas ?? 0} campos nuevos · ${j.cortado ? 'parcial (vuelve a lanzar para continuar)' : 'completo'}`,
+      })
+    } catch (error) {
+      toast.error('No se pudieron importar los campos', {
+        description: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setSyncingId(null)
+    }
+  }
+
   async function syncHistory(g: Group) {
     setSyncingId(g.id)
     setAskHistory(null)
@@ -1216,6 +1238,30 @@ export default function IntegracionesPage() {
                                 </Button>
                               ) : null}
                             </div>
+                          </section>
+                        ) : null}
+
+                        {g.id === 'ghl' ? (
+                          <section className="mb-5 space-y-2 rounded-lg border border-border p-3 text-sm">
+                            <p className="font-medium">Importar campos personalizados</p>
+                            <p className="text-muted-foreground text-xs">
+                              Relee los contactos en GHL y copia aquí sus campos personalizados (los que configures en
+                              GHL como «Custom Fields»), creándolos en la subcuenta si no existen. Puedes lanzarlo
+                              tantas veces como quieras: no duplica ni pisa lo ya guardado.
+                            </p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => backfillCustomFields()}
+                              disabled={syncingId === 'ghl-custom-fields'}
+                            >
+                              {syncingId === 'ghl-custom-fields' ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                              )}
+                              {syncingId === 'ghl-custom-fields' ? 'Importando campos…' : 'Importar campos'}
+                            </Button>
                           </section>
                         ) : null}
 
