@@ -197,8 +197,7 @@ test('sin datos suficientes no se declara "no cualificada"', () => {
   assert.match(codigo, /veredicto\.cualificada === true[\s\S]{0,120}=== false/)
 })
 
-test('el payload crudo sigue plegado y solo para quien administra', () => {
+test('el payload crudo se ha retirado de la ficha de cita', () => {
   const codigo = sinComentarios(leer(DETALLE))
-  assert.match(codigo, /canSeeRawPayload && appointment\.raw_payload/)
-  assert.match(codigo, /<details/)
+  assert.doesNotMatch(codigo, /rawPayloadVisible|canSeeRawPayload|Payload crudo del webhook/)
 })
