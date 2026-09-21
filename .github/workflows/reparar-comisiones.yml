@@ -1,0 +1,35 @@
+# Reconstruye las comisiones de VENTAS CONCRETAS con el motor real (reconcileSaleCommissions).
+# Manual: se usa tras registrar cobros por fuera del flujo normal (p. ej. un backfill de Stripe).
+# Nunca toca comisiones liquidadas ni negativas (ver lib/commissions/generate.ts).
+name: "manual: reparar comisiones de ventas"
+on:
+  workflow_dispatch:
+    inputs:
+      tenant:
+        description: 'Slug de la subcuenta'
+        required: true
+      sale_ids:
+        description: 'Ids de venta separados por comas'
+        required: true
+permissions: {}
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: POST /api/<tenant>/evergreen/sales/reconcile-all
+        env:
+          APP_URL: ${{ vars.CRON_APP_URL || 'https://growth-ops-weld.vercel.app' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          TENANT: ${{ inputs.tenant }}
+          SALE_IDS: ${{ inputs.sale_ids }}
+        run: |
+          set -euo pipefail
+          [[ "$TENANT" =~ ^[a-z0-9-]+$ ]] || { echo "slug inválido"; exit 1; }
+          body=$(jq -cn --arg ids "$SALE_IDS" '{saleIds: ($ids | split(",") | map(gsub("\\s"; "")) | map(select(length > 0)))}')
+          code=$(curl -sS -o response.json -w '%{http_code}' --max-time 120 -X POST \
+            -H "Authorization: Bearer $CRON_SECRET" -H 'Content-Type: application/json' \
+            -d "$body" "$APP_URL/api/$TENANT/evergreen/sales/reconcile-all")
+          echo "HTTP $code"
+          cat response.json; echo
+          case "$code" in 2*) exit 0 ;; *) exit 1 ;; esac
