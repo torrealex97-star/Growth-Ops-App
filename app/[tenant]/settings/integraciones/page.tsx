@@ -561,6 +561,30 @@ export default function IntegracionesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId])
 
+  // Vuelta del flujo OAuth de Google (provider=ga4/gmail). El callback de la app redirige a ESTA
+  // pantalla con el resultado en la URL; el token se guarda en el callback y nunca pasa por el
+  // navegador. YouTube usa otro camino (redirect del playground + pegar código): ver abajo.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const sp = new URLSearchParams(window.location.search)
+    const res = sp.get('google')
+    if (!res) return
+    const servicio = sp.get('servicio')
+    if (res === 'conectada') toast.success(`${servicio === 'youtube' ? 'YouTube' : 'Google'} conectado`)
+    else if (res === 'cancelada') toast.info('Autorización cancelada')
+    else {
+      const motivos: Record<string, string> = {
+        sin_credenciales: 'Faltan las credenciales OAuth de la integración. Guárdalas primero.',
+        sin_refresh_token: 'Google no devolvió un refresh token. Vuelve a autorizar.',
+        no_se_pudo_guardar: 'No se pudo guardar la conexión.',
+        sin_config_enc_key: 'Falta CONFIG_ENC_KEY en el servidor.',
+        permisos_incompletos: 'La autorización quedó incompleta: faltaron permisos solicitados.',
+      }
+      toast.error(motivos[sp.get('motivo') || ''] || 'No se pudo completar la autorización')
+    }
+    window.history.replaceState(null, '', window.location.pathname)
+  }, [])
+
   // Al abrir una integración se comprueba contra su API si no hay comprobación fresca. Es UNA llamada
   // (la de la que se abre), no diecisiete al cargar la pantalla, y es lo que hace que el estado sea
   // información de ahora y no de la última vez que alguien pulsó un botón.
@@ -1801,7 +1825,77 @@ export default function IntegracionesPage() {
                             className="text-red-400 hover:text-red-300"
                           >
                             <Trash2 className="mr-2 h-4 w-4" /> Desconectar
-                          </Button>
+                          </Button>{' '}
+                          {g.id === 'youtube' && (
+                            <div className="w-full space-y-2 border-t border-border pt-3">
+                              <p className="text-xs text-muted-foreground">
+                                El refresh token de YouTube no se pega a mano: se autoriza y Google lo genera. Solo el
+                                redirect del playground está registrado en el cliente OAuth de esta integración, así que
+                                el código vuelve ahí.
+                              </p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    // Asegurar que client+secret están guardados antes de abrir Google.
+                                    await saveGroup(g)
+                                    const u = new URL('https://accounts.google.com/o/oauth2/v2/auth')
+                                    u.searchParams.set('client_id', drafts.YOUTUBE_CLIENT_ID || '')
+                                    u.searchParams.set('redirect_uri', 'https://developers.google.com/oauthplayground')
+                                    u.searchParams.set('response_type', 'code')
+                                    u.searchParams.set(
+                                      'scope',
+                                      'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly'
+                                    )
+                                    u.searchParams.set('access_type', 'offline')
+                                    u.searchParams.set('prompt', 'consent')
+                                    window.open(u.toString(), '_blank', 'noopener')
+                                  }}
+                                  disabled={
+                                    savingId === g.id || !drafts.YOUTUBE_CLIENT_ID || !drafts.YOUTUBE_CLIENT_SECRET // sin client+secret Google no puede emparejar el token
+                                  }
+                                >
+                                  <ExternalLink className="mr-2 h-4 w-4" /> Autorizar con Google
+                                </Button>
+                                <Input
+                                  className="min-w-0 flex-1"
+                                  placeholder="Código que devuelve Google (o su URL completa)"
+                                  value={drafts.YOUTUBE_OAUTH_CODE || ''}
+                                  onChange={(e) => setDrafts((p) => ({ ...p, YOUTUBE_OAUTH_CODE: e.target.value }))}
+                                />
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    const r = await fetch(`/api/${tenant}/evergreen/settings/integraciones`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        action: 'youtube-exchange',
+                                        code: drafts.YOUTUBE_OAUTH_CODE || '',
+                                      }),
+                                    })
+                                    const j = await r.json()
+                                    if (!r.ok) {
+                                      toast.error(j.error || 'No se pudo completar la autorización')
+                                      return
+                                    }
+                                    toast.success('YouTube conectado: refresh token guardado')
+                                    setDrafts((p) => {
+                                      const n = { ...p }
+                                      delete n.YOUTUBE_OAUTH_CODE
+                                      return n
+                                    })
+                                    void load()
+                                  }}
+                                  disabled={!drafts.YOUTUBE_OAUTH_CODE || savingId === g.id}
+                                >
+                                  <KeyRound className="mr-2 h-4 w-4" /> Completar conexión
+                                </Button>
+                              </div>
+                            </div>
+                          )}
                           <Button size="sm" onClick={() => saveGroup(g)} disabled={savingId === g.id}>
                             {savingId === g.id ? (
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

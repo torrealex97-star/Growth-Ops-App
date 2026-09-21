@@ -49,8 +49,10 @@ test('se guardan los ámbitos concedidos, no los pedidos', () => {
   assert.match(code, /faltan\.length > 0 \? 'error' : 'conectada'/)
 })
 
-test('los ámbitos pedidos son todos de solo lectura', () => {
+test('los ámbitos de GA4 y Gmail son todos de solo lectura', () => {
   const lib = read('lib/google/oauth.ts')
+  // El SCOPES de lib/google es el del cliente de GA4/Gmail: YouTube usa OTRO cliente OAuth (el de
+  // Integraciones) y otros ámbitos, pedidos por la UI (tests/youtube-oauth.test.mjs).
   const scopes = lib.slice(lib.indexOf('export const SCOPES'), lib.indexOf('function redirectUri'))
   const encontrados = [...scopes.matchAll(/auth\/([a-z0-9.]+)/g)].map((m) => m[1])
   assert.ok(encontrados.length >= 3, 'no se han encontrado los ámbitos')

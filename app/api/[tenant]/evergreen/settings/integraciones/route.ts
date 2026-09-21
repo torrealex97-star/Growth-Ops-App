@@ -11,6 +11,7 @@ import { parseAccountIds, fetchAdAccounts } from '@/lib/meta/client'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { isDeprecatedMetaVersion, META_API_VERSION } from '@/lib/meta/api-version'
 import { classifyMetaError } from '@/lib/meta/errors'
+import { exchangeCode } from '@/lib/google/oauth'
 import { stripeGet } from '@/lib/stripe/client'
 import { listarModelos, ModelosError, resolverModelo } from '@/lib/ai/modelos'
 import { DEEPSEEK_MODELOS_PREFERIDOS } from '@/lib/ai/provider'
@@ -245,6 +246,73 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
 // POST — guardar cambios. body: { updates: { KEY: value } }.
 // Secreto con valor vacío => NO se toca (para no borrar al no reescribir el campo enmascarado).
 // Para BORRAR una clave: enviar { clear: ["KEY", …] }.
+/**
+ * Paso 2 del flujo OAuth de YouTube. El paso 1 es el botón "Autorizar con Google": abre Google con
+ * el redirect DEL PLAYGROUND porque es la única URI registrada en el cliente OAuth de la subcuenta
+ * (verificado 21-sep: el callback de la app da redirect_uri_mismatch), y Google NO permite consultar
+ * ni editar los redirects de un cliente sin entrar en su Cloud Console. El playground muestra el
+ * código en su barra; el admin lo pega aquí y el servidor lo intercambia + guarda cifrado.
+ *
+ * El `state` firmado NO puede sobrevivir a este camino (Google lo muestra igualmente en el código,
+ * no como parámetro legible del admin), así que la protección aquí es la sesión de admin del panel
+ * (requireAdmin: solo admin/director/superadmin puede pegar un código) y el emparejamiento con las
+ * credenciales de YouTube de ESA subcuenta. Es el mismo nivel de confianza que pegar el token a mano,
+ * pero sin copiar secretos por el portapapeles: solo el código de un solo uso y de corta vida.
+ */
+async function exchangeYoutubeCode(tenantId: string, code: string) {
+  const limpio = code.trim()
+  if (!limpio)
+    return NextResponse.json({ error: 'Pega el código que Google te mostró tras autorizar.' }, { status: 400 })
+  // El botón "Autorizar" copia la URL completa del playground; aceptamos también la URL entera.
+  // Los códigos de Google llevan '/' (p.ej. 4/0A…) y pueden venir percent-encoded: capturamos hasta
+  // '&' y decodificamos.
+  const extraido = limpio.match(/[?&]code=([^&]+)/)
+  const codigo = extraido ? decodeURIComponent(extraido[1]) : limpio
+  const cfg = await getTenantConfigWithFallback(tenantId, true)
+  if (!cfg.YOUTUBE_CLIENT_ID || !cfg.YOUTUBE_CLIENT_SECRET)
+    return NextResponse.json({ error: 'Guarda primero el Client ID y el Client Secret de YouTube.' }, { status: 400 })
+
+  const token = await exchangeCode(
+    codigo,
+    { clientId: cfg.YOUTUBE_CLIENT_ID, clientSecret: cfg.YOUTUBE_CLIENT_SECRET },
+    'https://developers.google.com/oauthplayground'
+  )
+  if (token.error || !token.refresh_token)
+    return NextResponse.json(
+      {
+        error:
+          token.error === 'invalid_grant'
+            ? 'El código ya se usó o ha caducado (valen minutos). Vuelve a autorizar y pega el nuevo rápido.'
+            : `Google rechazó el código: ${token.error || 'sin refresh_token'}`,
+      },
+      { status: 400 }
+    )
+  // Los ámbitos concedidos DE VERDAD; youtube.upload es imprescindible para subir Shorts.
+  const granted = (token.scope || '').split(/\s+/).filter(Boolean)
+  if (!granted.includes('https://www.googleapis.com/auth/youtube.upload'))
+    return NextResponse.json(
+      {
+        error:
+          'Google no concedió youtube.upload: no se puede subir Shorts sin él. Repite la autorización sin desmarcar permisos.',
+      },
+      { status: 400 }
+    )
+  const { error } = await svc()
+    .from('integration_settings')
+    .upsert(
+      {
+        tenant_id: tenantId,
+        key: 'YOUTUBE_REFRESH_TOKEN',
+        value: encryptSecret(token.refresh_token),
+        is_secret: true,
+        updated_by: null,
+      },
+      { onConflict: 'tenant_id,key' }
+    )
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true, scopes: granted })
+}
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
   const auth = await requireAdmin(tenant)
@@ -259,11 +327,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     token?: string
     updates?: Record<string, string>
     clear?: string[]
+    /** Código OAuth de YouTube (paso 2 del flujo; ver exchangeYoutubeCode). */
+    code?: string
   }
 
   if (body.action === 'test') return runTest(body.group || '', auth.tenantId)
   if (body.action === 'meta-accounts') return listMetaAccounts(auth.tenantId, body.token)
   if (body.action === 'ia-modelos') return listarModelosIa(auth.tenantId, body.token)
+  if (body.action === 'youtube-exchange') return exchangeYoutubeCode(auth.tenantId, body.code || '')
 
   const updates = body.updates || {}
   const clear = body.clear || []
@@ -861,8 +932,16 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
       }
     }
     if (group === 'youtube') {
-      if (!cfg.YOUTUBE_CLIENT_ID || !cfg.YOUTUBE_CLIENT_SECRET || !cfg.YOUTUBE_REFRESH_TOKEN) {
-        return { ok: false, message: 'Faltan credenciales OAuth de YouTube.' }
+      const sin: string[] = []
+      if (!cfg.YOUTUBE_CLIENT_ID) sin.push('Client ID')
+      if (!cfg.YOUTUBE_CLIENT_SECRET) sin.push('Client Secret')
+      if (!cfg.YOUTUBE_REFRESH_TOKEN) sin.push('Refresh Token')
+      if (sin.length > 0) {
+        const pista =
+          sin.includes('Refresh Token') && sin.length === 1
+            ? ' Usa el botón "Autorizar con Google" de esta integración para obtenerlo.'
+            : ''
+        return { ok: false, message: `Faltan credenciales OAuth de YouTube: ${sin.join(', ')}.${pista}` }
       }
       const r = await probeFetch('https://oauth2.googleapis.com/token', {
         method: 'POST',

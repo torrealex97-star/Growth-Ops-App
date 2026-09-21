@@ -59,7 +59,16 @@ export type TokenResponse = {
   error_description?: string
 }
 
-export async function exchangeCode(code: string, creds: GoogleCredentials): Promise<TokenResponse> {
+/**
+ * Intercambia el código de autorización por tokens. `redirectUriOverride` debe ser exactamente la
+ * URI usada al pedir la autorización (Google la compara como cadena): los clientes OAuth que solo
+ * tienen el playground registrado (YouTube de las subcuentas) exigen este override.
+ */
+export async function exchangeCode(
+  code: string,
+  creds: GoogleCredentials,
+  redirectUriOverride?: string
+): Promise<TokenResponse> {
   const r = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -67,7 +76,7 @@ export async function exchangeCode(code: string, creds: GoogleCredentials): Prom
       code,
       client_id: creds.clientId,
       client_secret: creds.clientSecret,
-      redirect_uri: redirectUri(),
+      redirect_uri: redirectUriOverride || redirectUri(),
       grant_type: 'authorization_code',
     }),
     signal: AbortSignal.timeout(15_000),
