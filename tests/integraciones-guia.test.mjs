@@ -24,7 +24,9 @@ test('la dirección de webhook que se enseña corresponde a una ruta que existe'
   const conWebhook = INTEGRATION_GROUPS.filter((g) => g.webhookPath)
   assert.ok(conWebhook.length > 0, 'al menos GHL debe declarar su webhook')
   for (const g of conWebhook) {
-    assert.match(g.webhookPath, /^\/api\/\{tenant\}\//, `${g.id}: la ruta debe llevar {tenant}`)
+    // Hay dos formas legítimas: por subcuenta (`/api/{tenant}/…`, la normal) y de plataforma
+    // (`/api/webhooks/…`), para proveedores que no distinguen clientes, como Apify.
+    assert.match(g.webhookPath, /^\/api\/(\{tenant\}|webhooks)\//, `${g.id}: ruta de webhook con forma rara`)
     const fichero = join(root, 'app', g.webhookPath.replace('{tenant}', '[tenant]'), 'route.ts')
     assert.ok(existsSync(fichero), `${g.id}: la guía apunta a ${g.webhookPath}, que no existe`)
   }
@@ -76,4 +78,49 @@ test('el panel pinta la guía y resuelve la subcuenta en la dirección', () => {
   assert.match(page, /replace\('\{tenant\}', tenant\)/, 'la URL se enseña ya montada, no como plantilla')
   // Sin portapapeles no se puede dejar a nadie bloqueado: el texto tiene que seguir a la vista.
   assert.match(page, /selecciónala y cópiala a mano/)
+})
+
+// ── COBERTURA: NINGUNA INTEGRACIÓN NUEVA SIN GUÍA ────────────────────────────────────────────
+
+// Quedan sin guía a propósito, no por olvido: son proveedores cuyo panel no conocemos lo bastante
+// como para dictar pasos, y una guía inventada es peor que ninguna — manda a alguien a un sitio
+// equivocado con total seguridad. Cuando se configure uno de verdad, se escribe su guía y sale de
+// aquí. La lista es CERRADA: añadir una integración nueva sin pasos rompe el test.
+const SIN_GUIA_TODAVIA = new Set(['tiktok', 'sequra', 'creatuagente', 'hotmart', 'whop', 'skool'])
+
+test('toda integración tiene guía, salvo las declaradas como pendientes', () => {
+  const sinGuia = INTEGRATION_GROUPS.filter(
+    (g) => g.surface !== 'empresa' && !g.pasos?.length && !SIN_GUIA_TODAVIA.has(g.id)
+  ).map((g) => g.id)
+  assert.deepEqual(sinGuia, [], `integraciones sin paso a paso: ${sinGuia.join(', ')}`)
+})
+
+test('la lista de pendientes no se queda obsoleta', () => {
+  // Si alguien escribe la guía de una pendiente y olvida sacarla de la lista, el test lo dice: así
+  // la lista mide lo que falta de verdad y no se convierte en decoración.
+  for (const id of SIN_GUIA_TODAVIA) {
+    const g = INTEGRATION_GROUPS.find((x) => x.id === id)
+    assert.ok(g, `"${id}" está en pendientes pero ya no existe en el catálogo`)
+    assert.ok(!g.pasos?.length, `"${id}" ya tiene guía: quítala de SIN_GUIA_TODAVIA`)
+  }
+})
+
+test('las guías escritas cumplen el mínimo de utilidad', () => {
+  // Un paso de una línea ("pon la API key") no saca a nadie del atasco: el valor está en decir
+  // DÓNDE se consigue y qué suele salir mal.
+  for (const g of INTEGRATION_GROUPS.filter((x) => x.pasos?.length)) {
+    assert.ok(g.pasos.length >= 2, `${g.id}: una integración no se configura en un solo paso`)
+    for (const paso of g.pasos) {
+      assert.ok(paso.titulo?.length > 10, `${g.id}: un paso sin título utilizable`)
+      assert.ok(paso.detalle?.length > 80, `${g.id} · "${paso.titulo}": el detalle es demasiado corto`)
+    }
+  }
+})
+
+test('las integraciones con webhook entrante enseñan su dirección', () => {
+  // Componer la URL a mano es donde se coló la errata que dejó GHL sin funcionar una semana.
+  for (const id of ['ghl', 'calendly', 'stripe']) {
+    const g = INTEGRATION_GROUPS.find((x) => x.id === id)
+    assert.ok(g.webhookPath, `${id} recibe webhooks: su dirección tiene que estar a la vista`)
+  }
 })
