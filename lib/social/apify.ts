@@ -108,16 +108,26 @@ export const ApifyService = {
     return apifyApi<ApifyRun>(`/actor-runs/${encodeURIComponent(runId)}`, token)
   },
 
-  /** §9: descarga los items de un dataset paginando (offset/limit) con techo duro. */
+  /** §9: descarga los items de un dataset paginando (offset/limit) con techo duro.
+   *  OJO: el endpoint /datasets/{id}/items devuelve un ARRAY pelado, no { data: [...] } —
+   *  por eso no pasa por apifyApi() (que hace unwrap de .data y devolvería undefined).
+   *  Destapado en la primera sync real 21-sep: el job acababa completed con 0 records
+   *  porque un array sobre el que se lee .data es undefined. */
   async fetchDatasetItems(datasetId: string, token: string, maxItems = 5000): Promise<FilaJson[]> {
     const out: FilaJson[] = []
     const limit = 1000
     let offset = 0
     while (out.length < maxItems) {
-      const batch = await apifyApi<unknown[]>(
-        `/datasets/${encodeURIComponent(datasetId)}/items?limit=${limit}&offset=${offset}`,
-        token
+      const res = await fetch(
+        `${APIFY_API}/datasets/${encodeURIComponent(datasetId)}/items?limit=${limit}&offset=${offset}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+          signal: AbortSignal.timeout(APIFY_TIMEOUT_MS),
+        }
       )
+      if (!res.ok) throw new ApifyError(`Apify respondió ${res.status} al leer el dataset`, res.status)
+      const batch = (await res.json().catch(() => [])) as unknown
       const items = Array.isArray(batch) ? (batch as FilaJson[]) : []
       out.push(...items)
       if (items.length < limit) break

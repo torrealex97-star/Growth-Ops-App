@@ -20,14 +20,20 @@ import { fileURLToPath } from 'node:url'
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const RUTA = 'app/api/[tenant]/evergreen/webhooks/ghl/route.ts'
-const src = readFileSync(join(root, RUTA), 'utf8')
+const read = (p) => readFileSync(join(root, p), 'utf8')
+const src = read(RUTA)
 const codigo = src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
 
 // ── AUTENTICACIÓN ────────────────────────────────────────────────────────────────────────────
 // Lo llama GHL, no un usuario: no hay sesión ni cookie. El secreto compartido es la única puerta.
 
 test('el secreto se valida fail-closed y antes de leer el payload', () => {
-  assert.match(codigo, /isValidWebhookSecret\(secret, process\.env\.GHL_WEBHOOK_SECRET\)/)
+  // El secreto es POR SUBCUENTA, con el entorno solo como respaldo. Antes se leía únicamente de
+  // `process.env`, y el catálogo de integraciones declara `GHL_WEBHOOK_SECRET` como campo
+  // obligatorio del panel de cada subcuenta: la app pedía configurarlo donde nadie lo leía. Un
+  // secreto global además permitiría que el webhook de un cliente escribiera en otro cambiando el
+  // slug de la URL.
+  assert.match(codigo, /isValidWebhookSecret\(secret, cfg\.GHL_WEBHOOK_SECRET \|\| process\.env\.GHL_WEBHOOK_SECRET\)/)
   const valida = codigo.indexOf('isValidWebhookSecret(')
   const lee = codigo.indexOf('await req.json()')
   assert.ok(valida > -1 && lee > -1, 'deben existir ambas operaciones')
@@ -51,9 +57,13 @@ test('el tenant sale de los params de la ruta, nunca del cuerpo', () => {
   assert.doesNotMatch(codigo, /payload\.tenantId/)
 })
 
-test('solo se acepta una subcuenta activa, y si no existe se devuelve 404', () => {
+test('subcuenta inexistente y secreto incorrecto son indistinguibles: ambos 401', () => {
+  // Antes la subcuenta se resolvía DESPUÉS de autenticar, así que un 404 no filtraba nada. Ahora el
+  // tenant hay que resolverlo primero —su configuración guarda el secreto—, y devolver 404 dejaría
+  // enumerar slugs sin credencial alguna comparando códigos de estado.
   assert.match(codigo, /\.from\('tenants'\)[\s\S]{0,200}?\.eq\('status', 'active'\)/)
-  assert.match(codigo, /if \(!tenantRow\) return NextResponse\.json\([^)]*status: 404/)
+  assert.match(codigo, /if \(!tenantRow\) \{\s*\n?\s*return NextResponse\.json\([^)]*status: 401/)
+  assert.doesNotMatch(codigo, /Subcuenta no encontrada/)
 })
 
 test('toda lectura o escritura de tablas de subcuenta lleva tenant_id', () => {
@@ -145,4 +155,22 @@ test('HOY no se escribe capa raw: este test debe romperse cuando F1 la añada', 
   // test falla y quien lo actualice tiene delante el motivo.
   assert.doesNotMatch(codigo, /raw_events/, 'si F1 ya añadió la capa raw, actualiza este test y S0-2')
   assert.match(codigo, /if \(hasUtm \|\| source\)/)
+})
+
+test('el secreto se lee de la subcuenta, con el entorno solo como respaldo', () => {
+  // Patrón de la casa, igual que `stripe-webhook-route.test.mjs`: la configuración de la subcuenta
+  // manda. Que el catálogo lo declare obligatorio y el webhook no lo leyera fue el motivo real de
+  // que GHL no cargara citas: 401 en cada llamada, sin pista de por qué.
+  assert.match(codigo, /getTenantConfigWithFallback\(tenantId, true\)/)
+  const resuelve = codigo.indexOf("from('tenants')")
+  const autentica = codigo.indexOf('isValidWebhookSecret(')
+  assert.ok(resuelve > -1 && autentica > -1)
+  assert.ok(resuelve < autentica, 'hay que resolver la subcuenta para poder leer SU secreto')
+})
+
+test('el catálogo declara GHL_WEBHOOK_SECRET como obligatorio, y ahora el webhook lo usa', () => {
+  // Si alguien lo quitara del catálogo, el panel dejaría de pedirlo y las subcuentas nuevas
+  // quedarían sin secreto — volviendo al 401 silencioso.
+  const catalogo = read('lib/integrations-catalog.ts')
+  assert.match(catalogo, /required: \['GHL_API_TOKEN', 'GHL_LOCATION_ID', 'GHL_WEBHOOK_SECRET'\]/)
 })

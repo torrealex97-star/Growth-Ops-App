@@ -1,4 +1,4 @@
-// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-21T09:38:45.216Z).
+// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-21T11:10:59.469Z).
 // Regenerar con: npm run tipos:bd  (y commitear). El test tests/esquema-tenant-invariante.test.mjs
 // comprueba que este artefacto sigue fresco respecto al esquema vivo.
 // Espejo exacto del esquema public de Supabase; los tipos de APP siguen en lib/types/database.ts.
@@ -1818,6 +1818,7 @@ export type EsquemaPublico = {
         merged_into: string | null
         email_normalized: string | null
         phone_normalized: string | null
+        lifecycle: string | null
       }
       Insert: {
         id: string | null | undefined
@@ -1860,6 +1861,7 @@ export type EsquemaPublico = {
         merged_into: string | null | undefined
         email_normalized: string | null | undefined
         phone_normalized: string | null | undefined
+        lifecycle: string | null | undefined
       }
       Update: {
         id: string | undefined
@@ -1902,6 +1904,7 @@ export type EsquemaPublico = {
         merged_into: string | undefined
         email_normalized: string | undefined
         phone_normalized: string | undefined
+        lifecycle: string | undefined
       }
     }
     ContentItems: {
