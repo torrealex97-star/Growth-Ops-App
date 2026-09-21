@@ -589,23 +589,43 @@ export async function fetchIgConversationsWithMessages(
   pageId: string,
   pat: string,
   igUserId: string,
-  limit = 20
+  limit = 20,
+  presupuestoMs = 40_000
 ): Promise<IgConversation[]> {
+  const inicio = Date.now()
+  const agotado = () => Date.now() - inicio > presupuestoMs
   const pq = `access_token=${encodeURIComponent(pat)}`
-  const url = `${GRAPH}/${cfg.version}/${pageId}/conversations?platform=instagram&fields=updated_time,unread_count,message_count&limit=${Math.min(limit, 50)}&${pq}`
-  const rows = await graphGetAll(url, Math.ceil(limit / 50) + 1)
+  const urlListado = (n: number) =>
+    `${GRAPH}/${cfg.version}/${pageId}/conversations?platform=instagram&fields=updated_time,unread_count,message_count&limit=${Math.min(n, 50)}&${pq}`
+
+  // El endpoint de conversaciones de Meta es más pesado que el resto de la Graph API: en
+  // algunas páginas responde error #1 ("reduce data") o supera el timeout. Un reintento
+  // con página más pequeña lo salva la mayoría de las veces sin tocar al usuario.
+  let rows: FilaGraph[]
+  try {
+    rows = await graphGetAll(urlListado(limit), Math.ceil(limit / 50) + 1)
+  } catch (e) {
+    if (agotado() || !(e instanceof InstagramApiError)) throw e
+    rows = await graphGetAll(urlListado(Math.min(limit, 10)), Math.ceil(limit / 50) + 1)
+  }
   const seleccion = rows.slice(0, limit)
 
   // El detalle (participants + mensajes) exige UNA llamada por conversación. En serie eran
   // `limit` × (0,5-2s) = decenas de segundos: la pantalla de Conversaciones agotaba el tiempo
-  // de la lambda (maxDuration 60) y el usuario veía un timeout. En paralelo con pool acotado,
-  // el muro de tiempo es el de UNA llamada × CONCURRENCIA (no × conversaciones), y el ritmo
-  // es sostenible para el rate limit de Meta (5 en vuelo puntualmente, no 20 en ráfaga).
+  // de la lambda y el usuario veía un timeout. En paralelo con pool acotado, el muro es el de
+  // UNA llamada × CONCURRENCIA (no × conversaciones), y el ritmo es sostenible para el rate
+  // limit de Meta (5 en vuelo puntualmente, no 20 en ráfaga).
   const CONCURRENCIA_DETALLE = 5
   const detalle = new Map<number, { participant?: string; messages: IgConversationMessage[] }>()
   let cursor = 0
   async function worker() {
     while (cursor < seleccion.length) {
+      // Sin presupuesto restante: lo no descargado queda sin transcripción (la UI lo dice)
+      // en vez de mantener la lambda viva hasta que Vercel la mate a mitad de respuesta.
+      if (agotado()) {
+        while (cursor < seleccion.length) detalle.set(cursor++, { messages: [] })
+        return
+      }
       const i = cursor++
       // Si el detalle de una conversación falla, queda sin transcripción: no tumba el listado.
       const d = await detalleDe(cfg, pat, igUserId, String(seleccion[i]?.id), pq).catch(() => null)
