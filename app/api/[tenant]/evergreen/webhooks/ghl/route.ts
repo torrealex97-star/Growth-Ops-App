@@ -129,11 +129,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const tenantId = tenantRow.id
 
     const cfg = await getTenantConfigWithFallback(tenantId, true)
+    const esperado = cfg.GHL_WEBHOOK_SECRET || process.env.GHL_WEBHOOK_SECRET
     // Fail-closed: si el secret no está configurado o no coincide, rechazamos.
-    if (!isValidWebhookSecret(secret, cfg.GHL_WEBHOOK_SECRET || process.env.GHL_WEBHOOK_SECRET)) {
-      // Sin registro de los rechazos, un webhook mal configurado en GHL es indetectable: la URL
-      // llega (cabecera ausente o errónea) y GHL no explica por qué su alta no produce datos.
-      console.warn('[ghl-webhook] 401: cabecera x-ghl-secret ausente o inválida en', tenant)
+    if (!isValidWebhookSecret(secret, esperado)) {
+      // SE REGISTRA CUÁL DE LAS CUATRO CAUSAS ES, no solo que hubo un 401.
+      //
+      // "Cabecera ausente o inválida" agrupa cuatro problemas que no se parecen en nada y que se
+      // arreglan en sitios distintos: que GHL no mande la cabecera, que el secreto no esté guardado
+      // en el panel, que se haya pegado cortado, o que simplemente no coincida. Sin distinguirlas,
+      // averiguarlo desde fuera cuesta un ciclo entero de prueba y error — ya pasó.
+      //
+      // La RESPUESTA sigue siendo opaca: quien llama no está autenticado y no merece pistas. El
+      // motivo va al log del servidor, y nunca los valores: solo presencia y longitud, que es lo
+      // que distingue "no llega" de "llega cortado" de "no coincide" sin revelar el secreto.
+      const motivo = !esperado
+        ? 'no hay GHL_WEBHOOK_SECRET guardado para esta subcuenta (Configuración → Integraciones → GoHighLevel)'
+        : !secret
+          ? 'la petición no trae la cabecera x-ghl-secret: falta añadirla en el webhook de GHL'
+          : secret.length !== esperado.length
+            ? `longitudes distintas (recibida ${secret.length}, esperada ${esperado.length}): copiado incompleto o con espacios`
+            : 'la cabecera tiene la longitud correcta pero no coincide: son dos valores distintos'
+      console.warn(`[ghl-webhook] 401 en "${tenant}": ${motivo}`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
