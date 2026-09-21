@@ -1,11 +1,12 @@
 name: CI
 
-# Quality gate: nada de esto existía antes (el único workflow era deploy.yml, manual y sin
-# ningún check previo). Los checks baratos (format/lint/typecheck) van primero y en paralelo
+# Quality gate: nada de esto existía antes. El despliegue lo hace la integración nativa de Vercel
+# con el repo (cada PR recibe su preview y main va a producción). Los checks baratos (format/lint/typecheck) van primero y en paralelo
 # con los tests; build solo arranca si esos pasan, para no gastar minutos de CI compilando
 # código que ya se sabe roto.
 #
-# AHORRO DE MINUTOS (repo privado: cada minuto cuenta contra la cuota):
+# ALCANCE (el repo es PÚBLICO: los runners no consumen cuota, así que esto NO es por minutos. Se
+# mantiene porque evita runs redundantes y la cola de checks en ramas sin PR — A0 §2.3):
 #   · Solo pushes a main y PRs — antes corría en TODAS las ramas y cada push repetía todo.
 #   · paths-ignore en push: cambios solo de docs/markdown/.freebuff no disparan CI.
 #   · pull_request SIN paths-ignore (obligatorio): con branch protection, los required
