@@ -143,6 +143,10 @@ cazó; conviene no gastar esa red dos veces.
   **Comisiones**: las genera el motor en código (`reconcileSaleCommissions`), no la base.
   `sales/reconcile-all` acepta ahora `{ saleIds }` y hay un workflow manual
   (`reparar-comisiones.yml`) para lanzarlo sobre ventas concretas sin tocar el resto.
+  **Lanzado el 2026-09-21** sobre las 10 ventas afectadas: 18 comisiones pendientes para los 12
+  cobros (closer 12 = 480,18 €; colaborador 6 = 249,64 €), 0 duplicadas, 0 cobros sin comisión.
+  Ojo: ya existían antes de lanzarlo (algo las generó tras el registro; total de la subcuenta 91
+  antes y después) y la reparación las rehízo idénticas. Si alguien sabe qué proceso fue, anótelo.
 
 - **Un cobro de 50 € contra un pago que Stripe devolvió**, con `refunds` a 0 filas: el camino de
   devolución no está cerrado.
