@@ -33,7 +33,8 @@ test('el secreto se valida fail-closed y antes de leer el payload', () => {
   // obligatorio del panel de cada subcuenta: la app pedía configurarlo donde nadie lo leía. Un
   // secreto global además permitiría que el webhook de un cliente escribiera en otro cambiando el
   // slug de la URL.
-  assert.match(codigo, /isValidWebhookSecret\(secret, cfg\.GHL_WEBHOOK_SECRET \|\| process\.env\.GHL_WEBHOOK_SECRET\)/)
+  assert.match(codigo, /const esperado = cfg\.GHL_WEBHOOK_SECRET \|\| process\.env\.GHL_WEBHOOK_SECRET/)
+  assert.match(codigo, /isValidWebhookSecret\(secret, esperado\)/)
   const valida = codigo.indexOf('isValidWebhookSecret(')
   const lee = codigo.indexOf('await req.json()')
   assert.ok(valida > -1 && lee > -1, 'deben existir ambas operaciones')
@@ -41,9 +42,17 @@ test('el secreto se valida fail-closed y antes de leer el payload', () => {
 })
 
 test('un secreto ausente o incorrecto devuelve 401 y corta', () => {
-  // El log de observabilidad (401: cabecera ausente o inválida) puede preceder al return: sin él,
-  // un webhook mal dado de alta en GHL era indetectable — la llamada llegaba y no quedaba rastro.
-  assert.match(codigo, /if \(!isValidWebhookSecret\([\s\S]{0,80}?\)\) \{[\s\S]{0,220}?status: 401/)
+  // Entre la comprobación y el return hay ahora el cálculo del motivo del rechazo, que se registra
+  // para poder distinguir las cuatro causas. Se afirma la sustancia —comprobar lleva a 401— en vez
+  // de la distancia en caracteres, que cambia cada vez que el diagnóstico mejora.
+  const comprueba = codigo.indexOf('!isValidWebhookSecret(secret, esperado)')
+  assert.ok(comprueba > -1, 'debe existir la comprobación del secreto')
+  // Se busca el 401 POSTERIOR a la comprobación: el primero del fichero es el de subcuenta
+  // inexistente, que ocurre antes y responde igual a propósito (§ no enumerar slugs).
+  const rechaza = codigo.indexOf("error: 'Unauthorized' }, { status: 401 }", comprueba)
+  assert.ok(rechaza > comprueba, 'la comprobación tiene que llevar a un 401')
+  // Y nada del payload se procesa antes: el cuerpo se lee después.
+  assert.ok(codigo.indexOf('await req.json()') > rechaza)
 })
 
 // ── FRONTERA DE SUBCUENTA ────────────────────────────────────────────────────────────────────
@@ -176,4 +185,23 @@ test('el catálogo declara GHL_WEBHOOK_SECRET como obligatorio, y ahora el webho
   // quedarían sin secreto — volviendo al 401 silencioso.
   const catalogo = read('lib/integrations-catalog.ts')
   assert.match(catalogo, /required: \['GHL_API_TOKEN', 'GHL_LOCATION_ID', 'GHL_WEBHOOK_SECRET'\]/)
+})
+
+test('un 401 deja escrito CUÁL de las cuatro causas fue, sin revelar el secreto', () => {
+  // "Cabecera ausente o inválida" agrupa cuatro problemas que se arreglan en sitios distintos.
+  // Sin distinguirlos, diagnosticar desde fuera cuesta un ciclo entero de prueba y error.
+  for (const causa of [
+    /no hay GHL_WEBHOOK_SECRET guardado/,
+    /no trae la cabecera/,
+    /longitudes distintas/,
+    /no coincide/,
+  ]) {
+    assert.match(codigo, causa)
+  }
+  // Longitudes sí, valores nunca: es lo que separa "no llega" de "llega cortado" sin filtrar nada.
+  assert.match(codigo, /secret\.length !== esperado\.length/)
+  assert.doesNotMatch(codigo, /console\.(warn|log|error)\([^)]*\$\{secret\}/)
+  assert.doesNotMatch(codigo, /console\.(warn|log|error)\([^)]*\$\{esperado\}/)
+  // Y la respuesta sigue siendo opaca para quien llama.
+  assert.match(codigo, /error: 'Unauthorized'/)
 })
