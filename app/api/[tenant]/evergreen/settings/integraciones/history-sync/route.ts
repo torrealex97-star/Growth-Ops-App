@@ -11,6 +11,7 @@ import { recordSyncRun, SyncBusyError } from '@/lib/integrations/sync-runs'
 import { HISTORY_CAPABILITIES } from '@/lib/integrations/history'
 import { runMetaAdsSync, runMetaDailySync, runMetaSync } from '@/lib/meta/sync'
 import { fetchMeetingsPage, meetingId, meetingSummary, meetingTranscript } from '@/lib/fathom/meetings'
+import { buscarContactoPorEmail } from '@/lib/contacts/buscar'
 
 type Json = Record<string, unknown>
 
@@ -460,12 +461,17 @@ async function anotarRevision(
   startedAt: string | null,
   info: { kind: 'ambigua' | 'sin_candidatos'; reason: string; candidateIds: string[] }
 ) {
+  // El correo del asistente es PII. Se vincula al contacto si esa persona ya tiene ficha, para que
+  // `erase_person` alcance la fila; si no la tiene, queda a NULL y NO se crea una ficha por un
+  // correo que solo apareció en una reunión. Ver `docs/F6-MAPA-PII.md` §1.2.
+  const contactId = await buscarContactoPorEmail(sb, tenantId, email)
   const { error } = await sb.from('fathom_match_review').upsert(
     {
       tenant_id: tenantId,
       fathom_meeting_id: fathomMeetingId,
       meeting_started_at: startedAt,
       invitee_email: email,
+      contact_id: contactId,
       recording_url: text(meeting.share_url) || text(meeting.url),
       candidate_appointment_ids: info.candidateIds,
       reason_kind: info.kind,
