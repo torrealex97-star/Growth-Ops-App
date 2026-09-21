@@ -1,7 +1,7 @@
 # Guía operativa para agentes
 
 Estas reglas son obligatorias para cualquier agente que modifique este repositorio.
-**Lee `docs/00-CONSTITUCION.md` en toda sesión, antes que nada**: es la constitución del proyecto (tesis, principios no negociables, roadmap por fases y prioridades). Este archivo define _cómo_ se trabaja; la constitución define _qué_ se construye y en qué orden.
+**El plan de implementación vive en `docs/plan/`; empieza por `docs/plan/README.md`.** Ese directorio es la fuente autoritativa de qué se construye y en qué orden: constitución, arquitectura, seguridad, operación, IA, producto, calidad y el prompt de cada fase. Este archivo define _cómo_ se trabaja. Una fase = una rama = un PR.
 GitHub `main` es la fuente de verdad del código. Supabase es la fuente de verdad de los datos persistentes y Vercel despliega la aplicación.
 
 ## Flujo de trabajo
