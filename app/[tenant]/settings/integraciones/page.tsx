@@ -44,6 +44,8 @@ import { brandFor, type Brand } from '@/components/integrations/brands'
 import { historyFor } from '@/lib/integrations/history'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { CATEGORY_LABELS, type IntegrationCategory } from '@/lib/integrations-catalog'
+import { WebhooksEntrantesPanel } from '@/components/integrations/WebhooksEntrantesPanel'
+import type { WebhookEntranteEstado } from '@/lib/webhooks/entrantes'
 import { formatNumber } from '@/lib/utils'
 
 type Field = {
@@ -500,6 +502,9 @@ export default function IntegracionesPage() {
   const [modelosIa, setModelosIa] = useState<{ id: string }[] | null>(null)
   const [buscandoModelos, setBuscandoModelos] = useState(false)
   const [findingAccounts, setFindingAccounts] = useState(false)
+  // La mitad receptora de las integraciones: los webhooks que los proveedores llaman. El estado
+  // lo calcula el servidor con evidencia real (audit_logs / raw_events), nunca el navegador.
+  const [webhooksEntrantes, setWebhooksEntrantes] = useState<WebhookEntranteEstado[]>([])
 
   // ESTA ERA LA PANTALLA QUE SE QUEDABA CARGANDO.
   //
@@ -519,6 +524,7 @@ export default function IntegracionesPage() {
         state: Record<string, StateEntry>
         encReady: boolean
         health?: IntegrationHealth[]
+        webhooksEntrantes?: WebhookEntranteEstado[]
       }>(`/api/${tenant}/evergreen/settings/integraciones`)
 
       if (!res.ok) {
@@ -535,6 +541,7 @@ export default function IntegracionesPage() {
       setState(j.state)
       setEncReady(j.encReady)
       setHealth(Object.fromEntries(((j.health ?? []) as IntegrationHealth[]).map((h) => [h.id, h])))
+      setWebhooksEntrantes(j.webhooksEntrantes ?? [])
       // precargar los no-secretos en los drafts para poder editarlos
       const d: Record<string, string> = {}
       for (const [k, v] of Object.entries(j.state as Record<string, StateEntry>)) {
@@ -943,6 +950,11 @@ export default function IntegracionesPage() {
           </span>
         </div>
       )}
+
+      {/* La mitad receptora de las integraciones: URLs exactas por subcuenta, estado del secret
+          y último evento recibido con su evidencia. Antes de este bloque, dar de alta un webhook
+          exigía cazar la URL en una guía y descubrir a posteriori que nada entraba. */}
+      <WebhooksEntrantesPanel webhooks={webhooksEntrantes} tenant={tenant} />
 
       {CATEGORY_ORDER.filter((cat) => groups.some((g) => g.category === cat)).map((cat) => (
         <div key={cat} className="space-y-3">

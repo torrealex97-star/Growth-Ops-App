@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { isValidWebhookSecret } from '@/lib/webhooks/verifySecret'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 // Webhook de firma de contrato: lo llama la herramienta de firma (e-sign / GHL / Zapier)
 // cuando el contrato se firma. Marca el contrato como 'firmado', guarda la URL del PDF
@@ -9,8 +10,24 @@ import { isValidWebhookSecret } from '@/lib/webhooks/verifySecret'
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
     const secret = req.headers.get('x-ghl-secret')
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    // MISMA PRECEDENCIA que el webhook de citas de GHL: el valor del panel gana sobre el entorno
+    // (cfg.GHL_WEBHOOK_SECRET || process.env.GHL_WEBHOOK_SECRET). Sin esto, el estado del secret
+    // que muestra el bloque «Webhooks entrantes» de Integraciones no sería el que la ruta usa.
+    // La subcuenta se resuelve ANTES de autenticar (mismo patrón que ese webhook): subcuenta
+    // inexistente y secreto incorrecto responden IGUAL (401) para no permitir enumerar slugs con
+    // la diferencia 401/404.
+    const { tenant } = await params
+    const { data: tenantRow } = await sb
+      .from('tenants')
+      .select('id, status')
+      .eq('slug', tenant)
+      .eq('status', 'active')
+      .single()
+    if (!tenantRow) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const cfg = await getTenantConfigWithFallback(tenantRow.id, true)
     // Fail-closed: si el secret no está configurado o no coincide, rechazamos.
-    if (!isValidWebhookSecret(secret, process.env.GHL_WEBHOOK_SECRET)) {
+    if (!isValidWebhookSecret(secret, cfg.GHL_WEBHOOK_SECRET || process.env.GHL_WEBHOOK_SECRET)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     const payload = await req.json()
@@ -30,18 +47,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       null
     const now = new Date().toISOString()
 
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
-    // Sin sesión de usuario (lo llama la herramienta de firma): el tenant se resuelve
-    // directamente del slug de la ruta, con el cliente service-role (bypassa RLS).
-    const { tenant } = await params
-    const { data: tenantRow } = await sb
-      .from('tenants')
-      .select('id, status')
-      .eq('slug', tenant)
-      .eq('status', 'active')
-      .single()
-    if (!tenantRow) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
+    // Sin sesión de usuario (lo llama la herramienta de firma): el tenant ya se resolvió arriba
+    // con el cliente service-role (bypassa RLS).
     const tenantId = tenantRow.id
 
     // Resolver el contrato objetivo (siempre dentro de esta subcuenta)
