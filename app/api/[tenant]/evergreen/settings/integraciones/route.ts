@@ -14,6 +14,15 @@ import { classifyMetaError } from '@/lib/meta/errors'
 import { stripeGet } from '@/lib/stripe/client'
 import { listarModelos, ModelosError, resolverModelo } from '@/lib/ai/modelos'
 import { DEEPSEEK_MODELOS_PREFERIDOS } from '@/lib/ai/provider'
+import {
+  WEBHOOKS_ENTRANTES,
+  evaluarSecret,
+  ultimoEventoEnAudit,
+  eventosStripe,
+  type EstadoSecretInfo,
+  type UltimoEvento,
+  type WebhookEntranteEstado,
+} from '@/lib/webhooks/entrantes'
 
 export const runtime = 'nodejs'
 
@@ -169,9 +178,68 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
     )
   )
 
+  // ── Webhooks ENTRANTES: la mitad receptora de las integraciones ──
+  // Estado del secreto esperado + última recepción con evidencia real por webhook. La evidencia
+  // NUNCA se deduce de las filas de negocio: el pull del cron escribe en las mismas tablas que
+  // los webhooks, y presentar sus fechas como "último evento recibido" fue exactamente la
+  // confusión que hizo indetectable que el webhook de GHL nunca entró en producción.
+  const [actasAudit, rawStripe] = await Promise.all([
+    // Historial del tenant (audit_logs es global por tenant; las firmas de evaluación filtran).
+    // Limita a 400: la evidencia del webhook vive en actas recientes, no en todo el histórico.
+    svc()
+      .from('audit_logs')
+      .select('entity_type,action,created_at,new_values')
+      .eq('tenant_id', auth.tenantId)
+      .order('created_at', { ascending: false })
+      .limit(400)
+      .then(({ data }) => (data ?? []) as Parameters<typeof ultimoEventoEnAudit>[1]),
+    // Entregas de Stripe (incluidos los rechazos de firma que el webhook registra).
+    svc()
+      .from('raw_events')
+      .select('received_at,processing_status')
+      .eq('tenant_id', auth.tenantId)
+      .eq('source', 'stripe')
+      .order('received_at', { ascending: false })
+      .limit(50)
+      .then(({ data }) => (data ?? []) as Parameters<typeof eventosStripe>[0]),
+  ])
+  const webhooksEntrantes: WebhookEntranteEstado[] = WEBHOOKS_ENTRANTES.map((webhook) => {
+    const secret: EstadoSecretInfo = evaluarSecret(state[webhook.auth.configKey])
+    let ultimoEvento: UltimoEvento = null
+    let ultimoRechazo: UltimoEvento = null
+    if (webhook.evidencia === 'raw_stripe') {
+      const r = eventosStripe(rawStripe)
+      ultimoEvento = r.ultimo_valido
+      ultimoRechazo = r.ultimo_rechazo
+    } else if (webhook.evidencia) {
+      ultimoEvento = ultimoEventoEnAudit(webhook.evidencia, actasAudit)
+    }
+    return {
+      id: webhook.id,
+      groupId: webhook.groupId,
+      titulo: webhook.titulo,
+      descripcion: webhook.descripcion,
+      path: webhook.path,
+      metodo: webhook.metodo,
+      auth: webhook.auth,
+      eventos: webhook.eventos,
+      aviso: webhook.aviso ?? null,
+      doc: webhook.doc ?? null,
+      secret,
+      ultimoEvento,
+      ultimoRechazo,
+    }
+  })
   // `groups` son los grupos pintables en Integraciones; `state` sigue cubriendo ALL_FIELDS, así
   // que Datos de empresa puede leer IG_BUSINESS_CONTEXT/IG_BRAND_ASSETS del mismo endpoint.
-  return NextResponse.json({ encReady, groups: INTEGRATION_ONLY_GROUPS, state, health, runs: lastRuns })
+  return NextResponse.json({
+    encReady,
+    groups: INTEGRATION_ONLY_GROUPS,
+    state,
+    health,
+    runs: lastRuns,
+    webhooksEntrantes,
+  })
 }
 
 // POST — guardar cambios. body: { updates: { KEY: value } }.

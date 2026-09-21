@@ -464,7 +464,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         entity_type: 'appointment',
         entity_id: appt.id,
         action: 'update',
-        new_values: upd,
+        new_values: { ...upd, via: 'ghl_webhook' },
       })
       console.log('[ghl-webhook] ok: appointment.updated', appt.id, status ?? '')
       return NextResponse.json({
@@ -511,7 +511,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       entity_type: 'appointment',
       entity_id: created.id,
       action: 'create',
-      new_values: { contact_id: contact.id, source, ...utm },
+      new_values: { contact_id: contact.id, source, ...utm, via: 'ghl_webhook' },
     })
     console.log('[ghl-webhook] ok: appointment.created', created.id)
     return NextResponse.json({
