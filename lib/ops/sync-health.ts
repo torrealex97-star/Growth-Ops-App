@@ -180,12 +180,12 @@ export const SYNC_DEFS: SyncDef[] = [
     // en 'running'. El tiempo real lo cubre el webhook (webhooks/ghl); el botón repara y completa.
     id: 'ghl-citas',
     label: 'GHL — citas y contactos',
-    route: null,
+    route: 'cron/calendly-ghl',
     table: 'appointments',
     requiredKeys: ['GHL_API_TOKEN', 'GHL_LOCATION_ID'],
     scheduler: 'manual',
     manualReason:
-      'Se sincroniza desde Integraciones › GHL ("Sincronizar histórico"). No tiene cron: su API tarda más que el límite de 60 s del plan. El webhook cubre el tiempo real de las agendas nuevas.',
+      'El cron diario (GitHub Actions, 04:20 UTC) trae sus eventos por ventana temporal (modo soloEventos). La sincronización COMPLETA (contactos + eventos) se hace desde Integraciones › GHL ("Sincronizar histórico"): listar todos los contactos no cabe en el corte de 60 s del plan.',
   },
   {
     id: 'youtube-backfill',

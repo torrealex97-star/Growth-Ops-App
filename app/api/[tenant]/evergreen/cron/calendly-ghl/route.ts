@@ -1,22 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { syncCalendly } from '@/lib/integrations/citas-sync'
+import { syncCalendly, syncGhl } from '@/lib/integrations/citas-sync'
 import { getTenantConfigWithFallback } from '@/lib/config'
 import { recordSyncRun, SyncBusyError } from '@/lib/integrations/sync-runs'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-// CRON de CITAS (Calendly): pull diario que completa lo que los webhooks no cubren.
+// CRON de CITAS (Calendly + GHL): pull diario que completa lo que los webhooks no cubren.
 // Por qué existe: la sincronización vivía SOLO en el botón manual de Integraciones › history-sync,
 // se usó una vez para la importación inicial y jamás hubo planificador — las agendas nuevas dejaron
 // de entrar sin que nadie lo viera (ni un run de estos proveedores en integration_sync_runs en días).
 //
-// GHL NO va en el cron: su sync lista TODOS los contactos de la ubicación antes de tocar eventos
-// (varios minutos con la cuenta actual), que no caben en el corte de 60 s de Vercel Hobby — las dos
-// primeras pasadas en producción acabaron en 504 y en un run colgado en 'running'. El webhook de GHL
-// (webhooks/ghl) cubre el tiempo real y la carga/reparación completa se hace desde el botón de
-// Integraciones (ventana de 5 años), igual que stripe-customers.
+// GHL va en modo 'soloEventos': su sync completa lista TODOS los contactos de la ubicación antes de
+// tocar eventos (varios minutos con la cuenta actual) — las dos primeras pasadas con la fase completa
+// acabaron en 504 y en un run colgado en 'running'. El modo soloEventos salta esa fase, consulta los
+// eventos POR VENTANA TEMPORAL (barato) y crea perezosamente solo el contacto de cada evento nuevo.
+// La sync completa (contactos + eventos) sigue en el botón de Integraciones (ventana de 5 años).
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('authorization')
   if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -39,12 +39,11 @@ export async function GET(req: NextRequest) {
     for (const tn of tenants || []) {
       // Config EXPLÍCITA por subcuenta: el token de Calendly de una no puede leer la cuenta de otra.
       const cfg = await getTenantConfigWithFallback(tn.id, true)
-      if (!cfg.CALENDLY_API_TOKEN) {
-        // Sin credencial no es un fallo: esa subcuenta no agenda vía Calendly. GHL se sincroniza
-        // desde Integraciones (ver cabecera): su sync no cabe en el corte de 60 s.
+      if (!cfg.CALENDLY_API_TOKEN && !cfg.GHL_API_TOKEN) {
+        // Sin credencial no es un fallo: esa subcuenta no agenda vía Calendly ni GHL.
         porSubcuenta[tn.slug] = {
           omitida: true,
-          motivo: 'Calendly no está configurado en esta subcuenta',
+          motivo: 'Calendly y GHL no están configurados en esta subcuenta',
         }
         continue
       }
@@ -67,6 +66,34 @@ export async function GET(req: NextRequest) {
               // en detail.cortado. Registrar 'error' aquí falsificaría el panel de salud.
               failures: [],
               detail: { importadas: r.imported, actualizadas: r.updated, paginas: r.pages, cortado: r.cortado },
+            })
+          )
+        }
+        if (cfg.GHL_API_TOKEN) {
+          resultado.ghl = await recordSyncRun(
+            sb,
+            {
+              tenantId: tn.id,
+              provider: 'ghl',
+              job: 'ghl-citas',
+              trigger: 'cron',
+              secrets: [cfg.GHL_API_TOKEN, cfg.GHL_LOCATION_ID],
+            },
+            () =>
+              syncGhl(sb, tn.id, cfg, {
+                desdeInicio: desde,
+                deadlineMs: Date.now() + 25_000,
+                modo: 'soloEventos',
+              }),
+            (r) => ({
+              rowsWritten: r.appointmentsImported + r.appointmentsUpdated,
+              failures: [],
+              detail: {
+                citasImportadas: r.appointmentsImported,
+                citasActualizadas: r.appointmentsUpdated,
+                contactos: r.imported + r.updated,
+                cortado: r.cortado,
+              },
             })
           )
         }
