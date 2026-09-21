@@ -448,7 +448,7 @@ function VideoForm({
       if (kind === 'video') setSourceUrl(blob.url)
       else setPosterUrl(blob.url)
     } catch (e) {
-      setErr((e as Error).message || 'Error al subir. ¿Está configurado Vercel Blob (BLOB_READ_WRITE_TOKEN)?')
+      setErr((e as Error).message || 'No se pudo subir el archivo. Puedes pegar el enlace del vídeo en su lugar.')
     } finally {
       setUploading(null)
     }
