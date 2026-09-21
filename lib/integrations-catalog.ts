@@ -141,6 +141,23 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     ],
   },
   {
+    id: 'tiktok',
+    title: 'TikTok',
+    description:
+      'Cuenta propia de TikTok. El handle declara la cuenta en los guards de Apify (jamás se investiga por scraping); sus métricas vendrán de la API oficial cuando exista la sync.',
+    category: 'marketing',
+    fields: [
+      {
+        key: 'TIKTOK_HANDLE',
+        label: 'Handle de TikTok',
+        type: 'text',
+        secret: false,
+        placeholder: '@tucuenta',
+        help: 'Sin @ al guardar no pasa nada: el sistema lo normaliza. Se usa para impedir que Apify scrapee esta cuenta y, en el futuro, para la sync oficial.',
+      },
+    ],
+  },
+  {
     id: 'apify',
     title: 'Apify (investigación externa)',
     description:
