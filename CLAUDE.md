@@ -1,5 +1,7 @@
 # Claude Code — Growth-Ops-App
 
+Antes de nada, lee `docs/00-CONSTITUCION.md`: tesis, principios, roadmap por fases y prioridades. Es el único documento que se lee en toda sesión.
+
 Lee `PROJECT_CONTEXT.md` en la raíz del repo para el estado completo del proyecto.
 
 ## Quick start
