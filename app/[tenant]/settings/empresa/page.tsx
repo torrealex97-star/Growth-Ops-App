@@ -107,8 +107,8 @@ export default function EmpresaSettingsPage() {
 
       <div className="rounded-lg border border-border bg-card/50 p-6 space-y-4">
         <div className="grid md:grid-cols-2 gap-4">
-          {field('name', 'Nombre comercial *', 'Growth Ops')}
-          {field('legal_name', 'Razón social', 'Growth Ops S.L.')}
+          {field('name', 'Nombre comercial *', 'GrowthOps')}
+          {field('legal_name', 'Razón social', 'GrowthOps S.L.')}
           {field('cif', 'CIF / NIF', 'B-12345678')}
           {field('representative', 'Representante (firma)', 'Nombre del administrador')}
         </div>
@@ -128,7 +128,7 @@ export default function EmpresaSettingsPage() {
             value={c.email_signature}
             onChange={set('email_signature')}
             className="bg-muted border-border min-h-[80px]"
-            placeholder={'Un saludo,\nEl equipo de Growth Ops'}
+            placeholder={'Un saludo,\nEl equipo de GrowthOps'}
           />
           <p className="text-xs text-muted-foreground">Aparece al final del email de envío del contrato.</p>
         </div>

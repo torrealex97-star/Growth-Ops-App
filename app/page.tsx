@@ -106,7 +106,7 @@ export default function HomePage() {
       <div className="go-hero__body" id="acceso">
         <section className="go-panel">
           <span className="go-chip">[ Panel de acceso ]</span>
-          <h1 className="go-display">Growth Ops</h1>
+          <h1 className="go-display">GrowthOps</h1>
           <p className="go-tagline">Elige tu subcuenta para entrar al sistema.</p>
 
           {tenants === null && (
@@ -184,7 +184,7 @@ export default function HomePage() {
 
       {/* Fila 3 — pie legal. */}
       <footer className="go-legal">
-        Growth Ops · Acceso privado del equipo. Cada subcuenta opera como un negocio independiente dentro de la
+        GrowthOps · Acceso privado del equipo. Cada subcuenta opera como un negocio independiente dentro de la
         plataforma.
       </footer>
     </main>

@@ -61,7 +61,7 @@ export function TenantProvider({
 
 // Nombre de marca + acento de color de la subcuenta activa (Fase 10), resuelto en
 // app/[tenant]/layout.tsx desde tenants.settings.branding. Úsalo en vez de hardcodear
-// "Growth Ops" en cualquier pantalla dentro de app/[tenant]/**.
+// "GrowthOps" en cualquier pantalla dentro de app/[tenant]/**.
 export function useTenantBranding(): TenantBranding {
   const ctx = useContext(TenantContext)
   if (!ctx) throw new Error('useTenantBranding() called outside <TenantProvider> (app/[tenant]/layout.tsx)')

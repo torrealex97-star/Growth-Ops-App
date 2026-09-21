@@ -8,8 +8,8 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-sans', display: 'swa
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-display', display: 'swap' })
 
 export const metadata: Metadata = {
-  title: 'Growth Ops',
-  description: 'Operating system de negocio Growth Ops',
+  title: 'GrowthOps',
+  description: 'Operating system de negocio GrowthOps',
   metadataBase: new URL('https://growth-ops-weld.vercel.app/'),
   robots: 'noindex, nofollow',
 }
