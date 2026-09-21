@@ -76,8 +76,7 @@ El plan completo vive en `docs/plan/`. Empieza por su README.
 
 ### Lo siguiente, en este orden
 
-1. **Resolver lo pendiente listado abajo.** Lo primero, con aprobación de Alex: aplicar la migración
-   P0 del RAG y registrar los 12 pagos de Stripe (plan exacto en Incidencias).
+1. **Resolver lo pendiente listado abajo.**
 2. **S0 tramo 2**: S0.4 y S0.5 hechas. Siguen **S0.6** (baseline de frontend y rendimiento: incluye
    las 38 políticas RLS con `auth.uid()` por fila), **S0.7** (baseline de integraciones: Calendly
    roza los 60 s; un timeout que mata la función no deja fila en `integration_sync_runs`) y **S0.8**
@@ -98,11 +97,9 @@ Dos motivos, ninguno es código:
 
 El plan prohíbe que un agente toque producción por su cuenta. Espera confirmación:
 
-- **`20260921120000_s0_4_match_knowledge_chunks_gate_subcuenta.sql` — P0, la primera.** Regresión
-  de F-1: la migración `20260920120000` (filtro `p_types`) recreó la RPC del RAG de 6 argumentos con
-  la puerta VIEJA (rol sin subcuenta) y la de 5 delega en ella. Un admin de un cliente puede leer el
-  conocimiento de otro pasando su `p_tenant`, o NULL. Además nació ejecutable por `anon`. Solo cambia
-  la puerta y los grants; `tests/rag-gate-subcuenta.test.mjs` impide que vuelva a pasar.
+- ~~P0 del RAG~~ **APLICADA el 2026-09-21** con aprobación de Alex, como
+  `20260921172046_s0_4_match_knowledge_chunks_gate_subcuenta.sql` (renombrada a su versión real).
+  Verificado: las 3 firmas sin EXECUTE para `anon`; la de 6 argumentos exige pertenencia.
 - `20260921100000_f6_fathom_match_review_contact_id.sql` — vincula 69 de 177 filas de
   `fathom_match_review` a su contacto. Las otras 108 son correos de personas que no son contactos:
   ningún borrado por `contact_id` las alcanza, y `erase_person` las cubre borrando por correo.
@@ -136,30 +133,16 @@ cazó; conviene no gastar esa red dos veces.
   Salud de datos, que dicen a dónde ir en cada caso. Además el sync guardaba el correo solo de
   `receipt_email` (vacío en los 59): ahora cae al de facturación (resincronizado: ya tienen correo).
 
-  **Registro de los 12 — PREPARADO, PENDIENTE DE APROBAR (2026-09-21).** Alex pidió registrarlos
-  con sus cuotas. El clasificador de permisos bloqueó la escritura en producción: hace falta su
-  aprobación explícita para ejecutarla. Plan cerrado, ejecutable en UNA transacción que aborta si
-  algo ya está registrado o si un correo es ambiguo, con la nota `S0.4 2026-09-21` en cada fila:
+  **Registro de los 12 — HECHO el 2026-09-21** con aprobación de Alex (incluido el de julio). Una
+  transacción; cada fila lleva la nota `S0.4 2026-09-21`. Resultado verificado: **0 pagos sin cobro;
+  Stripe 27.029,46 € = cobros de esos pagos 27.029,46 €**. 8 ventas nuevas, 2 cobros añadidos a
+  ventas existentes (2.ª cuota de un 1997/6; julio a la venta 1497/4 de la misma clienta), 4
+  contactos nuevos, plan nuevo `WDC — Reserva (50 €)` (método `reserva`) para las 3 reservas sueltas.
+  Precio por fecha: 1497 € hasta julio, 1997 € desde agosto.
 
-  | Pagos (fecha · importe)              | Qué es                                                              | Registro                                                                                                                         |
-  | ------------------------------------ | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-  | 19-sep · 332,83                      | 2.ª cuota de una venta existente 1997/6                             | cobro en esa venta                                                                                                               |
-  | 03-jul · 748,50                      | misma clienta que una venta 1497/4 (otro correo, nombre casi igual) | cobro en esa venta — **Alex confirma**                                                                                           |
-  | 20-abr + 20-may · 748,50 ×2          | cliente nuevo                                                       | venta 1497 € "2 plazos", pagada entera                                                                                           |
-  | 08-may · 499                         | cliente nuevo                                                       | venta 1497 € "3 plazos", cuota 1/3                                                                                               |
-  | 20-ago · 998,50                      | cliente nuevo                                                       | venta 1997 € "2 plazos", cuota 1/2                                                                                               |
-  | 14-ago · 50 + 14-sep · 486,75        | contacto existente (por nombre)                                     | venta 1997 € "4 plazos" con reserva 50 (50 + 4 × 486,75)                                                                         |
-  | 16-sep · 332,83                      | contacto existente                                                  | venta 1997 € "6 plazos", cuota 1/6                                                                                               |
-  | 04-sep, 17-sep, 18-sep · 50 cada uno | solo reserva, sin más pagos                                         | venta en plan nuevo `WDC — Reserva (50 €)` (método `reserva`): sale en Ventas › Reservas y "Completar pago" la convierte en 1997 |
-
-  Precio por fecha, verificado contra las ventas ya registradas: **1497 € hasta julio, 1997 € desde
-  agosto** (748,50 y 499 solo encajan en 1497). Closer: el único de todas las ventas de la subcuenta.
-  Contactos nuevos: 4 (sin ficha en el CRM), con el nombre del cliente de Stripe o, si no hay, la
-  parte local del correo. Suma exacta: 5.095,41 €.
-
-  **Comisiones**: las genera el motor en código (`reconcileSaleCommissions`), no la base. La
-  reparación masiva `sales/reconcile-all` reconstruye TODAS las no liquidadas de la subcuenta:
-  demasiado alcance. Siguiente paso: que acepte `saleIds` y lanzarla solo sobre estas ventas.
+  **Comisiones**: las genera el motor en código (`reconcileSaleCommissions`), no la base.
+  `sales/reconcile-all` acepta ahora `{ saleIds }` y hay un workflow manual
+  (`reparar-comisiones.yml`) para lanzarlo sobre ventas concretas sin tocar el resto.
 
 - **Un cobro de 50 € contra un pago que Stripe devolvió**, con `refunds` a 0 filas: el camino de
   devolución no está cerrado.
@@ -205,8 +188,6 @@ Solo lo que ningún agente puede hacer:
 | Rellenar los `[definir]` de la etapa A (`docs/plan/00-constitucion.md` §2)                       | Arranque de F1          |
 | Comprobar que `https://app.scalixsystems.com` está en Supabase → Auth → URL Configuration        | Enlaces de recuperación |
 | Commitear el WIP del checkout de `~/Documents` y retirarlo                                       | Carpeta única           |
-| **Aprobar** el registro de los 12 pagos de Stripe (tabla en Incidencias) y confirmar el de julio | Cash y comisiones       |
-| **Aprobar** aplicar la migración P0 del RAG (`20260921120000`)                                   | Fuga entre subcuentas   |
 | Configurar Bunny en Integraciones › Bunny Stream (guía en la propia pantalla)                    | Subida de VSL           |
 
 Puedo hacer, con su visto bueno: poner el repo privado, borrar el proyecto `go-prod` de Vercel
