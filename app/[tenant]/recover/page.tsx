@@ -34,6 +34,17 @@ export default function RecoverPage() {
         setLoading(false)
         return
       }
+      // SUBCUENTA INEXISTENTE: no se cae al flujo de Supabase. Ese flujo NO sabe de subcuentas, así
+      // que enviaría un correo genérico con un enlace de vuelta a una dirección que no existe — y la
+      // pantalla diría "revisa tu correo" igualmente. Es lo que hizo esperar un correo que nunca
+      // iba a servir. Se dice la verdad y se para.
+      if (res.status === 404) {
+        toast.error('Esta subcuenta no existe', {
+          description: `No hay ninguna subcuenta activa con el identificador "${tenant}". Suele ser una errata en la dirección.`,
+        })
+        setLoading(false)
+        return
+      }
     } catch {
       /* si el endpoint falla, usamos el fallback de Supabase */
     }

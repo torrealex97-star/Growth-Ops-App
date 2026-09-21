@@ -72,3 +72,26 @@ test('el almacenamiento bloqueado no rompe nada', () => {
     assert.match(src, /try \{\s*\n?\s*(set|localStorage)/, 'los accesos a localStorage van protegidos')
   }
 })
+
+// ── RECUPERACIÓN DE CONTRASEÑA ───────────────────────────────────────────────────────────────
+
+const recover = read('app/[tenant]/recover/page.tsx')
+
+test('con subcuenta inexistente, recuperar NO cae al flujo genérico de Supabase', () => {
+  // La ruta devuelve 404 si el slug no existe. Antes, la página lo trataba como "el endpoint no
+  // sirvió" y usaba el flujo de Supabase, que NO sabe de subcuentas: mandaba un correo genérico con
+  // un enlace de vuelta a una dirección inexistente, y la pantalla decía "revisa tu correo". Se
+  // esperaba un correo que nunca iba a servir.
+  assert.match(recover, /res\.status === 404/)
+  const corta = recover.indexOf('res.status === 404')
+  const fallback = recover.indexOf('resetPasswordForEmail')
+  assert.ok(corta > -1 && fallback > -1)
+  assert.ok(corta < fallback, 'el 404 se atiende antes de llegar al fallback')
+})
+
+test('el 404 nombra la causa probable y no marca el envío como hecho', () => {
+  const bloque = recover.slice(recover.indexOf('res.status === 404'), recover.indexOf('resetPasswordForEmail'))
+  assert.match(bloque, /Esta subcuenta no existe/)
+  assert.match(bloque, /errata/)
+  assert.doesNotMatch(bloque, /setSent\(true\)/, 'no puede decir que se envió algo que no se envió')
+})
