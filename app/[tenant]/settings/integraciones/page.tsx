@@ -64,6 +64,10 @@ type Group = {
   category: IntegrationCategory
   test?: boolean
   required?: string[]
+  // Guía de puesta en marcha: de dónde sale cada dato y qué hacer con él. Ver el catálogo.
+  pasos?: { titulo: string; detalle: string }[]
+  // Ruta del webhook entrante, con `{tenant}` por rellenar.
+  webhookPath?: string
   fields: Field[]
 }
 
@@ -386,6 +390,74 @@ function AdvancedField({
       )}
       {field.help ? <p className="text-muted-foreground text-xs">{field.help}</p> : null}
     </div>
+  )
+}
+
+/**
+ * Guía de puesta en marcha de una integración.
+ *
+ * Las credenciales no se "rellenan": se van a buscar a otro producto. Sin decir DÓNDE está cada
+ * valor, configurar una integración exige que haya alguien técnico delante — y si además hay que
+ * montar a mano la URL de un webhook, aparece la errata que luego cuesta una tarde encontrar.
+ *
+ * Por eso la dirección se pinta ya montada con la subcuenta y con botón de copiar, y cada paso dice
+ * de dónde sale el dato. Solo aparece en las integraciones que declaran `pasos` o `webhookPath`.
+ */
+function GuiaIntegracion({ grupo, tenant }: { grupo: Group; tenant: string }) {
+  const url = grupo.webhookPath
+    ? `${typeof window === 'undefined' ? '' : window.location.origin}${grupo.webhookPath.replace('{tenant}', tenant)}`
+    : null
+  if (!grupo.pasos?.length && !url) return null
+
+  return (
+    <section className="border-border bg-muted/20 my-5 space-y-4 rounded-lg border p-4">
+      <h3 className="text-sm font-semibold">Cómo configurarlo</h3>
+
+      {url ? (
+        <div className="space-y-1.5">
+          <p className="text-muted-foreground text-xs">
+            Dirección del webhook de esta subcuenta. Cópiala tal cual: lleva dentro el identificador de la subcuenta y
+            no vale la de otra.
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="bg-background/60 border-border flex-1 overflow-x-auto rounded border px-2 py-1.5 text-xs">
+              {url}
+            </code>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                navigator.clipboard
+                  ?.writeText(url)
+                  .then(() => toast.success('Dirección copiada'))
+                  // Sin portapapeles (navegador antiguo o permiso denegado) se puede seleccionar a mano:
+                  // el texto está a la vista, así que el fallo no deja a nadie bloqueado.
+                  .catch(() => toast.error('No se pudo copiar: selecciónala y cópiala a mano'))
+              }}
+            >
+              Copiar
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {grupo.pasos?.length ? (
+        <ol className="space-y-3">
+          {grupo.pasos.map((paso, i) => (
+            <li key={paso.titulo} className="flex gap-3">
+              <span className="bg-primary/10 text-primary mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold">
+                {i + 1}
+              </span>
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium">{paso.titulo}</p>
+                <p className="text-muted-foreground text-xs leading-relaxed">{paso.detalle}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+    </section>
   )
 }
 
@@ -970,6 +1042,8 @@ export default function IntegracionesPage() {
                           </div>
                           <SheetDescription>{g.description}</SheetDescription>
                         </SheetHeader>
+
+                        <GuiaIntegracion grupo={g} tenant={tenant} />
 
                         {h ? (
                           <section
