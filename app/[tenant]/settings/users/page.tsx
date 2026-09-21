@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { UserPlus, Edit2, Loader2, Users, KeyRound, Copy, Wallet, RefreshCw, Trash2 } from 'lucide-react'
+import { UserPlus, Edit2, Loader2, Users, KeyRound, Copy, Wallet, RefreshCw, Trash2, Eye } from 'lucide-react'
 import { toast } from 'sonner'
 import { ROLE_LABELS, ROLE_COLORS, NAV_PAGES, type AppRole } from '@/lib/auth/permissions'
 import { PageAccessSelector } from '@/components/settings/PageAccessSelector'
@@ -18,7 +18,7 @@ import { formatCurrency } from '@/lib/utils'
 import { generateUniqueTrackingCode } from '@/lib/tracking'
 import { buildDefaultTerms, type ContractTerms } from '@/lib/contracts/terms'
 import { ContractTermsEditor, CONTRACT_ROLES } from '@/components/contracts/ContractTermsEditor'
-import { useTenant, useTenantId } from '@/lib/tenant-context'
+import { useTenant, useTenantId, useSesion } from '@/lib/tenant-context'
 
 // Roles que necesitan tracking_code para generar enlaces con UTM
 const TRACKING_ROLES: AppRole[] = ['setter', 'closer', 'cold_caller', 'affiliate']
@@ -28,6 +28,8 @@ type UserWithRole = User & { roles: Role }
 export default function UsersPage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
+  const sesion = useSesion()
+  const isSuperAdminSesion = !!sesion?.isSuperAdmin
   const [users, setUsers] = useState<UserWithRole[]>([])
   const [roles, setRoles] = useState<Role[]>([])
   const [loading, setLoading] = useState(true)
@@ -45,6 +47,32 @@ export default function UsersPage() {
   } | null>(null)
   const [generatingSalaries, setGeneratingSalaries] = useState(false)
   const [regeneratingAll, setRegeneratingAll] = useState(false)
+  const [viendoComoId, setViendoComoId] = useState<string | null>(null)
+
+  // VER COMO (solo super admin de plataforma): abre la sesión REAL del colaborador en esta pestaña.
+  // El endpoint guarda la sesión del super admin en un ticket cifrado y devuelve el enlace mágico;
+  // visitarlo canjea la sesión y a partir de ahí TODO el panel es el del colaborador (RLS incluida).
+  // El banner ámbar de arriba recuerda siempre en qué modo estás y cómo salir.
+  async function verComo(u: UserWithRole) {
+    setViendoComoId(u.id)
+    try {
+      const r = await fetch(`/api/${tenant}/evergreen/admin/ver-como`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: u.id }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        toast.error(j.error || 'No se pudo iniciar Ver como')
+        setViendoComoId(null)
+        return
+      }
+      window.location.href = j.url
+    } catch {
+      toast.error('Error de red')
+      setViendoComoId(null)
+    }
+  }
 
   // Invite form
   const [inviteEmail, setInviteEmail] = useState('')
@@ -571,6 +599,22 @@ export default function UsersPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
+                        {isSuperAdminSesion && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-sky-400"
+                            onClick={() => verComo(user)}
+                            disabled={viendoComoId === user.id}
+                            title="Ver como esta persona (abre su panel exactamente como lo ve ella)"
+                          >
+                            {viendoComoId === user.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Eye className="w-3.5 h-3.5" />
+                            )}
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
