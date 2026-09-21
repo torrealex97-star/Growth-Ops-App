@@ -808,6 +808,77 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     ],
   },
   {
+    id: 'bunny',
+    title: 'Bunny Stream (vídeos de VSL)',
+    description:
+      'Aloja y sirve los vídeos de tus VSL: se suben desde la app y se reproducen rápido en cualquier conexión.',
+    category: 'marketing',
+    test: true,
+    required: ['BUNNY_STREAM_LIBRARY_ID', 'BUNNY_STREAM_API_KEY', 'BUNNY_STREAM_CDN_HOSTNAME'],
+    pasos: [
+      {
+        titulo: 'Crea una cuenta en bunny.net y entra en Stream',
+        detalle:
+          'Regístrate en bunny.net (tiene prueba gratuita). En el menú de la izquierda del panel entra en "Stream". ' +
+          'Stream es el servicio de vídeo; no lo confundas con "Storage" ni con "CDN", que son otros productos.',
+      },
+      {
+        titulo: 'Crea una biblioteca de vídeo (Video Library)',
+        detalle:
+          'Pulsa "Add Video Library", ponle un nombre (por ejemplo "VSL") y elige las regiones de almacenamiento más ' +
+          'cercanas a tu público (Europa si vendes en España). Una biblioteca es la carpeta donde vivirán tus vídeos.',
+      },
+      {
+        titulo: 'Copia el ID de la biblioteca',
+        detalle:
+          'Abre la biblioteca y entra en la pestaña "API". Verás "Video Library ID": es un número (por ejemplo 123456). ' +
+          'Pégalo en el campo "ID de la biblioteca" de abajo.',
+      },
+      {
+        titulo: 'Copia la API key de la biblioteca',
+        detalle:
+          'En esa misma pestaña "API" está "API Key". Tiene que ser la de la BIBLIOTECA, no la de tu cuenta de Bunny ' +
+          '(la de la cuenta está en Account Settings y no sirve aquí). Pégala en "API key". Se guarda cifrada.',
+      },
+      {
+        titulo: 'Copia el hostname de la CDN',
+        detalle:
+          'También en la pestaña "API" aparece "CDN Hostname", con una forma parecida a vz-abc123-456.b-cdn.net. Pégalo ' +
+          'tal cual en "Hostname de la CDN"; da igual si copias también el https:// delante, la app lo limpia.',
+      },
+      {
+        titulo: 'Guarda, pulsa "Probar" y sube tu primer vídeo',
+        detalle:
+          'Si la prueba sale en verde, ve a Marketing › VSL, crea un vídeo y pulsa "Subir archivo". El vídeo va directo ' +
+          'a Bunny. Después Bunny lo procesa: según el tamaño tarda de uno a varios minutos en poder reproducirse, y ' +
+          'mientras tanto el reproductor puede mostrar un error. Es normal, no hace falta volver a subirlo.',
+      },
+    ],
+    fields: [
+      {
+        key: 'BUNNY_STREAM_LIBRARY_ID',
+        label: 'ID de la biblioteca',
+        type: 'text',
+        secret: false,
+        help: 'Stream › tu biblioteca › API › Video Library ID. Es un número.',
+      },
+      {
+        key: 'BUNNY_STREAM_API_KEY',
+        label: 'API key',
+        type: 'password',
+        secret: true,
+        help: 'La de la biblioteca (Stream › tu biblioteca › API), no la de la cuenta. Se guarda cifrada.',
+      },
+      {
+        key: 'BUNNY_STREAM_CDN_HOSTNAME',
+        label: 'Hostname de la CDN',
+        type: 'text',
+        secret: false,
+        help: 'Stream › tu biblioteca › API › CDN Hostname. Parecido a vz-abc123-456.b-cdn.net.',
+      },
+    ],
+  },
+  {
     id: 'google',
     title: 'Google (GA4 y Gmail)',
     description: 'Credenciales del proyecto de Google Cloud. La conexión de cada servicio se autoriza aparte.',

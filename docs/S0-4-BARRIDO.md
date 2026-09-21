@@ -47,7 +47,7 @@ diseño correcta. Lo que fallaba es que **nada avisaba** de los pagos que quedab
 | P1     | El webhook de GHL no escribe capa raw: sin replay                                                        | F1                                                             |
 | P1     | GHL no envía UTMs: `contact_attributions` vacía                                                          | **Alex** (config de GHL)                                       |
 | P1     | La devolución no entra sola: Stripe la sabe y la app no                                                  | F5 (hoy solo se avisa, §1 #2)                                  |
-| P2     | Subida de VSL desactivada: falta un almacén de Vercel Blob                                               | **Alex** decide si activarlo                                   |
+| P2     | Subida de VSL: ahora va a **Bunny Stream** (integración nueva, 2026-09-21). Falta configurarla           | **Alex** (Integraciones › Bunny, 5 min)                        |
 | P2     | `CRON_SECRET` no existe en Preview                                                                       | **Alex** — A0 §2.1                                             |
 | P2     | Cobro y comisión sin frontera transaccional                                                              | F5                                                             |
 | P2     | Token de Meta de WDC sin permisos                                                                        | **Alex** (reconectar)                                          |

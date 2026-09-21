@@ -9,6 +9,7 @@ import { lastRunsByJob } from '@/lib/integrations/sync-runs'
 import { PG_CRON_READY, VERCEL_CRON_ROUTES } from '@/lib/ops/vercel-crons'
 import { parseAccountIds, fetchAdAccounts } from '@/lib/meta/client'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { configBunny, faltaEnConfigBunny, probarBunny } from '@/lib/vsl/bunny'
 import { isDeprecatedMetaVersion, META_API_VERSION } from '@/lib/meta/api-version'
 import { classifyMetaError } from '@/lib/meta/errors'
 import { exchangeCode } from '@/lib/google/oauth'
@@ -725,6 +726,14 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
       return r.ok
         ? { ok: true, message: `Usuario: ${j.resource?.name || 'OK'}` }
         : { ok: false, message: j.message || 'Token inválido', code: codeFromStatus(r.status) }
+    }
+    if (group === 'bunny') {
+      const bunny = configBunny(cfg)
+      if (!bunny) return { ok: false, message: `Falta ${faltaEnConfigBunny(cfg).join(', ')}.` }
+      const r = await probarBunny(bunny)
+      return r.ok
+        ? { ok: true, message: r.message }
+        : { ok: false, message: r.message, code: codeFromStatus(r.status ?? 0) }
     }
     if (group === 'fathom') {
       const key = cfg.FATHOM_API_KEY

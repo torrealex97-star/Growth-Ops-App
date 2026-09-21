@@ -3,6 +3,7 @@ import { useTenant } from '@/lib/tenant-context'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { upload } from '@vercel/blob/client'
+import { bunnyConfigurado, subirVideoABunny } from './subirABunny'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -418,6 +419,8 @@ function VideoForm({
   const [duration, setDuration] = useState(initial.duration_seconds || 0)
   const [config, setConfig] = useState<VslConfig>({ ...DEFAULT_CONFIG, ...(initial.config || {}) })
   const [uploading, setUploading] = useState<'video' | 'poster' | null>(null)
+  const [progreso, setProgreso] = useState<number | null>(null)
+  const [aviso, setAviso] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -434,11 +437,24 @@ function VideoForm({
 
   const onFile = async (file: File, kind: 'video' | 'poster') => {
     setErr(null)
+    setAviso(null)
     setUploading(kind)
     try {
       if (kind === 'video') {
         const d = await readDuration(file)
         if (d) setDuration(Math.round(d))
+        // Con Bunny configurado el vídeo va a Bunny Stream (HLS por CDN); si no, a la vía anterior,
+        // que explica qué falta. Ver lib/vsl/bunny.ts.
+        if (await bunnyConfigurado(tenant)) {
+          setProgreso(0)
+          const { playlist, miniatura } = await subirVideoABunny(tenant, file, setProgreso)
+          setSourceUrl(playlist)
+          if (!posterUrl) setPosterUrl(miniatura)
+          setAviso(
+            'Subido a Bunny. Ahora lo está procesando: tardará unos minutos en poder reproducirse. Puedes guardar ya.'
+          )
+          return
+        }
       }
       const blob = await upload(file.name, file, {
         access: 'public',
@@ -451,6 +467,7 @@ function VideoForm({
       setErr((e as Error).message || 'No se pudo subir el archivo. Puedes pegar el enlace del vídeo en su lugar.')
     } finally {
       setUploading(null)
+      setProgreso(null)
     }
   }
 
@@ -517,6 +534,16 @@ function VideoForm({
               placeholder="…o pega una URL (.mp4 o .m3u8 de Bunny)"
               className="mt-2 bg-black/30 text-xs"
             />
+            {progreso !== null && (
+              <p className="mt-1 text-xs text-muted-foreground" role="status">
+                Subiendo a Bunny… {progreso}%
+              </p>
+            )}
+            {aviso && (
+              <p className="mt-1 text-xs text-muted-foreground" role="status">
+                {aviso}
+              </p>
+            )}
             {duration > 0 && <p className="mt-1 text-xs text-muted-foreground">Duración: {fmt(duration)}</p>}
           </div>
 
