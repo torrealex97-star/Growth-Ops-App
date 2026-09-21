@@ -30,6 +30,29 @@ para que no vuelva a pasar.
    verdad y qué queda. Un relevo que no se escribe no existe.
 7. **Nada de PII ni credenciales en commits.** El repositorio es **público**: `docs/SECURITY_PRIVACY.md`.
 
+## Estado (2026-09-21, tarde — hebra Freebuff 4250bf8e)
+
+**Citas (Calendly/GHL) arregladas — #108 + #110 + #112 fusionados.** Síntoma: la semana mostraba
+1 agenda con muchas más en Calendly/GHL. Causa raíz: la sync de citas solo existía como botón
+manual (history-sync), la importación del 12-sep jamás tuvo planificador y ni un run de estos
+proveedores en `integration_sync_runs` desde entonces. Ahora: **cron diario de Calendly**
+(04:20 UTC, ventana 14 días, upsert idempotente, presupuesto 35 s) por GitHub Actions; **GHL va
+SOLO por botón** — su API lista todos los contactos de la ubicación antes de tocar eventos y no
+cabe en los 60 s de Vercel Hobby (dos pasadas en producción: 504 y run colgado en 'running'; el
+webhook cubre el tiempo real). Implementación única en `lib/integrations/citas-sync.ts`
+(botón + cron comparten código; test prohíbe duplicarla). `SYNC_DEFS` declara `calendly-citas`
+y `ghl-citas` (route: null + manualReason). Resultado verificado en BD: 1 → **16 citas esta
+semana** (+19 importadas, 67 actualizadas; 0 duplicados GHL↔Calendly en 30 días).
+
+**Ops extra de la misma sesión**: migración `20260918140000` (meta_actions/meta_action_values de
+`campaign_daily`) estaba SIN aplicar en producción — el cron `meta-daily` llevaba días en error
+"schema cache". Aplicada, registrada en `schema_migrations` y `NOTIFY pgrst 'reload schema'`
+verificado vía REST. También se cerró a mano el run de GHL que quedó colgado en 'running'.
+
+Tests: 519 → 568 (la otra hebra añadió los suyos); `tests/cron-calendly-ghl.test.mjs` fija los
+invariantes (auth CRON_SECRET, config por subcuenta, idempotencia, no-colisión de horarios,
+GHL prohibido en el cron, una sola implementación).
+
 ## Estado (2026-09-21)
 
 `main` al día. Sin PRs abiertos ni ramas de trabajo vivas.
