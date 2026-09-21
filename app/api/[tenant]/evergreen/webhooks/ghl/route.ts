@@ -5,6 +5,7 @@ import { leerToque, registrarToque, toqueTieneDatos } from '@/lib/contacts/atrib
 import { resolverColaboradorPorCodigo } from '@/lib/collaborators/scope'
 import { firstMemberOf, resolveUserIdByTrackingCode } from '@/lib/tracking'
 import { isValidWebhookSecret } from '@/lib/webhooks/verifySecret'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 // Webhook único de GHL (+ player VSL). Maneja, de forma IDEMPOTENTE, varios eventos:
 //   - lead opt-in (solo contacto + atribución, sin agenda)
@@ -97,8 +98,37 @@ async function userIdByEmail(sb: SupabaseClient, tenantId: string, email?: strin
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
     const secret = req.headers.get('x-ghl-secret')
+
+    // EL SECRETO ES POR SUBCUENTA, como en el webhook de Stripe.
+    //
+    // Antes se leía solo de `process.env.GHL_WEBHOOK_SECRET`, pero el catálogo de integraciones
+    // declara `GHL_WEBHOOK_SECRET` como campo OBLIGATORIO de GHL en el panel de cada subcuenta. Es
+    // decir: la app pedía configurarlo ahí y el webhook nunca lo leía. Quien siguiera las
+    // instrucciones del propio producto seguía recibiendo 401, sin ninguna pista de por qué.
+    //
+    // Además, un secreto global es un fallo de aislamiento: con él, el webhook de un cliente podría
+    // escribir en los datos de otro sin más que cambiar el slug de la URL.
+    //
+    // El entorno se mantiene como respaldo para no romper una instalación que ya dependiera de él.
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const { tenant } = await params
+    const { data: tenantRow } = await sb
+      .from('tenants')
+      .select('id, status')
+      .eq('slug', tenant)
+      .eq('status', 'active')
+      .single()
+
+    // Subcuenta inexistente y secreto incorrecto responden IGUAL. Resolver el tenant antes de
+    // autenticar permitiría, si no, distinguir 404 de 401 y enumerar slugs sin credencial alguna.
+    if (!tenantRow) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const tenantId = tenantRow.id
+
+    const cfg = await getTenantConfigWithFallback(tenantId, true)
     // Fail-closed: si el secret no está configurado o no coincide, rechazamos.
-    if (!isValidWebhookSecret(secret, process.env.GHL_WEBHOOK_SECRET)) {
+    if (!isValidWebhookSecret(secret, cfg.GHL_WEBHOOK_SECRET || process.env.GHL_WEBHOOK_SECRET)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -129,20 +159,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     overwrite(payload.custom_data)
 
     const event = (req.nextUrl.searchParams.get('event') || payload.event || payload.type || '').toLowerCase()
-
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
-    // Sin sesión de usuario (lo llama GHL): el tenant se resuelve directamente del
-    // slug de la ruta, con el cliente service-role (bypassa RLS).
-    const { tenant } = await params
-    const { data: tenantRow } = await sb
-      .from('tenants')
-      .select('id, status')
-      .eq('slug', tenant)
-      .eq('status', 'active')
-      .single()
-    if (!tenantRow) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
-    const tenantId = tenantRow.id
 
     // --- Campos comunes ---
     const email = (pick(payload.email) as string | null)?.toLowerCase?.()?.trim() || null
