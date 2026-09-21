@@ -126,6 +126,21 @@ export type Contact = {
   // Columnas generadas por Postgres (normalización para dedupe) — solo lectura
   email_normalized: string | null
   phone_normalized: string | null
+  // Campos personalizados de la subcuenta (§1 del brief de contactos): jsonb con pares
+  // { "<custom_field_defs.id>": valor }. Las definiciones viven en custom_field_defs.
+  custom_fields: Record<string, string | number | boolean | null>
+  created_at: string
+  updated_at: string
+}
+
+// Definición de un campo personalizado de la subcuenta (migración 20260921200000).
+export type CustomFieldDef = {
+  id: string
+  tenant_id: string
+  field_key: string
+  label: string
+  field_type: 'text' | 'number' | 'date' | 'boolean'
+  sort_order: number
   created_at: string
   updated_at: string
 }

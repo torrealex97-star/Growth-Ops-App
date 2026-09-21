@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { ContactForm, type ContactFormData } from '@/components/contacts/ContactForm'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -31,10 +32,11 @@ import {
   StickyNote,
   FileText,
   Pencil,
+  ListTree,
 } from 'lucide-react'
 import { formatDate, formatDateTime, formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
-import type { Contact, ContactAttribution, Appointment, Sale, User } from '@/lib/types/database'
+import type { Contact, ContactAttribution, Appointment, Sale, User, CustomFieldDef } from '@/lib/types/database'
 import type { Qualification, QualificationAnswer } from '@/lib/qualification'
 import { LEAD_STATUS_COLORS, LEAD_STATUS_LABELS } from '@/lib/lead-status'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
@@ -134,6 +136,10 @@ export default function ContactDetailPage() {
   const router = useRouter()
   const [contact, setContact] = useState<Contact | null>(null)
   const [attributions, setAttributions] = useState<ContactAttribution[]>([])
+  // Campos personalizados de la subcuenta (§1): catálogo + guardado en lote desde la ficha.
+  const [customDefs, setCustomDefs] = useState<CustomFieldDef[]>([])
+  const [customDraft, setCustomDraft] = useState<Record<string, string>>({})
+  const [customSaving, setCustomSaving] = useState(false)
   const [appointments, setAppointments] = useState<AppointmentWithNames[]>([])
   const [sales, setSales] = useState<Sale[]>([])
   const [notes, setNotes] = useState<ContactNote[]>([])
@@ -157,7 +163,7 @@ export default function ContactDetailPage() {
   const load = async () => {
     const supabase = createClient()
 
-    const [contactRes, attrRes, appRes, salesRes, notesRes, activitiesRes, contractsRes] = await Promise.all([
+    const [contactRes, attrRes, appRes, salesRes, notesRes, activitiesRes, contractsRes, defsRes] = await Promise.all([
       supabase.from('contacts').select('*').eq('id', id).eq('tenant_id', tenantId).single(),
       supabase
         .from('contact_attributions')
@@ -194,6 +200,7 @@ export default function ContactDetailPage() {
         .select('id, title, status, url, signed_at, created_at')
         .eq('contact_id', id)
         .order('created_at', { ascending: false }),
+      supabase.from('custom_field_defs').select('*').eq('tenant_id', tenantId).order('sort_order', { ascending: true }),
     ])
 
     if (sesion) setCurrentUser({ id: sesion.userId })
@@ -230,6 +237,7 @@ export default function ContactDetailPage() {
       )
     )
     setContracts((contractsRes.data as ContactContract[]) ?? [])
+    setCustomDefs((defsRes.data as CustomFieldDef[]) ?? [])
     setLoading(false)
   }
 
@@ -521,11 +529,12 @@ export default function ContactDetailPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="timeline">
+      {/* Tabs — INFORMACIÓN PRIMERO (estilo top CRMs: HubSpot/Salesforce/Pipedrive abren la
+          ficha en la vista 360º del contacto; el timeline queda como segundo tab, no al revés). */}
+      <Tabs defaultValue="info">
         <TabsList className="bg-card border border-border">
-          <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="info">Información</TabsTrigger>
+          <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="attribution">
             Atribución
             {attributions.length > 0 && (
@@ -664,6 +673,86 @@ export default function ContactDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Campos personalizados de la subcuenta (§1): edición inline con guardado en lote. */}
+          {customDefs.length > 0 && (
+            <div className="bg-card border border-border rounded-lg p-6">
+              <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
+                <ListTree className="w-4 h-4" />
+                Campos personalizados
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {customDefs.map((def) => {
+                  const current = contact.custom_fields?.[def.id]
+                  const draftValue = customDraft[def.id] ?? (current == null ? '' : String(current))
+                  return (
+                    <div key={def.id}>
+                      <dt className="text-xs text-muted-foreground mb-1">{def.label}</dt>
+                      {def.field_type === 'boolean' ? (
+                        <select
+                          value={draftValue === '' ? '' : draftValue === 'true' ? 'true' : 'false'}
+                          onChange={(e) => setCustomDraft((prev) => ({ ...prev, [def.id]: e.target.value }))}
+                          className="w-full rounded-md bg-muted border border-border px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        >
+                          <option value="">—</option>
+                          <option value="true">Sí</option>
+                          <option value="false">No</option>
+                        </select>
+                      ) : (
+                        <Input
+                          type={def.field_type === 'number' ? 'number' : def.field_type === 'date' ? 'date' : 'text'}
+                          value={draftValue}
+                          onChange={(e) => setCustomDraft((prev) => ({ ...prev, [def.id]: e.target.value }))}
+                          className="bg-muted border-border h-8 text-sm"
+                        />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="mt-4 flex justify-end">
+                <Button
+                  size="sm"
+                  disabled={customSaving || Object.keys(customDraft).length === 0}
+                  onClick={async () => {
+                    if (!contact) return
+                    setCustomSaving(true)
+                    const payload: Record<string, string | number | boolean | null> = {}
+                    for (const [fieldId, value] of Object.entries(customDraft)) {
+                      const def = customDefs.find((d) => d.id === fieldId)
+                      if (!def) continue
+                      if (value === '') {
+                        payload[fieldId] = null
+                        continue
+                      }
+                      payload[fieldId] =
+                        def.field_type === 'number'
+                          ? Number(value)
+                          : def.field_type === 'boolean'
+                            ? value === 'true'
+                            : value
+                    }
+                    const res = await fetch(`/api/${tenant}/evergreen/contacts/${id}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ custom_fields: payload }),
+                    })
+                    const d = await res.json().catch(() => ({}))
+                    setCustomSaving(false)
+                    if (!res.ok) {
+                      toast.error('No se pudieron guardar los campos', { description: d?.error })
+                      return
+                    }
+                    toast.success('Campos personalizados guardados')
+                    setCustomDraft({})
+                    setContact({ ...contact, custom_fields: d?.contact?.custom_fields ?? contact.custom_fields })
+                  }}
+                >
+                  {customSaving ? 'Guardando…' : 'Guardar campos'}
+                </Button>
+              </div>
+            </div>
+          )}
 
           {(() => {
             const q = (contact as unknown as { qualification?: Qualification | null }).qualification

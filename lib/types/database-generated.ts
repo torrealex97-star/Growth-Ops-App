@@ -1,4 +1,4 @@
-// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-21T15:31:40.221Z).
+// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-21T20:15:25.700Z).
 // Regenerar con: npm run tipos:bd  (y commitear). El test tests/esquema-tenant-invariante.test.mjs
 // comprueba que este artefacto sigue fresco respecto al esquema vivo.
 // Espejo exacto del esquema public de Supabase; los tipos de APP siguen en lib/types/database.ts.
@@ -1819,6 +1819,7 @@ export type EsquemaPublico = {
         email_normalized: string | null
         phone_normalized: string | null
         lifecycle: string | null
+        custom_fields: Json | null
       }
       Insert: {
         id: string | null | undefined
@@ -1862,6 +1863,7 @@ export type EsquemaPublico = {
         email_normalized: string | null | undefined
         phone_normalized: string | null | undefined
         lifecycle: string | null | undefined
+        custom_fields: Json | null | undefined
       }
       Update: {
         id: string | undefined
@@ -1905,6 +1907,7 @@ export type EsquemaPublico = {
         email_normalized: string | undefined
         phone_normalized: string | undefined
         lifecycle: string | undefined
+        custom_fields: Json | undefined
       }
     }
     ContentItems: {
@@ -2183,6 +2186,38 @@ export type EsquemaPublico = {
         created_at: string | undefined
         updated_at: string | undefined
         tenant_id: string | undefined
+      }
+    }
+    CustomFieldDefs: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        field_key: string | null
+        label: string | null
+        field_type: string | null
+        sort_order: number | null
+        created_at: string | null
+        updated_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        field_key: string | null | undefined
+        label: string | null | undefined
+        field_type: string | null | undefined
+        sort_order: number | null | undefined
+        created_at: string | null | undefined
+        updated_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        field_key: string | undefined
+        label: string | undefined
+        field_type: string | undefined
+        sort_order: number | undefined
+        created_at: string | undefined
+        updated_at: string | undefined
       }
     }
     DeletedAppointmentsLog: {

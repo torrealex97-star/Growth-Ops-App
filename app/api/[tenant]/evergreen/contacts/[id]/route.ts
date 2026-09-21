@@ -47,6 +47,52 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
     for (const field of EDITABLE_FIELDS) {
       if (Object.prototype.hasOwnProperty.call(body, field)) patch[field] = clean(body[field])
     }
+    // Campos personalizados (§1): merges sobre el jsonb existente, validando contra el catálogo
+    // de la subcuenta. Solo ids definidos; valor null = borrar la clave. Un campo desconocido
+    // (o un valor no acorde a su tipo) se rechaza con 400 — nunca se inventa estructura.
+    if (Object.prototype.hasOwnProperty.call(body, 'custom_fields')) {
+      const incoming = body.custom_fields as Record<string, unknown> | null | undefined
+      if (incoming == null || typeof incoming !== 'object' || Array.isArray(incoming)) {
+        return NextResponse.json({ error: 'custom_fields inválido' }, { status: 400 })
+      }
+      const { data: defs } = await sb
+        .from('custom_field_defs')
+        .select('id, field_type, label')
+        .eq('tenant_id', t.tenantId)
+      const byId = new Map((defs ?? []).map((d) => [d.id as string, d as { field_type: string; label: string }]))
+      const { data: current } = await sb
+        .from('contacts')
+        .select('custom_fields')
+        .eq('id', id)
+        .eq('tenant_id', t.tenantId)
+        .single()
+      const merged: Record<string, unknown> = {
+        ...((current?.custom_fields as Record<string, unknown> | null) ?? {}),
+      }
+      for (const [fieldId, raw] of Object.entries(incoming)) {
+        const def = byId.get(fieldId)
+        if (!def) {
+          return NextResponse.json({ error: `Campo personalizado desconocido: ${fieldId}` }, { status: 400 })
+        }
+        if (raw === null || raw === '') {
+          delete merged[fieldId]
+          continue
+        }
+        const valid =
+          def.field_type === 'number'
+            ? typeof raw === 'number' && Number.isFinite(raw)
+            : def.field_type === 'boolean'
+              ? typeof raw === 'boolean'
+              : def.field_type === 'date'
+                ? typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw)
+                : typeof raw === 'string'
+        if (!valid) {
+          return NextResponse.json({ error: `Valor inválido para «${def.label}»` }, { status: 400 })
+        }
+        merged[fieldId] = raw
+      }
+      patch.custom_fields = merged
+    }
     if ('first_name' in patch || 'last_name' in patch) {
       const { data: current } = await sb
         .from('contacts')

@@ -26,11 +26,16 @@ import {
   MessageSquarePlus,
   ExternalLink,
   Filter,
+  ListPlus,
+  Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 import { ContactForm, type ContactFormData } from '@/components/contacts/ContactForm'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { LEAD_STATUSES, leadStatusMeta, type LeadStatus } from '@/lib/lead-status'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { formatDate } from '@/lib/utils'
@@ -83,8 +88,15 @@ type ContactRow = {
   set_source: SetSource
   first_contact_at: string | null
   contact_attempts: number | null
+  custom_fields: Record<string, string | number | boolean | null> | null
   contact_attributions: Attribution[]
   contact_notes: Note[]
+}
+
+type CustomFieldDefLite = {
+  id: string
+  label: string
+  field_type: 'text' | 'number' | 'date' | 'boolean'
 }
 
 type ApptLite = { contact_id: string | null; appointment_datetime: string | null; created_at: string; status: string }
@@ -254,6 +266,9 @@ export function ContactsAllView() {
   const [hotOnly, setHotOnly] = useState(false)
   const [sortByVsl, setSortByVsl] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
+  // Campos personalizados (§1): catálogo + filtro por valor no vacío de un campo.
+  const [customDefs, setCustomDefs] = useState<CustomFieldDefLite[]>([])
+  const [customFilterId, setCustomFilterId] = useState<string>('all')
 
   // Columnas
   const [visibleCols, setVisibleCols] = useState<ColumnKey[]>(DEFAULT_COLS)
@@ -266,6 +281,51 @@ export function ContactsAllView() {
 
   // Nuevo contacto
   const [newOpen, setNewOpen] = useState(false)
+
+  // Gestión del catálogo de campos personalizados (solo admin/director crea/elimina).
+  const [fieldsOpen, setFieldsOpen] = useState(false)
+  const [newFieldLabel, setNewFieldLabel] = useState('')
+  const [newFieldType, setNewFieldType] = useState<CustomFieldDefLite['field_type']>('text')
+  const [savingField, setSavingField] = useState(false)
+
+  const canManageFields = sesion?.rol === 'admin' || sesion?.rol === 'director'
+
+  const createField = async () => {
+    const label = newFieldLabel.trim()
+    if (!label) return
+    setSavingField(true)
+    try {
+      const res = await fetch(`/api/${tenant}/evergreen/contacts/custom-fields`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label, field_type: newFieldType }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(d?.error || 'No se pudo crear el campo')
+      toast.success('Campo creado')
+      setNewFieldLabel('')
+      setNewFieldType('text')
+      await load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo crear el campo')
+    } finally {
+      setSavingField(false)
+    }
+  }
+
+  const deleteField = async (id: string) => {
+    try {
+      const res = await fetch(`/api/${tenant}/evergreen/contacts/custom-fields?id=${id}`, {
+        method: 'DELETE',
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(d?.error || 'No se pudo eliminar el campo')
+      toast.success('Campo eliminado (y sus valores en los contactos)')
+      await load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo eliminar el campo')
+    }
+  }
 
   // Cargar columnas de localStorage — por subcuenta, se re-carga al cambiar de tenant
   useEffect(() => {
@@ -312,7 +372,7 @@ export function ContactsAllView() {
             `
           id, full_name, first_name, last_name, email, phone, country, company_name, instagram, notes,
           lead_status, lead_channel, vsl_watch_pct, lead_score, created_at, first_seen_at, last_seen_at,
-          set_source, first_contact_at, contact_attempts,
+          set_source, first_contact_at, contact_attempts, custom_fields,
           contact_attributions(source, utm_source, utm_medium, utm_campaign, utm_content, utm_term, is_primary,
             first_utm_source, first_utm_medium, first_utm_campaign, first_utm_content, first_utm_term,
             last_utm_source, last_utm_medium, last_utm_campaign, last_utm_content, last_utm_term),
@@ -328,7 +388,7 @@ export function ContactsAllView() {
             `
           id, full_name, first_name, last_name, email, phone, country, company_name, instagram, notes,
           lead_status, lead_channel, vsl_watch_pct, lead_score, created_at, first_seen_at, last_seen_at,
-          set_source, first_contact_at, contact_attempts,
+          set_source, first_contact_at, contact_attempts, custom_fields,
           contact_attributions(source, utm_source, utm_medium, utm_campaign, utm_content, utm_term, is_primary,
             first_utm_source, first_utm_medium, first_utm_campaign, first_utm_content, first_utm_term,
             last_utm_source, last_utm_medium, last_utm_campaign, last_utm_content, last_utm_term),
@@ -345,7 +405,16 @@ export function ContactsAllView() {
           .in('contact_id', contactIds)
       : supabase.from('appointments').select('contact_id, appointment_datetime, created_at, status')
 
-    const [contactsRes, apptRes] = await Promise.all([contactsQuery, apptsQuery])
+    const [contactsRes, apptRes, defsRes] = await Promise.all([
+      contactsQuery,
+      apptsQuery,
+      supabase
+        .from('custom_field_defs')
+        .select('id, label, field_type')
+        .eq('tenant_id', tenantId)
+        .order('sort_order', { ascending: true }),
+    ])
+    if (!defsRes.error) setCustomDefs((defsRes.data as CustomFieldDefLite[]) ?? [])
 
     if (contactsRes.error) toast.error('Error al cargar contactos', { description: contactsRes.error.message })
     if (apptRes.error) toast.error('Error al cargar agendas', { description: apptRes.error.message })
@@ -386,6 +455,12 @@ export function ContactsAllView() {
     if (followupFilter !== 'all') base = base.filter((l) => followupByLead.get(l.id)?.bucket === followupFilter)
     if (channelFilter !== 'all') base = base.filter((l) => l.lead_channel === channelFilter)
     if (hotOnly) base = base.filter((l) => Number(l.vsl_watch_pct ?? 0) >= HOT_PCT)
+    if (customFilterId !== 'all') {
+      base = base.filter((l) => {
+        const v = l.custom_fields?.[customFilterId]
+        return v !== null && v !== undefined && v !== '' && v !== false
+      })
+    }
     const nq = normalizeText(q.trim())
     const searched = nq
       ? base.filter(
@@ -405,7 +480,7 @@ export function ContactsAllView() {
       }
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     })
-  }, [leads, statusFilter, followupFilter, channelFilter, followupByLead, q, hotOnly, sortByVsl])
+  }, [leads, statusFilter, followupFilter, channelFilter, followupByLead, q, hotOnly, sortByVsl, customFilterId])
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {}
@@ -504,6 +579,14 @@ export function ContactsAllView() {
           {filtered.length} de {leads.length}
         </span>
         <div className="flex items-center gap-2 ml-auto">
+          {canManageFields && (
+            <button
+              onClick={() => setFieldsOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-card text-foreground border-border hover:border-brand-500/50"
+            >
+              <ListPlus className="w-3.5 h-3.5" /> Campos
+            </button>
+          )}
           <button
             onClick={() => setNewOpen(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white hover:bg-brand-500"
@@ -636,6 +719,33 @@ export function ContactsAllView() {
             ))}
           </div>
         </div>
+
+        {/* Filtro avanzado: campos personalizados — contactos que TIENEN valor en el campo. */}
+        {customDefs.length > 0 && (
+          <div className="relative group">
+            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-card text-muted-foreground border-border hover:border-brand-500/50">
+              <Filter className="w-3 h-3" /> {customDefs.find((d) => d.id === customFilterId)?.label ?? 'Campos'}{' '}
+              <ChevronDown className="w-3 h-3" />
+            </button>
+            <div className="hidden group-hover:block absolute left-0 mt-1 w-48 rounded-lg border border-border bg-card shadow-xl z-20 p-1">
+              <button
+                onClick={() => setCustomFilterId('all')}
+                className={`w-full text-left px-2 py-1.5 rounded-md text-xs ${customFilterId === 'all' ? 'bg-brand-600/20 text-brand-300' : 'text-foreground hover:bg-muted'}`}
+              >
+                Todos
+              </button>
+              {customDefs.map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => setCustomFilterId(customFilterId === d.id ? 'all' : d.id)}
+                  className={`w-full text-left px-2 py-1.5 rounded-md text-xs truncate ${customFilterId === d.id ? 'bg-brand-600/20 text-brand-300' : 'text-foreground hover:bg-muted'}`}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Tabla */}
@@ -909,6 +1019,69 @@ export function ContactsAllView() {
             <DialogTitle className="text-foreground">Nuevo contacto</DialogTitle>
           </DialogHeader>
           <ContactForm onSubmit={createContact} onCancel={() => setNewOpen(false)} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo: gestión de campos personalizados de la subcuenta */}
+      <Dialog open={fieldsOpen} onOpenChange={setFieldsOpen}>
+        <DialogContent className="bg-card border-border max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Campos personalizados</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {customDefs.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Todavía no hay campos personalizados en esta subcuenta.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {customDefs.map((d) => (
+                  <div
+                    key={d.id}
+                    className="flex items-center justify-between rounded-md border border-border px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm text-foreground truncate">{d.label}</p>
+                      <p className="text-[11px] text-muted-foreground">{d.field_type}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                      onClick={() => deleteField(d.id)}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="border-t border-border pt-4 space-y-2">
+              <Label className="text-xs text-muted-foreground">Nuevo campo</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={newFieldLabel}
+                  onChange={(e) => setNewFieldLabel(e.target.value)}
+                  placeholder="Nombre del campo (p.ej. Nivel de inglés)"
+                  className="bg-muted border-border"
+                />
+                <select
+                  value={newFieldType}
+                  onChange={(e) => setNewFieldType(e.target.value as CustomFieldDefLite['field_type'])}
+                  className="rounded-md bg-muted border border-border px-2 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
+                >
+                  <option value="text">Texto</option>
+                  <option value="number">Número</option>
+                  <option value="date">Fecha</option>
+                  <option value="boolean">Sí/No</option>
+                </select>
+                <Button onClick={createField} disabled={savingField || !newFieldLabel.trim()}>
+                  {savingField ? 'Creando…' : 'Crear'}
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Se añaden a la ficha de todos los contactos. Al eliminar un campo se borran también sus valores.
+              </p>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
