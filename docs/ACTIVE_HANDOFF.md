@@ -117,10 +117,13 @@ cazó; conviene no gastar esa red dos veces.
 
 ### Incidencias abiertas
 
-- **GHL no carga citas.** Calendly ya lo resolvió otro agente (PR #112: GHL fuera del cron diario,
-  Calendly con 35 s). **GHL sigue pendiente.** Contexto útil: el webhook está trazado en
-  `docs/S0-2-JOURNEYS-CRITICOS.md` (J1) y cubierto por `tests/webhook-ghl.test.mjs`.
-  Entre el 14 y el 20-sep no entró ninguna cita; el 21 entraron 19.
+- **12 pagos de Stripe sin cobro registrado: 5.095,41 €**, 6 de ellos en septiembre. Nadie cobró su
+  comisión de ese dinero y el cash del panel va corto. Detalle y consultas reproducibles en
+  `docs/S0-5-CONSISTENCIA-DATOS.md` y `scripts/consistencia-cash.sql`. **Es lo primero de S0.4.**
+- **Un cobro de 50 € contra un pago que Stripe devolvió**, con `refunds` a 0 filas: el camino de
+  devolución no está cerrado.
+- **GHL**: el webhook YA FUNCIONA (contacto de prueba recibido el 21-sep a las 13:56). Falta
+  confirmar que entran CITAS: el workflow de prueba era de contacto y no traía datos de agenda.
 
 ### Cambios de identidad aplicados en producción (2026-09-21)
 
@@ -136,6 +139,8 @@ cazó; conviene no gastar esa red dos veces.
 
 Verificado y cerrado. Repetirlo es trabajo perdido:
 
+- Cash: cuando un cobro se registra, se registra bien — 0 desvíos de importe en los 47 pares
+  conciliados, 0 referencias duplicadas, 0 comisiones huérfanas (`docs/S0-5-CONSISTENCIA-DATOS.md`).
 - Aislamiento: `requireTenant()` en 149 de 168 rutas; las 19 restantes son legítimamente sin sesión.
 - El esquema vivo cumple el invariante entero: 107 tablas, todas con RLS y al menos una política.
   Las únicas 5 sin `tenant_id` están declaradas en `lib/seguridad/invariante-tenant.ts`.
