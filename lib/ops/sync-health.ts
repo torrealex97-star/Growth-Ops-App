@@ -161,6 +161,31 @@ export const SYNC_DEFS: SyncDef[] = [
       'Se ejecuta a diario por GitHub Actions (04:40 UTC) y también desde Integraciones › Stripe ("Sincronizar pagos"): rellena el espejo que alimenta Cash Collected. Los pagos nuevos además entran en tiempo real por el webhook.',
   },
   {
+    // Pull diario de citas de Calendly (cron/calendly-ghl). Antes de este cron la sync vivía SOLO en
+    // el botón de Integraciones › history-sync: se usó para la importación inicial y las agendas
+    // nuevas dejaron de entrar sin aviso (ni un run de este proveedor en sync-runs durante días).
+    id: 'calendly-citas',
+    label: 'Calendly — citas (pull diario)',
+    route: 'cron/calendly-ghl',
+    table: 'appointments',
+    requiredKeys: ['CALENDLY_API_TOKEN'],
+    scheduler: 'manual',
+    manualReason:
+      'Se ejecuta a diario por GitHub Actions (04:20 UTC, cron-calendly-ghl.yml) y también desde Integraciones › Calendly ("Sincronizar histórico"): ventana incremental de 14 días con upsert idempotente.',
+  },
+  {
+    // Pull diario de citas y contactos de GHL. El webhook (webhooks/ghl) cubre en tiempo real lo
+    // que GHL envíe; este cron es el pull que repara pérdidas y trae lo que ningún webhook notificó.
+    id: 'ghl-citas',
+    label: 'GHL — citas y contactos (pull diario)',
+    route: 'cron/calendly-ghl',
+    table: 'appointments',
+    requiredKeys: ['GHL_API_TOKEN', 'GHL_LOCATION_ID'],
+    scheduler: 'manual',
+    manualReason:
+      'Se ejecuta a diario por GitHub Actions (04:20 UTC, cron-calendly-ghl.yml) y también desde Integraciones › GHL ("Sincronizar histórico"). El webhook cubre el tiempo real; el cron repara y completa.',
+  },
+  {
     id: 'youtube-backfill',
     label: 'Backfill de reels antiguos a YouTube',
     route: 'cron/youtube-backfill',

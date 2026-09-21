@@ -1,0 +1,29 @@
+# Cron de CITAS: pull diario de Calendly y GHL. La sincronización solo existía como botón manual
+# (history-sync) y la importación inicial jamás tuvo planificador: las agendas nuevas dejaron de
+# entrar sin aviso. Autenticación idéntica a los demás crons delegados: Bearer CRON_SECRET.
+name: 'cron: calendly-ghl'
+on:
+  schedule:
+    - cron: '20 4 * * *' # diario 04:20 UTC — hueco libre entre meta-daily (03:30) y stripe-payments (04:40)
+  workflow_dispatch: # permite disparar la primera carga / reintentos a mano
+permissions: {}
+concurrency:
+  group: cron-calendly-ghl
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: GET /api/_/evergreen/cron/calendly-ghl
+        env:
+          APP_URL: ${{ vars.CRON_APP_URL || 'https://growth-ops-weld.vercel.app' }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o response.json -w '%{http_code}' --max-time 120 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$APP_URL/api/_/evergreen/cron/calendly-ghl")
+          echo "HTTP $code"
+          cat response.json; echo
+          case "$code" in 2*) exit 0 ;; *) exit 1 ;; esac

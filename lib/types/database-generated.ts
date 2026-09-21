@@ -1,4 +1,4 @@
-// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-20T06:26:37.874Z).
+// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-21T08:27:21.985Z).
 // Regenerar con: npm run tipos:bd  (y commitear). El test tests/esquema-tenant-invariante.test.mjs
 // comprueba que este artefacto sigue fresco respecto al esquema vivo.
 // Espejo exacto del esquema public de Supabase; los tipos de APP siguen en lib/types/database.ts.
@@ -920,6 +920,8 @@ export type EsquemaPublico = {
         link_clicks: number | string | null
         landing_views: number | string | null
         tenant_id: string | null
+        meta_actions: Json | null
+        meta_action_values: Json | null
       }
       Insert: {
         id: string | null | undefined
@@ -936,6 +938,8 @@ export type EsquemaPublico = {
         link_clicks: number | string | null | undefined
         landing_views: number | string | null | undefined
         tenant_id: string | null | undefined
+        meta_actions: Json | null | undefined
+        meta_action_values: Json | null | undefined
       }
       Update: {
         id: string | undefined
@@ -952,6 +956,8 @@ export type EsquemaPublico = {
         link_clicks: number | string | undefined
         landing_views: number | string | undefined
         tenant_id: string | undefined
+        meta_actions: Json | undefined
+        meta_action_values: Json | undefined
       }
     }
     CampaignFunnelAssignments: {
@@ -3564,6 +3570,35 @@ export type EsquemaPublico = {
         matched_collection_id: string | undefined
         created_by: string | undefined
         created_at: string | undefined
+      }
+    }
+    MetaCustomFunnels: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        name: string | null
+        stages: Json | null
+        created_by: string | null
+        created_at: string | null
+        updated_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        name: string | null | undefined
+        stages: Json | null | undefined
+        created_by: string | null | undefined
+        created_at: string | null | undefined
+        updated_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        name: string | undefined
+        stages: Json | undefined
+        created_by: string | undefined
+        created_at: string | undefined
+        updated_at: string | undefined
       }
     }
     Partners: {
