@@ -50,8 +50,8 @@ export async function subirVideoABunny(
         LibraryId: prep.libraryId!,
       },
       metadata: { filetype: file.type || 'video/mp4', title: file.name },
-      onProgress: (subidos, total) => alProgresar(total ? Math.round((subidos / total) * 100) : 0),
-      onError: (e) => reject(new Error(`La subida a Bunny falló: ${e.message}`)),
+      onProgress: (subidos: number, total: number) => alProgresar(total ? Math.round((subidos / total) * 100) : 0),
+      onError: (e: Error) => reject(new Error(`La subida a Bunny falló: ${e.message}`)),
       onSuccess: () => resolve(),
     })
     subida.start()
