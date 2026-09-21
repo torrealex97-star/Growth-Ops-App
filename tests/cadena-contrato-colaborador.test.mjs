@@ -7,13 +7,13 @@ import { fileURLToPath } from 'node:url'
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const read = (p) => readFileSync(join(root, p), 'utf8')
 
-// ---------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------
 // LA CADENA DE ALTA DEL COLABORADOR (hallazgo E2E 19-sep). El colaborador nacía sin contrato:
 // quedaba bloqueado hasta que alguien lo enviara a mano desde Contratos › Equipo. Ahora el
 // ALTA (ruta admin de Colaboradores y registro público de afiliados) encadena el contrato de
 // equipo automáticamente y lo deja en 'pending_contract'; FIRMAR es lo que lo activa.
 // Toda la lógica vive en UN helper compartido con la ruta manual — no hay duplicación.
-// ---------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------
 
 test('existe un helper único de contrato de equipo con dedup y envío', () => {
   const src = read('lib/contracts/team-contract.ts')
@@ -101,12 +101,12 @@ test('firmar el contrato de equipo ACTIVA al colaborador', () => {
   assert.match(src, /status: 'active'/)
 })
 
-// ---------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------
 // INVARIANTE EN LA BD (auditoría 21-sep): la creación del perfil no puede depender de cada
 // camino de código. Un trigger garantiza que TODO usuario affiliate tiene ficha, en cada
 // subcuenta de la que es miembro, con su tracking_code como código. Así ningún alta (invite,
 // edición de rol, import, SQL manual, endpoint futuro) deja un colaborador invisible otra vez.
-// ---------------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------
 
 test('invariante en BD: trigger que crea el perfil de todo affiliate (users y tenant_members)', () => {
   const mig = read('supabase/migrations/20260921190000_collaborator_profile_invariant.sql')
@@ -120,4 +120,31 @@ test('invariante en BD: trigger que crea el perfil de todo affiliate (users y te
   assert.match(mig, /ON CONFLICT \(tenant_id, user_id\) DO NOTHING/)
   // Backfill único para affiliates históricos sin ficha.
   assert.match(mig, /WHERE r\.key = 'affiliate'/)
+})
+
+// ---------------------------------------------------------------------------------------
+// ATRIBUCIÓN AUTOMÁTICA DE CONTACTOS GHL (21-sep). El webhook GHL escribe utm_content=código
+// siempre, pero collaborator_id solo rellena si el perfil estaba ACTIVO en ese instante: los
+// contactos que llegaron antes del alta o durante 'invited' quedaban sin atribuir y exigían
+// backfill SQL manual (caso Noelia: 50 contactos a mano). El invariant cierra ese hueco:
+// nace/activa/cambia-código un colaborador → sus contactos GHL pendientes se atribuyen solos,
+// SIEMPRE respetando first-valid-wins (nunca pisa un colaborador ni un override admin).
+// ---------------------------------------------------------------------------------------
+
+test('invariante en BD: los contactos GHL (utm_content=código) se atribuyen solos al nacer/activar el colaborador', () => {
+  const mig = read('supabase/migrations/20260921194500_collaborator_ghl_backfill.sql')
+  // Núcleo con fill condicional: solo filas SIN colaborador (first-valid-wins).
+  assert.match(mig, /attribute_ghl_contacts_for_collaborator/)
+  assert.match(mig, /ca\.collaborator_id IS NULL/)
+  assert.match(mig, /AND collaborator_id IS NULL/) // guard del UPDATE (carrera)
+  // Coincidencia por código insensible a mayúsculas/espacios (utm_content vs perfil).
+  assert.match(mig, /upper\(btrim\(coalesce\(ca\.utm_content, ''\)\)\) = v_code/)
+  // Se dispara en los tres caminos del invariant de perfiles + al activarse la ficha.
+  assert.match(mig, /trg_ghl_backfill_profile ON public\.collaborator_profiles/)
+  assert.match(mig, /trg_ghl_backfill_user ON public\.users/)
+  assert.match(mig, /trg_ghl_backfill_membership ON public\.tenant_members/)
+  // Trazable: cada atribución deja rastro en audit_logs con su vía.
+  assert.match(mig, /'ghl_backfill_trigger'/)
+  // Backfill único del histórico (caso real: fila de Liset sin atribuir).
+  assert.match(mig, /ghl_backfill_migration/)
 })
