@@ -93,6 +93,11 @@ Dos motivos, ninguno es código:
 
 El plan prohíbe que un agente toque producción por su cuenta. Espera confirmación:
 
+- **`20260921120000_s0_4_match_knowledge_chunks_gate_subcuenta.sql` — P0, la primera.** Regresión
+  de F-1: la migración `20260920120000` (filtro `p_types`) recreó la RPC del RAG de 6 argumentos con
+  la puerta VIEJA (rol sin subcuenta) y la de 5 delega en ella. Un admin de un cliente puede leer el
+  conocimiento de otro pasando su `p_tenant`, o NULL. Además nació ejecutable por `anon`. Solo cambia
+  la puerta y los grants; `tests/rag-gate-subcuenta.test.mjs` impide que vuelva a pasar.
 - `20260921100000_f6_fathom_match_review_contact_id.sql` — vincula 69 de 177 filas de
   `fathom_match_review` a su contacto. Las otras 108 son correos de personas que no son contactos:
   ningún borrado por `contact_id` las alcanza, y `erase_person` las cubre borrando por correo.
