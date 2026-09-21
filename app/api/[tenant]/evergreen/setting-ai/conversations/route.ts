@@ -75,10 +75,11 @@ async function conEtapa<T>(etapa: string, fn: () => Promise<T>): Promise<T> {
 }
 
 function motivoLegible(code: InstagramErrorCode, message: string): string {
-  if (code === 'token_caducado') return 'El token de Instagram ha caducado: renuévalo en Integraciones.'
+  // El detalle SIEMPRE: sin la etapa que falló, diagnosticar en producción es una adivinanza.
+  if (code === 'token_caducado') return `El token de Instagram ha caducado: renuévalo en Integraciones. [${message}]`
   if (code === 'sin_permisos')
     return `Al token le falta el permiso instagram_manage_messages (acceso avanzado). [${message}]`
-  if (code === 'limite_de_uso') return 'Instagram está limitando las peticiones ahora mismo: inténtalo en unos minutos.'
-  if (code === 'timeout') return 'Instagram tardó demasiado en responder. Inténtalo de nuevo.'
+  if (code === 'limite_de_uso') return `Instagram está limitando las peticiones ahora mismo. [${message}]`
+  if (code === 'timeout') return `Instagram tardó demasiado en responder. Inténtalo de nuevo. [${message}]`
   return message
 }
