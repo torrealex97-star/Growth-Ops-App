@@ -69,14 +69,18 @@ GHL prohibido en el cron, una sola implementación).
 | A0   | `docs/A0-CIERRE-AUDITORIA.md`                                                                                                                                         | cerrada                               |
 | F-1  | `tests/agente-contenido-hostil.test.mjs`, `tests/invariante-tenant-negativo.test.mjs`, `lib/seguridad/invariante-tenant.ts`, fixtures A/B, 2 migraciones de seguridad | cerrada salvo lo de Alex              |
 | F6   | `docs/F6-MAPA-PII.md`, `lib/privacidad/{plan-borrado,erase-person}.ts`                                                                                                | implementada y probada; **no gradúa** |
+| S0.5 | `docs/S0-5-CONSISTENCIA-DATOS.md`, `scripts/consistencia-cash.sql`                                                                                                    | cerrada                               |
+| S0.4 | `docs/S0-4-BARRIDO.md` — 6 resueltos (1 P0 pendiente de aplicar), resto con dueño                                                                                     | cerrada salvo aplicar el P0           |
 
 El plan completo vive en `docs/plan/`. Empieza por su README.
 
 ### Lo siguiente, en este orden
 
 1. **Resolver lo pendiente listado abajo.**
-2. **S0 tramo 2** (`docs/plan/08-fases-s0-f4.md` §S0.4–S0.8): barrido de bugs, consistencia de
-   datos, baseline de frontend e integraciones. **Antes de F1.**
+2. **S0 tramo 2**: S0.4 y S0.5 hechas. Siguen **S0.6** (baseline de frontend y rendimiento: incluye
+   las 38 políticas RLS con `auth.uid()` por fila), **S0.7** (baseline de integraciones: Calendly
+   roza los 60 s; un timeout que mata la función no deja fila en `integration_sync_runs`) y **S0.8**
+   (graduación). **Antes de F1.**
 
 ### Por qué F6 no gradúa
 
