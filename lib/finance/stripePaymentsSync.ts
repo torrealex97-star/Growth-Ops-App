@@ -43,7 +43,13 @@ type StripeIntentRow = {
   metadata?: Record<string, string> | null
   latest_charge?:
     | string
-    | { id?: string; amount_refunded?: number | null; refunded?: boolean | null; disputed?: boolean | null }
+    | {
+        id?: string
+        amount_refunded?: number | null
+        refunded?: boolean | null
+        disputed?: boolean | null
+        billing_details?: { email?: string | null } | null
+      }
     | null
 }
 
@@ -95,7 +101,10 @@ export async function syncStripePayments(
         payment_id: i.id!,
         charge_id: charge?.id ?? (typeof i.latest_charge === 'string' ? i.latest_charge : null),
         customer_id: i.customer ?? null,
-        customer_email: i.receipt_email ?? null,
+        // `receipt_email` solo existe si Stripe mandó recibo; en producción venía vacío en TODOS los
+        // pagos, así que el espejo no sabía de quién era ninguno. El correo de facturación del cargo
+        // (ya expandido) es el mismo respaldo que usa el registrador (stripeBackfill.emailOf).
+        customer_email: (i.receipt_email || charge?.billing_details?.email || '').trim().toLowerCase() || null,
         amount: bruto,
         refunded_amount: Math.min(devuelto, bruto),
         currency: (i.currency ?? 'eur').toLowerCase(),

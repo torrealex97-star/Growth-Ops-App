@@ -17,6 +17,8 @@
 type CrossCheckId =
   | 'meta_cuenta_sin_datos'
   | 'pago_stripe_sin_venta'
+  | 'pago_stripe_sin_cobro'
+  | 'cobro_de_pago_devuelto'
   | 'venta_sin_contacto'
   | 'cliente_sin_emparejar'
   | 'campana_sin_atribucion'
@@ -73,6 +75,13 @@ export type CrossInput = {
   cuentasConCampanas: string[] | null
   /** Clientes de Stripe: id + contacto emparejado (null si no lo está). */
   clientesStripe: Array<{ id: string; contactId: string | null }> | null
+  /**
+   * Pagos del espejo `stripe_payments`: id del intent, referencias con las que un cobro puede
+   * apuntarle (intent y charge) y estado. Es la unidad del dinero, no el cliente.
+   */
+  pagosStripe: Array<{ id: string; refs: string[]; status: string }> | null
+  /** `payment_reference` de los cobros registrados (solo los que tienen). */
+  referenciasCobro: string[] | null
   /** contact_id de los contactos que tienen al menos una venta. */
   contactosConVenta: string[] | null
   /** Ventas: id + contacto. */
@@ -113,6 +122,31 @@ export function runCrossChecks(input: CrossInput): CrossCheck[] {
       : input.clientesStripe
           .filter((c) => c.contactId && !input.contactosConVenta!.includes(c.contactId))
           .map((c) => c.id)
+
+  // UN PAGO DE STRIPE SIN COBRO. Es el control que faltaba, y el de arriba no lo sustituye.
+  //
+  // El de arriba mira CLIENTES: un cliente con alguna venta da OK. Así se escapaban dos casos reales,
+  // medidos en S0.5 (docs/S0-5-CONSISTENCIA-DATOS.md §1.1): la segunda cuota de alguien que ya tiene
+  // venta —el cliente "ya está", la cuota no— y los pagos sin cliente en Stripe, que no tienen
+  // cliente que revisar. Juntos sumaban 12 pagos sin que ningún aviso saltara. Aquí se mira el PAGO.
+  //
+  // Solo `succeeded`: un pago devuelto entero no es ingreso, y uno en disputa todavía no se sabe.
+  const referencias = input.referenciasCobro === null ? null : new Set(input.referenciasCobro)
+  const pagosSinCobro =
+    input.pagosStripe === null || referencias === null
+      ? null
+      : input.pagosStripe
+          .filter((p) => p.status === 'succeeded' && !p.refs.some((r) => referencias.has(r)))
+          .map((p) => p.id)
+
+  // Un cobro que apunta a un pago que Stripe ya devolvió entero: el dinero volvió al cliente y la app
+  // lo sigue contando, con su comisión. Stripe lo sabe; la app no se entera sola (S0.5 §1.2).
+  const cobrosDeDevueltos =
+    input.pagosStripe === null || referencias === null
+      ? null
+      : input.pagosStripe
+          .filter((p) => p.status === 'refunded' && p.refs.some((r) => referencias.has(r)))
+          .map((p) => p.id)
 
   // Una venta sin contacto, o apuntando a un contacto que ya no existe: se queda fuera de cualquier
   // informe por persona y de la atribución.
@@ -168,6 +202,20 @@ export function runCrossChecks(input: CrossInput): CrossCheck[] {
       'Clientes de Stripe sin venta registrada',
       stripeSinVenta,
       'Sus pagos no están registrados como ingreso, así que faltan en facturación y comisiones. Resuélvelos en Integraciones › Stripe › "Buscar pagos sin registrar".',
+      'critico'
+    ),
+    check(
+      'pago_stripe_sin_cobro',
+      'Pagos de Stripe sin cobro registrado',
+      pagosSinCobro,
+      'Stripe los cobró pero la app no los tiene: faltan en cash collected y nadie ha cobrado su comisión. Si es la cuota de una venta que ya existe, abre esa venta en Ventas, pulsa "Registrar cobro" y pon en Referencia el id del pago (pi_…); si es una venta nueva, en Integraciones › Stripe › "Buscar pagos sin registrar".',
+      'critico'
+    ),
+    check(
+      'cobro_de_pago_devuelto',
+      'Cobros de pagos que Stripe devolvió',
+      cobrosDeDevueltos,
+      'El dinero volvió al cliente pero el cobro sigue contando como ingreso y su comisión no se ha revertido. Registra la devolución en la venta.',
       'critico'
     ),
     check(

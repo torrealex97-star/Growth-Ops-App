@@ -65,12 +65,20 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
     // Conjuntos extra para los controles CRUZADOS. Van aparte y NO abortan la respuesta: si uno falla,
     // su control dice "no se pudo comprobar" y el resto sigue informando. Colapsar todo a un error
     // dejaría la pantalla en blanco por una tabla.
-    const [salesResult, stripeResult, attributionsResult, adAccountsResult] = await Promise.all([
-      sb.from('sales').select('id,contact_id').eq('tenant_id', auth.tenantId).limit(10000),
-      sb.from('stripe_customers').select('id,contact_id').eq('tenant_id', auth.tenantId).limit(10000),
-      sb.from('contact_attributions').select('utm_campaign').eq('tenant_id', auth.tenantId).limit(10000),
-      sb.from('campaigns').select('account_id').eq('tenant_id', auth.tenantId).eq('provider', 'meta').limit(10000),
-    ])
+    const [salesResult, stripeResult, attributionsResult, adAccountsResult, pagosResult, cobrosResult] =
+      await Promise.all([
+        sb.from('sales').select('id,contact_id').eq('tenant_id', auth.tenantId).limit(10000),
+        sb.from('stripe_customers').select('id,contact_id').eq('tenant_id', auth.tenantId).limit(10000),
+        sb.from('contact_attributions').select('utm_campaign').eq('tenant_id', auth.tenantId).limit(10000),
+        sb.from('campaigns').select('account_id').eq('tenant_id', auth.tenantId).eq('provider', 'meta').limit(10000),
+        sb.from('stripe_payments').select('payment_id,charge_id,status').eq('tenant_id', auth.tenantId).limit(10000),
+        sb
+          .from('collections')
+          .select('payment_reference')
+          .eq('tenant_id', auth.tenantId)
+          .not('payment_reference', 'is', null)
+          .limit(10000),
+      ])
 
     const contacts = (contactsResult.data ?? []) as Contact[]
     const appointments = (appointmentsResult.data ?? []) as Appointment[]
@@ -112,6 +120,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
         ? null
         : [...new Set((adAccountsResult.data ?? []).map((c) => c.account_id).filter(Boolean))],
       clientesStripe,
+      pagosStripe: pagosResult.error
+        ? null
+        : (pagosResult.data ?? []).map((p) => ({
+            id: p.payment_id,
+            refs: [p.payment_id, p.charge_id].filter(Boolean),
+            status: p.status,
+          })),
+      referenciasCobro: cobrosResult.error
+        ? null
+        : (cobrosResult.data ?? []).map((c) => c.payment_reference).filter(Boolean),
       contactosConVenta: ventas === null ? null : [...new Set(ventas.map((v) => v.contactId).filter(Boolean))],
       ventas,
       contactos: contacts.map((c) => c.id),
