@@ -12,6 +12,7 @@ import { performLogout } from '@/lib/auth/logout'
 import type { User } from '@/lib/types/database'
 import { FileSignature, LogOut } from 'lucide-react'
 import { ScriptQueueProvider } from '@/components/os/ScriptQueue'
+import VerComoShim from '@/components/os/VerComoShim'
 import { AgentLauncher } from '@/components/ai/AgentLauncher'
 import { isAllowedLocation, permissionLocationFor } from '@/lib/marketing-navigation'
 import { AppLoading } from '@/components/ui/carga/AppLoading'
@@ -462,14 +463,16 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   return (
     <TenantProvider tenant={tenant} tenantId={tenantId} branding={branding} sesion={sesion}>
       <ScriptQueueProvider>
-        <div className="flex h-screen bg-background text-foreground overflow-hidden" data-theme="os">
-          <Sidebar user={user} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-          <div className="flex flex-col flex-1 overflow-hidden">
-            <Header user={user} onMenuClick={() => setSidebarOpen(true)} isSuperAdmin={isSuperAdmin} />
-            <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
+        <VerComoShim tenant={tenant}>
+          <div className="flex h-screen bg-background text-foreground overflow-hidden" data-theme="os">
+            <Sidebar user={user} isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+            <div className="flex flex-col flex-1 overflow-hidden">
+              <Header user={user} onMenuClick={() => setSidebarOpen(true)} isSuperAdmin={isSuperAdmin} />
+              <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
+            </div>
           </div>
-        </div>
-        <AgentLauncher />
+          <AgentLauncher />
+        </VerComoShim>
       </ScriptQueueProvider>
     </TenantProvider>
   )

@@ -28,6 +28,10 @@ const PUBLIC_PATHS = [
   // sesión aquí. La ruta se autentica con el `state` FIRMADO que verifica ella misma: sin firma
   // válida no sigue adelante. Ver lib/google/oauth-state.ts.
   '/api/oauth/google/callback',
+  // Página intermedia de "Ver como": se autentica con el token OTP de un solo uso que trae en la
+  // query (el middleware NO puede exigir sesión — la sesión que crea es justamente su output).
+  // Vive fuera de /[tenant] porque el layout del tenant exige sesión (punto muerto).
+  '/ver-como',
 ]
 
 // Sub-rutas públicas DENTRO de un tenant (no requieren sesión Supabase),
