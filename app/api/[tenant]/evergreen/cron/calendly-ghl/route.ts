@@ -32,9 +32,10 @@ export async function GET(req: NextRequest) {
     const { data: tenants, error: tenantsErr } = await sb.from('tenants').select('id, slug').eq('status', 'active')
     if (tenantsErr) throw new Error(tenantsErr.message)
 
-    // Presupuesto por subcuenta: dos proveedores × ~30 s no caben en el corte de 60 s si algo se
-    // cuelga. 25 s por proveedor dejan margen de respuesta y evitan el colgado "running" eterno.
-    const deadlineMs = Date.now() + 25_000
+    // Presupuesto por subcuenta y POR PROVEEDOR: dos proveedores × ~25 s no caben en el corte de
+    // 60 s si comparten un único deadline (la primera pasada de producción lo demostró: Calendly
+    // consumió el presupuesto y GHL quedó a 0 páginas). Cada uno recibe el suyo y, si alguno se
+    // corta, lo hecho está guardado (upsert idempotente) y la siguiente ejecución continúa.
     const desde = new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString()
 
     const porSubcuenta: Record<string, unknown> = {}
@@ -61,10 +62,12 @@ export async function GET(req: NextRequest) {
               trigger: 'cron',
               secrets: [cfg.CALENDLY_API_TOKEN],
             },
-            () => syncCalendly(sb, tn.id, cfg, { desdeInicio: desde, deadlineMs }),
+            () => syncCalendly(sb, tn.id, cfg, { desdeInicio: desde, deadlineMs: Date.now() + 25_000 }),
             (r) => ({
               rowsWritten: r.imported + r.updated,
-              failures: r.cortado ? ['Presupuesto de tiempo agotado: la siguiente ejecución continúa.'] : [],
+              // Un corte por presupuesto NO es un fallo: es el candado funcionando y queda declarado
+              // en detail.cortado. Registrar 'error' aquí falsificaría el panel de salud.
+              failures: [],
               detail: { importadas: r.imported, actualizadas: r.updated, paginas: r.pages, cortado: r.cortado },
             })
           )
@@ -79,10 +82,10 @@ export async function GET(req: NextRequest) {
               trigger: 'cron',
               secrets: [cfg.GHL_API_TOKEN, cfg.GHL_LOCATION_ID],
             },
-            () => syncGhl(sb, tn.id, cfg, { desdeInicio: desde, deadlineMs }),
+            () => syncGhl(sb, tn.id, cfg, { desdeInicio: desde, deadlineMs: Date.now() + 25_000 }),
             (r) => ({
               rowsWritten: r.appointmentsImported + r.appointmentsUpdated,
-              failures: r.cortado ? ['Presupuesto de tiempo agotado: la siguiente ejecución continúa.'] : [],
+              failures: [],
               detail: {
                 citasImportadas: r.appointmentsImported,
                 citasActualizadas: r.appointmentsUpdated,
