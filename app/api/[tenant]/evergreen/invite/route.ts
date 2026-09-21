@@ -163,6 +163,34 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           { status: 500 }
         )
       }
+
+      // ALTA DESDE USUARIOS CON ROL COLABORADOR (hallazgo 21-sep): si el admin
+      // invita/edita con el rol affiliate, el perfil de colaborador nace AQUÍ —
+      // con el MISMO tracking_code del usuario como código público (así sus
+      // enlaces existentes con ?ref= siguen funcionando sin re-generar nada).
+      // Idempotente: si ya hay perfil, no se toca (el % y el estado son del
+      // panel de Colaboradores). El alta admin de Colaboradores (POST
+      // /colaboradores) sigue siendo la otra vía, para dar de alta sin invitar.
+      if (roleKey === 'affiliate' && t.tenantId) {
+        const { data: perfilPrevio } = await supabase
+          .from('collaborator_profiles')
+          .select('id')
+          .eq('tenant_id', t.tenantId)
+          .eq('user_id', userId)
+          .limit(1)
+        if (!perfilPrevio || perfilPrevio.length === 0) {
+          await supabase.from('collaborator_profiles').insert({
+            tenant_id: t.tenantId,
+            user_id: userId,
+            code: (trackingCode ?? (await generateUniqueTrackingCode(supabase))).toUpperCase(),
+            name: fullName || email,
+            status: 'invited',
+            // El % de comisión y el estado real (pending_contract/active) los fija
+            // el admin desde el panel de Colaboradores; aquí solo nace la ficha.
+            default_commission_percent: null,
+          })
+        }
+      }
     }
 
     // 3) Enviar el email de "crea tu contraseña" con nuestra plantilla (si Resend está configurado).
