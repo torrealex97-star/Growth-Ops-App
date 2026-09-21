@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   isRetryableCode,
   lastRunsByJob,
+  reclaimAllStaleRuns,
   recordSyncRun,
   redactSecrets,
   SyncBusyError,
@@ -216,4 +217,54 @@ test('si la tabla no existe, el panel se queda sin historial pero no se rompe', 
     }),
   }
   assert.deepEqual(await lastRunsByJob(sb, 't1'), {})
+})
+
+test('el barrido global cierra como timeout los colgados de CUALQUIER job y subcuenta', async () => {
+  // El barrido viejo solo limpiaba el camino del job que se lanzaba: meta-ads pasó 2h21m en
+  // 'running' porque su job no volvió a correr y nadie más lo barría. Ahora el barrido es global.
+  const sb = fakeSb()
+  await reclaimAllStaleRuns(sb)
+  const barrido = sb.escrituras.updates.at(-1)
+  assert.equal(barrido.fields.status, 'timeout')
+  assert.equal(barrido.fields.error_code, 'timeout')
+  assert.match(
+    barrido.fields.error_message,
+    /Cerrado automáticamente/,
+    'la nota queda en el propio run y el panel la muestra'
+  )
+  assert.deepEqual(barrido.filters, { status: 'running' }, 'solo toca filas en running: nunca altera runs terminados')
+  assert.ok('finished_at' in barrido.fields, 'queda cerrado con su hora de fin')
+})
+
+test('cada sync y la lectura del panel barre los colgados antes de trabajar', async () => {
+  const sb = fakeSb()
+  await recordSyncRun(sb, { tenantId: 't1', provider: 'meta', job: 'meta', trigger: 'cron' }, async () => ({}))
+  assert.equal(sb.escrituras.updates[0].fields.status, 'timeout', 'recordSyncRun barre antes de abrir la suya')
+  assert.deepEqual(sb.escrituras.updates[0].filters, { status: 'running' })
+
+  const sb2 = fakeSb()
+  sb2.from = () => ({
+    update(fields) {
+      const chain = {
+        _filters: {},
+        eq(c, v) {
+          chain._filters[c] = v
+          return chain
+        },
+        lt() {
+          return chain
+        },
+        then(res) {
+          sb2.escrituras.updates.push({ fields, filters: { ...chain._filters } })
+          return Promise.resolve({ error: null }).then(res)
+        },
+      }
+      return chain
+    },
+    select: () => ({
+      eq: () => ({ order: () => ({ limit: async () => ({ data: [], error: null }) }) }),
+    }),
+  })
+  await lastRunsByJob(sb2, 't1')
+  assert.equal(sb2.escrituras.updates.at(-1).fields.status, 'timeout', 'lastRunsByJob también barre antes de leer')
 })
