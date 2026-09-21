@@ -43,12 +43,14 @@ import {
   isActiveSale,
   funnelBySource,
   aggregateFunnel,
+  leadDate,
   type SaleRow,
   type CollectionRow,
   type AttributionRow,
   type UserRow,
   type AppointmentRow,
 } from '@/lib/analytics'
+import { isCancelled } from '@/lib/unit-economics'
 import { formatCurrency } from '@/lib/utils'
 import { FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 import type { SavedDashboardView } from '@/lib/types/database'
@@ -148,7 +150,9 @@ function DashboardEquipo() {
   const [users, setUsers] = useState<UserRow[]>([])
   const [roleUsers, setRoleUsers] = useState<RoleUser[]>([])
   const [contactIds, setContactIds] = useState<string[]>([])
-  const [contacts, setContacts] = useState<{ id: string; created_at: string | null }[]>([])
+  const [contacts, setContacts] = useState<
+    { id: string; created_at: string | null; first_seen_at: string | null; first_contact_at: string | null }[]
+  >([])
   const [attributions, setAttributions] = useState<AttributionRow[]>([])
   const [appointments, setAppointments] = useState<AppointmentRow[]>([])
   const [targets, setTargets] = useState<TargetRow[]>([])
@@ -233,7 +237,10 @@ function DashboardEquipo() {
             .range(0, FINANCE_QUERY_ROW_CAP),
           supabase.from('users').select('id, full_name'),
           supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
-          supabase.from('contacts').select('id, created_at').range(0, FINANCE_QUERY_ROW_CAP),
+          supabase
+            .from('contacts')
+            .select('id, created_at, first_seen_at, first_contact_at')
+            .range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('contact_attributions')
             .select('contact_id, source, utm_source, utm_campaign, utm_content, is_primary')
@@ -262,7 +269,14 @@ function DashboardEquipo() {
       setUsers(usersRes.data || [])
       setRoleUsers((roleUsersRes.data as RoleUser[] | null) || [])
       setContactIds((contactsRes.data || []).map((c: { id: string }) => c.id))
-      setContacts((contactsRes.data as { id: string; created_at: string | null }[]) || [])
+      setContacts(
+        (contactsRes.data as {
+          id: string
+          created_at: string | null
+          first_seen_at: string | null
+          first_contact_at: string | null
+        }[]) || []
+      )
       setAttributions(attrRes.data || [])
       setAppointments(apptRes.data || [])
       setTargets(targetsRes.data || [])
@@ -372,7 +386,12 @@ function DashboardEquipo() {
   }, [collections, filteredSaleIds, range])
 
   const filteredAppointments = useMemo(() => {
-    return appointments.filter((a) => apptMatches(a) && inPeriod(a.appointment_datetime, range))
+    // Una cancelación NO es una agenda del embudo: la cita no ocurrirá. (Unificado con
+    // buildSalesOverview de unit-economics, que ya excluía canceladas; antes el strip contaba
+    // canceladas y por eso "Agendas" inflaba: 120 en el mes eran 73 vivas + 47 canceladas.)
+    return appointments.filter(
+      (a) => !isCancelled(a.status) && apptMatches(a) && inPeriod(a.appointment_datetime, range)
+    )
   }, [appointments, apptMatches, range])
 
   const cur = useMemo(
@@ -407,7 +426,10 @@ function DashboardEquipo() {
   // toda la vida de la cuenta?"). No se filtra por rol/persona: un lead no pertenece a un closer.
   const filteredContactIds = useMemo(() => {
     // Sin atajo para 'all' (inPeriod con rango abierto = todo): un solo camino de filtrado.
-    return contacts.filter((c) => inPeriod(c.created_at, range)).map((c) => c.id)
+    // Por FECHA REAL del lead (leadDate = first_seen_at → first_contact_at → created_at), no por
+    // created_at: la importación histórica de GHL estampó todos los created_at el mismo día y
+    // "Este mes" contaba los ~1000 leads importados como si fueran de este mes.
+    return contacts.filter((c) => inPeriod(leadDate(c), range)).map((c) => c.id)
   }, [contacts, range])
 
   const funnelTotals = useMemo(

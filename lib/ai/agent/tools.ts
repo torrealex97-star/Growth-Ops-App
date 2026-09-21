@@ -111,7 +111,9 @@ const SOURCES: Array<{ fuente: string; table: string; dateColumn: string }> = [
   { fuente: 'ventas', table: 'sales', dateColumn: 'sale_date' },
   { fuente: 'campañas / ads', table: 'campaigns', dateColumn: 'start_date' },
   { fuente: 'cobros', table: 'collections', dateColumn: 'collected_at' },
-  { fuente: 'contactos', table: 'contacts', dateColumn: 'created_at' },
+  // first_seen_at = fecha real del lead (GHL dateAdded): created_at es la fecha de importación y
+  // diría "los datos empiezan el día que se importó el histórico".
+  { fuente: 'contactos', table: 'contacts', dateColumn: 'first_seen_at' },
   { fuente: 'citas', table: 'appointments', dateColumn: 'appointment_datetime' },
   { fuente: 'atribución de contactos', table: 'contact_attributions', dateColumn: 'created_at' },
 ]
@@ -285,7 +287,7 @@ export async function getContacts({ tenantId, sb }: ToolContext, query: string, 
   if (!q) return []
   const { data } = await sb
     .from('contacts')
-    .select('id,full_name,email,phone,lead_status,lead_channel,created_at')
+    .select('id,full_name,email,phone,lead_status,lead_channel,created_at,first_seen_at')
     .eq('tenant_id', tenantId)
     .is('merged_into', null)
     .or(`full_name.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%`)

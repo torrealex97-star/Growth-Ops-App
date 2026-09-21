@@ -27,6 +27,7 @@ import { useCuentasMetaActivas } from '@/lib/meta/use-cuentas-activas'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset, type PeriodRange } from '@/lib/filters/period'
 import { isCancelled } from '@/lib/unit-economics'
+import { leadDate } from '@/lib/analytics'
 import type { FunnelOperativo, FiltroAtribucion } from '@/lib/metrics/operativo'
 import { canonicalizeLeads, canonicalizeAppointments, dedupeSales } from '@/lib/canonical/dedup'
 import { canonicalCash, type StripePaymentRow } from '@/lib/canonical/cash'
@@ -305,7 +306,10 @@ function buildFunnelOperativo(
   rango: PeriodRange
 ): FunnelOperativo {
   const ahora = new Date()
-  const contactos = hayPeriodo ? contacts.filter((c) => c.created_at && inPeriod(c.created_at, rango)) : contacts
+  // Leads por FECHA REAL (leadDate = first_seen_at → first_contact_at → created_at): created_at es
+  // cuándo se importó la fila (la importación de GHL estampó todo el histórico el mismo día), no
+  // cuándo llegó el lead.
+  const contactos = hayPeriodo ? contacts.filter((c) => inPeriod(leadDate(c), rango)) : contacts
   const agendasVisibles = hayPeriodo
     ? appointments.filter((a) => inPeriod(a.appointment_datetime, rango))
     : appointments
@@ -423,7 +427,10 @@ export default function UnitEconomicsPage() {
             .select('payment_id, charge_id, amount, refunded_amount, status, paid_at, customer_email')
             .range(0, FINANCE_QUERY_ROW_CAP),
           // email/phone entran para la consolidación canónica de leads (dedup por persona, §6/§17).
-          supabase.from('contacts').select('id, campaign_id, created_at, email, phone').range(0, FINANCE_QUERY_ROW_CAP),
+          supabase
+            .from('contacts')
+            .select('id, campaign_id, created_at, first_seen_at, email, phone')
+            .range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('appointments')
             .select('id, contact_id, status, appointment_datetime, pipe_value, offered, result')
@@ -779,7 +786,7 @@ export default function UnitEconomicsPage() {
     }
     const iso = (t: number) => new Date(t).toISOString().slice(0, 10)
     for (const c of contacts) {
-      if (c.created_at) bump(c.created_at, 'leads', 1)
+      if (leadDate(c)) bump(leadDate(c), 'leads', 1)
     }
     for (const a of appointments) {
       if (a.appointment_datetime) bump(a.appointment_datetime, 'agendas', 1)
