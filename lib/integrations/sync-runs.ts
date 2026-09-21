@@ -26,8 +26,8 @@ export type SyncRunSummary = {
   errorMessage: string | null
 }
 
-/** Una ejecución "en curso" más vieja que esto se da por muerta (la lambda se cortó). */
-const STALE_RUN_MS = 15 * 60 * 1000
+/** Una ejecución "en curso" más vieja que esto se da por muerta (la lambda se corta a los 60 s: margen amplio). */
+const STALE_RUN_MS = 30 * 60 * 1000
 
 /** Códigos por los que MERECE la pena reintentar: el fallo es del transporte, no de la petición. */
 const RETRYABLE_CODES = new Set(['limite_de_uso', 'red', 'timeout'])
@@ -78,8 +78,18 @@ function codeOf(err: unknown): string | null {
   return typeof code === 'string' ? code : null
 }
 
-/** Cierra las ejecuciones colgadas para que el cerrojo no bloquee para siempre. */
-async function reclaimStaleRuns(sb: SupabaseClient, tenantId: string, job: string): Promise<void> {
+/**
+ * Barrido GLOBAL de ejecuciones colgadas: cierra como 'timeout' cualquier 'running' más viejo que
+ * STALE_RUN_MS, en TODAS las subcuentas y jobs. Nota en el propio error_message (visible en el
+ * panel de salud): nadie tiene que cerrar a mano un run que una lambda muerta dejó 'running' —
+ * el caso meta-ads de 2026-09-21 (2h21m en 'running' porque su job no volvió a correr y el
+ * barrido viejo solo limpiaba el camino del job que se lanzaba).
+ *
+ * Se dispara desde cada sync (recordSyncRun) y desde la lectura del panel (lastRunsByJob): cualquier
+ * punto de entrada limpia antes de trabajar. Llamar con .catch(() => {}): fallar el barrido jamás
+ * debe romper la operación que lo invoca.
+ */
+export async function reclaimAllStaleRuns(sb: SupabaseClient): Promise<void> {
   const cutoff = new Date(Date.now() - STALE_RUN_MS).toISOString()
   await sb
     .from('integration_sync_runs')
@@ -87,10 +97,9 @@ async function reclaimStaleRuns(sb: SupabaseClient, tenantId: string, job: strin
       status: 'timeout',
       finished_at: new Date().toISOString(),
       error_code: 'timeout',
-      error_message: 'La ejecución se cortó antes de terminar (se agotó el tiempo de la función).',
+      error_message:
+        'La ejecución se cortó antes de terminar (se agotó el tiempo de la función). Cerrado automáticamente por el barrido de colgados.',
     })
-    .eq('tenant_id', tenantId)
-    .eq('job', job)
     .eq('status', 'running')
     .lt('started_at', cutoff)
 }
@@ -116,7 +125,7 @@ export async function recordSyncRun<T>(
   outcome?: (result: T) => SyncOutcome
 ): Promise<T> {
   const scrub = (msg: string) => redactSecrets(msg, spec.secrets).slice(0, 2000)
-  await reclaimStaleRuns(sb, spec.tenantId, spec.job).catch(() => {})
+  await reclaimAllStaleRuns(sb).catch(() => {})
 
   const { data: started, error: startErr } = await sb
     .from('integration_sync_runs')
@@ -201,6 +210,9 @@ export async function lastRunsByJob(
   sb: SupabaseClient,
   tenantId: string
 ): Promise<Record<string, SyncRunSummary | null>> {
+  // El panel es el espejo del estado de las syncs: barre colgados ANTES de leer, para que un run
+  // muerto no aparezca 'running' para siempre. Si el barrido falla, la lectura sigue igual.
+  await reclaimAllStaleRuns(sb).catch(() => {})
   const { data, error } = await sb
     .from('integration_sync_runs')
     .select('job,provider,status,trigger,started_at,finished_at,rows_written,error_code,error_message')
