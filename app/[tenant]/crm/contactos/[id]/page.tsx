@@ -33,6 +33,8 @@ import {
   FileText,
   Pencil,
   ListTree,
+  CreditCard,
+  AlertCircle,
 } from 'lucide-react'
 import { formatDate, formatDateTime, formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -110,11 +112,17 @@ type AppointmentWithNames = Appointment & {
 
 const TIMELINE_ICON: Record<TimelineEventType, typeof Clock> = {
   attribution: Link2,
+  created: Clock,
   appointment: Calendar,
   transcript: FileText,
+  recording: PlayCircle,
   activity: Phone,
   contract: FileText,
   sale: ShoppingBag,
+  payment: CreditCard,
+  delinquency: AlertCircle,
+  csm: GraduationCap,
+  feedback: MessageSquare,
   note: StickyNote,
 }
 
@@ -136,6 +144,17 @@ type ContactContract = {
   url: string | null
   signed_at: string | null
   created_at: string
+}
+
+type CsmEvent = {
+  id: string
+  type: string
+  event_datetime: string
+  status: string | null
+  grade: number | null
+  success: string | null
+  recording_url: string | null
+  notes: string | null
 }
 
 // Next.js 15: `params` pasa a ser una Promise — useParams() de next/navigation sigue siendo
@@ -162,6 +181,7 @@ export default function ContactDetailPage() {
   const [installmentsContacto, setInstallmentsContacto] = useState<SaleExpectedInstallment[]>([])
   const [collectionsContacto, setCollectionsContacto] = useState<Collection[]>([])
   const [commissionsContacto, setCommissionsContacto] = useState<Commission[]>([])
+  const [csmEvents, setCsmEvents] = useState<CsmEvent[]>([])
   const [notes, setNotes] = useState<ContactNote[]>([])
   const [activities, setActivities] = useState<ContactActivity[]>([])
   const [contracts, setContracts] = useState<ContactContract[]>([])
@@ -175,9 +195,36 @@ export default function ContactDetailPage() {
   const [appointmentDraft, setAppointmentDraft] = useState<{ status: string; notes: string } | null>(null)
   const [savingAppointment, setSavingAppointment] = useState(false)
 
+  // Historial completo del contacto (petición 22-sep): creado, atribución, agendas, grabaciones,
+  // transcripciones, ventas, pagos, impagos, CSM, feedback del formulario, notas y contratos —
+  // todo en una sola timeline ordenada por fecha real del evento.
   const timeline = useMemo(
-    () => buildContactTimeline(attributions, appointments, sales, notes, activities, contracts),
-    [attributions, appointments, sales, notes, activities, contracts]
+    () =>
+      buildContactTimeline(attributions, appointments, sales, notes, activities, contracts, {
+        contact: contact ? { createdAt: contact.created_at, fullName: contact.full_name } : null,
+        payments: collectionsContacto,
+        delinquencies: installmentsContacto,
+        csmEvents,
+        feedback:
+          contact?.qualification_updated_at && (contact.qualification as Qualification | null)?.respuestas?.length
+            ? {
+                answers: (contact.qualification as Qualification).respuestas ?? [],
+                updatedAt: contact.qualification_updated_at,
+              }
+            : null,
+      }),
+    [
+      attributions,
+      appointments,
+      sales,
+      notes,
+      activities,
+      contracts,
+      contact,
+      collectionsContacto,
+      installmentsContacto,
+      csmEvents,
+    ]
   )
 
   // Desglose de dinero por venta: plan de cuotas (real o previsión) + comisiones generadas.
@@ -207,6 +254,7 @@ export default function ContactDetailPage() {
       contactRes,
       attrRes,
       appRes,
+      csmRes,
       salesRes,
       notesRes,
       activitiesRes,
@@ -229,6 +277,8 @@ export default function ContactDetailPage() {
         .eq('contact_id', id)
         .eq('tenant_id', tenantId)
         .order('appointment_datetime', { ascending: false }),
+      // Historial completo: eventos CSM del contacto (onboarding, feedback de clases…).
+      supabase.from('csm_events').select('*').eq('contact_id', id).eq('tenant_id', tenantId),
       supabase
         .from('sales')
         .select('*, payment_plans(number_of_payments, method)')
@@ -286,6 +336,7 @@ export default function ContactDetailPage() {
     if (instRes.error) toast.error('Error al cargar las cuotas', { description: instRes.error.message })
     if (collRes.error) toast.error('Error al cargar los cobros', { description: collRes.error.message })
     if (comRes.error) toast.error('Error al cargar las comisiones', { description: comRes.error.message })
+    if (csmRes.error) toast.error('Error al cargar los eventos CSM', { description: csmRes.error.message })
 
     setContact(contactRes.data)
     setAttributions(attrRes.data ?? [])
@@ -306,6 +357,7 @@ export default function ContactDetailPage() {
     setInstallmentsContacto((instRes.data as SaleExpectedInstallment[]) ?? [])
     setCollectionsContacto((collRes.data as Collection[]) ?? [])
     setCommissionsContacto((comRes.data as Commission[]) ?? [])
+    setCsmEvents((csmRes.data as CsmEvent[]) ?? [])
     setLoading(false)
   }
 
