@@ -22,8 +22,14 @@ export const maxDuration = 60
 // El webhook no lleva auth de usuario: queda cubierto por (a) solo acepta runs conocidos y
 // (b) endpoint de write-only con validación de payload. Opcional: APIFY_WEBHOOK_SECRET.
 export async function POST(req: NextRequest) {
+  // CIERRA POR DEFECTO. Antes solo comprobaba el secreto SI había secreto configurado: sin él,
+  // cualquiera podía publicar contenido social en la base. Los demás webhooks (Stripe, GHL, Calendly,
+  // Resend) rechazan cuando falta su secreto, y este es el único que abría.
   const secret = process.env.APIFY_WEBHOOK_SECRET
-  if (secret) {
+  if (!secret) {
+    return NextResponse.json({ error: 'Webhook no configurado: falta APIFY_WEBHOOK_SECRET' }, { status: 401 })
+  }
+  {
     const got = req.headers.get('x-apify-webhook-secret') || req.headers.get('authorization')?.replace(/^Bearer /, '')
     if (got !== secret) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }

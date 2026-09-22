@@ -19,8 +19,7 @@ export const runtime = 'nodejs'
 // - Guarda enlace de reunión (Meet), reschedule_url, UTMs first/last, duración.
 // - Cancelación/Reprogramación sincronizadas.
 
-function verifySignature(raw: string, header: string | null): boolean {
-  const secret = process.env.CALENDLY_WEBHOOK_SECRET
+function verifySignature(raw: string, header: string | null, secret: string | undefined): boolean {
   // Fail-closed: sin secret configurado no aceptamos el webhook.
   if (!secret) return false
   if (!header) return false
@@ -84,28 +83,34 @@ async function attachVslWatch(opts: {
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
     const raw = await req.text()
-    if (!verifySignature(raw, req.headers.get('calendly-webhook-signature'))) {
-      return NextResponse.json({ error: 'Firma inválida' }, { status: 401 })
-    }
-    const body = JSON.parse(raw)
-    const event = body.event as string
-    const p = body.payload || {}
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const now = new Date().toISOString()
 
-    // Sin sesión de usuario (lo llama Calendly): el tenant se resuelve directamente
-    // del slug de la ruta, con el cliente service-role (bypassa RLS), y se confía en
-    // él porque las URLs de webhook por subcuenta se registran una vez en Calendly
-    // por su propio slug (`/api/{tenant}/evergreen/webhooks/calendly`).
+    // LA SUBCUENTA, ANTES DE LA FIRMA. Su secreto es suyo: Integraciones pide la "Webhook Signing
+    // Key" por subcuenta y la guarda cifrada, pero esto validaba solo contra la variable global, así
+    // que la clave guardada por un cliente se ignoraba y todas compartían un secreto. Con un secreto
+    // compartido, el webhook de un cliente puede escribir en los datos de otro. Mismo fallo que tuvo
+    // GHL (#127). La variable de entorno se conserva como respaldo para quien no la haya guardado.
     const { tenant } = await params
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const { data: tenantRow } = await sb
       .from('tenants')
       .select('id, status')
       .eq('slug', tenant)
       .eq('status', 'active')
       .single()
-    if (!tenantRow) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
+    // Subcuenta inexistente y firma inválida responden IGUAL: si no, este endpoint sirve para
+    // averiguar qué subcuentas existen.
+    if (!tenantRow) return NextResponse.json({ error: 'Firma inválida' }, { status: 401 })
     const tenantId = tenantRow.id
+
+    const cfg = await getTenantConfigWithFallback(tenantId, true)
+    const secreto = cfg.CALENDLY_WEBHOOK_SECRET || process.env.CALENDLY_WEBHOOK_SECRET
+    if (!verifySignature(raw, req.headers.get('calendly-webhook-signature'), secreto)) {
+      return NextResponse.json({ error: 'Firma inválida' }, { status: 401 })
+    }
+    const body = JSON.parse(raw)
+    const event = body.event as string
+    const p = body.payload || {}
+    const now = new Date().toISOString()
 
     const email = (p.email as string | null)?.toLowerCase?.().trim() || null
     let phone = digits(p.text_reminder_number)
