@@ -17,7 +17,7 @@ export default async function VslEmbedPage({ params }: { params: Promise<{ slug:
   const { slug } = await params
   const [video] = await sql`
     SELECT slug, name, source_url, poster_url, duration_seconds, config
-    FROM vsl_videos WHERE slug = ${slug} LIMIT 1
+    FROM vsl_videos WHERE slug = ${slug} AND deleted_at IS NULL LIMIT 1
   `
 
   if (!video) {

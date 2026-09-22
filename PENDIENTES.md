@@ -1,6 +1,6 @@
 # PENDIENTES — [tenant] OS
 
-> Doc vivo de tareas pendientes. Última actualización: 2026-09-20.
+> Doc vivo de tareas pendientes. Última actualización: 2026-09-22.
 > App en producción: https://growth-ops-weld.vercel.app · Deploy por PR (protección de rama: CI required en main — nada se pushea directo).
 > Contribuir: rama → PR → CI verde (format/lint/typecheck/tests/build/gitleaks) → merge squash.
 
@@ -100,6 +100,7 @@ Pendiente:
 
 ### Hecho recientemente (para contexto)
 
+**22-sep**: **Smoke E2E en CI con Playwright** (commit `70021b8`): job `e2e` tras quality — reservas end-to-end (diálogo → wizard con plan preseleccionado → cobro → detalle → visible en Reservas) y ficha de contacto (Información por defecto, persistencia de custom fields, filtro por campo) contra tenant QA `qa-e2e` provisionado idempotentemente (`scripts/e2e/setup-tenant.mjs`, password solo en secret `E2E_PASSWORD`). Lección clave: rotar la contraseña del usuario QA invalida sus sesiones (session_not_found) — fixtures UNA vez, antes del login, nunca en los specs.
 **20-sep**: **auditoría de columnas fantasma** — 5 queries rotas corregidas (PR #89): dashboard del colaborador sin citas/revenue (`start_time`/`amount`), audit de documentos que nunca se registró en `audit_logs` (columnas inexistentes tragadas por try/catch), backfill Stripe roto (`users.tenant_id`) · fix `calendly_event_id` en unit-economics (PR #86: el Funnel del negocio quedaba vacío en silencio) · cadena del `provider_message_id` de Resend + webhook idempotente con exención de middleware (PR #79/#82). Hallazgo estructural: clientes de Supabase sin tipar → nueva sección 🧱 Deuda técnica.
 **19-sep**: skills ventas/marketing + system prompts + esquemas RAG + reglas CLAUDE.md (#71) · protección de rama main con CI required (#70) · RAG: knowledge_chunks + tool searchKnowledge + endpoint + ingesta (#73) · fee_percent en UI de planes (base neta de comisiones) · sync Stripe con stripe_fee real + reconcile-all verificado al céntimo.
 Anteriores: Arquitectura por departamentos + RBAC · webhook GHL (matching por ID, customData) · IA facturas + análisis de llamadas (Groq+Claude) · Morosidad + rol Cobros · gastos recurrentes/sueldos (crons) · devoluciones · agendas (calendario + duración + métricas equipo + análisis IA) · biblioteca de facturas · dashboards del sheet antiguo (Company, Calls_Sales, Marketing funnel, Prospección, CSM, Leaderboards por rol) · recuperación de contraseña + invitaciones.

@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server'
 import { sql } from '@/lib/vsl/db'
 import { syncContactWatchPct } from '@/lib/vsl/sync'
+import { MinuteRateLimiter } from '@/lib/tracking/ingest'
 
 export const dynamic = 'force-dynamic'
+
+// Rate limit por proceso (el mismo del pixel): un latido sano va cada ~3s, 20/min por IP
+// cubre de sobra a varios viewers detrás de la misma IP (oficina/CGNAT).
+const limiter = new MinuteRateLimiter()
 
 // Latido de tracking. El player manda, cada ~3s, los segundos NUEVOS vistos desde el último latido,
 // la posición actual, la duración y el evento. Fusionamos watched_seconds de forma única en DB
@@ -17,6 +22,10 @@ export async function POST(req: Request) {
     const event: string = body.event || 'beat'
 
     if (!sessionId) return NextResponse.json({ error: 'sessionId requerido' }, { status: 400 })
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'desconocida'
+    if (!limiter.allow(`vsl-track:${ip}`, 120)) {
+      return NextResponse.json({ error: 'Demasiadas peticiones' }, { status: 429 })
+    }
 
     // Sanea: enteros >= 0 y acotados a una duración razonable (evita basura).
     const clean = Array.from(

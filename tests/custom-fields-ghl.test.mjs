@@ -94,3 +94,17 @@ test('sin custom fields → mapa vacío (y aplicar devuelve null sin tocar el co
   assert.equal(m.definiciones.size, 0)
   assert.equal(m.valores.size, 0)
 })
+
+// ── tipoDesdeGhl: catálogo de la ubicación → tipos de la app ─────────────────
+import { tipoDesdeGhl } from '../lib/contacts/custom-fields-ghl.ts'
+
+test('tipoDesdeGhl mapea los tipos declarados de GHL y degrada a texto', () => {
+  assert.equal(tipoDesdeGhl('TEXT'), 'text')
+  assert.equal(tipoDesdeGhl('TEXTAREA'), 'text')
+  assert.equal(tipoDesdeGhl('NUMBER'), 'number')
+  assert.equal(tipoDesdeGhl('DATE'), 'date')
+  assert.equal(tipoDesdeGhl('CHECKBOX'), 'boolean')
+  assert.equal(tipoDesdeGhl('DROPDOWN'), 'text')
+  assert.equal(tipoDesdeGhl(null), 'text')
+  assert.equal(tipoDesdeGhl(undefined), 'text')
+})

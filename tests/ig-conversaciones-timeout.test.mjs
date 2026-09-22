@@ -79,13 +79,19 @@ test('el fuente del cliente usa pool acotado (no bucle serial) y degrada por con
 test('la ruta responde configured:false con motivo en fallos de IG (no 500 ciego)', () => {
   const route = lee('app/api/[tenant]/evergreen/setting-ai/conversations/route.ts')
   assert.match(route, /e instanceof InstagramApiError/, 'distingue errores de la Graph API')
-  assert.match(route, /motivo: motivoLegible\(e\.code, e\.message\)/, 'devuelve motivo legible')
+  assert.match(route, /const motivo = motivoLegible\(e\.code, e\.message\)/, 'devuelve motivo legible')
+  assert.match(route, /leerSnapshot\(tenant\)/, 'fallback stale: sirve el último snapshot bueno')
+  assert.match(route, /guardarSnapshot\(tenant,/, 'guarda snapshot tras descarga buena')
+  assert.match(route, /stale: true/, 'marca los datos cacheados con su edad')
   assert.match(route, /instagram_manage_messages/, 'nombra el permiso que falta')
   assert.match(route, /token_caducado/, 'cubre token caducado')
   assert.match(route, /limite_de_uso/, 'cubre rate limit')
   assert.match(route, /conPlazo\(descargar/, 'plazo duro a nivel de ruta')
   assert.match(route, /25_000/, 'responde siempre antes de que Vercel mate la lambda')
   assert.match(route, /maxDuration = 60/, 'margen honesto: el plazo duro decide primero')
+  assert.match(route, /leerSnapshot\(t\.tenantId\)/, 'snapshot-first: sirve instantáneo si existe')
+  assert.match(route, /after\(async/, 'refresco en segundo plano con after()')
+  assert.match(route, /3 \* 60_000/, 'umbral de frescura 3 min')
 })
 
 test('el front acota su espera y presenta el motivo', () => {

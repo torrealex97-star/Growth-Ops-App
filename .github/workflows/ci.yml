@@ -83,6 +83,54 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
           NEXT_PUBLIC_SITE_URL: http://localhost:3000
 
+  # SMOKE E2E (Playwright): los flujos críticos de negocio no se rompen sin que nos demos cuenta.
+  # Reservas (alta manual end-to-end) y ficha de contacto (info-first + campos personalizados)
+  # contra el Supabase real con un tenant QA dedicado (qa-e2e), nunca con datos de clientes.
+  # Después de quality: no gastar minutos E2E si el código ya se sabe roto por otra vía.
+  e2e:
+    name: Smoke E2E (Playwright)
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Instalar navegador de Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Build con env público REAL
+        run: npm run build
+        env:
+          # Next inlinea las NEXT_PUBLIC_* en el bundle del cliente EN BUILD-TIME: con placeholders
+          # el navegador del E2E no alcanzaría Supabase. La anon key es pública por diseño.
+          # El service-role es server-only: placeholder vale para el build (el runtime del server
+          # usa el secret real que inyecta el step siguiente).
+          NODE_OPTIONS: --max-old-space-size=4096
+          NEXT_TELEMETRY_DISABLED: 1
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
+          NEXT_PUBLIC_SITE_URL: http://localhost:3100
+      - name: Smoke E2E (build + start + specs; Playwright levanta el server)
+        run: npm run test:e2e
+        env:
+          # Supabase real (mismas credenciales que consumen los unit tests del invariante).
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Password del usuario QA admin@qa-e2e.test — solo el secret, nunca en el repo.
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
+          NEXT_TELEMETRY_DISABLED: 1
+      - name: Subir artefactos si falla (traza + capturas)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: test-results/e2e-artifacts
+          retention-days: 7
+
   # Repo PÚBLICO: el historial es legible por cualquiera, así que un secreto filtrado es
   # compromiso inmediato. Escaneo de TODOS los commits en cada push/PR. --redact es fijo:
   # si algún día detecta algo, el log del job nunca imprime el valor. Config en .gitleaks.toml

@@ -90,6 +90,23 @@ export function convertirValor(valor: unknown, tipo: 'text' | 'number' | 'boolea
   return s === '' ? null : s
 }
 
+/**
+ * Tipo del catálogo de GHL → tipo de la app. GHL declara el tipo en su carpeta de campos
+ * (GET /locations/{locationId}/customFields); lo que no sepamos mapearlo entra como texto.
+ */
+export function tipoDesdeGhl(tipoGhl: string | null | undefined): 'text' | 'number' | 'boolean' | 'date' {
+  switch ((tipoGhl ?? '').toLowerCase()) {
+    case 'number':
+      return 'number'
+    case 'date':
+      return 'date'
+    case 'checkbox':
+      return 'boolean'
+    default:
+      return 'text'
+  }
+}
+
 export type MapeoGhl = {
   /** field_key (slug) → label original, para crear definiciones que falten. */
   definiciones: Map<string, { label: string; field_type: 'text' | 'number' | 'boolean' | 'date' }>
@@ -134,7 +151,13 @@ export async function aplicarCustomFieldsGhl(
   tenantId: string,
   contactId: string,
   source: Record<string, unknown>,
-  definicionesCache?: Map<string, Map<string, string>>
+  definicionesCache?: Map<string, Map<string, string>>,
+  opts?: {
+    /** slug de campo GHL → nombre legible del catálogo (definiciones nuevas lo usan como label). */
+    nombresGhl?: Map<string, string>
+    /** custom_fields ya cargados del contacto (ahorra un SELECT por contacto en el backfill). */
+    customFieldsActuales?: Record<string, CustomFieldValue> | null
+  }
 ): Promise<{ customFields: Record<string, CustomFieldValue> | null; creadas: number }> {
   const mapeo = mapearCustomFieldsGhl(source)
   if (mapeo.valores.size === 0) return { customFields: null, creadas: 0 }
@@ -158,12 +181,14 @@ export async function aplicarCustomFieldsGhl(
       keyToId.set(fieldKey, existente.id)
       continue
     }
+    // El catálogo de GHL da el nombre legible; si no lo tenemos, el label original del contacto.
+    const labelLegible = opts?.nombresGhl?.get(fieldKey) ?? def.label
     const { data: nueva, error } = await sb
       .from('custom_field_defs')
       .insert({
         tenant_id: tenantId,
         field_key: fieldKey,
-        label: def.label,
+        label: labelLegible,
         field_type: def.field_type,
       })
       .select('id')
@@ -185,15 +210,19 @@ export async function aplicarCustomFieldsGhl(
   }
 
   // 2) Merge con los valores ya guardados del contacto (nunca pisar con vacío).
-  const { data: actual } = await sb
-    .from('contacts')
-    .select('custom_fields')
-    .eq('id', contactId)
-    .eq('tenant_id', tenantId)
-    .single()
-  const merged: Record<string, CustomFieldValue> = {
-    ...((actual?.custom_fields as Record<string, CustomFieldValue> | null) ?? {}),
+  let actuales: Record<string, CustomFieldValue> | null = null
+  if (opts?.customFieldsActuales !== undefined) {
+    actuales = opts.customFieldsActuales
+  } else {
+    const { data: fila } = await sb
+      .from('contacts')
+      .select('custom_fields')
+      .eq('id', contactId)
+      .eq('tenant_id', tenantId)
+      .single()
+    actuales = (fila?.custom_fields as Record<string, CustomFieldValue> | null) ?? null
   }
+  const merged: Record<string, CustomFieldValue> = { ...(actuales ?? {}) }
   for (const [fieldKey, valor] of mapeo.valores) {
     const id = keyToId.get(fieldKey)
     if (id) merged[id] = valor
