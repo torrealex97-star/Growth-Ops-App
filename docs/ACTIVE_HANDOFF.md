@@ -164,7 +164,15 @@ cazó; conviene no gastar esa red dos veces.
      marcadas**. Ahora el emparejado marca `show` si la cita está sin resolver (nunca pisa un
      `no_show` ni una cancelada) y se hizo el backfill: **99 citas marcadas**, shows 3 → 102, tasa de
      asistencia de 30 días **28,4 %**. Las 8 grabaciones sobre citas canceladas se dejaron intactas.
-  - **Queda:** 240 citas pasadas sin resolver que NO tienen grabación (nadie puede inferirlas) y
+  3. **Marcado provisional (decisión de Alex, 22-sep, SOLO esta vez y sin automatizar):** las **249**
+     citas pasadas que seguían en `scheduled`/`confirmed` se marcaron como `show`. Cada una lleva en
+     `notes` "PENDIENTE de que el closer confirme si asistió o no" y su fila en `audit_logs`
+     (`origen` = `2026-09-22: marcado provisional…`), así que se puede revertir o listar. **No se
+     tocaron** las 17 futuras, las 225 canceladas ni ningún `no_show`.
+     ⚠️ **La tasa de asistencia deja de ser fiable hasta que los closers revisen esas 249**: hoy
+     figuran 351 asistidas, de las cuales 249 son provisionales. Para saber cuáles son:
+     `select id from appointments where notes like '%PENDIENTE de que el closer confirme%'`.
+  - **Queda:** citas pasadas sin grabación cuyo resultado real nadie ha confirmado (ver punto 3) y
     **ninguna cita de GHL trae setter** — depende de que GHL mande UTMs (bloqueo de Alex).
   - **Ojo:** 362 de 968 contactos de GHL no tienen ni correo ni teléfono (335 son de la importación
     del 12-sep, pero sigue pasando: 10 de 19 el 21-sep). Sin ninguno de los dos no se pueden
