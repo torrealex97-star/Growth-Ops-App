@@ -49,7 +49,13 @@ type VentaRow = {
   status: string | null
   created_at: string | null
 }
-type ComisionRow = { id: string; status: string | null; commission_amount: number | null; created_at: string | null }
+type ComisionRow = {
+  id: string
+  status: string | null
+  commission_amount: number | null
+  created_at: string | null
+  liquidation_month: string | null
+}
 type FilaFutura = { installmentId: string; amount: number | string; dueDate: string; source: string }
 
 type Actividad = {
@@ -132,7 +138,7 @@ export default function ColaboradorDashboard({
         // Ledger del propio colaborador: participant_type='collaborator' sale de esta query.
         sb
           .from('commissions')
-          .select('id, status, commission_amount, created_at')
+          .select('id, status, commission_amount, created_at, liquidation_month')
           .eq('tenant_id', tenantId)
           .eq('user_id', sesion.userId),
       ])
@@ -206,37 +212,38 @@ export default function ColaboradorDashboard({
     }
   }, [contactos, citas, ventas, comisiones, rango, rangoPrevio])
 
-  // COBROS (§25): el resumen de su dinero. La regla del propietario (22-sep):
-  // las comisiones de cobros anteriores a septiembre 2026 ya están pagadas —
-  // lo pendiente arranca en septiembre. 'A percibir' = liquidación de este mes
-  // (se cobra el mes siguiente) + cuotas aún por cobrar; los IMPAGOS (vencidas
-  // sin cobrar) van aparte porque no son dinero seguro.
+  // COBROS (§25): el resumen de su dinero. Regla dura del propietario: TODO es
+  // sobre cash COLECTADO — nadie comisiona sobre lo que no se ha cobrado. Las
+  // comisiones del ledger nacen SIEMPRE de cobros 'collected' (motor), así que:
+  //   · Cobrado     = liquidadas (pagadas).
+  //   · Pendiente   = generadas sobre cash ya colectado, por aprobar/pagar.
+  //   · A percibir  = las de mes de liquidación el MES QUE VIENE (cash ya
+  //                   colectado; se pagan con la liquidación del mes siguiente).
+  //   · Impagos     = cuotas VENCIDAS sin cobrar de sus ventas (proyección de
+  //                   commissions/future, SU lane). NO es dinero ganado: es lo
+  //                   que puede llegar a ganar si esos leads pagan — visible
+  //                   aparte, nunca mezclado con lo ya colectado.
   const cobros = useMemo(() => {
-    const inicioPendiente = new Date('2026-09-01T00:00:00Z').getTime()
-    const mesQueViene = new Date()
-    mesQueViene.setMonth(mesQueViene.getMonth() + 1, 1)
-    mesQueViene.setHours(0, 0, 0, 0)
-    const finMesQueViene = new Date(mesQueViene)
-    finMesQueViene.setMonth(finMesQueViene.getMonth() + 1)
-
     const noCanceladas = comisiones.filter((c) => c.status !== 'cancelled')
     const cobrado = noCanceladas
       .filter((c) => c.status === 'liquidated')
       .reduce((acc, c) => acc + num(c.commission_amount), 0)
     const pendiente = noCanceladas
       .filter((c) => c.status === 'pending' || c.status === 'approved')
-      .filter((c) => new Date(c.created_at ?? 0).getTime() >= inicioPendiente)
+      .reduce((acc, c) => acc + num(c.commission_amount), 0)
+
+    // Mes de liquidación del mes que viene (convención única del ledger: día 1,
+    // formato YYYY-MM-01). El cash colectado ESTE mes lleva liquidation_month del
+    // mes que viene → es lo que le pagarán el mes próximo.
+    const proximo = new Date()
+    proximo.setMonth(proximo.getMonth() + 1, 1)
+    const mesProximoISO = proximo.toISOString().slice(0, 10)
+    const aPercibirProximo = noCanceladas
+      .filter((c) => (c.liquidation_month ?? '').slice(0, 10) === mesProximoISO)
       .reduce((acc, c) => acc + num(c.commission_amount), 0)
 
     const importe = (f: FilaFutura) => num(f.amount)
-    const enVentana = (due: string, desde: Date, hasta: Date) => {
-      const t = new Date(due).getTime()
-      return t >= desde.getTime() && t < hasta.getTime()
-    }
     const ahora = new Date()
-    const aPercibirProximo = futuras
-      .filter((f) => enVentana(f.dueDate, mesQueViene, finMesQueViene))
-      .reduce((acc, f) => acc + importe(f), 0)
     const impagos = futuras
       .filter((f) => f.source === 'installment' && new Date(f.dueDate).getTime() < ahora.getTime())
       .reduce((acc, f) => acc + importe(f), 0)
@@ -438,7 +445,7 @@ export default function ColaboradorDashboard({
           value={eur(cobros.aPercibirProximo)}
           icon={CalendarCheck}
           loading={cargando}
-          description="Liquidación de este mes + cuotas que vencen"
+          description="Cash ya colectado que liquida el mes próximo"
         />
         <KPICard
           title="Impagos de tus leads"
