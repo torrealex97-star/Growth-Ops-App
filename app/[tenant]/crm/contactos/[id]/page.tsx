@@ -250,69 +250,53 @@ export default function ContactDetailPage() {
   const load = async () => {
     const supabase = createClient()
 
-    const [
-      contactRes,
-      attrRes,
-      appRes,
-      csmRes,
-      salesRes,
-      notesRes,
-      activitiesRes,
-      contractsRes,
-      defsRes,
-      instRes,
-      collRes,
-      comRes,
-    ] = await Promise.all([
-      supabase.from('contacts').select('*').eq('id', id).eq('tenant_id', tenantId).single(),
-      supabase
-        .from('contact_attributions')
-        .select('*')
-        .eq('contact_id', id)
-        .eq('tenant_id', tenantId)
-        .order('first_touch_at'),
-      supabase
-        .from('appointments')
-        .select('*, setter:setter_id(full_name), closer:closer_id(full_name)')
-        .eq('contact_id', id)
-        .eq('tenant_id', tenantId)
-        .order('appointment_datetime', { ascending: false }),
-      // Historial completo: eventos CSM del contacto (onboarding, feedback de clases…).
-      supabase.from('csm_events').select('*').eq('contact_id', id).eq('tenant_id', tenantId),
-      supabase
-        .from('sales')
-        .select('*, payment_plans(number_of_payments, method)')
-        .eq('contact_id', id)
-        .eq('tenant_id', tenantId)
-        .order('sale_date', { ascending: false }),
-      supabase
-        .from('contact_notes')
-        .select('*, author:author_id(full_name)')
-        .eq('contact_id', id)
-        .eq('tenant_id', tenantId)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('activities')
-        .select('id, type, direction, result, duration_min, notes, created_at, users(full_name)')
-        .eq('contact_id', id)
-        .eq('tenant_id', tenantId)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('contracts')
-        .select('id, title, status, url, signed_at, created_at')
-        .eq('contact_id', id)
-        .order('created_at', { ascending: false }),
-      supabase.from('custom_field_defs').select('*').eq('tenant_id', tenantId).order('sort_order', { ascending: true }),
-      // Estado del dinero por venta: filtro por sale_id en cliente (RLS de colaborador aplica igual).
-      supabase.from('sale_expected_installments').select('*').eq('tenant_id', tenantId).order('installment_number'),
-      supabase.from('collections').select('*').eq('tenant_id', tenantId).order('collected_at'),
-      supabase
-        .from('commissions')
-        .select(
-          'id, sale_id, participant_type, percent, base_amount, commission_amount, direction, status, liquidation_month, created_at'
-        )
-        .eq('tenant_id', tenantId),
-    ])
+    const [contactRes, attrRes, appRes, csmRes, salesRes, notesRes, activitiesRes, contractsRes, defsRes] =
+      await Promise.all([
+        supabase.from('contacts').select('*').eq('id', id).eq('tenant_id', tenantId).single(),
+        supabase
+          .from('contact_attributions')
+          .select('*')
+          .eq('contact_id', id)
+          .eq('tenant_id', tenantId)
+          .order('first_touch_at'),
+        supabase
+          .from('appointments')
+          .select('*, setter:setter_id(full_name), closer:closer_id(full_name)')
+          .eq('contact_id', id)
+          .eq('tenant_id', tenantId)
+          .order('appointment_datetime', { ascending: false }),
+        // Historial completo: eventos CSM del contacto (onboarding, feedback de clases…).
+        supabase.from('csm_events').select('*').eq('contact_id', id).eq('tenant_id', tenantId),
+        supabase
+          .from('sales')
+          .select('*, payment_plans(number_of_payments, method)')
+          .eq('contact_id', id)
+          .eq('tenant_id', tenantId)
+          .order('sale_date', { ascending: false }),
+        supabase
+          .from('contact_notes')
+          .select('*, author:author_id(full_name)')
+          .eq('contact_id', id)
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('activities')
+          .select('id, type, direction, result, duration_min, notes, created_at, users(full_name)')
+          .eq('contact_id', id)
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('contracts')
+          .select('id, title, status, url, signed_at, created_at')
+          .eq('contact_id', id)
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('custom_field_defs')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .order('sort_order', { ascending: true }),
+      ])
 
     if (sesion) setCurrentUser({ id: sesion.userId })
 
@@ -333,10 +317,31 @@ export default function ContactDetailPage() {
     if (activitiesRes.error)
       toast.error('Error al cargar las interacciones', { description: activitiesRes.error.message })
     if (contractsRes.error) toast.error('Error al cargar los contratos', { description: contractsRes.error.message })
+    if (csmRes.error) toast.error('Error al cargar los eventos CSM', { description: csmRes.error.message })
+
+    // No cargamos cuotas, cobros ni comisiones de todo el tenant para filtrarlos en el navegador:
+    // además de ser costoso, exponía datos financieros de otros contactos. La venta ya está
+    // acotada a esta ficha; todas las lecturas dependientes deben usar exactamente esos IDs.
+    const saleIds = (salesRes.data ?? []).map((sale) => sale.id)
+    const [instRes, collRes, comRes] = saleIds.length
+      ? await Promise.all([
+          supabase.from('sale_expected_installments').select('*').in('sale_id', saleIds).order('installment_number'),
+          supabase.from('collections').select('*').in('sale_id', saleIds).order('collected_at'),
+          supabase
+            .from('commissions')
+            .select(
+              'id, sale_id, participant_type, percent, base_amount, commission_amount, direction, status, liquidation_month, created_at'
+            )
+            .in('sale_id', saleIds),
+        ])
+      : [
+          { data: [], error: null },
+          { data: [], error: null },
+          { data: [], error: null },
+        ]
     if (instRes.error) toast.error('Error al cargar las cuotas', { description: instRes.error.message })
     if (collRes.error) toast.error('Error al cargar los cobros', { description: collRes.error.message })
     if (comRes.error) toast.error('Error al cargar las comisiones', { description: comRes.error.message })
-    if (csmRes.error) toast.error('Error al cargar los eventos CSM', { description: csmRes.error.message })
 
     setContact(contactRes.data)
     setAttributions(attrRes.data ?? [])
