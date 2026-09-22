@@ -141,6 +141,18 @@ test('el botón Ver como solo se pinta para super admin y el banner es visible s
   assert.match(shim, /useVerComo\(tenant\)/)
 })
 
+// Marcas anti-confusión (22-sep): título de pestaña + chip de esquina + salida con navegación completa.
+test('el banner marca la pestaña y añade chip de esquina; la salida recarga completo', () => {
+  const ui = lee('components/os/BannerVerComo.tsx')
+  assert.match(ui, /MARCA_TITULO/, 'prefijo constante para el título de la pestaña')
+  assert.match(ui, /VER COMO — /, 'el título lleva la marca legible')
+  assert.match(ui, /setInterval\(afirma/, 're-afirma el título (cada página lo sobreescribe al navegar)')
+  assert.match(ui, /document\.title = original/, 'al desmontar restaura el título original')
+  assert.match(ui, /Modo ver como activo/, 'chip de esquina con aria-label propio')
+  assert.match(ui, /fixed bottom-4 left-4/, 'chip fijo en la esquina (visible aunque el banner se tape)')
+  assert.match(ui, /window\.location\.assign/, 'la salida navega COMPLETA (el refresh de RSC no limpia el shim)')
+})
+
 test('la cookie del ticket tiene nombre fijo y atributos duros', () => {
   assert.equal(cookieNombre(), 'vc-ticket')
   const route = lee('app/api/[tenant]/evergreen/admin/ver-como/route.ts')
