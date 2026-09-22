@@ -1,20 +1,19 @@
 // Aprovisiona el entorno E2E: idempotente, re-ejecutable N veces.
 //
-//   node scripts/e2e/setup-tenant.mjs [--reset]
+//   node scripts/e2e/setup-tenant.mjs
 //
 // Crea (si no existen):
 //   · tenant  slug 'qa-e2e' (status active)
 //   · usuario auth admin@qa-e2e.test + fila users (rol 'admin') + tenant_members (admin)
 //   · producto 'E2E Producto' con plan 'reserva' (300) y plan 'pago completo' (3000)
-//   · contacto 'E2E Contacto'
+//   · contactos 'E2E Contacto' y 'E2E Contacto Dos'
 //   · custom_field_defs 'E2E Campo Texto' (text) y 'E2E Campo Booleano' (boolean)
 //
-// Con --reset borra ventas/cobros del tenant antes (para re-ejecutar flujos que insertan).
+// SIEMPRE limpia antes la actividad transaccional del tenant (ventas, cobros, comisiones,
+// contratos… FK-safe, ver lib/e2e/limpieza.ts): los specs parten de un tenant sin métricas.
 // Credenciales: SOLO el password viene de env (E2E_PASSWORD); nunca se imprime.
 import { createClient } from '@supabase/supabase-js'
-
-const args = process.argv.slice(2)
-const RESET = args.includes('--reset')
+import { limpiarActividadTenant } from '../../lib/e2e/limpieza.ts'
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -218,10 +217,20 @@ let contactDosId
   }
 }
 
-// ── 8. RESET opcional de transaccional ───────────────────────────────────────
-if (RESET) {
-  await sb.from('collections').delete().eq('tenant_id', tenantId)
-  await sb.from('sales').delete().eq('tenant_id', tenantId)
+// ── 8. RESET de transaccional (SIEMPRE: actividad anterior fuera antes de la suite) ─
+// Misma limpieza FK-safe que el global-teardown: borra ventas/cobros/comisiones/contratos…
+// del tenant en orden de FKs. Sin esto, el DELETE masivo de ventas moría por FK (contratos
+// colgando) y el error se ignoraba → las ventas se acumulaban corrida tras corrida.
+{
+  const { ok, total, resultados } = await limpiarActividadTenant(sb, tenantId)
+  if (!ok) {
+    const fallos = resultados
+      .filter((r) => r.error)
+      .map((r) => r.error)
+      .join(' · ')
+    throw new Error(`No se pudo limpiar el tenant QA: ${fallos}`)
+  }
+  if (total > 0) console.error(`[setup] Limpieza previa: ${total} filas de actividad borradas`)
 }
 
 // ── SALIDA para Playwright (JSON en stdout, nada más) ────────────────────────
