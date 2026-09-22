@@ -19,7 +19,9 @@
     "mcp:search": "npx -y duckduckgo-mcp-server",
     "mcp:context7": "npx -y @upstash/context7-mcp",
     "mcp:repomix": "npx -y repomix --mcp",
-    "context:build": "npx -y repomix --config repomix.config.json"
+    "context:build": "npx -y repomix --config repomix.config.json",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.36.3",
@@ -67,11 +69,13 @@
     }
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@typescript-eslint/eslint-plugin": "^8.70.0",
     "autoprefixer": "^10.0.1",
+    "dotenv": "^18.0.2",
     "eslint": "^8",
     "eslint-config-next": "^15.5.25",
     "knip": "^6.35.1",

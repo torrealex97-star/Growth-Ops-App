@@ -43,3 +43,7 @@ next-env.d.ts
 
 # repomix (artefacto generado por npm run context:build — no versionar)
 repomix-output.*
+
+# Playwright E2E
+test-results/
+playwright-report/
