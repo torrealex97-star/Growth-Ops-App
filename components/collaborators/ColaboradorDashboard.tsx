@@ -31,7 +31,7 @@ import { isActiveSale } from '@/lib/analytics'
 import { isAttended, isNoShow } from '@/lib/appointments/status'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { contactIdsDeScope, type ScopeColaborador } from '@/lib/collaborators/scope'
-import { useTenantId, type SesionTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId, type SesionTenant } from '@/lib/tenant-context'
 import { Users, CalendarCheck, PhoneCall, Trophy, Euro, Clock, BadgeCheck, Banknote } from 'lucide-react'
 
 type ContactoRow = { id: string; full_name: string | null; lead_status: string | null; created_at: string | null }
@@ -50,6 +50,7 @@ type VentaRow = {
   created_at: string | null
 }
 type ComisionRow = { id: string; status: string | null; commission_amount: number | null; created_at: string | null }
+type FilaFutura = { installmentId: string; amount: number | string; dueDate: string; source: string }
 
 type Actividad = {
   id: string
@@ -77,6 +78,7 @@ export default function ColaboradorDashboard({
   scope: Extract<ScopeColaborador, { tipo: 'collaborator' }>
 }) {
   const tenantId = useTenantId()
+  const tenant = useTenant()
   const sb = useMemo(() => createClient(), [])
 
   // Filtro de periodo GLOBAL (§25): mismos presets y custom que el resto de la app.
@@ -88,6 +90,7 @@ export default function ColaboradorDashboard({
   const [citas, setCitas] = useState<CitaRow[]>([])
   const [ventas, setVentas] = useState<VentaRow[]>([])
   const [comisiones, setComisiones] = useState<ComisionRow[]>([])
+  const [futuras, setFuturas] = useState<FilaFutura[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -146,11 +149,24 @@ export default function ColaboradorDashboard({
       setVentas((resV.data ?? []) as VentaRow[])
       setComisiones((resCom.data ?? []) as ComisionRow[])
       setCargando(false)
+
+      // COBROS (§25): qué tiene por cobrar (cuotas pendientes/vencidas de SUS
+      // ventas). La ruta /commissions/future ya filtra SU lane y su scope; de
+      // ahí salen la proyección del próximo mes y los impagos (overdue).
+      try {
+        const resF = await fetch(`/api/${tenant}/evergreen/commissions/future`)
+        if (resF.ok) {
+          const data = (await resF.json()) as { rows?: FilaFutura[] }
+          if (vivo) setFuturas(data.rows ?? [])
+        }
+      } catch {
+        // La proyección es accesoría: un fallo no tumba el dashboard.
+      }
     })()
     return () => {
       vivo = false
     }
-  }, [sb, tenantId, scope, sesion.userId])
+  }, [sb, tenantId, tenant, scope, sesion.userId])
 
   const rango = useMemo(() => getPeriodRange(preset, customFrom, customTo), [preset, customFrom, customTo])
   const rangoPrevio = useMemo(() => getPreviousPeriodRange(rango), [rango])
@@ -189,6 +205,43 @@ export default function ColaboradorDashboard({
       deltaComisiones: generadasPrev > 0 ? Math.round(((generadasP - generadasPrev) / generadasPrev) * 100) : undefined,
     }
   }, [contactos, citas, ventas, comisiones, rango, rangoPrevio])
+
+  // COBROS (§25): el resumen de su dinero. La regla del propietario (22-sep):
+  // las comisiones de cobros anteriores a septiembre 2026 ya están pagadas —
+  // lo pendiente arranca en septiembre. 'A percibir' = liquidación de este mes
+  // (se cobra el mes siguiente) + cuotas aún por cobrar; los IMPAGOS (vencidas
+  // sin cobrar) van aparte porque no son dinero seguro.
+  const cobros = useMemo(() => {
+    const inicioPendiente = new Date('2026-09-01T00:00:00Z').getTime()
+    const mesQueViene = new Date()
+    mesQueViene.setMonth(mesQueViene.getMonth() + 1, 1)
+    mesQueViene.setHours(0, 0, 0, 0)
+    const finMesQueViene = new Date(mesQueViene)
+    finMesQueViene.setMonth(finMesQueViene.getMonth() + 1)
+
+    const noCanceladas = comisiones.filter((c) => c.status !== 'cancelled')
+    const cobrado = noCanceladas
+      .filter((c) => c.status === 'liquidated')
+      .reduce((acc, c) => acc + num(c.commission_amount), 0)
+    const pendiente = noCanceladas
+      .filter((c) => c.status === 'pending' || c.status === 'approved')
+      .filter((c) => new Date(c.created_at ?? 0).getTime() >= inicioPendiente)
+      .reduce((acc, c) => acc + num(c.commission_amount), 0)
+
+    const importe = (f: FilaFutura) => num(f.amount)
+    const enVentana = (due: string, desde: Date, hasta: Date) => {
+      const t = new Date(due).getTime()
+      return t >= desde.getTime() && t < hasta.getTime()
+    }
+    const ahora = new Date()
+    const aPercibirProximo = futuras
+      .filter((f) => enVentana(f.dueDate, mesQueViene, finMesQueViene))
+      .reduce((acc, f) => acc + importe(f), 0)
+    const impagos = futuras
+      .filter((f) => f.source === 'installment' && new Date(f.dueDate).getTime() < ahora.getTime())
+      .reduce((acc, f) => acc + importe(f), 0)
+    return { cobrado, pendiente, aPercibirProximo, impagos }
+  }, [comisiones, futuras])
 
   // CUALIFICACIÓN (§23): lo que respondieron SUS leads en el formulario de agendar
   // (appointments.qualification, escrito por el webhook de GHL/Calendly), agregado
@@ -361,6 +414,38 @@ export default function ColaboradorDashboard({
           icon={Banknote}
           loading={cargando}
           description="Pagadas"
+        />
+      </section>
+
+      {/* §25 COBROS: lo cobrado, lo pendiente y lo que viene (impagos aparte) */}
+      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <KPICard
+          title="Cobrado"
+          value={eur(cobros.cobrado)}
+          icon={Banknote}
+          loading={cargando}
+          description="Comisiones ya pagadas (hasta agosto)"
+        />
+        <KPICard
+          title="Pendiente de liquidación"
+          value={eur(cobros.pendiente)}
+          icon={Clock}
+          loading={cargando}
+          description="Ganado desde septiembre, por aprobar y pagar"
+        />
+        <KPICard
+          title="A percibir el mes que viene"
+          value={eur(cobros.aPercibirProximo)}
+          icon={CalendarCheck}
+          loading={cargando}
+          description="Liquidación de este mes + cuotas que vencen"
+        />
+        <KPICard
+          title="Impagos de tus leads"
+          value={eur(cobros.impagos)}
+          icon={Euro}
+          loading={cargando}
+          description="Cuotas vencidas sin cobrar — comisión proyectada"
         />
       </section>
 
