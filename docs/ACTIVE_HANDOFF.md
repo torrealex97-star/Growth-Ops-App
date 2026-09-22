@@ -2,7 +2,7 @@
 
 ## Cierre de consolidación — 2026-09-22
 
-**Estado publicado:** `origin/main` está en `24a9646`, con los cambios atómicos de custom fields/hardening de la PR #172 (`269754f`) y el tablero de coordinación de la PR #171 (`24a9646`) fusionados mediante squash. Ambas ramas remotas fueron eliminadas y los workflows de `main` asociados terminaron en verde. No se aplicó manualmente ninguna migración en producción.
+**Estado publicado:** `origin/main` está en `c2c3e6a33a847b9d3220b9783a01106dc87f73c8`, commit squash de la PR #173 (`docs: consolidate handoff and user blockers`). Contiene la PR #172 (`269754f`) de custom fields/hardening y la PR #171 (`24a9646`) de coordinación. Las tres ramas remotas fueron eliminadas. Los checks de código de #171 y #172 (quality, gitleaks, build y Smoke E2E) terminaron en verde; #173 solo cambió documentación y no generó un workflow nuevo por `paths-ignore`. No se aplicó manualmente ninguna migración en producción.
 
 **Regla de verdad:** el checkout compartido `claude/constitucion-y-fases` sigue en `2af651a` y conserva WIP local de varias áreas; no se ha publicado ni mezclado automáticamente. No debe afirmarse que "todo" el trabajo de las hebras está en `main` hasta separar cada bloque, probarlo y fusionarlo como PR atómico. No hacer `git reset`, `git clean`, `git add -A` ni copiar desde `/tmp` sobre esa carpeta.
 
