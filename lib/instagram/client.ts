@@ -590,7 +590,9 @@ export async function fetchIgConversationsWithMessages(
   pat: string,
   igUserId: string,
   limit = 20,
-  presupuestoMs = 40_000
+  // 12s: los detalles que no lleguen se degradan (la UI lo dice) y la ruta responde holgada
+  // bajo su plazo duro de 25s — con 40s el detalle comía el plazo entero y ganaba el deadline.
+  presupuestoMs = 12_000
 ): Promise<IgConversation[]> {
   const inicio = Date.now()
   const agotado = () => Date.now() - inicio > presupuestoMs

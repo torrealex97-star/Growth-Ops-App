@@ -9,6 +9,7 @@ import {
   getPageAccessToken,
   fetchIgConversationsWithMessages,
 } from '@/lib/instagram/client'
+import { edadLegible, guardarSnapshot, leerSnapshot } from '@/lib/instagram/snapshot'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -45,6 +46,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   // devolvía vacío en silencio → "configured:false" pelado aunque la integración esté bien.
   const resultado = await conPlazo(descargar(t.tenantId, platform), 25_000)
   if (resultado === PLAZO) {
+    // Meta no respondió ni siquiera al plazo duro: respaldo stale si existe (con su edad),
+    // nunca un error pelado.
+    const snap = await leerSnapshot(t.tenantId)
+    if (snap) {
+      return NextResponse.json({
+        configured: true,
+        platform,
+        conversations: snap.conversaciones,
+        motivo: `Instagram no respondió a tiempo; mostrando el último snapshot correcto (${edadLegible(snap.guardado)}).`,
+        stale: true,
+        guardado: snap.guardado,
+      })
+    }
     return NextResponse.json({
       configured: false,
       platform,
@@ -66,6 +80,8 @@ type RespuestaConvos = {
   conversations: IgConversation[]
   motivo?: string
   error?: string
+  stale?: boolean
+  guardado?: string
 }
 
 async function descargar(tenant: string, platform: string): Promise<RespuestaConvos> {
@@ -93,12 +109,36 @@ async function descargar(tenant: string, platform: string): Promise<RespuestaCon
     const conversations = await conEtapa('listar conversaciones', () =>
       fetchIgConversationsWithMessages(cfg, pageId, pat, igUserId, 20)
     )
+    // Descarga buena: queda como respaldo para cuando Meta vuelva a colgarse.
+    if (conversations.length) await guardarSnapshot(tenant, conversations)
     return { configured: true, platform, conversations }
   } catch (e) {
+    const base = { platform, conversations: [] as IgConversation[] }
     if (e instanceof InstagramApiError) {
-      return { configured: false, platform, conversations: [], motivo: motivoLegible(e.code, e.message) }
+      const motivo = motivoLegible(e.code, e.message)
+      const snap = await leerSnapshot(tenant)
+      if (snap)
+        return {
+          configured: true,
+          ...base,
+          conversations: snap.conversaciones,
+          motivo: `${motivo} Mostrando el último snapshot correcto (${edadLegible(snap.guardado)}).`,
+          stale: true,
+          guardado: snap.guardado,
+        }
+      return { configured: false, ...base, motivo }
     }
-    return { configured: false, platform, conversations: [], error: (e as Error).message }
+    const snap = await leerSnapshot(tenant)
+    if (snap)
+      return {
+        configured: true,
+        ...base,
+        conversations: snap.conversaciones,
+        motivo: `Error técnico (${(e as Error).message}); mostrando el último snapshot correcto (${edadLegible(snap.guardado)}).`,
+        stale: true,
+        guardado: snap.guardado,
+      }
+    return { configured: false, ...base, error: (e as Error).message }
   }
 }
 
