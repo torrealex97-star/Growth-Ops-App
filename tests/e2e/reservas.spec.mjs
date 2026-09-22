@@ -67,14 +67,15 @@ test.describe('Reservas — alta manual', () => {
     await page.goto(`/${tenant}/ventas/reservas`)
     await expect(page.getByRole('heading', { name: 'Reservas', level: 1 })).toBeVisible()
 
-    // Las reservas abiertas se pintan como tarjetas (no tabla): KPI, estado y acciones.
-    // En el tenant QA solo existe ESTA reserva: los botones son únicos en la página
-    // (strict mode de Playwright garantiza la unicidad).
+    // Las reservas abiertas se pintan como tarjetas (no tabla). Otros specs (reserva desde
+    // cero) crean reservas del MISMO producto/contacto, así que localizamos la de ESTE flujo
+    // por estructura: la primera tarjeta del listado de abiertas tiene los tres botones, y el
+    // KPI de abiertas coincide con la primera reserva ordenada por fecha (la más reciente).
     await expect(page.getByText('Reservas abiertas')).toBeVisible()
-    await expect(page.getByText(/pagó .* de reserva/)).toBeVisible({ timeout: 15_000 })
-    await expect(page.getByText('Producto: E2E Producto')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Completar pago' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Editar reserva' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Eliminar reserva' })).toBeVisible()
+    await expect(page.getByText(/pagó .* de reserva/).first()).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText('Producto: E2E Producto').first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Completar pago' }).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Editar reserva' }).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Eliminar reserva' }).first()).toBeVisible()
   })
 })
