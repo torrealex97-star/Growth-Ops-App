@@ -1,5 +1,19 @@
 # Relevo activo
 
+## Cierre de consolidación — 2026-09-22
+
+**Estado publicado:** `origin/main` está en `24a9646`, con los cambios atómicos de custom fields/hardening de la PR #172 (`269754f`) y el tablero de coordinación de la PR #171 (`24a9646`) fusionados mediante squash. Ambas ramas remotas fueron eliminadas y los workflows de `main` asociados terminaron en verde. No se aplicó manualmente ninguna migración en producción.
+
+**Regla de verdad:** el checkout compartido `claude/constitucion-y-fases` sigue en `2af651a` y conserva WIP local de varias áreas; no se ha publicado ni mezclado automáticamente. No debe afirmarse que "todo" el trabajo de las hebras está en `main` hasta separar cada bloque, probarlo y fusionarlo como PR atómico. No hacer `git reset`, `git clean`, `git add -A` ni copiar desde `/tmp` sobre esa carpeta.
+
+**Aprendizajes incorporados:** verificar siempre `origin/main` y el merge-base antes de editar; una sola rama/PR por unidad; pathspec explícito al commitear; diagnosticar CI por SHA final y no por runs cancelados; comprobar esquema vivo antes de escribir SQL o queries; ejecutar `BEGIN … ROLLBACK` funcional antes de aplicar migraciones; no convertir fallos de fuente en ceros; no guardar PII, tenants, clientes o credenciales en código/documentación; y distinguir inspeccionado, probado y verificado en producción.
+
+**Bloqueo conocido:** sigue pendiente el dry-run SQL en QA de `cleanup_custom_field_values()` tras revocar `EXECUTE` público: comprobar trigger, limpieza JSONB y rechazo de RPC directa. La migración no se ha aplicado manualmente en producción.
+
+**Trabajo de las hebras referenciadas que NO se puede declarar publicado sin un PR/SHA verificable:** integraciones Hotmart/TikTok/Instagram DM, VSL V1/V2, callback OAuth de YouTube, trazabilidad IA de facturas, comisiones por lote, adjuntos de contratos, custom fields del WIP compartido y cualquier migración creada localmente. Revisar cada bloque contra `git log origin/main`, no confiar en mensajes de sesiones anteriores.
+
+**Siguiente relevo:** trabajar únicamente desde un checkout limpio de `origin/main`; reclamar el área en el tablero; separar primero seguridad/migraciones, después integraciones con credenciales reales y por último UX; cada bloque debe incluir regresión, quality/build proporcional, CI por SHA y evidencia de deploy si aplica.
+
 ## Candidato aislado de custom fields — 2026-09-22
 
 Checkout creado desde `origin/main` (`2ec86f5`), sin commit ni push. El diff intencionado contiene únicamente: aislamiento de cuotas/cobros/comisiones por `sale_id` y `tenant_id` en la ficha, regresiones focales de custom fields, y la migración `20260922130000_revoke_custom_field_cleanup_execute.sql`. La migración canónica `20260921200000_contact_custom_fields.sql`, la API y los tipos ya existen en `origin/main`; no se duplican.
