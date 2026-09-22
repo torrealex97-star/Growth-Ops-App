@@ -20,6 +20,9 @@ const tieneServidorPropio = !!process.env.E2E_BASE_URL
 export default defineConfig({
   testDir: 'tests/e2e',
   globalSetup: './tests/e2e/global-setup.mjs',
+  // Limpia la actividad transaccional del tenant QA AL TERMINAR (pase o falle la suite):
+  // las métricas de qa-e2e no crecen indefinidamente. Los fixtures persisten.
+  globalTeardown: './tests/e2e/global-teardown.mjs',
   timeout: 90_000,
   expect: { timeout: 15_000 },
   // Un solo worker: los specs tocan el mismo tenant QA y el orden importa (reservas → fichas).
