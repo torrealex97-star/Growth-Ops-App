@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { aplicarCustomFieldsGhl } from '@/lib/contacts/custom-fields-ghl'
+import { mapearEstadoExterno } from '@/lib/appointments/status'
 
 // Sincronización de CITAS (Calendly + GHL): la ÚNICA implementación, usada por
 //   · el botón manual de Integraciones › history-sync (ventana completa),
@@ -285,17 +286,9 @@ export async function syncGhl(
         contact = { data: creado ? { id: creado.id } : null }
       }
       if (!contact.data) continue
-      const rawStatus = (text(event.appointmentStatus) || text(event.status) || 'scheduled').toLowerCase()
-      const status =
-        rawStatus === 'showed' || rawStatus === 'completed'
-          ? 'show'
-          : rawStatus === 'noshow'
-            ? 'no_show'
-            : rawStatus === 'cancelled' || rawStatus === 'canceled'
-              ? 'cancelled'
-              : rawStatus === 'confirmed'
-                ? 'confirmed'
-                : 'scheduled'
+      // Misma traducción que el webhook (lib/appointments/status.ts). Un estado que no se reconoce
+      // se queda en 'scheduled', que es lo que GHL da por defecto a una cita recién creada.
+      const status = mapearEstadoExterno(text(event.appointmentStatus) || text(event.status)) || 'scheduled'
       const end = text(event.endTime)
       const duration = end ? Math.max(1, Math.round((Date.parse(end) - Date.parse(startsAt)) / 60_000)) : null
       const values = {

@@ -97,3 +97,67 @@ export const CATEGORY_BADGE_CLASSES: Record<AppointmentDisplayCategory, string> 
   no_show: 'bg-red-500/20 text-red-400 border-red-500/30',
   cancelada: 'bg-zinc-500/20 text-muted-foreground border-border/30 line-through',
 }
+
+// ── ESTADOS QUE LLEGAN DE FUERA (GHL) ────────────────────────────────────────────────────────
+//
+// La traducción vivía DUPLICADA: una copia en el webhook y otra en la sincronización por cron. Se
+// habían separado: la del cron no normalizaba guiones ni espacios ("no-show" caía en el `else` y se
+// guardaba como "programada"), y ninguna de las dos contemplaba `invalid`, que GHL usa para las citas
+// que anula el propio sistema. Una cita "no asistió" contada como "programada" infla el número de
+// citas vivas y hunde la tasa de asistencia.
+//
+// Una sola función para las dos vías. Devuelve `null` cuando no reconoce el estado: quien llama
+// decide el valor por defecto, en vez de que esta función invente uno.
+
+const ESTADOS_EXTERNOS: Record<string, AppointmentStatus> = {
+  show: 'show',
+  showed: 'show',
+  attended: 'show',
+  completed: 'completed',
+  asistio: 'show',
+  no_show: 'no_show',
+  noshow: 'no_show',
+  no_asistio: 'no_show',
+  absent: 'no_show',
+  missed: 'no_show',
+  confirmed: 'confirmed',
+  confirmada: 'confirmed',
+  cancelled: 'cancelled',
+  canceled: 'cancelled',
+  cancelada: 'cancelled',
+  invalid: 'cancelled',
+  rescheduled: 'rescheduled',
+  reprogramada: 'rescheduled',
+  scheduled: 'scheduled',
+  booked: 'scheduled',
+  agendada: 'scheduled',
+}
+
+/** Traduce el estado que manda GHL al vocabulario de la app. `null` = no reconocido. */
+export function mapearEstadoExterno(raw: unknown): AppointmentStatus | null {
+  if (typeof raw !== 'string') return null
+  // Acentos, guiones y espacios fuera: "No-Show", "no show" y "noshow" son lo mismo.
+  const clave = raw
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\s-]+/g, '_')
+  return ESTADOS_EXTERNOS[clave] ?? null
+}
+
+/**
+ * ¿La grabación de la llamada debe marcar la cita como asistida?
+ *
+ * Que exista grabación de una reunión ES la prueba de que la llamada ocurrió. Hasta ahora nadie lo
+ * escribía: 107 citas tenían grabación y solo 3 estaban marcadas como asistidas, así que la tasa de
+ * asistencia salía casi a cero teniendo las llamadas grabadas delante.
+ *
+ * Solo se marca lo que está SIN RESOLVER. Una decisión ya tomada —alguien puso "no asistió", o la
+ * cita está cancelada— no se pisa: es información que la grabación no contradice necesariamente (una
+ * reunión grabada puede ser otra cosa) y quien la puso sabe más que este automatismo.
+ */
+export const ESTADOS_SIN_RESOLVER = ['scheduled', 'confirmed', 'rescheduled'] as const
+
+export function debeMarcarAsistencia(estadoActual: string | null | undefined): boolean {
+  return !estadoActual || (ESTADOS_SIN_RESOLVER as readonly string[]).includes(estadoActual)
+}

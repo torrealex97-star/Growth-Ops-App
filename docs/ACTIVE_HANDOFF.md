@@ -156,6 +156,20 @@ cazó; conviene no gastar esa red dos veces.
 
 ### Incidencias abiertas
 
+- **Agenda (22-sep, con GHL ya en uso).** Arreglados dos fallos y un backfill:
+  1. La traducción de estados de GHL estaba duplicada (webhook y cron) y se había separado: la del
+     cron no normalizaba separadores, así que `no-show` se guardaba como `scheduled`, e `invalid`
+     también. Ahora es una sola función (`lib/appointments/status.ts`).
+  2. Nadie marcaba la asistencia al llegar la grabación de Fathom: **107 citas grabadas y solo 3
+     marcadas**. Ahora el emparejado marca `show` si la cita está sin resolver (nunca pisa un
+     `no_show` ni una cancelada) y se hizo el backfill: **99 citas marcadas**, shows 3 → 102, tasa de
+     asistencia de 30 días **28,4 %**. Las 8 grabaciones sobre citas canceladas se dejaron intactas.
+  - **Queda:** 240 citas pasadas sin resolver que NO tienen grabación (nadie puede inferirlas) y
+    **ninguna cita de GHL trae setter** — depende de que GHL mande UTMs (bloqueo de Alex).
+  - **Ojo:** 362 de 968 contactos de GHL no tienen ni correo ni teléfono (335 son de la importación
+    del 12-sep, pero sigue pasando: 10 de 19 el 21-sep). Sin ninguno de los dos no se pueden
+    deduplicar ni enlazar con pagos: hay 26 nombres repetidos entre ellos. Va a F1.
+
 - **Instagram: token caducado el 14-sep** (26 ejecuciones en error). **Meta: cuenta publicitaria no
   reconocida** en 22 de 52 ejecuciones. Las dos dependen de que Alex reconecte. Detalle y resto de
   hallazgos en `docs/S0-7-INTEGRACIONES.md`.

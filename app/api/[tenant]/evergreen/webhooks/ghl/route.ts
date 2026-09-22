@@ -5,6 +5,7 @@ import { leerToque, registrarToque, toqueTieneDatos } from '@/lib/contacts/atrib
 import { attributionDateBeforeCutoff, resolverRefColaborador } from '@/lib/collaborators/ref-signal'
 import { firstMemberOf, resolveUserIdByTrackingCode } from '@/lib/tracking'
 import { isValidWebhookSecret, diagnosticoCabeceras } from '@/lib/webhooks/verifySecret'
+import { mapearEstadoExterno } from '@/lib/appointments/status'
 import { getTenantConfigWithFallback } from '@/lib/config'
 
 // Webhook único de GHL (+ player VSL). Maneja, de forma IDEMPOTENTE, varios eventos:
@@ -69,18 +70,9 @@ function buildQualification(payload: Record<string, unknown>): Record<string, un
   return qualification
 }
 
-// Mapea los estados de GHL a nuestro enum de appointments.status
-function mapStatus(raw: unknown): string | null {
-  if (typeof raw !== 'string') return null
-  const s = raw.toLowerCase().replace(/[\s-]/g, '_')
-  if (['show', 'showed', 'attended', 'completed', 'asistio', 'asistió'].includes(s)) return 'show'
-  if (['no_show', 'noshow', 'no_asistio', 'absent', 'missed'].includes(s)) return 'no_show'
-  if (['confirmed', 'confirmada'].includes(s)) return 'confirmed'
-  if (['cancelled', 'canceled', 'cancelada'].includes(s)) return 'cancelled'
-  if (['rescheduled', 'reprogramada'].includes(s)) return 'rescheduled'
-  if (['scheduled', 'booked', 'agendada'].includes(s)) return 'scheduled'
-  return null
-}
+// La traducción de estados vive en lib/appointments/status.ts, compartida con la sincronización por
+// cron: tenerla duplicada las separó, y la del cron guardaba "no-show" como "programada".
+const mapStatus = mapearEstadoExterno
 
 // Acotado a la subcuenta: `users` es GLOBAL (la pertenencia vive en tenant_members), así que sin el
 // filtro un email resolvía a cualquier usuario de la plataforma y la agenda —con su comisión— podía
