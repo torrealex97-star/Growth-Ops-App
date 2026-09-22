@@ -309,8 +309,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     let refCode: string | null = null
     const ref = await resolverRefColaborador(sb, tenantId, payload)
     refCode = ref?.code ?? null
+    // SOLO AGENDARON (regla del propietario): el código solo atribuye cuando la
+    // entrega representa una CITA VIVA (creación/actualización no cancelada).
+    // El lead que llegó y no pidió cita —o cuya entrega es una cancelación— no
+    // es del colaborador. El cutoff de agosto 2026 sigue vigente debajo.
+    const traeCitaViva = !!(externalId || aptRaw || status || event.startsWith('appointment')) && status !== 'cancelled'
     if (ref) {
-      if (resolved.created) {
+      if (!traeCitaViva) {
+        console.info('[colaborador] entrega sin cita viva: no se atribuye (regla solo-agendaron)')
+      } else if (resolved.created) {
         // Contacto nuevo: nace hoy, siempre posterior al cutoff.
         colaboradorId = ref.id
       } else {
