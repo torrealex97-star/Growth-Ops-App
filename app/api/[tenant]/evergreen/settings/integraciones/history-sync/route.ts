@@ -17,6 +17,7 @@ import { serviceClient, syncCalendly, syncGhl, text } from '@/lib/integrations/c
 import { runMetaAdsSync, runMetaDailySync, runMetaSync } from '@/lib/meta/sync'
 import { fetchMeetingsPage, meetingId, meetingSummary, meetingTranscript } from '@/lib/fathom/meetings'
 import { buscarContactoPorEmail } from '@/lib/contacts/buscar'
+import { ESTADOS_SIN_RESOLVER } from '@/lib/appointments/status'
 
 type Json = Record<string, unknown>
 
@@ -140,6 +141,22 @@ async function syncFathom(
           .eq('id', decision.appointmentId)
           .select('id')
         if (error) throw error
+
+        // LA GRABACIÓN PRUEBA QUE LA LLAMADA OCURRIÓ: la cita pasa a "asistió".
+        //
+        // Va en una escritura APARTE y acotada a los estados sin resolver (ver debeMarcarAsistencia):
+        // así nunca pisa una decisión humana —un "no asistió" puesto a mano, una cita cancelada— y si
+        // esta segunda escritura fallara, la grabación y la transcripción ya están guardadas.
+        const { error: errorAsistencia } = await sb
+          .from('appointments')
+          .update({ status: 'show' })
+          .eq('tenant_id', tenantId)
+          .eq('id', decision.appointmentId)
+          .in('status', ESTADOS_SIN_RESOLVER)
+        if (errorAsistencia) {
+          // No se interrumpe la importación por esto: el dato principal ya entró.
+          console.warn('[fathom] no se pudo marcar la asistencia:', errorAsistencia.message)
+        }
         if (!updated || updated.length === 0) {
           // La cita existía al consultar y no se pudo escribir: no se cuenta como emparejada.
           stats.emparejadas--
