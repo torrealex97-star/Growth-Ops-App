@@ -35,7 +35,14 @@ test('el deshacer persistido usa versión y no intercepta undo nativo', () => {
 test('la timeline incluye actividades y contratos sin crear una tabla de mensajes', () => {
   const timeline = read('lib/contact-timeline.ts')
   const page = read('app/[tenant]/crm/contactos/[id]/page.tsx')
-  assert.match(timeline, /type TimelineEventType = .*activity.*contract/)
+  // Contrato de la timeline (22-sep): trazabilidad completa del contacto — además de
+  // actividades y contratos, pagos recibidos, impagos, eventos CSM y feedback del formulario.
+  assert.match(timeline, /type TimelineEventType =\s[\s\S]*'activity'[\s\S]*'contract'/)
+  assert.match(timeline, /'payment'/)
+  assert.match(timeline, /'delinquency'/)
+  assert.match(timeline, /'csm'/)
+  assert.match(timeline, /'feedback'/)
   assert.match(page, /\.from\('activities'\)/)
   assert.match(page, /\.from\('contracts'\)/)
+  assert.match(page, /\.from\('csm_events'\)/)
 })
