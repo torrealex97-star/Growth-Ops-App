@@ -250,58 +250,53 @@ export default function ContactDetailPage() {
   const load = async () => {
     const supabase = createClient()
 
-    const [
-      contactRes,
-      attrRes,
-      appRes,
-      csmRes,
-      salesRes,
-      notesRes,
-      activitiesRes,
-      contractsRes,
-      defsRes,
-    ] = await Promise.all([
-      supabase.from('contacts').select('*').eq('id', id).eq('tenant_id', tenantId).single(),
-      supabase
-        .from('contact_attributions')
-        .select('*')
-        .eq('contact_id', id)
-        .eq('tenant_id', tenantId)
-        .order('first_touch_at'),
-      supabase
-        .from('appointments')
-        .select('*, setter:setter_id(full_name), closer:closer_id(full_name)')
-        .eq('contact_id', id)
-        .eq('tenant_id', tenantId)
-        .order('appointment_datetime', { ascending: false }),
-      // Historial completo: eventos CSM del contacto (onboarding, feedback de clases…).
-      supabase.from('csm_events').select('*').eq('contact_id', id).eq('tenant_id', tenantId),
-      supabase
-        .from('sales')
-        .select('*, payment_plans(number_of_payments, method)')
-        .eq('contact_id', id)
-        .eq('tenant_id', tenantId)
-        .order('sale_date', { ascending: false }),
-      supabase
-        .from('contact_notes')
-        .select('*, author:author_id(full_name)')
-        .eq('contact_id', id)
-        .eq('tenant_id', tenantId)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('activities')
-        .select('id, type, direction, result, duration_min, notes, created_at, users(full_name)')
-        .eq('contact_id', id)
-        .eq('tenant_id', tenantId)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('contracts')
-        .select('id, title, status, url, signed_at, created_at')
-        .eq('contact_id', id)
-        .eq('tenant_id', tenantId)
-        .order('created_at', { ascending: false }),
-      supabase.from('custom_field_defs').select('*').eq('tenant_id', tenantId).order('sort_order', { ascending: true }),
-    ])
+    const [contactRes, attrRes, appRes, csmRes, salesRes, notesRes, activitiesRes, contractsRes, defsRes] =
+      await Promise.all([
+        supabase.from('contacts').select('*').eq('id', id).eq('tenant_id', tenantId).single(),
+        supabase
+          .from('contact_attributions')
+          .select('*')
+          .eq('contact_id', id)
+          .eq('tenant_id', tenantId)
+          .order('first_touch_at'),
+        supabase
+          .from('appointments')
+          .select('*, setter:setter_id(full_name), closer:closer_id(full_name)')
+          .eq('contact_id', id)
+          .eq('tenant_id', tenantId)
+          .order('appointment_datetime', { ascending: false }),
+        // Historial completo: eventos CSM del contacto (onboarding, feedback de clases…).
+        supabase.from('csm_events').select('*').eq('contact_id', id).eq('tenant_id', tenantId),
+        supabase
+          .from('sales')
+          .select('*, payment_plans(number_of_payments, method)')
+          .eq('contact_id', id)
+          .eq('tenant_id', tenantId)
+          .order('sale_date', { ascending: false }),
+        supabase
+          .from('contact_notes')
+          .select('*, author:author_id(full_name)')
+          .eq('contact_id', id)
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('activities')
+          .select('id, type, direction, result, duration_min, notes, created_at, users(full_name)')
+          .eq('contact_id', id)
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('contracts')
+          .select('id, title, status, url, signed_at, created_at')
+          .eq('contact_id', id)
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('custom_field_defs')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .order('sort_order', { ascending: true }),
+      ])
 
     if (sesion) setCurrentUser({ id: sesion.userId })
 
@@ -330,16 +325,8 @@ export default function ContactDetailPage() {
     const saleIds = (salesRes.data ?? []).map((sale) => sale.id)
     const [instRes, collRes, comRes] = saleIds.length
       ? await Promise.all([
-          supabase
-            .from('sale_expected_installments')
-            .select('*')
-            .in('sale_id', saleIds)
-            .order('installment_number'),
-          supabase
-            .from('collections')
-            .select('*')
-            .in('sale_id', saleIds)
-            .order('collected_at'),
+          supabase.from('sale_expected_installments').select('*').in('sale_id', saleIds).order('installment_number'),
+          supabase.from('collections').select('*').in('sale_id', saleIds).order('collected_at'),
           supabase
             .from('commissions')
             .select(
