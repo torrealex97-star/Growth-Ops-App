@@ -18,7 +18,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
     const rows = await sql`
       SELECT id, slug, name, source_url, poster_url, duration_seconds, config, created_at, updated_at
       FROM vsl_videos
-      WHERE tenant_id = ${auth.tenantId}
+      WHERE tenant_id = ${auth.tenantId} AND deleted_at IS NULL
       ORDER BY created_at DESC
     `
     return NextResponse.json({
@@ -94,7 +94,10 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ tenan
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 })
-    await sql`DELETE FROM vsl_videos WHERE id = ${id} AND tenant_id = ${auth.tenantId}`
+    // SOFT DELETE (auditoría §bugs #2): la fila no desaparece — conservan su histórico las
+    // sesiones del vídeo en métricas y en el % visto de los contactos.
+    await sql`UPDATE vsl_videos SET deleted_at = now(), updated_at = now()
+      WHERE id = ${id} AND tenant_id = ${auth.tenantId} AND deleted_at IS NULL`
     return NextResponse.json({ ok: true })
   } catch (e) {
     console.error('[vsl/videos DELETE]', e)
