@@ -79,7 +79,10 @@ test('el fuente del cliente usa pool acotado (no bucle serial) y degrada por con
 test('la ruta responde configured:false con motivo en fallos de IG (no 500 ciego)', () => {
   const route = lee('app/api/[tenant]/evergreen/setting-ai/conversations/route.ts')
   assert.match(route, /e instanceof InstagramApiError/, 'distingue errores de la Graph API')
-  assert.match(route, /motivo: motivoLegible\(e\.code, e\.message\)/, 'devuelve motivo legible')
+  assert.match(route, /const motivo = motivoLegible\(e\.code, e\.message\)/, 'devuelve motivo legible')
+  assert.match(route, /leerSnapshot\(tenant\)/, 'fallback stale: sirve el último snapshot bueno')
+  assert.match(route, /guardarSnapshot\(tenant,/, 'guarda snapshot tras descarga buena')
+  assert.match(route, /stale: true/, 'marca los datos cacheados con su edad')
   assert.match(route, /instagram_manage_messages/, 'nombra el permiso que falta')
   assert.match(route, /token_caducado/, 'cubre token caducado')
   assert.match(route, /limite_de_uso/, 'cubre rate limit')
