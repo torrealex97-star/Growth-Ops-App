@@ -105,11 +105,20 @@ Gradual: una fase por PR, con OLD BEHAVIOR = PASS en cada paso (tests de preserv
 
 ## PHASE PLAN
 
-- **V0 (este pase):** tests de preservación del núcleo (dedupe del latido, validación de identify, semántica de
-  upsert de sesión, filtro tenant en queries, guards de secretos).
-- **V1:** UTMs en sesión + desglose por fuente/campaña; rate-limit de session/track reutilizando MinuteRateLimiter;
-  soft delete de vídeos.
+- **V0 — ✅ HECHO (PR #160):** tests de preservación del núcleo (dedupe del latido, validación de identify, semántica de
+  upsert de sesión, filtro tenant en queries, guards de secretos) — `tests/vsl-v0-preservacion.test.mjs`, 11/11 en verde.
+- **V1 — ✅ HECHO (PR #160):** soft delete de vídeos (`deleted_at` + 2 índices parciales, migración aplicada en
+  producción y verificada), rate limit de `/api/vsl/session` y `/api/vsl/track` reutilizando `MinuteRateLimiter`,
+  lookups de embed/session/listado filtrando borrados (métricas históricas siguen accesibles).
+- **V1:** UTMs en sesión + desglose por fuente/campaña (rate limit y soft delete ya hechos en #160);
 - **V2:** CTA overlay por vídeo (solo config JSONB, sin migración).
+
+## Verificación final en producción (22-sep)
+
+- Deploy de `5654944` (#160) en **success**.
+- `/embed/vsl/<slug-inexistente>` → 200 con "Vídeo no encontrado" (comportamiento preservado).
+- `/api/vsl/session` y `/api/vsl/track` → 400 con validación explícita y rate limit activo.
+- Migración `deleted_at` verificada en producción (columna presente + índices parciales).
 - **V3:** QoE (stalls/buffer) — "¿la caída es de contenido o de reproducción?"
 - **V4:** experimentos A/B (hash de anonId → variante de config, sin tablas nuevas).
 - **V5:** Person 360 de vídeo, Data Health de vídeo, exports.
