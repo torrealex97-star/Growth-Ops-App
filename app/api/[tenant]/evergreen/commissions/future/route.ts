@@ -31,6 +31,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       .eq('tenant_id', t.tenantId)
     const rules = (rulesData ?? []) as CommissionRule[]
 
+    const HOY = new Date().toISOString().split('T')[0]
+
     // Cuotas aún no cobradas (pendientes/vencidas), sin monitorización, de ventas activas
     const { data: insts } = await sb
       .from('sale_expected_installments')
@@ -223,7 +225,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
         inst.due_date,
         inst.id,
         'installment',
-        inst.status === 'overdue' ? 'overdue' : 'pending'
+        // Vencida sin cobrar = impago real, aunque el cron aún no la haya pasado a overdue
+        // (mismo criterio que planCuotasDeVenta: la vista nunca pinta cobrado lo vencido).
+        inst.status === 'overdue' || inst.due_date < HOY ? 'overdue' : 'pending'
       )
     }
 
@@ -236,7 +240,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
     // Cuotas derivadas (previsión) de las ventas sin calendario materializado: mismas firmas
     // (setter/closer/afiliado), source 'installment' y due_date del mes que toca — así el
     // desglose mensual del dashboard las agrupa igual que las reales.
-    const HOY = new Date().toISOString().split('T')[0]
     for (const v of ventasSinCalendario ?? []) {
       if (ventasConCalendario.has(v.id)) continue
       const plan = planDe.get(v.id) ?? null
@@ -290,6 +293,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       for (let i = 0; i < n; i++) {
         if (!(restantes[i] > 0.005)) continue
         // Vencida sin cobrar = impago real (estado 'overdue'): la proyección la incluye para
+        // el KPI de impagos, pero nunca cuenta como comisión futura del mes en curso.        // Vencida sin cobrar = impago real (estado 'overdue'): la proyección la incluye para
         // el KPI de impagos, pero nunca cuenta como comisión futura del mes en curso.
         const vencida = fechas[i] < HOY
         await addRowsFor(

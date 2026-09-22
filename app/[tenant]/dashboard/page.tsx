@@ -147,7 +147,14 @@ function DashboardEquipo() {
     { user_id: string; sale_id: string | null; commission_amount: number | string; direction: string; status: string }[]
   >([])
   const [futureCommissions, setFutureCommissions] = useState<
-    { userId: string; saleId: string; amount: number; dueDate: string; source: string }[]
+    {
+      userId: string
+      saleId: string
+      amount: number
+      dueDate: string
+      source: string
+      estado?: 'pending' | 'overdue' | 'review'
+    }[]
   >([])
   const [users, setUsers] = useState<UserRow[]>([])
   const [roleUsers, setRoleUsers] = useState<RoleUser[]>([])
@@ -535,6 +542,8 @@ function DashboardEquipo() {
     const mapa = new Map<string, { cobrado: number; porCobrar: number }>()
     const ymActual = nowYm()
     for (const f of visibles) {
+      // Impago real (vencida sin cobrar): no es ni cobrado ni futuro — vive en Cobros/morosidad.
+      if (f.estado === 'overdue') continue
       const ymCuota = (f.dueDate || '').slice(0, 7)
       if (!ymCuota) continue
       const e = mapa.get(ymCuota) ?? { cobrado: 0, porCobrar: 0 }
