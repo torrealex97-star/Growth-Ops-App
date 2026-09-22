@@ -146,7 +146,9 @@ function DashboardEquipo() {
   const [commissions, setCommissions] = useState<
     { user_id: string; sale_id: string | null; commission_amount: number | string; direction: string; status: string }[]
   >([])
-  const [futureCommissions, setFutureCommissions] = useState<{ userId: string; saleId: string; amount: number }[]>([])
+  const [futureCommissions, setFutureCommissions] = useState<
+    { userId: string; saleId: string; amount: number; dueDate: string; source: string }[]
+  >([])
   const [users, setUsers] = useState<UserRow[]>([])
   const [roleUsers, setRoleUsers] = useState<RoleUser[]>([])
   const [contactIds, setContactIds] = useState<string[]>([])
@@ -521,6 +523,29 @@ function DashboardEquipo() {
     return { ganada, futura }
   }, [commissions, futureCommissions, filteredSaleIds, member])
 
+  // COMISIONES FUTURAS POR MES (claridad del colaborador): cada fila de la proyección lleva la
+  // fecha de vencimiento de la cuota — agrupo por ese mes para responder "cuánto me caerá cada
+  // mes SI mis referidos pagan". El mes en curso separa lo YA COBRADO (cash recogido, la
+  // comisión es real y entra en la próxima liquidación) de lo POR COBRAR (aún depende del pago
+  // del cliente). Igual para closer, setter y afiliado: cada quien ve SUS filas.
+  const futurePorMes = useMemo(() => {
+    const visibles = futureCommissions.filter(
+      (f) => filteredSaleIds.has(f.saleId) && (member === 'all' || f.userId === member)
+    )
+    const mapa = new Map<string, { cobrado: number; porCobrar: number }>()
+    const ymActual = nowYm()
+    for (const f of visibles) {
+      const ymCuota = (f.dueDate || '').slice(0, 7)
+      if (!ymCuota) continue
+      const e = mapa.get(ymCuota) ?? { cobrado: 0, porCobrar: 0 }
+      // source 'review' = cuota YA cobrada esperando revisión manual de cobros → comisión real.
+      if (f.source === 'review' || ymCuota < ymActual) e.cobrado += Number(f.amount)
+      else e.porCobrar += Number(f.amount)
+      mapa.set(ymCuota, e)
+    }
+    return [...mapa.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([ym, v]) => ({ ym, ...v }))
+  }, [futureCommissions, filteredSaleIds, member])
+
   // Fijo del usuario logueado en el mes `ym`: cuenta sus ventas del mes, comprueba si desbloquea el
   // fijo (>= fijo_min_sales) y suma fijo + comisiones = total que cobra "on time" este mes.
   const myFijo = useMemo(() => {
@@ -739,6 +764,42 @@ function DashboardEquipo() {
           />
         </div>
       </div>
+
+      {/* Desglose mes a mes de las comisiones futuras: qué ya está cobrado (cash recogido,
+          comisión real) y qué depende de que los referidos paguen. Igual para closer, setter y
+          afiliado — cada quien ve sus filas respetando los filtros de persona. */}
+      {!loading && futurePorMes.length > 0 && (
+        <div className="dashboard-card p-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+            <h3 className="text-sm font-semibold text-foreground">Comisiones a futuro, mes a mes</h3>
+            <p className="text-xs text-muted-foreground">
+              La comisión de un mes se confirma cuando tus referidos pagan su cuota de ese mes.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
+                  <th className="py-2 pr-4 font-medium">Mes de cobro</th>
+                  <th className="py-2 pr-4 font-medium text-right">Ya cobrado</th>
+                  <th className="py-2 pr-4 font-medium text-right">Por cobrar</th>
+                  <th className="py-2 font-medium text-right">Total del mes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {futurePorMes.map((m) => (
+                  <tr key={m.ym} className="border-t border-border">
+                    <td className="py-2 pr-4 font-medium text-foreground">{monthLabel(m.ym)}</td>
+                    <td className="py-2 pr-4 text-right text-emerald-400">{m.cobrado ? fmt(m.cobrado) : '—'}</td>
+                    <td className="py-2 pr-4 text-right text-amber-400">{m.porCobrar ? fmt(m.porCobrar) : '—'}</td>
+                    <td className="py-2 text-right font-semibold text-foreground">{fmt(m.cobrado + m.porCobrar)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div>
         <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Facturación de {monthLabel(ym)}</h2>
