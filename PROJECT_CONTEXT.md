@@ -67,6 +67,7 @@ Ver `.env.local.example` para la lista completa. Resumen:
 - **Lint:** ESLint via `next lint`.
 - **Typecheck:** `npm run typecheck` (tsc --noEmit).
 - **Tests:** `npm test` (Node.js test runner, archivos `tests/*.test.mjs`).
+- **Smoke E2E:** `npm run test:e2e` (Playwright, specs `tests/e2e/*.spec.mjs`). Levanta build + `next start` en 3100 y corre contra el Supabase real con el tenant QA `qa-e2e` (provisionado idempotentemente por `scripts/e2e/setup-tenant.mjs`; password solo en env `E2E_PASSWORD` — secret del repo). IMPORTANTE: los specs NO re-ejecutan los fixtures — rotar la contraseña del usuario QA invalida sus sesiones activas (GoAdmin session_not_found) y mata el storageState; los fixtures corren UNA vez en el global-setup, ANTES del login. El CI tiene job `e2e` (gitleaks/quality/build/e2e) desde 2026-09-22.
 - **Quality gate completo:** `npm run quality` (format + lint + typecheck + test + test:metrics).
 - **Helpers de formato:** Usar `formatNumber`/`formatPercent` de `@/lib/utils` (NO inline `toLocaleString`).
 - **Componentes UI:** Radix UI + Tailwind. Seguir patrón existente en `components/ui/`.
