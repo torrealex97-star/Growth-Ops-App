@@ -123,11 +123,13 @@ jobs:
           # Password del usuario QA admin@qa-e2e.test — solo el secret, nunca en el repo.
           E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
           NEXT_TELEMETRY_DISABLED: 1
-      - name: Subir artefactos si falla (traza + capturas)
+      - name: Subir artefactos si falla (vídeo + traza + capturas)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-artifacts
+          # Los vídeos (webm) y la traza viven aquí: Playwright retiene SOLO los de tests
+          # fallidos (outputDir conserva lo suyo y delete-results-on-exit borra el resto).
           path: test-results/e2e-artifacts
           retention-days: 7
 
