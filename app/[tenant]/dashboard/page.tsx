@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
+import { mensajeDeCarga, primerError } from '@/lib/supabase/resultado'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { TeamRanking } from '@/components/os/TeamRanking'
 import { AttributionTable } from '@/components/os/AttributionTable'
@@ -138,6 +139,8 @@ function DashboardEquipo() {
   const sesion = useSesion()
 
   const [loading, setLoading] = useState(true)
+  // Un fallo de lectura NO se pinta como 0 €: ver lib/supabase/resultado.ts.
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [userName, setUserName] = useState('')
   const [userId, setUserId] = useState<string | null>(null)
   const [myRoleKey, setMyRoleKey] = useState<AppRole | ''>('')
@@ -289,6 +292,8 @@ function DashboardEquipo() {
       ])
 
       if (!mounted) return
+      const fallo = primerError(salesRes, collRes, usersRes, contactsRes, attrRes, apptRes, targetsRes, commRes)
+      setErrorCarga(fallo ? mensajeDeCarga('los datos del panel', fallo) : null)
       setSales(salesRes.data || [])
       setCollections(collRes.data || [])
       setUsers(usersRes.data || [])
@@ -672,6 +677,19 @@ function DashboardEquipo() {
 
   return (
     <div className="dashboard-surface p-4 sm:p-6 space-y-5">
+      {errorCarga && (
+        <div className="dashboard-card border-destructive/40 p-4">
+          <p className="text-foreground text-sm font-medium">Faltan datos para calcular estas cifras</p>
+          <p className="text-muted-foreground mt-1 text-sm">{errorCarga}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="text-primary mt-2 text-sm hover:underline"
+            type="button"
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
