@@ -11,8 +11,14 @@ const canonical = read('supabase/migrations/20260921200000_contact_custom_fields
 const hardening = read('supabase/migrations/20260922130000_revoke_custom_field_cleanup_execute.sql')
 
 test('cleanup_custom_field_values es una función SECURITY DEFINER privada y sigue conectada al trigger', () => {
-  assert.match(canonical, /CREATE OR REPLACE FUNCTION public\.cleanup_custom_field_values\(\)[\s\S]*RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public/)
-  assert.match(canonical, /CREATE TRIGGER trg_cleanup_custom_field_values[\s\S]*EXECUTE FUNCTION public\.cleanup_custom_field_values\(\)/)
+  assert.match(
+    canonical,
+    /CREATE OR REPLACE FUNCTION public\.cleanup_custom_field_values\(\)[\s\S]*RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public/
+  )
+  assert.match(
+    canonical,
+    /CREATE TRIGGER trg_cleanup_custom_field_values[\s\S]*EXECUTE FUNCTION public\.cleanup_custom_field_values\(\)/
+  )
 })
 
 test('la migración posterior revoca EXECUTE sin eliminar el trigger', () => {

@@ -330,8 +330,16 @@ export default function ContactDetailPage() {
     const saleIds = (salesRes.data ?? []).map((sale) => sale.id)
     const [instRes, collRes, comRes] = saleIds.length
       ? await Promise.all([
-          supabase.from('sale_expected_installments').select('*').in('sale_id', saleIds).order('installment_number'),
-          supabase.from('collections').select('*').in('sale_id', saleIds).order('collected_at'),
+          supabase
+            .from('sale_expected_installments')
+            .select('*')
+            .in('sale_id', saleIds)
+            .order('installment_number'),
+          supabase
+            .from('collections')
+            .select('*')
+            .in('sale_id', saleIds)
+            .order('collected_at'),
           supabase
             .from('commissions')
             .select(
