@@ -27,7 +27,7 @@ import {
   inPeriod,
   type PeriodPreset,
 } from '@/lib/filters/period'
-import { isActiveSale } from '@/lib/analytics'
+import { isActiveSale, monthLabel } from '@/lib/analytics'
 import { isAttended, isNoShow } from '@/lib/appointments/status'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { contactIdsDeScope, type ScopeColaborador } from '@/lib/collaborators/scope'
@@ -56,7 +56,13 @@ type ComisionRow = {
   created_at: string | null
   liquidation_month: string | null
 }
-type FilaFutura = { installmentId: string; amount: number | string; dueDate: string; source: string }
+type FilaFutura = {
+  installmentId: string
+  amount: number | string
+  dueDate: string
+  source: string
+  estado?: 'pending' | 'overdue' | 'review'
+}
 
 type Actividad = {
   id: string
@@ -243,12 +249,30 @@ export default function ColaboradorDashboard({
       .reduce((acc, c) => acc + num(c.commission_amount), 0)
 
     const importe = (f: FilaFutura) => num(f.amount)
-    const ahora = new Date()
     const impagos = futuras
-      .filter((f) => f.source === 'installment' && new Date(f.dueDate).getTime() < ahora.getTime())
+      .filter((f) => f.source === 'installment' && f.estado === 'overdue')
       .reduce((acc, f) => acc + importe(f), 0)
     return { cobrado, pendiente, aPercibirProximo, impagos }
   }, [comisiones, futuras])
+
+  // COMISIONES A FUTURO MES A MES (§25): de la proyección (SU lane) agrupo por mes de
+  // vencimiento de la cuota. "Confirmado" = cash ya recogido (review o mes pasado); "por
+  // cobrar" = depende de que sus leads paguen. Así responde de un vistazo a cuánto le caerá
+  // cada mes y qué depende del pago de sus referidos.
+  const futurePorMes = useMemo(() => {
+    const mapa = new Map<string, { confirmado: number; porCobrar: number }>()
+    const ymActual = new Date().toISOString().slice(0, 7)
+    for (const f of futuras) {
+      if (f.estado === 'overdue') continue // impagos aparte (KPI de arriba)
+      const ym = (f.dueDate || '').slice(0, 7)
+      if (!ym) continue
+      const e = mapa.get(ym) ?? { confirmado: 0, porCobrar: 0 }
+      if (f.source === 'review' || ym < ymActual) e.confirmado += num(f.amount)
+      else e.porCobrar += num(f.amount)
+      mapa.set(ym, e)
+    }
+    return [...mapa.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([ym, v]) => ({ ym, ...v }))
+  }, [futuras])
 
   // CUALIFICACIÓN (§23): lo que respondieron SUS leads en el formulario de agendar
   // (appointments.qualification, escrito por el webhook de GHL/Calendly), agregado
@@ -455,6 +479,41 @@ export default function ColaboradorDashboard({
           description="Cuotas vencidas sin cobrar — comisión proyectada"
         />
       </section>
+
+      {/* Desglose mes a mes de SUS comisiones a futuro: qué está confirmado (cash recogido)
+          y qué depende de que sus leads paguen. Misma vista que el dashboard del equipo. */}
+      {!cargando && futurePorMes.length > 0 && (
+        <section className="dashboard-card p-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+            <h2 className="text-sm font-semibold text-foreground">Comisiones a futuro, mes a mes</h2>
+            <p className="text-xs text-muted-foreground">
+              La comisión de un mes se confirma cuando tus leads pagan su cuota de ese mes.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
+                  <th className="py-2 pr-4 font-medium">Mes de cobro</th>
+                  <th className="py-2 pr-4 font-medium text-right">Confirmado</th>
+                  <th className="py-2 pr-4 font-medium text-right">Por cobrar</th>
+                  <th className="py-2 font-medium text-right">Total del mes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {futurePorMes.map((m) => (
+                  <tr key={m.ym} className="border-t border-border">
+                    <td className="py-2 pr-4 font-medium text-foreground">{monthLabel(m.ym)}</td>
+                    <td className="py-2 pr-4 text-right text-emerald-400">{m.confirmado ? eur(m.confirmado) : '—'}</td>
+                    <td className="py-2 pr-4 text-right text-amber-400">{m.porCobrar ? eur(m.porCobrar) : '—'}</td>
+                    <td className="py-2 text-right font-semibold text-foreground">{eur(m.confirmado + m.porCobrar)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {/* CUALIFICACIÓN: respuestas de SUS leads al formulario de agendar */}
       {cualificacionAgregada.length > 0 && (
