@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { getOrCreateContact } from '@/lib/contacts/resolve'
 import { leerToque, registrarToque, toqueTieneDatos } from '@/lib/contacts/atribucion'
-import { resolverColaboradorPorCodigo } from '@/lib/collaborators/scope'
+import { attributionDateBeforeCutoff, resolverRefColaborador } from '@/lib/collaborators/ref-signal'
 import { firstMemberOf, resolveUserIdByTrackingCode } from '@/lib/tracking'
 import { isValidWebhookSecret, diagnosticoCabeceras } from '@/lib/webhooks/verifySecret'
 import { getTenantConfigWithFallback } from '@/lib/config'
@@ -295,24 +295,46 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // enlaces de reserva no los llevan (0 de 559 citas tienen utm_source). El camino queda puesto para
     // cuando empiecen a llegar. Un fallo al atribuir NO tumba el webhook: la cita y el contacto valen más
     // que su procedencia.
-    // COLABORADOR del enlace (?ref=CODIGO): se resuelve server-side al UUID del
-    // perfil (el código legible nunca es identidad) y entra en el toque como
-    // relación estructurada (contact_attributions.collaborator_id). utm_content
-    // sigue viviendo para reporting/interoperabilidad; esto es la FK que usa el
-    // dinero. Regla: first-collaborator-wins — la fija registrarToque.
+    // COLABORADOR del enlace (?ref=CODIGO) o de un CAMPO PERSONALIZADO de GHL:
+    // la señal vive en ref-signal.ts (regla en un sitio). Se resuelve server-side
+    // al UUID del perfil (el código legible nunca es identidad) y entra en el
+    // toque como relación estructurada (contact_attributions.collaborator_id).
+    // utm_content sigue viviendo para reporting/interoperabilidad; esto es la FK
+    // que usa el dinero. Regla: first-collaborator-wins — la fija registrarToque.
+    //
+    // CUTOFF (regla del propietario): un contacto con fecha real ANTERIOR a
+    // agosto 2026 NO se atribuye a colaboradores, venga el código por donde
+    // venga. De agosto para atrás, no — y ningún toque nuevo re-atribuye.
     let colaboradorId: string | null = null
-    const refCruda = pick(payload.ref, payload.referral, payload.colaborador, payload.collaborator_code) as
-      string | null
-    if (refCruda) {
-      try {
-        const perfil = await resolverColaboradorPorCodigo(sb, tenantId, refCruda)
-        colaboradorId = perfil?.id ?? null
-      } catch (e) {
-        console.warn('[colaborador] no se pudo resolver el ref:', e instanceof Error ? e.message : e)
+    let refCode: string | null = null
+    const ref = await resolverRefColaborador(sb, tenantId, payload)
+    refCode = ref?.code ?? null
+    if (ref) {
+      if (resolved.created) {
+        // Contacto nuevo: nace hoy, siempre posterior al cutoff.
+        colaboradorId = ref.id
+      } else {
+        // Re-entrega de un contacto existente: el cutoff se decide por su fecha
+        // real (first_seen_at de GHL). Solo se consulta cuando hay código.
+        const { data: fechas } = await sb
+          .from('contacts')
+          .select('first_seen_at, created_at')
+          .eq('id', contact.id)
+          .eq('tenant_id', tenantId)
+          .maybeSingle()
+        if (!attributionDateBeforeCutoff(fechas ?? {})) {
+          colaboradorId = ref.id
+        } else {
+          console.info('[colaborador] contacto anterior al cutoff 2026-08-01: no se atribuye a colaboradores')
+        }
       }
     }
     try {
       const toque = leerToque(payload)
+      // Si el código llegó por campo personalizado (no por ?ref=), utm_content
+      // no lo trae: lo relleno con el código normalizado para que la capa de
+      // datos (triggers de backfill, reporting) vea la misma señal textual.
+      if (refCode && !toque.utmContent) toque.utmContent = refCode
       if (colaboradorId || toqueTieneDatos(toque)) {
         await registrarToque(sb, tenantId, contact.id, { ...toque, enEl: now, colaboradorId })
       }
