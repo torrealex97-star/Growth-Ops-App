@@ -43,6 +43,7 @@ import {
   Pencil,
 } from 'lucide-react'
 import { formatDate, formatCurrency, formatPercent } from '@/lib/utils'
+import { planCuotasDeVenta } from '@/lib/sales/plan-cuotas'
 import { ContractSection } from '@/components/sales/ContractSection'
 import { DocumentVerificationSection } from '@/components/sales/DocumentVerificationSection'
 import { toast } from 'sonner'
@@ -492,6 +493,26 @@ export default function SaleDetailPage() {
   const hasRealCommissions = commissions.length > 0
 
   const isAdminOrDirector = userRole === 'admin' || userRole === 'director'
+  const loadingPlanCuotas = useMemo(
+    () =>
+      planCuotasDeVenta(
+        installments,
+        collections,
+        sale
+          ? {
+              grossAmount: Number(sale.gross_amount),
+              saleDate: sale.sale_date,
+              paymentPlan: sale.payment_plans
+                ? { number_of_payments: sale.payment_plans.number_of_payments, method: sale.payment_plans.method }
+                : null,
+              installmentsCount: sale.installments_count,
+              installmentsStartDate: sale.installments_start_date,
+            }
+          : null
+      ),
+    [installments, collections, sale]
+  )
+
   // Aprobar cuotas en revisión (plan personalizado): mismo alcance que payments/mark (cobros incluido).
   const canApproveReview = isAdminOrDirector || userRole === 'cobros'
 
@@ -999,7 +1020,45 @@ export default function SaleDetailPage() {
         </TabsContent>
 
         {/* Cuotas */}
-        <TabsContent value="installments" className="mt-4">
+        <TabsContent value="installments" className="mt-4 space-y-3">
+          {/* Resumen COBRADO vs POR COBRAR (petición del propietario, 22-sep): la ficha deja claro
+              el estado del dinero en todo momento — verde cobrado, por recolectar y rojo impago. */}
+          {loadingPlanCuotas.cuotas.length > 0 && (
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-card border border-emerald-500/30 rounded-lg p-3">
+                <p className="text-xs text-muted-foreground">Cobrado</p>
+                <p className="text-lg font-semibold text-emerald-400">{formatCurrency(loadingPlanCuotas.cobrado)}</p>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-3">
+                <p className="text-xs text-muted-foreground">
+                  Por recolectar
+                  {loadingPlanCuotas.proximoVencimiento && (
+                    <span className="block text-[10px]">
+                      Próx. vencimiento: {formatDate(loadingPlanCuotas.proximoVencimiento)}
+                    </span>
+                  )}
+                </p>
+                <p className="text-lg font-semibold text-foreground">{formatCurrency(loadingPlanCuotas.porCobrar)}</p>
+              </div>
+              <div
+                className={`bg-card border rounded-lg p-3 ${loadingPlanCuotas.impagado > 0 ? 'border-red-500/30' : 'border-border'}`}
+              >
+                <p className="text-xs text-muted-foreground">Impago</p>
+                <p
+                  className={`text-lg font-semibold ${loadingPlanCuotas.impagado > 0 ? 'text-red-400' : 'text-muted-foreground'}`}
+                >
+                  {formatCurrency(loadingPlanCuotas.impagado)}
+                </p>
+              </div>
+            </div>
+          )}
+          {loadingPlanCuotas.fuente === 'prevision' && loadingPlanCuotas.cuotas.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Esta venta no tiene calendario de cuotas materializado: se muestra la previsión según su plan de pago y
+              los cobros ya registrados. Se materializa al registrar ventas financiadas o cuotas gestionadas desde
+              cobros.
+            </p>
+          )}
           <div className="bg-card border border-border rounded-lg overflow-hidden">
             <Table>
               <TableHeader>
@@ -1014,11 +1073,42 @@ export default function SaleDetailPage() {
               </TableHeader>
               <TableBody>
                 {installments.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={isAdminOrDirector ? 6 : 5} className="text-center py-8 text-muted-foreground">
-                      Sin cuotas pendientes
-                    </TableCell>
-                  </TableRow>
+                  loadingPlanCuotas.cuotas.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={isAdminOrDirector ? 6 : 5} className="text-center py-8 text-muted-foreground">
+                        Sin cuotas pendientes
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    loadingPlanCuotas.cuotas.map((q) => (
+                      <TableRow key={`prevision-${q.numero}`} className="border-border">
+                        <TableCell className="text-foreground">#{q.numero}</TableCell>
+                        <TableCell className="text-muted-foreground text-sm">
+                          {q.vencimiento ? formatDate(q.vencimiento) : '—'}
+                        </TableCell>
+                        <TableCell className="text-foreground">{formatCurrency(q.bruto)}</TableCell>
+                        <TableCell className="text-muted-foreground">—</TableCell>
+                        <TableCell>
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full ${
+                              q.estado === 'collected'
+                                ? 'bg-emerald-500/20 text-emerald-400'
+                                : q.estado === 'overdue'
+                                  ? 'bg-red-500/20 text-red-400'
+                                  : 'bg-zinc-500/20 text-muted-foreground'
+                            }`}
+                          >
+                            {q.estado === 'collected'
+                              ? 'Cobrada'
+                              : q.estado === 'overdue'
+                                ? 'Impago'
+                                : 'Por recolectar'}
+                          </span>
+                        </TableCell>
+                        {isAdminOrDirector && <TableCell className="text-muted-foreground text-xs">—</TableCell>}
+                      </TableRow>
+                    ))
+                  )
                 ) : (
                   installments.map((inst) => (
                     <TableRow key={inst.id} className="border-border">
@@ -1045,7 +1135,11 @@ export default function SaleDetailPage() {
                                 : 'secondary'
                           }
                         >
-                          {inst.status}
+                          {inst.status === 'collected'
+                            ? 'Cobrada'
+                            : inst.status === 'overdue'
+                              ? 'Impago'
+                              : 'Por recolectar'}
                         </Badge>
                       </TableCell>
                       {isAdminOrDirector && (
@@ -1127,6 +1221,7 @@ export default function SaleDetailPage() {
                     <TableHead className="text-muted-foreground">%</TableHead>
                     <TableHead className="text-muted-foreground">Importe</TableHead>
                     <TableHead className="text-muted-foreground">Estado</TableHead>
+                    <TableHead className="text-muted-foreground">Liquidación</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1155,7 +1250,26 @@ export default function SaleDetailPage() {
                         </TableCell>
                         <TableCell>
                           <span className={`text-xs px-2 py-0.5 rounded-full ${COMMISSION_STATUS_COLORS[com.status]}`}>
-                            {com.status}
+                            {com.status === 'liquidated'
+                              ? 'Liquidada'
+                              : com.status === 'approved'
+                                ? 'Aprobada'
+                                : com.status === 'pending'
+                                  ? 'Pendiente'
+                                  : com.status}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-xs">
+                          {/* Mes de liquidación (cuando cae el pago) + fecha de creación */}
+                          {com.liquidation_month
+                            ? new Date(com.liquidation_month + 'T00:00:00Z').toLocaleDateString('es-ES', {
+                                month: 'long',
+                                year: 'numeric',
+                                timeZone: 'UTC',
+                              })
+                            : '—'}
+                          <span className="block text-[10px] text-muted-foreground">
+                            generada {formatDate(com.created_at)}
                           </span>
                         </TableCell>
                       </TableRow>
