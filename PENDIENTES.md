@@ -1,7 +1,7 @@
 # PENDIENTES — [tenant] OS
 
 > ## Estado de consolidación (2026-09-22)
-> `origin/main` está publicado en `24a9646`. Las PR #171 y #172 están fusionadas con CI de `main` verde. El checkout compartido conserva WIP no publicado; no tratarlo como desplegado ni mezclarlo sin PR atómico.
+> `origin/main` está publicado en `c2c3e6a33a847b9d3220b9783a01106dc87f73c8` mediante la PR #173, que actualizó este handoff y este backlog. Las PR #171 y #172 también están fusionadas; sus checks de código fueron verdes. La PR #173 solo cambió documentación y no generó workflow nuevo por `paths-ignore`; Supabase Preview quedó omitido. El checkout compartido conserva WIP no publicado; no tratarlo como desplegado ni mezclarlo sin PR atómico.
 >
 > ### Acciones que corresponden al usuario
 > - [ ] Ejecutar en QA el dry-run `BEGIN … ROLLBACK` de la revocación de `EXECUTE` de `cleanup_custom_field_values()`: probar limpieza por trigger y rechazo de RPC directa.
