@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { ContactForm, type ContactFormData } from '@/components/contacts/ContactForm'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -31,6 +32,7 @@ import {
   StickyNote,
   FileText,
   Pencil,
+  ListTree,
 } from 'lucide-react'
 import { formatDate, formatDateTime, formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -44,13 +46,14 @@ import type {
   Collection,
   SaleExpectedInstallment,
   Commission,
+  CustomFieldDef,
 } from '@/lib/types/database'
+import { planCuotasDeVenta } from '@/lib/sales/plan-cuotas'
 import type { Qualification, QualificationAnswer } from '@/lib/qualification'
 import { LEAD_STATUS_COLORS, LEAD_STATUS_LABELS } from '@/lib/lead-status'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { buildContactTimeline, type TimelineEventType } from '@/lib/contact-timeline'
 import { isNoShow } from '@/lib/appointments/status'
-import { planCuotasDeVenta, type CuotaPlan } from '@/lib/sales/plan-cuotas'
 
 type ContactNote = {
   id: string
@@ -145,18 +148,24 @@ export default function ContactDetailPage() {
   const router = useRouter()
   const [contact, setContact] = useState<Contact | null>(null)
   const [attributions, setAttributions] = useState<ContactAttribution[]>([])
+  // Campos personalizados de la subcuenta (§1): catálogo + guardado en lote desde la ficha.
+  const [customDefs, setCustomDefs] = useState<CustomFieldDef[]>([])
+  const [customDraft, setCustomDraft] = useState<Record<string, string>>({})
+  const [customSaving, setCustomSaving] = useState(false)
   const [appointments, setAppointments] = useState<AppointmentWithNames[]>([])
   const [sales, setSales] = useState<Sale[]>([])
+  // PLAN DE COBRO + comisiones por venta (22-sep): la ficha deja claro el dinero del contacto
+  // — cada cuota con su fecha y estado (Cobrada / Por recolectar / Impago) y las comisiones que
+  // cada venta genera con su mes de liquidación. RLS de colaborador scope aplica igual.
+  type VentaConPlan = Sale & { payment_plans?: Pick<PaymentPlan, 'number_of_payments' | 'method'> | null }
+  const [ventasConPlan, setVentasConPlan] = useState<VentaConPlan[]>([])
+  const [installmentsContacto, setInstallmentsContacto] = useState<SaleExpectedInstallment[]>([])
+  const [collectionsContacto, setCollectionsContacto] = useState<Collection[]>([])
+  const [commissionsContacto, setCommissionsContacto] = useState<Commission[]>([])
   const [notes, setNotes] = useState<ContactNote[]>([])
   const [activities, setActivities] = useState<ContactActivity[]>([])
   const [contracts, setContracts] = useState<ContactContract[]>([])
   const [loading, setLoading] = useState(true)
-  // PLAN DE COBRO + comisiones por venta (22-sep): la ficha deja claro el dinero del contacto
-  // — cada cuota con su fecha y estado (Cobrada / Por recolectar / Impago) y las comisiones que
-  // cada venta genera con su mes de liquidación. RLS de Collaborator scope aplica igual.
-  const [installmentsContacto, setInstallmentsContacto] = useState<SaleExpectedInstallment[]>([])
-  const [collectionsContacto, setCollectionsContacto] = useState<Collection[]>([])
-  const [commissionsContacto, setCommissionsContacto] = useState<Commission[]>([])
   const [notFound, setNotFound] = useState(false)
   const [saving, setSaving] = useState(false)
   const [newNote, setNewNote] = useState('')
@@ -170,10 +179,6 @@ export default function ContactDetailPage() {
     () => buildContactTimeline(attributions, appointments, sales, notes, activities, contracts),
     [attributions, appointments, sales, notes, activities, contracts]
   )
-
-  // Tipos auxiliares para el desglose de dinero por venta (necesitan el plan de pago embebido).
-  type VentaConPlan = Sale & { payment_plans?: Pick<PaymentPlan, 'number_of_payments' | 'method'> | null }
-  const [ventasConPlan, setVentasConPlan] = useState<VentaConPlan[]>([])
 
   // Desglose de dinero por venta: plan de cuotas (real o previsión) + comisiones generadas.
   const desgloseVentas = useMemo(() => {
@@ -198,55 +203,66 @@ export default function ContactDetailPage() {
   const load = async () => {
     const supabase = createClient()
 
-    const [contactRes, attrRes, appRes, salesRes, notesRes, activitiesRes, contractsRes, instRes, collRes, comRes] =
-      await Promise.all([
-        supabase.from('contacts').select('*').eq('id', id).eq('tenant_id', tenantId).single(),
-        supabase
-          .from('contact_attributions')
-          .select('*')
-          .eq('contact_id', id)
-          .eq('tenant_id', tenantId)
-          .order('first_touch_at'),
-        supabase
-          .from('appointments')
-          .select('*, setter:setter_id(full_name), closer:closer_id(full_name)')
-          .eq('contact_id', id)
-          .eq('tenant_id', tenantId)
-          .order('appointment_datetime', { ascending: false }),
-        supabase
-          .from('sales')
-          .select('*, payment_plans(number_of_payments, method)')
-          .eq('contact_id', id)
-          .eq('tenant_id', tenantId)
-          .order('sale_date', { ascending: false }),
-        supabase
-          .from('contact_notes')
-          .select('*, author:author_id(full_name)')
-          .eq('contact_id', id)
-          .eq('tenant_id', tenantId)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('activities')
-          .select('id, type, direction, result, duration_min, notes, created_at, users(full_name)')
-          .eq('contact_id', id)
-          .eq('tenant_id', tenantId)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('contracts')
-          .select('id, title, status, url, signed_at, created_at')
-          .eq('contact_id', id)
-          .order('created_at', { ascending: false }),
-        // Plan de cobro + comisiones de sus ventas (si las hay): estado del dinero por cuota.
-        // Cuando no hay RLS de Collaborator scope aplica igual.
-        supabase.from('sale_expected_installments').select('*').eq('tenant_id', tenantId).order('installment_number'),
-        supabase.from('collections').select('*').eq('tenant_id', tenantId).order('collected_at'),
-        supabase
-          .from('commissions')
-          .select(
-            'id, sale_id, participant_type, percent, base_amount, commission_amount, direction, status, liquidation_month, created_at'
-          )
-          .eq('tenant_id', tenantId),
-      ])
+    const [
+      contactRes,
+      attrRes,
+      appRes,
+      salesRes,
+      notesRes,
+      activitiesRes,
+      contractsRes,
+      defsRes,
+      instRes,
+      collRes,
+      comRes,
+    ] = await Promise.all([
+      supabase.from('contacts').select('*').eq('id', id).eq('tenant_id', tenantId).single(),
+      supabase
+        .from('contact_attributions')
+        .select('*')
+        .eq('contact_id', id)
+        .eq('tenant_id', tenantId)
+        .order('first_touch_at'),
+      supabase
+        .from('appointments')
+        .select('*, setter:setter_id(full_name), closer:closer_id(full_name)')
+        .eq('contact_id', id)
+        .eq('tenant_id', tenantId)
+        .order('appointment_datetime', { ascending: false }),
+      supabase
+        .from('sales')
+        .select('*, payment_plans(number_of_payments, method)')
+        .eq('contact_id', id)
+        .eq('tenant_id', tenantId)
+        .order('sale_date', { ascending: false }),
+      supabase
+        .from('contact_notes')
+        .select('*, author:author_id(full_name)')
+        .eq('contact_id', id)
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('activities')
+        .select('id, type, direction, result, duration_min, notes, created_at, users(full_name)')
+        .eq('contact_id', id)
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('contracts')
+        .select('id, title, status, url, signed_at, created_at')
+        .eq('contact_id', id)
+        .order('created_at', { ascending: false }),
+      supabase.from('custom_field_defs').select('*').eq('tenant_id', tenantId).order('sort_order', { ascending: true }),
+      // Estado del dinero por venta: filtro por sale_id en cliente (RLS de colaborador aplica igual).
+      supabase.from('sale_expected_installments').select('*').eq('tenant_id', tenantId).order('installment_number'),
+      supabase.from('collections').select('*').eq('tenant_id', tenantId).order('collected_at'),
+      supabase
+        .from('commissions')
+        .select(
+          'id, sale_id, participant_type, percent, base_amount, commission_amount, direction, status, liquidation_month, created_at'
+        )
+        .eq('tenant_id', tenantId),
+    ])
 
     if (sesion) setCurrentUser({ id: sesion.userId })
 
@@ -275,7 +291,6 @@ export default function ContactDetailPage() {
     setAttributions(attrRes.data ?? [])
     setAppointments((appRes.data as AppointmentWithNames[]) ?? [])
     setSales(salesRes.data ?? [])
-    setVentasConPlan((salesRes.data as VentaConPlan[]) ?? [])
     setNotes((notesRes.data as ContactNote[]) ?? [])
     setActivities(
       ((activitiesRes.data ?? []) as Array<ContactActivity & { users?: { full_name?: string } | null }>).map(
@@ -286,6 +301,8 @@ export default function ContactDetailPage() {
       )
     )
     setContracts((contractsRes.data as ContactContract[]) ?? [])
+    setCustomDefs((defsRes.data as CustomFieldDef[]) ?? [])
+    setVentasConPlan((salesRes.data as VentaConPlan[]) ?? [])
     setInstallmentsContacto((instRes.data as SaleExpectedInstallment[]) ?? [])
     setCollectionsContacto((collRes.data as Collection[]) ?? [])
     setCommissionsContacto((comRes.data as Commission[]) ?? [])
@@ -580,11 +597,12 @@ export default function ContactDetailPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="timeline">
+      {/* Tabs — INFORMACIÓN PRIMERO (estilo top CRMs: HubSpot/Salesforce/Pipedrive abren la
+          ficha en la vista 360º del contacto; el timeline queda como segundo tab, no al revés). */}
+      <Tabs defaultValue="info">
         <TabsList className="bg-card border border-border">
-          <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="info">Información</TabsTrigger>
+          <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="attribution">
             Atribución
             {attributions.length > 0 && (
@@ -723,6 +741,86 @@ export default function ContactDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Campos personalizados de la subcuenta (§1): edición inline con guardado en lote. */}
+          {customDefs.length > 0 && (
+            <div className="bg-card border border-border rounded-lg p-6">
+              <h3 className="text-sm font-medium text-muted-foreground mb-4 flex items-center gap-2">
+                <ListTree className="w-4 h-4" />
+                Campos personalizados
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {customDefs.map((def) => {
+                  const current = contact.custom_fields?.[def.id]
+                  const draftValue = customDraft[def.id] ?? (current == null ? '' : String(current))
+                  return (
+                    <div key={def.id}>
+                      <dt className="text-xs text-muted-foreground mb-1">{def.label}</dt>
+                      {def.field_type === 'boolean' ? (
+                        <select
+                          value={draftValue === '' ? '' : draftValue === 'true' ? 'true' : 'false'}
+                          onChange={(e) => setCustomDraft((prev) => ({ ...prev, [def.id]: e.target.value }))}
+                          className="w-full rounded-md bg-muted border border-border px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        >
+                          <option value="">—</option>
+                          <option value="true">Sí</option>
+                          <option value="false">No</option>
+                        </select>
+                      ) : (
+                        <Input
+                          type={def.field_type === 'number' ? 'number' : def.field_type === 'date' ? 'date' : 'text'}
+                          value={draftValue}
+                          onChange={(e) => setCustomDraft((prev) => ({ ...prev, [def.id]: e.target.value }))}
+                          className="bg-muted border-border h-8 text-sm"
+                        />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="mt-4 flex justify-end">
+                <Button
+                  size="sm"
+                  disabled={customSaving || Object.keys(customDraft).length === 0}
+                  onClick={async () => {
+                    if (!contact) return
+                    setCustomSaving(true)
+                    const payload: Record<string, string | number | boolean | null> = {}
+                    for (const [fieldId, value] of Object.entries(customDraft)) {
+                      const def = customDefs.find((d) => d.id === fieldId)
+                      if (!def) continue
+                      if (value === '') {
+                        payload[fieldId] = null
+                        continue
+                      }
+                      payload[fieldId] =
+                        def.field_type === 'number'
+                          ? Number(value)
+                          : def.field_type === 'boolean'
+                            ? value === 'true'
+                            : value
+                    }
+                    const res = await fetch(`/api/${tenant}/evergreen/contacts/${id}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ custom_fields: payload }),
+                    })
+                    const d = await res.json().catch(() => ({}))
+                    setCustomSaving(false)
+                    if (!res.ok) {
+                      toast.error('No se pudieron guardar los campos', { description: d?.error })
+                      return
+                    }
+                    toast.success('Campos personalizados guardados')
+                    setCustomDraft({})
+                    setContact({ ...contact, custom_fields: d?.contact?.custom_fields ?? contact.custom_fields })
+                  }}
+                >
+                  {customSaving ? 'Guardando…' : 'Guardar campos'}
+                </Button>
+              </div>
+            </div>
+          )}
 
           {(() => {
             const q = (contact as unknown as { qualification?: Qualification | null }).qualification
@@ -1075,158 +1173,150 @@ export default function ContactDetailPage() {
           {/* PLAN DE COBRO POR VENTA (petición del propietario, 22-sep): cobrado vs por cobrar
               con fechas, cuota a cuota (verde cobrada / por recolectar / rojo impago hasta que
               se soluciona) + comisiones generadas con su mes de liquidación. */}
-          {desgloseVentas.length > 0 && (
-            <div className="space-y-3">
-              {desgloseVentas.map(({ venta, plan, comisiones }) => (
-                <div key={venta.id} className="bg-card border border-border rounded-lg p-4">
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">Venta · {formatDate(venta.sale_date)}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Importe: {formatCurrency(venta.gross_amount)} · Estado: {venta.status}
-                      </p>
-                    </div>
-                    <div className="flex gap-4 text-right">
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase">Cobrado</p>
-                        <p className="text-sm font-semibold text-emerald-400">{formatCurrency(plan.cobrado)}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase">Por recolectar</p>
-                        <p className="text-sm font-semibold text-foreground">{formatCurrency(plan.porCobrar)}</p>
-                        {plan.proximoVencimiento && (
-                          <p className="text-[10px] text-muted-foreground">
-                            vence {formatDate(plan.proximoVencimiento)}
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase">Impago</p>
-                        <p
-                          className={`text-sm font-semibold ${plan.impagado > 0 ? 'text-red-400' : 'text-muted-foreground'}`}
-                        >
-                          {formatCurrency(plan.impagado)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  {/* Cuota a cuota */}
-                  <div className="mt-3 overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow className="border-border">
-                          <TableHead className="text-muted-foreground">Cuota</TableHead>
-                          <TableHead className="text-muted-foreground">Vencimiento</TableHead>
-                          <TableHead className="text-muted-foreground">Importe</TableHead>
-                          <TableHead className="text-muted-foreground">Estado</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {plan.cuotas.map((q) => (
-                          <TableRow key={q.numero} className="border-border">
-                            <TableCell className="text-foreground">#{q.numero}</TableCell>
-                            <TableCell className="text-muted-foreground text-sm">
-                              {q.vencimiento ? formatDate(q.vencimiento) : '—'}
-                            </TableCell>
-                            <TableCell className="text-foreground">{formatCurrency(q.bruto)}</TableCell>
-                            <TableCell>
-                              <span
-                                className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
-                                  q.estado === 'collected'
-                                    ? 'bg-emerald-500/20 text-emerald-400'
-                                    : q.estado === 'overdue'
-                                      ? 'bg-red-500/20 text-red-400'
-                                      : 'bg-zinc-500/20 text-muted-foreground'
-                                }`}
-                              >
-                                {q.estado === 'collected'
-                                  ? 'Cobrada'
-                                  : q.estado === 'overdue'
-                                    ? 'Impago'
-                                    : 'Por recolectar'}
-                              </span>
-                              {q.morosa && <span className="ml-1 text-[10px] text-red-400">(marcada morosa)</span>}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                  {plan.fuente === 'prevision' && plan.cuotas.length > 0 && (
-                    <p className="text-[10px] text-muted-foreground mt-2">
-                      Previsión según plan de pago y cobros registrados (sin calendario de cuotas materializado).
-                    </p>
-                  )}
-                  {/* Comisiones que esta venta ya generó */}
-                  {comisiones.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-border">
-                      <p className="text-xs font-medium text-foreground mb-2">Comisiones de esta venta</p>
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="border-border">
-                            <TableHead className="text-muted-foreground">Rol</TableHead>
-                            <TableHead className="text-muted-foreground">Base (neta)</TableHead>
-                            <TableHead className="text-muted-foreground">%</TableHead>
-                            <TableHead className="text-muted-foreground">Importe</TableHead>
-                            <TableHead className="text-muted-foreground">Estado</TableHead>
-                            <TableHead className="text-muted-foreground">Liquidación</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {comisiones.map((com) => (
-                            <TableRow key={com.id} className="border-border">
-                              <TableCell>
-                                <Badge variant="secondary">{com.participant_type}</Badge>
-                              </TableCell>
-                              <TableCell className="text-muted-foreground">{formatCurrency(com.base_amount)}</TableCell>
-                              <TableCell className="text-muted-foreground">{com.percent}%</TableCell>
-                              <TableCell
-                                className={`font-medium ${com.direction === 'negative' ? 'text-red-400' : 'text-emerald-400'}`}
-                              >
-                                {com.direction === 'negative' ? '-' : ''}
-                                {formatCurrency(com.commission_amount)}
-                              </TableCell>
-                              <TableCell>
-                                <span
-                                  className={`text-xs px-2 py-0.5 rounded-full ${
-                                    com.status === 'liquidated'
-                                      ? 'bg-emerald-500/20 text-emerald-400'
-                                      : com.status === 'approved'
-                                        ? 'bg-blue-500/20 text-blue-400'
-                                        : com.status === 'cancelled'
-                                          ? 'bg-zinc-500/20 text-muted-foreground'
-                                          : 'bg-amber-500/20 text-amber-400'
-                                  }`}
-                                >
-                                  {com.status === 'liquidated'
-                                    ? 'Liquidada (pagada)'
-                                    : com.status === 'approved'
-                                      ? 'Aprobada'
-                                      : com.status === 'cancelled'
-                                        ? 'Anulada'
-                                        : 'Pendiente'}
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-muted-foreground text-xs">
-                                {com.liquidation_month
-                                  ? new Date(com.liquidation_month + 'T00:00:00Z').toLocaleDateString('es-ES', {
-                                      month: 'long',
-                                      year: 'numeric',
-                                      timeZone: 'UTC',
-                                    })
-                                  : '—'}
-                                <span className="block text-[10px]">generada {formatDate(com.created_at)}</span>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
+          {desgloseVentas.map(({ venta, plan, comisiones }) => (
+            <div key={venta.id} className="bg-card border border-border rounded-lg p-4">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Venta · {formatDate(venta.sale_date)}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Importe: {formatCurrency(venta.gross_amount)} · Estado: {venta.status}
+                  </p>
                 </div>
-              ))}
+                <div className="flex gap-4 text-right">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase">Cobrado</p>
+                    <p className="text-sm font-semibold text-emerald-400">{formatCurrency(plan.cobrado)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase">Por recolectar</p>
+                    <p className="text-sm font-semibold text-foreground">{formatCurrency(plan.porCobrar)}</p>
+                    {plan.proximoVencimiento && (
+                      <p className="text-[10px] text-muted-foreground">vence {formatDate(plan.proximoVencimiento)}</p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase">Impago</p>
+                    <p
+                      className={`text-sm font-semibold ${plan.impagado > 0 ? 'text-red-400' : 'text-muted-foreground'}`}
+                    >
+                      {formatCurrency(plan.impagado)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-border">
+                      <TableHead className="text-muted-foreground">Cuota</TableHead>
+                      <TableHead className="text-muted-foreground">Vencimiento</TableHead>
+                      <TableHead className="text-muted-foreground">Importe</TableHead>
+                      <TableHead className="text-muted-foreground">Estado</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {plan.cuotas.map((q) => (
+                      <TableRow key={q.numero} className="border-border">
+                        <TableCell className="text-foreground">#{q.numero}</TableCell>
+                        <TableCell className="text-muted-foreground text-sm">
+                          {q.vencimiento ? formatDate(q.vencimiento) : '—'}
+                        </TableCell>
+                        <TableCell className="text-foreground">{formatCurrency(q.bruto)}</TableCell>
+                        <TableCell>
+                          <span
+                            className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
+                              q.estado === 'collected'
+                                ? 'bg-emerald-500/20 text-emerald-400'
+                                : q.estado === 'overdue'
+                                  ? 'bg-red-500/20 text-red-400'
+                                  : 'bg-zinc-500/20 text-muted-foreground'
+                            }`}
+                          >
+                            {q.estado === 'collected'
+                              ? 'Cobrada'
+                              : q.estado === 'overdue'
+                                ? 'Impago'
+                                : 'Por recolectar'}
+                          </span>
+                          {q.morosa && <span className="ml-1 text-[10px] text-red-400">(marcada morosa)</span>}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              {plan.fuente === 'prevision' && plan.cuotas.length > 0 && (
+                <p className="text-[10px] text-muted-foreground mt-2">
+                  Previsión según plan de pago y cobros registrados (sin calendario de cuotas materializado).
+                </p>
+              )}
+              {comisiones.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-border">
+                  <p className="text-xs font-medium text-foreground mb-2">Comisiones de esta venta</p>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-border">
+                        <TableHead className="text-muted-foreground">Rol</TableHead>
+                        <TableHead className="text-muted-foreground">Base (neta)</TableHead>
+                        <TableHead className="text-muted-foreground">%</TableHead>
+                        <TableHead className="text-muted-foreground">Importe</TableHead>
+                        <TableHead className="text-muted-foreground">Estado</TableHead>
+                        <TableHead className="text-muted-foreground">Liquidación</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {comisiones.map((com) => (
+                        <TableRow key={com.id} className="border-border">
+                          <TableCell>
+                            <Badge variant="secondary">{com.participant_type}</Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{formatCurrency(com.base_amount)}</TableCell>
+                          <TableCell className="text-muted-foreground">{com.percent}%</TableCell>
+                          <TableCell
+                            className={`font-medium ${com.direction === 'negative' ? 'text-red-400' : 'text-emerald-400'}`}
+                          >
+                            {com.direction === 'negative' ? '-' : ''}
+                            {formatCurrency(com.commission_amount)}
+                          </TableCell>
+                          <TableCell>
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded-full ${
+                                com.status === 'liquidated'
+                                  ? 'bg-emerald-500/20 text-emerald-400'
+                                  : com.status === 'approved'
+                                    ? 'bg-blue-500/20 text-blue-400'
+                                    : com.status === 'cancelled'
+                                      ? 'bg-zinc-500/20 text-muted-foreground'
+                                      : 'bg-amber-500/20 text-amber-400'
+                              }`}
+                            >
+                              {com.status === 'liquidated'
+                                ? 'Liquidada (pagada)'
+                                : com.status === 'approved'
+                                  ? 'Aprobada'
+                                  : com.status === 'cancelled'
+                                    ? 'Anulada'
+                                    : 'Pendiente'}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-xs">
+                            {com.liquidation_month
+                              ? new Date(com.liquidation_month + 'T00:00:00Z').toLocaleDateString('es-ES', {
+                                  month: 'long',
+                                  year: 'numeric',
+                                  timeZone: 'UTC',
+                                })
+                              : '—'}
+                            <span className="block text-[10px]">generada {formatDate(com.created_at)}</span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </div>
-          )}
+          ))}
           <div className="bg-card border border-border rounded-lg overflow-hidden">
             {sales.length === 0 ? (
               <div className="flex flex-col items-center py-12 text-center">
