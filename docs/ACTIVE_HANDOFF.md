@@ -29,9 +29,9 @@ Quedan expresamente fuera contratos, colaboradores, RAG, facturación, IA, integ
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente      | Qué                                                                                                                                                                                                            | Rama                    | Toca                                                 | Desde  |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ---------------------------------------------------- | ------ |
-| Claude Code | S0.6 — baseline de RENDIMIENTO (base de datos, consultas, índices, RLS). **La auditoría visual de pantallas queda aparte y en espera** hasta que Freebuff cierre su tanda de UI, por decisión de Alex (22-sep) | `docs/s0-6-rendimiento` | `docs/S0-6-*.md`, `scripts/*.sql`; no toca pantallas | 22-sep |
+| Agente      | Qué                                                                                                                                                                                                                                            | Rama                    | Toca                                                                      | Desde  |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------- | ------ |
+| Claude Code | S0.6 — baseline de RENDIMIENTO (base de datos, consultas, índices, RLS). y de FRONTEND (filtros, fechas, navegación, estados de carga/error/vacío, responsive). Freebuff cerró su tanda de UI el 22-sep, así que entra también la parte visual | `docs/s0-6-rendimiento` | `docs/S0-6-*.md`, `scripts/*.sql`; arreglos pequeños con test si aparecen | 22-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
