@@ -197,35 +197,35 @@ export default function ContactDetailPage() {
 
   // Historial completo del contacto (petición 22-sep): creado, atribución, agendas, grabaciones,
   // transcripciones, ventas, pagos, impagos, CSM, feedback del formulario, notas y contratos —
-  // todo en una sola timeline ordenada por fecha real del evento.
-  const timeline = useMemo(
-    () =>
-      buildContactTimeline(attributions, appointments, sales, notes, activities, contracts, {
-        contact: contact ? { createdAt: contact.created_at, fullName: contact.full_name } : null,
-        payments: collectionsContacto,
-        delinquencies: installmentsContacto,
-        csmEvents,
-        feedback:
-          contact?.qualification_updated_at && (contact.qualification as Qualification | null)?.respuestas?.length
-            ? {
-                answers: (contact.qualification as Qualification).respuestas ?? [],
-                updatedAt: contact.qualification_updated_at,
-              }
-            : null,
-      }),
-    [
-      attributions,
-      appointments,
-      sales,
-      notes,
-      activities,
-      contracts,
-      contact,
-      collectionsContacto,
-      installmentsContacto,
+  // todo en una sola timeline ordenada por fecha real del evento. Las lecturas son de la
+  // subcuenta: pagos y cuotas se FILTRAN por las ventas de ESTE contacto (nada de otros contactos).
+  const timeline = useMemo(() => {
+    const saleIds = new Set(sales.map((s) => s.id))
+    return buildContactTimeline(attributions, appointments, sales, notes, activities, contracts, {
+      contact: contact ? { createdAt: contact.created_at, fullName: contact.full_name } : null,
+      payments: collectionsContacto.filter((c) => saleIds.has(c.sale_id)),
+      delinquencies: installmentsContacto.filter((i) => saleIds.has(i.sale_id)),
       csmEvents,
-    ]
-  )
+      feedback:
+        contact?.qualification_updated_at && (contact.qualification as Qualification | null)?.respuestas?.length
+          ? {
+              answers: (contact.qualification as Qualification).respuestas ?? [],
+              updatedAt: contact.qualification_updated_at,
+            }
+          : null,
+    })
+  }, [
+    attributions,
+    appointments,
+    sales,
+    notes,
+    activities,
+    contracts,
+    contact,
+    collectionsContacto,
+    installmentsContacto,
+    csmEvents,
+  ])
 
   // Desglose de dinero por venta: plan de cuotas (real o previsión) + comisiones generadas.
   const desgloseVentas = useMemo(() => {
