@@ -172,7 +172,34 @@ let contactId
   }
 }
 
-// ── 6. CUSTOM FIELD DEFS ─────────────────────────────────────────────────────
+// ── 6. CONTACTO 2 (para el flujo de selección manual, sin prefill) ───────────
+let contactDosId
+{
+  const { data } = await sb
+    .from('contacts')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('email', 'e2e-contacto-dos@test.local')
+    .single()
+  if (data) contactDosId = data.id
+  else {
+    const { data: created, error } = await sb
+      .from('contacts')
+      .insert({
+        tenant_id: tenantId,
+        full_name: 'E2E Contacto Dos',
+        email: 'e2e-contacto-dos@test.local',
+        first_name: 'E2E Contacto',
+        last_name: 'Dos',
+      })
+      .select('id')
+      .single()
+    if (error) throw error
+    contactDosId = created.id
+  }
+}
+
+// ── 7. CUSTOM FIELD DEFS ─────────────────────────────────────────────────────
 {
   for (const def of [
     { field_key: 'e2e_campo_texto', label: 'E2E Campo Texto', field_type: 'text', sort_order: 1 },
@@ -191,7 +218,7 @@ let contactId
   }
 }
 
-// ── 7. RESET opcional de transaccional ───────────────────────────────────────
+// ── 8. RESET opcional de transaccional ───────────────────────────────────────
 if (RESET) {
   await sb.from('collections').delete().eq('tenant_id', tenantId)
   await sb.from('sales').delete().eq('tenant_id', tenantId)
@@ -206,6 +233,7 @@ process.stdout.write(
     reservaPlanId,
     completoPlanId,
     contactId,
+    contactDosId,
     email: EMAIL,
     slug: SLUG,
   })
