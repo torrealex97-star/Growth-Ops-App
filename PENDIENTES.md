@@ -1,5 +1,24 @@
 # PENDIENTES — [tenant] OS
 
+> ## Estado de consolidación (2026-09-22)
+> `origin/main` está publicado en `24a9646`. Las PR #171 y #172 están fusionadas con CI de `main` verde. El checkout compartido conserva WIP no publicado; no tratarlo como desplegado ni mezclarlo sin PR atómico.
+>
+> ### Acciones que corresponden al usuario
+> - [ ] Ejecutar en QA el dry-run `BEGIN … ROLLBACK` de la revocación de `EXECUTE` de `cleanup_custom_field_values()`: probar limpieza por trigger y rechazo de RPC directa.
+> - [ ] Aplicar migraciones solo mediante el flujo aprobado, registrando la versión en `schema_migrations`; nunca desde un checkout con WIP.
+> - [ ] Rotar credenciales que hayan aparecido en chats o historiales y actualizar únicamente los proveedores/Vercel correspondientes; no copiarlas al repositorio.
+> - [ ] Reconectar y autorizar las integraciones externas que dependen de una acción del propietario (Meta/Instagram, Google/YouTube, TikTok, Hotmart, GHL, Calendly y proveedores de pago) y ejecutar después un smoke real por proveedor.
+> - [ ] Completar los workflows reales de GHL para leads, citas y cambios de estado, incluyendo la cabecera secreta, y verificar acta en BD + cita en Agendas.
+> - [ ] Instalar el pixel/snippet en la web real y configurar UTMs/campaign en las fuentes para que los embudos tengan atribución real.
+> - [ ] Decidir retención legal/de negocio de raw events, transcripciones y hechos financieros antes de graduar privacidad/F6.
+> - [ ] Resolver decisiones financieras explícitas: tratamiento de cuotas de proveedores de pago, completar reservas y cualquier backfill que requiera elegir producto/plan.
+>
+> ### Trabajo que debe hacer Claude/otro agente desde `origin/main`
+> - [ ] Auditar cada bloque local de Hotmart, inbox social, TikTok, VSL, YouTube OAuth, facturas IA, comisiones batch, contratos adjuntos y colaboradores; publicar solo lo que tenga diff, tests, migraciones y CI verificables.
+> - [ ] Completar el tipado de clientes Supabase y el auditor de columnas fantasma en CI antes de aceptar nuevas queries.
+> - [ ] Revisar drift esquema↔migraciones, RLS y funciones `SECURITY DEFINER` con dry-run funcional.
+> - [ ] Eliminar ramas, worktrees y artefactos ya fusionados solo después de demostrar que no contienen trabajo único.
+>
 > Doc vivo de tareas pendientes. Última actualización: 2026-09-22.
 > App en producción: https://growth-ops-weld.vercel.app · Deploy por PR (protección de rama: CI required en main — nada se pushea directo).
 > Contribuir: rama → PR → CI verde (format/lint/typecheck/tests/build/gitleaks) → merge squash.
