@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { getTenantConfigWithFallback } from '@/lib/config'
 import { InstagramApiError, type InstagramErrorCode, type IgConversation } from '@/lib/instagram/client'
@@ -44,6 +44,25 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
 
   // getTenantConfigWithFallback indexa por tenantId (UUID), no por slug: pasar el slug
   // devolvía vacío en silencio → "configured:false" pelado aunque la integración esté bien.
+  // CON SNAPSHOT: responder YA (el listado de Meta tarda 15-40s cuando va mal) y refrescar
+  // en segundo plano con after() — el usuario nunca espera a un upstream inestable.
+  const snap = await leerSnapshot(t.tenantId)
+  if (snap) {
+    const fresco = Date.now() - new Date(snap.guardado).getTime() < 3 * 60_000
+    if (!fresco) {
+      after(async () => {
+        await descargar(t.tenantId, platform).catch(() => null) // guardarSnapshot ocurre dentro
+      })
+    }
+    return NextResponse.json({
+      configured: true,
+      platform,
+      conversations: snap.conversaciones,
+      motivo: `Último snapshot correcto (${edadLegible(snap.guardado)}).`,
+      stale: true,
+      guardado: snap.guardado,
+    })
+  }
   const resultado = await conPlazo(descargar(t.tenantId, platform), 25_000)
   if (resultado === PLAZO) {
     // Meta no respondió ni siquiera al plazo duro: respaldo stale si existe (con su edad),
