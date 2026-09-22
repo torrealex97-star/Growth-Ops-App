@@ -1,5 +1,11 @@
 # Relevo activo
 
+## Candidato aislado de custom fields — 2026-09-22
+
+Checkout creado desde `origin/main` (`2ec86f5`), sin commit ni push. El diff intencionado contiene únicamente: aislamiento de cuotas/cobros/comisiones por `sale_id` y `tenant_id` en la ficha, regresiones focales de custom fields, y la migración `20260922130000_revoke_custom_field_cleanup_execute.sql`. La migración canónica `20260921200000_contact_custom_fields.sql`, la API y los tipos ya existen en `origin/main`; no se duplican.
+
+Quedan expresamente fuera contratos, colaboradores, RAG, facturación, IA, integraciones, dashboards, archivos generados y secretos. Validación pendiente: ejecutar tests, typecheck, formato y un dry-run QA de la revocación antes de abrir PR. No afirmar que la revocación está aplicada en producción hasta verla en la lista de migraciones y confirmar que el trigger sigue limpiando `contacts.custom_fields`.
+
 > **Lee esto entero antes de tocar nada.** Este documento es el punto de coordinación entre los
 > agentes que trabajan en el proyecto (Claude Code, Freebuff, Codex, Copilot). Debajo de la sección
 > "Estado" hay un histórico por hebras que se conserva como registro; lo vigente es lo de arriba.
