@@ -31,11 +31,20 @@ export default defineConfig({
   retries: 0,
   reporter: process.env.CI ? [['list'], ['json', { outputFile: 'test-results/e2e.json' }]] : [['list']],
   outputDir: 'test-results/e2e-artifacts',
+  // Borra los resultados de los tests en verde al salir del worker: outputDir queda con los
+  // directorios SOLO de los tests fallidos (vídeo/traza/capturas) — lo que sube el artefacto.
+  preserveOutput: 'failures-only',
   use: {
     baseURL,
     storageState: 'test-results/e2e-auth.json',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    // Vídeo de cada test. La retención es lo que importa: con delete-results-on-exit solo
+    // sobreviven en outputDir los directorios de tests fallidos (los verdes se borran al
+    // salir), así que el artefacto de CI lleva exactamente el vídeo de lo que rompió. En
+    // local va apagado: el dev ve el navegador en vivo (test:e2e:headed) y el vídeo es I/O
+    // sin uso.
+    video: process.env.CI ? 'on' : 'off',
     ...devices['Desktop Chrome'],
   },
   webServer: tieneServidorPropio
