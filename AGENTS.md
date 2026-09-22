@@ -13,9 +13,31 @@ GitHub `main` es la fuente de verdad del código. Supabase es la fuente de verda
 5. Revisa tu propio cambio buscando regresiones, duplicación, permisos incorrectos y código muerto.
 6. Resume los cambios, comprobaciones y riesgos pendientes al finalizar.
 
-## Relevo Codex ↔ Claude Code y disciplina de ramas
+## Trabajo en paralelo: carriles y tablero (2026-09-22)
 
-Codex y Claude Code trabajan **por relevos, no en paralelo**. La regla operativa es una sola tarea activa y, como máximo, una rama de trabajo remota además de `main`.
+Desde el 22-sep trabajan **a la vez** varios agentes (Freebuff y Claude Code). Para no pisarse:
+
+- **Carriles.** Cada agente tiene un área por defecto:
+  - **Freebuff — producto:** CRM y contactos, ventas y cobros en pantalla, colaboradores, VSL (UI),
+    comisiones en pantalla, tests E2E. Backlog en `PENDIENTES.md`.
+  - **Claude Code — plan (`docs/plan/`):** fases S0.6–S0.8, F1 (event core: `raw_events`,
+    `canonical_events`, webhooks entrantes), F2+, seguridad (RLS, RPCs, secretos), privacidad (F6) y
+    migraciones de fundamentos.
+  - Fuera de su carril, un agente puede trabajar **solo si lo reclama antes** en el tablero.
+- **Tablero de reclamaciones** en `docs/ACTIVE_HANDOFF.md`, arriba del todo. Antes de empezar una
+  unidad de trabajo se añade una fila (agente, qué, rama, ficheros o tablas que toca, fecha). Si lo
+  que vas a tocar ya está reclamado por otro, **no lo toques**: coordina en esa fila. Al fusionar,
+  se borra la fila y se anota el resultado en la sección de estado.
+- **Migraciones.** Quien aplica una migración en producción la **registra** en
+  `supabase_migrations.schema_migrations` con la misma versión que el fichero. Aplicar sin registrar
+  deja el historial desalineado y la próxima sincronización intentaría reaplicarla.
+- **Documentos.** `docs/ACTIVE_HANDOFF.md` = coordinación y estado (qué está en curso, qué se validó,
+  qué bloquea). `PENDIENTES.md` = backlog de producto. `docs/plan/` = hoja de ruta. No se duplica
+  estado entre ellos: se enlaza.
+
+## Disciplina de ramas
+
+Una unidad de trabajo = una rama corta = un PR. Cada agente tiene como mucho **una** rama de trabajo viva a la vez.
 
 1. `main` es siempre el punto de partida y la fuente de verdad. Antes de comenzar, ejecuta `git fetch --prune`, inspecciona el estado y actualiza desde `origin/main` mediante fast-forward.
 2. Antes de crear una rama, comprueba si ya existe una rama o PR de trabajo activa. Si existe, retómala; no abras otra para la misma sesión, fase o asistente.
