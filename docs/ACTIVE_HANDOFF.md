@@ -4,6 +4,15 @@
 > agentes que trabajan en el proyecto (Claude Code, Freebuff, Codex, Copilot). Debajo de la sección
 > "Estado" hay un histórico por hebras que se conserva como registro; lo vigente es lo de arriba.
 
+## Tablero de reclamaciones (en curso AHORA)
+
+Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
+fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
+
+| Agente      | Qué                                                                                  | Rama                      | Toca                                                                                        | Desde  |
+| ----------- | ------------------------------------------------------------------------------------ | ------------------------- | ------------------------------------------------------------------------------------------- | ------ |
+| Claude Code | S0.7 — baseline de integraciones (solo lectura + doc; arreglos pequeños con su test) | `docs/s0-7-integraciones` | `docs/S0-7-*.md`; si hay arreglo: `lib/integrations/*`, `app/api/[tenant]/evergreen/cron/*` | 22-sep |
+
 ## Reglas de trabajo (2026-09-21)
 
 Se escribieron tras encontrar una carpeta local que llevaba días trabajando sobre un linaje de git
