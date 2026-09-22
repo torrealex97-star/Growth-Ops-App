@@ -41,7 +41,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     return NextResponse.json({ configured: false, platform, conversations: [] })
   }
 
-  const resultado = await conPlazo(descargar(tenant, platform), 25_000)
+  // getTenantConfigWithFallback indexa por tenantId (UUID), no por slug: pasar el slug
+  // devolvía vacío en silencio → "configured:false" pelado aunque la integración esté bien.
+  const resultado = await conPlazo(descargar(t.tenantId, platform), 25_000)
   if (resultado === PLAZO) {
     return NextResponse.json({
       configured: false,
