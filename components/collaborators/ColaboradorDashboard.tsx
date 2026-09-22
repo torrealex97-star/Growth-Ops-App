@@ -35,7 +35,13 @@ import { useTenantId, type SesionTenant } from '@/lib/tenant-context'
 import { Users, CalendarCheck, PhoneCall, Trophy, Euro, Clock, BadgeCheck, Banknote } from 'lucide-react'
 
 type ContactoRow = { id: string; full_name: string | null; lead_status: string | null; created_at: string | null }
-type CitaRow = { id: string; contact_id: string | null; appointment_datetime: string | null; status: string | null }
+type CitaRow = {
+  id: string
+  contact_id: string | null
+  appointment_datetime: string | null
+  status: string | null
+  qualification: Record<string, unknown> | null
+}
 type VentaRow = {
   id: string
   contact_id: string | null
@@ -112,7 +118,7 @@ export default function ColaboradorDashboard({
           .in('id', contactIds),
         sb
           .from('appointments')
-          .select('id, contact_id, appointment_datetime, status')
+          .select('id, contact_id, appointment_datetime, status, qualification')
           .eq('tenant_id', tenantId)
           .in('contact_id', contactIds),
         sb
@@ -183,6 +189,32 @@ export default function ColaboradorDashboard({
       deltaComisiones: generadasPrev > 0 ? Math.round(((generadasP - generadasPrev) / generadasPrev) * 100) : undefined,
     }
   }, [contactos, citas, ventas, comisiones, rango, rangoPrevio])
+
+  // CUALIFICACIÓN (§23): lo que respondieron SUS leads en el formulario de agendar
+  // (appointments.qualification, escrito por el webhook de GHL/Calendly), agregado
+  // por pregunta — así sabe CÓMO de cualificados llegan, no solo cuántos.
+  const cualificacionAgregada = useMemo(() => {
+    const porPregunta = new Map<string, Map<string, number>>()
+    for (const c of citas) {
+      const respuestas = c.qualification?.respuestas
+      if (!Array.isArray(respuestas)) continue
+      for (const { q, a } of respuestas as { q?: string; a?: string }[]) {
+        if (!q) continue
+        const opciones = porPregunta.get(String(q)) ?? new Map<string, number>()
+        const respuesta = (a ?? '').trim() || '(sin respuesta)'
+        opciones.set(respuesta, (opciones.get(respuesta) ?? 0) + 1)
+        porPregunta.set(String(q), opciones)
+      }
+    }
+    return [...porPregunta.entries()]
+      .map(([pregunta, opciones]) => ({
+        pregunta,
+        total: [...opciones.values()].reduce((acc, n) => acc + n, 0),
+        opciones: [...opciones.entries()].sort((x, y) => y[1] - x[1]).slice(0, 5),
+      }))
+      .sort((x, y) => y.total - x.total)
+      .slice(0, 6)
+  }, [citas])
 
   // Embudo §24: conversiones entre etapas canónicas (ratios de KPIs ya definidos).
   const embudo = useMemo(() => {
@@ -287,7 +319,7 @@ export default function ColaboradorDashboard({
           value={kpi.asistidas}
           icon={PhoneCall}
           loading={cargando}
-          description={`${embudo.asistenciaSobreCita}% de citas · ${kpi.noShow} no asistieron`}
+          description={`${embudo.asistenciaSobreCita}% de citas · ${kpi.noShow} no asistieron · ${kpi.citas - kpi.asistidas - kpi.noShow} canceladas`}
         />
         <KPICard
           title="Ventas"
@@ -331,6 +363,35 @@ export default function ColaboradorDashboard({
           description="Pagadas"
         />
       </section>
+
+      {/* CUALIFICACIÓN: respuestas de SUS leads al formulario de agendar */}
+      {cualificacionAgregada.length > 0 && (
+        <section className="dashboard-card">
+          <h2 className="text-sm font-medium text-muted-foreground mb-1">Cualificación de tus leads</h2>
+          <p className="text-xs text-muted-foreground mb-4">
+            Lo que respondieron al formulario de agendar — cómo de cualificados llegan
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            {cualificacionAgregada.map(({ pregunta, total, opciones }) => (
+              <div key={pregunta}>
+                <div className="text-xs font-medium text-foreground mb-1.5">
+                  {pregunta} <span className="text-muted-foreground">({total})</span>
+                </div>
+                {opciones.map(([respuesta, n]) => (
+                  <div key={respuesta} className="flex items-center gap-2 text-xs mb-1">
+                    <div
+                      className="h-1.5 rounded bg-brand-400/50"
+                      style={{ width: `${Math.max(6, (n / total) * 90)}px` }}
+                    />
+                    <span className="text-muted-foreground truncate">{respuesta}</span>
+                    <span className="text-foreground font-medium">{n}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="dashboard-card">
         <h2 className="mb-4 text-sm font-medium text-muted-foreground">Actividad reciente</h2>

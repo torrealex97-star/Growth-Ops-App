@@ -22,8 +22,20 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { KPICard } from '@/components/os/DashboardKPICard'
-import { TrendingUp, ShoppingCart, Wallet, Percent, Users, Search, ArrowLeft, Copy, Check } from 'lucide-react'
+import {
+  TrendingUp,
+  ShoppingCart,
+  Wallet,
+  Percent,
+  Users,
+  Search,
+  ArrowLeft,
+  Copy,
+  Check,
+  CalendarCheck,
+} from 'lucide-react'
 import { isActiveSale } from '@/lib/analytics'
+import { isAttended, isNoShow } from '@/lib/appointments/status'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { enlaceDeColaborador } from '@/lib/tracking/enlaces'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
@@ -74,9 +86,13 @@ type ComisionRow = {
   created_at: string | null
 }
 type ContactoRow = { id: string; full_name: string | null; lead_status: string | null; created_at: string | null }
+type CitaRow = { id: string; contact_id: string | null; appointment_datetime: string | null; status: string | null }
 
 type KpiColaborador = {
   contactos: number
+  citas: number
+  asistidas: number
+  canceladas: number
   ventas: number
   gross: number
   cash: number
@@ -111,6 +127,7 @@ export default function AfiliadosPage() {
 
   const [perfiles, setPerfiles] = useState<PerfilColaborador[]>([])
   const [atribuciones, setAtribuciones] = useState<{ contact_id: string; collaborator_id: string }[]>([])
+  const [citas, setCitas] = useState<CitaRow[]>([])
   const [ventas, setVentas] = useState<VentaRow[]>([])
   const [cobros, setCobros] = useState<CobroRow[]>([])
   const [comisiones, setComisiones] = useState<ComisionRow[]>([])
@@ -172,12 +189,14 @@ export default function AfiliadosPage() {
       // Las comisiones se acotan a los user_ids de los perfiles: nunca todo el ledger.
       const userIds = lista.map((p) => p.user_id).filter((x): x is string => !!x)
       const esColab = (sesion.user as { roles?: { key?: string } | null }).roles?.key === 'affiliate'
-      const [attrRes, salesRes, collRes, commRes] = await Promise.all([
+      const [attrRes, apptRes, salesRes, collRes, commRes] = await Promise.all([
         sb
           .from('contact_attributions')
           .select('contact_id, collaborator_id')
           .eq('tenant_id', tenantId)
           .not('collaborator_id', 'is', null),
+        // Citas del tenant: solo las columnas del desglose (asistidas/canceladas por colaborador).
+        sb.from('appointments').select('id, contact_id, appointment_datetime, status').eq('tenant_id', tenantId),
         sb.from('sales').select('id, contact_id, sale_date, gross_amount, status').eq('tenant_id', tenantId),
         sb.from('collections').select('sale_id, gross_amount, status, collected_at').eq('tenant_id', tenantId),
         sb
@@ -188,6 +207,7 @@ export default function AfiliadosPage() {
       ])
       if (!mounted) return
       setAtribuciones((attrRes.data ?? []) as { contact_id: string; collaborator_id: string }[])
+      setCitas((apptRes.data ?? []) as CitaRow[])
       setVentas((salesRes.data ?? []) as VentaRow[])
       setCobros((collRes.data ?? []) as CobroRow[])
       setComisiones((commRes.data ?? []) as ComisionRow[])
@@ -276,6 +296,14 @@ export default function AfiliadosPage() {
           inPeriod(v.sale_date, rango)
       )
       const gross = ventasP.reduce((acc, v) => acc + num(v.gross_amount), 0)
+      // Desglose de citas del periodo con las definiciones canónicas de estado
+      // (isAttended/isNoShow de lib/appointments/status, mismas del dashboard):
+      // el admin y el colaborador ven cuántas agendas, asistencias y cancelaciones generó.
+      const citasP = citas.filter(
+        (c) => c.contact_id && ids.has(c.contact_id) && inPeriod(c.appointment_datetime, rango)
+      )
+      const asistidasP = citasP.filter((c) => isAttended(c.status))
+      const canceladasP = citasP.filter((c) => c.status === 'cancelled')
       // Cash canónico: cobros 'collected' de las ventas activas del periodo,
       // recaudados dentro del periodo (mismo criterio que el resto de vistas).
       const ventasPeriodoIds = new Set(ventasP.map((v) => v.id))
@@ -289,9 +317,18 @@ export default function AfiliadosPage() {
       const comisionesP = comisiones
         .filter((c) => c.user_id === p.user_id && c.status !== 'cancelled' && inPeriod(c.created_at, rango))
         .reduce((acc, c) => acc + num(c.commission_amount), 0)
-      return { contactos: contactos.length, ventas: ventasP.length, gross, cash: cashP, comisiones: comisionesP }
+      return {
+        contactos: contactos.length,
+        citas: citasP.length,
+        asistidas: asistidasP.length,
+        canceladas: canceladasP.length,
+        ventas: ventasP.length,
+        gross,
+        cash: cashP,
+        comisiones: comisionesP,
+      }
     },
-    [contactosPorPerfil, ventas, cobros, comisiones, rango]
+    [contactosPorPerfil, citas, ventas, cobros, comisiones, rango]
   )
 
   const lista = useMemo(() => {
@@ -313,12 +350,15 @@ export default function AfiliadosPage() {
       lista.reduce(
         (acc, { kpi }) => ({
           contactos: acc.contactos + kpi.contactos,
+          citas: acc.citas + kpi.citas,
+          asistidas: acc.asistidas + kpi.asistidas,
+          canceladas: acc.canceladas + kpi.canceladas,
           ventas: acc.ventas + kpi.ventas,
           gross: acc.gross + kpi.gross,
           cash: acc.cash + kpi.cash,
           comisiones: acc.comisiones + kpi.comisiones,
         }),
-        { contactos: 0, ventas: 0, gross: 0, cash: 0, comisiones: 0 }
+        { contactos: 0, citas: 0, asistidas: 0, canceladas: 0, ventas: 0, gross: 0, cash: 0, comisiones: 0 }
       ),
     [lista]
   )
@@ -442,6 +482,7 @@ export default function AfiliadosPage() {
           comisiones={comisiones.filter((c) => c.user_id === miPerfil.user_id)}
           ventas={ventas}
           contactosPorPerfil={contactosPorPerfil}
+          citas={citas}
           periodPreset={periodPreset}
           onVolver={null}
           onCopiar={copiarEnlace}
@@ -489,6 +530,7 @@ export default function AfiliadosPage() {
           comisiones={comisiones.filter((c) => c.user_id === detallePerfil.user_id)}
           ventas={ventas}
           contactosPorPerfil={contactosPorPerfil}
+          citas={citas}
           periodPreset={periodPreset}
           onVolver={() => setDetalleId(null)}
           onCopiar={copiarEnlace}
@@ -659,6 +701,13 @@ export default function AfiliadosPage() {
                       <th className="px-4 py-2 font-medium">Código</th>
                       <th className="px-4 py-2 font-medium">Estado</th>
                       <th className="px-4 py-2 font-medium text-right">Contactos</th>
+                      <th className="px-4 py-2 font-medium text-right">Agendas</th>
+                      <th className="px-4 py-2 font-medium text-right" title="Citas asistidas (show)">
+                        Asistidas
+                      </th>
+                      <th className="px-4 py-2 font-medium text-right" title="Citas canceladas del periodo">
+                        Canceladas
+                      </th>
                       <th className="px-4 py-2 font-medium text-right">Ventas</th>
                       <th className="px-4 py-2 font-medium text-right">Facturación</th>
                       <th className="px-4 py-2 font-medium text-right">Cash</th>
@@ -722,6 +771,9 @@ export default function AfiliadosPage() {
                           )}
                         </td>
                         <td className="px-4 py-2 text-right text-foreground">{kpi.contactos}</td>
+                        <td className="px-4 py-2 text-right text-foreground">{kpi.citas}</td>
+                        <td className="px-4 py-2 text-right text-emerald-400">{kpi.asistidas}</td>
+                        <td className="px-4 py-2 text-right text-zinc-500">{kpi.canceladas}</td>
                         <td className="px-4 py-2 text-right text-foreground">{kpi.ventas}</td>
                         <td className="px-4 py-2 text-right text-foreground">{formatCurrency(kpi.gross)}</td>
                         <td className="px-4 py-2 text-right text-foreground">{formatCurrency(kpi.cash)}</td>
@@ -752,6 +804,7 @@ function FichaColaborador({
   comisiones,
   ventas,
   contactosPorPerfil,
+  citas,
   periodPreset,
   onVolver,
   onCopiar,
@@ -764,6 +817,7 @@ function FichaColaborador({
   comisiones: ComisionRow[]
   ventas: VentaRow[]
   contactosPorPerfil: Map<string, string[]>
+  citas: CitaRow[]
   periodPreset: PeriodPreset
   onVolver: (() => void) | null
   onCopiar?: (perfil: PerfilColaborador) => void
@@ -771,6 +825,7 @@ function FichaColaborador({
   campanas?: { name: string; is_active: boolean; slug: string | null }[]
 }) {
   const [contactos, setContactos] = useState<ContactoRow[]>([])
+  const [cualificaciones, setCualificaciones] = useState<Record<string, Record<string, unknown> | null>>({})
 
   const contactIds = useMemo(
     () => (contactosPorPerfil.get(perfil.id) ?? []).slice(0, 200),
@@ -782,16 +837,37 @@ function FichaColaborador({
     ;(async () => {
       if (contactIds.length === 0) {
         setContactos([])
+        setCualificaciones({})
         return
       }
       const sb = createClient()
-      const { data } = await sb
-        .from('contacts')
-        .select('id, full_name, lead_status, created_at')
-        .in('id', contactIds)
-        .order('created_at', { ascending: false })
-        .limit(200)
-      if (vivo) setContactos((data ?? []) as ContactoRow[])
+      // La CUALIFICACIÓN (lo que respondió el lead en el formulario de agendar)
+      // vive en appointments.qualification como { respuestas: [{q, a}] + claves }:
+      // el webhook de GHL/Calendly la escribe al llegar. Una query con todas las
+      // columnas y agregación en memoria evita pedir un jsonb por cita.
+      const [resC, resA] = await Promise.all([
+        sb
+          .from('contacts')
+          .select('id, full_name, lead_status, created_at')
+          .in('id', contactIds)
+          .order('created_at', { ascending: false })
+          .limit(200),
+        sb
+          .from('appointments')
+          .select('contact_id, qualification')
+          .in('contact_id', contactIds)
+          .not('qualification', 'is', null),
+      ])
+      if (!vivo) return
+      const cual: Record<string, Record<string, unknown> | null> = {}
+      for (const fila of (resA.data ?? []) as {
+        contact_id: string | null
+        qualification: Record<string, unknown> | null
+      }[]) {
+        if (fila.contact_id && fila.qualification) cual[fila.contact_id] = fila.qualification
+      }
+      setCualificaciones(cual)
+      if (vivo) setContactos((resC.data ?? []) as ContactoRow[])
     })()
     return () => {
       vivo = false
@@ -800,6 +876,33 @@ function FichaColaborador({
 
   const nombreDe = useMemo(() => new Map(contactos.map((c) => [c.id, c.full_name || 'Contacto'])), [contactos])
   const idsContacto = useMemo(() => new Set(contactosPorPerfil.get(perfil.id) ?? []), [contactosPorPerfil, perfil.id])
+
+  // CUALIFICACIÓN AGREGADA: de las respuestas {respuestas: [{q, a}]} de SUS citas,
+  // cuántas respuestas dio cada opción por pregunta — así el colaborador (y el admin)
+  // saben CÓMO de cualificados llegan sus leads, no solo cuántos.
+  const cualificacionAgregada = useMemo(() => {
+    const porPregunta = new Map<string, Map<string, number>>()
+    for (const qual of Object.values(cualificaciones)) {
+      const respuestas = qual?.respuestas
+      if (!Array.isArray(respuestas)) continue
+      for (const { q, a } of respuestas as { q?: string; a?: string }[]) {
+        if (!q) continue
+        const clave = String(q)
+        const opciones = porPregunta.get(clave) ?? new Map<string, number>()
+        const respuesta = (a ?? '').trim() || '(sin respuesta)'
+        opciones.set(respuesta, (opciones.get(respuesta) ?? 0) + 1)
+        porPregunta.set(clave, opciones)
+      }
+    }
+    return [...porPregunta.entries()]
+      .map(([pregunta, opciones]) => ({
+        pregunta,
+        total: [...opciones.values()].reduce((acc, n) => acc + n, 0),
+        opciones: [...opciones.entries()].sort((x, y) => y[1] - x[1]).slice(0, 5),
+      }))
+      .sort((x, y) => y.total - x.total)
+      .slice(0, 6)
+  }, [cualificaciones])
 
   const ventasDelColaborador = useMemo(
     () =>
@@ -889,6 +992,12 @@ function FichaColaborador({
           description="atribución estructurada total"
         />
         <KPICard
+          title="Agendas"
+          value={kpi.citas}
+          icon={CalendarCheck}
+          description={`${kpi.asistidas} asistidas · ${kpi.canceladas} canceladas`}
+        />
+        <KPICard
           title="Ventas activas"
           value={kpi.ventas}
           icon={ShoppingCart}
@@ -906,6 +1015,42 @@ function FichaColaborador({
           icon={Percent}
           description={`% por defecto: ${perfil.default_commission_percent != null ? `${num(perfil.default_commission_percent)}%` : '—'}`}
         />
+      </div>
+
+      {/* CUALIFICACIÓN: lo que respondieron SUS leads al agendar (webhook GHL/Calendly) */}
+      <div className="bg-card border border-border rounded-lg overflow-hidden">
+        <div className="px-4 py-3 border-b border-border">
+          <h3 className="text-sm font-semibold text-foreground">Cualificación de sus leads</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Respuestas que dieron al formulario de agendar — cómo de cualificados llegan, no solo cuántos
+          </p>
+        </div>
+        {cualificacionAgregada.length === 0 ? (
+          <div className="p-6 text-center text-sm text-muted-foreground">
+            Aún no hay respuestas de formulario en su scope — aparecerán cuando GHL/Calendly envíe las respuestas de sus
+            citas.
+          </div>
+        ) : (
+          <div className="p-4 grid gap-4 md:grid-cols-2">
+            {cualificacionAgregada.map(({ pregunta, total, opciones }) => (
+              <div key={pregunta}>
+                <div className="text-xs font-medium text-foreground mb-1.5">
+                  {pregunta} <span className="text-muted-foreground">({total})</span>
+                </div>
+                {opciones.map(([respuesta, n]) => (
+                  <div key={respuesta} className="flex items-center gap-2 text-xs mb-1">
+                    <div
+                      className="h-1.5 rounded bg-brand-500/40"
+                      style={{ width: `${Math.max(6, (n / total) * 90)}px` }}
+                    />
+                    <span className="text-muted-foreground truncate">{respuesta}</span>
+                    <span className="text-foreground font-medium">{n}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Ventas ENLAZADAS a la vista existente de registro de ventas + ficha del contacto */}
