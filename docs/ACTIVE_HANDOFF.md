@@ -29,9 +29,8 @@ Quedan expresamente fuera contratos, colaboradores, RAG, facturación, IA, integ
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente      | Qué                                                                                                                                                                                                                                            | Rama                    | Toca                                                                      | Desde  |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------- | ------ |
-| Claude Code | S0.6 — baseline de RENDIMIENTO (base de datos, consultas, índices, RLS). y de FRONTEND (filtros, fechas, navegación, estados de carga/error/vacío, responsive). Freebuff cerró su tanda de UI el 22-sep, así que entra también la parte visual | `docs/s0-6-rendimiento` | `docs/S0-6-*.md`, `scripts/*.sql`; arreglos pequeños con test si aparecen | 22-sep |
+| Agente | Qué | Rama | Toca | Desde |
+| ------ | --- | ---- | ---- | ----- |
 
 ## Reglas de trabajo (2026-09-21)
 
@@ -99,6 +98,7 @@ GHL prohibido en el cron, una sola implementación).
 | F-1  | `tests/agente-contenido-hostil.test.mjs`, `tests/invariante-tenant-negativo.test.mjs`, `lib/seguridad/invariante-tenant.ts`, fixtures A/B, 2 migraciones de seguridad | cerrada salvo lo de Alex              |
 | F6   | `docs/F6-MAPA-PII.md`, `lib/privacidad/{plan-borrado,erase-person}.ts`                                                                                                | implementada y probada; **no gradúa** |
 | S0.5 | `docs/S0-5-CONSISTENCIA-DATOS.md`, `scripts/consistencia-cash.sql`                                                                                                    | cerrada                               |
+| S0.6 | `docs/S0-6-RENDIMIENTO-FRONTEND.md`, `scripts/rendimiento-baseline.sql` — baseline medido + el fallo de lectura ya no se pinta como 0 €                               | cerrada                               |
 | S0.7 | `docs/S0-7-INTEGRACIONES.md` — baseline de las 13 integraciones + 2 arreglos de webhook                                                                               | cerrada                               |
 | S0.4 | `docs/S0-4-BARRIDO.md` — 6 resueltos (1 P0 pendiente de aplicar), resto con dueño                                                                                     | cerrada salvo aplicar el P0           |
 
@@ -107,8 +107,12 @@ El plan completo vive en `docs/plan/`. Empieza por su README.
 ### Lo siguiente, en este orden
 
 1. **Resolver lo pendiente listado abajo.**
-2. **S0 tramo 2**: S0.4, S0.5 y S0.7 hechas. Sigue **S0.6** (baseline de frontend y rendimiento: incluye
-   las 38 políticas RLS con `auth.uid()` por fila), **S0.7** y **S0.8** (graduación). **Antes de F1.**
+2. **S0 tramo 2**: S0.4, S0.5, S0.6 y S0.7 cerradas. Queda **S0.8 (graduación)**: cerrar
+   `CAPABILITIES.md`, la lista de journeys con su cobertura y el ledger P0–P4 con la evidencia de cada
+   corrección. **Antes de F1.**
+3. **F1 — event core.** Es donde van tres cosas ya diagnosticadas: el webhook de GHL no escribe capa
+   raw (sin replay), un contacto sin nombre tumba el lote entero de GHL (`23502`), y `raw_events` no
+   permite localizar a una persona (bloquea el borrado de F6).
 
 ### Por qué F6 no gradúa
 

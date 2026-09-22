@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { mensajeDeCarga, primerError } from '@/lib/supabase/resultado'
 import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
 import { FunnelDinamico, FUNNEL_LABELS, FUNNEL_ORDEN, type OpcionFunnel } from '@/components/os/FunnelDinamico'
 import { TrendChart } from '@/components/os/TrendChart'
@@ -375,6 +376,8 @@ export default function UnitEconomicsPage() {
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
   const [loading, setLoading] = useState(true)
+  // Un fallo de lectura NO se pinta como 0: el CAC y el LTV saldrían inventados.
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [daily, setDaily] = useState<DailyRow[]>([])
   // Reuniones grabadas en Fathom que no casaron con ninguna cita: son llamadas que ocurrieron.
   const [fathomSueltas, setFathomSueltas] = useState<FathomSinCita[]>([])
@@ -453,6 +456,18 @@ export default function UnitEconomicsPage() {
             .eq('scope_type', 'company'),
         ])
       if (!mounted) return
+      const fallo = primerError(
+        campRes,
+        salesRes,
+        collRes,
+        stripeRes,
+        contactsRes,
+        apptRes,
+        dailyRes,
+        fathomRes,
+        targetsRes
+      )
+      setErrorCarga(fallo ? mensajeDeCarga('los datos de campañas, ventas y cobros', fallo) : null)
       setCampaigns(campRes.data || [])
       setSales(salesRes.data || [])
       setCollections(collRes.data || [])
@@ -851,6 +866,19 @@ export default function UnitEconomicsPage() {
 
   return (
     <div className="dashboard-surface p-4 sm:p-6 space-y-5">
+      {errorCarga && (
+        <div className="dashboard-card border-destructive/40 p-4">
+          <p className="text-foreground text-sm font-medium">Faltan datos para calcular estas cifras</p>
+          <p className="text-muted-foreground mt-1 text-sm">{errorCarga}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="text-primary mt-2 text-sm hover:underline"
+            type="button"
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div>
         <div className="flex items-center gap-2">
