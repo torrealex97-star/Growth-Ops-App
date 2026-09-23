@@ -12,7 +12,7 @@ S0.3 debe congelar con tests antes de que F1 toque el event core.
 ## J1 — Webhook GHL → contacto → cita
 
 **Crítico porque** es la única entrada automática de personas. Si se rompe, se pierden leads y
-agendas sin rastro: no hay capa raw que permita reprocesar.
+agendas sin rastro: no había capa raw que permitiera reprocesar (**resuelto en F1 el 23-sep**: el webhook guarda el sobre antes de procesar).
 
 **Volumen**: 972 contactos, 559 citas.
 **Traza**: `POST /api/[tenant]/evergreen/webhooks/ghl` — 482 líneas.
@@ -166,7 +166,7 @@ not code". Conviene renombrarlo antes de F8 (segundo tenant real), no ahora.
 
 | #   | Hallazgo                                                               | Prioridad | Journey | Destino                             |
 | --- | ---------------------------------------------------------------------- | --------- | ------- | ----------------------------------- |
-| 1   | El webhook de GHL no escribe capa raw: no hay replay                   | P1        | J1      | **F1**                              |
+| 1   | ~~El webhook de GHL no escribe capa raw: no hay replay~~               | P1        | J1      | **hecho** (F1, 23-sep)              |
 | 2   | ~~Ningún test ejerce el webhook de GHL~~ — cubierto en S0.3            | P2        | J1      | **hecho**                           |
 | 3   | El porcentaje de comisión está en el código, no en configuración       | P1        | J2      | **F3 / MONEY.md**                   |
 | 4   | Cobro y comisión sin frontera transaccional                            | P2        | J2      | **F5**                              |

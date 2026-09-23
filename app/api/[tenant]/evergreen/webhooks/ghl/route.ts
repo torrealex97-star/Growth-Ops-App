@@ -6,6 +6,7 @@ import { attributionDateBeforeCutoff, resolverRefColaborador } from '@/lib/colla
 import { firstMemberOf, resolveUserIdByTrackingCode } from '@/lib/tracking'
 import { isValidWebhookSecret, diagnosticoCabeceras } from '@/lib/webhooks/verifySecret'
 import { mapearEstadoExterno } from '@/lib/appointments/status'
+import { NORMALIZADOR_GHL, propiedadesSinPii, sobreCrudoGhl, tipoEventoGhl } from '@/lib/eventos/ghl'
 import { getTenantConfigWithFallback } from '@/lib/config'
 
 // Webhook único de GHL (+ player VSL). Maneja, de forma IDEMPOTENTE, varios eventos:
@@ -194,6 +195,63 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     overwrite(payload.customData)
     overwrite(payload.custom_data)
 
+    // ── CAPA EN BRUTO (F1) ──────────────────────────────────────────────────────────────────
+    //
+    // El sobre se guarda ANTES de procesar nada. Hasta ahora el webhook leía el payload, escribía
+    // contacto y cita, y lo tiraba: si el normalizador tenía un fallo, no había nada que reprocesar.
+    // Guardarlo primero es lo que hace posible el replay (docs/plan/08-fases-s0-f4.md §F1).
+    //
+    // NADA DE ESTO PUEDE TUMBAR LA INGESTA: si la escritura del sobre falla, se registra y se sigue.
+    // Perder la capacidad de reprocesar es malo; perder la cita de un cliente, peor.
+    let sobreId: string | null = null
+    try {
+      const sobre = sobreCrudoGhl(payload, JSON.stringify(payload).length)
+      const { data: guardado, error: errorSobre } = await sb
+        .from('raw_events')
+        .upsert(
+          {
+            tenant_id: tenantId,
+            ...sobre,
+            payload,
+            user_agent: req.headers.get('user-agent'),
+            request_origin: req.headers.get('origin'),
+          },
+          // GHL reintenta la misma entrega ante cualquier duda: el parcial
+          // (tenant, source, source_event_id) convierte el reintento en la misma fila.
+          { onConflict: 'tenant_id,source,source_event_id', ignoreDuplicates: false }
+        )
+        .select('id')
+        .single()
+      if (errorSobre) console.warn('[ghl-webhook] no se pudo guardar el sobre en bruto:', errorSobre.message)
+      sobreId = guardado?.id ?? null
+    } catch (e) {
+      console.warn('[ghl-webhook] sobre en bruto:', e instanceof Error ? e.message : e)
+    }
+
+    /**
+     * Cierra el sobre con lo que de verdad pasó y responde. Todas las salidas pasan por aquí: si
+     * alguna se saltara este punto, el sobre se quedaría en "recibido" para siempre y el replay no
+     * sabría distinguir lo procesado de lo que se quedó a medias.
+     */
+    const responder = async (cuerpo: Record<string, unknown>, init?: { status?: number }) => {
+      const fallo = (init?.status ?? 200) >= 400
+      if (sobreId) {
+        await sb
+          .from('raw_events')
+          .update({
+            processing_status: fallo ? 'rejected' : 'normalized',
+            processed_at: new Date().toISOString(),
+            normalizer_version: NORMALIZADOR_GHL,
+            rejection_reason: fallo ? String(cuerpo.error ?? 'error al procesar') : null,
+          })
+          .eq('id', sobreId)
+          .then(({ error }) => {
+            if (error) console.warn('[ghl-webhook] no se pudo cerrar el sobre:', error.message)
+          })
+      }
+      return NextResponse.json(cuerpo, init)
+    }
+
     const event = (req.nextUrl.searchParams.get('event') || payload.event || payload.type || '').toLowerCase()
 
     // --- Campos comunes ---
@@ -259,7 +317,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Atómico en la base de datos: el check-then-insert que había aquí creaba dos contactos para el
     // mismo lead cuando dos entregas (reintento de GHL, o GHL y Calendly a la vez) se solapaban.
     if (!email && !phone && !ghlContactId) {
-      return NextResponse.json(
+      return await responder(
         { error: 'Falta email, teléfono o ID de contacto para identificar el contacto' },
         { status: 400 }
       )
@@ -275,7 +333,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       seenAt: now,
     })
     if (!resolved.ok) {
-      return NextResponse.json({ error: 'Error creando contacto', detail: resolved.error }, { status: 500 })
+      return await responder({ error: 'Error creando contacto', detail: resolved.error }, { status: 500 })
     }
     const contact = resolved.contact
 
@@ -420,14 +478,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         .eq('id', contact.id)
         .eq('tenant_id', tenantId)
       if (error) {
-        return NextResponse.json({
+        return await responder({
           ok: true,
           contactId: contact.id,
           vslStored: false,
           note: 'Faltan columnas vsl_* (ejecutar migración)',
         })
       }
-      return NextResponse.json({ ok: true, contactId: contact.id, vslStored: true, vslPct })
+      return await responder({ ok: true, contactId: contact.id, vslStored: true, vslPct })
     }
 
     // --- 4) Asignación closer/setter ---
@@ -457,7 +515,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (!isAppointmentEvent) {
       // Solo era un lead opt-in (pre-VSL): contacto + atribución, sin agenda.
       console.log('[ghl-webhook] ok: lead', contact.id)
-      return NextResponse.json({ ok: true, kind: 'lead', contactId: contact.id })
+      return await responder({ ok: true, kind: 'lead', contactId: contact.id })
     }
 
     // --- 5) Upsert idempotente de la agenda ---
@@ -504,7 +562,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         new_values: { ...upd, via: 'ghl_webhook' },
       })
       console.log('[ghl-webhook] ok: appointment.updated', appt.id, status ?? '')
-      return NextResponse.json({
+      return await responder({
         ok: true,
         kind: 'appointment.updated',
         contactId: contact.id,
@@ -539,7 +597,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const { data: created, error: aptErr } = externalId
       ? await sb.from('appointments').upsert(newAppt, { onConflict: 'tenant_id,external_id' }).select('id').single()
       : await sb.from('appointments').insert(newAppt).select('id').single()
-    if (aptErr) return NextResponse.json({ error: 'Error creando agenda', detail: aptErr.message }, { status: 500 })
+    if (aptErr) return await responder({ error: 'Error creando agenda', detail: aptErr.message }, { status: 500 })
 
     // El lead pasa a 'agendado' al crearse su agenda
     await sb.from('contacts').update({ lead_status: 'agendado' }).eq('id', contact.id).eq('tenant_id', tenantId)
@@ -551,7 +609,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       new_values: { contact_id: contact.id, source, ...utm, via: 'ghl_webhook' },
     })
     console.log('[ghl-webhook] ok: appointment.created', created.id)
-    return NextResponse.json({
+    return await responder({
       ok: true,
       kind: 'appointment.created',
       contactId: contact.id,
