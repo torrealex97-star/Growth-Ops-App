@@ -29,9 +29,9 @@ Quedan expresamente fuera contratos, colaboradores, RAG, facturación, IA, integ
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente      | Qué                                                                                                                                  | Rama              | Toca                                                                | Desde  |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------------- | ------------------------------------------------------------------- | ------ |
-| Claude Code | **F1 — event core**, por trozos. Hecho: capa raw del webhook de GHL. Siguiente: `canonical_events` desde el sobre + runner de replay | `feat/f1-raw-ghl` | `lib/eventos/*`, `app/api/[tenant]/evergreen/webhooks/ghl/route.ts` | 23-sep |
+| Agente      | Qué                                                                                                                                                 | Rama               | Toca                                                                                  | Desde  |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------- | ------ |
+| Claude Code | **F1 — event core**, por trozos. Hecho: capa raw (#180) y hecho canónico + `event_types`. Siguiente: runner de replay y el mismo camino para Stripe | `feat/f1-canonico` | `lib/eventos/*`, webhook de GHL, `supabase/migrations/20260923090000_event_types.sql` | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
@@ -109,10 +109,15 @@ El plan completo vive en `docs/plan/`. Empieza por su README.
 ### Lo siguiente, en este orden
 
 1. **Resolver lo pendiente listado abajo.**
-2. **F1 en curso** (event core). Trozo 1 fusionado: el webhook de GHL guarda el sobre en bruto antes
-   de procesar, con identidad estable (id de GHL o huella determinista), propiedades sin PII y cierre
-   del sobre en todas las salidas. Falta: `canonical_events` desde el sobre, tabla `event_types`,
-   runner de replay y el mismo camino para Stripe.
+2. **F1 en curso** (event core), por trozos:
+   - **Trozo 1 (#180, fusionado):** el webhook de GHL guarda el sobre en bruto ANTES de procesar, con
+     identidad estable (id de GHL o huella determinista), propiedades sin PII y cierre del sobre en
+     las ocho salidas.
+   - **Trozo 2:** `canonical_events` derivado del sobre al terminar (con los vínculos de contacto y
+     cita ya conocidos), correcciones como hecho nuevo que apunta al original —nunca reescritura— y
+     tabla `event_types` sembrada desde `lib/eventos/canonico.ts`.
+   - **Falta:** runner de replay (por fuente, subcuenta, rango y versión de normalizador, con
+     simulación) y el mismo camino para Stripe.
 3. **S0 CERRADA** (tramos 1 y 2). Acta en `docs/S0-8-GRADUACION.md`; estado por área en
    `CAPABILITIES.md`. Ledger P0–P4 consolidado ahí: ningún P0 abierto.
 4. **F1 — event core.** Es donde van tres cosas ya diagnosticadas: el webhook de GHL no escribe capa
@@ -133,6 +138,12 @@ Dos motivos, ninguno es código:
 ### Migraciones escritas y NO aplicadas
 
 El plan prohíbe que un agente toque producción por su cuenta. Espera confirmación:
+
+- **`20260923090000_event_types.sql`** (F1) — crea el vocabulario de `canonical_events.event_name` y
+  lo siembra con los 5 tipos que produce el normalizador de GHL. Solo crea tabla y filas; no toca
+  datos existentes ni impone clave foránea (un tipo nuevo se guarda igual y aparece como "no
+  declarado"). **Nota: la conexión con Supabase está caída en la sesión del 23-sep**, así que no se
+  ha podido aplicar ni verificar nada en la base.
 
 - ~~P0 del RAG~~ **APLICADA el 2026-09-21** con aprobación de Alex, como
   `20260921172046_s0_4_match_knowledge_chunks_gate_subcuenta.sql` (renombrada a su versión real).

@@ -6,7 +6,8 @@ import { attributionDateBeforeCutoff, resolverRefColaborador } from '@/lib/colla
 import { firstMemberOf, resolveUserIdByTrackingCode } from '@/lib/tracking'
 import { isValidWebhookSecret, diagnosticoCabeceras } from '@/lib/webhooks/verifySecret'
 import { mapearEstadoExterno } from '@/lib/appointments/status'
-import { NORMALIZADOR_GHL, propiedadesSinPii, sobreCrudoGhl, tipoEventoGhl } from '@/lib/eventos/ghl'
+import { NORMALIZADOR_GHL, idEventoGhl, sobreCrudoGhl, tipoEventoGhl } from '@/lib/eventos/ghl'
+import { hechoDesdeSobre } from '@/lib/eventos/canonico'
 import { getTenantConfigWithFallback } from '@/lib/config'
 
 // Webhook único de GHL (+ player VSL). Maneja, de forma IDEMPOTENTE, varios eventos:
@@ -249,6 +250,41 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
             if (error) console.warn('[ghl-webhook] no se pudo cerrar el sobre:', error.message)
           })
       }
+
+      // EL HECHO CANÓNICO, solo si el procesado fue bien y solo aquí.
+      //
+      // Va al final y no al recibir porque el hecho lleva a QUIÉN afecta: el contacto y la cita se
+      // conocen después de proyectar. Un hecho sin esos vínculos obligaría a reconstruirlos luego,
+      // que es exactamente el trabajo que esta capa existe para evitar.
+      //
+      // La clave única (tenant, source, source_event_id) hace que el reintento de GHL no cree un
+      // segundo hecho: `ignoreDuplicates` convierte el choque en un no-op en vez de en un error.
+      if (!fallo && sobreId) {
+        const hecho = hechoDesdeSobre({
+          tenantId,
+          source: 'ghl',
+          sourceEventId: idEventoGhl(payload),
+          rawEventId: sobreId,
+          tipo: tipoEventoGhl(payload),
+          payload,
+          recibidoEn: new Date().toISOString(),
+          contactId: typeof cuerpo.contactId === 'string' ? cuerpo.contactId : null,
+          appointmentId: typeof cuerpo.appointmentId === 'string' ? cuerpo.appointmentId : null,
+        })
+        const { data: escrito, error: errorHecho } = await sb
+          .from('canonical_events')
+          .upsert(hecho, { onConflict: 'tenant_id,source,source_event_id', ignoreDuplicates: true })
+          .select('id')
+          .maybeSingle()
+        if (errorHecho) {
+          // Igual que el sobre: esto NO puede tumbar la ingesta. El sobre ya está guardado, así que
+          // el hecho se puede volver a derivar de él cuando se arregle lo que falló.
+          console.warn('[ghl-webhook] no se pudo escribir el hecho canónico:', errorHecho.message)
+        } else if (escrito?.id) {
+          await sb.from('raw_events').update({ canonical_event_id: escrito.id }).eq('id', sobreId)
+        }
+      }
+
       return NextResponse.json(cuerpo, init)
     }
 
