@@ -108,6 +108,10 @@ export default function UsersPage() {
   const [editPageOverrides, setEditPageOverrides] = useState<string[]>([])
   const [editTrackingCode, setEditTrackingCode] = useState('')
   const [regeneratingCode, setRegeneratingCode] = useState(false)
+  // QUIÉN COMISIONA (migración 20260923160000): socios y roles sin comisión se marcan aquí.
+  // El motor y la proyección futura consultan este flag: sin filas en el ledger, la persona
+  // desaparece de TODAS las métricas de comisiones a la vez.
+  const [editPaysCommissions, setEditPaysCommissions] = useState(true)
 
   const fetchData = useCallback(async () => {
     const supabase = createClient()
@@ -168,6 +172,7 @@ export default function UsersPage() {
     setEditAssignedChannel(user.assigned_channel ?? '')
     setEditMemberStatus(user.member_status ?? 'activo')
     setEditAffiliateCode(user.affiliate_code ?? '')
+    setEditPaysCommissions((user as { pays_commissions?: boolean }).pays_commissions ?? true)
     // Muestra las páginas permitidas: usa page_overrides si existe; si no, expande dept_overrides
     // (para que un usuario antiguo restringido por departamento se vea ya marcado por página).
     const pageOv = (user as { page_overrides?: string[] | null }).page_overrides
@@ -439,6 +444,7 @@ export default function UsersPage() {
         dept_overrides: null,
         page_overrides: editPageOverrides.length > 0 ? editPageOverrides : null,
         tracking_code: trackingCode,
+        pays_commissions: editPaysCommissions,
       })
       .eq('id', editingUser.id)
 
@@ -447,6 +453,26 @@ export default function UsersPage() {
     if (error) {
       toast.error('Error al actualizar el usuario', { description: error.message })
       return
+    }
+
+    // Al EXENTAR de comisiones, purgar sus comisiones pendientes ya generadas (server-side:
+    // borra solo positivas no liquidadas — las liquidadas y los espejos de devolución quedan).
+    if (!editPaysCommissions) {
+      const purgeRes = await fetch(`/api/${tenant}/evergreen/users`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: editingUser.id, paysCommissions: false }),
+      })
+      const purgeData = await purgeRes.json()
+      if (!purgeRes.ok) {
+        toast.error('Usuario exento, pero no se pudieron purgar sus comisiones pendientes', {
+          description: purgeData.error,
+        })
+      } else if (purgeData.purgadas > 0) {
+        toast.info(`${purgeData.purgadas} comisiones pendientes eliminadas`, {
+          description: 'Eran comisiones ya generadas que ya no le corresponden por estar exento.',
+        })
+      }
     }
 
     // ALTA COMO COLABORADOR DESDE EDITAR USUARIO (hallazgo 21-sep): cambiar el
@@ -989,6 +1015,21 @@ export default function UsersPage() {
                 className="bg-muted border-border"
                 placeholder="10.00"
               />
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={editPaysCommissions}
+                  onChange={(e) => setEditPaysCommissions(e.target.checked)}
+                  className="h-4 w-4 accent-sky-600"
+                />
+                Comisiona (setter / closer / afiliado)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Desmárcalo para socios o roles cuyo beneficio no va por comisiones: no se generarán ni proyectarán
+                comisiones para esta persona en ningún rol. El % de quien sí comisiona se fija en Reglas de comisión.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Visibilidad de datos</Label>

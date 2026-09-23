@@ -56,6 +56,9 @@ export type User = {
   // v12 — afiliado + acceso por departamento
   affiliate_code: string | null
   dept_overrides: string[] | null
+  // Quién comisiona (2026-09-23): false = exento (p.ej. socio) — el motor no genera ni
+  // proyecta comisiones para esta persona en ningún rol (setter/closer/afiliado/colaborador).
+  pays_commissions: boolean
   // v14 — código de tracking para enlaces (utm_term setter / utm_content afiliado)
   tracking_code: string | null
   // v17 — datos personales (se completan al firmar contratos)

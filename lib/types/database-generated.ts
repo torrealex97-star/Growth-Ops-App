@@ -1,4 +1,4 @@
-// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-21T20:15:25.700Z).
+// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-23T17:40:52.379Z).
 // Regenerar con: npm run tipos:bd  (y commitear). El test tests/esquema-tenant-invariante.test.mjs
 // comprueba que este artefacto sigue fresco respecto al esquema vivo.
 // Espejo exacto del esquema public de Supabase; los tipos de APP siguen en lib/types/database.ts.
@@ -2626,6 +2626,29 @@ export type EsquemaPublico = {
         enabled: boolean | undefined
       }
     }
+    EventTypes: {
+      Row: {
+        name: string | null
+        description: string | null
+        source: string | null
+        is_active: boolean | null
+        created_at: string | null
+      }
+      Insert: {
+        name: string | null | undefined
+        description: string | null | undefined
+        source: string | null | undefined
+        is_active: boolean | null | undefined
+        created_at: string | null | undefined
+      }
+      Update: {
+        name: string | undefined
+        description: string | undefined
+        source: string | undefined
+        is_active: boolean | undefined
+        created_at: string | undefined
+      }
+    }
     Expenses: {
       Row: {
         id: string | null
@@ -2650,6 +2673,15 @@ export type EsquemaPublico = {
         auto_source: string | null
         period: string | null
         tenant_id: string | null
+        invoice_number: string | null
+        invoice_due_date: string | null
+        counterparty_tax_id: string | null
+        counterparty_address: string | null
+        counterparty_bank_account: string | null
+        counterparty_bank_name: string | null
+        paid_at: string | null
+        paid_from_account: string | null
+        payment_reference: string | null
       }
       Insert: {
         id: string | null | undefined
@@ -2674,6 +2706,15 @@ export type EsquemaPublico = {
         auto_source: string | null | undefined
         period: string | null | undefined
         tenant_id: string | null | undefined
+        invoice_number: string | null | undefined
+        invoice_due_date: string | null | undefined
+        counterparty_tax_id: string | null | undefined
+        counterparty_address: string | null | undefined
+        counterparty_bank_account: string | null | undefined
+        counterparty_bank_name: string | null | undefined
+        paid_at: string | null | undefined
+        paid_from_account: string | null | undefined
+        payment_reference: string | null | undefined
       }
       Update: {
         id: string | undefined
@@ -2698,6 +2739,15 @@ export type EsquemaPublico = {
         auto_source: string | undefined
         period: string | undefined
         tenant_id: string | undefined
+        invoice_number: string | undefined
+        invoice_due_date: string | undefined
+        counterparty_tax_id: string | undefined
+        counterparty_address: string | undefined
+        counterparty_bank_account: string | undefined
+        counterparty_bank_name: string | undefined
+        paid_at: string | undefined
+        paid_from_account: string | undefined
+        payment_reference: string | undefined
       }
     }
     FathomMatchReview: {
@@ -4184,29 +4234,6 @@ export type EsquemaPublico = {
         tenant_id: string | undefined
       }
     }
-    EventTypes: {
-      Row: {
-        name: string | null
-        description: string | null
-        source: string | null
-        is_active: boolean | null
-        created_at: string | null
-      }
-      Insert: {
-        name: string | null | undefined
-        description: string | null | undefined
-        source: string | null | undefined
-        is_active: boolean | null | undefined
-        created_at: string | null | undefined
-      }
-      Update: {
-        name: string | undefined
-        description: string | undefined
-        source: string | undefined
-        is_active: boolean | undefined
-        created_at: string | undefined
-      }
-    }
     Roles: {
       Row: {
         id: string | null
@@ -5287,6 +5314,7 @@ export type EsquemaPublico = {
         fijo_min_sales: number | null
         fijo_unlock_type: string | null
         fijo_min_revenue: number | string | null
+        pays_commissions: boolean | null
       }
       Insert: {
         id: string | null | undefined
@@ -5317,6 +5345,7 @@ export type EsquemaPublico = {
         fijo_min_sales: number | null | undefined
         fijo_unlock_type: string | null | undefined
         fijo_min_revenue: number | string | null | undefined
+        pays_commissions: boolean | null | undefined
       }
       Update: {
         id: string | undefined
@@ -5347,6 +5376,7 @@ export type EsquemaPublico = {
         fijo_min_sales: number | undefined
         fijo_unlock_type: string | undefined
         fijo_min_revenue: number | string | undefined
+        pays_commissions: boolean | undefined
       }
     }
     VslSessions: {
@@ -5426,6 +5456,7 @@ export type EsquemaPublico = {
         created_at: string | null
         updated_at: string | null
         tenant_id: string | null
+        deleted_at: string | null
       }
       Insert: {
         id: string | null | undefined
@@ -5438,6 +5469,7 @@ export type EsquemaPublico = {
         created_at: string | null | undefined
         updated_at: string | null | undefined
         tenant_id: string | null | undefined
+        deleted_at: string | null | undefined
       }
       Update: {
         id: string | undefined
@@ -5450,6 +5482,7 @@ export type EsquemaPublico = {
         created_at: string | undefined
         updated_at: string | undefined
         tenant_id: string | undefined
+        deleted_at: string | undefined
       }
     }
     YoutubeUploads: {

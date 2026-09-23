@@ -135,6 +135,21 @@ async function activeRules(sb: SupabaseClient, tenantId: string): Promise<Commis
 }
 
 /**
+ * Personas EXENTAS de comisión de esta subcuenta (users.pays_commissions=false).
+ * Es la decisión "quién comisiona y quién no" — p.ej. un socio que cierra ventas
+ * pero cuyo beneficio no va por el ledger. Un fallo de lectura NO bloquea el cobro:
+ * degrada a "nadie exento" (comportamiento previo a la exención) y se registra.
+ */
+export async function usuariosExentosDeComision(sb: SupabaseClient, tenantId: string): Promise<Set<string>> {
+  const { data, error } = await sb.from('users').select('id').eq('tenant_id', tenantId).eq('pays_commissions', false)
+  if (error) {
+    console.error('[commissions/generate] exentos de comisión no legibles:', error.message)
+    return new Set()
+  }
+  return new Set(((data ?? []) as { id: string }[]).map((r) => r.id))
+}
+
+/**
  * Fee de pasarela por cobro (collection_id → fee) para la BASE NETA de comisión.
  *
  * Prioridad (función SQL commission_base_for_collection, migración 20260919100000):
@@ -233,6 +248,9 @@ export async function generateCommissionsForCollection(
   // participant_type='collaborator' (misma matemática, lane propia del ledger).
   const colaboradoresActivos = await usuariosColaboradoresActivos(sb, tenantId)
 
+  // Exentos de comisión (socios…): el motor ni les genera fila.
+  const exentos = await usuariosExentosDeComision(sb, tenantId)
+
   // BASE NETA de pasarela: el fee real (Stripe por espejo/API o el del plan) descuenta de la base
   // de TODAS las comisiones de este cobro — setter, closer, clásico y colaborador por igual.
   const fees = await feesForCollections(sb, tenantId, [collection])
@@ -245,7 +263,8 @@ export async function generateCommissionsForCollection(
     cashByRep,
     tramoByRep,
     colaboradoresActivos,
-    fees.get(collection.id) ?? 0
+    fees.get(collection.id) ?? 0,
+    exentos
   )
   // Se devuelven las filas ESCRITAS, no las calculadas, y un fallo se propaga. Antes se devolvía
   // `commissions.length` con el error del insert descartado: la pantalla decía "3 comisiones
@@ -353,6 +372,10 @@ export async function reconcileSaleCommissions(
   // Colaboradores activos: lane 'collaborator' del ledger, igual que en el hot path.
   const colaboradoresActivos = await usuariosColaboradoresActivos(sb, tenantId)
 
+  // Exentos de comisión: el reconcile reconstruye filas, así que aquí TAMBIÉN hay que respetar
+  // la exención — sin esto, reparar la contabilidad reviviría las comisiones del socio borradas.
+  const exentos = await usuariosExentosDeComision(sb, tenantId)
+
   // BASE NETA: mismo fee por cobro que usa el hot path (espejo/API Stripe o plan del cobro manual).
   const fees = await feesForCollections(sb, tenantId, colls)
 
@@ -366,7 +389,8 @@ export async function reconcileSaleCommissions(
       cashByRep,
       tramoByRep,
       colaboradoresActivos,
-      fees.get(col.id) ?? 0
+      fees.get(col.id) ?? 0,
+      exentos
     )
     for (const r of rows) {
       const key = `${r.collection_id}|${r.user_id}|${r.participant_type}`

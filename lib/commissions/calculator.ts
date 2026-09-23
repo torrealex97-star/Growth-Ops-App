@@ -23,6 +23,16 @@ export function participantTypeForUser(
   return 'affiliate'
 }
 
+// EXENTOS DE COMISIÓN (migración 20260923160000, users.pays_commissions=false):
+// socios o roles cuyo beneficio no va por el ledger. La exención es por PERSONA
+// y vale para CUALQUIER rol (un socio puede cerrar como closer): si está en el
+// conjunto, el motor no le genera fila — ni positiva al cobrar ni, por el mismo
+// rasero, en la proyección de comisiones futuras.
+export function esExentoDeComision(userId: string | null | undefined, exentos?: Set<string> | null): boolean {
+  if (!userId || !exentos) return false
+  return exentos.has(userId)
+}
+
 function getLiquidationMonth(collectedAt: Date): string {
   // First day of NEXT month
   const nextMonth = addMonths(collectedAt, 1)
@@ -75,7 +85,9 @@ export function calculateCommissionsForCollection(
   // Comisión de la pasarela que procesó el pago (Stripe por API, o la del plan en el
   // cobro manual). La base de TODAS las comisiones es el comisionable MENOS este fee:
   // el equipo comisiona sobre lo realmente entrado. Opcional; 0 = comportamiento previo.
-  gatewayFee?: number | null
+  gatewayFee?: number | null,
+  // user_ids EXENTOS de comisión (users.pays_commissions=false, p.ej. socios). Opcional.
+  exentos?: Set<string> | null
 ): InsertCommission[] {
   const commissions: InsertCommission[] = []
   const collectedAt = new Date(collection.collected_at)
@@ -107,8 +119,8 @@ export function calculateCommissionsForCollection(
     return pickRuleFromPool(pool, repCash, repTramo)
   }
 
-  // Setter commission
-  if (sale.setter_id) {
+  // Setter commission (los exentos no comisionan: sin fila, sin métricas río abajo)
+  if (sale.setter_id && !esExentoDeComision(sale.setter_id, exentos)) {
     const rule = getRule('setter', sale.setter_id)
     const percent = rule?.percent ?? 5
     commissions.push({
@@ -129,8 +141,9 @@ export function calculateCommissionsForCollection(
     })
   }
 
-  // Closer commission
-  if (sale.closer_id) {
+  // Closer commission — mismo rasero: un socio puede cerrar ventas y aun así no
+  // comisionar; su user_id exento suprime la fila aquí y en la proyección.
+  if (sale.closer_id && !esExentoDeComision(sale.closer_id, exentos)) {
     const rule = getRule('closer', sale.closer_id)
     const percent = rule?.percent ?? 10
     commissions.push({
@@ -151,8 +164,9 @@ export function calculateCommissionsForCollection(
     })
   }
 
-  // Affiliate / Collaborator commission
-  if (sale.affiliate_id && sale.affiliate_commission_percent) {
+  // Affiliate / Collaborator commission — la exención también aplica al lane de afiliado:
+  // si el socio trae el contacto por su enlace, su beneficio ya está en la sociedad.
+  if (sale.affiliate_id && sale.affiliate_commission_percent && !esExentoDeComision(sale.affiliate_id, exentos)) {
     const percent = sale.affiliate_commission_percent
     commissions.push({
       tenant_id: tenantId,

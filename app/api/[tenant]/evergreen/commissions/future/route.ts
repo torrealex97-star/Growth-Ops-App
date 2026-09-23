@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { pickCommissionRule } from '@/lib/commissions/calculator'
-import { repNetCash } from '@/lib/commissions/generate'
+import { repNetCash, usuariosExentosDeComision } from '@/lib/commissions/generate'
 import { tramoIdByReps } from '@/lib/commissions/tramos'
 import { resolverScopeColaborador } from '@/lib/collaborators/scope'
 import type { CommissionRule } from '@/lib/types/database'
@@ -136,6 +136,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       rateCache.set(key, percent)
       return percent
     }
+    // Exentos de comisión de la subcuenta: ninguna proyección para ellos (misma regla que el motor).
+    const exentos = await usuariosExentosDeComision(sb, t.tenantId)
 
     type Row = {
       installmentId: string
@@ -186,6 +188,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
         // El colaborador no proyecta lanes setter/closer (ni siquiera las de "sus" ventas):
         // esas proyecciones pertenecen a otros miembros y expondrían sus importes.
         if (esColaborador && (pType === 'setter' || pType === 'closer')) return
+        // EXENTOS (users.pays_commissions=false, p.ej. socios): no se proyecta NADA para
+        // ellos — lo que el motor nunca generará, la previsión no puede prometerlo.
+        if (exentos.has(repId)) return
         const percent = pType === 'affiliate' ? Number(fixedPercent ?? 0) : await getRate(repId, pType)
         if (!percent) return
         rows.push({
