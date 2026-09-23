@@ -42,5 +42,10 @@ INSERT INTO public.event_types (name, description, source) VALUES
   ('ghl.cita.cancelada',       'GHL comunica que una cita se canceló.',                             'ghl'),
   ('ghl.cita.reprogramada',    'GHL comunica que una cita cambió de fecha.',                        'ghl'),
   ('ghl.contacto.actualizado', 'GHL comunica un alta o un cambio de contacto.',                     'ghl'),
-  ('ghl.evento.recibido',      'Evento de GHL recibido y guardado, sin clasificar todavía.',        'ghl')
+  ('ghl.evento.recibido',      'Evento de GHL recibido y guardado, sin clasificar todavía.',        'ghl'),
+  ('stripe.cobro',             'Stripe confirma dinero que entra.',                                 'stripe'),
+  ('stripe.reembolso',         'Stripe confirma dinero que se devuelve.',                           'stripe'),
+  ('stripe.duplicado',         'Evento cierto cuyo dinero ya cuenta por otro evento: NO se suma.',   'stripe'),
+  ('stripe.contexto',          'Cambio útil que no mueve dinero (cliente, suscripción).',            'stripe'),
+  ('stripe.ignorado',          'Evento de Stripe guardado sin efecto en el negocio.',                'stripe')
 ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description, source = EXCLUDED.source;

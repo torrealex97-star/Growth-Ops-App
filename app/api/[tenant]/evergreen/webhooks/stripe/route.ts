@@ -2,6 +2,8 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getTenantConfigWithFallback } from '@/lib/config'
 import { mueveDinero, normalizarEventoStripe, verificarFirmaStripe } from '@/lib/stripe/webhook'
+import { hechoDesdeSobre } from '@/lib/eventos/canonico'
+import { derivarStripe } from '@/lib/eventos/stripe'
 
 export const runtime = 'nodejs'
 export const maxDuration = 10
@@ -127,6 +129,44 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
     // 500 a propósito: aquí SÍ interesa que Stripe reintente, porque el fallo es nuestro y transitorio.
     return NextResponse.json({ error: 'No se pudo registrar el evento' }, { status: 500 })
+  }
+
+  // EL HECHO CANÓNICO (F1). El sobre ya está guardado arriba; esto es su interpretación, con la
+  // clase que el normalizador YA decidió — de los tres eventos que Stripe emite por un mismo pago,
+  // solo uno es dinero, y esa distinción se conserva en el tipo del hecho en vez de reinterpretarse
+  // cada vez que alguien lee la tabla. No escribe en collections: la semántica financiera no cambia.
+  try {
+    const { data: sobre } = await sb
+      .from('raw_events')
+      .select('id, received_at')
+      .eq('tenant_id', tenantId)
+      .eq('source', 'stripe')
+      .eq('source_event_id', n.eventId)
+      .maybeSingle()
+    const derivado = derivarStripe(evento)
+    if (sobre?.id && derivado) {
+      const { data: escrito } = await sb
+        .from('canonical_events')
+        .upsert(
+          hechoDesdeSobre({
+            tenantId,
+            source: 'stripe',
+            sourceEventId: derivado.sourceEventId,
+            rawEventId: sobre.id,
+            tipo: derivado.tipo,
+            payload: {},
+            recibidoEn: sobre.received_at ?? new Date().toISOString(),
+            propiedades: derivado.propiedades,
+          }),
+          { onConflict: 'tenant_id,source,source_event_id', ignoreDuplicates: true }
+        )
+        .select('id')
+        .maybeSingle()
+      if (escrito?.id) await sb.from('raw_events').update({ canonical_event_id: escrito.id }).eq('id', sobre.id)
+    }
+  } catch (e) {
+    // Igual que en GHL: el sobre ya está a salvo y el hecho se puede derivar después con el replay.
+    console.warn('[stripe-webhook] no se pudo escribir el hecho canónico:', e instanceof Error ? e.message : e)
   }
 
   return NextResponse.json({
