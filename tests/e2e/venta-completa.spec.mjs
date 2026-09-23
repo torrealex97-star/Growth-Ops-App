@@ -7,13 +7,12 @@ import { expect, test } from '@playwright/test'
 //
 // Recorre el flujo real de una venta full-pay: wizard de nueva venta desde cero (sin prefill)
 // → selección manual de contacto → producto + plan de pago completo (3.000 €) → confirmación
-// → cobro registrado (cash collected) → verificación del documento (cortafuegos del contrato)
-// → contrato de alumno generado → pipeline visible en el detalle. Si esto se rompe, se rompe
-// la venta completa que cierra el negocio.
+// → cobro registrado (cash collected) → contrato de alumno generado → pipeline visible en el
+// detalle. Si esto se rompe, se rompe la venta completa que cierra el negocio.
 //
-// NOTA DE DISEÑO: el submit NO genera el contrato directamente — el endpoint lo bloquea con
-// 403 hasta que la venta tiene la verificación de documentos (regla de negocio, no un bug).
-// El test lo ejerce como lo hace un admin: verificar documento → generar y enviar.
+// NOTA DE DISEÑO: la verificación de identidad/documentos está POSPUESTA (petición del
+// propietario, 22-sep): ya no es cortafuegos del contrato y el flujo va del cobro directo a
+// generarlo. El test lo ejerce como lo hace un admin: cobrar → generar y enviar.
 //
 // IMPORTANTE: los specs NO re-ejecutan los fixtures. setup-tenant.mjs rota la contraseña del
 // usuario QA (GoAdmin invalida TODAS sus sesiones al hacerlo), así que solo corre en el
@@ -66,23 +65,16 @@ test.describe('Venta completa — pago completo con cobro y contrato', () => {
     await tabCobros.click()
     await expect(page.getByText('Total cobrado: 3.000,00 € / facturado 3.000,00 €')).toBeVisible()
 
-    // 3. Cortafuegos de documentos: sin verificar, el contrato no se puede enviar. Lo verifico
-    //    como admin (pestaña Detalle): el tipo 'Otro' se verifica sin más trámite (DNI/NIE se
-    //    validan con el algoritmo español y exigiría un número real).
+    // 3. Generar y enviar el contrato del alumno (la verificación de identidad está pospuesta:
+    //    ya no es cortafuegos). Email sin configurar → estado 'enviado' de todos modos; el
+    //    pipeline queda en el primer paso.
     await page.getByRole('tab', { name: 'Detalle' }).click()
-    await expect(page.getByText('Falta verificar el documento')).toBeVisible({ timeout: 15_000 })
     const panel = page.getByRole('tabpanel')
-    await panel.locator('select').selectOption('otro')
-    await panel.getByRole('button', { name: 'Verificar documento' }).click()
-    await expect(page.getByText('Verificación de documento completada')).toBeVisible({ timeout: 15_000 })
-
-    // 4. Generar y enviar el contrato del alumno (email sin configurar → estado 'enviado'
-    //    de todos modos; el pipeline queda en el primer paso).
     await panel.getByRole('button', { name: 'Generar y enviar contrato' }).click()
     await expect(page.getByRole('heading', { name: 'Contrato del alumno' })).toBeVisible({ timeout: 20_000 })
     await expect(page.getByText('Contrato enviado')).toBeVisible()
 
-    // 5. El contrato creado aparece en Contratos de alumnos ( vista global de la subcuenta).
+    // 4. El contrato creado aparece en Contratos de alumnos ( vista global de la subcuenta).
     await page.goto(`/${tenant}/contratos`)
     await expect(page.getByRole('heading', { level: 1, name: /Contratos/ })).toBeVisible()
     await expect(page.getByText('E2E Contacto Dos').first()).toBeVisible({ timeout: 15_000 })
