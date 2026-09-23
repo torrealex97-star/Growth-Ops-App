@@ -45,7 +45,6 @@ import {
 import { formatDate, formatCurrency, formatPercent } from '@/lib/utils'
 import { planCuotasDeVenta } from '@/lib/sales/plan-cuotas'
 import { ContractSection } from '@/components/sales/ContractSection'
-import { DocumentVerificationSection } from '@/components/sales/DocumentVerificationSection'
 import { toast } from 'sonner'
 import type {
   SaleWithRelations,
@@ -794,16 +793,6 @@ export default function SaleDetailPage() {
                 </dd>
               </div>
             )}
-          </div>
-
-          {/* Verificación de documentos (cortafuegos antes de poder enviar el contrato) */}
-          <div className="bg-card border border-border rounded-lg p-6 mt-4">
-            <DocumentVerificationSection
-              saleId={id}
-              contactCountry={null}
-              contactEmail={sale.contacts?.email ?? null}
-              userRole={userRole}
-            />
           </div>
 
           {/* Contrato del alumno (firma + onboarding) */}
