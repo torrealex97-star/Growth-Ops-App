@@ -306,9 +306,6 @@ export function ContractSection({ saleId }: { saleId: string }) {
               <AttachSignedContractButton tenant={tenant} contractId={contract.id} onDone={load} />
             )}
             {contract.status !== 'firmado' && (
-              <AttachSignedContractButton tenant={tenant} contractId={contract.id} onDone={load} />
-            )}
-            {contract.status !== 'firmado' && (
               <button
                 onClick={() => generate(true)}
                 disabled={busy}
@@ -359,9 +356,6 @@ export function ContractSection({ saleId }: { saleId: string }) {
             />
           </div>
           <div className="flex flex-wrap gap-2 pt-1">
-            {payerContract.status !== 'firmado' && (
-              <AttachSignedContractButton tenant={tenant} contractId={payerContract.id} onDone={load} />
-            )}
             {payerContract.status !== 'firmado' && (
               <AttachSignedContractButton tenant={tenant} contractId={payerContract.id} onDone={load} />
             )}

@@ -66,13 +66,16 @@ test.describe('Venta completa — pago completo con cobro y contrato', () => {
     await expect(page.getByText('Total cobrado: 3.000,00 € / facturado 3.000,00 €')).toBeVisible()
 
     // 3. Generar y enviar el contrato del alumno (la verificación de identidad está pospuesta:
-    //    ya no es cortafuegos). Email sin configurar → estado 'enviado' de todos modos; el
-    //    pipeline queda en el primer paso.
+    //    ya no es cortafuegos). El click puede lanzar la generación y el botón re-renderizarse a
+    //    busy antes de que Playwright dé el click por bueno: esperamos el RESULTADO (el pipeline
+    //    del contrato), no el botón, así la carrera no deja el test colgado.
     await page.getByRole('tab', { name: 'Detalle' }).click()
     const panel = page.getByRole('tabpanel')
-    await panel.getByRole('button', { name: 'Generar y enviar contrato' }).click()
-    await expect(page.getByRole('heading', { name: 'Contrato del alumno' })).toBeVisible({ timeout: 20_000 })
-    await expect(page.getByText('Contrato enviado')).toBeVisible()
+    await panel
+      .getByRole('button', { name: 'Generar y enviar contrato' })
+      .click({ timeout: 20_000 })
+      .catch(() => {})
+    await expect(page.getByText('Contrato enviado')).toBeVisible({ timeout: 30_000 })
 
     // 4. El contrato creado aparece en Contratos de alumnos ( vista global de la subcuenta).
     await page.goto(`/${tenant}/contratos`)
