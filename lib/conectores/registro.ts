@@ -2,6 +2,7 @@ import { INTEGRATION_GROUPS } from '@/lib/integrations-catalog'
 
 import type { Conector } from './contrato'
 import { conector as plantilla } from './_plantilla/index'
+import { conector as ghl } from './ghl/index'
 
 // F2 — REGISTRO DE CONECTORES.
 //
@@ -12,7 +13,7 @@ import { conector as plantilla } from './_plantilla/index'
 // La plantilla entra a propósito: si el ejemplo que todo el mundo copia no pasara la suite, estaría
 // enseñando a incumplirla.
 
-export const CONECTORES: Conector[] = [plantilla]
+export const CONECTORES: Conector[] = [ghl, plantilla]
 
 /** Un conector por su proveedor. `undefined` = todavía no está migrado al contrato. */
 export function conectorDe(provider: string): Conector | undefined {
