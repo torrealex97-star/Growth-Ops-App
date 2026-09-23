@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import crypto from 'crypto'
 import { decryptSecret, encryptSecret, invalidateConfigCache, getTenantConfigWithFallback } from '@/lib/config'
 import { ALL_FIELDS, SECRET_KEYS, isKnownKey, INTEGRATION_ONLY_GROUPS } from '@/lib/integrations-catalog'
 import { assessIntegration, SYNCS_BY_GROUP, type LastCheck } from '@/lib/integrations/health'
 import { SYNC_DEFS } from '@/lib/ops/sync-health'
 import { lastRunsByJob } from '@/lib/integrations/sync-runs'
 import { PG_CRON_READY, VERCEL_CRON_ROUTES } from '@/lib/ops/vercel-crons'
-import { parseAccountIds, fetchAdAccounts } from '@/lib/meta/client'
+import { fetchAdAccounts } from '@/lib/meta/client'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { configBunny, faltaEnConfigBunny, probarBunny } from '@/lib/vsl/bunny'
 import { isDeprecatedMetaVersion, META_API_VERSION } from '@/lib/meta/api-version'
 import { classifyMetaError } from '@/lib/meta/errors'
+import { comprobarSaludMeta, metaProof } from '@/lib/meta/salud'
 import { exchangeCode } from '@/lib/google/oauth'
 import { stripeGet } from '@/lib/stripe/client'
 import { listarModelos, ModelosError, resolverModelo } from '@/lib/ai/modelos'
@@ -474,28 +474,6 @@ async function listMetaAccounts(tenantId: string, tokenSinGuardar?: string): Pro
   }
 }
 
-/**
- * ¿Conecta Meta sin firmar? Se usa cuando la firma `appsecret_proof` falla, para poder decir si el
- * problema es SOLO el App Secret guardado.
- *
- * Meta exige la firma únicamente si la app tiene activado "Require app secret". Si sin firma responde
- * bien, la app NO la exige y el secreto guardado es basura que sobra; si sin firma también falla, hay
- * algo más (token, permisos) y decir "borra el secreto" sería mandar al sitio equivocado. Es la
- * diferencia entre diagnosticar y adivinar.
- */
-async function metaConectaSinFirma(token: string, version: string): Promise<boolean> {
-  try {
-    const r = await fetch(
-      `https://graph.facebook.com/${version}/me/adaccounts?limit=1&access_token=${encodeURIComponent(token.trim())}`,
-      { signal: AbortSignal.timeout(15_000) }
-    )
-    const j = (await r.json().catch(() => ({}))) as { error?: unknown }
-    return r.ok && !j.error
-  } catch {
-    return false
-  }
-}
-
 /** Veredicto de una comprobación. `code` es una pista ESTABLE para elegir el arreglo a mostrar. */
 type ProbeResult = { ok: boolean; message: string; code?: string }
 
@@ -557,14 +535,6 @@ async function saveLastCheck(tenantId: string, group: string, result: ProbeResul
     .select('key')
 }
 
-function metaProof(token: string, appSecret?: string): string {
-  // Se recortan los dos: un espacio o un salto de línea pegados al copiar rompen la firma y Meta
-  // responde "Invalid appsecret_proof", que no señala en absoluto a un espacio invisible.
-  const secret = appSecret?.trim()
-  if (!secret) return ''
-  return crypto.createHmac('sha256', secret).update(token.trim()).digest('hex')
-}
-
 // Habla con la API de cada integración y devuelve un veredicto en claro.
 //
 // Devuelve datos, no una respuesta HTTP, por dos motivos: el resultado se GUARDA (es lo que alimenta
@@ -574,92 +544,9 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
   const cfg = await getTenantConfigWithFallback(tenantId, true)
   try {
     if (group === 'meta') {
-      const token = cfg.META_ACCESS_TOKEN
-      if (!token) return { ok: false, message: 'Falta el token de Meta.' }
-      const ver = cfg.META_API_VERSION || META_API_VERSION
-      // Meta retira versiones por calendario, no cuando te va mal: una subcuenta que fijó una
-      // versión hace un año se entera de que está deprecada el día que dejan de responderle. Aquí se
-      // avisa antes, aunque el token sea perfecto.
-      if (isDeprecatedMetaVersion(cfg.META_API_VERSION)) {
-        return {
-          ok: false,
-          message: `La versión de la API fijada en esta subcuenta (${cfg.META_API_VERSION}) está deprecada por Meta.`,
-          code: 'version_deprecada',
-        }
-      }
-      const proof = metaProof(token, cfg.META_APP_SECRET)
-      const proofQs = proof ? `&appsecret_proof=${proof}` : ''
-      // Si hay App Secret guardado, se comprueba ANTES que la firma que produce sea válida: es el
-      // fallo que más veces bloquea esta integración, y disfrazado de "cuenta desconocida".
-      if (proof) {
-        const conFirma = await fetch(
-          `https://graph.facebook.com/${ver}/me/adaccounts?limit=1&access_token=${encodeURIComponent(token.trim())}${proofQs}`,
-          { signal: AbortSignal.timeout(15_000) }
-        )
-        const cuerpo = (await conFirma.json().catch(() => ({}))) as { error?: { message?: string } }
-        if (/appsecret_proof/i.test(cuerpo.error?.message || '')) {
-          const sinFirma = await metaConectaSinFirma(token, ver)
-          return {
-            ok: false,
-            code: 'proof_invalido',
-            message: sinFirma
-              ? 'El App Secret guardado no es el de la app que generó el token. Sin él la conexión SÍ funciona: tu app de Meta no exige la firma, así que bórralo con el botón "Borrar" que hay junto al campo.'
-              : 'El App Secret guardado no corresponde a la app que generó el token, y sin él Meta tampoco acepta el token: pega el App Secret de la MISMA app desde la que generaste el token.',
-          }
-        }
-      }
-
-      const accounts = parseAccountIds(cfg.META_AD_ACCOUNT_ID)
-      // Sin cuentas explícitas → modo "todas": descubrir las accesibles por el token.
-      if (accounts.length === 0) {
-        try {
-          const all = await fetchAdAccounts(token, ver, cfg.META_APP_SECRET)
-          if (all.length === 0) {
-            return {
-              ok: false,
-              message: 'El token es válido pero no ve ninguna cuenta publicitaria.',
-              code: 'sin_cuentas',
-            }
-          }
-          return {
-            ok: true,
-            message: `${all.length} cuenta(s) detectada(s): ${all.map((a) => a.name).join(', ')}`,
-          }
-        } catch (e) {
-          // El código lo pone el clasificador (lib/meta/errors.ts). Fijarlo a 'token_invalido' hacía
-          // que un rate limit o una firma mal calculada propusieran "genera un token nuevo".
-          return {
-            ok: false,
-            message: `No se pudieron listar las cuentas: ${(e as Error).message}`,
-            code: (e as { code?: string }).code || 'respuesta_inesperada',
-          }
-        }
-      }
-      // Probar cada cuenta explícita; reportar OK solo si todas responden.
-      const results = await Promise.all(
-        accounts.map(async (acc) => {
-          const url = `https://graph.facebook.com/${ver}/${acc}?fields=name,account_status&access_token=${encodeURIComponent(token)}${proofQs}`
-          const r = await probeFetch(url)
-          const j = await r.json()
-          return { acc, ok: r.ok && !j.error, name: j.name as string | undefined, body: j, status: r.status }
-        })
-      )
-      const failed = results.filter((r) => !r.ok)
-      if (failed.length > 0) {
-        // El código de Meta dice si es el token, el permiso o el id de cuenta: tres arreglos
-        // distintos que antes se resumían todos en "token_invalido".
-        const causa = classifyMetaError(failed[0].body, failed[0].status)
-        return {
-          ok: false,
-          message: `Cuenta ${failed.map((f) => f.acc).join(', ')}: ${causa.message}`,
-          code: causa.code,
-        }
-      }
-      const names = results.map((r) => r.name || r.acc)
-      return {
-        ok: true,
-        message: results.length === 1 ? `Cuenta: ${names[0]}` : `${results.length} cuentas OK: ${names.join(', ')}`,
-      }
+      // La comprobación vive en `lib/meta/salud.ts`: el conector de Meta (F2) la usa también, y dos
+      // comprobaciones del mismo proveedor terminan dando dos veredictos sobre la misma credencial.
+      return comprobarSaludMeta(cfg)
     }
     if (group === 'instagram') {
       const token = cfg.INSTAGRAM_ACCESS_TOKEN || cfg.META_ACCESS_TOKEN

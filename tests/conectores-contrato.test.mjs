@@ -150,6 +150,7 @@ test('los proveedores sin conector salen del catálogo, no de una lista a mano',
   const pendientes = pendientesDeMigrar()
   assert.ok(pendientes.includes('stripe'), 'Stripe todavía no está migrado')
   assert.ok(!pendientes.includes('ghl'), 'GHL se migró el 23-sep: no puede seguir en la lista')
+  assert.ok(!pendientes.includes('meta'), 'Meta se migró el 23-sep: no puede seguir en la lista')
   assert.ok(!pendientes.includes('plantilla'), 'lo que ya tiene conector no puede seguir pendiente')
 })
 
