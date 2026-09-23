@@ -39,6 +39,7 @@ const PARTICIPANT_COLORS: Record<string, string> = {
   setter: 'bg-amber-500/20 text-amber-400',
   closer: 'bg-emerald-500/20 text-emerald-400',
   affiliate: 'bg-zinc-500/20 text-muted-foreground',
+  collaborator: 'bg-violet-500/20 text-violet-300',
 }
 
 // Fee de pasarela implícito en la fila: comisionable del cobro − base neta comisionada.
@@ -55,18 +56,27 @@ interface CommissionsTableProps {
   commissions: CommissionWithRelations[]
   canApprove?: boolean
   onApprove?: (ids: string[]) => void
+  canLiquidate?: boolean
+  onLiquidate?: (ids: string[]) => void
 }
 
 const columnHelper = createColumnHelper<CommissionWithRelations>()
 const coreRowModel = getCoreRowModel()
 const sortedRowModel = getSortedRowModel()
 
-export function CommissionsTable({ commissions, canApprove = false, onApprove }: CommissionsTableProps) {
+export function CommissionsTable({
+  commissions,
+  canApprove = false,
+  onApprove,
+  canLiquidate = false,
+  onLiquidate,
+}: CommissionsTableProps) {
+  const canSelect = canApprove || canLiquidate
   const [rowSelection, setRowSelection] = useState<Record<string, boolean>>({})
 
   const columns = useMemo(
     () => [
-      ...(canApprove
+      ...(canSelect
         ? [
             columnHelper.display({
               id: 'select',
@@ -81,7 +91,12 @@ export function CommissionsTable({ commissions, canApprove = false, onApprove }:
                 <Checkbox
                   checked={row.getIsSelected()}
                   onCheckedChange={(v) => row.toggleSelected(!!v)}
-                  disabled={row.original.status !== 'pending'}
+                  disabled={
+                    !(
+                      (canApprove && row.original.status === 'pending') ||
+                      (canLiquidate && row.original.status === 'approved')
+                    )
+                  }
                   className="border-border"
                 />
               ),
@@ -152,39 +167,54 @@ export function CommissionsTable({ commissions, canApprove = false, onApprove }:
         },
       }),
     ],
-    [canApprove]
+    [canApprove, canLiquidate, canSelect]
   )
 
   const table = useReactTable({
     data: commissions,
     columns,
     state: { rowSelection },
-    enableRowSelection: (row) => row.original.status === 'pending',
+    enableRowSelection: (row) =>
+      (canApprove && row.original.status === 'pending') || (canLiquidate && row.original.status === 'approved'),
     onRowSelectionChange: setRowSelection,
     getCoreRowModel: coreRowModel,
     getSortedRowModel: sortedRowModel,
   })
 
-  const selectedIds = Object.keys(rowSelection)
-    .filter((k) => rowSelection[k])
-    .map((k) => commissions[parseInt(k)]?.id)
-    .filter(Boolean) as string[]
+  const selectedIds = table
+    .getSelectedRowModel()
+    .rows.map((row) => row.original.id)
+    .filter(Boolean)
 
   return (
     <div className="space-y-3">
-      {canApprove && selectedIds.length > 0 && (
+      {canSelect && selectedIds.length > 0 && (
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">{selectedIds.length} seleccionadas</span>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              onApprove?.(selectedIds)
-              setRowSelection({})
-            }}
-          >
-            Aprobar seleccionadas
-          </Button>
+          {canApprove && commissions.some((c) => selectedIds.includes(c.id) && c.status === 'pending') && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                onApprove?.(selectedIds)
+                setRowSelection({})
+              }}
+            >
+              Aprobar seleccionadas
+            </Button>
+          )}
+          {canLiquidate && commissions.some((c) => selectedIds.includes(c.id) && c.status === 'approved') && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                onLiquidate?.(selectedIds)
+                setRowSelection({})
+              }}
+            >
+              Liquidar seleccionadas
+            </Button>
+          )}
         </div>
       )}
 
