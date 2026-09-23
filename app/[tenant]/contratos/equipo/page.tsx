@@ -14,6 +14,7 @@ import type { CommissionRule, ContractTemplate, User, Role, Contract } from '@/l
 import { buildDefaultTerms, type ContractTerms } from '@/lib/contracts/terms'
 import { ROLE_LABELS, type AppRole } from '@/lib/auth/permissions'
 import { ContractTermsEditor } from '@/components/contracts/ContractTermsEditor'
+import { AttachSignedContractButton } from '@/components/contracts/AttachSignedContractButton'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 type UserWithRole = User & { roles: Role }
@@ -220,6 +221,9 @@ export default function ContratosEquipoPage() {
                   >
                     <Copy className="w-3.5 h-3.5 mr-1" /> Enlace
                   </Button>
+                )}
+                {c.status !== 'firmado' && (
+                  <AttachSignedContractButton tenant={tenant} contractId={c.id} onDone={load} />
                 )}
                 {c.signed_pdf_url && (
                   <button

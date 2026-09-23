@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { validateIdDocument } from '@/lib/contracts/id-validation'
 
 type Condition = { label: string; value: string }
 type SignerField = {
@@ -100,8 +99,8 @@ export default function FirmarAlumnoPage() {
     })
     .map((f) => f.label)
 
-  const docError = validateIdDocument(sd.id_type, sd.dni ?? '')
-  const canSign = !!name.trim() && consent && missingRequired.length === 0 && !docError
+  // La verificación de identidad está pospuesta: no bloquea la firma por ahora.
+  const canSign = !!name.trim() && consent && missingRequired.length === 0
 
   if (done) {
     return (
@@ -157,7 +156,6 @@ export default function FirmarAlumnoPage() {
               // Oculta id_country si no es internacional
               if (f.key === 'id_country' && !isInternational) return null
 
-              const showDocError = f.key === 'dni' && !!docError && !!sd.dni?.trim()
               const isRequired = f.key === 'id_country' ? isInternational : f.required
               return (
                 <div key={f.key} className={['address', 'id_country'].includes(f.key) ? 'col-span-2' : ''}>
@@ -182,10 +180,9 @@ export default function FirmarAlumnoPage() {
                       value={sd[f.key] ?? ''}
                       onChange={(e) => setField(f.key, e.target.value)}
                       placeholder={f.placeholder}
-                      className={`w-full rounded-lg border bg-muted px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500 ${showDocError ? 'border-red-500/60' : 'border-border'}`}
+                      className="w-full rounded-lg border border-border bg-muted px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
                     />
                   )}
-                  {showDocError && <p className="mt-1 text-xs text-red-400">{docError}</p>}
                 </div>
               )
             })}

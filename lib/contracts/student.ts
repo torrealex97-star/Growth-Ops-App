@@ -1,5 +1,5 @@
 import type { CompanyProfile } from './company'
-import { ID_DOC_TYPES, idDocLabel, validateIdDocument, type IdDocType } from './id-validation'
+import { ID_DOC_TYPES, idDocLabel, type IdDocType } from './id-validation'
 import { formatNumber } from '@/lib/utils'
 
 // Condiciones económicas de un contrato de ALUMNO (a diferencia del de equipo,
@@ -66,8 +66,6 @@ export function validateStudentSigner(sd: StudentSignerData): string[] {
       errors.push(`Falta: ${f.label}`)
     }
   }
-  const docErr = validateIdDocument(sd.id_type, String(sd.dni ?? ''))
-  if (docErr) errors.push(docErr)
   return errors
 }
 

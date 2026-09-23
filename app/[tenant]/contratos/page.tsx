@@ -7,6 +7,8 @@ import { FileText, Plus, X, ExternalLink, Send, Webhook } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
+import { AttachSignedContractButton } from '@/components/contracts/AttachSignedContractButton'
+import { SignedContractPdfButton } from '@/components/contracts/SignedContractPdfButton'
 import { useSesion, useTenant } from '@/lib/tenant-context'
 
 const STATUSES = [
@@ -29,6 +31,7 @@ type Contract = {
   contact_id: string | null
   title: string
   url: string | null
+  signed_pdf_url?: string | null
   status: string
   signed_at: string | null
   notes: string | null
@@ -230,14 +233,27 @@ export default function ContratosPage() {
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{c.signed_at ? formatDate(c.signed_at) : '—'}</td>
                   <td className="px-4 py-3">
-                    {c.url ? (
+                    {c.status === 'firmado' && (c.url || c.signed_pdf_url) ? (
+                      c.signed_pdf_url ? (
+                        <SignedContractPdfButton tenant={tenant} contractId={c.id} label="Ver contrato firmado" />
+                      ) : (
+                        <a
+                          href={c.url!}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-brand-400 hover:text-brand-300 inline-flex items-center gap-1"
+                        >
+                          Ver contrato firmado <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )
+                    ) : c.url ? (
                       <a
                         href={c.url}
                         target="_blank"
                         rel="noreferrer"
                         className="text-brand-400 hover:text-brand-300 inline-flex items-center gap-1"
                       >
-                        {c.status === 'firmado' ? 'Ver contrato firmado' : 'Ver'} <ExternalLink className="w-3 h-3" />
+                        Ver <ExternalLink className="w-3 h-3" />
                       </a>
                     ) : (
                       <span className="text-muted-foreground">—</span>
@@ -256,16 +272,22 @@ export default function ContratosPage() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {c.status === 'pendiente' ? (
-                      <button
-                        onClick={() => sendContract(c.id)}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs bg-sky-600/20 text-sky-300 border border-sky-600/30 hover:bg-sky-600/30"
-                      >
-                        <Send className="w-3.5 h-3.5" /> Enviar
-                      </button>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {c.status === 'pendiente' && (
+                        <button
+                          onClick={() => sendContract(c.id)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs bg-sky-600/20 text-sky-300 border border-sky-600/30 hover:bg-sky-600/30"
+                        >
+                          <Send className="w-3.5 h-3.5" /> Enviar
+                        </button>
+                      )}
+                      {c.status !== 'firmado' && (
+                        <AttachSignedContractButton tenant={tenant} contractId={c.id} onDone={load} />
+                      )}
+                      {c.status === 'firmado' && !c.url && !c.signed_pdf_url && (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
