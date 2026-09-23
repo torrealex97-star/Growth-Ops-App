@@ -16,6 +16,8 @@ type Contact = {
   email: string | null
   phone: string | null
   ghl_contact_id: string | null
+  lead_channel: string | null
+  merged_into: string | null
   updated_at: string
 }
 type Appointment = {
@@ -46,7 +48,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
     const [contactsResult, appointmentsResult, campaignsResult, instagramResult, eventsResult] = await Promise.all([
       sb
         .from('contacts')
-        .select('id,email,phone,ghl_contact_id,updated_at')
+        .select('id,email,phone,ghl_contact_id,lead_channel,merged_into,updated_at')
         .eq('tenant_id', auth.tenantId)
         .limit(10000),
       sb
@@ -214,6 +216,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
           appointments.map((item) => (item.contact_id ? `${item.contact_id}:${item.appointment_datetime}` : null))
         ),
         appointmentsWithoutContact: appointments.filter((item) => !item.contact_id).length,
+        // Hueco de CAPTURA (no de limpieza): contactos vivos sin canal de origen declarado. Los
+        // fusionados (merged_into) no son personas reales y no cuentan. Un hueco no se rellena con
+        // un valor inventado: se cuenta y se corrige en los puntos de captura.
+        leadChannelGaps: contacts.filter((item) => !item.lead_channel && !item.merged_into).length,
       },
       // Controles CRUZADOS: no "¿la fuente responde?" sino "¿lo que trajo encaja con el resto?". Cada
       // fuente puede estar verde y el recorrido completo estar roto por la mitad.
