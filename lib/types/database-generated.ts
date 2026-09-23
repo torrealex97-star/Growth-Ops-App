@@ -4184,6 +4184,29 @@ export type EsquemaPublico = {
         tenant_id: string | undefined
       }
     }
+    EventTypes: {
+      Row: {
+        name: string | null
+        description: string | null
+        source: string | null
+        is_active: boolean | null
+        created_at: string | null
+      }
+      Insert: {
+        name: string | null | undefined
+        description: string | null | undefined
+        source: string | null | undefined
+        is_active: boolean | null | undefined
+        created_at: string | null | undefined
+      }
+      Update: {
+        name: string | undefined
+        description: string | undefined
+        source: string | undefined
+        is_active: boolean | undefined
+        created_at: string | undefined
+      }
+    }
     Roles: {
       Row: {
         id: string | null

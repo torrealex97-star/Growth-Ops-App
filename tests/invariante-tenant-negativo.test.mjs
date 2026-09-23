@@ -91,6 +91,9 @@ test('una tabla global declarada se salta entera', () => {
 
 test('la lista de excepciones es cerrada y cada una tiene motivo escrito', () => {
   assert.deepEqual(Object.keys(EXCEPCIONES_SIN_TENANT).sort(), [
+    // `event_types` (F1, 23-sep): vocabulario de la PLATAFORMA — "una cita de GHL" significa lo
+    // mismo para todos los clientes, así que no lleva tenant_id y solo el rol de servicio escribe.
+    'event_types',
     'resource_link_divisions',
     'resource_links',
     'roles',
@@ -119,7 +122,7 @@ test('la instantánea de producción cumple el invariante', () => {
   // Capturada de pg_class/pg_attribute/pg_policy el 2026-09-21. Mismo patrón que
   // `rls-acyclicity.test.mjs`: una instantánea versionada permite comprobar en CI sin credenciales
   // y deja el cambio a la vista en el diff cuando el esquema evoluciona.
-  const snapshot = JSON.parse(readFileSync(join(root, 'tests/fixtures/esquema-produccion-20260921.json'), 'utf8'))
+  const snapshot = JSON.parse(readFileSync(join(root, 'tests/fixtures/esquema-produccion-20260923.json'), 'utf8'))
   assert.ok(snapshot.length >= 100, `instantánea inesperadamente pequeña (${snapshot.length} tablas)`)
   const violaciones = detectarViolacionesTenant(snapshot)
   assert.deepEqual(violaciones, [], `el esquema viola el invariante:\n${formatearViolaciones(violaciones)}`)
@@ -128,7 +131,7 @@ test('la instantánea de producción cumple el invariante', () => {
 test('las excepciones declaradas coinciden con las tablas sin tenant_id de producción', () => {
   // Si producción gana una tabla sin tenant_id que nadie declaró, el test de arriba ya falla. Este
   // cubre el caso inverso: una excepción que sobra, que silenciaría una tabla que hoy sí cumple.
-  const snapshot = JSON.parse(readFileSync(join(root, 'tests/fixtures/esquema-produccion-20260921.json'), 'utf8'))
+  const snapshot = JSON.parse(readFileSync(join(root, 'tests/fixtures/esquema-produccion-20260923.json'), 'utf8'))
   const sinTenantEnProduccion = snapshot
     .filter((t) => !t.tieneTenantId)
     .map((t) => t.tabla)

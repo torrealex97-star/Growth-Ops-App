@@ -5,6 +5,8 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { leerEnvLocal } from '../scripts/env-local.mjs'
 
+import { EXCEPCIONES_SIN_TENANT } from '../lib/seguridad/invariante-tenant.ts'
+
 const raiz = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 const env = leerEnvLocal()
@@ -27,11 +29,12 @@ const anonKey =
   env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 // Excepciones CERRADAS: tablas globales de plataforma sin tenant_id, cada una con su motivo.
-//   tenants                      → la propia tabla raíz de subcuentas (es lo que otros referencian)
-//   users / roles                → identidad compartida entre subcuentas (el equipo pertenece
-//                                  vía tenant_members; ver cron/monthly y docs multitenant)
-//   resource_links / _divisions  → biblioteca de recursos global, no por subcuenta
-const SIN_TENANT = new Set(['tenants', 'roles', 'users', 'resource_links', 'resource_link_divisions'])
+//
+// La lista VIVE EN UN SOLO SITIO (`lib/seguridad/invariante-tenant.ts`). Antes había una copia aquí
+// y otra allí, y pasó lo que pasa siempre: al declarar `event_types` como excepción, la de allí se
+// actualizó y esta se quedó vieja, así que el test rompió en CI señalando una tabla que SÍ estaba
+// declarada. Una lista duplicada no protege el doble: protege la mitad y miente la otra mitad.
+const SIN_TENANT = new Set(Object.keys(EXCEPCIONES_SIN_TENANT))
 
 async function openapi() {
   // El OpenAPI completo requiere service_role (PostgREST 14 oculta la raíz a anon).

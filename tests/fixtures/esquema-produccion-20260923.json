@@ -137,7 +137,7 @@
     "tieneTenantId": true,
     "tenantIdNotNull": true,
     "rlsHabilitada": true,
-    "politicas": 4
+    "politicas": 7
   },
   {
     "tabla": "campaign_targets",
@@ -273,6 +273,13 @@
     "politicas": 3
   },
   {
+    "tabla": "custom_field_defs",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 4
+  },
+  {
     "tabla": "deleted_appointments_log",
     "tieneTenantId": true,
     "tenantIdNotNull": true,
@@ -327,6 +334,13 @@
     "tenantIdNotNull": true,
     "rlsHabilitada": true,
     "politicas": 4
+  },
+  {
+    "tabla": "event_types",
+    "tieneTenantId": false,
+    "tenantIdNotNull": false,
+    "rlsHabilitada": true,
+    "politicas": 1
   },
   {
     "tabla": "expenses",
@@ -470,6 +484,13 @@
   },
   {
     "tabla": "manual_platform_records",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "meta_custom_funnels",
     "tieneTenantId": true,
     "tenantIdNotNull": true,
     "rlsHabilitada": true,

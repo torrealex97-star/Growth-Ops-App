@@ -37,6 +37,9 @@ export const EXCEPCIONES_SIN_TENANT: Readonly<Record<string, string>> = {
   roles: 'catálogo de plataforma, intencionadamente global',
   resource_links: 'biblioteca de recursos global, no por subcuenta',
   resource_link_divisions: 'biblioteca de recursos global, no por subcuenta',
+  event_types:
+    'vocabulario de canonical_events.event_name: "una cita de GHL" significa lo mismo para todos los ' +
+    'clientes. Sin tenant_id a propósito, y solo el rol de servicio escribe (F1)',
 }
 
 // NOTA PARA F0: `organizations` será la segunda tabla raíz sin tenant_id
