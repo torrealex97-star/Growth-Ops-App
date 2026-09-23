@@ -355,7 +355,10 @@ export default function CommissionsPage() {
     () => filteredCommissions.filter((c) => c.status === 'pending' && c.direction === 'positive'),
     [filteredCommissions]
   )
-  const approved = useMemo(() => filteredCommissions.filter((c) => c.status === 'approved'), [filteredCommissions])
+  const approved = useMemo(
+    () => filteredCommissions.filter((c) => c.status === 'approved' && c.direction === 'positive'),
+    [filteredCommissions]
+  )
   const liquidated = useMemo(() => filteredCommissions.filter((c) => c.status === 'liquidated'), [filteredCommissions])
   const negative = useMemo(() => filteredCommissions.filter((c) => c.direction === 'negative'), [filteredCommissions])
 
@@ -393,23 +396,35 @@ export default function CommissionsPage() {
     return map
   }, [filteredCommissions])
 
-  const handleApprove = async (ids: string[]) => {
-    const supabase = createClient()
-    // Quién aprueba ya lo sabe la sesión: no hace falta un viaje extra a Auth para firmarlo.
-    const { error } = await supabase
-      .from('commissions')
-      .update({ status: 'approved', approved_by: sesion?.userId })
-      .in('id', ids)
-      .eq('tenant_id', tenantId)
-
-    if (error) {
-      toast.error('Error al aprobar comisiones')
-      return
+  const handleBatchStatus = async (action: 'approve' | 'liquidate', ids: string[]) => {
+    try {
+      const res = await fetch(`/api/${tenant}/evergreen/commissions/batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ids }),
+      })
+      const data = (await res.json().catch(() => ({}))) as { error?: string; count?: number }
+      if (!res.ok) {
+        toast.error(action === 'approve' ? 'Error al aprobar comisiones' : 'Error al liquidar comisiones', {
+          description: data.error,
+        })
+        return
+      }
+      toast.success(
+        action === 'approve'
+          ? `${data.count ?? ids.length} comisión(es) aprobada(s)`
+          : `${data.count ?? ids.length} comisión(es) liquidada(s)`
+      )
+      fetchCommissions()
+    } catch (err) {
+      toast.error(action === 'approve' ? 'Error al aprobar comisiones' : 'Error al liquidar comisiones', {
+        description: err instanceof Error ? err.message : undefined,
+      })
     }
-
-    toast.success(`${ids.length} comision(es) aprobada(s)`)
-    fetchCommissions()
   }
+
+  const handleApprove = (ids: string[]) => handleBatchStatus('approve', ids)
+  const handleLiquidate = (ids: string[]) => handleBatchStatus('liquidate', ids)
 
   return (
     <div className="space-y-6">
@@ -529,7 +544,7 @@ export default function CommissionsPage() {
 
           {canApprove && (
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Miembro del equipo</Label>
+              <Label className="text-xs text-muted-foreground">Colaborador / miembro</Label>
               <Select value={filterMember} onValueChange={setFilterMember}>
                 <SelectTrigger className="bg-muted border-border h-9">
                   <SelectValue />
@@ -677,7 +692,12 @@ export default function CommissionsPage() {
           {loading ? (
             <div className="h-48 bg-card rounded-lg animate-pulse" />
           ) : (
-            <CommissionsTable commissions={approved} canApprove={false} />
+            <CommissionsTable
+              commissions={approved}
+              canApprove={false}
+              canLiquidate={canApprove}
+              onLiquidate={handleLiquidate}
+            />
           )}
         </TabsContent>
         <TabsContent value="liquidated" className="mt-4">
