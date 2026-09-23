@@ -1,5 +1,17 @@
 # Relevo activo
 
+## Lote facturas IA + comisiones lote + contratos externos — 2026-09-23 (Freebuff 7a08c143)
+
+**Publicado en `origin/main`:** #192 (`4293c06`, facturas IA — identidad del emisor y trazabilidad del pago), #190 (`09afde9`, comisiones: aprobar/liquidar en lote), #191 (`ec708a7`, contratos: adjuntar firmado externamente + verificación de identidad pospuesta). Los tres con quality, build, Smoke E2E y Vercel en verde. Ramas remotas ya eliminadas.
+
+**🔴 Bloqueo URGENTE — migración `20260922100000_invoice_ai_identity_traceability.sql` SIN APLICAR en producción.** La UI de Gastos ya desplegada en Vercel hace `INSERT` con las columnas nuevas: **crear un gasto o marcarlo pagado falla hasta aplicar la migración**. Las lecturas (`select *`) siguen funcionando. No se pudo aplicar desde la máquina local: el host `db.***.supabase.co` solo resuelve por IPv6 y esta red no tiene ruta IPv6; el pooler tampoco es alcanzable. Instrucción exacta para el siguiente relevo:
+
+1. Desde cualquier entorno con salida a Supabase (otra red, o la CLI/SQL editor del Dashboard): dry-run obligatorio por reglas del repo — `BEGIN;` + DDL del fichero `supabase/migrations/20260922100000_*.sql` + `ROLLBACK`, verificar que añade 9 columnas a `expenses` y 2 índices parciales; después aplicarlo de verdad (`supabase db push` o pegarlo en el SQL editor del Dashboard).
+2. Regenerar tipos: `npm run tipos:bd` y commitear `lib/types/database-generated.ts` si cambia.
+3. Verificar: crear un gasto de prueba desde la UI y marcarlo pagado; borrarlo.
+
+**Notas:** el checkout de `~/Documents/.../Scalix Systems App` sigue siendo el linaje viejo con WIP ajeno sin commitear — no se ha tocado. El preview de este hilo corre en `/tmp/growthops-preview-3003` (launchd `growthops-preview-3003`, puerto 3003) sincronizado a `ec708a7`.
+
 ## Cierre de consolidación — 2026-09-22
 
 **Estado publicado:** `origin/main` está en `c2c3e6a33a847b9d3220b9783a01106dc87f73c8`, commit squash de la PR #173 (`docs: consolidate handoff and user blockers`). Contiene la PR #172 (`269754f`) de custom fields/hardening y la PR #171 (`24a9646`) de coordinación. Las tres ramas remotas fueron eliminadas. Los checks de código de #171 y #172 (quality, gitleaks, build y Smoke E2E) terminaron en verde; #173 solo cambió documentación y no generó un workflow nuevo por `paths-ignore`. No se aplicó manualmente ninguna migración en producción.
@@ -29,9 +41,10 @@ Quedan expresamente fuera contratos, colaboradores, RAG, facturación, IA, integ
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente      | Qué                                                                                                                                                                                             | Rama                  | Toca                                                                                                         | Desde  |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------ | ------ |
-| Claude Code | **F2 — contrato de conectores**. Hecho: contrato + plantilla (#184), GHL (#185), tests de arquitectura (#186), Meta (#187), salud de datos (esta rama). F2 queda cerrada salvo la deuda anotada | `feat/f2-salud-datos` | `lib/data-health/conectores.ts`, `lib/integrations/sync-runs.ts`, crons de Meta/Instagram, `DataHealthPanel` | 23-sep |
+| Agente            | Qué                                                                                                                                                                                                                            | Rama                  | Toca                                                                                                         | Desde  |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------ | ------ |
+| Claude Code       | **F2 — contrato de conectores**. Hecho: contrato + plantilla (#184), GHL (#185), tests de arquitectura (#186), Meta (#187), salud de datos (esta rama). F2 queda cerrada salvo la deuda anotada                                | `feat/f2-salud-datos` | `lib/data-health/conectores.ts`, `lib/integrations/sync-runs.ts`, crons de Meta/Instagram, `DataHealthPanel` | 23-sep |
+| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos | (fusionadas)          | solo `expenses` vía migración pendiente; nada en código                                                      | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
