@@ -71,6 +71,7 @@ type OperationalHealth = {
     duplicateExternalAppointments: number
     duplicateContactTimes: number
     appointmentsWithoutContact: number
+    leadChannelGaps: number
   }
 }
 
@@ -446,6 +447,23 @@ export function DataHealthPanel() {
                   </p>
                 </div>
               ))}
+            </div>
+          </section>
+
+          {/* Captura de origen: los huecos se cuentan, no se rellenan con un valor inventado. */}
+          <section className="rounded-xl border border-border bg-card p-5">
+            <h2 className="font-semibold text-foreground">Captura de origen</h2>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Los huecos de captura se cuentan y se corrigen en los puntos de entrada; nunca se rellenan con un valor
+              inventado (un hueco no es un cero ni un “desconocido”).
+            </p>
+            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
+              <Metric
+                label="Contactos sin canal"
+                value={String(operational.integrity.leadChannelGaps)}
+                detail="Sin canal de origen declarado"
+                tone={operational.integrity.leadChannelGaps ? 'warn' : 'good'}
+              />
             </div>
           </section>
 

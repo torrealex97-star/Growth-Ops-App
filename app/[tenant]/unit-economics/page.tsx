@@ -30,10 +30,10 @@ import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset, type Perio
 import { isCancelled } from '@/lib/unit-economics'
 import { leadDate } from '@/lib/analytics'
 import type { FunnelOperativo, FiltroAtribucion } from '@/lib/metrics/operativo'
-import { canonicalizeLeads, canonicalizeAppointments, dedupeSales } from '@/lib/canonical/dedup'
+import { canonicalizeLeads, canonicalizeAppointments } from '@/lib/canonical/dedup'
 import { canonicalCash, type StripePaymentRow } from '@/lib/canonical/cash'
 import { resolverOferta, CONFIG_OFERTA_POR_DEFECTO } from '@/lib/metrics/oferta'
-import { DataQualityPanel, type QualityStats } from '@/components/os/DataQualityPanel'
+import { FunnelCanonicoPanel } from '@/components/os/DataQualityPanel'
 import { PanelOrganico } from '@/components/os/PanelOrganico'
 
 // Objetivo de dashboard (§27): fila mínima de `targets` para comparar contra lo del periodo.
@@ -667,86 +667,11 @@ export default function UnitEconomicsPage() {
     }
   }
 
-  // ── ENTIDADES CANÓNICAS + CALIDAD DE DATOS (dashboard global §6/§17/§21/§38) ──
-  // Consolidación de leads (email › teléfono), agendas (evento calendario), ventas (oportunidad /
-  // contacto+fecha+importe) y pagos (id transacción) — SIN sumar dos fuentes del mismo evento.
-  // El diagnóstico alimenta el panel de Calidad de datos; el funnel canónico alimenta la sección.
-  const calidad = useMemo<QualityStats>(() => {
-    const { leads, duplicates: dupLeads } = canonicalizeLeads(
-      contacts.map((c) => ({
-        id: c.id,
-        email: c.email ?? null,
-        phone: c.phone ?? null,
-        created_at: c.created_at ?? null,
-      }))
-    )
-    const { duplicates: dupAppts } = canonicalizeAppointments(
-      appointments.map((a) => ({
-        id: a.id,
-        contact_id: a.contact_id,
-        calendly_event_id: null,
-        calendar_event_id: null,
-        scheduled_at: a.appointment_datetime,
-        status: a.status,
-      }))
-    )
-    const { duplicates: dupSales } = dedupeSales(
-      sales.map((s) => ({
-        id: s.id,
-        contact_id: s.contact_id,
-        opportunity_id: null,
-        closed_at: s.sale_date ?? null,
-        amount: num(s.gross_amount),
-      }))
-    )
-    // Duplicados y conflictos de pagos (§38/§19): cruce Stripe↔collections sobre TODO el
-    // histórico — la ventana del periodo no cambia lo que la integración duplicó una vez.
-    const { duplicatedPayments: dupPays, amountConflicts } = canonicalCash(
-      stripePagos,
-      collections.map((c) => ({
-        id: c.id ?? `${c.collected_at}:${c.gross_amount}`,
-        payment_reference: c.payment_reference ?? null,
-        gross_amount: num(c.gross_amount),
-        status: c.status,
-        collected_at: c.collected_at,
-      })),
-      []
-    )
-    const ventasActivasQ = sales.filter((s) => ACTIVE_SALE_STATUSES.includes(s.status))
-    const conCampaign = contacts.filter((c) => !!c.campaign_id).length
-    const ventasConCampaign = ventasActivasQ.filter(
-      (s) => !!s.contact_id && contacts.some((c) => c.id === s.contact_id && !!c.campaign_id)
-    ).length
-    const revenueTotalQ = ventasActivasQ.reduce((a, s) => a + num(s.gross_amount), 0)
-    const revenueAtribQ = ventasConCampaign
-      ? ventasActivasQ
-          .filter((s) => !!s.contact_id && contacts.some((c) => c.id === s.contact_id && !!c.campaign_id))
-          .reduce((a, s) => a + num(s.gross_amount), 0)
-      : 0
-    const leadsSinAppt = appointments.filter((a) => !a.contact_id).length
-    return {
-      duplicateLeads: dupLeads,
-      duplicateAppointments: dupAppts,
-      duplicateSales: dupSales,
-      duplicatePayments: dupPays,
-      salesWithoutProduct: 0, // sales aún no enlaza product_id (§16); cuando exista, se cuenta aquí
-      appointmentsWithoutLead: leadsSinAppt,
-      paymentsWithoutSale: null as unknown as number,
-      sourceConflicts: amountConflicts.length,
-      unattributedLeads: contacts.length - conCampaign,
-      unattributedSales: ventasActivasQ.length - ventasConCampaign,
-      totalLeads: contacts.length,
-      totalSales: ventasActivasQ.length,
-      revenueTotal: revenueTotalQ,
-      revenueAttributed: revenueAtribQ,
-    }
-  }, [contacts, appointments, sales, collections, stripePagos])
-
-  // Funnel GLOBAL canónico (§22/§23): leads únicos → agendas consolidadas → shows confirmados →
-  // ofertas → ventas. La etapa OFERTA usa el resolver canónico del negocio (lib/metrics/oferta.ts):
-  // declarado > derivado > asumido — nunca la cláusula muerta result='offer_made' (el vocabulario
-  // cerrado de result la eliminó; ese filtro solo sumaba 0 para siempre). El desglose
-  // medido/asumido entra al panel para que el número diga cuánta suposición lleva dentro.
+  // ── ENTIDADES CANÓNICAS (dashboard global §6/§17/§21) ──
+  // Consolidación de leads (email › teléfono), agendas (evento calendario) y ventas
+  // (oportunidad / contacto+fecha+importe) — SIN sumar dos fuentes del mismo evento.
+  // El funnel canónico alimenta la sección "Funnel del negocio". El diagnóstico de calidad
+  // (duplicados, conflictos, huecos de captura) vive en Configuración › Data Health.
   const funnelGlobal = useMemo(() => {
     const { leads } = canonicalizeLeads(
       contacts.map((c) => ({
@@ -1155,11 +1080,11 @@ export default function UnitEconomicsPage() {
           fuente visible; sin Apify configurado la sección muestra un estado honesto y nada más. */}
       <PanelOrganico />
 
-      {/* CALIDAD + FUNNEL GLOBAL (dashboard global §20-§23/§38): una única versión coherente
-          de la realidad — leads canónicos, agendas consolidadas y diagnóstico de duplicados.
-          La cobertura de atribución vive en Marketing › Atribución, no aquí. */}
+      {/* FUNNEL GLOBAL (dashboard global §20-§23): una única versión coherente de la realidad —
+          leads canónicos y agendas consolidadas. El diagnóstico de calidad (duplicados, conflictos,
+          huecos de captura) vive en Configuración › Data Health. */}
       {!loading && (contacts.length > 0 || appointments.length > 0 || sales.length > 0) && (
-        <DataQualityPanel quality={calidad} funnel={funnelGlobal} />
+        <FunnelCanonicoPanel funnel={funnelGlobal} />
       )}
 
       {/* ATRIBUCIÓN declarada aparte: nunca se resta del total del negocio. Solo tiene sentido en
