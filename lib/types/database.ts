@@ -786,6 +786,16 @@ type Expense = {
   payment_method: string | null
   status: 'pagado' | 'en_revision' | 'pendiente'
   counterparty: string | null
+  // v5 — identidad del emisor y trazabilidad del pago (extraídas con IA, confirmadas por humanos)
+  invoice_number: string | null
+  invoice_due_date: string | null
+  counterparty_tax_id: string | null
+  counterparty_address: string | null
+  counterparty_bank_account: string | null // cuenta DEL EMISOR: no es una cuenta propia ni prueba de pago
+  counterparty_bank_name: string | null
+  paid_at: string | null // fecha real del pago; se fija al pasar a 'pagado'
+  paid_from_account: string | null // cuenta propia desde la que se pagó; la introduce el usuario
+  payment_reference: string | null
   person_id: string | null
   notes: string | null
   created_by: string | null

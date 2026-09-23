@@ -35,6 +35,12 @@ export type InvoiceExtract = {
   vat: number | null
   category: 'publicidad' | 'sueldos' | 'comisiones' | 'herramientas' | 'eventos' | 'cogs' | 'otros' | null
   counterparty: string | null
+  invoice_number: string | null
+  invoice_due_date: string | null // YYYY-MM-DD
+  counterparty_tax_id: string | null // NIF/CIF/VAT ID del emisor
+  counterparty_address: string | null
+  counterparty_bank_account: string | null // IBAN/cuenta del EMISOR: no es una cuenta propia ni prueba de pago
+  counterparty_bank_name: string | null
   expense_date: string | null // YYYY-MM-DD
   suggested_person: string | null // nombre del miembro del equipo si aparece
   confidence: number // 0-1
@@ -55,10 +61,12 @@ export async function extractInvoice(
 
   const system = `Eres un contable que extrae datos de facturas.
 Devuelve SOLO un objeto JSON con estas claves exactas:
-{"concept": string, "amount": number, "currency": string, "vat": number|null, "category": one of ["publicidad","sueldos","comisiones","herramientas","eventos","cogs","otros"], "counterparty": string (quien emite/cobra), "expense_date": "YYYY-MM-DD", "suggested_person": string|null, "confidence": number 0-1}
+{"concept": string, "amount": number, "currency": string, "vat": number|null, "category": one of ["publicidad","sueldos","comisiones","herramientas","eventos","cogs","otros"], "counterparty": string (quien emite/cobra), "invoice_number": string|null, "invoice_due_date": "YYYY-MM-DD"|null, "counterparty_tax_id": string|null (NIF/CIF/VAT del emisor), "counterparty_address": string|null, "counterparty_bank_account": string|null (IBAN/cuenta bancaria DEL EMISOR impresa en la factura), "counterparty_bank_name": string|null (banco del emisor), "expense_date": "YYYY-MM-DD", "suggested_person": string|null, "confidence": number 0-1}
 - amount = importe TOTAL de la factura tal cual aparece impreso (con IVA incluido si lo hay), SIN convertir de moneda.
 - currency = código ISO 4217 de 3 letras de la moneda en la que está expresado el importe (p.ej. "EUR", "USD", "GBP"). Dedúcelo del símbolo ($, €, £), del texto (USD, dólares, dollars) o del país del emisor. Si no hay ninguna pista, usa "EUR".
 - Categoriza según el proveedor/concepto (ads=publicidad, software/SaaS=herramientas, nóminas=sueldos, etc.).
+- invoice_number = número de factura impreso. invoice_due_date = fecha de vencimiento impresa. counterparty_tax_id = NIF/CIF/VAT number del emisor. counterparty_address = dirección fiscal del emisor. counterparty_bank_account = la cuenta bancaria DEL EMISOR (para pagarle), NO una cuenta propia. counterparty_bank_name = nombre del banco del emisor.
+- NO demuestra que el pago se haya realizado: la factura no es un justificante de pago. No extraigas datos de la cuenta propia desde la que se pagó ni fechas/referencias de pago: no están en la factura.
 - Si en la factura aparece el nombre de un miembro del equipo de esta lista, ponlo en suggested_person; si no, null. Equipo: ${teamNames.join(', ') || '(desconocido)'}.
 - Usa punto decimal. No inventes datos: si algo no aparece, usa null.`
 
