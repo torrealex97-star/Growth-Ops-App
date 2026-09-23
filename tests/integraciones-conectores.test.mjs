@@ -188,19 +188,21 @@ test('los errores de Meta se traducen a una causa, también dentro del cliente',
   const client = sinComentarios(read('lib/meta/client.ts'))
   assert.match(client, /classifyMetaError\(json, res\.status\)/, 'el cliente sigue lanzando el mensaje crudo')
   assert.doesNotMatch(client, /Meta API error\$\{/, 'quedó el error en inglés sin clasificar')
-  const route = sinComentarios(read(ROUTE))
-  assert.match(route, /classifyMetaError\(failed\[0\]\.body, failed\[0\]\.status\)/)
+  const salud = sinComentarios(read('lib/meta/salud.ts'))
+  assert.match(salud, /classifyMetaError\(failed\[0\]\.body, failed\[0\]\.status\)/)
   // Y una respuesta 200 que trae `error` dentro NO puede darse por buena: Meta responde así a veces.
-  assert.match(route, /ok: r\.ok && !j\.error/)
+  assert.match(salud, /ok: r\.ok && !j\.error/)
 })
 
 // Un espacio o un salto de línea pegados al copiar el App Secret rompen la firma appsecret_proof, y
 // Meta responde "Invalid appsecret_proof" sin decir que sobra un carácter invisible: horas de
 // revisar unas credenciales correctas.
 test('las credenciales de Meta se recortan antes de firmar', () => {
-  const route = sinComentarios(read(ROUTE))
-  assert.match(route, /const secret = appSecret\?\.trim\(\)/)
-  assert.match(route, /\.update\(token\.trim\(\)\)/)
+  // La firma se calcula en `lib/meta/salud.ts` desde F2: la pantalla y el conector comparten una
+  // sola comprobación, así que este recorte tiene que seguir estando ahí.
+  const salud = sinComentarios(read('lib/meta/salud.ts'))
+  assert.match(salud, /const secret = appSecret\?\.trim\(\)/)
+  assert.match(salud, /\.update\(token\.trim\(\)\)/)
   const client = sinComentarios(read('lib/meta/client.ts'))
   assert.match(client, /createHmac\('sha256', secret\)\.update\(token\.trim\(\)\)/)
   assert.match(client, /createHmac\('sha256', cfg\.appSecret\.trim\(\)\)\.update\(cfg\.token\.trim\(\)\)/)
@@ -225,10 +227,10 @@ test('un secreto guardado se puede borrar uno a uno', () => {
 // "Borra el App Secret" solo se puede afirmar si se ha comprobado que sin él conecta. Si sin firma
 // tampoco conecta, el problema es otro y ese consejo manda al sitio equivocado.
 test('el consejo sobre el App Secret se demuestra, no se supone', () => {
-  const route = sinComentarios(read(ROUTE))
-  assert.match(route, /async function metaConectaSinFirma/)
-  assert.match(route, /const sinFirma = await metaConectaSinFirma\(token, ver\)/)
-  const bloque = route.slice(route.indexOf('const sinFirma'))
+  const salud = sinComentarios(read('lib/meta/salud.ts'))
+  assert.match(salud, /async function conectaSinFirma/)
+  assert.match(salud, /const sinFirma = await conectaSinFirma\(token, ver\)/)
+  const bloque = salud.slice(salud.indexOf('const sinFirma'))
   assert.match(bloque.slice(0, 900), /sinFirma\s*\?/, 'el mensaje no depende de la comprobación')
   assert.match(bloque.slice(0, 900), /MISMA app/, 'falta el caso en el que el secreto sí hace falta')
 })
