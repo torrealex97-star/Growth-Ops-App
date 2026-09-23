@@ -36,7 +36,26 @@ type DeliveryRow = {
 type DuplicateContact = { id: string; full_name: string | null; email: string | null; phone: string | null }
 type DuplicateContactGroup = { key: string; primaryId: string; duplicateIds: string[]; contacts: DuplicateContact[] }
 type DuplicateAppointmentGroup = { key: string; keepId: string; duplicateIds: string[] }
+type SaludConector = {
+  provider: string
+  label: string
+  comoEntra: string
+  credenciales: { completas: boolean; faltan: string[] }
+  ultima: {
+    job: string
+    estado: string
+    empezoEn: string
+    duracionMs: number | null
+    filasEscritas: number | null
+  } | null
+  incidencia: { mensaje: string; codigo: string | null; seReintentaSolo: boolean } | null
+  cursor: { soportado: boolean; motivo: string }
+  estado: 'al_dia' | 'en_curso' | 'fallando' | 'sin_credenciales' | 'nunca_ejecutada'
+}
+
 type OperationalHealth = {
+  conectores?: SaludConector[]
+  conectoresPendientes?: string[]
   totals: { contacts: number; appointments: number }
   sources: Array<{
     id: string
@@ -77,6 +96,64 @@ const statusStyle: Record<string, string> = {
   rejected: 'bg-red-500/15 text-red-400 border-red-500/30',
   failed: 'bg-red-500/15 text-red-400 border-red-500/30',
   deduplicated: 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30',
+}
+
+const ESTADO_CONECTOR: Record<SaludConector['estado'], { texto: string; estilo: string }> = {
+  al_dia: { texto: 'Al día', estilo: 'processed' },
+  en_curso: { texto: 'En curso', estilo: 'received' },
+  fallando: { texto: 'Fallando', estilo: 'failed' },
+  // "Sin configurar" NO es un fallo: es una integración que esta subcuenta no usa. Pintarla en rojo
+  // es lo que llenaba el historial de averías falsas.
+  sin_credenciales: { texto: 'Sin configurar', estilo: 'deduplicated' },
+  nunca_ejecutada: { texto: 'Nunca ejecutada', estilo: 'pending' },
+}
+
+function ConectorCard({ conector }: { conector: SaludConector }) {
+  const estado = ESTADO_CONECTOR[conector.estado]
+  const ultima = conector.ultima
+  return (
+    <div className="rounded-lg border border-border p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-medium">{conector.label}</p>
+          <p className="text-xs text-muted-foreground">{conector.comoEntra}</p>
+        </div>
+        <Badge variant="outline" className={statusStyle[estado.estilo]}>
+          {estado.texto}
+        </Badge>
+      </div>
+
+      {!conector.credenciales.completas && (
+        // Nombres de claves, nunca valores: lo que falta se dice por su nombre para poder ir a por ello.
+        <p className="mt-3 text-xs text-muted-foreground">
+          Falta configurar {conector.credenciales.faltan.join(', ')} en Integraciones.
+        </p>
+      )}
+
+      {ultima && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Última pasada ({ultima.job}): {new Date(ultima.empezoEn).toLocaleString('es-ES')}
+          {ultima.duracionMs !== null
+            ? ` · ${Math.round(ultima.duracionMs / 1000)} s`
+            : ' · se cortó, no se sabe cuánto duró'}
+          {ultima.filasEscritas !== null ? ` · ${ultima.filasEscritas} filas` : ''}
+        </p>
+      )}
+
+      {conector.incidencia && (
+        <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 p-2">
+          <p className="text-xs text-red-300">{conector.incidencia.mensaje}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {conector.incidencia.seReintentaSolo
+              ? 'Es un fallo de transporte: la próxima pasada puede arreglarlo sola.'
+              : 'No se arregla solo: hay que tocar la configuración o la fuente.'}
+          </p>
+        </div>
+      )}
+
+      <p className="mt-3 text-[11px] text-muted-foreground">{conector.cursor.motivo}</p>
+    </div>
+  )
 }
 
 function Metric({
@@ -304,6 +381,30 @@ export function DataHealthPanel() {
 
       {operational && (
         <>
+          {operational.conectores && operational.conectores.length > 0 && (
+            <section className="rounded-xl border border-border bg-card p-5">
+              <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <h2 className="font-semibold text-foreground">Estado de las sincronizaciones</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Sale del historial de ejecuciones, no de los datos guardados: dice si la tubería sigue abierta, no
+                    cuándo entró el último dato bueno.
+                  </p>
+                </div>
+                {operational.conectoresPendientes && operational.conectoresPendientes.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {operational.conectoresPendientes.length} integraciones todavía sin contrato
+                  </p>
+                )}
+              </div>
+              <div className="grid gap-3 lg:grid-cols-2">
+                {operational.conectores.map((c) => (
+                  <ConectorCard key={c.provider} conector={c} />
+                ))}
+              </div>
+            </section>
+          )}
+
           <section className="rounded-xl border border-border bg-card p-5">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
               <div>

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { runInstagramSync } from '@/lib/instagram/sync'
 import { getTenantConfigWithFallback } from '@/lib/config'
-import { recordSyncRun, SyncBusyError } from '@/lib/integrations/sync-runs'
+import { recordSyncRun, SyncBusyError, SyncOmitidaError } from '@/lib/integrations/sync-runs'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -46,6 +46,9 @@ export async function GET(req: NextRequest) {
             job: 'instagram',
             trigger: 'cron',
             secrets: [cfg.INSTAGRAM_ACCESS_TOKEN, cfg.META_ACCESS_TOKEN, cfg.META_APP_SECRET],
+            // Sin credenciales no se ejecuta NI se registra: una subcuenta que no usa este
+            // proveedor está sin configurar, no averiada (S0.7 §3.5).
+            requiere: { claves: [['INSTAGRAM_ACCESS_TOKEN', 'META_ACCESS_TOKEN'], 'IG_USER_ID'], cfg },
           },
           () => runInstagramSync(sb, tn.id, cfg, { mediaLimit: 25, light: true }),
           (r) => ({
@@ -57,7 +60,7 @@ export async function GET(req: NextRequest) {
       } catch (e) {
         perTenant[tn.slug] = {
           error: e instanceof Error ? e.message : 'Error al sincronizar',
-          omitida: e instanceof SyncBusyError,
+          omitida: e instanceof SyncBusyError || e instanceof SyncOmitidaError,
         }
       }
     }

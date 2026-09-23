@@ -29,9 +29,9 @@ Quedan expresamente fuera contratos, colaboradores, RAG, facturación, IA, integ
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente      | Qué                                                                                                                                                                             | Rama           | Toca                                                                                      | Desde  |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------- | ------ |
-| Claude Code | **F2 — contrato de conectores**, por trozos. Hecho: contrato + plantilla (#184), GHL (#185), tests de arquitectura (#186), Meta (esta rama). Siguiente: panel de salud de datos | `feat/f2-meta` | `lib/conectores/*`, `lib/meta/salud.ts`, bloque Meta de `settings/integraciones/route.ts` | 23-sep |
+| Agente      | Qué                                                                                                                                                                                             | Rama                  | Toca                                                                                                         | Desde  |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------ | ------ |
+| Claude Code | **F2 — contrato de conectores**. Hecho: contrato + plantilla (#184), GHL (#185), tests de arquitectura (#186), Meta (#187), salud de datos (esta rama). F2 queda cerrada salvo la deuda anotada | `feat/f2-salud-datos` | `lib/data-health/conectores.ts`, `lib/integrations/sync-runs.ts`, crons de Meta/Instagram, `DataHealthPanel` | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
 

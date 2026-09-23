@@ -65,6 +65,48 @@ export type SyncOutcome = {
   detail?: Record<string, unknown>
 }
 
+/**
+ * La subcuenta no tiene las credenciales que esta sincronización necesita, así que NO se ejecuta y
+ * —esto es lo importante— NO se registra ninguna ejecución.
+ *
+ * POR QUÉ NO SE REGISTRA. Antes se intentaba igual y el proveedor respondía "falta el token": una
+ * fila `error` por subcuenta y por pasada, 19 en catorce días, todas esperadas (la subcuenta propia
+ * y la de pruebas no usan Meta ni Instagram). Un error de configuración previsible que se apunta
+ * como avería esconde las averías de verdad, que es justo lo contrario de para lo que existe este
+ * historial (S0.7 §3.5). El panel ya sabe decir "sin credenciales" mirando la configuración: no
+ * necesita que nadie falle para enterarse.
+ */
+export class SyncOmitidaError extends Error {
+  readonly code = 'sin_credenciales'
+  readonly faltan: string[]
+  constructor(job: string, faltan: string[]) {
+    super(`${job}: esta subcuenta no tiene ${faltan.join(', ')}, así que no se sincroniza.`)
+    this.name = 'SyncOmitidaError'
+    this.faltan = faltan
+  }
+}
+
+/**
+ * Claves de configuración que faltan. Una entrada de tipo lista significa "cualquiera de estas"
+ * (Instagram funciona con su token propio o con el de Meta). Devuelve NOMBRES de claves, nunca
+ * valores: este resultado acaba en un mensaje y en la pantalla.
+ */
+export function clavesQueFaltan(
+  requeridas: Array<string | string[]>,
+  cfg: Record<string, string | undefined>
+): string[] {
+  const tiene = (k: string) => !!cfg[k]?.trim()
+  const faltan: string[] = []
+  for (const req of requeridas) {
+    if (Array.isArray(req)) {
+      if (!req.some(tiene)) faltan.push(req.join(' o '))
+    } else if (!tiene(req)) {
+      faltan.push(req)
+    }
+  }
+  return faltan
+}
+
 export class SyncBusyError extends Error {
   readonly code = 'ya_en_curso'
   constructor(job: string) {
@@ -95,10 +137,15 @@ export async function reclaimAllStaleRuns(sb: SupabaseClient): Promise<void> {
     .from('integration_sync_runs')
     .update({
       status: 'timeout',
-      finished_at: new Date().toISOString(),
+      // `finished_at` se queda a NULL A PROPÓSITO. El barrido no sabe cuándo murió la función: solo
+      // que ya no está. Sellar aquí la hora del barrido producía duraciones de hasta 24 h para
+      // pasadas que duraron 60 s (S0.7 §3.6), y una cifra inventada es peor que un hueco. El
+      // cerrojo de "una sola en curso" es parcial sobre status='running', así que con el estado ya
+      // basta para liberarlo.
+      finished_at: null,
       error_code: 'timeout',
       error_message:
-        'La ejecución se cortó antes de terminar (se agotó el tiempo de la función). Cerrado automáticamente por el barrido de colgados.',
+        'La ejecución se cortó antes de terminar (se agotó el tiempo de la función). Cerrado automáticamente por el barrido de colgados; no se sabe cuánto duró.',
     })
     .eq('status', 'running')
     .lt('started_at', cutoff)
@@ -120,11 +167,21 @@ export async function recordSyncRun<T>(
     trigger: SyncTrigger
     /** Credenciales a redactar de cualquier mensaje antes de guardarlo. */
     secrets?: Array<string | undefined | null>
+    /**
+     * Claves que esta subcuenta necesita para que la pasada tenga sentido. Si falta alguna, se
+     * lanza `SyncOmitidaError` SIN abrir ejecución: una subcuenta que no usa el proveedor no está
+     * averiada (ver `SyncOmitidaError`).
+     */
+    requiere?: { claves: Array<string | string[]>; cfg: Record<string, string | undefined> }
   },
   work: () => Promise<T>,
   outcome?: (result: T) => SyncOutcome
 ): Promise<T> {
   const scrub = (msg: string) => redactSecrets(msg, spec.secrets).slice(0, 2000)
+  if (spec.requiere) {
+    const faltan = clavesQueFaltan(spec.requiere.claves, spec.requiere.cfg)
+    if (faltan.length > 0) throw new SyncOmitidaError(spec.job, faltan)
+  }
   await reclaimAllStaleRuns(sb).catch(() => {})
 
   const { data: started, error: startErr } = await sb
