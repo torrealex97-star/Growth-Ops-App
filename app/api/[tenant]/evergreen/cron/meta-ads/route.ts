@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getTenantConfigWithFallback } from '@/lib/config'
 import { createClient } from '@supabase/supabase-js'
 import { runMetaAdsSync } from '@/lib/meta/sync'
-import { recordSyncRun, SyncBusyError } from '@/lib/integrations/sync-runs'
+import { recordSyncRun, SyncBusyError, SyncOmitidaError } from '@/lib/integrations/sync-runs'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -42,6 +42,9 @@ export async function GET(req: NextRequest) {
             job: 'meta-ads',
             trigger: 'cron',
             secrets: [cfg.META_ACCESS_TOKEN, cfg.META_APP_SECRET],
+            // Sin credenciales no se ejecuta NI se registra: una subcuenta que no usa este
+            // proveedor está sin configurar, no averiada (S0.7 §3.5).
+            requiere: { claves: ['META_ACCESS_TOKEN'], cfg },
           },
           () => runMetaAdsSync(sb, tn.id, cfg),
           (r) => ({ rowsWritten: r.adsSynced, failures: r.failures, detail: { cuentas: r.accounts } })
@@ -51,7 +54,7 @@ export async function GET(req: NextRequest) {
         // guardado en integration_sync_runs y el panel de esa subcuenta lo muestra.
         perTenant[tn.slug] = {
           error: e instanceof Error ? e.message : 'Error al sincronizar',
-          omitida: e instanceof SyncBusyError,
+          omitida: e instanceof SyncBusyError || e instanceof SyncOmitidaError,
         }
       }
     }

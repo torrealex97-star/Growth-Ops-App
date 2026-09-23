@@ -110,8 +110,8 @@ volumen suba, se corta a media sincronización.
 | Webhook de Apify abierto por defecto         | P2   | Arreglado en este mismo tramo (ver §5)       |
 | Índices únicos sin `tenant_id`               | P2   | F7 (migración; hoy no afecta con 1 cliente)  |
 | Un contacto sin nombre tumba el lote de GHL  | P2   | F1 (la ingesta de GHL se rehace ahí)         |
-| Subcuentas sin credenciales marcadas "error" | P3   | F2 (estado `omitida`)                        |
-| Timeouts mal medidos y sin fila              | P3   | F2                                           |
+| Subcuentas sin credenciales marcadas "error" | P3   | **Hecho en F2** (ver §6)                     |
+| Timeouts mal medidos y sin fila              | P3   | **Hecho en parte en F2** (ver §6)            |
 | Historial de migraciones desalineado         | P3   | Reparación con respaldo, como el 13-sep      |
 | Calendly a 46 s de 60                        | P3   | F2 (ventana y paginación)                    |
 | Token de Instagram caducado                  | P1   | **Alex** (reconectar)                        |
@@ -123,3 +123,21 @@ volumen suba, se corta a media sincronización.
 - **Apify cierra por defecto**: sin secreto configurado, rechaza.
 
 Ambos con test. El resto queda anotado arriba con su fase: S0.7 es un baseline, no una reforma.
+
+## 6. Arreglos hechos después, en F2 (2026-09-23)
+
+- **§3.5 — Las subcuentas sin credenciales ya no ensucian el historial.** Los crons de Meta,
+  Meta diario, Meta anuncios e Instagram declaran qué claves necesitan (`requiere`), y si faltan la
+  pasada se omite **sin abrir ejecución**. No hay fila que malinterpretar: el panel ya sabía decir
+  "sin credenciales" mirando la configuración, sin necesidad de que nadie falle.
+- **§3.6 — Una pasada cortada ya no declara una duración inventada.** El barrido de colgados cierra
+  el estado pero deja `finished_at` a NULL: no sabe cuándo murió la función, solo que ya no está.
+  Antes sellaba la hora del barrido y producía pasadas de hasta 24 h. La pantalla dice "se cortó, no
+  se sabe cuánto duró".
+  **Lo que sigue pendiente de §3.6**: una función que muere antes incluso de registrar su inicio no
+  deja rastro de ningún tipo. Eso no se arregla desde dentro de la función; necesita que el
+  planificador confirme la invocación, y va con el trabajo de observabilidad.
+- **Salud de datos por conector**: la pantalla muestra última pasada, duración (o el hueco honesto),
+  error con si se reintenta solo, estado de credenciales por NOMBRE de clave y qué hace el conector
+  con el cursor. Sale del historial de ejecuciones, no de las filas guardadas: una integración que
+  lleva días fallando enseñaba la fecha del último dato bueno y parecía sana.

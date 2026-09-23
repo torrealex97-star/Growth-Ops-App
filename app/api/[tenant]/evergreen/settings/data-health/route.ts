@@ -5,6 +5,9 @@ import { getTenantConfigWithFallback } from '@/lib/config'
 import { countDuplicateKeys, countDuplicateValues, deriveSourceStatus } from '@/lib/data-health'
 import { resumenCross, runCrossChecks } from '@/lib/data-health/cross-source'
 import { parseAccountIds } from '@/lib/meta/accounts'
+import { CONECTORES, pendientesDeMigrar } from '@/lib/conectores/registro'
+import { saludDeConector } from '@/lib/data-health/conectores'
+import { lastRunsByJob } from '@/lib/integrations/sync-runs'
 
 export const runtime = 'nodejs'
 
@@ -80,6 +83,21 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
           .limit(10000),
       ])
 
+    // Estado por CONECTOR: sale del historial de ejecuciones y del manifiesto, no de las filas que
+    // haya en las tablas. Una integración que lleva días fallando enseña la fecha del último dato
+    // bueno y parece sana; esto dice si la tubería sigue abierta. Si el historial falla, la sección
+    // se queda vacía y el resto de la pantalla sigue informando.
+    const ejecuciones = await lastRunsByJob(sb, auth.tenantId).catch(() => ({}))
+    // Solo NOMBRES de claves: de la configuración no sale ni un valor hacia la pantalla.
+    const clavesConfiguradas = new Set(
+      Object.entries(cfg)
+        .filter(([, v]) => !!v?.trim())
+        .map(([k]) => k)
+    )
+    const conectores = CONECTORES.filter((c) => c.manifest.provider !== 'plantilla').map((c) =>
+      saludDeConector(c.manifest, { clavesConfiguradas, ejecuciones })
+    )
+
     const contacts = (contactsResult.data ?? []) as Contact[]
     const appointments = (appointmentsResult.data ?? []) as Appointment[]
     const campaigns = campaignsResult.data ?? []
@@ -154,6 +172,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
     })
 
     return NextResponse.json({
+      conectores,
+      // Cuántas integraciones siguen sin contrato: la sección dice de qué está hablando y de qué no.
+      conectoresPendientes: pendientesDeMigrar(),
       totals: { contacts: contacts.length, appointments: appointments.length },
       sources: [
         source('meta', 'Meta Ads', Boolean(cfg.META_ACCESS_TOKEN), campaigns.length, latest(campaigns, 'synced_at')),
