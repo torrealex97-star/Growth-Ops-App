@@ -97,6 +97,15 @@ type Expense = {
   payment_method: string | null
   status: 'pagado' | 'en_revision' | 'pendiente'
   counterparty: string | null
+  invoice_number: string | null
+  invoice_due_date: string | null
+  counterparty_tax_id: string | null
+  counterparty_address: string | null
+  counterparty_bank_account: string | null
+  counterparty_bank_name: string | null
+  paid_at: string | null
+  paid_from_account: string | null
+  payment_reference: string | null
   person_id: string | null
   notes: string | null
   created_by: string | null
@@ -117,6 +126,12 @@ type AiExtracted = {
   vat?: number
   category?: Expense['category']
   counterparty?: string
+  invoice_number?: string
+  invoice_due_date?: string
+  counterparty_tax_id?: string
+  counterparty_address?: string
+  counterparty_bank_account?: string
+  counterparty_bank_name?: string
   expense_date?: string
   suggested_person?: string
   confidence?: number
@@ -149,6 +164,14 @@ const emptyForm = {
   payment_method: 'transferencia',
   status: 'pagado' as Expense['status'],
   counterparty: '',
+  invoice_number: '',
+  invoice_due_date: '',
+  counterparty_tax_id: '',
+  counterparty_address: '',
+  counterparty_bank_account: '',
+  counterparty_bank_name: '',
+  paid_from_account: '',
+  payment_reference: '',
   person_id: '',
   notes: '',
 }
@@ -161,6 +184,8 @@ const emptyEditForm = {
   expense_date: '',
   status: 'pagado' as Expense['status'],
   counterparty: '',
+  paid_from_account: '',
+  payment_reference: '',
   notes: '',
 }
 
@@ -367,9 +392,28 @@ export default function ExpensesPage() {
 
   const updateStatus = async (id: string, next: Expense['status']) => {
     const prev = items
-    setItems((cur) => cur.map((e) => (e.id === id ? { ...e, status: next } : e)))
+    setItems((cur) =>
+      cur.map((e) =>
+        e.id === id
+          ? {
+              ...e,
+              status: next,
+              paid_at: next === 'pagado' ? (e.paid_at ?? new Date().toISOString().slice(0, 10)) : e.paid_at,
+            }
+          : e
+      )
+    )
     const supabase = createClient()
-    const { error } = await supabase.from('expenses').update({ status: next }).eq('id', id)
+    // paid_at: trazabilidad de cuándo se pagó. Se fija al pasar a 'pagado' (si aún no tiene fecha
+    // introducida) y se conserva al reabrir el gasto para no perder el histórico.
+    const { error } = await supabase
+      .from('expenses')
+      .update(
+        next === 'pagado'
+          ? { status: next, paid_at: items.find((e) => e.id === id)?.paid_at ?? new Date().toISOString().slice(0, 10) }
+          : { status: next }
+      )
+      .eq('id', id)
     if (error) {
       toast.error('No se pudo actualizar el estado', { description: error.message })
       setItems(prev)
@@ -433,6 +477,12 @@ export default function ExpensesPage() {
         counterparty: extracted.counterparty ?? prev.counterparty,
         subcategory: extracted.counterparty ?? prev.subcategory,
         expense_date: extracted.expense_date ?? prev.expense_date,
+        invoice_number: extracted.invoice_number ?? prev.invoice_number,
+        invoice_due_date: extracted.invoice_due_date ?? prev.invoice_due_date,
+        counterparty_tax_id: extracted.counterparty_tax_id ?? prev.counterparty_tax_id,
+        counterparty_address: extracted.counterparty_address ?? prev.counterparty_address,
+        counterparty_bank_account: extracted.counterparty_bank_account ?? prev.counterparty_bank_account,
+        counterparty_bank_name: extracted.counterparty_bank_name ?? prev.counterparty_bank_name,
         person_id: matchedPersonId || prev.person_id,
         notes: conversionNote ? [conversionNote, prev.notes].filter(Boolean).join(' · ') : prev.notes,
       }))
@@ -617,6 +667,15 @@ export default function ExpensesPage() {
       payment_method: ne.payment_method || null,
       status: ne.status,
       counterparty: ne.counterparty.trim() || null,
+      invoice_number: ne.invoice_number.trim() || null,
+      invoice_due_date: ne.invoice_due_date.trim() || null,
+      counterparty_tax_id: ne.counterparty_tax_id.trim() || null,
+      counterparty_address: ne.counterparty_address.trim() || null,
+      counterparty_bank_account: ne.counterparty_bank_account.trim() || null,
+      counterparty_bank_name: ne.counterparty_bank_name.trim() || null,
+      paid_from_account: ne.paid_from_account.trim() || null,
+      payment_reference: ne.payment_reference.trim() || null,
+      paid_at: ne.status === 'pagado' ? ne.expense_date : null,
       person_id: ne.person_id || null,
       notes: ne.notes.trim() || null,
       created_by: sesion?.userId ?? null,
@@ -653,6 +712,8 @@ export default function ExpensesPage() {
       expense_date: e.expense_date ? e.expense_date.slice(0, 10) : '',
       status: e.status,
       counterparty: e.counterparty || '',
+      paid_from_account: e.paid_from_account || '',
+      payment_reference: e.payment_reference || '',
       notes: e.notes || '',
     })
   }
@@ -689,6 +750,8 @@ export default function ExpensesPage() {
         expense_date: ee.expense_date,
         status: ee.status,
         counterparty: ee.counterparty.trim() || null,
+        paid_from_account: ee.paid_from_account.trim() || null,
+        payment_reference: ee.payment_reference.trim() || null,
         notes: ee.notes.trim() || null,
       })
       .eq('id', editing.id)
@@ -1034,6 +1097,39 @@ export default function ExpensesPage() {
                         {isExpanded && (
                           <tr className="border-b border-border/50 bg-muted/30">
                             <td colSpan={canManage ? 7 : 6} className="px-4 py-4">
+                              <div className="mb-3 rounded border border-border bg-card/60 p-3 text-xs space-y-1">
+                                <p className="font-medium text-foreground">
+                                  Identidad del emisor y trazabilidad del pago
+                                </p>
+                                {(e.invoice_number || e.invoice_due_date) && (
+                                  <p className="text-muted-foreground">
+                                    Factura: {e.invoice_number ?? '—'}
+                                    {e.invoice_due_date ? ` · vence ${formatDate(e.invoice_due_date)}` : ''}
+                                  </p>
+                                )}
+                                {(e.counterparty_tax_id || e.counterparty_address) && (
+                                  <p className="text-muted-foreground">
+                                    {e.counterparty_tax_id ? `NIF/CIF: ${e.counterparty_tax_id}` : ''}
+                                    {e.counterparty_address
+                                      ? `${e.counterparty_tax_id ? ' · ' : ''}${e.counterparty_address}`
+                                      : ''}
+                                  </p>
+                                )}
+                                {(e.counterparty_bank_account || e.counterparty_bank_name) && (
+                                  <p className="text-muted-foreground">
+                                    Cuenta del emisor: {e.counterparty_bank_account ?? '—'}
+                                    {e.counterparty_bank_name ? ` (${e.counterparty_bank_name})` : ''} — confirmada por
+                                    humanos antes de pagar
+                                  </p>
+                                )}
+                                {(e.paid_at || e.paid_from_account || e.payment_reference) && (
+                                  <p className="text-muted-foreground">
+                                    Pago: {e.paid_at ? formatDate(e.paid_at) : 'sin fecha'}
+                                    {e.paid_from_account ? ` desde ${e.paid_from_account}` : ''}
+                                    {e.payment_reference ? ` · ref. ${e.payment_reference}` : ''}
+                                  </p>
+                                )}
+                              </div>
                               {e.invoice_url ? (
                                 isPdf ? (
                                   <iframe
@@ -1181,6 +1277,24 @@ export default function ExpensesPage() {
                 ))}
               </select>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                placeholder="Cuenta propia de pago (ej. BBVA …)"
+                value={ne.paid_from_account}
+                onChange={(e) => setNe({ ...ne, paid_from_account: e.target.value })}
+                className={cls}
+              />
+              <input
+                placeholder="Referencia del pago"
+                value={ne.payment_reference}
+                onChange={(e) => setNe({ ...ne, payment_reference: e.target.value })}
+                className={cls}
+              />
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              La cuenta bancaria extraída de la factura es la del EMISOR: no demuestra el pago. La cuenta propia y la
+              referencia los introduce el usuario al registrar el pago.
+            </p>
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-2 text-sm text-foreground">
                 <input
@@ -1307,6 +1421,18 @@ export default function ExpensesPage() {
               value={ee.counterparty}
               onChange={(e) => setEe({ ...ee, counterparty: e.target.value })}
               placeholder="Proveedor / contraparte"
+              className={cls}
+            />
+            <input
+              value={ee.paid_from_account}
+              onChange={(e) => setEe({ ...ee, paid_from_account: e.target.value })}
+              placeholder="Cuenta propia de pago"
+              className={cls}
+            />
+            <input
+              value={ee.payment_reference}
+              onChange={(e) => setEe({ ...ee, payment_reference: e.target.value })}
+              placeholder="Referencia del pago"
               className={cls}
             />
             <textarea
