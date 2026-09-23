@@ -366,6 +366,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       fullName,
       firstName: parts[0] || null,
       lastName: parts.slice(1).join(' ') || null,
+      // Canal de origen first-touch: lo que GHL declare en `source` (p.ej. "Facebook Ads").
+      leadChannel: source,
       seenAt: now,
     })
     if (!resolved.ok) {
