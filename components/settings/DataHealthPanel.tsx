@@ -73,6 +73,12 @@ type OperationalHealth = {
     appointmentsWithoutContact: number
     leadChannelGaps: number
   }
+  saludWebhookGhl?: {
+    estado: 'al_dia' | 'silencio' | 'sin_configurar' | 'desconocido'
+    mensaje: string
+    ultimoSobre: string | null
+    horasDesde: number | null
+  }
 }
 
 const EMPTY: DataHealthSummary = {
@@ -466,6 +472,38 @@ export function DataHealthPanel() {
               />
             </div>
           </section>
+
+          {/* Webhooks entrantes: la mitad que ESPERA datos. El pull del cron puede disimular un webhook
+              roto trayendo datos viejos; aquí el silencio de la recepción se ve. */}
+          {operational.saludWebhookGhl && (
+            <section className="rounded-xl border border-border bg-card p-5">
+              <h2 className="font-semibold text-foreground">Webhooks entrantes</h2>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Evidencia de recepción real en la capa de eventos en bruto; si nada llega en 24 h con la integración
+                configurada, el tiempo real está roto.
+              </p>
+              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
+                <Metric
+                  label="Webhook de GHL"
+                  value={
+                    operational.saludWebhookGhl.horasDesde !== null
+                      ? `${Math.round(operational.saludWebhookGhl.horasDesde)} h`
+                      : operational.saludWebhookGhl.estado === 'sin_configurar'
+                        ? '—'
+                        : 'sin sobres'
+                  }
+                  detail={operational.saludWebhookGhl.mensaje}
+                  tone={
+                    operational.saludWebhookGhl.estado === 'silencio'
+                      ? 'bad'
+                      : operational.saludWebhookGhl.estado === 'al_dia'
+                        ? 'good'
+                        : 'warn'
+                  }
+                />
+              </div>
+            </section>
+          )}
 
           <section className="rounded-xl border border-border bg-card p-5">
             <h2 className="font-semibold text-foreground">Integridad y deduplicación</h2>
