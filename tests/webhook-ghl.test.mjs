@@ -158,14 +158,14 @@ test('los fallos de escritura se devuelven, no se tragan', () => {
 
 // ── ESTADO CONOCIDO, FIJADO A PROPÓSITO ──────────────────────────────────────────────────────
 
-test('HOY no se escribe capa raw: este test debe romperse cuando F1 la añada', () => {
-  // `contact_attributions` está a 0 filas en producción con 972 contactos porque la atribución solo
-  // se escribe `if (hasUtm || source)` y GHL no está enviando UTMs. Sin el payload original
-  // guardado no se puede diagnosticar a posteriori ni reprocesar un día.
-  //
-  // Se fija como está para que el cambio sea deliberado: cuando F1 escriba en `raw_events`, este
-  // test falla y quien lo actualice tiene delante el motivo.
-  assert.doesNotMatch(codigo, /raw_events/, 'si F1 ya añadió la capa raw, actualiza este test y S0-2')
+test('la capa raw YA existe (F1) y la atribución sigue dependiendo de que GHL mande UTMs', () => {
+  // Este test fijaba el estado anterior —sin capa raw— para que añadirla fuera deliberado. F1 la
+  // añadió el 23-sep: el sobre se guarda antes de procesar y el reintento cae en la misma fila.
+  // El detalle vive en `tests/f1-raw-ghl.test.mjs`; aquí solo se comprueba que no desaparezca.
+  assert.match(codigo, /from\('raw_events'\)/)
+  // Lo que NO ha cambiado: la atribución solo se escribe si llegan UTMs o `source`, y GHL sigue sin
+  // mandarlos (bloqueo de configuración de Alex). Ahora, al menos, el payload queda guardado y el
+  // día que se configure se puede reprocesar hacia atrás.
   assert.match(codigo, /if \(hasUtm \|\| source\)/)
 })
 

@@ -29,8 +29,9 @@ Quedan expresamente fuera contratos, colaboradores, RAG, facturación, IA, integ
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente | Qué | Rama | Toca | Desde |
-| ------ | --- | ---- | ---- | ----- |
+| Agente      | Qué                                                                                                                                  | Rama              | Toca                                                                | Desde  |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------------- | ------------------------------------------------------------------- | ------ |
+| Claude Code | **F1 — event core**, por trozos. Hecho: capa raw del webhook de GHL. Siguiente: `canonical_events` desde el sobre + runner de replay | `feat/f1-raw-ghl` | `lib/eventos/*`, `app/api/[tenant]/evergreen/webhooks/ghl/route.ts` | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
@@ -108,9 +109,13 @@ El plan completo vive en `docs/plan/`. Empieza por su README.
 ### Lo siguiente, en este orden
 
 1. **Resolver lo pendiente listado abajo.**
-2. **S0 CERRADA** (tramos 1 y 2). Acta en `docs/S0-8-GRADUACION.md`; estado por área en
+2. **F1 en curso** (event core). Trozo 1 fusionado: el webhook de GHL guarda el sobre en bruto antes
+   de procesar, con identidad estable (id de GHL o huella determinista), propiedades sin PII y cierre
+   del sobre en todas las salidas. Falta: `canonical_events` desde el sobre, tabla `event_types`,
+   runner de replay y el mismo camino para Stripe.
+3. **S0 CERRADA** (tramos 1 y 2). Acta en `docs/S0-8-GRADUACION.md`; estado por área en
    `CAPABILITIES.md`. Ledger P0–P4 consolidado ahí: ningún P0 abierto.
-3. **F1 — event core.** Es donde van tres cosas ya diagnosticadas: el webhook de GHL no escribe capa
+4. **F1 — event core.** Es donde van tres cosas ya diagnosticadas: el webhook de GHL no escribe capa
    raw (sin replay), un contacto sin nombre tumba el lote entero de GHL (`23502`), y `raw_events` no
    permite localizar a una persona (bloquea el borrado de F6).
 
