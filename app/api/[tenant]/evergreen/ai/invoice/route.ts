@@ -75,7 +75,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       }
     }
 
-    return NextResponse.json({ ok: true, extracted: result })
+    // La extracción es una SUGERENCIA: el gasto que nazca de ella va siempre needs_review
+    // y debe pasar por revisión humana antes de considerarse un dato confirmado.
+    return NextResponse.json({ ok: true, extracted: result, needs_review: true })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }
