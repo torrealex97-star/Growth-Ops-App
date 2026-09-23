@@ -191,6 +191,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       instagram: instagramFromForm,
       age: ageFromForm,
       leadStatus: 'agendado',
+      // Canal de origen first-touch: toda entrega de este webhook viene de Calendly.
+      leadChannel: 'calendly',
       seenAt: now,
     })
     if (!resolved.ok) {
