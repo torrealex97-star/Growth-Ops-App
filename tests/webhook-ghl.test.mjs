@@ -36,9 +36,22 @@ test('el secreto se valida fail-closed y antes de leer el payload', () => {
   assert.match(codigo, /const esperado = cfg\.GHL_WEBHOOK_SECRET \|\| process\.env\.GHL_WEBHOOK_SECRET/)
   assert.match(codigo, /isValidWebhookSecret\(secret, esperado\)/)
   const valida = codigo.indexOf('isValidWebhookSecret(')
-  const lee = codigo.indexOf('await req.json()')
+  const lee = codigo.indexOf('await req.text()')
   assert.ok(valida > -1 && lee > -1, 'deben existir ambas operaciones')
   assert.ok(valida < lee, 'el secreto se comprueba antes de leer el cuerpo de un remitente sin autenticar')
+})
+
+// El cuerpo de GHL llega a veces vacío o roto (workflows sin cuerpo, entregas a medias). Antes
+// revientaba en el catch final como 500 sin sobre, sin acta y sin ni una línea en el log: la
+// entrega desaparecía de puro silencio (auditoría del 23-sep: entregas diarias, cero registradas).
+test('un cuerpo vacío o JSON inválido responde 400 con registro, no 500 silencioso', () => {
+  assert.doesNotMatch(codigo, /req\.json\(\)/, 'req.json() lanza fuera de guardia: nunca debe leerse el cuerpo así')
+  const parsear = codigo.indexOf('JSON.parse(crudo)')
+  const catchParse = codigo.indexOf('console.warn(`[ghl-webhook] 400: cuerpo vacío o JSON inválido')
+  const badRequest = codigo.indexOf("{ error: 'JSON inválido' }, { status: 400 }")
+  assert.ok(parsear > -1, 'el parseo debe existir')
+  assert.ok(catchParse > -1 && badRequest > -1, 'el parseo roto se registra y responde 400')
+  assert.ok(catchParse > parsear && badRequest > parsear, 'la guardia va justo tras el parseo, antes de tocar nada')
 })
 
 test('un secreto ausente o incorrecto devuelve 401 y corta', () => {
@@ -52,7 +65,7 @@ test('un secreto ausente o incorrecto devuelve 401 y corta', () => {
   const rechaza = codigo.indexOf("error: 'Unauthorized' }, { status: 401 }", comprueba)
   assert.ok(rechaza > comprueba, 'la comprobación tiene que llevar a un 401')
   // Y nada del payload se procesa antes: el cuerpo se lee después.
-  assert.ok(codigo.indexOf('await req.json()') > rechaza)
+  assert.ok(codigo.indexOf('await req.text()') > rechaza)
 })
 
 // ── FRONTERA DE SUBCUENTA ────────────────────────────────────────────────────────────────────

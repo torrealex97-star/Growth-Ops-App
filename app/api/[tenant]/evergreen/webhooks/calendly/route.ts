@@ -107,7 +107,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (!verifySignature(raw, req.headers.get('calendly-webhook-signature'), secreto)) {
       return NextResponse.json({ error: 'Firma inválida' }, { status: 401 })
     }
-    const body = JSON.parse(raw)
+    // Mismo defecto que tuvo GHL: un cuerpo vacío o roto reventaba en el catch final como 500
+    // sin una línea en el log (auditoría del 23-sep). 400 con registro: no hay nada que
+    // reintentar y el motivo queda visible en el runtime.
+    let body: ReturnType<typeof JSON.parse>
+    try {
+      body = JSON.parse(raw)
+    } catch {
+      console.warn(`[calendly] 400: cuerpo vacío o JSON inválido (longitud ${raw.length}); entrega no procesable`)
+      return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
+    }
     const event = body.event as string
     const p = body.payload || {}
     const now = new Date().toISOString()
