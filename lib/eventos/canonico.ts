@@ -67,6 +67,11 @@ export function hechoDesdeSobre(opciones: {
   recibidoEn: string
   contactId?: string | null
   appointmentId?: string | null
+  /**
+   * Propiedades ya derivadas por el normalizador de la fuente. Cuando vienen, mandan: Stripe, por
+   * ejemplo, no tiene un payload plano que filtrar — su normalizador ya sabe qué es dinero y qué no.
+   */
+  propiedades?: Record<string, unknown>
 }): HechoCanonico {
   const { tenantId, source, sourceEventId, rawEventId, tipo, payload, recibidoEn } = opciones
   return {
@@ -80,7 +85,7 @@ export function hechoDesdeSobre(opciones: {
     event_name: tipo,
     occurred_at: ocurridoEn(payload, recibidoEn),
     idempotency_key: sourceEventId,
-    properties: propiedadesSinPii(payload),
+    properties: opciones.propiedades ?? propiedadesSinPii(payload),
     // Los vínculos con la persona y la cita son el resultado de la proyección: se conocen DESPUÉS de
     // procesar, y por eso el hecho se escribe al final y no al recibir.
     contact_id: opciones.contactId ?? null,

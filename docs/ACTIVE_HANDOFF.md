@@ -116,8 +116,16 @@ El plan completo vive en `docs/plan/`. Empieza por su README.
    - **Trozo 2:** `canonical_events` derivado del sobre al terminar (con los vínculos de contacto y
      cita ya conocidos), correcciones como hecho nuevo que apunta al original —nunca reescritura— y
      tabla `event_types` sembrada desde `lib/eventos/canonico.ts`.
-   - **Falta:** runner de replay (por fuente, subcuenta, rango y versión de normalizador, con
-     simulación) y el mismo camino para Stripe.
+   - **Trozo 3:** reprocesado (`lib/eventos/replay.ts` + `POST /api/[tenant]/evergreen/eventos/replay`).
+     Simula por defecto (hay que pedir `simulacion: false` a propósito), es reanudable por cursor
+     `(received_at, id)`, idempotente, no toca el sobre y no reasigna contacto ni cita. Acceso:
+     admin/director o `Bearer CRON_SECRET`.
+   - **Trozo 4:** Stripe por el mismo camino. Su webhook ya guardaba el sobre; ahora deriva el hecho
+     conservando la clase que decide `lib/stripe/webhook.ts` (de los tres eventos por pago, solo uno
+     es dinero). **No escribe en `collections`: la semántica financiera no cambia.**
+   - `event_types` **aplicada** el 23-sep con los 10 tipos (5 de GHL, 5 de Stripe).
+   - **Falta para graduar F1:** evidencia de convergencia con datos reales (hoy 0 sobres de GHL: el
+     último evento entró el 22-sep a las 08:09, antes del despliegue) y el shadow/compare del cutover.
 3. **S0 CERRADA** (tramos 1 y 2). Acta en `docs/S0-8-GRADUACION.md`; estado por área en
    `CAPABILITIES.md`. Ledger P0–P4 consolidado ahí: ningún P0 abierto.
 4. **F1 — event core.** Es donde van tres cosas ya diagnosticadas: el webhook de GHL no escribe capa
@@ -138,12 +146,6 @@ Dos motivos, ninguno es código:
 ### Migraciones escritas y NO aplicadas
 
 El plan prohíbe que un agente toque producción por su cuenta. Espera confirmación:
-
-- **`20260923090000_event_types.sql`** (F1) — crea el vocabulario de `canonical_events.event_name` y
-  lo siembra con los 5 tipos que produce el normalizador de GHL. Solo crea tabla y filas; no toca
-  datos existentes ni impone clave foránea (un tipo nuevo se guarda igual y aparece como "no
-  declarado"). **Nota: la conexión con Supabase está caída en la sesión del 23-sep**, así que no se
-  ha podido aplicar ni verificar nada en la base.
 
 - ~~P0 del RAG~~ **APLICADA el 2026-09-21** con aprobación de Alex, como
   `20260921172046_s0_4_match_knowledge_chunks_gate_subcuenta.sql` (renombrada a su versión real).
