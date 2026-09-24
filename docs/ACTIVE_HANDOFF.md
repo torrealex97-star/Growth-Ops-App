@@ -1,5 +1,54 @@
 # Relevo activo
 
+## Anotaciones en gráficos + limpieza de tipos — 2026-09-24 (Claude Code)
+
+**Fusionado en `origin/main`:** PR #201 (squash `72fe57b`). Cierra tres pendientes de la sesión
+anterior:
+
+- **#66** — tabla `annotations` (fecha, título, descripción, categoría, autor) para marcar
+  picos/valles en `TrendChart`. Migración `20260924100000_annotations.sql` con RLS calcada de
+  `ai_business_facts` (el equipo lee y anota, el autor o admin/director corrige o borra,
+  aislamiento por tenant vía `auth_tenant_ids()`). API en `/anotaciones` y `/anotaciones/[id]`,
+  componente `AnotacionesInspector`, wiring de ejemplo en `analitica/embudo`.
+- **#54** — eliminados los `any` restantes de `setting-ai`, `carruseles/*` y `VslPlayer`. De paso
+  corrigió un bug real: el contador `convo` de las correcciones automáticas de setting-ai nunca se
+  guardaba (el panel mostraba "CNaN" en vez del número de conversación).
+- **#53** — verificado que ya estaba resuelto por trabajo previo (`cascada-sesion.test.mjs`,
+  17/17). Sin cambios de código, solo confirmación.
+
+**Migración aplicada y verificada en producción** vía el conector MCP de Supabase, sin depender de
+red local (ver "Puedo hacer mejor que Freebuff" más abajo): 5 políticas RLS confirmadas por SQL
+directo contra `pg_policies`, `get_advisors` sin hallazgos nuevos.
+
+**CI se puso rojo, causa raíz encontrada y arreglada sin reabrir el PR**:
+`tests/esquema-tenant-invariante.test.mjs` falló porque `lib/types/database-generated.ts` no traía
+la tabla nueva. `npm run tipos:bd` no pudo correr en este sandbox (sin red real a Supabase,
+`.env.local` con placeholders); se añadió el bloque `Annotations` a mano siguiendo el patrón
+mecánico del generador (todo opcional/nullable, igual que el resto del artefacto) y se verificó
+1:1 contra las 111 tablas reales del esquema vivo vía el conector — 0 faltan, 0 sobran. CI en
+verde tras el push; PR mergeado.
+
+**Extra — `CRON_SECRET` creado en Preview** (Vercel, proyecto `growth-ops`). Llevaba desde el
+21-sep como bloqueo abierto ("CRON_SECRET existe solo en Production... bloquea el staging que F1
+necesita") sin que nadie lo tocara; verificado hoy que seguía faltando. Es aditivo, no toca
+Production ni sustituye ningún valor existente: cualquier disparo manual de cron sobre un preview
+deja de devolver 401 por falta de secreto.
+
+**Verificado hoy — estado real de los bloqueos de hace 3 días (nada ha cambiado salvo lo de
+arriba)**:
+
+- `RESEND_API_KEY` sigue marcada `readable-secret` en Vercel. No se puede rotar desde aquí: hace
+  falta que Alex regenere la clave en el dashboard de Resend primero.
+- El repo sigue público (decisión ya tomada, no es una regresión).
+- El proyecto `go-prod` de Vercel sigue existiendo, vacío (`live: false`). No lo he borrado sin
+  confirmación explícita de hoy — es una acción destructiva sobre infraestructura compartida y la
+  aprobación de la sesión del 21-sep no cuenta como vigente.
+- `growth_context` (bloqueo de #57): **parcialmente relleno, no vacío como se creía**. Tiene
+  `business_type` = "Formación B2C", `offer_price_eur` = 1996.97, `target_monthly_revenue_eur` =
+  30000, `target_cash_roas` = 4.00. **Faltan**: `target_ltgp_cac`, `capacity_calls_per_week`,
+  `capacity_active_clients` — sin esos tres, el motor de objetivos/previsión (#65, en curso) sigue
+  sin poder calcular ritmo ni capacidad aunque el código (`lib/metrics/series.ts`) ya esté listo.
+
 ## F2 completa: Stripe sobre el contrato — 2026-09-24 (Freebuff/Buffy)
 
 **Fusionado en `origin/main`:** PR #199 (squash `9f8ba50`, rama `feat/stripe-conector-f2` borrada). El conector de Stripe completa el alcance de F2 (GHL #185, Meta #187, Stripe #199). Envuelve el webhook y el sync ya probados sin reescribir semántica económica: `normalize` delega en `derivarStripe` (`lib/eventos/stripe.ts`), `backfill` en `syncStripePayments`, salud con `GET /v1/balance` del cliente existente. Fixture sanitizado + 7 tests nuevos en la suite de contrato; el marcador `pendientesDeMigrar` ya no lista Stripe.
