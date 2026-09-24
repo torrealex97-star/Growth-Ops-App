@@ -32,6 +32,23 @@ test('el deshacer persistido usa versión y no intercepta undo nativo', () => {
   assert.doesNotMatch(`${contactPage}\n${detail}`, /onKeyDown=.*preventDefault/)
 })
 
+test('los campos personalizados usan el esquema canónico y conservan valores vacíos', () => {
+  const page = read('app/[tenant]/crm/contactos/[id]/page.tsx')
+  const route = read('app/api/[tenant]/evergreen/contacts/[id]/route.ts')
+  const types = read('lib/types/database.ts')
+  const migration = read('supabase/migrations/20260921200000_contact_custom_fields.sql')
+  assert.match(page, /\.from\('custom_field_defs'\)[\s\S]*\.eq\('tenant_id', tenantId\)/)
+  assert.match(route, /\.select\('id, field_type, label'\)/)
+  assert.doesNotMatch(route, /\.eq\('active', true\)|select\('id, field_type, options'\)/)
+  assert.match(route, /raw === null \|\| raw === ''/)
+  assert.match(route, /delete merged\[fieldId\]/)
+  assert.match(types, /field_key: string[\s\S]*field_type: 'text' \| 'number' \| 'date' \| 'boolean'/)
+  assert.match(migration, /field_key TEXT NOT NULL/)
+  assert.match(migration, /ALTER TABLE public\.contacts ADD COLUMN IF NOT EXISTS custom_fields JSONB/)
+  assert.match(migration, /CREATE POLICY custom_field_defs_delete/)
+  assert.doesNotMatch(migration, /options JSONB|active BOOLEAN/)
+})
+
 test('la timeline incluye actividades y contratos sin crear una tabla de mensajes', () => {
   const timeline = read('lib/contact-timeline.ts')
   const page = read('app/[tenant]/crm/contactos/[id]/page.tsx')
