@@ -90,7 +90,9 @@ function parseSpec(input: unknown, fallbackName: string): CasoExitoSpec | null {
     ? (raw.slides as unknown[])
         .filter(
           (s): s is Record<string, unknown> =>
-            !!s && typeof s === 'object' && typeof (s as Record<string, unknown>).heading === 'string' &&
+            !!s &&
+            typeof s === 'object' &&
+            typeof (s as Record<string, unknown>).heading === 'string' &&
             ((s as Record<string, unknown>).heading as string).trim().length > 0
         )
         .map((s) => ({

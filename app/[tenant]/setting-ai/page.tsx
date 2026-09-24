@@ -436,8 +436,7 @@ function EntrenamientoTab() {
         else if (e.type === 'lead') setAtLog((l) => [...l, { k: 'lead', text: e.text }])
         else if (e.type === 'agent') setAtLog((l) => [...l, { k: 'agent', text: e.text }])
         else if (e.type === 'critic') setAtLog((l) => [...l, { k: 'crit', ok: e.ok, issues: e.issues || [] }])
-        else if (e.type === 'correction')
-          setAtCorrs((c) => [...c, { id: nid(), convo: e.convo, ...e.correction }])
+        else if (e.type === 'correction') setAtCorrs((c) => [...c, { id: nid(), convo: e.convo, ...e.correction }])
         else if (e.type === 'improving') setAtStatus('generando prompt mejorado…')
         else if (e.type === 'done') {
           setAtImproved(e.improved || '')
