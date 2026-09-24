@@ -1,9 +1,9 @@
 'use client'
 import { useTenant } from '@/lib/tenant-context'
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { DEFAULT_BASE_PROMPT, BRAND, BRAND_PERSON } from '@/lib/setting-ai/default-prompt'
+import type { Issue } from '@/lib/setting-ai/core'
 import {
   Bot,
   Plus,
@@ -42,6 +42,7 @@ interface Corr {
   better?: string
   auto?: boolean
   severidad?: string
+  convo?: number
 }
 interface Persona {
   avatar: number
@@ -49,6 +50,25 @@ interface Persona {
   dureza: string
   objecion: string
 }
+
+/** Forma laxa de los eventos SSE de /improve y /autotrain: cada `type` trae sus propios campos. */
+interface SseEvent {
+  type?: string
+  text?: string
+  error?: string
+  convo?: number
+  persona?: Persona
+  ok?: boolean
+  issues?: Issue[]
+  correction?: Partial<Corr>
+  improved?: string
+  corrections?: unknown[]
+}
+
+type AtLogEntry =
+  | { k: 'h'; convo?: number; persona?: Persona }
+  | { k: 'lead' | 'agent'; text?: string }
+  | { k: 'crit'; ok?: boolean; issues: Issue[] }
 
 let _c = 1
 const nid = () => 'm' + _c++ + Date.now().toString(36)
@@ -136,8 +156,8 @@ function EntrenamientoTab() {
   const [atPersonasMode, setAtPersonasMode] = useState<'auto' | 'fixed'>('auto')
   const [atModel, setAtModel] = useState('sonnet')
   const [atStatus, setAtStatus] = useState('')
-  const [atLog, setAtLog] = useState<any[]>([])
-  const [atCorrs, setAtCorrs] = useState<any[]>([])
+  const [atLog, setAtLog] = useState<AtLogEntry[]>([])
+  const [atCorrs, setAtCorrs] = useState<Corr[]>([])
   const [atImproved, setAtImproved] = useState('')
   const [atSubTab, setAtSubTab] = useState<'live' | 'convos' | 'mejoras' | 'prompt'>('live')
   const atLogEnd = useRef<HTMLDivElement>(null)
@@ -235,7 +255,7 @@ function EntrenamientoTab() {
       const agentMsg = [...currentConv].reverse().find((m) => m.who === 'agent')?.text || ''
       const leadMsg = [...currentConv].reverse().find((m) => m.who === 'lead')?.text || ''
       const add: Corr[] = []
-      ;(r.issues || []).forEach((iss: any) => {
+      ;((r.issues || []) as Issue[]).forEach((iss) => {
         if (iss.severidad === 'baja') return
         add.push({
           id: nid(),
@@ -321,7 +341,7 @@ function EntrenamientoTab() {
   }
 
   // ---------- SSE reader ----------
-  async function readSSE(resp: Response, onEvent: (e: any) => void) {
+  async function readSSE(resp: Response, onEvent: (e: SseEvent) => void) {
     const reader = resp.body!.getReader()
     const dec = new TextDecoder()
     let buf = ''
@@ -396,7 +416,14 @@ function EntrenamientoTab() {
     setAtImproved('')
     setAtSubTab('live')
     setAtStatus('corriendo…')
-    const payload: any = { basePrompt, transcriptNotes: notes, model: atModel, numConvos: atConvos, turns: atTurns }
+    const payload: {
+      basePrompt: string
+      transcriptNotes: string
+      model: string
+      numConvos: number
+      turns: number
+      personas?: Persona[]
+    } = { basePrompt, transcriptNotes: notes, model: atModel, numConvos: atConvos, turns: atTurns }
     if (atPersonasMode === 'fixed') payload.personas = [persona]
     try {
       const resp = await fetch(`/api/${tenant}/evergreen/setting-ai/autotrain`, {
@@ -406,9 +433,11 @@ function EntrenamientoTab() {
       })
       await readSSE(resp, (e) => {
         if (e.type === 'convo-start') setAtLog((l) => [...l, { k: 'h', convo: e.convo, persona: e.persona }])
-        else if (e.type === 'lead' || e.type === 'agent') setAtLog((l) => [...l, { k: e.type, text: e.text }])
+        else if (e.type === 'lead') setAtLog((l) => [...l, { k: 'lead', text: e.text }])
+        else if (e.type === 'agent') setAtLog((l) => [...l, { k: 'agent', text: e.text }])
         else if (e.type === 'critic') setAtLog((l) => [...l, { k: 'crit', ok: e.ok, issues: e.issues || [] }])
-        else if (e.type === 'correction') setAtCorrs((c) => [...c, { ...e.correction }])
+        else if (e.type === 'correction')
+          setAtCorrs((c) => [...c, { id: nid(), convo: e.convo, ...e.correction }])
         else if (e.type === 'improving') setAtStatus('generando prompt mejorado…')
         else if (e.type === 'done') {
           setAtImproved(e.improved || '')
@@ -904,7 +933,7 @@ function EntrenamientoTab() {
                   Personas
                   <select
                     value={atPersonasMode}
-                    onChange={(e) => setAtPersonasMode(e.target.value as any)}
+                    onChange={(e) => setAtPersonasMode(e.target.value as 'auto' | 'fixed')}
                     className="bg-muted border border-border rounded px-2 py-1.5 text-foreground text-sm"
                   >
                     <option value="auto">Automáticas (variadas)</option>
@@ -970,12 +999,12 @@ function EntrenamientoTab() {
                               key={i}
                               className="text-[11px] text-brand-400 font-semibold mt-3 pt-2 border-t border-dashed border-border first:border-0 first:mt-0"
                             >
-                              💬 Conversación {e.convo + 1} · avatar {e.persona.avatar}, {e.persona.registro}, dureza{' '}
-                              {e.persona.dureza}, obj: {e.persona.objecion}
+                              💬 Conversación {(e.convo ?? 0) + 1} · avatar {e.persona?.avatar}, {e.persona?.registro},
+                              dureza {e.persona?.dureza}, obj: {e.persona?.objecion}
                             </div>
                           ) : e.k === 'crit' ? (
                             <div key={i} className="text-[11px] text-muted-foreground my-1">
-                              {e.ok ? '   ✅ ok' : '   ⚠️ ' + e.issues.map((x: any) => x.severidad).join(', ')}
+                              {e.ok ? '   ✅ ok' : '   ⚠️ ' + e.issues.map((x) => x.severidad).join(', ')}
                             </div>
                           ) : (
                             <div
@@ -1001,7 +1030,7 @@ function EntrenamientoTab() {
                               className="text-[11.5px] bg-muted/60 border-l-2 border-amber-500 rounded-lg p-2 mb-2"
                             >
                               <div className="text-foreground font-semibold">
-                                C{c.convo + 1} · {c.note}
+                                C{(c.convo ?? 0) + 1} · {c.note}
                               </div>
                               {c.better && <div className="text-emerald-400 mt-0.5">→ {c.better}</div>}
                             </div>

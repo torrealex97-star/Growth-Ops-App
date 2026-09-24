@@ -3,6 +3,17 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import type { VslConfig } from '@/lib/vsl/types'
 import { formatNumber } from '@/lib/utils'
+import type HlsType from 'hls.js'
+
+/** Los navegadores WebKit (Safari) exponen fullscreen con prefijo; el DOM estándar no lo tipa. */
+interface WebkitFullscreenDocument extends Document {
+  webkitFullscreenElement?: Element | null
+  webkitExitFullscreen?: () => void
+}
+interface WebkitFullscreenElement extends HTMLElement {
+  webkitRequestFullscreen?: () => void
+  webkitEnterFullscreen?: () => void
+}
 
 export interface VslPlayerVideo {
   slug: string
@@ -20,7 +31,7 @@ function getAnonId(): string {
     let id = localStorage.getItem(k)
     if (!id) {
       id = String(
-        (crypto as any)?.randomUUID?.() ??
+        crypto?.randomUUID?.() ??
           `a_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e9).toString(36)}`
       )
       localStorage.setItem(k, id)
@@ -189,7 +200,7 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
   useEffect(() => {
     const el = videoRef.current
     if (!el || !src) return
-    let hls: any = null
+    let hls: HlsType | null = null
     let cancelled = false
 
     // Fuente: HLS.js si es .m3u8 y el navegador no lo soporta nativo; si no, src directo.
@@ -471,20 +482,21 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
   }
 
   const toggleFullscreen = () => {
-    const cont = containerRef.current
-    const el = videoRef.current as any
-    const doc = document as any
+    const cont = containerRef.current as WebkitFullscreenElement | null
+    const el = videoRef.current as WebkitFullscreenElement | null
+    const doc = document as WebkitFullscreenDocument
     if (document.fullscreenElement || doc.webkitFullscreenElement) {
       ;(document.exitFullscreen || doc.webkitExitFullscreen)?.call(document)
       return
     }
     if (cont?.requestFullscreen) cont.requestFullscreen().catch(() => {})
-    else if ((cont as any)?.webkitRequestFullscreen) (cont as any).webkitRequestFullscreen()
+    else if (cont?.webkitRequestFullscreen) cont.webkitRequestFullscreen()
     else if (el?.webkitEnterFullscreen) el.webkitEnterFullscreen() // iOS Safari (solo el <video>)
   }
 
   useEffect(() => {
-    const onFs = () => setIsFs(!!(document.fullscreenElement || (document as any).webkitFullscreenElement))
+    const onFs = () =>
+      setIsFs(!!(document.fullscreenElement || (document as WebkitFullscreenDocument).webkitFullscreenElement))
     document.addEventListener('fullscreenchange', onFs)
     document.addEventListener('webkitfullscreenchange', onFs)
     return () => {
