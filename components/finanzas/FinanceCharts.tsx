@@ -1,6 +1,18 @@
 'use client'
 
-import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import {
+  Bar,
+  CartesianGrid,
+  Cell,
+  Line,
+  ComposedChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 
 const COLORS = [
@@ -122,13 +134,20 @@ export function FinanceBreakdown({
 export function FinanceEvolution({
   data,
 }: {
-  data: { ym: string; label: string; cash: number; expenses: number; net: number }[]
+  data: { ym: string; label: string; cash: number; expenses: number; net: number; facturacion?: number }[]
 }) {
+  const conFacturacion = data.some((d) => typeof d.facturacion === 'number')
   return (
     <section className="dashboard-card p-5">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-medium">Evolución de cobros y gastos</h2>
         <div className="flex gap-4 text-xs text-muted-foreground">
+          {conFacturacion && (
+            <span className="flex items-center gap-2">
+              <i className="h-2 w-2 rounded-full bg-emerald-400" />
+              Facturación
+            </span>
+          )}
           <span className="flex items-center gap-2">
             <i className="h-2 w-2 rounded-full bg-brand-500" />
             Cobros
@@ -141,7 +160,7 @@ export function FinanceEvolution({
       </div>
       <div className="h-72" aria-hidden="true">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} barGap={6} margin={{ top: 12, right: 4, bottom: 0, left: 0 }}>
+          <ComposedChart data={data} barGap={6} margin={{ top: 12, right: 4, bottom: 0, left: 0 }}>
             <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.4} strokeDasharray="3 6" />
             <XAxis
               dataKey="label"
@@ -178,7 +197,20 @@ export function FinanceEvolution({
               maxBarSize={16}
               isAnimationActive={false}
             />
-          </BarChart>
+            {conFacturacion && (
+              // La facturación (ventas contratadas) superpuesta como línea: comparte la misma
+              // unidad (€) y eje, así la brecha vendido-vs-cobrado se ve sin engaños de escala.
+              <Line
+                type="monotone"
+                dataKey="facturacion"
+                name="Facturación"
+                stroke="#34d399"
+                strokeWidth={2}
+                dot={{ r: 2.5, fill: '#34d399' }}
+                isAnimationActive={false}
+              />
+            )}
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
       <details className="mt-5 text-xs">
@@ -189,10 +221,16 @@ export function FinanceEvolution({
           <table className="w-full text-left">
             <caption className="sr-only">Cobros, gastos y resultado neto de los últimos seis meses</caption>
             <thead>
+              {' '}
               <tr className="text-muted-foreground">
                 <th className="py-2 font-medium" scope="col">
                   Mes
                 </th>
+                {conFacturacion && (
+                  <th className="text-right font-medium" scope="col">
+                    Facturación
+                  </th>
+                )}
                 <th className="text-right font-medium" scope="col">
                   Cobros
                 </th>
@@ -210,6 +248,7 @@ export function FinanceEvolution({
                   <th scope="row" className="py-2 font-normal">
                     {s.label}
                   </th>
+                  {conFacturacion && <td className="text-right tabular-nums">{formatCurrency(s.facturacion ?? 0)}</td>}
                   <td className="text-right tabular-nums">{formatCurrency(s.cash)}</td>
                   <td className="text-right tabular-nums">{formatCurrency(s.expenses)}</td>
                   <td className="text-right tabular-nums">{formatCurrency(s.net)}</td>
