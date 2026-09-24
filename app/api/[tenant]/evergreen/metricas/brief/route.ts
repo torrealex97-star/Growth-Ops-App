@@ -9,6 +9,9 @@ import { calcularSalud } from '@/lib/metrics/salud'
 import { construirBrief } from '@/lib/metrics/brief'
 import { alertaCalidadDato, alertaKpi, type Alerta } from '@/lib/metrics/alertas'
 import { cargarContextoNegocio } from '@/lib/ai/agent/contexto'
+import { medirObjetivos, type EntradaObjetivo, type ObjetivoMedido } from '@/lib/metrics/objetivos'
+import { preverSerie, type Prevision } from '@/lib/metrics/prevision'
+import { avanceDelPeriodo, diaSiguiente } from '@/lib/metrics/series'
 
 export const runtime = 'nodejs'
 
@@ -153,6 +156,55 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     )
   }
 
+  // OBJETIVOS Y PREVISIÓN. Solo se construye un objetivo cuando growth_context TRAE el valor: sin
+  // objetivo configurado no hay "cumplido" ni "por detrás" que decir, y un objetivo inventado convertiría
+  // el panel en una comparación contra una cifra que nadie decidió (ver lib/ai/agent/contexto.ts).
+  const avance = avanceDelPeriodo(periodo, new Date().toISOString().slice(0, 10))
+  const entradasObjetivos: EntradaObjetivo[] = []
+  if (contexto?.objetivoFacturacionMensualEur != null) {
+    const ultimaFacturacion = consulta.serieFacturacion.at(-1)?.valor ?? null
+    entradasObjetivos.push({
+      objetivo: {
+        key: 'facturacion_objetivo',
+        nombre: 'Facturación del periodo',
+        periodo: 'mes',
+        clase: 'acumulativa',
+        valor: contexto.objetivoFacturacionMensualEur,
+        higherIsBetter: true,
+        unidad: '€',
+      },
+      actual: ultimaFacturacion,
+      fraccionTranscurrida: avance.cerrado ? null : avance.fraccion,
+      unidadesRestantes: avance.diasRestantes,
+      nombreUnidadRestante: 'días',
+    })
+  }
+  if (contexto?.objetivoCashRoas != null) {
+    entradasObjetivos.push({
+      objetivo: {
+        key: 'cash_roas_objetivo',
+        nombre: 'Cash ROAS',
+        periodo: 'mes',
+        clase: 'tasa',
+        valor: contexto.objetivoCashRoas,
+        higherIsBetter: true,
+        unidad: 'x',
+      },
+      actual: consulta.agregados.cash_roas?.valor ?? null,
+    })
+  }
+  const objetivos: ObjetivoMedido[] = medirObjetivos(entradasObjetivos)
+
+  // La previsión solo tiene sentido con periodo en curso y días por delante que proyectar: un periodo
+  // cerrado no se prevé, se mide.
+  const prevision: Prevision | null =
+    !avance.cerrado && avance.diasRestantes > 0
+      ? preverSerie(consulta.serieFacturacion, avance.diasRestantes, {
+          siguienteFecha: (ultima, paso) => diaSiguiente(ultima, paso),
+          noNegativa: true,
+        })
+      : null
+
   const capacidad = {
     // La utilización solo se calcula si una persona ha declarado la capacidad: sin ese dato no se puede
     // saber si hay techo, y el motor devuelve `con_cautela` en vez de luz verde.
@@ -174,6 +226,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   return NextResponse.json({
     periodo,
     brief,
+    objetivos,
+    prevision,
+    avance,
     // Las mediciones en crudo, para el "ver cálculo" de cada tarjeta: sin esto, la nota de salud vuelve
     // a ser un número que nadie puede discutir.
     mediciones: consulta.agregados,

@@ -10,6 +10,8 @@ import {
   type FilaVenta,
   type Periodo,
 } from './agregados'
+import { serieCashAcumulada, serieFacturacionAcumulada } from './series-negocio'
+import type { PuntoSerie } from './prevision'
 
 // LA MITAD DE I/O: leer las filas de una subcuenta y pasarlas al cálculo.
 //
@@ -46,6 +48,13 @@ export type ResultadoConsulta = {
    * enteros hasta la ruta sería pasear datos financieros sin necesidad.
    */
   citas: FilaCita[]
+  /**
+   * Series diarias ACUMULADAS del periodo, para el objetivo/previsión de facturación y cash. No se
+   * exponen las filas de ventas/cobros enteras (serían datos financieros paseados sin necesidad, ver
+   * nota de arriba): solo el punto por día, ya reducido a lo que el gráfico necesita.
+   */
+  serieFacturacion: PuntoSerie[]
+  serieCash: PuntoSerie[]
 }
 
 /** Techo de páginas por fuente. 50 × 1.000 = 50.000 filas, suficiente y acotado. */
@@ -157,6 +166,8 @@ export async function consultarMetricas(
     fuentesConError,
     fuentesRecortadas,
     citas: citas.rows,
+    serieFacturacion: serieFacturacionAcumulada(ventas.rows, periodo),
+    serieCash: serieCashAcumulada(cobros.rows, periodo),
     atribucion: { contactos: totalContactos.count ?? 0, conAtribucion: conAtribucion.count ?? 0 },
     filasLeidas: {
       ventas: ventas.rows.length,
