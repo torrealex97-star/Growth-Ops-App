@@ -1,5 +1,13 @@
 # Relevo activo
 
+## F3 trozo 1: contrato de métrica versionado — 2026-09-24 (Freebuff/Buffy)
+
+**Fusionado en `origin/main`:** PR #202 (squash `48e32be`, rama `feat/f3-metric-definitions` borrada). `lib/metrics/definiciones.ts`: `DefinicionVersionada` (version, grain period/cohort, ventana de maduración, muestra mínima, lineage) construida DESDE el registro canónico, y `evaluarDefinicion` que etiqueta cada resultado (`muestra_insuficiente`, `en_maduracion`) sin sustituir el valor. MER y refund_rate declaradas con fórmula y motivo, sin cálculo a medias. 14 tests con golden fixtures deterministas (show_rate 70.59, close_rate 25, CAC 1249.99, ROAS) en `tests/metrics/f3-definiciones.test.mjs`.
+
+**Verificado:** CI de la PR y de `main` (run 36069960953) en verde; local: 693/693 métricas, 894/897 unit, typecheck exit 0.
+
+**Queda de F3:** `MONEY.md` (decisión financiera: booked/billed/collected/recognized, bruto vs atribuible, FX, IVA, fees — requiere validación de Alex; el plan dice "si bruto vs atribuible no está decidido, implementar ambos y NO marcar ninguno como oficial") y cablear `MetricaPublicada` en consumidores de UI/API. Conectado con #201 (anotaciones, más abajo): las marcas describen periodos, no fechas — el grain del contrato ahora lo hace declarable por métrica.
+
 ## Anotaciones en gráficos + limpieza de tipos — 2026-09-24 (Claude Code)
 
 **Fusionado en `origin/main`:** PR #201 (squash `72fe57b`). Cierra tres pendientes de la sesión
@@ -98,10 +106,9 @@ Quedan expresamente fuera contratos, colaboradores, RAG, facturación, IA, integ
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                | Rama                         | Toca                                                                                                                                        | Desde  |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos                                                                                                                                                     | (fusionadas)                 | solo `expenses` vía migración pendiente; nada en código                                                                                     | 23-sep |
-| Freebuff (Buffy)  | **F3 trozo 1 — contrato de métrica versionado + golden fixtures** (`lib/metrics/definiciones.ts` nuevo): MetricDefinition con version/grain/madurez/confianza/lineage sobre el registro canónico existente, evaluación que etiqueta (no sustituye) y fixtures deterministas para show_rate, close_rate, CAC, MER y refund_rate. `MONEY.md` va como PR aparte para decisión de Alex | `feat/f3-metric-definitions` | `lib/metrics/definiciones.ts` (nuevo), `lib/metrics/registro.ts` (version/grain añadidos), `tests/metrics/f3-definiciones.test.mjs` (nuevo) | 24-sep |
+| Agente            | Qué                                                                                                                                                                                                                            | Rama         | Toca                                                    | Desde  |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------ | ------------------------------------------------------- | ------ |
+| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos | (fusionadas) | solo `expenses` vía migración pendiente; nada en código | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
