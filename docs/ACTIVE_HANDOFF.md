@@ -1,5 +1,13 @@
 # Relevo activo
 
+## F2 completa: Stripe sobre el contrato — 2026-09-24 (Freebuff/Buffy)
+
+**Fusionado en `origin/main`:** PR #199 (squash `9f8ba50`, rama `feat/stripe-conector-f2` borrada). El conector de Stripe completa el alcance de F2 (GHL #185, Meta #187, Stripe #199). Envuelve el webhook y el sync ya probados sin reescribir semántica económica: `normalize` delega en `derivarStripe` (`lib/eventos/stripe.ts`), `backfill` en `syncStripePayments`, salud con `GET /v1/balance` del cliente existente. Fixture sanitizado + 7 tests nuevos en la suite de contrato; el marcador `pendientesDeMigrar` ya no lista Stripe.
+
+**Verificado:** CI de la PR en verde (quality 1m28s, gitleaks, build 2m54s, Smoke E2E 4m40s, Vercel) y CI de `main` en verde sobre el squash (run 36061066607, los 4 jobs). Validación local previa: 30/30 en contrato+arquitectura, 894/897 unit (0 fallos, 3 skips), 679/679 métricas, typecheck exit 0.
+
+**Queda de F2:** nada de código. Los conectores restantes del catálogo (Calendly y demás) no formaban parte del alcance declarado del plan ("solo GHL, Stripe y Meta"); migrarlos sería decisión de relevo, no deuda.
+
 ## Lote facturas IA + comisiones lote + contratos externos — 2026-09-23 (Freebuff 7a08c143)
 
 **Publicado en `origin/main`:** #192 (`4293c06`, facturas IA — identidad del emisor y trazabilidad del pago), #190 (`09afde9`, comisiones: aprobar/liquidar en lote), #191 (`ec708a7`, contratos: adjuntar firmado externamente + verificación de identidad pospuesta). Los tres con quality, build, Smoke E2E y Vercel en verde. Ramas remotas ya eliminadas.
@@ -44,7 +52,6 @@ fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo 
 | Agente            | Qué                                                                                                                                                                                                                            | Rama                  | Toca                                                                                                         | Desde  |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------ | ------ |
 | Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos | (fusionadas)          | solo `expenses` vía migración pendiente; nada en código                                                      | 23-sep |
-| Freebuff (Buffy) | **F2 — conector de Stripe sobre el contrato**: IMPLEMENTADO en `feat/stripe-conector-f2` (pendiente de PR y CI). Envuelve webhook/sync ya probados, `normalize` puro con fixture sanitizado, 7 tests nuevos; quality local en verde (897+679 tests). Fuera del carril de Claude Code por encargo explícito de Alex (24-sep) | `feat/stripe-conector-f2` | `lib/conectores/stripe/` (nuevo), `lib/conectores/registro.ts`, `tests/conectores-contrato.test.mjs` | 24-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
