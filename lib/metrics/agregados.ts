@@ -135,7 +135,7 @@ function mediana(valores: number[]): number | null {
 }
 
 /** Estados de venta que cuentan. Una venta reembolsada o anulada no es facturación del periodo. */
-const VENTAS_QUE_CUENTAN = new Set(['active', 'activa', 'completed', 'completada'])
+export const VENTAS_QUE_CUENTAN = new Set(['active', 'activa', 'completed', 'completada'])
 
 /** Estados de cita que significan que la cita ya no va a ocurrir. No entran en el denominador. */
 const CITAS_CANCELADAS = new Set(['cancelled', 'cancelled_admin', 'cancelled_lead', 'cancelada', 'rescheduled'])
@@ -161,7 +161,7 @@ const NO_ASISTIO = new Set(['no_show'])
  */
 const SIN_RESOLVER = new Set(['scheduled', 'confirmed', 'programada', 'confirmada', 'seguimiento', 'reserva'])
 
-function enPeriodo(fecha: string | null | undefined, p: Periodo): boolean {
+export function enPeriodo(fecha: string | null | undefined, p: Periodo): boolean {
   if (!fecha) return false
   const d = fecha.slice(0, 10)
   return d >= p.desde && d <= p.hasta
