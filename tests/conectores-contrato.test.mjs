@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { METODOS_DE_CAPACIDAD, desajustes, erroresDeManifiesto } from '../lib/conectores/contrato.ts'
 import { CONECTORES, conectorDe, pendientesDeMigrar } from '../lib/conectores/registro.ts'
 import { normalize } from '../lib/conectores/_plantilla/index.ts'
+import { normalize as normalizeStripe } from '../lib/conectores/stripe/index.ts'
 
 // F2 — LA SUITE DE CONTRATO.
 //
@@ -144,11 +145,81 @@ test('la plantilla pasa su propia suite', () => {
   assert.deepEqual(erroresDeManifiesto(p.manifest), [])
 })
 
+// ── STRIPE: NORMALIZE CONTRA UN FIXTURE REAL ──────────────────────────────
+
+test('stripe normalize: el cobro canónico del fixture se clasifica como cobro con su importe', () => {
+  const fixture = JSON.parse(readFileSync(join(root, 'lib/conectores/stripe/fixtures/pago.json'), 'utf8'))
+  const n = normalizeStripe(fixture)
+  assert.ok(n)
+  assert.equal(n.sourceEventId, 'evt_000000000001')
+  assert.equal(n.tipo, 'stripe.cobro', 'payment_intent.succeeded es el evento canónico del dinero')
+  assert.equal(n.propiedades.importe_eur, 499)
+  assert.equal(n.propiedades.referencia_pago, 'pi_000000000001')
+  assert.deepEqual(n.propiedades.referencias_alternativas, ['ch_000000000001'])
+  // Sin PII en las propiedades: el sobre completo ya está en raw_events (ver lib/eventos/stripe.ts).
+  const serializado = JSON.stringify(n.propiedades)
+  for (const personal of ['example.test', 'cus_000000000001']) {
+    assert.ok(!serializado.includes(personal), `${personal} no puede acabar en properties`)
+  }
+})
+
+test('stripe normalize es puro: mismo payload, mismo resultado', () => {
+  const fixture = JSON.parse(readFileSync(join(root, 'lib/conectores/stripe/fixtures/pago.json'), 'utf8'))
+  const a = normalizeStripe(fixture)
+  const b = normalizeStripe(structuredClone(fixture))
+  assert.deepEqual(a, b)
+})
+
+test('stripe normalize no inventa un evento cuando no entiende el payload', () => {
+  assert.equal(normalizeStripe({ sin: 'id' }), null)
+  assert.equal(normalizeStripe(null), null)
+  assert.equal(normalizeStripe('texto'), null)
+  assert.equal(normalizeStripe({ id: 'evt_x', type: 'raro.desconocido', data: null }), null)
+})
+
+test('stripe: la semántica es la del normalizador probado, no una segunda', () => {
+  // De los tres eventos que Stripe emite por un mismo pago, solo uno es dinero. Esa regla vive en
+  // lib/stripe/webhook.ts y el conector la conserva; copiarla aquí sería una segunda semántica que
+  // acabaría divergiendo.
+  const fixture = JSON.parse(readFileSync(join(root, 'lib/conectores/stripe/fixtures/pago.json'), 'utf8'))
+  const duplicado = {
+    ...structuredClone(fixture),
+    id: 'evt_000000000002',
+    type: 'charge.succeeded',
+    data: {
+      object: {
+        object: 'charge',
+        id: 'ch_000000000001',
+        amount: 49900,
+        currency: 'eur',
+        payment_intent: 'pi_000000000001',
+      },
+    },
+  }
+  const n = normalizeStripe(duplicado)
+  assert.ok(n)
+  assert.equal(n.tipo, 'stripe.duplicado', 'el dinero de este evento ya entra por el PaymentIntent')
+})
+
+test('los fixtures de stripe no llevan datos de personas reales', () => {
+  const fixture = readFileSync(join(root, 'lib/conectores/stripe/fixtures/pago.json'), 'utf8')
+  assert.match(fixture, /example\.test/, 'los correos de ejemplo van en example.test')
+  assert.match(fixture, /SANITIZADO/, 'el fixture debe declarar que está sanitizado')
+})
+
+test('stripe: salud sin credencial es configuración pendiente, no avería, y no llama a la red', async () => {
+  const c = conectorDe('stripe')
+  assert.ok(c)
+  const r = await c.healthCheck({ sb: {}, tenantId: 't', cfg: {} })
+  assert.equal(r.ok, false)
+  assert.equal(r.codigo, 'sin_credenciales')
+})
+
 // ── LA LISTA DE TRABAJO SE CALCULA, NO SE ESCRIBE ────────────────────────────────────────────
 
 test('los proveedores sin conector salen del catálogo, no de una lista a mano', () => {
   const pendientes = pendientesDeMigrar()
-  assert.ok(pendientes.includes('stripe'), 'Stripe todavía no está migrado')
+  assert.ok(!pendientes.includes('stripe'), 'Stripe se migró el 24-sep: no puede seguir en la lista')
   assert.ok(!pendientes.includes('ghl'), 'GHL se migró el 23-sep: no puede seguir en la lista')
   assert.ok(!pendientes.includes('meta'), 'Meta se migró el 23-sep: no puede seguir en la lista')
   assert.ok(!pendientes.includes('plantilla'), 'lo que ya tiene conector no puede seguir pendiente')
