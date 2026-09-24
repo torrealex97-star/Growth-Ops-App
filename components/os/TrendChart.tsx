@@ -15,11 +15,14 @@
 //   Recharts corta la línea cuando el valor es `null`, y por eso no se rellenan huecos.
 
 import { useMemo } from 'react'
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ArrowDownRight, ArrowRight, ArrowUpRight } from 'lucide-react'
 import { formatNumber, formatPercent } from '@/lib/utils'
 
 type TrendPoint = { date: string; value: number | null }
+
+/** Una nota del equipo anclada a una fecha (tabla `annotations`), para marcar el porqué de un pico. */
+export type TrendAnnotation = { date: string; title: string }
 
 type Props = {
   title: string
@@ -30,6 +33,8 @@ type Props = {
   previousTotal?: number | null
   /** 'sum' para acumulables (ventas, gasto); 'last' para stocks (nº de alumnas). */
   aggregate?: 'sum' | 'last'
+  /** Marcas verticales del equipo (campaña, incidencia…) dentro del rango de `data`. */
+  annotations?: TrendAnnotation[]
   className?: string
 }
 
@@ -38,7 +43,7 @@ const fmtFecha = (iso: string) => {
   return isNaN(d.getTime()) ? iso : d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })
 }
 
-export function TrendChart({ title, data, format, previousTotal, aggregate = 'sum', className }: Props) {
+export function TrendChart({ title, data, format, previousTotal, aggregate = 'sum', annotations, className }: Props) {
   const fmt = format ?? ((n: number) => formatNumber(Math.round(n)))
 
   const { actual, anterior, conDato } = useMemo(() => {
@@ -56,6 +61,14 @@ export function TrendChart({ title, data, format, previousTotal, aggregate = 'su
     const reciente = aggregate === 'last' ? (segunda.at(-1) ?? 0) : segunda.reduce((s, n) => s + n, 0)
     return { actual: reciente, anterior: previo, conDato }
   }, [data, previousTotal, aggregate])
+
+  // Solo se pintan las que caen dentro del rango de la serie: una fuera de rango no tiene un punto
+  // del eje X al que anclarse y Recharts la ignoraría en silencio.
+  const marcas = useMemo(() => {
+    if (!annotations?.length) return []
+    const fechas = new Set(data.map((d) => d.date))
+    return annotations.filter((a) => fechas.has(a.date))
+  }, [annotations, data])
 
   // Sin base no hay porcentaje: de 0 a 5 no es "+500 %", es "antes no había nada".
   const variacion = anterior != null && anterior !== 0 ? ((actual - anterior) / Math.abs(anterior)) * 100 : null
@@ -128,6 +141,20 @@ export function TrendChart({ title, data, format, previousTotal, aggregate = 'su
               labelFormatter={(l) => fmtFecha(String(l))}
               formatter={(v) => [fmt(Number(v)), title]}
             />
+            {marcas.map((m) => (
+              <ReferenceLine
+                key={m.date + m.title}
+                x={m.date}
+                stroke="hsl(var(--brand-500) / 0.6)"
+                strokeDasharray="3 3"
+                label={{
+                  value: m.title,
+                  position: 'insideTopRight',
+                  fontSize: 10,
+                  fill: 'hsl(var(--brand-500))',
+                }}
+              />
+            ))}
             <Area
               type="monotone"
               dataKey="value"

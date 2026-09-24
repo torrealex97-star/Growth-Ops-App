@@ -15,7 +15,10 @@ import { originLabel } from '@/lib/ads/funnel'
 import { isAttended } from '@/lib/appointments/status'
 import { resolverOferta } from '@/lib/metrics/oferta'
 import { countryISOForPhone, regionForISO } from '@/lib/phone'
-import { useSesion } from '@/lib/tenant-context'
+import { useSesion, useTenant } from '@/lib/tenant-context'
+import { AnotacionesInspector } from '@/components/metrics/AnotacionesInspector'
+import type { TrendAnnotation } from '@/components/os/TrendChart'
+import type { Annotation } from '@/app/api/[tenant]/evergreen/anotaciones/route'
 
 type MetricsAppointmentRow = {
   id: string
@@ -110,8 +113,10 @@ function KPICard({
 }
 
 export default function VentasMetricasPage() {
+  const tenant = useTenant()
   const sesion = useSesion()
   const [loading, setLoading] = useState(true)
+  const [annotations, setAnnotations] = useState<Annotation[]>([])
   const [appointments, setAppointments] = useState<MetricsAppointmentRow[]>([])
   const [sales, setSales] = useState<MetricsSaleRow[]>([])
   const [collections, setCollections] = useState<MetricsCollectionRow[]>([])
@@ -170,6 +175,31 @@ export default function VentasMetricasPage() {
   const monthOptions = useMemo(() => lastNMonths(12, nowYm()).reverse(), [])
 
   const range = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
+  const desdeISO = range.from ? range.from.toISOString().slice(0, 10) : null
+  const hastaISO = range.to ? range.to.toISOString().slice(0, 10) : null
+
+  // Anotaciones del equipo dentro del periodo, para marcarlas en las gráficas de Evolución.
+  useEffect(() => {
+    if (!desdeISO || !hastaISO) {
+      setAnnotations([])
+      return
+    }
+    let mounted = true
+    fetch(`/api/${tenant}/evergreen/anotaciones?desde=${desdeISO}&hasta=${hastaISO}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (mounted) setAnnotations(j.annotations || [])
+      })
+      .catch(() => {})
+    return () => {
+      mounted = false
+    }
+  }, [tenant, desdeISO, hastaISO])
+
+  const marcasEvolucion: TrendAnnotation[] = useMemo(
+    () => annotations.map((a) => ({ date: a.date, title: a.title })),
+    [annotations]
+  )
 
   const personAppointments = useMemo(
     () =>
@@ -626,22 +656,43 @@ export default function VentasMetricasPage() {
               </div>
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 {hayEvolucion.agendas && (
-                  <TrendChart title={`Agendas por ${etiquetaGranularidad}`} data={seriesVentas.agendas} />
+                  <TrendChart
+                    title={`Agendas por ${etiquetaGranularidad}`}
+                    data={seriesVentas.agendas}
+                    annotations={marcasEvolucion}
+                  />
                 )}
                 {hayEvolucion.asistencias && (
-                  <TrendChart title={`Asistencias por ${etiquetaGranularidad}`} data={seriesVentas.asistencias} />
+                  <TrendChart
+                    title={`Asistencias por ${etiquetaGranularidad}`}
+                    data={seriesVentas.asistencias}
+                    annotations={marcasEvolucion}
+                  />
                 )}
                 {hayEvolucion.cierres && (
-                  <TrendChart title={`Cierres por ${etiquetaGranularidad}`} data={seriesVentas.cierres} />
+                  <TrendChart
+                    title={`Cierres por ${etiquetaGranularidad}`}
+                    data={seriesVentas.cierres}
+                    annotations={marcasEvolucion}
+                  />
                 )}
                 {hayEvolucion.facturacion && (
                   <TrendChart
                     title={`Facturación cerrada por ${etiquetaGranularidad}`}
                     data={seriesVentas.facturacion}
                     format={formatCurrency}
+                    annotations={marcasEvolucion}
                   />
                 )}
               </div>
+              {desdeISO && hastaISO && (
+                <AnotacionesInspector
+                  desde={desdeISO}
+                  hasta={hastaISO}
+                  userId={sesion?.userId}
+                  puedeGestionarTodas={myRole === 'admin' || myRole === 'director'}
+                />
+              )}
             </section>
           )}
 
