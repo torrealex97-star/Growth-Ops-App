@@ -10,6 +10,7 @@ import type { DataHealthSummary } from '@/lib/types/tracking'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { TrackingSitesPanel } from '@/components/settings/TrackingSitesPanel'
 import { formatPercent } from '@/lib/utils'
+import type { SaludWebhook } from '@/lib/data-health/webhooks'
 
 type EventRow = {
   id: string
@@ -73,12 +74,8 @@ type OperationalHealth = {
     appointmentsWithoutContact: number
     leadChannelGaps: number
   }
-  saludWebhookGhl?: {
-    estado: 'al_dia' | 'silencio' | 'sin_configurar' | 'desconocido'
-    mensaje: string
-    ultimoSobre: string | null
-    horasDesde: number | null
-  }
+  saludWebhookGhl?: SaludWebhook
+  saludWebhooksEntrantes?: Array<SaludWebhook & { proveedor: 'calendly' | 'stripe' }>
 }
 
 const EMPTY: DataHealthSummary = {
@@ -181,6 +178,31 @@ function Metric({
       <p className={`mt-1 text-2xl font-semibold ${colors[tone]}`}>{value}</p>
       <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
     </div>
+  )
+}
+
+const ETIQUETA_WEBHOOK: Record<'calendly' | 'stripe', string> = {
+  calendly: 'Webhook de Calendly',
+  stripe: 'Webhook de Stripe',
+}
+
+/** Métrica de un webhook entrante: horas desde la última recepción y tono según su estado. */
+function MetricWebhook({ label, salud }: { label: string; salud: SaludWebhook }) {
+  return (
+    <Metric
+      label={label}
+      value={
+        salud.horasDesde !== null
+          ? `${Math.round(salud.horasDesde)} h`
+          : salud.estado === 'sin_configurar'
+            ? '—'
+            : salud.estado === 'desconocido'
+              ? 'sin evidencia'
+              : 'sin recepciones'
+      }
+      detail={salud.mensaje}
+      tone={salud.estado === 'silencio' ? 'bad' : salud.estado === 'al_dia' ? 'good' : 'warn'}
+    />
   )
 }
 
@@ -474,33 +496,20 @@ export function DataHealthPanel() {
           </section>
 
           {/* Webhooks entrantes: la mitad que ESPERA datos. El pull del cron puede disimular un webhook
-              roto trayendo datos viejos; aquí el silencio de la recepción se ve. */}
+              roto trayendo datos viejos; aquí el silencio de la recepción se ve. La evidencia de cada
+              uno es la suya: sobres en la capa en bruto (GHL, Stripe) o actas de auditoría (Calendly). */}
           {operational.saludWebhookGhl && (
             <section className="rounded-xl border border-border bg-card p-5">
               <h2 className="font-semibold text-foreground">Webhooks entrantes</h2>
               <p className="mb-4 text-sm text-muted-foreground">
-                Evidencia de recepción real en la capa de eventos en bruto; si nada llega en 24 h con la integración
-                configurada, el tiempo real está roto.
+                Evidencia de recepción real (capa de eventos en bruto o actas de auditoría); si nada llega en 24 h con
+                la integración configurada, el tiempo real está roto.
               </p>
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
-                <Metric
-                  label="Webhook de GHL"
-                  value={
-                    operational.saludWebhookGhl.horasDesde !== null
-                      ? `${Math.round(operational.saludWebhookGhl.horasDesde)} h`
-                      : operational.saludWebhookGhl.estado === 'sin_configurar'
-                        ? '—'
-                        : 'sin sobres'
-                  }
-                  detail={operational.saludWebhookGhl.mensaje}
-                  tone={
-                    operational.saludWebhookGhl.estado === 'silencio'
-                      ? 'bad'
-                      : operational.saludWebhookGhl.estado === 'al_dia'
-                        ? 'good'
-                        : 'warn'
-                  }
-                />
+                <MetricWebhook label="Webhook de GHL" salud={operational.saludWebhookGhl} />
+                {(operational.saludWebhooksEntrantes ?? []).map((salud) => (
+                  <MetricWebhook key={salud.proveedor} label={ETIQUETA_WEBHOOK[salud.proveedor]} salud={salud} />
+                ))}
               </div>
             </section>
           )}
