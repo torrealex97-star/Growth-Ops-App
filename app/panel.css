@@ -451,3 +451,13 @@
     animation-duration: 0.01ms;
   }
 }
+
+/* Atajo a la última subcuenta usada en este navegador. Aparece sobre el acceso directo porque
+   evita escribir el identificador a mano, que es de donde salen las erratas. No lista nada del
+   sistema: solo el historial de quien mira. */
+.go-direct__reciente {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}

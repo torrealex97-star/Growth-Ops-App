@@ -138,7 +138,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     const sb = service()
     const { data: c } = await sb
       .from('contracts')
-      .select('id, tenant_id, title, body_snapshot, terms, status, created_by, user_id')
+      .select('id, tenant_id, title, body_snapshot, terms, status, created_by, user_id, kind')
       .eq('signing_token', token)
       .maybeSingle()
     if (!c || !(await requireActiveTenant(sb, c.tenant_id))) {
@@ -222,6 +222,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       if (sd.address) patch.address = sd.address
       if (sd.phone) patch.phone = sd.phone
       if (Object.keys(patch).length) await sb.from('users').update(patch).eq('id', c.user_id)
+
+      // CIERRE DE LA CADENA DE ALTA (hallazgo E2E 19-sep): el alta del
+      // colaborador (admin o registro público) deja su perfil en
+      // 'pending_contract' con el contrato enviado; firmar es lo que lo ACTIVA.
+      // Solo en contratos de equipo y solo desde estados previos a la firma —
+      // las decisiones manuales del admin (suspended/inactive) no se tocan.
+      if (c.kind === 'equipo') {
+        await sb
+          .from('collaborator_profiles')
+          .update({ status: 'active', updated_at: signedAt })
+          .eq('tenant_id', tenantId)
+          .eq('user_id', c.user_id)
+          .in('status', ['invited', 'pending_contract'])
+      }
     }
 
     // Enviar una copia del contrato firmado al correo de empresa y (cc) al

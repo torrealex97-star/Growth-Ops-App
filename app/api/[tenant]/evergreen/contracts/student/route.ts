@@ -154,25 +154,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const { data: sale } = await sb
       .from('sales')
       .select(
-        'id, contact_id, gross_amount, payment_method, custom_plan, installments_count, buyer_is_scheduler, payer_data, documents_verified, documents_verified_override, products(name, duration_months), payment_plans(name, method), contacts(full_name, email, phone, ghl_contact_id)'
+        'id, contact_id, gross_amount, payment_method, custom_plan, installments_count, buyer_is_scheduler, payer_data, products(name, duration_months), payment_plans(name, method), contacts(full_name, email, phone, ghl_contact_id)'
       )
       .eq('id', saleId)
       .eq('tenant_id', t.tenantId)
       .maybeSingle()
     if (!sale) return NextResponse.json({ error: 'Venta no encontrada' }, { status: 404 })
 
-    // Validar que los documentos estén verificados (o haya override)
-    const docsVerified = sale.documents_verified === true || sale.documents_verified_override === true
-    if (!docsVerified) {
-      return NextResponse.json(
-        {
-          error: 'Document verification required',
-          message:
-            'This sale requires document verification before sending the contract. Please upload and verify identification documents or apply an override.',
-        },
-        { status: 403 }
-      )
-    }
+    // La verificación de identidad está pospuesta. La generación del contrato no se bloquea
+    // por documents_verified: si el contrato ya se firmó fuera, se adjunta desde la UI.
 
     const contact = (sale.contacts ?? {}) as { full_name?: string; email?: string | null; phone?: string | null }
     const product = (sale.products ?? {}) as { name?: string; duration_months?: number | null }

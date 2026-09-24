@@ -1,19 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import crypto from 'crypto'
 import { decryptSecret, encryptSecret, invalidateConfigCache, getTenantConfigWithFallback } from '@/lib/config'
 import { ALL_FIELDS, SECRET_KEYS, isKnownKey, INTEGRATION_ONLY_GROUPS } from '@/lib/integrations-catalog'
 import { assessIntegration, SYNCS_BY_GROUP, type LastCheck } from '@/lib/integrations/health'
 import { SYNC_DEFS } from '@/lib/ops/sync-health'
 import { lastRunsByJob } from '@/lib/integrations/sync-runs'
 import { PG_CRON_READY, VERCEL_CRON_ROUTES } from '@/lib/ops/vercel-crons'
-import { parseAccountIds, fetchAdAccounts } from '@/lib/meta/client'
+import { fetchAdAccounts } from '@/lib/meta/client'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { configBunny, faltaEnConfigBunny, probarBunny } from '@/lib/vsl/bunny'
 import { isDeprecatedMetaVersion, META_API_VERSION } from '@/lib/meta/api-version'
 import { classifyMetaError } from '@/lib/meta/errors'
+import { comprobarSaludMeta, metaProof } from '@/lib/meta/salud'
+import { exchangeCode } from '@/lib/google/oauth'
 import { stripeGet } from '@/lib/stripe/client'
 import { listarModelos, ModelosError, resolverModelo } from '@/lib/ai/modelos'
 import { DEEPSEEK_MODELOS_PREFERIDOS } from '@/lib/ai/provider'
+import {
+  WEBHOOKS_ENTRANTES,
+  evaluarSecret,
+  ultimoEventoEnAudit,
+  eventosStripe,
+  type EstadoSecretInfo,
+  type UltimoEvento,
+  type WebhookEntranteEstado,
+} from '@/lib/webhooks/entrantes'
 
 export const runtime = 'nodejs'
 
@@ -169,14 +180,140 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
     )
   )
 
+  // ── Webhooks ENTRANTES: la mitad receptora de las integraciones ──
+  // Estado del secreto esperado + última recepción con evidencia real por webhook. La evidencia
+  // NUNCA se deduce de las filas de negocio: el pull del cron escribe en las mismas tablas que
+  // los webhooks, y presentar sus fechas como "último evento recibido" fue exactamente la
+  // confusión que hizo indetectable que el webhook de GHL nunca entró en producción.
+  const [actasAudit, rawStripe] = await Promise.all([
+    // Historial del tenant (audit_logs es global por tenant; las firmas de evaluación filtran).
+    // Limita a 400: la evidencia del webhook vive en actas recientes, no en todo el histórico.
+    svc()
+      .from('audit_logs')
+      .select('entity_type,action,created_at,new_values')
+      .eq('tenant_id', auth.tenantId)
+      .order('created_at', { ascending: false })
+      .limit(400)
+      .then(({ data }) => (data ?? []) as Parameters<typeof ultimoEventoEnAudit>[1]),
+    // Entregas de Stripe (incluidos los rechazos de firma que el webhook registra).
+    svc()
+      .from('raw_events')
+      .select('received_at,processing_status')
+      .eq('tenant_id', auth.tenantId)
+      .eq('source', 'stripe')
+      .order('received_at', { ascending: false })
+      .limit(50)
+      .then(({ data }) => (data ?? []) as Parameters<typeof eventosStripe>[0]),
+  ])
+  const webhooksEntrantes: WebhookEntranteEstado[] = WEBHOOKS_ENTRANTES.map((webhook) => {
+    const secret: EstadoSecretInfo = evaluarSecret(state[webhook.auth.configKey])
+    let ultimoEvento: UltimoEvento = null
+    let ultimoRechazo: UltimoEvento = null
+    if (webhook.evidencia === 'raw_stripe') {
+      const r = eventosStripe(rawStripe)
+      ultimoEvento = r.ultimo_valido
+      ultimoRechazo = r.ultimo_rechazo
+    } else if (webhook.evidencia) {
+      ultimoEvento = ultimoEventoEnAudit(webhook.evidencia, actasAudit)
+    }
+    return {
+      id: webhook.id,
+      groupId: webhook.groupId,
+      titulo: webhook.titulo,
+      descripcion: webhook.descripcion,
+      path: webhook.path,
+      metodo: webhook.metodo,
+      auth: webhook.auth,
+      eventos: webhook.eventos,
+      aviso: webhook.aviso ?? null,
+      doc: webhook.doc ?? null,
+      secret,
+      ultimoEvento,
+      ultimoRechazo,
+    }
+  })
   // `groups` son los grupos pintables en Integraciones; `state` sigue cubriendo ALL_FIELDS, así
   // que Datos de empresa puede leer IG_BUSINESS_CONTEXT/IG_BRAND_ASSETS del mismo endpoint.
-  return NextResponse.json({ encReady, groups: INTEGRATION_ONLY_GROUPS, state, health, runs: lastRuns })
+  return NextResponse.json({
+    encReady,
+    groups: INTEGRATION_ONLY_GROUPS,
+    state,
+    health,
+    runs: lastRuns,
+    webhooksEntrantes,
+  })
 }
 
 // POST — guardar cambios. body: { updates: { KEY: value } }.
 // Secreto con valor vacío => NO se toca (para no borrar al no reescribir el campo enmascarado).
 // Para BORRAR una clave: enviar { clear: ["KEY", …] }.
+/**
+ * Paso 2 del flujo OAuth de YouTube. El paso 1 es el botón "Autorizar con Google": abre Google con
+ * el redirect DEL PLAYGROUND porque es la única URI registrada en el cliente OAuth de la subcuenta
+ * (verificado 21-sep: el callback de la app da redirect_uri_mismatch), y Google NO permite consultar
+ * ni editar los redirects de un cliente sin entrar en su Cloud Console. El playground muestra el
+ * código en su barra; el admin lo pega aquí y el servidor lo intercambia + guarda cifrado.
+ *
+ * El `state` firmado NO puede sobrevivir a este camino (Google lo muestra igualmente en el código,
+ * no como parámetro legible del admin), así que la protección aquí es la sesión de admin del panel
+ * (requireAdmin: solo admin/director/superadmin puede pegar un código) y el emparejamiento con las
+ * credenciales de YouTube de ESA subcuenta. Es el mismo nivel de confianza que pegar el token a mano,
+ * pero sin copiar secretos por el portapapeles: solo el código de un solo uso y de corta vida.
+ */
+async function exchangeYoutubeCode(tenantId: string, code: string) {
+  const limpio = code.trim()
+  if (!limpio)
+    return NextResponse.json({ error: 'Pega el código que Google te mostró tras autorizar.' }, { status: 400 })
+  // El botón "Autorizar" copia la URL completa del playground; aceptamos también la URL entera.
+  // Los códigos de Google llevan '/' (p.ej. 4/0A…) y pueden venir percent-encoded: capturamos hasta
+  // '&' y decodificamos.
+  const extraido = limpio.match(/[?&]code=([^&]+)/)
+  const codigo = extraido ? decodeURIComponent(extraido[1]) : limpio
+  const cfg = await getTenantConfigWithFallback(tenantId, true)
+  if (!cfg.YOUTUBE_CLIENT_ID || !cfg.YOUTUBE_CLIENT_SECRET)
+    return NextResponse.json({ error: 'Guarda primero el Client ID y el Client Secret de YouTube.' }, { status: 400 })
+
+  const token = await exchangeCode(
+    codigo,
+    { clientId: cfg.YOUTUBE_CLIENT_ID, clientSecret: cfg.YOUTUBE_CLIENT_SECRET },
+    'https://developers.google.com/oauthplayground'
+  )
+  if (token.error || !token.refresh_token)
+    return NextResponse.json(
+      {
+        error:
+          token.error === 'invalid_grant'
+            ? 'El código ya se usó o ha caducado (valen minutos). Vuelve a autorizar y pega el nuevo rápido.'
+            : `Google rechazó el código: ${token.error || 'sin refresh_token'}`,
+      },
+      { status: 400 }
+    )
+  // Los ámbitos concedidos DE VERDAD; youtube.upload es imprescindible para subir Shorts.
+  const granted = (token.scope || '').split(/\s+/).filter(Boolean)
+  if (!granted.includes('https://www.googleapis.com/auth/youtube.upload'))
+    return NextResponse.json(
+      {
+        error:
+          'Google no concedió youtube.upload: no se puede subir Shorts sin él. Repite la autorización sin desmarcar permisos.',
+      },
+      { status: 400 }
+    )
+  const { error } = await svc()
+    .from('integration_settings')
+    .upsert(
+      {
+        tenant_id: tenantId,
+        key: 'YOUTUBE_REFRESH_TOKEN',
+        value: encryptSecret(token.refresh_token),
+        is_secret: true,
+        updated_by: null,
+      },
+      { onConflict: 'tenant_id,key' }
+    )
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true, scopes: granted })
+}
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
   const auth = await requireAdmin(tenant)
@@ -191,11 +328,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     token?: string
     updates?: Record<string, string>
     clear?: string[]
+    /** Código OAuth de YouTube (paso 2 del flujo; ver exchangeYoutubeCode). */
+    code?: string
   }
 
   if (body.action === 'test') return runTest(body.group || '', auth.tenantId)
   if (body.action === 'meta-accounts') return listMetaAccounts(auth.tenantId, body.token)
   if (body.action === 'ia-modelos') return listarModelosIa(auth.tenantId, body.token)
+  if (body.action === 'youtube-exchange') return exchangeYoutubeCode(auth.tenantId, body.code || '')
 
   const updates = body.updates || {}
   const clear = body.clear || []
@@ -334,28 +474,6 @@ async function listMetaAccounts(tenantId: string, tokenSinGuardar?: string): Pro
   }
 }
 
-/**
- * ¿Conecta Meta sin firmar? Se usa cuando la firma `appsecret_proof` falla, para poder decir si el
- * problema es SOLO el App Secret guardado.
- *
- * Meta exige la firma únicamente si la app tiene activado "Require app secret". Si sin firma responde
- * bien, la app NO la exige y el secreto guardado es basura que sobra; si sin firma también falla, hay
- * algo más (token, permisos) y decir "borra el secreto" sería mandar al sitio equivocado. Es la
- * diferencia entre diagnosticar y adivinar.
- */
-async function metaConectaSinFirma(token: string, version: string): Promise<boolean> {
-  try {
-    const r = await fetch(
-      `https://graph.facebook.com/${version}/me/adaccounts?limit=1&access_token=${encodeURIComponent(token.trim())}`,
-      { signal: AbortSignal.timeout(15_000) }
-    )
-    const j = (await r.json().catch(() => ({}))) as { error?: unknown }
-    return r.ok && !j.error
-  } catch {
-    return false
-  }
-}
-
 /** Veredicto de una comprobación. `code` es una pista ESTABLE para elegir el arreglo a mostrar. */
 type ProbeResult = { ok: boolean; message: string; code?: string }
 
@@ -417,14 +535,6 @@ async function saveLastCheck(tenantId: string, group: string, result: ProbeResul
     .select('key')
 }
 
-function metaProof(token: string, appSecret?: string): string {
-  // Se recortan los dos: un espacio o un salto de línea pegados al copiar rompen la firma y Meta
-  // responde "Invalid appsecret_proof", que no señala en absoluto a un espacio invisible.
-  const secret = appSecret?.trim()
-  if (!secret) return ''
-  return crypto.createHmac('sha256', secret).update(token.trim()).digest('hex')
-}
-
 // Habla con la API de cada integración y devuelve un veredicto en claro.
 //
 // Devuelve datos, no una respuesta HTTP, por dos motivos: el resultado se GUARDA (es lo que alimenta
@@ -434,92 +544,9 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
   const cfg = await getTenantConfigWithFallback(tenantId, true)
   try {
     if (group === 'meta') {
-      const token = cfg.META_ACCESS_TOKEN
-      if (!token) return { ok: false, message: 'Falta el token de Meta.' }
-      const ver = cfg.META_API_VERSION || META_API_VERSION
-      // Meta retira versiones por calendario, no cuando te va mal: una subcuenta que fijó una
-      // versión hace un año se entera de que está deprecada el día que dejan de responderle. Aquí se
-      // avisa antes, aunque el token sea perfecto.
-      if (isDeprecatedMetaVersion(cfg.META_API_VERSION)) {
-        return {
-          ok: false,
-          message: `La versión de la API fijada en esta subcuenta (${cfg.META_API_VERSION}) está deprecada por Meta.`,
-          code: 'version_deprecada',
-        }
-      }
-      const proof = metaProof(token, cfg.META_APP_SECRET)
-      const proofQs = proof ? `&appsecret_proof=${proof}` : ''
-      // Si hay App Secret guardado, se comprueba ANTES que la firma que produce sea válida: es el
-      // fallo que más veces bloquea esta integración, y disfrazado de "cuenta desconocida".
-      if (proof) {
-        const conFirma = await fetch(
-          `https://graph.facebook.com/${ver}/me/adaccounts?limit=1&access_token=${encodeURIComponent(token.trim())}${proofQs}`,
-          { signal: AbortSignal.timeout(15_000) }
-        )
-        const cuerpo = (await conFirma.json().catch(() => ({}))) as { error?: { message?: string } }
-        if (/appsecret_proof/i.test(cuerpo.error?.message || '')) {
-          const sinFirma = await metaConectaSinFirma(token, ver)
-          return {
-            ok: false,
-            code: 'proof_invalido',
-            message: sinFirma
-              ? 'El App Secret guardado no es el de la app que generó el token. Sin él la conexión SÍ funciona: tu app de Meta no exige la firma, así que bórralo con el botón "Borrar" que hay junto al campo.'
-              : 'El App Secret guardado no corresponde a la app que generó el token, y sin él Meta tampoco acepta el token: pega el App Secret de la MISMA app desde la que generaste el token.',
-          }
-        }
-      }
-
-      const accounts = parseAccountIds(cfg.META_AD_ACCOUNT_ID)
-      // Sin cuentas explícitas → modo "todas": descubrir las accesibles por el token.
-      if (accounts.length === 0) {
-        try {
-          const all = await fetchAdAccounts(token, ver, cfg.META_APP_SECRET)
-          if (all.length === 0) {
-            return {
-              ok: false,
-              message: 'El token es válido pero no ve ninguna cuenta publicitaria.',
-              code: 'sin_cuentas',
-            }
-          }
-          return {
-            ok: true,
-            message: `${all.length} cuenta(s) detectada(s): ${all.map((a) => a.name).join(', ')}`,
-          }
-        } catch (e) {
-          // El código lo pone el clasificador (lib/meta/errors.ts). Fijarlo a 'token_invalido' hacía
-          // que un rate limit o una firma mal calculada propusieran "genera un token nuevo".
-          return {
-            ok: false,
-            message: `No se pudieron listar las cuentas: ${(e as Error).message}`,
-            code: (e as { code?: string }).code || 'respuesta_inesperada',
-          }
-        }
-      }
-      // Probar cada cuenta explícita; reportar OK solo si todas responden.
-      const results = await Promise.all(
-        accounts.map(async (acc) => {
-          const url = `https://graph.facebook.com/${ver}/${acc}?fields=name,account_status&access_token=${encodeURIComponent(token)}${proofQs}`
-          const r = await probeFetch(url)
-          const j = await r.json()
-          return { acc, ok: r.ok && !j.error, name: j.name as string | undefined, body: j, status: r.status }
-        })
-      )
-      const failed = results.filter((r) => !r.ok)
-      if (failed.length > 0) {
-        // El código de Meta dice si es el token, el permiso o el id de cuenta: tres arreglos
-        // distintos que antes se resumían todos en "token_invalido".
-        const causa = classifyMetaError(failed[0].body, failed[0].status)
-        return {
-          ok: false,
-          message: `Cuenta ${failed.map((f) => f.acc).join(', ')}: ${causa.message}`,
-          code: causa.code,
-        }
-      }
-      const names = results.map((r) => r.name || r.acc)
-      return {
-        ok: true,
-        message: results.length === 1 ? `Cuenta: ${names[0]}` : `${results.length} cuentas OK: ${names.join(', ')}`,
-      }
+      // La comprobación vive en `lib/meta/salud.ts`: el conector de Meta (F2) la usa también, y dos
+      // comprobaciones del mismo proveedor terminan dando dos veredictos sobre la misma credencial.
+      return comprobarSaludMeta(cfg)
     }
     if (group === 'instagram') {
       const token = cfg.INSTAGRAM_ACCESS_TOKEN || cfg.META_ACCESS_TOKEN
@@ -546,6 +573,36 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
           : 'El token vale, pero falta IG_USER_ID: sin él no se sabe qué cuenta sincronizar.',
       }
     }
+    if (group === 'apify') {
+      // §4/§12: comprobar conexión con /users/me (no gasta plataforma) y avisar si falta
+      // configurar algún Actor — sin token no hay investigación, sin Actor tampoco.
+      const token = cfg.APIFY_API_TOKEN
+      if (!token) return { ok: false, message: 'Falta el API Token de Apify.' }
+      const r = await fetch('https://api.apify.com/v2/users/me', {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(10_000),
+      })
+      const j = (await r.json().catch(() => ({}))) as { data?: { username?: string }; error?: { message?: string } }
+      if (!r.ok || !j.data) {
+        return {
+          ok: false,
+          message: j.error?.message || `Apify respondió ${r.status}.`,
+          code: codeFromStatus(r.status),
+        }
+      }
+      const actors = [
+        cfg.APIFY_INSTAGRAM_REELS_ACTOR_ID,
+        cfg.APIFY_INSTAGRAM_PROFILE_ACTOR_ID,
+        cfg.APIFY_TIKTOK_ACTOR_ID,
+        cfg.APIFY_YOUTUBE_ACTOR_ID,
+      ].filter((a) => a && String(a).trim())
+      return {
+        ok: true,
+        message: actors.length
+          ? `Conectado como ${j.data.username || 'OK'} · ${actors.length} Actor(es) configurado(s).`
+          : `Conectado como ${j.data.username || 'OK'}, pero falta configurar al menos un Actor en Opciones avanzadas.`,
+      }
+    }
     if (group === 'calendly') {
       const token = cfg.CALENDLY_API_TOKEN
       if (!token) return { ok: false, message: 'Falta el PAT de Calendly.' }
@@ -556,6 +613,14 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
       return r.ok
         ? { ok: true, message: `Usuario: ${j.resource?.name || 'OK'}` }
         : { ok: false, message: j.message || 'Token inválido', code: codeFromStatus(r.status) }
+    }
+    if (group === 'bunny') {
+      const bunny = configBunny(cfg)
+      if (!bunny) return { ok: false, message: `Falta ${faltaEnConfigBunny(cfg).join(', ')}.` }
+      const r = await probarBunny(bunny)
+      return r.ok
+        ? { ok: true, message: r.message }
+        : { ok: false, message: r.message, code: codeFromStatus(r.status ?? 0) }
     }
     if (group === 'fathom') {
       const key = cfg.FATHOM_API_KEY
@@ -763,8 +828,16 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
       }
     }
     if (group === 'youtube') {
-      if (!cfg.YOUTUBE_CLIENT_ID || !cfg.YOUTUBE_CLIENT_SECRET || !cfg.YOUTUBE_REFRESH_TOKEN) {
-        return { ok: false, message: 'Faltan credenciales OAuth de YouTube.' }
+      const sin: string[] = []
+      if (!cfg.YOUTUBE_CLIENT_ID) sin.push('Client ID')
+      if (!cfg.YOUTUBE_CLIENT_SECRET) sin.push('Client Secret')
+      if (!cfg.YOUTUBE_REFRESH_TOKEN) sin.push('Refresh Token')
+      if (sin.length > 0) {
+        const pista =
+          sin.includes('Refresh Token') && sin.length === 1
+            ? ' Usa el botón "Autorizar con Google" de esta integración para obtenerlo.'
+            : ''
+        return { ok: false, message: `Faltan credenciales OAuth de YouTube: ${sin.join(', ')}.${pista}` }
       }
       const r = await probeFetch('https://oauth2.googleapis.com/token', {
         method: 'POST',

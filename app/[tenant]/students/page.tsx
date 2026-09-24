@@ -10,6 +10,7 @@ import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset } from '@/l
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { useTenant } from '@/lib/tenant-context'
 import { StripePendientesAviso } from '@/components/os/StripePendientesAviso'
+import { AttachSignedContractButton } from '@/components/contracts/AttachSignedContractButton'
 
 type EngagementScore = 'bajo' | 'medio' | 'alto'
 type PromiseFulfilled = 'si' | 'no' | 'en_proceso'
@@ -812,8 +813,14 @@ export default function StudentsPage() {
                                 >
                                   {openingPdfId === r.contract_id ? 'Abriendo…' : 'Ver contrato firmado'}
                                 </button>
+                              ) : r.contract_id ? (
+                                <AttachSignedContractButton
+                                  tenant={tenant}
+                                  contractId={r.contract_id}
+                                  onDone={() => window.location.reload()}
+                                />
                               ) : (
-                                <span className="text-xs text-muted-foreground">Sin contrato firmado</span>
+                                <span className="text-xs text-muted-foreground">Sin contrato generado</span>
                               )}
                             </div>
                             <div>

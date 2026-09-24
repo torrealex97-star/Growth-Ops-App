@@ -65,7 +65,12 @@ export type Autorizacion = { permitida: boolean; clase: ClaseTool; motivo: strin
  * Se llama en el gateway ANTES de ejecutar nada, con el nombre que ha pedido el modelo.
  */
 export function autorizarTool(nombre: string): Autorizacion {
-  const clase = CLASE_TOOL[nombre]
+  // `Object.hasOwn` y no `CLASE_TOOL[nombre] === undefined`: con la lectura directa, nombres que
+  // existen en Object.prototype —`__proto__`, `constructor`, `toString`— NO daban `undefined`, así
+  // que se colaban por el filtro y salían autorizados. No llegaban a ejecutarse (el `switch` del
+  // gateway lanza en `default`), pero la lista blanca es la capa que promete que lo no clasificado
+  // se bloquea, y tenía que cumplirlo ella, no el backstop de más abajo.
+  const clase = Object.hasOwn(CLASE_TOOL, nombre) ? CLASE_TOOL[nombre] : undefined
   if (clase === undefined) {
     return {
       permitida: false,

@@ -18,7 +18,7 @@ archivos separados — su contenido real es una variante de este mismo flujo).
 ## 3. CONTAIN
 - Si es un deploy roto: revertir ES la contención. No intentes "arreglarlo hacia adelante" bajo presión.
   ```
-  vercel rollback   # o: re-ejecutar workflow_dispatch de deploy.yml sobre el commit anterior en main
+  vercel rollback   # o: Vercel › proyecto › Deployments › el anterior en verde › Instant Rollback
   ```
 - Si es una integración externa caída (Meta/Calendly/GHL/seQura/Anthropic): no hay kill switch genérico hoy — la
   contención es dejar que el cron/endpoint siga fallando (no bloquea el resto de la app, ver Reliability en

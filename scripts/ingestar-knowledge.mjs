@@ -1,4 +1,4 @@
-// Ingesta RAG: parsea las skills canónicas (.claude/skills/*.md), las trocea por módulo/sección,
+// Ingesta RAG: parsea las skills canónicas (.agents/skills/*/SKILL.md), las trocea por módulo/sección,
 // asigna la categoría RAG de docs/rag_*_knowledge_schema.json y siembra knowledge_chunks
 // replicado en TODAS las subcuentas activas (conocimiento global de plataforma).
 //
@@ -7,8 +7,13 @@
 //   node scripts/ingestar-knowledge.mjs --dry-run  # solo muestra qué insertaría
 //
 // Idempotente: ON CONFLICT (tenant_id, source, section) DO UPDATE. Re-ejecutar tras editar una
-// skill actualiza el contenido sin duplicar. Embeddings: la columna vector(1536) queda NULL hasta
-// que exista pipeline de embeddings; la búsqueda léxica (match_knowledge_chunks) funciona sin ella.
+// skill actualiza el contenido sin duplicar.
+//
+// EMBEDDINGS (migración 20260919230000): si hay GEMINI_API_KEY (entorno o .env.local), cada chunk
+// se vectoriza con text-embedding-3-small (nativo 1536 dims = columna vector(1536)) y se guarda en
+// la columna embedding — la RPC match_knowledge_chunks lo usa para la rama semántica de la búsqueda
+// híbrida (RRF con la léxica). Sin clave, se siembra con embedding NULL y el sistema queda 100%
+// léxico (degradación por diseño). Re-ingestar SIN clave NO borra embeddings existentes (COALESCE).
 import { readFileSync } from 'node:fs'
 import postgres from 'postgres'
 
@@ -31,7 +36,9 @@ if (!POSTGRES_URL) {
 // docs/rag_marketing_knowledge_schema.json. Si se añade un módulo nuevo a una skill, añadirlo aquí:
 // sin categoría el chunk se rechaza (fail-loud, no silencio).
 const CATEGORIAS = {
-  '.claude/skills/sales-engineering.md': {
+  // Patrón único post-#85: las skills viven en .agents/skills/<nombre>/SKILL.md y
+  // .claude/skills es solo symlinks. La ingesta lee la fuente REAL, no el symlink.
+  '.agents/skills/sales-engineering/SKILL.md': {
     1: 'prospecting',
     2: 'pain_cycle',
     3: 'objection_handling',
@@ -40,7 +47,7 @@ const CATEGORIAS = {
     6: 'frame_control',
     7: 'kpis',
   },
-  '.claude/skills/marketing-and-copywriting.md': {
+  '.agents/skills/marketing-and-copywriting/SKILL.md': {
     1: 'uvp_and_angles',
     2: 'avatar_icp',
     3: 'funnel_architecture',
@@ -51,6 +58,48 @@ const CATEGORIAS = {
 }
 const FUENTES = Object.keys(CATEGORIAS)
 
+// ─── TIPO y TAGS (enums canónicos de docs/rag_*_knowledge_schema.json) ──────────
+// type = qué ES el chunk (para filtrar la recuperación: "dame guiones", "dame fórmulas").
+// Los chunks de KPIs SON fórmulas; objeciones y LNS son scripts textuales (swipe → script);
+// el resto son frameworks. tags = etiquetas de rol/uso para filtrado fino.
+const TIPO_POR_CATEGORIA = {
+  kpis: 'formula',
+  marketing_metrics: 'formula',
+  objection_handling: 'script',
+  post_call: 'script',
+  pain_cycle: 'framework',
+  frame_control: 'framework',
+  prospecting: 'framework',
+  hiring: 'framework',
+  uvp_and_angles: 'framework',
+  copywriting_swipe: 'script',
+  funnel_architecture: 'framework',
+  avatar_icp: 'framework',
+}
+const TAGS_POR_CATEGORIA = {
+  prospecting: ['setter', 'ops'],
+  pain_cycle: ['discovery', 'closer'],
+  objection_handling: ['closer', 'precio'],
+  post_call: ['csm', 'closer'],
+  hiring: ['sales-leadership'],
+  frame_control: ['closer'],
+  kpis: ['ops', 'closer'],
+  uvp_and_angles: ['marketing'],
+  avatar_icp: ['marketing'],
+  funnel_architecture: ['marketing', 'embudo'],
+  copywriting_swipe: ['marketing', 'copy'],
+  marketing_metrics: ['marketing', 'ads'],
+}
+
+// Excepciones puntuales dentro de la categoría (match por slug de sección):
+// el protocolo LNS y la secuencia SMS son SECUENCIAS temporales; la ficha de call notes y la
+// checklist EOD son checklists; los árboles de diagnóstico de marketing son frameworks.
+const EXCEPCIONES_TIPO = [
+  { test: /lns|sms-sequence/, tipo: 'sequence', tags: ['setter', 'secuencias'] },
+  { test: /call-notes|eod-checklist/, tipo: 'checklist', tags: ['closer', 'ops'] },
+  { test: /arbol-de-diagnostico/, tipo: 'framework', tags: ['marketing', 'ads'] },
+]
+
 const slugify = (s) =>
   s
     .normalize('NFD')
@@ -60,9 +109,10 @@ const slugify = (s) =>
     .replace(/^-+|-+$/g, '')
 
 // Parseo: `## MÓDULO N: TÍTULO` abre módulo; `### Título` abre sección; todo hasta el siguiente
-// header es el chunk. Si un módulo NO tiene secciones `###` (caso de la skill de ventas), el
-// módulo COMPLETO es un chunk (section = modulo-N). Cualquier `## ` que no sea MÓDULO (apéndices,
-// notas) cierra y desactiva el parseo: no es conocimiento de negocio.
+// header es el chunk. Si un módulo NO tiene secciones `###`, el módulo COMPLETO es un chunk
+// (section = modulo-N) — fallback de robustez: ambas skills (ventas v1.1 y marketing) trocean
+// por `###` porque chunks granulares permiten citar el guion/fórmula concreta. Cualquier `## `
+// que no sea MÓDULO (apéndices, notas) cierra y desactiva el parseo: no es conocimiento de negocio.
 function parsearSkill(path) {
   const texto = readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
   const chunks = []
@@ -80,6 +130,13 @@ function parsearSkill(path) {
       process.exit(1)
     }
     const tituloSeccion = seccion ? seccion.titulo : 'Módulo completo'
+    // Excepciones primero (afinan el default de la categoría y AÑADEN sus tags).
+    const excepcion = EXCEPCIONES_TIPO.find((e) => e.test.test(slugify(tituloSeccion)))
+    const tipo = excepcion?.tipo ?? TIPO_POR_CATEGORIA[categoria]
+    if (!tipo) {
+      console.error(`ERROR: categoría "${categoria}" sin tipo en TIPO_POR_CATEGORIA — chunk rechazado (fail-loud)`)
+      process.exit(1)
+    }
     chunks.push({
       source: path,
       module: modulo,
@@ -87,7 +144,12 @@ function parsearSkill(path) {
       category: categoria,
       title: `${moduloTitulo} · ${tituloSeccion}`,
       content,
-      metadata: { skill: path.includes('sales') ? 'sales' : 'marketing', language: 'es', type: 'framework' },
+      metadata: {
+        skill: path.includes('sales') ? 'sales' : 'marketing',
+        language: 'es',
+        type: tipo,
+        tags: [...(TAGS_POR_CATEGORIA[categoria] ?? []), ...(excepcion?.tags ?? [])],
+      },
     })
   }
   for (const line of texto.split('\n')) {
@@ -127,6 +189,45 @@ for (const c of chunks) porCategoria[c.category] = (porCategoria[c.category] || 
 console.log(`Parseados ${chunks.length} chunks:`)
 for (const [cat, n] of Object.entries(porCategoria).sort()) console.log(`  ${cat}: ${n}`)
 
+// ─── EMBEDDINGS ─────────────────────────────────────────────────────────────────
+// El modelo DEBE coincidir con el de embedQuery (lib/ai/knowledge.ts): cambiar uno implica
+// cambiar el otro y re-ingestar todo — mezclar espacios de embeddings rompe la semántica.
+const GEMINI_KEY = process.env.GEMINI_API_KEY || env.GEMINI_API_KEY
+const EMBED_MODEL = 'gemini-embedding-001'
+const EMBED_DIMS = 1536
+
+async function embeberLotes(textos, apiKey) {
+  const out = []
+  const BATCH = 64 // límite de requests por batchEmbedContents
+  for (let i = 0; i < textos.length; i += BATCH) {
+    const lote = textos.slice(i, i + BATCH).map((t) => t.slice(0, 6000)) // límite del modelo: 2048 tokens
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${EMBED_MODEL}:batchEmbedContents`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify({
+          requests: lote.map((t) => ({
+            model: `models/${EMBED_MODEL}`,
+            content: { parts: [{ text: t }] },
+            taskType: 'RETRIEVAL_DOCUMENT',
+            outputDimensionality: EMBED_DIMS,
+          })),
+        }),
+      }
+    )
+    if (!res.ok) throw new Error(`Gemini embeddings HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`)
+    const json = await res.json()
+    for (const d of json.embeddings ?? []) {
+      if (!Array.isArray(d.values) || d.values.length !== EMBED_DIMS)
+        throw new Error(`Embedding con dims inesperadas (${d.values?.length})`)
+      out.push(`[${d.values.join(',')}]`)
+    }
+    console.log(`  embeddings ${Math.min(i + BATCH, textos.length)}/${textos.length}`)
+  }
+  return out
+}
+
 // prepare: false imprescindible tras poolers en modo transacción (PgBouncer); inofensivo en conexión directa.
 const sql = postgres(POSTGRES_URL, { ssl: 'require', max: 1, prepare: false, idle_timeout: 20 })
 try {
@@ -140,7 +241,25 @@ try {
     console.log('(dry-run: no se escribe nada)')
     process.exit(0)
   }
-  const filas = tenants.flatMap((t) => chunks.map((c) => ({ tenant_id: t.id, ...c, is_active: true })))
+  // Vectorización: título+contenido (el título aporta señales de categoría/módulo al espacio).
+  let mapaEmbeddings = null
+  if (!GEMINI_KEY) {
+    console.warn('Sin GEMINI_API_KEY (entorno o .env.local): se siembra SIN embeddings (solo búsqueda léxica).')
+  } else {
+    console.log(`Calculando embeddings (${chunks.length} chunks · ${EMBED_MODEL})...`)
+    mapaEmbeddings = await embeberLotes(
+      chunks.map((c) => `${c.title}\n${c.content}`),
+      GEMINI_KEY
+    )
+  }
+  const filas = tenants.flatMap((t) =>
+    chunks.map((c, i) => ({
+      tenant_id: t.id,
+      ...c,
+      is_active: true,
+      embedding: mapaEmbeddings ? mapaEmbeddings[i] : null,
+    }))
+  )
   await sql`
     INSERT INTO public.knowledge_chunks ${sql(filas)}
     ON CONFLICT (tenant_id, source, section) DO UPDATE SET
@@ -149,9 +268,13 @@ try {
       module     = EXCLUDED.module,
       content    = EXCLUDED.content,
       metadata   = EXCLUDED.metadata,
+      -- COALESCE: re-ingesta sin clave NO debe borrar embeddings ya calculados.
+      embedding  = COALESCE(EXCLUDED.embedding, knowledge_chunks.embedding),
       updated_at = NOW()
   `
-  console.log(`Sembradas ${filas.length} filas (${chunks.length} chunks × ${tenants.length} tenants).`)
+  console.log(
+    `Sembradas ${filas.length} filas (${chunks.length} chunks × ${tenants.length} tenants)${mapaEmbeddings ? ' con embeddings' : ' sin embeddings (sin clave)'}.`
+  )
 } catch (err) {
   console.error('Error de ingesta:', err.message)
   process.exit(1)

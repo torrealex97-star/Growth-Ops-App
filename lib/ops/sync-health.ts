@@ -161,6 +161,33 @@ export const SYNC_DEFS: SyncDef[] = [
       'Se ejecuta a diario por GitHub Actions (04:40 UTC) y también desde Integraciones › Stripe ("Sincronizar pagos"): rellena el espejo que alimenta Cash Collected. Los pagos nuevos además entran en tiempo real por el webhook.',
   },
   {
+    // Pull diario de citas de Calendly (cron/calendly-ghl). Antes de este cron la sync vivía SOLO en
+    // el botón de Integraciones › history-sync: se usó para la importación inicial y las agendas
+    // nuevas dejaron de entrar sin aviso (ni un run de este proveedor en sync-runs durante días).
+    id: 'calendly-citas',
+    label: 'Calendly — citas (pull diario)',
+    route: 'cron/calendly-ghl',
+    table: 'appointments',
+    requiredKeys: ['CALENDLY_API_TOKEN'],
+    scheduler: 'manual',
+    manualReason:
+      'Se ejecuta a diario por GitHub Actions (04:20 UTC, cron-calendly-ghl.yml) y también desde Integraciones › Calendly ("Sincronizar histórico"): ventana incremental de 14 días con upsert idempotente.',
+  },
+  {
+    // GHL se sincroniza DESDE EL BOTÓN de Integraciones › GHL: su API lista TODOS los contactos de
+    // la ubicación antes de tocar eventos (minutos con la cuenta actual) y no cabe en el corte de
+    // 60 s de Vercel Hobby — dos pasadas del cron en producción acabaron en 504 y en un run colgado
+    // en 'running'. El tiempo real lo cubre el webhook (webhooks/ghl); el botón repara y completa.
+    id: 'ghl-citas',
+    label: 'GHL — citas y contactos',
+    route: 'cron/calendly-ghl',
+    table: 'appointments',
+    requiredKeys: ['GHL_API_TOKEN', 'GHL_LOCATION_ID'],
+    scheduler: 'manual',
+    manualReason:
+      'El cron diario (GitHub Actions, 04:20 UTC) trae sus eventos por ventana temporal (modo soloEventos). La sincronización COMPLETA (contactos + eventos) se hace desde Integraciones › GHL ("Sincronizar histórico"): listar todos los contactos no cabe en el corte de 60 s del plan.',
+  },
+  {
     id: 'youtube-backfill',
     label: 'Backfill de reels antiguos a YouTube',
     route: 'cron/youtube-backfill',

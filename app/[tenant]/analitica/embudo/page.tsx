@@ -5,7 +5,7 @@ import { QualificationInsights } from '@/components/os/QualificationInsights'
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { BarChart3, PhoneCall, Wallet, Trophy, Banknote, Undo2, Gauge, ClipboardList, ListChecks } from 'lucide-react'
+import { BarChart3, PhoneCall, Wallet, Trophy, Undo2, Gauge, ClipboardList, ListChecks } from 'lucide-react'
 import { lastNMonths, monthLabel } from '@/lib/analytics'
 import { formatCurrency, formatPercent } from '@/lib/utils'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
@@ -77,11 +77,6 @@ function pct(curr: number, base: number): string {
 function pctVal(curr: number, base: number): number | null {
   if (!base) return null
   return (curr / base) * 100
-}
-
-function ratio(value: number, base: number): string {
-  if (!base) return '—'
-  return formatCurrency(value / base)
 }
 
 const ACTIVE_APPT_STATUSES = ['scheduled', 'confirmed', 'show', 'completed', 'rescheduled']
@@ -686,14 +681,6 @@ export default function VentasMetricasPage() {
                   description="Resultado: depósito"
                 />
               )}
-              {tracking.cobros && (
-                <KPICard
-                  title="Cobros comisionables"
-                  value={formatCurrency(metrics.netRevenue)}
-                  icon={Banknote}
-                  description="cobros del periodo, base comisionable (no es el Net Revenue de Finanzas)"
-                />
-              )}
               {tracking.refunds && <KPICard title="Refunds" value={String(metrics.refunds)} icon={Undo2} />}
             </div>
           </div>
@@ -738,22 +725,6 @@ export default function VentasMetricasPage() {
                 icon={Gauge}
                 description="valor cerrado / Pipe Value"
               />
-              {tracking.cobros && (
-                <>
-                  <KPICard
-                    title="Cobros/LSC"
-                    value={ratio(metrics.netRevenue, metrics.liveSalesCalls)}
-                    icon={Banknote}
-                    description="Cobros comisionables / llamadas atendidas"
-                  />
-                  <KPICard
-                    title="Cobros/BSC"
-                    value={ratio(metrics.netRevenue, metrics.bookedSalesCalls)}
-                    icon={Banknote}
-                    description="Cobros comisionables / llamadas agendadas"
-                  />
-                </>
-              )}
             </div>
           </div>
 

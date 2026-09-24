@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { generateUniqueTrackingCode } from '@/lib/tracking'
+import { crearContratoEquipo } from '@/lib/contracts/team-contract'
 
 // GESTIÓN DE COLABORADORES (§40-A, §41, §76).
 //
@@ -60,6 +61,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     )
 
     const ESTADOS = ['invited', 'pending_contract', 'active', 'suspended', 'inactive']
+    // El alta encadena el contrato de equipo: el estado efectivo de un
+    // colaborador nuevo es 'pending_contract' (contrato enviado, pendiente de
+    // firma), no 'invited' — la activación definitiva ocurre al FIRMAR.
+    // REGRESIÓN CORREGIDA (21-sep): el commit de la cadena del contrato (#83)
+    // eliminó esta línea y el POST entero casca 500 (TDZ de `status`) — desde
+    // entonces ningún alta desde la UI podía crear el perfil. Repuesta tal cual.
     const status = body.status && ESTADOS.includes(body.status) ? body.status : 'invited'
 
     let userId = body.userId ?? null
@@ -146,18 +153,61 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       )
       .select('id, code, status')
       .single()
-    if (crearErr) return NextResponse.json({ error: crearErr.message }, { status: 500 })
+    if (crearErr || !creado)
+      return NextResponse.json({ error: crearErr?.message ?? 'No se pudo crear el colaborador' }, { status: 500 })
+
+    // CADENA AUTOMÁTICA DEL CONTRATO (hallazgo E2E 19-sep): el alta deja al
+    // colaborador con su contrato de equipo creado y enviado por email — el
+    // estado pasa a 'pending_contract' y la activación definitiva ocurre al
+    // FIRMAR (public-contracts/sign). No bloquea el alta: si el envío falla,
+    // queda 'invited' y el admin puede enviar el contrato manualmente desde
+    // Contratos › Equipo (o repetir el alta, que es idempotente).
+    let contrato: Awaited<ReturnType<typeof crearContratoEquipo>> | null = null
+    let estadoFinal = status
+    if (status === 'invited') {
+      contrato = await crearContratoEquipo({
+        sb,
+        tenantId: t.tenantId,
+        userId,
+        createdBy: t.userId,
+        baseUrl: process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin,
+        roleKey: 'affiliate',
+        affiliatePercent: body.defaultCommissionPercent ?? null,
+      })
+      if (contrato.ok) {
+        // Contrato en firme (recién enviado o ya enviado antes) → pendiente de
+        // firma. Si ya hay uno FIRMADO (re-alta de un usuario existente), nace
+        // directamente activo.
+        estadoFinal = contrato.estado === 'ya_firmado' ? 'active' : 'pending_contract'
+        await sb
+          .from('collaborator_profiles')
+          .update({ status: estadoFinal, updated_at: new Date().toISOString() })
+          .eq('id', creado.id)
+          .eq('tenant_id', t.tenantId)
+      }
+    }
 
     await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       actor_user_id: t.userId,
       entity_type: 'collaborator_profile',
-      entity_id: (creado as { id: string }).id,
+      entity_id: creado.id,
       action: 'collaborator_created',
-      new_values: { code, status, user_id: userId },
+      new_values: {
+        code,
+        status: estadoFinal,
+        user_id: userId,
+        contrato: contrato?.ok
+          ? { estado: contrato.estado, emailed: contrato.emailed, contract_id: contrato.contractId ?? null }
+          : null,
+      },
     })
 
-    return NextResponse.json({ ok: true, colaborador: creado })
+    return NextResponse.json({
+      ok: true,
+      colaborador: { ...creado, status: estadoFinal },
+      contrato: contrato ?? undefined,
+    })
   } catch (err) {
     console.error('[api/colaboradores]', err)
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Error interno' }, { status: 500 })

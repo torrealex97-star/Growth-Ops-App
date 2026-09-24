@@ -12,14 +12,16 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,mjs,json,css}\"",
     "dead-code": "knip --no-exit-code",
     "tipos:bd": "node scripts/generar-tipos-bd.mjs",
-    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/*.test.mjs",
-    "test:metrics": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/metrics/register.mjs --test tests/metrics/*.test.mjs",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/register.mjs --test tests/*.test.mjs",
+    "test:metrics": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/register.mjs --test tests/metrics/*.test.mjs",
     "quality": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run test:metrics",
     "mcp:supabase": "npx -y @supabase/mcp-server-supabase@latest --read-only --project-ref rgcbveflosqgxrcqlqzv",
     "mcp:search": "npx -y duckduckgo-mcp-server",
     "mcp:context7": "npx -y @upstash/context7-mcp",
     "mcp:repomix": "npx -y repomix --mcp",
-    "context:build": "npx -y repomix --config repomix.config.json"
+    "context:build": "npx -y repomix --config repomix.config.json",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.36.3",
@@ -58,6 +60,7 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "tailwindcss-animate": "^1.0.7",
+    "tus-js-client": "^4.3.1",
     "zod": "^4.4.2"
   },
   "overrides": {
@@ -66,11 +69,13 @@
     }
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@typescript-eslint/eslint-plugin": "^8.70.0",
     "autoprefixer": "^10.0.1",
+    "dotenv": "^18.0.2",
     "eslint": "^8",
     "eslint-config-next": "^15.5.25",
     "knip": "^6.35.1",

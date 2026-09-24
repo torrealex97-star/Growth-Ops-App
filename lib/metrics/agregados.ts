@@ -103,6 +103,8 @@ export type FilaCampana = {
 
 export type FilaContacto = {
   created_at: string | null
+  /** Fecha real del lead (GHL dateAdded, guardada por history-sync). Si falta, created_at. */
+  first_seen_at?: string | null
   first_contact_at: string | null
 }
 
@@ -227,10 +229,12 @@ export function calcularAgregados(e: Entrada): Agregados {
 
   // Speed to lead vive en contacts desde la migración original. Solo se usan pares de fechas válidos
   // y no negativos: un timestamp anterior a la creación es dato corrupto, no una respuesta instantánea.
-  const contactosDelPeriodo = (e.contactos ?? []).filter((c) => enPeriodo(c.created_at, p))
+  // El periodo se acota por FECHA REAL del lead (first_seen_at → first_contact_at → created_at):
+  // created_at es cuándo se importó la fila, no cuándo llegó el lead.
+  const contactosDelPeriodo = (e.contactos ?? []).filter((c) => enPeriodo(c.first_seen_at || c.created_at, p))
   const minutosHastaContacto = contactosDelPeriodo.flatMap((c) => {
     if (!c.created_at || !c.first_contact_at) return []
-    const creado = new Date(c.created_at).getTime()
+    const creado = new Date(c.first_seen_at || c.created_at).getTime()
     const contactado = new Date(c.first_contact_at).getTime()
     const minutos = (contactado - creado) / 60_000
     return Number.isFinite(minutos) && minutos >= 0 ? [minutos] : []

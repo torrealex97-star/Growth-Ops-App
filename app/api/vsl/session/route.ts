@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server'
 import { sql } from '@/lib/vsl/db'
+import { MinuteRateLimiter } from '@/lib/tracking/ingest'
 
 export const dynamic = 'force-dynamic'
+
+// Rate limit (auditoría §riesgos): la ruta es pública y crea filas; el limitador por proceso
+// (el mismo del pixel) frena inflado de impresiones sin infraestructura nueva.
+const limiter = new MinuteRateLimiter()
 
 function detectDevice(ua: string): string {
   const s = (ua || '').toLowerCase()
@@ -17,13 +22,17 @@ export async function POST(req: Request) {
     if (!slug || !anonId) {
       return NextResponse.json({ error: 'slug y anonId requeridos' }, { status: 400 })
     }
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'desconocida'
+    if (!limiter.allow(`vsl-session:${ip}`, 60)) {
+      return NextResponse.json({ error: 'Demasiadas peticiones' }, { status: 429 })
+    }
 
     const ua = req.headers.get('user-agent') || ''
     const country = req.headers.get('x-vercel-ip-country') || req.headers.get('cf-ipcountry') || null
     const device = detectDevice(ua)
 
     const [video] = await sql`
-      SELECT id FROM vsl_videos WHERE slug = ${slug} LIMIT 1
+      SELECT id FROM vsl_videos WHERE slug = ${slug} AND deleted_at IS NULL LIMIT 1
     `
     if (!video) return NextResponse.json({ error: 'Vídeo no encontrado' }, { status: 404 })
 

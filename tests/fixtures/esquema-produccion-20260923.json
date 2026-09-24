@@ -1,0 +1,765 @@
+[
+  {
+    "tabla": "activities",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 5
+  },
+  {
+    "tabla": "affiliate_campaign_members",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "affiliate_campaigns",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "affiliate_profiles",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "affiliate_program_settings",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "ai_business_facts",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 5
+  },
+  {
+    "tabla": "ai_conversations",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "ai_insights",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "ai_messages",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "ai_tool_calls",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "analytics_sessions",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "analytics_touchpoints",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "analytics_visitors",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "app_settings",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "appointments",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "audit_logs",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "call_recordings",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "campaign_ads",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "campaign_daily",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "campaign_funnel_assignments",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 7
+  },
+  {
+    "tabla": "campaign_targets",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "campaigns",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "canonical_events",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "carrusel_brand",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "carrusel_projects",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "carrusel_templates",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "collaborator_profiles",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "collections",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 6
+  },
+  {
+    "tabla": "commission_invoices",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 9
+  },
+  {
+    "tabla": "commission_rules",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "commissions",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 6
+  },
+  {
+    "tabla": "company_profile",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "contact_attributions",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "contact_notes",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 5
+  },
+  {
+    "tabla": "contacts",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "content_items",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 5
+  },
+  {
+    "tabla": "contract_templates",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "contracts",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 6
+  },
+  {
+    "tabla": "csm_events",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "custom_field_defs",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 4
+  },
+  {
+    "tabla": "deleted_appointments_log",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "delivery_attempts",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "document_verifications",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "drops",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "email_events",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "email_invoices",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "email_messages",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "email_templates",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 4
+  },
+  {
+    "tabla": "event_types",
+    "tieneTenantId": false,
+    "tenantIdNotNull": false,
+    "rlsHabilitada": true,
+    "politicas": 1
+  },
+  {
+    "tabla": "expenses",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 6
+  },
+  {
+    "tabla": "fathom_match_review",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "fb_media",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "ga4_daily",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "google_oauth_connections",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "growth_context",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "identity_matches",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "ig_account_daily",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "ig_audience",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "ig_comments",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "ig_competitor_media",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "ig_competitors",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "ig_conversations_daily",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "ig_media",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "integration_settings",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 1
+  },
+  {
+    "tabla": "integration_sync_runs",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "knowledge_chunks",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 4
+  },
+  {
+    "tabla": "kpi_daily_reports",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 5
+  },
+  {
+    "tabla": "kpi_form_templates",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "link_templates",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "manual_platform_records",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "meta_custom_funnels",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "partners",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "payment_follow_ups",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "payment_plans",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 6
+  },
+  {
+    "tabla": "positive_notes",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "product_extras",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "products",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "qualification_questions",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "raw_events",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "reel_drafts",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "refunds",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 5
+  },
+  {
+    "tabla": "resource_link_divisions",
+    "tieneTenantId": false,
+    "tenantIdNotNull": false,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "resource_links",
+    "tieneTenantId": false,
+    "tenantIdNotNull": false,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "roleplays",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "roles",
+    "tieneTenantId": false,
+    "tenantIdNotNull": false,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "sale_expected_installments",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 4
+  },
+  {
+    "tabla": "sales",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 7
+  },
+  {
+    "tabla": "sales_tramos",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "sales_tramos_config",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "saved_dashboard_views",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "sequra_delinquent_customers",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "social_posts",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 4
+  },
+  {
+    "tabla": "social_profiles",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 4
+  },
+  {
+    "tabla": "social_raw_payloads",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 4
+  },
+  {
+    "tabla": "social_research_jobs",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 4
+  },
+  {
+    "tabla": "stripe_customers",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "stripe_payments",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "suggestions",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 5
+  },
+  {
+    "tabla": "targets",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  },
+  {
+    "tabla": "tasks",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 4
+  },
+  {
+    "tabla": "tenant_email_settings",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 4
+  },
+  {
+    "tabla": "tenant_members",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "tenants",
+    "tieneTenantId": false,
+    "tenantIdNotNull": false,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "testimonios",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "tracking_sites",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "users",
+    "tieneTenantId": false,
+    "tenantIdNotNull": false,
+    "rlsHabilitada": true,
+    "politicas": 4
+  },
+  {
+    "tabla": "vsl_sessions",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "vsl_videos",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 2
+  },
+  {
+    "tabla": "youtube_uploads",
+    "tieneTenantId": true,
+    "tenantIdNotNull": true,
+    "rlsHabilitada": true,
+    "politicas": 3
+  }
+]

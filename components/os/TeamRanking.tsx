@@ -39,8 +39,19 @@ function RankList({ rows }: { rows: RankRow[] }) {
   )
 }
 
-export function TeamRanking({ closers, setters }: { closers: RankRow[]; setters: RankRow[] }) {
-  const [tab, setTab] = useState<'closer' | 'setter'>('closer')
+export function TeamRanking({
+  closers,
+  setters,
+  colaboradores = [],
+}: {
+  closers: RankRow[]
+  setters: RankRow[]
+  // Ventas por colaborador (mismo shape que RankRow); sin datos la tab no se muestra.
+  colaboradores?: RankRow[]
+}) {
+  const [tab, setTab] = useState<'closer' | 'setter' | 'collaborator'>('closer')
+  const showColab = colaboradores.length > 0
+  const rows = tab === 'closer' ? closers : tab === 'setter' ? setters : colaboradores
   return (
     <div className="dashboard-card p-5">
       <div className="flex items-center justify-between mb-4">
@@ -49,7 +60,7 @@ export function TeamRanking({ closers, setters }: { closers: RankRow[]; setters:
           <h3 className="text-sm font-semibold text-foreground">Ranking del equipo</h3>
         </div>
         <div className="flex bg-muted rounded-lg p-0.5">
-          {(['closer', 'setter'] as const).map((t) => (
+          {(['closer', 'setter', ...(showColab ? (['collaborator'] as const) : [])] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -57,12 +68,12 @@ export function TeamRanking({ closers, setters }: { closers: RankRow[]; setters:
                 tab === t ? 'bg-brand-600 text-white' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              {t === 'closer' ? 'Closers' : 'Setters'}
+              {t === 'closer' ? 'Closers' : t === 'setter' ? 'Setters' : 'Colaboradores'}
             </button>
           ))}
         </div>
       </div>
-      <RankList rows={tab === 'closer' ? closers : setters} />
+      <RankList rows={rows} />
     </div>
   )
 }

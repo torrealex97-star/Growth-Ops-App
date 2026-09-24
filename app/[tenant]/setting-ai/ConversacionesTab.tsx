@@ -27,6 +27,12 @@ const PLATFORMS = [
   { k: 'tiktok' as const, label: 'TikTok' },
 ]
 type Platform = (typeof PLATFORMS)[number]['k']
+type RespuestaConvos = {
+  error?: string
+  configured?: boolean
+  conversations?: IgConversation[]
+  motivo?: string
+}
 
 export default function ConversacionesTab() {
   const tenant = useTenant()
@@ -35,6 +41,7 @@ export default function ConversacionesTab() {
   const [configured, setConfigured] = useState<boolean | null>(null)
   const [conversations, setConversations] = useState<IgConversation[]>([])
   const [error, setError] = useState('')
+  const [motivo, setMotivo] = useState('')
   const [openId, setOpenId] = useState<string | null>(null)
   const [analyzing, setAnalyzing] = useState<string | null>(null)
   const [analyses, setAnalyses] = useState<Record<string, Analysis>>({})
@@ -50,8 +57,16 @@ export default function ConversacionesTab() {
     let cancel = false
     setLoading(true)
     setError('')
-    fetch(`/api/${tenant}/evergreen/setting-ai/conversations?platform=instagram`)
-      .then((r) => r.json())
+    // La carga anterior se moría por tiempo (lambda + Graph API en serie): aquí acotamos el
+    // esperar en cliente también, para que el usuario vea un mensaje y no una rueda eterna.
+    const controlador = new AbortController()
+    const reloj = setTimeout(() => controlador.abort(), 35_000)
+    fetch(`/api/${tenant}/evergreen/setting-ai/conversations?platform=instagram`, {
+      signal: controlador.signal,
+    })
+      .then(async (r) =>
+        r.ok ? ((await r.json()) as RespuestaConvos) : { error: `El servidor respondió ${r.status}` }
+      )
       .then((j) => {
         if (cancel) return
         if (j.error) {
@@ -61,14 +76,16 @@ export default function ConversacionesTab() {
         }
         setConfigured(!!j.configured)
         setConversations(j.conversations || [])
+        setMotivo(j.motivo || '')
       })
       .catch((e) => {
         if (!cancel) {
-          setError(e.message)
+          setError(e.name === 'AbortError' ? 'La carga tardó demasiado. Inténtalo de nuevo.' : e.message)
           setConfigured(false)
         }
       })
       .finally(() => {
+        clearTimeout(reloj)
         if (!cancel) setLoading(false)
       })
     return () => {
@@ -129,7 +146,8 @@ export default function ConversacionesTab() {
           <p className="text-red-400 text-sm text-center py-10">Error: {error}</p>
         ) : configured === false ? (
           <div className="text-center py-14 text-muted-foreground text-sm max-w-md mx-auto">
-            <p className="mb-2 font-semibold text-foreground">Instagram no está conectado todavía.</p>
+            <p className="mb-2 font-semibold text-foreground">Instagram no está operativo para mensajería.</p>
+            {motivo && <p className="mb-2 text-foreground">{motivo}</p>}
             <p>
               Configura el token en <b>Configuración → Integraciones</b> (necesita el permiso{' '}
               <code className="text-[11px] bg-muted px-1 py-0.5 rounded">instagram_manage_messages</code>) para poder

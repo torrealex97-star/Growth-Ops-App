@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { getTenantConfigWithFallback } from '@/lib/config'
+import { InstagramApiError, type InstagramErrorCode, type IgConversation } from '@/lib/instagram/client'
 import {
   getInstagramConfig,
   resolveIgUserId,
@@ -8,15 +9,29 @@ import {
   getPageAccessToken,
   fetchIgConversationsWithMessages,
 } from '@/lib/instagram/client'
+import { edadLegible, guardarSnapshot, leerSnapshot } from '@/lib/instagram/snapshot'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+// Vercel Hobby permite 60s. El trabajo sano tarda 5-20s; el plazo duro de abajo (25s) decide
+// SIEMPRE antes de que Vercel mate la función — 60 es solo margen para que la respuesta
+// tardía de Meta no reviente la lambda.
 export const maxDuration = 60
 
 // Lista conversaciones (DMs) con su transcripción, para la pestaña "Conversaciones" de
 // Setting AI. Instagram trae datos reales (mismo cliente que usa el sync orgánico);
 // Facebook y TikTok todavía no tienen integración de mensajería, así que devuelven
 // configured:false para que el front pinte un placeholder "próximamente".
+//
+// Dos capas de defensa contra la lentitud de Meta (endpoint de conversaciones más pesado
+// que el resto de la Graph API: hoy dio error #1 y un timeout SUYO en la misma página):
+//   1. PLAZO DURO de 25s a nivel de ruta: cualquiera que sea lo que esté haciendo la
+//      descarga, a los 25s responde JSON usable (configured:false + motivo). Nunca más
+//      FUNCTION_INVOCATION_TIMEOUT ni rueda eterna.
+//   2. Presupuesto interno del cliente (ver fetchIgConversationsWithMessages): reintento
+//      ligero del listado y degradación de detalles que no lleguen.
+// Un fallo de la Graph API NO es un error del servidor: token caducado o falta de permiso
+// se responden como integración no operativa (configured:false + motivo accionable).
 export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
   const t = await requireTenant(tenant)
@@ -27,18 +42,142 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     return NextResponse.json({ configured: false, platform, conversations: [] })
   }
 
-  const cfg = getInstagramConfig(await getTenantConfigWithFallback(t.tenantId, true))
-  if (!cfg) return NextResponse.json({ configured: false, platform, conversations: [] })
+  // getTenantConfigWithFallback indexa por tenantId (UUID), no por slug: pasar el slug
+  // devolvía vacío en silencio → "configured:false" pelado aunque la integración esté bien.
+  // CON SNAPSHOT: responder YA (el listado de Meta tarda 15-40s cuando va mal) y refrescar
+  // en segundo plano con after() — el usuario nunca espera a un upstream inestable.
+  const snap = await leerSnapshot(t.tenantId)
+  if (snap) {
+    const fresco = Date.now() - new Date(snap.guardado).getTime() < 3 * 60_000
+    if (!fresco) {
+      after(async () => {
+        await descargar(t.tenantId, platform).catch(() => null) // guardarSnapshot ocurre dentro
+      })
+    }
+    return NextResponse.json({
+      configured: true,
+      platform,
+      conversations: snap.conversaciones,
+      motivo: `Último snapshot correcto (${edadLegible(snap.guardado)}).`,
+      stale: true,
+      guardado: snap.guardado,
+    })
+  }
+  const resultado = await conPlazo(descargar(t.tenantId, platform), 25_000)
+  if (resultado === PLAZO) {
+    // Meta no respondió ni siquiera al plazo duro: respaldo stale si existe (con su edad),
+    // nunca un error pelado.
+    const snap = await leerSnapshot(t.tenantId)
+    if (snap) {
+      return NextResponse.json({
+        configured: true,
+        platform,
+        conversations: snap.conversaciones,
+        motivo: `Instagram no respondió a tiempo; mostrando el último snapshot correcto (${edadLegible(snap.guardado)}).`,
+        stale: true,
+        guardado: snap.guardado,
+      })
+    }
+    return NextResponse.json({
+      configured: false,
+      platform,
+      conversations: [],
+      motivo: 'Instagram no respondió a tiempo. Inténtalo de nuevo en unos minutos.',
+    })
+  }
+  return NextResponse.json(resultado)
+}
+
+const PLAZO = Symbol('plazo-agotado')
+function conPlazo<T>(p: Promise<T>, ms: number): Promise<T | typeof PLAZO> {
+  return Promise.race([p, new Promise<typeof PLAZO>((r) => setTimeout(() => r(PLAZO), ms))])
+}
+
+type RespuestaConvos = {
+  configured: boolean
+  platform: string
+  conversations: IgConversation[]
+  motivo?: string
+  error?: string
+  stale?: boolean
+  guardado?: string
+}
+
+async function descargar(tenant: string, platform: string): Promise<RespuestaConvos> {
+  const cfg = getInstagramConfig(await getTenantConfigWithFallback(tenant, true))
+  if (!cfg) return { configured: false, platform, conversations: [] }
 
   try {
-    const { id: igUserId } = await resolveIgUserId(cfg)
+    const { id: igUserId } = await conEtapa('resolver cuenta IG', () => resolveIgUserId(cfg))
     const pageId = await resolveFbPageId(cfg, igUserId)
-    if (!pageId) return NextResponse.json({ configured: false, platform, conversations: [] })
-    const pat = await getPageAccessToken(cfg, pageId)
-    if (!pat) return NextResponse.json({ configured: false, platform, conversations: [] })
-    const conversations = await fetchIgConversationsWithMessages(cfg, pageId, pat, igUserId, 20)
-    return NextResponse.json({ configured: true, platform, conversations })
+    if (!pageId)
+      return {
+        configured: false,
+        platform,
+        conversations: [],
+        motivo: `Ninguna página de Facebook del token tiene vinculada la cuenta IG (${igUserId}). Revisa que la página esté asignada al System User. [ig=${igUserId}]`,
+      }
+    const pat = await conEtapa('obtener page access token', () => getPageAccessToken(cfg, pageId))
+    if (!pat)
+      return {
+        configured: false,
+        platform,
+        conversations: [],
+        motivo: `La página ${pageId} no devolvió un page access token: revisa que esté asignada al System User del token y que este tenga pages_show_list. [page=${pageId}]`,
+      }
+    const conversations = await conEtapa('listar conversaciones', () =>
+      fetchIgConversationsWithMessages(cfg, pageId, pat, igUserId, 20)
+    )
+    // Descarga buena: queda como respaldo para cuando Meta vuelva a colgarse.
+    if (conversations.length) await guardarSnapshot(tenant, conversations)
+    return { configured: true, platform, conversations }
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+    const base = { platform, conversations: [] as IgConversation[] }
+    if (e instanceof InstagramApiError) {
+      const motivo = motivoLegible(e.code, e.message)
+      const snap = await leerSnapshot(tenant)
+      if (snap)
+        return {
+          configured: true,
+          ...base,
+          conversations: snap.conversaciones,
+          motivo: `${motivo} Mostrando el último snapshot correcto (${edadLegible(snap.guardado)}).`,
+          stale: true,
+          guardado: snap.guardado,
+        }
+      return { configured: false, ...base, motivo }
+    }
+    const snap = await leerSnapshot(tenant)
+    if (snap)
+      return {
+        configured: true,
+        ...base,
+        conversations: snap.conversaciones,
+        motivo: `Error técnico (${(e as Error).message}); mostrando el último snapshot correcto (${edadLegible(snap.guardado)}).`,
+        stale: true,
+        guardado: snap.guardado,
+      }
+    return { configured: false, ...base, error: (e as Error).message }
   }
+}
+
+// Cuando IG rechaza una llamada, el motivo debe decir QUÉ llamada fue: si no, el
+// diagnóstico en producción es adivinanza (el detalle por conversación ya se degrada solo).
+async function conEtapa<T>(etapa: string, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (e) {
+    if (e instanceof InstagramApiError) throw new InstagramApiError(`${etapa}: ${e.message}`, e.code)
+    throw e
+  }
+}
+
+function motivoLegible(code: InstagramErrorCode, message: string): string {
+  // El detalle SIEMPRE: sin la etapa que falló, diagnosticar en producción es una adivinanza.
+  if (code === 'token_caducado') return `El token de Instagram ha caducado: renuévalo en Integraciones. [${message}]`
+  if (code === 'sin_permisos')
+    return `Al token le falta el permiso instagram_manage_messages (acceso avanzado). [${message}]`
+  if (code === 'limite_de_uso') return `Instagram está limitando las peticiones ahora mismo. [${message}]`
+  if (code === 'timeout') return `Instagram tardó demasiado en responder. Inténtalo de nuevo. [${message}]`
+  return message
 }

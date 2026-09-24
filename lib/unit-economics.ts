@@ -24,8 +24,12 @@ export type SaleRow = {
 export type ContactRow = {
   id: string
   campaign_id: string | null
-  /** Fecha de creación del contacto. Opcional: solo el funnel operacional la usa para acotar por periodo. */
+  /** Fecha de creación de la FILA. Para acotar por periodo usar leadDate(): created_at es cuándo
+   * se importó (la importación histórica de GHL estampó todas las filas el mismo día), no cuándo
+   * llegó el lead. */
   created_at?: string | null
+  /** Fecha real del lead según la herramienta de origen (GHL dateAdded, guardada por history-sync). */
+  first_seen_at?: string | null
   /** Para la consolidación canónica de leads (dedup por persona, §6 del dashboard global). */
   email?: string | null
   phone?: string | null

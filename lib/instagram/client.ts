@@ -33,6 +33,7 @@ class InstagramApiError extends Error {
     this.name = 'InstagramApiError'
   }
 }
+export { InstagramApiError }
 
 function instagramErrorCode(providerCode: number | null, message: string): InstagramErrorCode {
   if (providerCode === 10) return 'sin_permisos'
@@ -588,42 +589,89 @@ export async function fetchIgConversationsWithMessages(
   pageId: string,
   pat: string,
   igUserId: string,
-  limit = 20
+  limit = 20,
+  // 12s: los detalles que no lleguen se degradan (la UI lo dice) y la ruta responde holgada
+  // bajo su plazo duro de 25s — con 40s el detalle comía el plazo entero y ganaba el deadline.
+  presupuestoMs = 12_000
 ): Promise<IgConversation[]> {
+  const inicio = Date.now()
+  const agotado = () => Date.now() - inicio > presupuestoMs
   const pq = `access_token=${encodeURIComponent(pat)}`
-  const url = `${GRAPH}/${cfg.version}/${pageId}/conversations?platform=instagram&fields=updated_time,unread_count,message_count&limit=${Math.min(limit, 50)}&${pq}`
-  const rows = await graphGetAll(url, Math.ceil(limit / 50) + 1)
-  const out: IgConversation[] = []
-  for (const c of rows.slice(0, limit)) {
-    let participant: string | undefined
-    let messages: IgConversationMessage[] = []
-    try {
-      const j = await graphGet(
-        `${GRAPH}/${cfg.version}/${c.id}?fields=participants,messages.limit(50){message,from,created_time}&${pq}`
-      )
-      const participants = j?.participants?.data || []
-      const other = participants.find((p: FilaGraph) => String(p?.id) !== String(igUserId))
-      participant = other?.username || other?.name || other?.id
-      const msgRows = j?.messages?.data || []
-      messages = msgRows
-        .slice()
-        .reverse()
-        .map((m: FilaGraph) => ({
-          from: (leerAnidado(m?.from, 'id') === String(igUserId) ? 'agente' : 'lead') as 'agente' | 'lead',
-          text: texto(m?.message),
-          created_time: texto(m?.created_time),
-        }))
-    } catch {
-      // si falla el detalle de una conversación, la dejamos sin transcripción en vez de tumbar todo el listado
-    }
-    out.push({
-      id: String(c.id),
-      participant,
-      updated_time: texto(c?.updated_time),
-      unread_count: Number(c?.unread_count) || 0,
-      message_count: Number(c?.message_count) || 0,
-      messages,
-    })
+  const urlListado = (n: number) =>
+    `${GRAPH}/${cfg.version}/${pageId}/conversations?platform=instagram&fields=updated_time,unread_count,message_count&limit=${Math.min(n, 50)}&${pq}`
+
+  // El endpoint de conversaciones de Meta es más pesado que el resto de la Graph API: en
+  // algunas páginas responde error #1 ("reduce data") o supera el timeout. Un reintento
+  // con página más pequeña lo salva la mayoría de las veces sin tocar al usuario.
+  let rows: FilaGraph[]
+  try {
+    rows = await graphGetAll(urlListado(limit), Math.ceil(limit / 50) + 1)
+  } catch (e) {
+    if (agotado() || !(e instanceof InstagramApiError)) throw e
+    rows = await graphGetAll(urlListado(Math.min(limit, 10)), Math.ceil(limit / 50) + 1)
   }
-  return out
+  const seleccion = rows.slice(0, limit)
+
+  // El detalle (participants + mensajes) exige UNA llamada por conversación. En serie eran
+  // `limit` × (0,5-2s) = decenas de segundos: la pantalla de Conversaciones agotaba el tiempo
+  // de la lambda y el usuario veía un timeout. En paralelo con pool acotado, el muro es el de
+  // UNA llamada × CONCURRENCIA (no × conversaciones), y el ritmo es sostenible para el rate
+  // limit de Meta (5 en vuelo puntualmente, no 20 en ráfaga).
+  const CONCURRENCIA_DETALLE = 5
+  const detalle = new Map<number, { participant?: string; messages: IgConversationMessage[] }>()
+  let cursor = 0
+  async function worker() {
+    while (cursor < seleccion.length) {
+      // Sin presupuesto restante: lo no descargado queda sin transcripción (la UI lo dice)
+      // en vez de mantener la lambda viva hasta que Vercel la mate a mitad de respuesta.
+      if (agotado()) {
+        while (cursor < seleccion.length) detalle.set(cursor++, { messages: [] })
+        return
+      }
+      const i = cursor++
+      // Si el detalle de una conversación falla, queda sin transcripción: no tumba el listado.
+      const d = await detalleDe(cfg, pat, igUserId, String(seleccion[i]?.id), pq).catch(() => null)
+      detalle.set(i, d ?? { messages: [] })
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCIA_DETALLE, seleccion.length) }, worker))
+
+  return seleccion.map((c, i) => ({
+    id: String(c.id),
+    participant: detalle.get(i)?.participant,
+    updated_time: texto(c?.updated_time),
+    unread_count: Number(c?.unread_count) || 0,
+    message_count: Number(c?.message_count) || 0,
+    messages: detalle.get(i)?.messages ?? [],
+  }))
+}
+
+/** participants + últimos 50 mensajes de UNA conversación. `null` si esa llamada falla. */
+async function detalleDe(
+  cfg: IgConfig,
+  pat: string,
+  igUserId: string,
+  conversationId: string,
+  pq: string
+): Promise<{ participant?: string; messages: IgConversationMessage[] } | null> {
+  try {
+    const j = await graphGet(
+      `${GRAPH}/${cfg.version}/${conversationId}?fields=participants,messages.limit(50){message,from,created_time}&${pq}`
+    )
+    const participants = j?.participants?.data || []
+    const other = participants.find((p: FilaGraph) => String(p?.id) !== String(igUserId))
+    const participant = other?.username || other?.name || other?.id
+    const msgRows = j?.messages?.data || []
+    const messages = msgRows
+      .slice()
+      .reverse()
+      .map((m: FilaGraph) => ({
+        from: (leerAnidado(m?.from, 'id') === String(igUserId) ? 'agente' : 'lead') as 'agente' | 'lead',
+        text: texto(m?.message),
+        created_time: texto(m?.created_time),
+      }))
+    return { participant, messages }
+  } catch {
+    return null
+  }
 }

@@ -44,6 +44,8 @@ import { brandFor, type Brand } from '@/components/integrations/brands'
 import { historyFor } from '@/lib/integrations/history'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { CATEGORY_LABELS, type IntegrationCategory } from '@/lib/integrations-catalog'
+import { WebhooksEntrantesPanel } from '@/components/integrations/WebhooksEntrantesPanel'
+import type { WebhookEntranteEstado } from '@/lib/webhooks/entrantes'
 import { formatNumber } from '@/lib/utils'
 
 type Field = {
@@ -64,6 +66,10 @@ type Group = {
   category: IntegrationCategory
   test?: boolean
   required?: string[]
+  // Guía de puesta en marcha: de dónde sale cada dato y qué hacer con él. Ver el catálogo.
+  pasos?: { titulo: string; detalle: string }[]
+  // Ruta del webhook entrante, con `{tenant}` por rellenar.
+  webhookPath?: string
   fields: Field[]
 }
 
@@ -389,6 +395,74 @@ function AdvancedField({
   )
 }
 
+/**
+ * Guía de puesta en marcha de una integración.
+ *
+ * Las credenciales no se "rellenan": se van a buscar a otro producto. Sin decir DÓNDE está cada
+ * valor, configurar una integración exige que haya alguien técnico delante — y si además hay que
+ * montar a mano la URL de un webhook, aparece la errata que luego cuesta una tarde encontrar.
+ *
+ * Por eso la dirección se pinta ya montada con la subcuenta y con botón de copiar, y cada paso dice
+ * de dónde sale el dato. Solo aparece en las integraciones que declaran `pasos` o `webhookPath`.
+ */
+function GuiaIntegracion({ grupo, tenant }: { grupo: Group; tenant: string }) {
+  const url = grupo.webhookPath
+    ? `${typeof window === 'undefined' ? '' : window.location.origin}${grupo.webhookPath.replace('{tenant}', tenant)}`
+    : null
+  if (!grupo.pasos?.length && !url) return null
+
+  return (
+    <section className="border-border bg-muted/20 my-5 space-y-4 rounded-lg border p-4">
+      <h3 className="text-sm font-semibold">Cómo configurarlo</h3>
+
+      {url ? (
+        <div className="space-y-1.5">
+          <p className="text-muted-foreground text-xs">
+            Dirección del webhook de esta subcuenta. Cópiala tal cual: lleva dentro el identificador de la subcuenta y
+            no vale la de otra.
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="bg-background/60 border-border flex-1 overflow-x-auto rounded border px-2 py-1.5 text-xs">
+              {url}
+            </code>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                navigator.clipboard
+                  ?.writeText(url)
+                  .then(() => toast.success('Dirección copiada'))
+                  // Sin portapapeles (navegador antiguo o permiso denegado) se puede seleccionar a mano:
+                  // el texto está a la vista, así que el fallo no deja a nadie bloqueado.
+                  .catch(() => toast.error('No se pudo copiar: selecciónala y cópiala a mano'))
+              }}
+            >
+              Copiar
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {grupo.pasos?.length ? (
+        <ol className="space-y-3">
+          {grupo.pasos.map((paso, i) => (
+            <li key={paso.titulo} className="flex gap-3">
+              <span className="bg-primary/10 text-primary mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold">
+                {i + 1}
+              </span>
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium">{paso.titulo}</p>
+                <p className="text-muted-foreground text-xs leading-relaxed">{paso.detalle}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+    </section>
+  )
+}
+
 export default function IntegracionesPage() {
   const tenant = useTenant()
   const [groups, setGroups] = useState<Group[]>([])
@@ -428,6 +502,9 @@ export default function IntegracionesPage() {
   const [modelosIa, setModelosIa] = useState<{ id: string }[] | null>(null)
   const [buscandoModelos, setBuscandoModelos] = useState(false)
   const [findingAccounts, setFindingAccounts] = useState(false)
+  // La mitad receptora de las integraciones: los webhooks que los proveedores llaman. El estado
+  // lo calcula el servidor con evidencia real (audit_logs / raw_events), nunca el navegador.
+  const [webhooksEntrantes, setWebhooksEntrantes] = useState<WebhookEntranteEstado[]>([])
 
   // ESTA ERA LA PANTALLA QUE SE QUEDABA CARGANDO.
   //
@@ -447,6 +524,7 @@ export default function IntegracionesPage() {
         state: Record<string, StateEntry>
         encReady: boolean
         health?: IntegrationHealth[]
+        webhooksEntrantes?: WebhookEntranteEstado[]
       }>(`/api/${tenant}/evergreen/settings/integraciones`)
 
       if (!res.ok) {
@@ -463,6 +541,7 @@ export default function IntegracionesPage() {
       setState(j.state)
       setEncReady(j.encReady)
       setHealth(Object.fromEntries(((j.health ?? []) as IntegrationHealth[]).map((h) => [h.id, h])))
+      setWebhooksEntrantes(j.webhooksEntrantes ?? [])
       // precargar los no-secretos en los drafts para poder editarlos
       const d: Record<string, string> = {}
       for (const [k, v] of Object.entries(j.state as Record<string, StateEntry>)) {
@@ -481,6 +560,30 @@ export default function IntegracionesPage() {
     if (selectedId === 'stripe' && stripeCustomers === null) void loadStripeCustomers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId])
+
+  // Vuelta del flujo OAuth de Google (provider=ga4/gmail). El callback de la app redirige a ESTA
+  // pantalla con el resultado en la URL; el token se guarda en el callback y nunca pasa por el
+  // navegador. YouTube usa otro camino (redirect del playground + pegar código): ver abajo.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const sp = new URLSearchParams(window.location.search)
+    const res = sp.get('google')
+    if (!res) return
+    const servicio = sp.get('servicio')
+    if (res === 'conectada') toast.success(`${servicio === 'youtube' ? 'YouTube' : 'Google'} conectado`)
+    else if (res === 'cancelada') toast.info('Autorización cancelada')
+    else {
+      const motivos: Record<string, string> = {
+        sin_credenciales: 'Faltan las credenciales OAuth de la integración. Guárdalas primero.',
+        sin_refresh_token: 'Google no devolvió un refresh token. Vuelve a autorizar.',
+        no_se_pudo_guardar: 'No se pudo guardar la conexión.',
+        sin_config_enc_key: 'Falta CONFIG_ENC_KEY en el servidor.',
+        permisos_incompletos: 'La autorización quedó incompleta: faltaron permisos solicitados.',
+      }
+      toast.error(motivos[sp.get('motivo') || ''] || 'No se pudo completar la autorización')
+    }
+    window.history.replaceState(null, '', window.location.pathname)
+  }, [])
 
   // Al abrir una integración se comprueba contra su API si no hay comprobación fresca. Es UNA llamada
   // (la de la que se abre), no diecisiete al cargar la pantalla, y es lo que hace que el estado sea
@@ -708,6 +811,28 @@ export default function IntegracionesPage() {
     }
   }
 
+  // Backfill de custom fields de GHL: relee contactos en GHL y puebla contacts.custom_fields
+  // (merge idempotente). El resultado del run queda en el historial de syncs del panel.
+  async function backfillCustomFields() {
+    setSyncingId('ghl-custom-fields')
+    try {
+      const r = await fetch(`/api/${tenant}/evergreen/settings/integraciones/custom-fields-backfill`, {
+        method: 'POST',
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(j.error || 'El backfill falló')
+      toast.success('Campos personalizados importados', {
+        description: `${j.conCampos ?? 0} contactos actualizados · ${j.definicionesCreadas ?? 0} campos nuevos · ${j.cortado ? 'parcial (vuelve a lanzar para continuar)' : 'completo'}`,
+      })
+    } catch (error) {
+      toast.error('No se pudieron importar los campos', {
+        description: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setSyncingId(null)
+    }
+  }
+
   async function syncHistory(g: Group) {
     setSyncingId(g.id)
     setAskHistory(null)
@@ -872,6 +997,11 @@ export default function IntegracionesPage() {
         </div>
       )}
 
+      {/* La mitad receptora de las integraciones: URLs exactas por subcuenta, estado del secret
+          y último evento recibido con su evidencia. Antes de este bloque, dar de alta un webhook
+          exigía cazar la URL en una guía y descubrir a posteriori que nada entraba. */}
+      <WebhooksEntrantesPanel webhooks={webhooksEntrantes} tenant={tenant} />
+
       {CATEGORY_ORDER.filter((cat) => groups.some((g) => g.category === cat)).map((cat) => (
         <div key={cat} className="space-y-3">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -970,6 +1100,8 @@ export default function IntegracionesPage() {
                           </div>
                           <SheetDescription>{g.description}</SheetDescription>
                         </SheetHeader>
+
+                        <GuiaIntegracion grupo={g} tenant={tenant} />
 
                         {h ? (
                           <section
@@ -1106,6 +1238,30 @@ export default function IntegracionesPage() {
                                 </Button>
                               ) : null}
                             </div>
+                          </section>
+                        ) : null}
+
+                        {g.id === 'ghl' ? (
+                          <section className="mb-5 space-y-2 rounded-lg border border-border p-3 text-sm">
+                            <p className="font-medium">Importar campos personalizados</p>
+                            <p className="text-muted-foreground text-xs">
+                              Relee los contactos en GHL y copia aquí sus campos personalizados (los que configures en
+                              GHL como «Custom Fields»), creándolos en la subcuenta si no existen. Puedes lanzarlo
+                              tantas veces como quieras: no duplica ni pisa lo ya guardado.
+                            </p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => backfillCustomFields()}
+                              disabled={syncingId === 'ghl-custom-fields'}
+                            >
+                              {syncingId === 'ghl-custom-fields' ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                              )}
+                              {syncingId === 'ghl-custom-fields' ? 'Importando campos…' : 'Importar campos'}
+                            </Button>
                           </section>
                         ) : null}
 
@@ -1715,7 +1871,77 @@ export default function IntegracionesPage() {
                             className="text-red-400 hover:text-red-300"
                           >
                             <Trash2 className="mr-2 h-4 w-4" /> Desconectar
-                          </Button>
+                          </Button>{' '}
+                          {g.id === 'youtube' && (
+                            <div className="w-full space-y-2 border-t border-border pt-3">
+                              <p className="text-xs text-muted-foreground">
+                                El refresh token de YouTube no se pega a mano: se autoriza y Google lo genera. Solo el
+                                redirect del playground está registrado en el cliente OAuth de esta integración, así que
+                                el código vuelve ahí.
+                              </p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    // Asegurar que client+secret están guardados antes de abrir Google.
+                                    await saveGroup(g)
+                                    const u = new URL('https://accounts.google.com/o/oauth2/v2/auth')
+                                    u.searchParams.set('client_id', drafts.YOUTUBE_CLIENT_ID || '')
+                                    u.searchParams.set('redirect_uri', 'https://developers.google.com/oauthplayground')
+                                    u.searchParams.set('response_type', 'code')
+                                    u.searchParams.set(
+                                      'scope',
+                                      'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly'
+                                    )
+                                    u.searchParams.set('access_type', 'offline')
+                                    u.searchParams.set('prompt', 'consent')
+                                    window.open(u.toString(), '_blank', 'noopener')
+                                  }}
+                                  disabled={
+                                    savingId === g.id || !drafts.YOUTUBE_CLIENT_ID || !drafts.YOUTUBE_CLIENT_SECRET // sin client+secret Google no puede emparejar el token
+                                  }
+                                >
+                                  <ExternalLink className="mr-2 h-4 w-4" /> Autorizar con Google
+                                </Button>
+                                <Input
+                                  className="min-w-0 flex-1"
+                                  placeholder="Código que devuelve Google (o su URL completa)"
+                                  value={drafts.YOUTUBE_OAUTH_CODE || ''}
+                                  onChange={(e) => setDrafts((p) => ({ ...p, YOUTUBE_OAUTH_CODE: e.target.value }))}
+                                />
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    const r = await fetch(`/api/${tenant}/evergreen/settings/integraciones`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        action: 'youtube-exchange',
+                                        code: drafts.YOUTUBE_OAUTH_CODE || '',
+                                      }),
+                                    })
+                                    const j = await r.json()
+                                    if (!r.ok) {
+                                      toast.error(j.error || 'No se pudo completar la autorización')
+                                      return
+                                    }
+                                    toast.success('YouTube conectado: refresh token guardado')
+                                    setDrafts((p) => {
+                                      const n = { ...p }
+                                      delete n.YOUTUBE_OAUTH_CODE
+                                      return n
+                                    })
+                                    void load()
+                                  }}
+                                  disabled={!drafts.YOUTUBE_OAUTH_CODE || savingId === g.id}
+                                >
+                                  <KeyRound className="mr-2 h-4 w-4" /> Completar conexión
+                                </Button>
+                              </div>
+                            </div>
+                          )}
                           <Button size="sm" onClick={() => saveGroup(g)} disabled={savingId === g.id}>
                             {savingId === g.id ? (
                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

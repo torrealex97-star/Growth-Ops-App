@@ -5,6 +5,11 @@ import { getTenantConfigWithFallback } from '@/lib/config'
 import { countDuplicateKeys, countDuplicateValues, deriveSourceStatus } from '@/lib/data-health'
 import { resumenCross, runCrossChecks } from '@/lib/data-health/cross-source'
 import { parseAccountIds } from '@/lib/meta/accounts'
+import { CONECTORES, pendientesDeMigrar } from '@/lib/conectores/registro'
+import { saludDeConector } from '@/lib/data-health/conectores'
+import { saludWebhook, type ProveedorWebhook, type SaludWebhook } from '@/lib/data-health/webhooks'
+import { eventosStripe, ultimoEventoEnAudit, type ActaAudit, type RawStripe } from '@/lib/webhooks/entrantes'
+import { lastRunsByJob } from '@/lib/integrations/sync-runs'
 
 export const runtime = 'nodejs'
 
@@ -13,6 +18,8 @@ type Contact = {
   email: string | null
   phone: string | null
   ghl_contact_id: string | null
+  lead_channel: string | null
+  merged_into: string | null
   updated_at: string
 }
 type Appointment = {
@@ -25,6 +32,17 @@ type Appointment = {
   transcript: string | null
   ai_summary: string | null
   updated_at: string
+}
+
+/**
+ * Última recepción del webhook de Calendly según SU evidencia: las actas que solo ese webhook
+ * escribe. Es la misma huella que evalúa `ultimoEventoEnAudit('audit_calendly', …)` en
+ * Integraciones — se reutiliza para que Data Health e Integraciones no discrepen sobre qué cuenta
+ * como recepción de Calendly (el pull de Calendly no escribe actas, y las actas de los webhooks de
+ * GHL comparten entidad y acciones, así que se excluyen por su marcador `via`).
+ */
+function recepcionCalendly(actas: ActaAudit[]): string | null {
+  return ultimoEventoEnAudit('audit_calendly', actas)?.fecha ?? null
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ tenant: string }> }) {
@@ -43,7 +61,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
     const [contactsResult, appointmentsResult, campaignsResult, instagramResult, eventsResult] = await Promise.all([
       sb
         .from('contacts')
-        .select('id,email,phone,ghl_contact_id,updated_at')
+        .select('id,email,phone,ghl_contact_id,lead_channel,merged_into,updated_at')
         .eq('tenant_id', auth.tenantId)
         .limit(10000),
       sb
@@ -65,12 +83,98 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
     // Conjuntos extra para los controles CRUZADOS. Van aparte y NO abortan la respuesta: si uno falla,
     // su control dice "no se pudo comprobar" y el resto sigue informando. Colapsar todo a un error
     // dejaría la pantalla en blanco por una tabla.
-    const [salesResult, stripeResult, attributionsResult, adAccountsResult] = await Promise.all([
-      sb.from('sales').select('id,contact_id').eq('tenant_id', auth.tenantId).limit(10000),
-      sb.from('stripe_customers').select('id,contact_id').eq('tenant_id', auth.tenantId).limit(10000),
-      sb.from('contact_attributions').select('utm_campaign').eq('tenant_id', auth.tenantId).limit(10000),
-      sb.from('campaigns').select('account_id').eq('tenant_id', auth.tenantId).eq('provider', 'meta').limit(10000),
+    const [salesResult, stripeResult, attributionsResult, adAccountsResult, pagosResult, cobrosResult] =
+      await Promise.all([
+        sb.from('sales').select('id,contact_id').eq('tenant_id', auth.tenantId).limit(10000),
+        sb.from('stripe_customers').select('id,contact_id').eq('tenant_id', auth.tenantId).limit(10000),
+        sb.from('contact_attributions').select('utm_campaign').eq('tenant_id', auth.tenantId).limit(10000),
+        sb.from('campaigns').select('account_id').eq('tenant_id', auth.tenantId).eq('provider', 'meta').limit(10000),
+        sb.from('stripe_payments').select('payment_id,charge_id,status').eq('tenant_id', auth.tenantId).limit(10000),
+        sb
+          .from('collections')
+          .select('payment_reference')
+          .eq('tenant_id', auth.tenantId)
+          .not('payment_reference', 'is', null)
+          .limit(10000),
+      ])
+
+    // EVIDENCIA DE RECEPCIÓN REAL de los webhooks entrantes. A diferencia de la lectura masiva de
+    // arriba (limite 10000), son queries acotadas y ordenadas: el dato que hace falta es UNA fecha
+    // por webhook, no el histórico. Un fallo NO aborta: sin la fecha, su control dirá "no se pudo
+    // comprobar" (desconocido) y el resto de la pantalla sigue informando.
+    //  · GHL y Stripe: sobre en `raw_events` (GHL escribe desde F1; Stripe escribe TODO, incluidos
+    //    los rechazos de firma — de ahí el filtro de estado).
+    //  · Calendly aún no escribe sobre: su huella única vive en `audit_logs` (ver recepcionCalendly).
+    const [sobreGhlResult, sobreStripeResult, actasAuditResult] = await Promise.all([
+      sb
+        .from('raw_events')
+        .select('created_at')
+        .eq('tenant_id', auth.tenantId)
+        .eq('source', 'ghl')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      sb
+        .from('raw_events')
+        .select('received_at,processing_status')
+        .eq('tenant_id', auth.tenantId)
+        .eq('source', 'stripe')
+        .order('received_at', { ascending: false })
+        .limit(50),
+      sb
+        .from('audit_logs')
+        .select('entity_type,action,created_at,new_values')
+        .eq('tenant_id', auth.tenantId)
+        .order('created_at', { ascending: false })
+        .limit(400),
     ])
+
+    // Estado por CONECTOR: sale del historial de ejecuciones y del manifiesto, no de las filas que
+    // haya en las tablas. Una integración que lleva días fallando enseña la fecha del último dato
+    // bueno y parece sana; esto dice si la tubería sigue abierta. Si el historial falla, la sección
+    // se queda vacía y el resto de la pantalla sigue informando.
+    const ejecuciones = await lastRunsByJob(sb, auth.tenantId).catch(() => ({}))
+    // Solo NOMBRES de claves: de la configuración no sale ni un valor hacia la pantalla.
+    const clavesConfiguradas = new Set(
+      Object.entries(cfg)
+        .filter(([, v]) => !!v?.trim())
+        .map(([k]) => k)
+    )
+    const conectores = CONECTORES.filter((c) => c.manifest.provider !== 'plantilla').map((c) =>
+      saludDeConector(c.manifest, { clavesConfiguradas, ejecuciones })
+    )
+
+    // SALUD DE LOS WEBHOOKS ENTRANTES (la mitad que ESPERA datos): la evidencia de recepción real de
+    // cada uno. Con la integración configurada, 24 h sin recepción = tiempo real roto, aunque el
+    // cron siga trayendo datos viejos que disimulen el síntoma. Configurado = credenciales de pull
+    // o secret del webhook; una integración que la subcuenta no usa no avisa. GHL y Stripe se leen
+    // de `raw_events`; en Stripe, un rechazo de firma es una petición entrante, no una recepción del
+    // webhook — lo filtra `eventosStripe`. Calendly aún no escribe sobre: su huella está en
+    // `audit_logs` (ver recepcionCalendly).
+    const actasAudit: ActaAudit[] = actasAuditResult.error ? [] : ((actasAuditResult.data ?? []) as ActaAudit[])
+    const entregasStripe: RawStripe[] | null = sobreStripeResult.error
+      ? null
+      : ((sobreStripeResult.data ?? []) as RawStripe[])
+    const saludes: Record<ProveedorWebhook, SaludWebhook> = {
+      ghl: saludWebhook({
+        proveedor: 'ghl',
+        configurado: Boolean(cfg.GHL_API_TOKEN && cfg.GHL_LOCATION_ID) || clavesConfiguradas.has('GHL_WEBHOOK_SECRET'),
+        ultimoSobre: sobreGhlResult.error ? null : (sobreGhlResult.data?.created_at ?? null),
+        leido: !sobreGhlResult.error,
+      }),
+      calendly: saludWebhook({
+        proveedor: 'calendly',
+        configurado: Boolean(cfg.CALENDLY_API_TOKEN) || clavesConfiguradas.has('CALENDLY_WEBHOOK_SECRET'),
+        ultimoSobre: recepcionCalendly(actasAudit),
+        leido: !actasAuditResult.error,
+      }),
+      stripe: saludWebhook({
+        proveedor: 'stripe',
+        configurado: Boolean(cfg.STRIPE_SECRET_KEY) || clavesConfiguradas.has('STRIPE_WEBHOOK_SECRET'),
+        ultimoSobre: entregasStripe ? (eventosStripe(entregasStripe).ultimo_valido?.fecha ?? null) : null,
+        leido: entregasStripe !== null,
+      }),
+    }
 
     const contacts = (contactsResult.data ?? []) as Contact[]
     const appointments = (appointmentsResult.data ?? []) as Appointment[]
@@ -112,6 +216,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
         ? null
         : [...new Set((adAccountsResult.data ?? []).map((c) => c.account_id).filter(Boolean))],
       clientesStripe,
+      pagosStripe: pagosResult.error
+        ? null
+        : (pagosResult.data ?? []).map((p) => ({
+            id: p.payment_id,
+            refs: [p.payment_id, p.charge_id].filter(Boolean),
+            status: p.status,
+          })),
+      referenciasCobro: cobrosResult.error
+        ? null
+        : (cobrosResult.data ?? []).map((c) => c.payment_reference).filter(Boolean),
       contactosConVenta: ventas === null ? null : [...new Set(ventas.map((v) => v.contactId).filter(Boolean))],
       ventas,
       contactos: contacts.map((c) => c.id),
@@ -136,6 +250,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
     })
 
     return NextResponse.json({
+      conectores,
+      // Cuántas integraciones siguen sin contrato: la sección dice de qué está hablando y de qué no.
+      conectoresPendientes: pendientesDeMigrar(),
+      // Forma plana por compatibilidad con el panel (sección "Webhooks entrantes").
+      saludWebhookGhl: saludes.ghl,
+      // El mismo control para el resto de webhooks entrantes: misma regla, otra evidencia.
+      saludWebhooksEntrantes: [
+        { proveedor: 'calendly', ...saludes.calendly },
+        { proveedor: 'stripe', ...saludes.stripe },
+      ],
       totals: { contacts: contacts.length, appointments: appointments.length },
       sources: [
         source('meta', 'Meta Ads', Boolean(cfg.META_ACCESS_TOKEN), campaigns.length, latest(campaigns, 'synced_at')),
@@ -175,6 +299,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
           appointments.map((item) => (item.contact_id ? `${item.contact_id}:${item.appointment_datetime}` : null))
         ),
         appointmentsWithoutContact: appointments.filter((item) => !item.contact_id).length,
+        // Hueco de CAPTURA (no de limpieza): contactos vivos sin canal de origen declarado. Los
+        // fusionados (merged_into) no son personas reales y no cuentan. Un hueco no se rellena con
+        // un valor inventado: se cuenta y se corrige en los puntos de captura.
+        leadChannelGaps: contacts.filter((item) => !item.lead_channel && !item.merged_into).length,
       },
       // Controles CRUZADOS: no "¿la fuente responde?" sino "¿lo que trajo encaja con el resto?". Cada
       // fuente puede estar verde y el recorrido completo estar roto por la mitad.

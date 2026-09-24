@@ -1,7 +1,8 @@
 // Timeline unificada de un contacto (Contacto → Atribución → Agendas → Transcripciones → Ventas →
-// Notas) construida a partir de las tablas normalizadas que YA existen (contacts,
-// contact_attributions, appointments, sales, contact_notes) — sin escribir a canonical_events ni
-// tocar el pipeline de ingesta. Es una vista de lectura, no una nueva fuente de verdad.
+// Notas → Pagos → Impagos → CSM → Feedback) construida a partir de las tablas normalizadas que YA
+// existen (contacts, contact_attributions, appointments, sales, contact_notes, collections,
+// sale_expected_installments, csm_events) — sin escribir a canonical_events ni tocar el pipeline
+// de ingesta. Es una vista de lectura, no una nueva fuente de verdad.
 import { formatCurrency } from '@/lib/utils'
 
 const APPOINTMENT_STATUS_LABELS: Record<string, string> = {
@@ -24,7 +25,20 @@ const SALE_STATUS_LABELS: Record<string, string> = {
   cancelled: 'Venta cancelada',
 }
 
-export type TimelineEventType = 'attribution' | 'appointment' | 'transcript' | 'activity' | 'contract' | 'sale' | 'note'
+export type TimelineEventType =
+  | 'attribution'
+  | 'created'
+  | 'appointment'
+  | 'transcript'
+  | 'recording'
+  | 'activity'
+  | 'contract'
+  | 'sale'
+  | 'payment'
+  | 'delinquency'
+  | 'csm'
+  | 'feedback'
+  | 'note' // prettier: mantiene la unión en multilínea para que el contrato del tipo quede legible
 
 export type TimelineEvent = {
   id: string
@@ -53,6 +67,7 @@ type AppointmentInput = {
   external_source: string | null
   transcript: string | null
   ai_summary: string | null
+  recording_url?: string | null
   updated_at: string
 }
 type SaleInput = {
@@ -83,6 +98,34 @@ type ContractInput = {
   signed_at: string | null
   created_at: string
 }
+type PaymentInput = {
+  id: string
+  collected_at: string
+  gross_amount: number | string
+  status: string
+  payment_provider: string | null
+}
+type DelinquencyInput = {
+  id: string
+  due_date: string | null
+  expected_gross_amount: number | string
+  status: string
+  installment_number: number
+}
+type CsmEventInput = {
+  id: string
+  type: string
+  event_datetime: string
+  status: string | null
+  grade: number | null
+  success: string | null
+  recording_url: string | null
+  notes: string | null
+}
+type FeedbackInput = {
+  answers: { q: string; a: string }[]
+  updatedAt: string | null
+}
 
 export function buildContactTimeline(
   attributions: AttributionInput[],
@@ -90,9 +133,36 @@ export function buildContactTimeline(
   sales: SaleInput[],
   notes: NoteInput[],
   activities: ActivityInput[] = [],
-  contracts: ContractInput[] = []
+  contracts: ContractInput[] = [],
+  extras: {
+    contact?: { createdAt: string | null; fullName: string | null } | null
+    payments?: PaymentInput[]
+    delinquencies?: DelinquencyInput[]
+    csmEvents?: CsmEventInput[]
+    feedback?: FeedbackInput | null
+    saleRecordings?: {
+      saleId: string
+      appointmentId: string | null
+      recordingUrl: string | null
+      occurredAt: string | null
+    }[]
+  } = {}
 ): TimelineEvent[] {
   const events: TimelineEvent[] = []
+
+  // CREACIÓN DEL CONTACTO — el origen de toda la trazabilidad (de dónde vino, cuándo entró).
+  if (extras.contact?.createdAt) {
+    events.push({
+      id: 'created_contact',
+      occurredAt: extras.contact.createdAt,
+      type: 'created',
+      title: 'Contacto creado',
+      detail: extras.contact.fullName
+        ? `Ficha de ${extras.contact.fullName} dada de alta en la app`
+        : 'Ficha dada de alta en la app',
+      source: null,
+    })
+  }
 
   for (const a of attributions) {
     const occurredAt = a.first_touch_at || a.created_at
@@ -133,6 +203,18 @@ export function buildContactTimeline(
         href: `/crm/agendas?appointmentId=${encodeURIComponent(ap.id)}`,
       })
     }
+    // GRABACIÓN DE LLAMADA (Fathom/GHL): enlazada a la cita que la originó.
+    if (ap.recording_url) {
+      events.push({
+        id: `recording_${ap.id}`,
+        occurredAt: ap.appointment_datetime,
+        type: 'recording',
+        title: 'Grabación de llamada',
+        detail: ap.ai_summary ? ap.ai_summary.slice(0, 140) : null,
+        source: 'Grabación',
+        href: ap.recording_url,
+      })
+    }
   }
 
   for (const activity of activities) {
@@ -155,6 +237,68 @@ export function buildContactTimeline(
       detail: formatCurrency(Number(s.gross_amount)),
       source: null,
       href: `/ventas/registro/${encodeURIComponent(s.id)}`,
+    })
+  }
+
+  // PAGOS RECIBIDOS — cada cobro real de sus ventas (Stripe, manual, transferencia…).
+  for (const p of extras.payments ?? []) {
+    const proveedor = p.payment_provider ? ` · ${p.payment_provider}` : ''
+    events.push({
+      id: `payment_${p.id}`,
+      occurredAt: p.collected_at,
+      type: 'payment',
+      title: p.status === 'reversed' ? 'Cobro revertido' : 'Pago recibido',
+      detail: `${formatCurrency(Number(p.gross_amount))}${proveedor}`,
+      source: p.payment_provider,
+      href: null,
+    })
+  }
+
+  // IMPAGOS — cuotas vencidas sin cobrar (por recolectar → rojo hasta que se soluciona).
+  for (const d of extras.delinquencies ?? []) {
+    const vencida = !d.due_date || d.due_date <= new Date().toISOString().split('T')[0]
+    if (!vencida) continue
+    events.push({
+      id: `delinquency_${d.id}`,
+      occurredAt: `${d.due_date}T12:00:00Z`,
+      type: 'delinquency',
+      title: 'Impago de cuota',
+      detail: `Cuota #${d.installment_number} de ${formatCurrency(Number(d.expected_gross_amount))} vencida sin cobrar`,
+      source: 'Cobros',
+      href: null,
+    })
+  }
+
+  // EVENTOS CSM — onboarding, sesiones de coaching, feedback de clases (con nota y grabación).
+  for (const e of extras.csmEvents ?? []) {
+    const detalle = [e.notes?.slice(0, 140), e.grade != null ? `Nota: ${e.grade}/10` : null, e.success]
+      .filter(Boolean)
+      .join(' · ')
+    events.push({
+      id: `csm_${e.id}`,
+      occurredAt: e.event_datetime,
+      type: 'csm',
+      title: `CSM: ${e.type}` + (e.status ? ` (${e.status})` : ''),
+      detail: detalle || null,
+      source: e.recording_url ? 'Con grabación' : 'CSM',
+      href: e.recording_url,
+    })
+  }
+
+  // FEEDBACK DEL FORMULARIO — lo que el contacto respondió al registrarse (contacts.qualification).
+  if (extras.feedback?.answers?.length && extras.feedback.updatedAt) {
+    const respuestas = extras.feedback.answers
+      .slice(0, 3)
+      .map((r) => `${r.q}: ${r.a}`)
+      .join(' | ')
+    events.push({
+      id: 'feedback_contact',
+      occurredAt: extras.feedback.updatedAt,
+      type: 'feedback',
+      title: `Feedback del formulario (${extras.feedback.answers.length} respuestas)`,
+      detail: respuestas.length > 200 ? `${respuestas.slice(0, 200)}…` : respuestas,
+      source: 'Formulario',
+      href: null,
     })
   }
 

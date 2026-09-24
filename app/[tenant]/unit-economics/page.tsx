@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { mensajeDeCarga, primerError } from '@/lib/supabase/resultado'
 import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
 import { FunnelDinamico, FUNNEL_LABELS, FUNNEL_ORDEN, type OpcionFunnel } from '@/components/os/FunnelDinamico'
 import { TrendChart } from '@/components/os/TrendChart'
@@ -27,11 +28,13 @@ import { useCuentasMetaActivas } from '@/lib/meta/use-cuentas-activas'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset, type PeriodRange } from '@/lib/filters/period'
 import { isCancelled } from '@/lib/unit-economics'
+import { leadDate } from '@/lib/analytics'
 import type { FunnelOperativo, FiltroAtribucion } from '@/lib/metrics/operativo'
-import { canonicalizeLeads, canonicalizeAppointments, dedupeSales } from '@/lib/canonical/dedup'
+import { canonicalizeLeads, canonicalizeAppointments } from '@/lib/canonical/dedup'
 import { canonicalCash, type StripePaymentRow } from '@/lib/canonical/cash'
 import { resolverOferta, CONFIG_OFERTA_POR_DEFECTO } from '@/lib/metrics/oferta'
-import { DataQualityPanel, type QualityStats } from '@/components/os/DataQualityPanel'
+import { FunnelCanonicoPanel } from '@/components/os/DataQualityPanel'
+import { PanelOrganico } from '@/components/os/PanelOrganico'
 
 // Objetivo de dashboard (§27): fila mínima de `targets` para comparar contra lo del periodo.
 type TargetRowEstado = {
@@ -59,7 +62,6 @@ type AppointmentRow = {
   status: string
   appointment_datetime: string | null
   pipe_value: number | string | null
-  calendly_event_id?: string | null
   offered?: boolean | null
   result?: string | null
 }
@@ -305,7 +307,10 @@ function buildFunnelOperativo(
   rango: PeriodRange
 ): FunnelOperativo {
   const ahora = new Date()
-  const contactos = hayPeriodo ? contacts.filter((c) => c.created_at && inPeriod(c.created_at, rango)) : contacts
+  // Leads por FECHA REAL (leadDate = first_seen_at → first_contact_at → created_at): created_at es
+  // cuándo se importó la fila (la importación de GHL estampó todo el histórico el mismo día), no
+  // cuándo llegó el lead.
+  const contactos = hayPeriodo ? contacts.filter((c) => inPeriod(leadDate(c), rango)) : contacts
   const agendasVisibles = hayPeriodo
     ? appointments.filter((a) => inPeriod(a.appointment_datetime, rango))
     : appointments
@@ -371,6 +376,8 @@ export default function UnitEconomicsPage() {
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
   const [loading, setLoading] = useState(true)
+  // Un fallo de lectura NO se pinta como 0: el CAC y el LTV saldrían inventados.
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [daily, setDaily] = useState<DailyRow[]>([])
   // Reuniones grabadas en Fathom que no casaron con ninguna cita: son llamadas que ocurrieron.
   const [fathomSueltas, setFathomSueltas] = useState<FathomSinCita[]>([])
@@ -423,10 +430,13 @@ export default function UnitEconomicsPage() {
             .select('payment_id, charge_id, amount, refunded_amount, status, paid_at, customer_email')
             .range(0, FINANCE_QUERY_ROW_CAP),
           // email/phone entran para la consolidación canónica de leads (dedup por persona, §6/§17).
-          supabase.from('contacts').select('id, campaign_id, created_at, email, phone').range(0, FINANCE_QUERY_ROW_CAP),
+          supabase
+            .from('contacts')
+            .select('id, campaign_id, created_at, first_seen_at, email, phone')
+            .range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('appointments')
-            .select('id, contact_id, status, appointment_datetime, pipe_value, calendly_event_id, offered, result')
+            .select('id, contact_id, status, appointment_datetime, pipe_value, offered, result')
             .range(0, FINANCE_QUERY_ROW_CAP),
           // La serie DIARIA es lo que permite filtrar por periodo. El aviso que había aquí decía que no
           // se podía porque `campaigns.adspend` es un acumulado — cierto, pero `campaign_daily` existe
@@ -446,6 +456,18 @@ export default function UnitEconomicsPage() {
             .eq('scope_type', 'company'),
         ])
       if (!mounted) return
+      const fallo = primerError(
+        campRes,
+        salesRes,
+        collRes,
+        stripeRes,
+        contactsRes,
+        apptRes,
+        dailyRes,
+        fathomRes,
+        targetsRes
+      )
+      setErrorCarga(fallo ? mensajeDeCarga('los datos de campañas, ventas y cobros', fallo) : null)
       setCampaigns(campRes.data || [])
       setSales(salesRes.data || [])
       setCollections(collRes.data || [])
@@ -645,86 +667,11 @@ export default function UnitEconomicsPage() {
     }
   }
 
-  // ── ENTIDADES CANÓNICAS + CALIDAD DE DATOS (dashboard global §6/§17/§21/§38) ──
-  // Consolidación de leads (email › teléfono), agendas (evento calendario), ventas (oportunidad /
-  // contacto+fecha+importe) y pagos (id transacción) — SIN sumar dos fuentes del mismo evento.
-  // El diagnóstico alimenta el panel de Calidad de datos; el funnel canónico alimenta la sección.
-  const calidad = useMemo<QualityStats>(() => {
-    const { leads, duplicates: dupLeads } = canonicalizeLeads(
-      contacts.map((c) => ({
-        id: c.id,
-        email: c.email ?? null,
-        phone: c.phone ?? null,
-        created_at: c.created_at ?? null,
-      }))
-    )
-    const { duplicates: dupAppts } = canonicalizeAppointments(
-      appointments.map((a) => ({
-        id: a.id,
-        contact_id: a.contact_id,
-        calendly_event_id: a.calendly_event_id ?? null,
-        calendar_event_id: null,
-        scheduled_at: a.appointment_datetime,
-        status: a.status,
-      }))
-    )
-    const { duplicates: dupSales } = dedupeSales(
-      sales.map((s) => ({
-        id: s.id,
-        contact_id: s.contact_id,
-        opportunity_id: null,
-        closed_at: s.sale_date ?? null,
-        amount: num(s.gross_amount),
-      }))
-    )
-    // Duplicados y conflictos de pagos (§38/§19): cruce Stripe↔collections sobre TODO el
-    // histórico — la ventana del periodo no cambia lo que la integración duplicó una vez.
-    const { duplicatedPayments: dupPays, amountConflicts } = canonicalCash(
-      stripePagos,
-      collections.map((c) => ({
-        id: c.id ?? `${c.collected_at}:${c.gross_amount}`,
-        payment_reference: c.payment_reference ?? null,
-        gross_amount: num(c.gross_amount),
-        status: c.status,
-        collected_at: c.collected_at,
-      })),
-      []
-    )
-    const ventasActivasQ = sales.filter((s) => ACTIVE_SALE_STATUSES.includes(s.status))
-    const conCampaign = contacts.filter((c) => !!c.campaign_id).length
-    const ventasConCampaign = ventasActivasQ.filter(
-      (s) => !!s.contact_id && contacts.some((c) => c.id === s.contact_id && !!c.campaign_id)
-    ).length
-    const revenueTotalQ = ventasActivasQ.reduce((a, s) => a + num(s.gross_amount), 0)
-    const revenueAtribQ = ventasConCampaign
-      ? ventasActivasQ
-          .filter((s) => !!s.contact_id && contacts.some((c) => c.id === s.contact_id && !!c.campaign_id))
-          .reduce((a, s) => a + num(s.gross_amount), 0)
-      : 0
-    const leadsSinAppt = appointments.filter((a) => !a.contact_id).length
-    return {
-      duplicateLeads: dupLeads,
-      duplicateAppointments: dupAppts,
-      duplicateSales: dupSales,
-      duplicatePayments: dupPays,
-      salesWithoutProduct: 0, // sales aún no enlaza product_id (§16); cuando exista, se cuenta aquí
-      appointmentsWithoutLead: leadsSinAppt,
-      paymentsWithoutSale: null as unknown as number,
-      sourceConflicts: amountConflicts.length,
-      unattributedLeads: contacts.length - conCampaign,
-      unattributedSales: ventasActivasQ.length - ventasConCampaign,
-      totalLeads: contacts.length,
-      totalSales: ventasActivasQ.length,
-      revenueTotal: revenueTotalQ,
-      revenueAttributed: revenueAtribQ,
-    }
-  }, [contacts, appointments, sales, collections, stripePagos])
-
-  // Funnel GLOBAL canónico (§22/§23): leads únicos → agendas consolidadas → shows confirmados →
-  // ofertas → ventas. La etapa OFERTA usa el resolver canónico del negocio (lib/metrics/oferta.ts):
-  // declarado > derivado > asumido — nunca la cláusula muerta result='offer_made' (el vocabulario
-  // cerrado de result la eliminó; ese filtro solo sumaba 0 para siempre). El desglose
-  // medido/asumido entra al panel para que el número diga cuánta suposición lleva dentro.
+  // ── ENTIDADES CANÓNICAS (dashboard global §6/§17/§21) ──
+  // Consolidación de leads (email › teléfono), agendas (evento calendario) y ventas
+  // (oportunidad / contacto+fecha+importe) — SIN sumar dos fuentes del mismo evento.
+  // El funnel canónico alimenta la sección "Funnel del negocio". El diagnóstico de calidad
+  // (duplicados, conflictos, huecos de captura) vive en Configuración › Data Health.
   const funnelGlobal = useMemo(() => {
     const { leads } = canonicalizeLeads(
       contacts.map((c) => ({
@@ -738,7 +685,7 @@ export default function UnitEconomicsPage() {
       appointments.map((a) => ({
         id: a.id,
         contact_id: a.contact_id,
-        calendly_event_id: a.calendly_event_id ?? null,
+        calendly_event_id: null,
         calendar_event_id: null,
         scheduled_at: a.appointment_datetime,
         status: a.status,
@@ -779,7 +726,7 @@ export default function UnitEconomicsPage() {
     }
     const iso = (t: number) => new Date(t).toISOString().slice(0, 10)
     for (const c of contacts) {
-      if (c.created_at) bump(c.created_at, 'leads', 1)
+      if (leadDate(c)) bump(leadDate(c), 'leads', 1)
     }
     for (const a of appointments) {
       if (a.appointment_datetime) bump(a.appointment_datetime, 'agendas', 1)
@@ -844,6 +791,19 @@ export default function UnitEconomicsPage() {
 
   return (
     <div className="dashboard-surface p-4 sm:p-6 space-y-5">
+      {errorCarga && (
+        <div className="dashboard-card border-destructive/40 p-4">
+          <p className="text-foreground text-sm font-medium">Faltan datos para calcular estas cifras</p>
+          <p className="text-muted-foreground mt-1 text-sm">{errorCarga}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="text-primary mt-2 text-sm hover:underline"
+            type="button"
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div>
         <div className="flex items-center gap-2">
@@ -1116,11 +1076,15 @@ export default function UnitEconomicsPage() {
         </section>
       )}
 
-      {/* CALIDAD + FUNNEL GLOBAL (dashboard global §20-§23/§38): una única versión coherente
-          de la realidad — leads canónicos, agendas consolidadas y diagnóstico de duplicados.
-          La cobertura de atribución vive en Marketing › Atribución, no aquí. */}
+      {/* ADQUISICIÓN ORGÁNICA (prototipo): contenido público del negocio vía Apify. Números con
+          fuente visible; sin Apify configurado la sección muestra un estado honesto y nada más. */}
+      <PanelOrganico />
+
+      {/* FUNNEL GLOBAL (dashboard global §20-§23): una única versión coherente de la realidad —
+          leads canónicos y agendas consolidadas. El diagnóstico de calidad (duplicados, conflictos,
+          huecos de captura) vive en Configuración › Data Health. */}
       {!loading && (contacts.length > 0 || appointments.length > 0 || sales.length > 0) && (
-        <DataQualityPanel quality={calidad} funnel={funnelGlobal} />
+        <FunnelCanonicoPanel funnel={funnelGlobal} />
       )}
 
       {/* ATRIBUCIÓN declarada aparte: nunca se resta del total del negocio. Solo tiene sentido en

@@ -17,6 +17,12 @@ type ContactIdentity = {
   instagram?: string | null
   age?: number | null
   leadStatus?: string | null
+  /**
+   * Canal de origen de la entrega (p.ej. "formulario vsl - automaticamente", "calendly"). Solo se
+   * estampa al CREAR el contacto (first-touch); si ya existía, se descarta. NULL = hueco de
+   * captura honesto, lo cuenta Data Health — nunca se rellena con un valor inventado.
+   */
+  leadChannel?: string | null
   /** Momento de la entrega: se usa como first_seen_at/last_seen_at si hay que crear el contacto. */
   seenAt?: string
 }
@@ -47,6 +53,7 @@ export async function getOrCreateContact(
       p_age: identity.age ?? null,
       p_lead_status: identity.leadStatus ?? null,
       p_seen_at: identity.seenAt ?? new Date().toISOString(),
+      p_lead_channel: identity.leadChannel ?? null,
     })
     .select('id, full_name, ghl_contact_id, created')
     .maybeSingle<ResolvedContact & { created: boolean }>()

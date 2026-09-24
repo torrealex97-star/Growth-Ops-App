@@ -36,7 +36,7 @@ export type SignerData = {
 
 // Campos que puede/deber completar el firmante en la página de firma.
 export const SIGNER_FIELDS: { key: keyof SignerData; label: string; required: boolean }[] = [
-  { key: 'dni', label: 'DNI / NIE', required: true },
+  { key: 'dni', label: 'DNI / NIE (opcional por ahora)', required: false },
   { key: 'address', label: 'Dirección', required: true },
   { key: 'postal_code', label: 'Código postal', required: true },
   { key: 'city', label: 'Ciudad', required: true },

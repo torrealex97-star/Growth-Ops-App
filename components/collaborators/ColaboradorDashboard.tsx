@@ -27,23 +27,42 @@ import {
   inPeriod,
   type PeriodPreset,
 } from '@/lib/filters/period'
-import { isActiveSale } from '@/lib/analytics'
+import { isActiveSale, monthLabel } from '@/lib/analytics'
 import { isAttended, isNoShow } from '@/lib/appointments/status'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { contactIdsDeScope, type ScopeColaborador } from '@/lib/collaborators/scope'
-import { useTenantId, type SesionTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId, type SesionTenant } from '@/lib/tenant-context'
 import { Users, CalendarCheck, PhoneCall, Trophy, Euro, Clock, BadgeCheck, Banknote } from 'lucide-react'
 
 type ContactoRow = { id: string; full_name: string | null; lead_status: string | null; created_at: string | null }
-type CitaRow = { id: string; contact_id: string | null; start_time: string | null; status: string | null }
+type CitaRow = {
+  id: string
+  contact_id: string | null
+  appointment_datetime: string | null
+  status: string | null
+  qualification: Record<string, unknown> | null
+}
 type VentaRow = {
   id: string
   contact_id: string | null
-  amount: number | null
+  gross_amount: number | string | null
   status: string | null
   created_at: string | null
 }
-type ComisionRow = { id: string; status: string | null; commission_amount: number | null; created_at: string | null }
+type ComisionRow = {
+  id: string
+  status: string | null
+  commission_amount: number | null
+  created_at: string | null
+  liquidation_month: string | null
+}
+type FilaFutura = {
+  installmentId: string
+  amount: number | string
+  dueDate: string
+  source: string
+  estado?: 'pending' | 'overdue' | 'review'
+}
 
 type Actividad = {
   id: string
@@ -71,6 +90,7 @@ export default function ColaboradorDashboard({
   scope: Extract<ScopeColaborador, { tipo: 'collaborator' }>
 }) {
   const tenantId = useTenantId()
+  const tenant = useTenant()
   const sb = useMemo(() => createClient(), [])
 
   // Filtro de periodo GLOBAL (§25): mismos presets y custom que el resto de la app.
@@ -82,6 +102,7 @@ export default function ColaboradorDashboard({
   const [citas, setCitas] = useState<CitaRow[]>([])
   const [ventas, setVentas] = useState<VentaRow[]>([])
   const [comisiones, setComisiones] = useState<ComisionRow[]>([])
+  const [futuras, setFuturas] = useState<FilaFutura[]>([])
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -112,18 +133,18 @@ export default function ColaboradorDashboard({
           .in('id', contactIds),
         sb
           .from('appointments')
-          .select('id, contact_id, start_time, status')
+          .select('id, contact_id, appointment_datetime, status, qualification')
           .eq('tenant_id', tenantId)
           .in('contact_id', contactIds),
         sb
           .from('sales')
-          .select('id, contact_id, amount, status, created_at')
+          .select('id, contact_id, gross_amount, status, created_at')
           .eq('tenant_id', tenantId)
           .in('contact_id', contactIds),
         // Ledger del propio colaborador: participant_type='collaborator' sale de esta query.
         sb
           .from('commissions')
-          .select('id, status, commission_amount, created_at')
+          .select('id, status, commission_amount, created_at, liquidation_month')
           .eq('tenant_id', tenantId)
           .eq('user_id', sesion.userId),
       ])
@@ -140,11 +161,24 @@ export default function ColaboradorDashboard({
       setVentas((resV.data ?? []) as VentaRow[])
       setComisiones((resCom.data ?? []) as ComisionRow[])
       setCargando(false)
+
+      // COBROS (§25): qué tiene por cobrar (cuotas pendientes/vencidas de SUS
+      // ventas). La ruta /commissions/future ya filtra SU lane y su scope; de
+      // ahí salen la proyección del próximo mes y los impagos (overdue).
+      try {
+        const resF = await fetch(`/api/${tenant}/evergreen/commissions/future`)
+        if (resF.ok) {
+          const data = (await resF.json()) as { rows?: FilaFutura[] }
+          if (vivo) setFuturas(data.rows ?? [])
+        }
+      } catch {
+        // La proyección es accesoría: un fallo no tumba el dashboard.
+      }
     })()
     return () => {
       vivo = false
     }
-  }, [sb, tenantId, scope, sesion.userId])
+  }, [sb, tenantId, tenant, scope, sesion.userId])
 
   const rango = useMemo(() => getPeriodRange(preset, customFrom, customTo), [preset, customFrom, customTo])
   const rangoPrevio = useMemo(() => getPreviousPeriodRange(rango), [rango])
@@ -152,13 +186,13 @@ export default function ColaboradorDashboard({
   // KPIs del periodo (§23-24) con las definiciones canónicas — sin fórmulas locales nuevas.
   const kpi = useMemo(() => {
     const contactosP = contactos.filter((c) => inPeriod(c.created_at, rango))
-    const citasP = citas.filter((c) => inPeriod(c.start_time, rango))
+    const citasP = citas.filter((c) => inPeriod(c.appointment_datetime, rango))
     const asistidasP = citasP.filter((c) => isAttended(c.status))
     const noShowP = citasP.filter((c) => isNoShow(c.status))
     const ventasActivasP = ventas.filter(
       (v) => isActiveSale({ status: v.status ?? '' }) && inPeriod(v.created_at, rango)
     )
-    const revenueP = ventasActivasP.reduce((acc, v) => acc + num(v.amount), 0)
+    const revenueP = ventasActivasP.reduce((acc, v) => acc + num(v.gross_amount), 0)
     const comisionesP = comisiones.filter((c) => c.status !== 'cancelled' && inPeriod(c.created_at, rango))
     const comisionesPrevias = comisiones.filter((c) => c.status !== 'cancelled' && inPeriod(c.created_at, rangoPrevio))
     const generadasP = comisionesP.reduce((acc, c) => acc + num(c.commission_amount), 0)
@@ -184,6 +218,88 @@ export default function ColaboradorDashboard({
     }
   }, [contactos, citas, ventas, comisiones, rango, rangoPrevio])
 
+  // COBROS (§25): el resumen de su dinero. Regla dura del propietario: TODO es
+  // sobre cash COLECTADO — nadie comisiona sobre lo que no se ha cobrado. Las
+  // comisiones del ledger nacen SIEMPRE de cobros 'collected' (motor), así que:
+  //   · Cobrado     = liquidadas (pagadas).
+  //   · Pendiente   = generadas sobre cash ya colectado, por aprobar/pagar.
+  //   · A percibir  = las de mes de liquidación el MES QUE VIENE (cash ya
+  //                   colectado; se pagan con la liquidación del mes siguiente).
+  //   · Impagos     = cuotas VENCIDAS sin cobrar de sus ventas (proyección de
+  //                   commissions/future, SU lane). NO es dinero ganado: es lo
+  //                   que puede llegar a ganar si esos leads pagan — visible
+  //                   aparte, nunca mezclado con lo ya colectado.
+  const cobros = useMemo(() => {
+    const noCanceladas = comisiones.filter((c) => c.status !== 'cancelled')
+    const cobrado = noCanceladas
+      .filter((c) => c.status === 'liquidated')
+      .reduce((acc, c) => acc + num(c.commission_amount), 0)
+    const pendiente = noCanceladas
+      .filter((c) => c.status === 'pending' || c.status === 'approved')
+      .reduce((acc, c) => acc + num(c.commission_amount), 0)
+
+    // Mes de liquidación del mes que viene (convención única del ledger: día 1,
+    // formato YYYY-MM-01). El cash colectado ESTE mes lleva liquidation_month del
+    // mes que viene → es lo que le pagarán el mes próximo.
+    const proximo = new Date()
+    proximo.setMonth(proximo.getMonth() + 1, 1)
+    const mesProximoISO = proximo.toISOString().slice(0, 10)
+    const aPercibirProximo = noCanceladas
+      .filter((c) => (c.liquidation_month ?? '').slice(0, 10) === mesProximoISO)
+      .reduce((acc, c) => acc + num(c.commission_amount), 0)
+
+    const importe = (f: FilaFutura) => num(f.amount)
+    const impagos = futuras
+      .filter((f) => f.source === 'installment' && f.estado === 'overdue')
+      .reduce((acc, f) => acc + importe(f), 0)
+    return { cobrado, pendiente, aPercibirProximo, impagos }
+  }, [comisiones, futuras])
+
+  // COMISIONES A FUTURO MES A MES (§25): de la proyección (SU lane) agrupo por mes de
+  // vencimiento de la cuota. "Confirmado" = cash ya recogido (review o mes pasado); "por
+  // cobrar" = depende de que sus leads paguen. Así responde de un vistazo a cuánto le caerá
+  // cada mes y qué depende del pago de sus referidos.
+  const futurePorMes = useMemo(() => {
+    const mapa = new Map<string, { confirmado: number; porCobrar: number }>()
+    const ymActual = new Date().toISOString().slice(0, 7)
+    for (const f of futuras) {
+      if (f.estado === 'overdue') continue // impagos aparte (KPI de arriba)
+      const ym = (f.dueDate || '').slice(0, 7)
+      if (!ym) continue
+      const e = mapa.get(ym) ?? { confirmado: 0, porCobrar: 0 }
+      if (f.source === 'review' || ym < ymActual) e.confirmado += num(f.amount)
+      else e.porCobrar += num(f.amount)
+      mapa.set(ym, e)
+    }
+    return [...mapa.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([ym, v]) => ({ ym, ...v }))
+  }, [futuras])
+
+  // CUALIFICACIÓN (§23): lo que respondieron SUS leads en el formulario de agendar
+  // (appointments.qualification, escrito por el webhook de GHL/Calendly), agregado
+  // por pregunta — así sabe CÓMO de cualificados llegan, no solo cuántos.
+  const cualificacionAgregada = useMemo(() => {
+    const porPregunta = new Map<string, Map<string, number>>()
+    for (const c of citas) {
+      const respuestas = c.qualification?.respuestas
+      if (!Array.isArray(respuestas)) continue
+      for (const { q, a } of respuestas as { q?: string; a?: string }[]) {
+        if (!q) continue
+        const opciones = porPregunta.get(String(q)) ?? new Map<string, number>()
+        const respuesta = (a ?? '').trim() || '(sin respuesta)'
+        opciones.set(respuesta, (opciones.get(respuesta) ?? 0) + 1)
+        porPregunta.set(String(q), opciones)
+      }
+    }
+    return [...porPregunta.entries()]
+      .map(([pregunta, opciones]) => ({
+        pregunta,
+        total: [...opciones.values()].reduce((acc, n) => acc + n, 0),
+        opciones: [...opciones.entries()].sort((x, y) => y[1] - x[1]).slice(0, 5),
+      }))
+      .sort((x, y) => y.total - x.total)
+      .slice(0, 6)
+  }, [citas])
+
   // Embudo §24: conversiones entre etapas canónicas (ratios de KPIs ya definidos).
   const embudo = useMemo(() => {
     const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : 0)
@@ -207,13 +323,13 @@ export default function ColaboradorDashboard({
       })),
       ...citas
         .slice()
-        .sort((a, b) => ((a.start_time ?? '') < (b.start_time ?? '') ? 1 : -1))
+        .sort((a, b) => ((a.appointment_datetime ?? '') < (b.appointment_datetime ?? '') ? 1 : -1))
         .slice(0, 10)
         .map((c) => ({
           id: `a-${c.id}`,
           tipo: 'cita' as const,
           titulo: nombreDe.get(c.contact_id ?? '') ?? 'Cita',
-          fecha: c.start_time,
+          fecha: c.appointment_datetime,
           detalle: c.status || 'Programada',
         })),
       ...ventas
@@ -225,7 +341,7 @@ export default function ColaboradorDashboard({
           tipo: 'venta' as const,
           titulo: nombreDe.get(v.contact_id ?? '') ?? 'Venta',
           fecha: v.created_at,
-          detalle: eur(num(v.amount)),
+          detalle: eur(num(v.gross_amount)),
         })),
     ]
     return eventos.sort((a, b) => ((a.fecha ?? '') < (b.fecha ?? '') ? 1 : -1)).slice(0, 12)
@@ -287,7 +403,7 @@ export default function ColaboradorDashboard({
           value={kpi.asistidas}
           icon={PhoneCall}
           loading={cargando}
-          description={`${embudo.asistenciaSobreCita}% de citas · ${kpi.noShow} no asistieron`}
+          description={`${embudo.asistenciaSobreCita}% de citas · ${kpi.noShow} no asistieron · ${kpi.citas - kpi.asistidas - kpi.noShow} canceladas`}
         />
         <KPICard
           title="Ventas"
@@ -331,6 +447,102 @@ export default function ColaboradorDashboard({
           description="Pagadas"
         />
       </section>
+
+      {/* §25 COBROS: lo cobrado, lo pendiente y lo que viene (impagos aparte) */}
+      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <KPICard
+          title="Cobrado"
+          value={eur(cobros.cobrado)}
+          icon={Banknote}
+          loading={cargando}
+          description="Comisiones ya pagadas (hasta agosto)"
+        />
+        <KPICard
+          title="Pendiente de liquidación"
+          value={eur(cobros.pendiente)}
+          icon={Clock}
+          loading={cargando}
+          description="Ganado desde septiembre, por aprobar y pagar"
+        />
+        <KPICard
+          title="A percibir el mes que viene"
+          value={eur(cobros.aPercibirProximo)}
+          icon={CalendarCheck}
+          loading={cargando}
+          description="Cash ya colectado que liquida el mes próximo"
+        />
+        <KPICard
+          title="Impagos de tus leads"
+          value={eur(cobros.impagos)}
+          icon={Euro}
+          loading={cargando}
+          description="Cuotas vencidas sin cobrar — comisión proyectada"
+        />
+      </section>
+
+      {/* Desglose mes a mes de SUS comisiones a futuro: qué está confirmado (cash recogido)
+          y qué depende de que sus leads paguen. Misma vista que el dashboard del equipo. */}
+      {!cargando && futurePorMes.length > 0 && (
+        <section className="dashboard-card p-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+            <h2 className="text-sm font-semibold text-foreground">Comisiones a futuro, mes a mes</h2>
+            <p className="text-xs text-muted-foreground">
+              La comisión de un mes se confirma cuando tus leads pagan su cuota de ese mes.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
+                  <th className="py-2 pr-4 font-medium">Mes de cobro</th>
+                  <th className="py-2 pr-4 font-medium text-right">Confirmado</th>
+                  <th className="py-2 pr-4 font-medium text-right">Por cobrar</th>
+                  <th className="py-2 font-medium text-right">Total del mes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {futurePorMes.map((m) => (
+                  <tr key={m.ym} className="border-t border-border">
+                    <td className="py-2 pr-4 font-medium text-foreground">{monthLabel(m.ym)}</td>
+                    <td className="py-2 pr-4 text-right text-emerald-400">{m.confirmado ? eur(m.confirmado) : '—'}</td>
+                    <td className="py-2 pr-4 text-right text-amber-400">{m.porCobrar ? eur(m.porCobrar) : '—'}</td>
+                    <td className="py-2 text-right font-semibold text-foreground">{eur(m.confirmado + m.porCobrar)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {/* CUALIFICACIÓN: respuestas de SUS leads al formulario de agendar */}
+      {cualificacionAgregada.length > 0 && (
+        <section className="dashboard-card">
+          <h2 className="text-sm font-medium text-muted-foreground mb-1">Cualificación de tus leads</h2>
+          <p className="text-xs text-muted-foreground mb-4">
+            Lo que respondieron al formulario de agendar — cómo de cualificados llegan
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            {cualificacionAgregada.map(({ pregunta, total, opciones }) => (
+              <div key={pregunta}>
+                <div className="text-xs font-medium text-foreground mb-1.5">
+                  {pregunta} <span className="text-muted-foreground">({total})</span>
+                </div>
+                {opciones.map(([respuesta, n]) => (
+                  <div key={respuesta} className="flex items-center gap-2 text-xs mb-1">
+                    <div
+                      className="h-1.5 rounded bg-brand-400/50"
+                      style={{ width: `${Math.max(6, (n / total) * 90)}px` }}
+                    />
+                    <span className="text-muted-foreground truncate">{respuesta}</span>
+                    <span className="text-foreground font-medium">{n}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="dashboard-card">
         <h2 className="mb-4 text-sm font-medium text-muted-foreground">Actividad reciente</h2>

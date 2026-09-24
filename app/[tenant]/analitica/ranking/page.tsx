@@ -1,7 +1,5 @@
 'use client'
 
-import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
-
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -19,6 +17,7 @@ import {
   teamRanking,
   setterAgendaStats,
   targetCurrentValue,
+  leadDate,
   type SaleRow,
   type AppointmentRow,
   type UserRow,
@@ -28,13 +27,12 @@ import { formatCurrency } from '@/lib/utils'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import type { Target } from '@/lib/types/database'
-import { CONTACTED_LEAD_STATUSES } from '@/lib/lead-status'
 import { isAttended, isNoShow } from '@/lib/appointments/status'
-import { resolverOferta } from '@/lib/metrics/oferta'
 
 type ContactRow = {
   id: string
   created_at: string
+  first_seen_at: string | null
   first_contact_at: string | null
   lead_status: string
 }
@@ -101,8 +99,6 @@ function roleRanking(
 }
 
 // Estados que cuentan como "ya contactado" — definidos junto al resto de estados del lead.
-const CONTACTED_STATUSES: string[] = CONTACTED_LEAD_STATUSES
-
 function num(x: number | string | null | undefined) {
   return Number(x ?? 0)
 }
@@ -173,7 +169,7 @@ export default function PipelinePage() {
     async function load() {
       const supabase = createClient()
       const [contactsRes, apptRes, salesRes, collectionsRes, usersRes, usersRolesRes, targetsRes] = await Promise.all([
-        supabase.from('contacts').select('id, created_at, first_contact_at, lead_status'),
+        supabase.from('contacts').select('id, created_at, first_seen_at, first_contact_at, lead_status'),
         supabase
           .from('appointments')
           .select(
@@ -244,44 +240,11 @@ export default function PipelinePage() {
             }
             return contacts.filter((c) => contactIds.has(c.id))
           })()
-    return byPerson.filter((c) => inPeriod(c.created_at, range))
+    // Cohorte por FECHA REAL del lead (leadDate = first_seen_at → first_contact_at → created_at):
+    // created_at es cuándo se importó la fila (la importación histórica de GHL estampó todas las
+    // filas el mismo día), no cuándo llegó el lead. El type de abajo ya declara first_seen_at.
+    return byPerson.filter((c) => inPeriod(leadDate(c), range))
   }, [contacts, appointments, sales, personId, range])
-
-  // Embudo por COHORTE: todas las etapas se miden sobre el MISMO grupo de leads (los creados en
-  // el periodo/persona elegidos), mirando lo que les pasó después sin importar cuándo. Antes cada
-  // etapa se filtraba por SU PROPIA fecha (leads por created_at, citas por appointment_datetime...),
-  // así que con el filtro de periodo activo "Citas" podía salir MAYOR que "Leads" (citas de leads
-  // de otros meses cayendo dentro del periodo) y el % de conversión superaba el 100% — de ahí el
-  // reporte de "los filtros no funcionan". Con cohorte, leads→citas→ofertas→cierres es siempre
-  // monótono decreciente y el % de cada etapa es una conversión real.
-  const funnel = useMemo(() => {
-    const cohortIds = new Set(filteredContacts.map((c) => c.id))
-    const matchesPerson = (setterId: string | null, closerId: string | null) =>
-      personId === 'all' || setterId === personId || closerId === personId
-
-    const leads = filteredContacts.length
-    const contacted = filteredContacts.filter(
-      (c) => !!c.first_contact_at || CONTACTED_STATUSES.includes(c.lead_status)
-    ).length
-
-    const cohortAppointments = appointments.filter(
-      (a) => a.contact_id && cohortIds.has(a.contact_id) && matchesPerson(a.setter_id, a.closer_id)
-    )
-    const cohortSales = sales.filter(
-      (s) => s.contact_id && cohortIds.has(s.contact_id) && matchesPerson(s.setter_id, s.closer_id)
-    )
-
-    const citas = new Set(cohortAppointments.map((a) => a.contact_id)).size
-    // Con el resolver canónico (declarado > derivado > asumido): la cláusula muerta
-    // result='offer_made' ya no existe en el vocabulario de `result`.
-    const ofertas = new Set(cohortAppointments.filter((a) => resolverOferta(a).valor === true).map((a) => a.contact_id))
-      .size
-    const cierres = new Set(
-      cohortSales.filter((s) => s.status === 'active' || s.status === 'partial_refund').map((s) => s.contact_id)
-    ).size
-
-    return { leads, contacted, citas, ofertas, cierres }
-  }, [filteredContacts, appointments, sales, personId])
 
   const pctOf = (curr: number, prev: number) => (prev ? (curr / prev) * 100 : null)
 
@@ -289,7 +252,9 @@ export default function PipelinePage() {
     const diffs: number[] = []
     for (const c of filteredContacts) {
       if (!c.first_contact_at) continue
-      const created = new Date(c.created_at).getTime()
+      // leadDate: con leads importados, created_at (fecha de importación) puede ser posterior al
+      // primer contacto — la diferencia saldría negativa y la guarda la descartaba.
+      const created = new Date(leadDate(c)).getTime()
       const contacted = new Date(c.first_contact_at).getTime()
       if (isNaN(created) || isNaN(contacted)) continue
       const diffMin = (contacted - created) / 1000 / 60
@@ -316,7 +281,7 @@ export default function PipelinePage() {
     const diffs: number[] = []
     for (const c of filteredContacts) {
       if (!c.first_contact_at) continue
-      const created = new Date(c.created_at).getTime()
+      const created = new Date(leadDate(c)).getTime()
       const contacted = new Date(c.first_contact_at).getTime()
       if (isNaN(created) || isNaN(contacted)) continue
       const diffMin = (contacted - created) / 1000 / 60
@@ -331,7 +296,9 @@ export default function PipelinePage() {
     for (const c of filteredContacts) {
       const firstAppt = firstApptByContact.get(c.id)
       if (firstAppt === undefined) continue
-      const created = new Date(c.created_at).getTime()
+      // leadDate: con leads importados, created_at (fecha de importación) puede ser POSTERIOR a la
+      // primera cita — la guarda diffDays >= 0 ya lo descartaba y esos leads desaparecían del promedio.
+      const created = new Date(leadDate(c)).getTime()
       if (isNaN(created)) continue
       const diffDays = (firstAppt - created) / 1000 / 60 / 60 / 24
       if (diffDays >= 0) diffs.push(diffDays)
@@ -350,7 +317,9 @@ export default function PipelinePage() {
       const sold = new Date(s.sale_date).getTime()
       if (isNaN(sold)) continue
       const firstAppt = firstApptByContact.get(s.contact_id)
-      const reference = firstAppt !== undefined ? firstAppt : new Date(contact.created_at).getTime()
+      // leadDate: misma razón que leadToAgenda — con created_at de importación la referencia
+      // quedaba tras la venta y la diferencia negativa descartaba la muestra.
+      const reference = firstAppt !== undefined ? firstAppt : new Date(leadDate(contact)).getTime()
       if (isNaN(reference)) continue
       const diffDays = (sold - reference) / 1000 / 60 / 60 / 24
       if (diffDays >= 0) diffs.push(diffDays)
@@ -365,7 +334,9 @@ export default function PipelinePage() {
       if (!s.contact_id || !s.sale_date) continue
       const contact = contactById.get(s.contact_id)
       if (!contact) continue
-      const created = new Date(contact.created_at).getTime()
+      // leadDate: con created_at de importación el ciclo "duracion venta" salía negativo y se
+      // descartaba — media inventada por descarte, no medida.
+      const created = new Date(leadDate(contact)).getTime()
       const sold = new Date(s.sale_date).getTime()
       if (isNaN(created) || isNaN(sold)) continue
       const diffDays = (sold - created) / 1000 / 60 / 60 / 24
@@ -461,6 +432,10 @@ export default function PipelinePage() {
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
               <TargetIcon className="w-3.5 h-3.5" /> Objetivos
             </h2>
+            <p className="text-[11px] text-muted-foreground -mt-2 mb-3">
+              Los objetivos miden su propia ventana (hoy/semana/mes), independiente del filtro de periodo de esta
+              página. El ranking y las velocidades de abajo SÍ usan el filtro.
+            </p>
             {targetProgress.length === 0 ? (
               <div className="dashboard-card p-6 text-center text-muted-foreground text-sm">
                 No hay objetivos definidos (créalos en Objetivos)
@@ -497,29 +472,6 @@ export default function PipelinePage() {
                 })}
               </div>
             )}
-          </div>
-
-          {/* Funnel */}
-          <div>
-            <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Embudo de conversión</h2>
-            <div className="dashboard-card p-5">
-              <ConnectedFunnel
-                stages={[
-                  { label: 'Leads', value: funnel.leads, conversion: null },
-                  { label: 'Contactado', value: funnel.contacted, conversion: pctOf(funnel.contacted, funnel.leads) },
-                  { label: 'Cita', value: funnel.citas, conversion: pctOf(funnel.citas, funnel.contacted) },
-                  { label: 'Oferta', value: funnel.ofertas, conversion: pctOf(funnel.ofertas, funnel.citas) },
-                  { label: 'Cierre', value: funnel.cierres, conversion: pctOf(funnel.cierres, funnel.ofertas) },
-                ]}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Conversión global Lead → Cierre: {pctOf(funnel.cierres, funnel.leads)?.toFixed(1) ?? '—'}%
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-1">
-              Por cohorte: cada etapa cuenta a los mismos leads creados en el periodo elegido, mirando qué les pasó
-              después (sin importar cuándo). Puede tardar en reflejar cierres de leads muy recientes.
-            </p>
           </div>
 
           {/* Velocidad */}

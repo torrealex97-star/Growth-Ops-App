@@ -1,5 +1,12 @@
 # Claude Code — Growth-Ops-App
 
+## Plan de implementación
+
+Fuente autoritativa: `docs/plan/`. Empieza siempre por `docs/plan/README.md`.
+Por sesión carga solo: `00-constitucion.md`, `07-prompts-base.md` (P0), el prompt de la fase
+(`08` o `09`) y los documentos que indique la matriz del README para esa fase.
+Una fase = una rama = un PR. No apliques migraciones de producción sin confirmación.
+
 Lee `PROJECT_CONTEXT.md` en la raíz del repo para el estado completo del proyecto.
 
 ## Quick start
@@ -44,9 +51,9 @@ Scripts equivalentes sin instalación global: `npm run mcp:supabase`, `mcp:searc
 
 ## Convenciones clave
 
-- **Skill sales-engineering (obligatoria antes de codificar ventas):** cualquier trabajo sobre flujos de ventas, CRM, agents de IA comerciales, secuencias SMS/email, dashboards de KPIs comerciales o landing pages de captación DEBE consultar primero `.claude/skills/sales-engineering.md` (módulos 1-7: pre-llamada, cierre, objeciones, post-llamada, hiring, frame control, metrología). Las fórmulas de KPIs del §7 son canónicas — no se redefinen en código; los scripts provienen de las categorías RAG de `docs/rag_sales_knowledge_schema.json` y el system prompt del agente vive en `src/prompts/sales_agent_system_prompt.ts`
+- **Skill sales-engineering (obligatoria antes de codificar ventas):** cualquier trabajo sobre flujos de ventas, CRM, agents de IA comerciales, secuencias SMS/email, dashboards de KPIs comerciales o landing pages de captación DEBE consultar primero `.claude/skills/sales-engineering/SKILL.md` (enlace a `.agents/skills/sales-engineering/SKILL.md`; módulos 1-7: pre-llamada, cierre, objeciones, post-llamada, hiring, frame control, metrología). Las fórmulas de KPIs del §7 son canónicas — no se redefinen en código; los scripts provienen de las categorías RAG de `docs/rag_sales_knowledge_schema.json` y el system prompt del agente vive en `src/prompts/sales_agent_system_prompt.ts`
 - **Skill marketing-and-copywriting (obligatoria antes de escribir marketing):** consulta
-  `.claude/skills/marketing-and-copywriting.md` antes de escribir o programar páginas de aterrizaje,
+  `.claude/skills/marketing-and-copywriting/SKILL.md` antes de escribir o programar páginas de aterrizaje,
   copys, VSLs, campañas o analizar métricas de marketing (módulos 1-6: UVP/ángulos, avatares/ICP,
   embudos, swipe file de copy, marketing economics, árboles de diagnóstico). Las fórmulas del §5
   (CAC, ROAS, CPL, CPQBC, LTGP:CAC...) son canónicas — no se redefinen en código; los copy/scripts

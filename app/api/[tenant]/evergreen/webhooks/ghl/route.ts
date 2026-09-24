@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { getOrCreateContact } from '@/lib/contacts/resolve'
 import { leerToque, registrarToque, toqueTieneDatos } from '@/lib/contacts/atribucion'
-import { resolverColaboradorPorCodigo } from '@/lib/collaborators/scope'
+import { attributionDateBeforeCutoff, resolverRefColaborador } from '@/lib/collaborators/ref-signal'
 import { firstMemberOf, resolveUserIdByTrackingCode } from '@/lib/tracking'
-import { isValidWebhookSecret } from '@/lib/webhooks/verifySecret'
+import { isValidWebhookSecret, diagnosticoCabeceras } from '@/lib/webhooks/verifySecret'
+import { mapearEstadoExterno } from '@/lib/appointments/status'
+import { NORMALIZADOR_GHL, idEventoGhl, sobreCrudoGhl, tipoEventoGhl } from '@/lib/eventos/ghl'
+import { hechoDesdeSobre } from '@/lib/eventos/canonico'
+import { getTenantConfigWithFallback } from '@/lib/config'
 
 // Webhook único de GHL (+ player VSL). Maneja, de forma IDEMPOTENTE, varios eventos:
 //   - lead opt-in (solo contacto + atribución, sin agenda)
@@ -68,18 +72,9 @@ function buildQualification(payload: Record<string, unknown>): Record<string, un
   return qualification
 }
 
-// Mapea los estados de GHL a nuestro enum de appointments.status
-function mapStatus(raw: unknown): string | null {
-  if (typeof raw !== 'string') return null
-  const s = raw.toLowerCase().replace(/[\s-]/g, '_')
-  if (['show', 'showed', 'attended', 'completed', 'asistio', 'asistió'].includes(s)) return 'show'
-  if (['no_show', 'noshow', 'no_asistio', 'absent', 'missed'].includes(s)) return 'no_show'
-  if (['confirmed', 'confirmada'].includes(s)) return 'confirmed'
-  if (['cancelled', 'canceled', 'cancelada'].includes(s)) return 'cancelled'
-  if (['rescheduled', 'reprogramada'].includes(s)) return 'rescheduled'
-  if (['scheduled', 'booked', 'agendada'].includes(s)) return 'scheduled'
-  return null
-}
+// La traducción de estados vive en lib/appointments/status.ts, compartida con la sincronización por
+// cron: tenerla duplicada las separó, y la del cron guardaba "no-show" como "programada".
+const mapStatus = mapearEstadoExterno
 
 // Acotado a la subcuenta: `users` es GLOBAL (la pertenencia vive en tenant_members), así que sin el
 // filtro un email resolvía a cualquier usuario de la plataforma y la agenda —con su comisión— podía
@@ -97,12 +92,99 @@ async function userIdByEmail(sb: SupabaseClient, tenantId: string, email?: strin
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   try {
     const secret = req.headers.get('x-ghl-secret')
+
+    // MODO DIAGNÓSTICO del transporte (?diagnostico=1): eco medible de lo que GHL envía — nombres
+    // de cabeceras tal como llegó, presencia/huella del secret (sha256 truncado; JAMÁS el valor) y
+    // veredicto server-side contra lo configurado en el panel. No autentica, no toca datos: sirve
+    // para responder "¿la cabecera llega intacta?" cuando el alta en GHL no produce entregas 200.
+    if (req.nextUrl.searchParams.get('diagnostico') === '1') {
+      const sbDiag = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+      const { tenant: tenantDiag } = await params
+      const { data: filaDiag } = await sbDiag
+        .from('tenants')
+        .select('id')
+        .eq('slug', tenantDiag)
+        .eq('status', 'active')
+        .maybeSingle()
+      const cfgDiag = filaDiag ? await getTenantConfigWithFallback(filaDiag.id, true) : {}
+      return NextResponse.json({
+        ok: true,
+        modo: 'diagnostico',
+        subcuenta_encontrada: Boolean(filaDiag),
+        cabeceras_recibidas: [...req.headers.keys()],
+        diagnostico: diagnosticoCabeceras(req.headers, cfgDiag.GHL_WEBHOOK_SECRET || process.env.GHL_WEBHOOK_SECRET),
+      })
+    }
+
+    // EL SECRETO ES POR SUBCUENTA, como en el webhook de Stripe.
+    //
+    // Antes se leía solo de `process.env.GHL_WEBHOOK_SECRET`, pero el catálogo de integraciones
+    // declara `GHL_WEBHOOK_SECRET` como campo OBLIGATORIO de GHL en el panel de cada subcuenta. Es
+    // decir: la app pedía configurarlo ahí y el webhook nunca lo leía. Quien siguiera las
+    // instrucciones del propio producto seguía recibiendo 401, sin ninguna pista de por qué.
+    //
+    // Además, un secreto global es un fallo de aislamiento: con él, el webhook de un cliente podría
+    // escribir en los datos de otro sin más que cambiar el slug de la URL.
+    //
+    // El entorno se mantiene como respaldo para no romper una instalación que ya dependiera de él.
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    const { tenant } = await params
+    const { data: tenantRow } = await sb
+      .from('tenants')
+      .select('id, status')
+      .eq('slug', tenant)
+      .eq('status', 'active')
+      .single()
+
+    // Subcuenta inexistente y secreto incorrecto responden IGUAL. Resolver el tenant antes de
+    // autenticar permitiría, si no, distinguir 404 de 401 y enumerar slugs sin credencial alguna.
+    if (!tenantRow) {
+      // Obsabilidad de alta: si GHL apunta a un slug mal, aquí se ve en los logs de Vercel.
+      console.warn('[ghl-webhook] 401: subcuenta inexistente o inactiva:', tenant)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const tenantId = tenantRow.id
+
+    const cfg = await getTenantConfigWithFallback(tenantId, true)
+    const esperado = cfg.GHL_WEBHOOK_SECRET || process.env.GHL_WEBHOOK_SECRET
     // Fail-closed: si el secret no está configurado o no coincide, rechazamos.
-    if (!isValidWebhookSecret(secret, process.env.GHL_WEBHOOK_SECRET)) {
+    if (!isValidWebhookSecret(secret, esperado)) {
+      // SE REGISTRA CUÁL DE LAS CUATRO CAUSAS ES, no solo que hubo un 401.
+      //
+      // "Cabecera ausente o inválida" agrupa cuatro problemas que no se parecen en nada y que se
+      // arreglan en sitios distintos: que GHL no mande la cabecera, que el secreto no esté guardado
+      // en el panel, que se haya pegado cortado, o que simplemente no coincida. Sin distinguirlas,
+      // averiguarlo desde fuera cuesta un ciclo entero de prueba y error — ya pasó.
+      //
+      // La RESPUESTA sigue siendo opaca: quien llama no está autenticado y no merece pistas. El
+      // motivo va al log del servidor, y nunca los valores: solo presencia y longitud, que es lo
+      // que distingue "no llega" de "llega cortado" de "no coincide" sin revelar el secreto.
+      const motivo = !esperado
+        ? 'no hay GHL_WEBHOOK_SECRET guardado para esta subcuenta (Configuración → Integraciones → GoHighLevel)'
+        : !secret
+          ? 'la petición no trae la cabecera x-ghl-secret: falta añadirla en el webhook de GHL'
+          : secret.length !== esperado.length
+            ? `longitudes distintas (recibida ${secret.length}, esperada ${esperado.length}): copiado incompleto o con espacios`
+            : 'la cabecera tiene la longitud correcta pero no coincide: son dos valores distintos'
+      console.warn(`[ghl-webhook] 401 en "${tenant}": ${motivo}`)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const payload = await req.json()
+    // EL CUERPO LLEGA A VECES VACÍO O ROTO. GHL dispara workflows sin cuerpo (o con uno que no
+    // es JSON) y de tanto en tanto lo entrega así. Antes esto reventaba en el catch final como
+    // 500 "Internal error" sin sobre, sin acta y sin ni una línea en el log: la entrega
+    // desaparecía de puro silencio (auditoría del 23-sep: entregas diarias de GHL, cero
+    // registradas desde el día 22). Stripe responde 400 a lo mismo desde su capa en bruto; aquí
+    // también. 400 es la respuesta honesta: no es un fallo nuestro (no hay nada que reintentar)
+    // y queda en el log para distinguir "GHL dejó de enviar" de "GHL envía basura".
+    const crudo = await req.text()
+    let payload: Record<string, unknown>
+    try {
+      payload = JSON.parse(crudo) as Record<string, unknown>
+    } catch {
+      console.warn(`[ghl-webhook] 400: cuerpo vacío o JSON inválido (longitud ${crudo.length}); entrega no procesable`)
+      return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
+    }
 
     // GHL puede enviar los campos de 3 formas: planos, dentro de "customData",
     // o anidados en "contact"/"appointment". Normalizamos todo al nivel raíz para
@@ -128,21 +210,104 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     overwrite(payload.customData)
     overwrite(payload.custom_data)
 
-    const event = (req.nextUrl.searchParams.get('event') || payload.event || payload.type || '').toLowerCase()
+    // ── CAPA EN BRUTO (F1) ──────────────────────────────────────────────────────────────────
+    //
+    // El sobre se guarda ANTES de procesar nada. Hasta ahora el webhook leía el payload, escribía
+    // contacto y cita, y lo tiraba: si el normalizador tenía un fallo, no había nada que reprocesar.
+    // Guardarlo primero es lo que hace posible el replay (docs/plan/08-fases-s0-f4.md §F1).
+    //
+    // NADA DE ESTO PUEDE TUMBAR LA INGESTA: si la escritura del sobre falla, se registra y se sigue.
+    // Perder la capacidad de reprocesar es malo; perder la cita de un cliente, peor.
+    let sobreId: string | null = null
+    try {
+      const sobre = sobreCrudoGhl(payload, JSON.stringify(payload).length)
+      const { data: guardado, error: errorSobre } = await sb
+        .from('raw_events')
+        .upsert(
+          {
+            tenant_id: tenantId,
+            ...sobre,
+            payload,
+            user_agent: req.headers.get('user-agent'),
+            request_origin: req.headers.get('origin'),
+          },
+          // GHL reintenta la misma entrega ante cualquier duda: el parcial
+          // (tenant, source, source_event_id) convierte el reintento en la misma fila.
+          { onConflict: 'tenant_id,source,source_event_id', ignoreDuplicates: false }
+        )
+        .select('id')
+        .single()
+      if (errorSobre) console.warn('[ghl-webhook] no se pudo guardar el sobre en bruto:', errorSobre.message)
+      sobreId = guardado?.id ?? null
+    } catch (e) {
+      console.warn('[ghl-webhook] sobre en bruto:', e instanceof Error ? e.message : e)
+    }
 
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    /**
+     * Cierra el sobre con lo que de verdad pasó y responde. Todas las salidas pasan por aquí: si
+     * alguna se saltara este punto, el sobre se quedaría en "recibido" para siempre y el replay no
+     * sabría distinguir lo procesado de lo que se quedó a medias.
+     */
+    const responder = async (cuerpo: Record<string, unknown>, init?: { status?: number }) => {
+      const fallo = (init?.status ?? 200) >= 400
+      if (sobreId) {
+        await sb
+          .from('raw_events')
+          .update({
+            processing_status: fallo ? 'rejected' : 'normalized',
+            processed_at: new Date().toISOString(),
+            normalizer_version: NORMALIZADOR_GHL,
+            rejection_reason: fallo ? String(cuerpo.error ?? 'error al procesar') : null,
+          })
+          .eq('id', sobreId)
+          .then(({ error }) => {
+            if (error) console.warn('[ghl-webhook] no se pudo cerrar el sobre:', error.message)
+          })
+      }
 
-    // Sin sesión de usuario (lo llama GHL): el tenant se resuelve directamente del
-    // slug de la ruta, con el cliente service-role (bypassa RLS).
-    const { tenant } = await params
-    const { data: tenantRow } = await sb
-      .from('tenants')
-      .select('id, status')
-      .eq('slug', tenant)
-      .eq('status', 'active')
-      .single()
-    if (!tenantRow) return NextResponse.json({ error: 'Subcuenta no encontrada' }, { status: 404 })
-    const tenantId = tenantRow.id
+      // EL HECHO CANÓNICO, solo si el procesado fue bien y solo aquí.
+      //
+      // Va al final y no al recibir porque el hecho lleva a QUIÉN afecta: el contacto y la cita se
+      // conocen después de proyectar. Un hecho sin esos vínculos obligaría a reconstruirlos luego,
+      // que es exactamente el trabajo que esta capa existe para evitar.
+      //
+      // La clave única (tenant, source, source_event_id) hace que el reintento de GHL no cree un
+      // segundo hecho: `ignoreDuplicates` convierte el choque en un no-op en vez de en un error.
+      if (!fallo && sobreId) {
+        const hecho = hechoDesdeSobre({
+          tenantId,
+          source: 'ghl',
+          sourceEventId: idEventoGhl(payload),
+          rawEventId: sobreId,
+          tipo: tipoEventoGhl(payload),
+          payload,
+          recibidoEn: new Date().toISOString(),
+          contactId: typeof cuerpo.contactId === 'string' ? cuerpo.contactId : null,
+          appointmentId: typeof cuerpo.appointmentId === 'string' ? cuerpo.appointmentId : null,
+        })
+        const { data: escrito, error: errorHecho } = await sb
+          .from('canonical_events')
+          .upsert(hecho, { onConflict: 'tenant_id,source,source_event_id', ignoreDuplicates: true })
+          .select('id')
+          .maybeSingle()
+        if (errorHecho) {
+          // Igual que el sobre: esto NO puede tumbar la ingesta. El sobre ya está guardado, así que
+          // el hecho se puede volver a derivar de él cuando se arregle lo que falló.
+          console.warn('[ghl-webhook] no se pudo escribir el hecho canónico:', errorHecho.message)
+        } else if (escrito?.id) {
+          await sb.from('raw_events').update({ canonical_event_id: escrito.id }).eq('id', sobreId)
+        }
+      }
+
+      return NextResponse.json(cuerpo, init)
+    }
+
+    const event = (
+      req.nextUrl.searchParams.get('event') ||
+      (payload.event as string) ||
+      (payload.type as string) ||
+      ''
+    ).toLowerCase()
 
     // --- Campos comunes ---
     const email = (pick(payload.email) as string | null)?.toLowerCase?.()?.trim() || null
@@ -207,7 +372,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Atómico en la base de datos: el check-then-insert que había aquí creaba dos contactos para el
     // mismo lead cuando dos entregas (reintento de GHL, o GHL y Calendly a la vez) se solapaban.
     if (!email && !phone && !ghlContactId) {
-      return NextResponse.json(
+      return await responder(
         { error: 'Falta email, teléfono o ID de contacto para identificar el contacto' },
         { status: 400 }
       )
@@ -220,10 +385,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       fullName,
       firstName: parts[0] || null,
       lastName: parts.slice(1).join(' ') || null,
+      // Canal de origen first-touch: lo que GHL declare en `source` (p.ej. "Facebook Ads").
+      leadChannel: source,
       seenAt: now,
     })
     if (!resolved.ok) {
-      return NextResponse.json({ error: 'Error creando contacto', detail: resolved.error }, { status: 500 })
+      return await responder({ error: 'Error creando contacto', detail: resolved.error }, { status: 500 })
     }
     const contact = resolved.contact
 
@@ -235,24 +402,53 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // enlaces de reserva no los llevan (0 de 559 citas tienen utm_source). El camino queda puesto para
     // cuando empiecen a llegar. Un fallo al atribuir NO tumba el webhook: la cita y el contacto valen más
     // que su procedencia.
-    // COLABORADOR del enlace (?ref=CODIGO): se resuelve server-side al UUID del
-    // perfil (el código legible nunca es identidad) y entra en el toque como
-    // relación estructurada (contact_attributions.collaborator_id). utm_content
-    // sigue viviendo para reporting/interoperabilidad; esto es la FK que usa el
-    // dinero. Regla: first-collaborator-wins — la fija registrarToque.
+    // COLABORADOR del enlace (?ref=CODIGO) o de un CAMPO PERSONALIZADO de GHL:
+    // la señal vive en ref-signal.ts (regla en un sitio). Se resuelve server-side
+    // al UUID del perfil (el código legible nunca es identidad) y entra en el
+    // toque como relación estructurada (contact_attributions.collaborator_id).
+    // utm_content sigue viviendo para reporting/interoperabilidad; esto es la FK
+    // que usa el dinero. Regla: first-collaborator-wins — la fija registrarToque.
+    //
+    // CUTOFF (regla del propietario): un contacto con fecha real ANTERIOR a
+    // agosto 2026 NO se atribuye a colaboradores, venga el código por donde
+    // venga. De agosto para atrás, no — y ningún toque nuevo re-atribuye.
     let colaboradorId: string | null = null
-    const refCruda = pick(payload.ref, payload.referral, payload.colaborador, payload.collaborator_code) as
-      string | null
-    if (refCruda) {
-      try {
-        const perfil = await resolverColaboradorPorCodigo(sb, tenantId, refCruda)
-        colaboradorId = perfil?.id ?? null
-      } catch (e) {
-        console.warn('[colaborador] no se pudo resolver el ref:', e instanceof Error ? e.message : e)
+    let refCode: string | null = null
+    const ref = await resolverRefColaborador(sb, tenantId, payload)
+    refCode = ref?.code ?? null
+    // SOLO AGENDARON (regla del propietario): el código solo atribuye cuando la
+    // entrega representa una CITA VIVA (creación/actualización no cancelada).
+    // El lead que llegó y no pidió cita —o cuya entrega es una cancelación— no
+    // es del colaborador. El cutoff de agosto 2026 sigue vigente debajo.
+    const traeCitaViva = !!(externalId || aptRaw || status || event.startsWith('appointment')) && status !== 'cancelled'
+    if (ref) {
+      if (!traeCitaViva) {
+        console.info('[colaborador] entrega sin cita viva: no se atribuye (regla solo-agendaron)')
+      } else if (resolved.created) {
+        // Contacto nuevo: nace hoy, siempre posterior al cutoff.
+        colaboradorId = ref.id
+      } else {
+        // Re-entrega de un contacto existente: el cutoff se decide por su fecha
+        // real (first_seen_at de GHL). Solo se consulta cuando hay código.
+        const { data: fechas } = await sb
+          .from('contacts')
+          .select('first_seen_at, created_at')
+          .eq('id', contact.id)
+          .eq('tenant_id', tenantId)
+          .maybeSingle()
+        if (!attributionDateBeforeCutoff(fechas ?? {})) {
+          colaboradorId = ref.id
+        } else {
+          console.info('[colaborador] contacto anterior al cutoff 2026-08-01: no se atribuye a colaboradores')
+        }
       }
     }
     try {
       const toque = leerToque(payload)
+      // Si el código llegó por campo personalizado (no por ?ref=), utm_content
+      // no lo trae: lo relleno con el código normalizado para que la capa de
+      // datos (triggers de backfill, reporting) vea la misma señal textual.
+      if (refCode && !toque.utmContent) toque.utmContent = refCode
       if (colaboradorId || toqueTieneDatos(toque)) {
         await registrarToque(sb, tenantId, contact.id, { ...toque, enEl: now, colaboradorId })
       }
@@ -339,14 +535,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         .eq('id', contact.id)
         .eq('tenant_id', tenantId)
       if (error) {
-        return NextResponse.json({
+        return await responder({
           ok: true,
           contactId: contact.id,
           vslStored: false,
           note: 'Faltan columnas vsl_* (ejecutar migración)',
         })
       }
-      return NextResponse.json({ ok: true, contactId: contact.id, vslStored: true, vslPct })
+      return await responder({ ok: true, contactId: contact.id, vslStored: true, vslPct })
     }
 
     // --- 4) Asignación closer/setter ---
@@ -359,7 +555,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Si GHL no manda el setter por email, atribúyelo por el utm_term del enlace de agenda del setter
     // (utm_term → users.tracking_code), igual que en Calendly, para que su agenda se le contabilice.
     if (!setterId && utm.utm_term) {
-      setterId = await resolveUserIdByTrackingCode(sb, utm.utm_term, tenantId)
+      setterId = await resolveUserIdByTrackingCode(sb, utm.utm_term as string, tenantId)
     }
     // Si el lead/agenda viene de un setter, deja constancia del origen en el
     // contacto (sin pisar un origen ya asignado) → marca "De setter" en Leads.
@@ -375,7 +571,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const isAppointmentEvent = !!(externalId || aptRaw || status || event.startsWith('appointment'))
     if (!isAppointmentEvent) {
       // Solo era un lead opt-in (pre-VSL): contacto + atribución, sin agenda.
-      return NextResponse.json({ ok: true, kind: 'lead', contactId: contact.id })
+      console.log('[ghl-webhook] ok: lead', contact.id)
+      return await responder({ ok: true, kind: 'lead', contactId: contact.id })
     }
 
     // --- 5) Upsert idempotente de la agenda ---
@@ -419,9 +616,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         entity_type: 'appointment',
         entity_id: appt.id,
         action: 'update',
-        new_values: upd,
+        new_values: { ...upd, via: 'ghl_webhook' },
       })
-      return NextResponse.json({
+      console.log('[ghl-webhook] ok: appointment.updated', appt.id, status ?? '')
+      return await responder({
         ok: true,
         kind: 'appointment.updated',
         contactId: contact.id,
@@ -456,7 +654,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const { data: created, error: aptErr } = externalId
       ? await sb.from('appointments').upsert(newAppt, { onConflict: 'tenant_id,external_id' }).select('id').single()
       : await sb.from('appointments').insert(newAppt).select('id').single()
-    if (aptErr) return NextResponse.json({ error: 'Error creando agenda', detail: aptErr.message }, { status: 500 })
+    if (aptErr) return await responder({ error: 'Error creando agenda', detail: aptErr.message }, { status: 500 })
 
     // El lead pasa a 'agendado' al crearse su agenda
     await sb.from('contacts').update({ lead_status: 'agendado' }).eq('id', contact.id).eq('tenant_id', tenantId)
@@ -465,9 +663,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       entity_type: 'appointment',
       entity_id: created.id,
       action: 'create',
-      new_values: { contact_id: contact.id, source, ...utm },
+      new_values: { contact_id: contact.id, source, ...utm, via: 'ghl_webhook' },
     })
-    return NextResponse.json({
+    console.log('[ghl-webhook] ok: appointment.created', created.id)
+    return await responder({
       ok: true,
       kind: 'appointment.created',
       contactId: contact.id,

@@ -45,6 +45,14 @@ export type IntegrationGroup = {
   // Configuración → Datos de empresa. Sigue en este catálogo porque su persistencia es la misma
   // (integration_settings vía el endpoint genérico, que solo acepta claves conocidas).
   surface?: 'integraciones' | 'empresa'
+  // Guía de puesta en marcha. Existe porque las credenciales no se "rellenan": se van a buscar a
+  // otro producto, y saber DÓNDE es la mitad del trabajo. Sin esto, configurar una integración
+  // exige que alguien técnico esté delante.
+  pasos?: { titulo: string; detalle: string }[]
+  // Ruta del webhook ENTRANTE de este proveedor, con `{tenant}` por rellenar. La pantalla la pinta
+  // ya montada y con botón de copiar: construir una URL a mano es donde se cuela la errata que
+  // luego tarda una tarde en encontrarse.
+  webhookPath?: string
   fields: IntegrationField[]
 }
 
@@ -56,6 +64,23 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     category: 'marketing',
     test: true,
     required: ['META_ACCESS_TOKEN'],
+    pasos: [
+      {
+        titulo: 'Localiza el ID de la cuenta publicitaria',
+        detalle:
+          'En business.facebook.com, junto al nombre de la cuenta publicitaria verás un número largo precedido de act_. Ese es el Ad Account ID. Si gestionas varias, puedes pegarlas separadas por comas.',
+      },
+      {
+        titulo: 'Genera el Access Token en Meta for Developers',
+        detalle:
+          'En developers.facebook.com, abre una app de tipo Business y usa el Explorador de la API Graph pidiendo los permisos ads_read y read_insights. El token corto caduca en horas: conviértelo en uno de larga duración antes de pegarlo, o habrá que repetirlo cada día.',
+      },
+      {
+        titulo: 'Prueba la conexión',
+        detalle:
+          'Si da error de permisos, casi siempre falta ads_read o el token es de una cuenta sin acceso a esa cuenta publicitaria. El gasto tarda unas horas en aparecer: Meta no lo publica al instante.',
+      },
+    ],
     fields: [
       {
         key: 'META_ACCESS_TOKEN',
@@ -106,6 +131,23 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     category: 'marketing',
     test: true,
     required: ['IG_USER_ID'],
+    pasos: [
+      {
+        titulo: 'La cuenta debe ser profesional y estar enlazada a una página',
+        detalle:
+          'Instagram solo deja leer métricas de cuentas de empresa o creador vinculadas a una página de Facebook. Si es personal, ningún token funcionará: conviértela primero desde los ajustes de Instagram.',
+      },
+      {
+        titulo: 'Consigue el IG User ID',
+        detalle:
+          'Es un número largo, distinto del arroba de tu perfil. Se obtiene desde el Explorador de la API Graph consultando la página enlazada y su campo instagram_business_account.',
+      },
+      {
+        titulo: 'Usa un token con permisos de Instagram',
+        detalle:
+          'El mismo token de Meta sirve si incluye instagram_basic e instagram_manage_insights. Sin ellos la sincronización devuelve el error 10 (no tienes permiso) aunque el token sea válido para anuncios.',
+      },
+    ],
     fields: [
       {
         key: 'INSTAGRAM_ACCESS_TOKEN',
@@ -141,12 +183,132 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     ],
   },
   {
+    id: 'tiktok',
+    title: 'TikTok',
+    description:
+      'Cuenta propia de TikTok. El handle declara la cuenta en los guards de Apify (jamás se investiga por scraping); sus métricas vendrán de la API oficial cuando exista la sync.',
+    category: 'marketing',
+    fields: [
+      {
+        key: 'TIKTOK_HANDLE',
+        label: 'Handle de TikTok',
+        type: 'text',
+        secret: false,
+        placeholder: '@tucuenta',
+        help: 'Sin @ al guardar no pasa nada: el sistema lo normaliza. Se usa para impedir que Apify scrapee esta cuenta y, en el futuro, para la sync oficial.',
+      },
+    ],
+  },
+  {
+    id: 'apify',
+    title: 'Apify (investigación externa)',
+    description:
+      'Datos públicos de terceros (perfiles, reels, competidores) vía proveedor externo. NO toca tu cuenta de Instagram: esa se gestiona solo con la API oficial de Meta.',
+    category: 'marketing',
+    test: true,
+    required: ['APIFY_API_TOKEN'],
+    webhookPath: '/api/webhooks/apify',
+    pasos: [
+      {
+        titulo: 'Crea el API Token en Apify',
+        detalle:
+          'En console.apify.com, Settings → Integrations → API tokens. Copia el token personal. Ten en cuenta el consumo: cada investigación gasta créditos de tu cuenta de Apify.',
+      },
+      {
+        titulo: 'Los IDs de actor ya vienen puestos',
+        detalle:
+          'Los campos de actor traen valores por defecto que funcionan. Solo cámbialos si quieres usar otro actor: su ID está en la URL dentro de Apify, con el formato usuario~nombre-del-actor.',
+      },
+      {
+        titulo: 'Ajusta los límites antes de lanzar nada grande',
+        detalle:
+          'Resultados por investigación y máximo de perfiles controlan cuánto se gasta en cada ejecución. Empieza con valores bajos y súbelos al ver el coste real en Apify.',
+      },
+    ],
+    fields: [
+      {
+        key: 'APIFY_API_TOKEN',
+        label: 'API Token',
+        type: 'password',
+        secret: true,
+        help: 'Se genera en console.apify.com → Settings → API & Integraciones. Se guarda cifrado y nunca se vuelve a mostrar completo.',
+      },
+      {
+        key: 'APIFY_INSTAGRAM_REELS_ACTOR_ID',
+        label: 'Actor: Reels de Instagram',
+        type: 'text',
+        secret: false,
+        placeholder: 'apify/instagram-reel-scraper',
+        advanced: true,
+        help: 'Identificador del Actor (nombre o ID). Cambiarlo aquí no toca código: la capa de adaptadores se adapta al esquema del Actor configurado.',
+      },
+      {
+        key: 'APIFY_INSTAGRAM_PROFILE_ACTOR_ID',
+        label: 'Actor: Perfiles de Instagram',
+        type: 'text',
+        secret: false,
+        placeholder: 'apify/instagram-scraper',
+        advanced: true,
+      },
+      {
+        key: 'APIFY_TIKTOK_ACTOR_ID',
+        label: 'Actor: TikTok',
+        type: 'text',
+        secret: false,
+        placeholder: 'clockworks/tiktok-scraper',
+        advanced: true,
+      },
+      {
+        key: 'APIFY_YOUTUBE_ACTOR_ID',
+        label: 'Actor: YouTube',
+        type: 'text',
+        secret: false,
+        placeholder: 'streamers/youtube-scraper',
+        advanced: true,
+      },
+      {
+        key: 'APIFY_RESULTS_LIMIT',
+        label: 'Resultados por investigación',
+        type: 'text',
+        secret: false,
+        placeholder: '30',
+        advanced: true,
+      },
+      {
+        key: 'APIFY_MAX_PROFILES_PER_RUN',
+        label: 'Máximo de perfiles por ejecución',
+        type: 'text',
+        secret: false,
+        placeholder: '10',
+        advanced: true,
+      },
+    ],
+  },
+  {
     id: 'calendly',
     title: 'Calendly',
     description: 'Agendas automáticas y cancelación desde la app.',
     category: 'ventas',
     test: true,
     required: ['CALENDLY_API_TOKEN', 'CALENDLY_WEBHOOK_SECRET'],
+    webhookPath: '/api/{tenant}/evergreen/webhooks/calendly',
+    pasos: [
+      {
+        titulo: 'Crea el token personal en Calendly',
+        detalle:
+          'En Calendly, Integraciones → API y webhooks → Personal Access Tokens → Generate. Se enseña una sola vez: cópialo antes de cerrar. Hace falta plan de pago para tener API.',
+      },
+      {
+        titulo: 'Inventa la clave de firma y guárdala aquí',
+        detalle:
+          'No la da Calendly: la eliges tú, como una contraseña. Usa algo largo y aleatorio, guárdalo en el campo de abajo y tenlo a mano para el paso siguiente.',
+      },
+      {
+        titulo: 'Da de alta el webhook con la dirección de arriba',
+        detalle:
+          'En la misma pantalla de API y webhooks, crea una suscripción con la dirección que aparece aquí arriba y pega como signing key la clave del paso 2. Suscríbete a invitee.created e invitee.canceled: alta y baja de reserva.',
+      },
+    ],
     fields: [
       { key: 'CALENDLY_API_TOKEN', label: 'API Token (PAT)', type: 'password', secret: true },
       { key: 'CALENDLY_WEBHOOK_SECRET', label: 'Webhook Signing Key', type: 'password', secret: true },
@@ -159,6 +321,18 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     category: 'ia',
     test: true,
     required: ['FATHOM_API_KEY'],
+    pasos: [
+      {
+        titulo: 'Genera la API Key en Fathom',
+        detalle:
+          'En la configuración de tu cuenta de Fathom, apartado de API o integraciones, crea una clave nueva con acceso a las grabaciones y transcripciones de las reuniones del equipo.',
+      },
+      {
+        titulo: 'Comprueba que las reuniones llevan invitado con correo',
+        detalle:
+          'La app empareja cada grabación con su cita por el correo del invitado. Si se crean sin invitado identificado, la grabación entra pero queda en la cola de revisión en vez de asociarse sola.',
+      },
+    ],
     fields: [
       {
         key: 'FATHOM_API_KEY',
@@ -185,6 +359,22 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     category: 'comunicacion',
     test: true,
     required: ['RESEND_API_KEY', 'RESEND_FROM'],
+    pasos: [
+      {
+        titulo: 'Verifica tu dominio en Resend',
+        detalle:
+          'En resend.com/domains → Add Domain. Te dará tres registros DNS (un MX y dos TXT) que hay que añadir donde tengas el dominio. Sin dominio verificado, Resend SOLO entrega a la dirección con la que te registraste: los demás no salen, ni a spam.',
+      },
+      {
+        titulo: 'Crea la API Key',
+        detalle: 'En resend.com/api-keys → Create. Con permiso de envío basta. Se enseña una sola vez.',
+      },
+      {
+        titulo: 'Escribe el remitente con el formato completo',
+        detalle:
+          'Nombre y dirección juntos, así: Mi Empresa <hola@midominio.com>. El dominio tiene que ser el que verificaste en el paso 1; con otro, Resend rechaza el envío.',
+      },
+    ],
     fields: [
       { key: 'RESEND_API_KEY', label: 'API Key', type: 'password', secret: true, placeholder: 're_…' },
       {
@@ -203,6 +393,24 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     category: 'pagos',
     test: true,
     required: ['STRIPE_SECRET_KEY'],
+    webhookPath: '/api/{tenant}/evergreen/webhooks/stripe',
+    pasos: [
+      {
+        titulo: 'Copia la clave secreta desde Stripe',
+        detalle:
+          'En dashboard.stripe.com, Desarrolladores → Claves de API. Usa la clave SECRETA (empieza por sk_live_ en producción, sk_test_ en pruebas). La publicable no sirve: no puede leer cobros.',
+      },
+      {
+        titulo: 'Crea el webhook con la dirección de arriba',
+        detalle:
+          'Desarrolladores → Webhooks → Añadir endpoint. Pega la dirección que aparece aquí arriba y suscríbete al menos a payment_intent.succeeded, charge.refunded e invoice.payment_failed: cobro, devolución e impago.',
+      },
+      {
+        titulo: 'Copia el signing secret que te da Stripe',
+        detalle:
+          'Al crear el endpoint, Stripe muestra un valor que empieza por whsec_. Este sí lo da Stripe, a diferencia de otros webhooks donde la clave la eliges tú, y sirve para comprobar que el aviso viene de ellos.',
+      },
+    ],
     fields: [
       {
         key: 'STRIPE_SECRET_KEY',
@@ -241,6 +449,51 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     category: 'ventas',
     test: true,
     required: ['GHL_API_TOKEN', 'GHL_LOCATION_ID', 'GHL_WEBHOOK_SECRET'],
+    webhookPath: '/api/{tenant}/evergreen/webhooks/ghl',
+    pasos: [
+      {
+        titulo: 'Copia el Location ID desde la URL de GHL',
+        detalle:
+          'Entra en tu subcuenta de GoHighLevel y mira la barra de direcciones del navegador. ' +
+          'Verás algo como .../location/SZwf.../ — ese trozo entre barras es el Location ID. ' +
+          'Cópialo y pégalo abajo.',
+      },
+      {
+        titulo: 'Crea el token en GHL: Ajustes → Integraciones privadas',
+        detalle:
+          'En GHL, Settings (Ajustes) → Private Integrations → New. Dale un nombre (por ejemplo ' +
+          '"GrowthOps") y marca los permisos de contactos, calendarios y oportunidades. Al crearla ' +
+          'te enseña el token UNA sola vez y empieza por "pit-": cópialo antes de cerrar y pégalo abajo.',
+      },
+      {
+        titulo: 'Inventa una contraseña para el webhook y guárdala aquí',
+        detalle:
+          'No la da GHL: la eliges tú. Sirve para que nadie que conozca la dirección del webhook ' +
+          'pueda meter citas falsas. Usa algo largo y aleatorio (30 caracteres o más, letras y ' +
+          'números). Escríbela en el campo de abajo, guarda, y tenla a mano para el paso siguiente.',
+      },
+      {
+        titulo: 'Pega la dirección del webhook en GHL',
+        detalle:
+          'Copia la dirección que aparece aquí arriba y pégala en GHL, en la automatización que ' +
+          'avisa de las citas (Workflows → acción "Webhook", o Settings → Webhooks según tu plan). ' +
+          'Método POST. Añade una cabecera llamada x-ghl-secret y, como valor, EXACTAMENTE la misma ' +
+          'contraseña del paso 3: se compara carácter a carácter y un espacio de más la invalida.',
+      },
+      {
+        titulo: 'Elige qué eventos envía GHL',
+        detalle:
+          'Marca al menos: cita creada, cita actualizada (asistió, no asistió, cancelada) y alta de ' +
+          'lead. Cada uno de esos avisos es lo que mantiene el CRM al día sin que nadie copie nada ' +
+          'a mano.',
+      },
+      {
+        titulo: 'Comprueba que funciona',
+        detalle:
+          'Crea o mueve una cita de prueba en GHL y mira si aparece en Agendas. Si no aparece, lo ' +
+          'más probable es que la contraseña del paso 3 no sea idéntica en los dos sitios.',
+      },
+    ],
     fields: [
       {
         key: 'GHL_API_TOKEN',
@@ -248,7 +501,7 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         type: 'password',
         secret: true,
         placeholder: 'pit-…',
-        help: 'Token de Integración Privada de la subcuenta.',
+        help: 'Paso 2. GHL solo lo enseña al crearlo: si lo perdiste, crea otra integración privada.',
       },
       {
         key: 'GHL_LOCATION_ID',
@@ -256,14 +509,14 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         type: 'text',
         secret: false,
         placeholder: 've9EPM428h8vShlRW1KT',
-        help: 'ID de la subcuenta (en la URL /location/<ID>/).',
+        help: 'Paso 1. Está en la URL de GHL, entre /location/ y la barra siguiente.',
       },
       {
         key: 'GHL_WEBHOOK_SECRET',
         label: 'Webhook Secret (entrante)',
         type: 'password',
         secret: true,
-        help: 'Cabecera x-ghl-secret que validan los webhooks de GHL.',
+        help: 'Paso 3. La eliges tú, no la da GHL. Debe ser idéntica aquí y en la cabecera x-ghl-secret de GHL.',
       },
       {
         key: 'GHL_ONBOARDING_WEBHOOK_URL',
@@ -308,6 +561,23 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     // El texto funciona con DeepSeek O Anthropic. Groq aporta transcripción, pero no puede hacer que
     // un agente de texto correctamente configurado aparezca como desconectado.
     requiredAny: ['DEEPSEEK_API_KEY', 'ANTHROPIC_API_KEY'],
+    pasos: [
+      {
+        titulo: 'Necesitas al menos un proveedor, no todos',
+        detalle:
+          'Cada clave es de un servicio distinto y basta con una para que el asistente funcione. DeepSeek suele ser el más barato; Anthropic, el más capaz en análisis largos. Puedes empezar con uno y añadir otro después.',
+      },
+      {
+        titulo: 'Crea la clave en el panel del proveedor',
+        detalle:
+          'DeepSeek en platform.deepseek.com, Anthropic en console.anthropic.com, Groq en console.groq.com. En los tres es el mismo sitio: apartado de API Keys → crear. Se enseñan una sola vez.',
+      },
+      {
+        titulo: 'Pon un límite de gasto antes de repartirlo al equipo',
+        detalle:
+          'Estas claves se cobran por uso. Casi todos los proveedores permiten fijar un tope mensual: hazlo antes de dejar el asistente en manos de más gente.',
+      },
+    ],
     fields: [
       {
         key: 'ANTHROPIC_API_KEY',
@@ -362,6 +632,27 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     category: 'marketing',
     test: true,
     required: ['YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET', 'YOUTUBE_REFRESH_TOKEN'],
+    pasos: [
+      {
+        titulo: 'Crea un proyecto en Google Cloud y activa la API de YouTube',
+        detalle:
+          'En console.cloud.google.com crea un proyecto y, en Biblioteca, activa YouTube Data API v3. Sin activarla ' +
+          'las credenciales existen pero toda llamada falla.',
+      },
+      {
+        titulo: 'Crea credenciales de tipo OAuth',
+        detalle:
+          'Credenciales → Crear → ID de cliente de OAuth, tipo Aplicación web. De ahí salen el Client ID y el ' +
+          'Client Secret que van en los campos de abajo.',
+      },
+      {
+        titulo: 'El refresh token sale de autorizar una vez',
+        detalle:
+          'Es lo que permite seguir publicando sin volver a entrar cada hora. Se obtiene completando el flujo de ' +
+          'autorización de Google con esas credenciales. Es el único paso que no se resuelve copiando de un panel: ' +
+          'si no lo tienes, pide ayuda para este.',
+      },
+    ],
     fields: [
       { key: 'YOUTUBE_CLIENT_ID', label: 'OAuth Client ID', type: 'text', secret: false },
       { key: 'YOUTUBE_CLIENT_SECRET', label: 'OAuth Client Secret', type: 'password', secret: true },
@@ -489,6 +780,23 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     description: 'Protege la entrada de eventos del píxel, VSL y atribución del funnel.',
     category: 'seguridad',
     required: ['TRACKING_INGEST_KEY'],
+    pasos: [
+      {
+        titulo: 'La clave la eliges tú',
+        detalle:
+          'No viene de ningún proveedor: es una contraseña que protege la entrada de eventos para que nadie pueda inyectar visitas falsas. Usa algo largo y aleatorio.',
+      },
+      {
+        titulo: 'Instala el píxel en tus páginas',
+        detalle:
+          'En Configuración → Data Health tienes el fragmento de código con la clave PÚBLICA de tu sitio, listo para pegar antes de cerrar la etiqueta body. Es distinto de esta clave: el píxel es público y esta es privada del servidor.',
+      },
+      {
+        titulo: 'Comprueba que llegan visitas',
+        detalle:
+          'Abre una página tuya y mira el panel de tracking. Si no aparece nada, lo más común es que el dominio no esté dado de alta como sitio permitido.',
+      },
+    ],
     fields: [
       {
         key: 'TRACKING_INGEST_KEY',
@@ -500,11 +808,99 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
     ],
   },
   {
+    id: 'bunny',
+    title: 'Bunny Stream (vídeos de VSL)',
+    description:
+      'Aloja y sirve los vídeos de tus VSL: se suben desde la app y se reproducen rápido en cualquier conexión.',
+    category: 'marketing',
+    test: true,
+    required: ['BUNNY_STREAM_LIBRARY_ID', 'BUNNY_STREAM_API_KEY', 'BUNNY_STREAM_CDN_HOSTNAME'],
+    pasos: [
+      {
+        titulo: 'Crea una cuenta en bunny.net y entra en Stream',
+        detalle:
+          'Regístrate en bunny.net (tiene prueba gratuita). En el menú de la izquierda del panel entra en "Stream". ' +
+          'Stream es el servicio de vídeo; no lo confundas con "Storage" ni con "CDN", que son otros productos.',
+      },
+      {
+        titulo: 'Crea una biblioteca de vídeo (Video Library)',
+        detalle:
+          'Pulsa "Add Video Library", ponle un nombre (por ejemplo "VSL") y elige las regiones de almacenamiento más ' +
+          'cercanas a tu público (Europa si vendes en España). Una biblioteca es la carpeta donde vivirán tus vídeos.',
+      },
+      {
+        titulo: 'Copia el ID de la biblioteca',
+        detalle:
+          'Abre la biblioteca y entra en la pestaña "API". Verás "Video Library ID": es un número (por ejemplo 123456). ' +
+          'Pégalo en el campo "ID de la biblioteca" de abajo.',
+      },
+      {
+        titulo: 'Copia la API key de la biblioteca',
+        detalle:
+          'En esa misma pestaña "API" está "API Key". Tiene que ser la de la BIBLIOTECA, no la de tu cuenta de Bunny ' +
+          '(la de la cuenta está en Account Settings y no sirve aquí). Pégala en "API key". Se guarda cifrada.',
+      },
+      {
+        titulo: 'Copia el hostname de la CDN',
+        detalle:
+          'También en la pestaña "API" aparece "CDN Hostname", con una forma parecida a vz-abc123-456.b-cdn.net. Pégalo ' +
+          'tal cual en "Hostname de la CDN"; da igual si copias también el https:// delante, la app lo limpia.',
+      },
+      {
+        titulo: 'Guarda, pulsa "Probar" y sube tu primer vídeo',
+        detalle:
+          'Si la prueba sale en verde, ve a Marketing › VSL, crea un vídeo y pulsa "Subir archivo". El vídeo va directo ' +
+          'a Bunny. Después Bunny lo procesa: según el tamaño tarda de uno a varios minutos en poder reproducirse, y ' +
+          'mientras tanto el reproductor puede mostrar un error. Es normal, no hace falta volver a subirlo.',
+      },
+    ],
+    fields: [
+      {
+        key: 'BUNNY_STREAM_LIBRARY_ID',
+        label: 'ID de la biblioteca',
+        type: 'text',
+        secret: false,
+        help: 'Stream › tu biblioteca › API › Video Library ID. Es un número.',
+      },
+      {
+        key: 'BUNNY_STREAM_API_KEY',
+        label: 'API key',
+        type: 'password',
+        secret: true,
+        help: 'La de la biblioteca (Stream › tu biblioteca › API), no la de la cuenta. Se guarda cifrada.',
+      },
+      {
+        key: 'BUNNY_STREAM_CDN_HOSTNAME',
+        label: 'Hostname de la CDN',
+        type: 'text',
+        secret: false,
+        help: 'Stream › tu biblioteca › API › CDN Hostname. Parecido a vz-abc123-456.b-cdn.net.',
+      },
+    ],
+  },
+  {
     id: 'google',
     title: 'Google (GA4 y Gmail)',
     description: 'Credenciales del proyecto de Google Cloud. La conexión de cada servicio se autoriza aparte.',
     category: 'marketing',
     required: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'],
+    pasos: [
+      {
+        titulo: 'Crea el proyecto en Google Cloud y activa las APIs',
+        detalle:
+          'En console.cloud.google.com crea un proyecto y activa en Biblioteca las APIs que vayas a usar: Google Analytics Data para GA4, Gmail API para el correo. Cada una se activa por separado.',
+      },
+      {
+        titulo: 'Crea el ID de cliente de OAuth',
+        detalle:
+          'Credenciales → Crear → ID de cliente de OAuth, tipo Aplicación web. De ahí salen el Client ID y el Client Secret que van abajo.',
+      },
+      {
+        titulo: 'Da acceso a la propiedad de GA4',
+        detalle:
+          'Tener credenciales no basta: en Google Analytics la cuenta que autorice necesita al menos permiso de lectura sobre la propiedad. Es el olvido más común y da un error de permisos que parece de credenciales.',
+      },
+    ],
     fields: [
       {
         key: 'GOOGLE_CLIENT_ID',

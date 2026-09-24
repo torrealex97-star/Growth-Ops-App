@@ -2,6 +2,26 @@
 // Sin I/O: reciben filas crudas de Supabase y devuelven datos listos para pintar.
 
 import { isNoShow } from '@/lib/appointments/status'
+
+/**
+ * FECHA REAL DE UN LEAD — para el filtro de periodo de cualquier métrica de leads.
+ *
+ * `created_at` es cuándo la fila entró en esta base (la importación histórica de GHL estampó
+ * todas las filas el mismo día), NO cuándo llegó el lead. La fecha de negocio vive en:
+ *   1. `first_seen_at` — el importador la guarda desde GHL `dateAdded` (history-sync).
+ *   2. `first_contact_at` — primer contacto registrado en la app.
+ *   3. `created_at` — la fila nació en la app (alta manual, webhooks en vivo): sí es fecha real.
+ * Se devuelve SIEMPRE un valor no nulo para que un lead importado sin fecha jamás desaparezca
+ * de los totales: peor mostrarlo en un mes equivocado que perderlo del cómputo total.
+ */
+export function leadDate(c: {
+  first_seen_at?: string | null
+  first_contact_at?: string | null
+  created_at?: string | null
+}): string {
+  return c.first_seen_at || c.first_contact_at || c.created_at || ''
+}
+
 export type SaleRow = {
   id: string
   gross_amount: number | string
@@ -24,6 +44,8 @@ export type AttributionRow = {
   utm_campaign: string | null
   utm_content: string | null
   is_primary: boolean
+  // Relación estructurada contacto→colaborador (FK a collaborator_profiles). null = directo.
+  collaborator_id?: string | null
 }
 export type AppointmentRow = {
   appointment_datetime: string | null
@@ -38,7 +60,7 @@ export type UserRow = { id: string; full_name: string; role?: string | null }
 export const ACTIVE_SALE_STATUSES = ['active', 'partial_refund']
 export const isActiveSale = (s: { status: string }) => ACTIVE_SALE_STATUSES.includes(s.status)
 const isCollected = (c: { status: string }) => c.status === 'collected'
-const num = (x: number | string | null | undefined) => Number(x ?? 0)
+export const num = (x: number | string | null | undefined) => Number(x ?? 0)
 const ymOf = (d: string | null | undefined) => (d ? String(d).slice(0, 7) : '') // 'YYYY-MM'
 const dayOf = (d: string | null | undefined) => (d ? String(d).slice(0, 10) : '') // 'YYYY-MM-DD'
 
@@ -102,10 +124,10 @@ export function teamRanking(
   role: 'closer' | 'setter'
 ): RankRow[] {
   const nameOf = new Map(users.map((u) => [u.id, u.full_name]))
-  // Puesto real de cada usuario, para no contar en "Closers" a alguien que solo quedó asignado
-  // como closer_id de una venta por dato suelto (setter que cerró puntualmente, admin, etc).
-  const roleOf = new Map(users.map((u) => [u.id, u.role ?? null]))
-  const knowsRoles = users.some((u) => u.role !== undefined)
+  // SIN filtro por rol: la venta ya lleva su closer/setter asignado y quien cierra puede tener
+  // rol admin (caso real: Claudia cierra con rol admin en WDC — filtrarla borraba al closer con
+  // más ventas del ranking). Si un setter cierra puntualmente, su venta se le contabiliza: es
+  // su trabajo real del periodo, no un error de datos.
   const saleOwner = new Map<string, string | null>() // sale_id -> userId del rol
   const agg = new Map<string, RankRow>()
   const ensure = (id: string) =>
@@ -116,7 +138,6 @@ export function teamRanking(
     const owner = role === 'closer' ? s.closer_id : s.setter_id
     saleOwner.set(s.id, owner)
     if (!owner || !isActiveSale(s)) continue
-    if (knowsRoles && roleOf.get(owner) !== role) continue
     const row = ensure(owner)
     row.sales += 1
     row.gross += num(s.gross_amount)
@@ -125,7 +146,6 @@ export function teamRanking(
     if (!isCollected(c)) continue
     const owner = saleOwner.get(c.sale_id)
     if (!owner) continue
-    if (knowsRoles && roleOf.get(owner) !== role) continue
     const row = ensure(owner)
     row.cash += num(c.gross_amount)
   }
@@ -174,15 +194,10 @@ export type SetterAgendaRow = {
 }
 export function setterAgendaStats(appointments: AppointmentRow[], users: UserRow[]): SetterAgendaRow[] {
   const nameOf = new Map(users.map((u) => [u.id, u.full_name]))
-  // Igual que en teamRanking: no contar como "setter" a alguien que solo quedó puesto como
-  // setter_id de una agenda puntual (admin, cold_caller cubriendo, dato suelto) sin serlo
-  // realmente (bug: "en closer/setter solo debe estar los registrados como tal, no más nadie").
-  const roleOf = new Map(users.map((u) => [u.id, u.role ?? null]))
-  const knowsRoles = users.some((u) => u.role !== undefined)
+  // SIN filtro por rol (misma razón que teamRanking): la agenda ya lleva a la persona asignada.
   const map = new Map<string, SetterAgendaRow>()
   for (const a of appointments) {
     if (!a.setter_id) continue
-    if (knowsRoles && roleOf.get(a.setter_id) !== 'setter' && roleOf.get(a.setter_id) !== 'cold_caller') continue
     const row =
       map.get(a.setter_id) ??
       map

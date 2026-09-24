@@ -48,7 +48,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     }
 
     return NextResponse.json({
-      program_name: data?.program_name ?? 'Programa de Afiliados',
+      program_name: data?.program_name ?? 'Programa de Colaboradores',
       intro: data?.intro ?? '',
       success_message: data?.success_message ?? '¡Listo! Revisa tu email.',
       fields,

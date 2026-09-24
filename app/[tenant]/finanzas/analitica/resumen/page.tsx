@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { mensajeDeCarga, primerError } from '@/lib/supabase/resultado'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { FinanceBreakdown, FinanceEvolution } from '@/components/finanzas/FinanceCharts'
 import { PieChart, Wallet, ShoppingCart, Receipt, TrendingDown, Scale, Users, CreditCard } from 'lucide-react'
@@ -66,6 +67,8 @@ function MetricCard({ label, value, sublabel }: { label: string; value: string; 
 
 export default function FinanzasPage() {
   const [loading, setLoading] = useState(true)
+  // Un fallo de lectura NO se pinta como 0 €: ver lib/supabase/resultado.ts.
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [ym, setYm] = useState(nowYm())
   const [sales, setSales] = useState<SaleRow[]>([])
   const [collections, setCollections] = useState<CollectionRow[]>([])
@@ -98,6 +101,8 @@ export default function FinanzasPage() {
         supabase.from('users').select('base_salary').eq('is_active', true),
       ])
       if (!mounted) return
+      const fallo = primerError(salesRes, collRes, expensesRes, refundsRes, commissionsRes, usersRes)
+      setErrorCarga(fallo ? mensajeDeCarga('los datos de facturación', fallo) : null)
       setSales(salesRes.data || [])
       setCollections(collRes.data || [])
       setExpenses(expensesRes.data || [])
@@ -336,7 +341,19 @@ export default function FinanzasPage() {
         </label>
       </div>
 
-      {loading ? (
+      {errorCarga ? (
+        <div className="dashboard-card border-destructive/40 p-6">
+          <p className="text-foreground text-sm font-medium">No se pudo cargar el resumen</p>
+          <p className="text-muted-foreground mt-1 text-sm">{errorCarga}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="text-primary mt-3 text-sm hover:underline"
+            type="button"
+          >
+            Reintentar
+          </button>
+        </div>
+      ) : loading ? (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {Array.from({ length: 5 }).map((_, i) => (

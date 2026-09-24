@@ -126,6 +126,21 @@ export type Contact = {
   // Columnas generadas por Postgres (normalización para dedupe) — solo lectura
   email_normalized: string | null
   phone_normalized: string | null
+  // Campos personalizados de la subcuenta (§1 del brief de contactos): jsonb con pares
+  // { "<custom_field_defs.id>": valor }. Las definiciones viven en custom_field_defs.
+  custom_fields: Record<string, string | number | boolean | null>
+  created_at: string
+  updated_at: string
+}
+
+// Definición de un campo personalizado de la subcuenta (migración 20260921200000).
+export type CustomFieldDef = {
+  id: string
+  tenant_id: string
+  field_key: string
+  label: string
+  field_type: 'text' | 'number' | 'date' | 'boolean'
+  sort_order: number
   created_at: string
   updated_at: string
 }
@@ -771,6 +786,16 @@ type Expense = {
   payment_method: string | null
   status: 'pagado' | 'en_revision' | 'pendiente'
   counterparty: string | null
+  // v5 — identidad del emisor y trazabilidad del pago (extraídas con IA, confirmadas por humanos)
+  invoice_number: string | null
+  invoice_due_date: string | null
+  counterparty_tax_id: string | null
+  counterparty_address: string | null
+  counterparty_bank_account: string | null // cuenta DEL EMISOR: no es una cuenta propia ni prueba de pago
+  counterparty_bank_name: string | null
+  paid_at: string | null // fecha real del pago; se fija al pasar a 'pagado'
+  paid_from_account: string | null // cuenta propia desde la que se pagó; la introduce el usuario
+  payment_reference: string | null
   person_id: string | null
   notes: string | null
   created_by: string | null

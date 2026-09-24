@@ -1,6 +1,25 @@
 # PENDIENTES — [tenant] OS
 
-> Doc vivo de tareas pendientes. Última actualización: 2026-09-19.
+> ## Estado de consolidación (2026-09-22)
+> `origin/main` está publicado en `c2c3e6a33a847b9d3220b9783a01106dc87f73c8` mediante la PR #173, que actualizó este handoff y este backlog. Las PR #171 y #172 también están fusionadas; sus checks de código fueron verdes. La PR #173 solo cambió documentación y no generó workflow nuevo por `paths-ignore`; Supabase Preview quedó omitido. El checkout compartido conserva WIP no publicado; no tratarlo como desplegado ni mezclarlo sin PR atómico.
+>
+> ### Acciones que corresponden al usuario
+> - [ ] Ejecutar en QA el dry-run `BEGIN … ROLLBACK` de la revocación de `EXECUTE` de `cleanup_custom_field_values()`: probar limpieza por trigger y rechazo de RPC directa.
+> - [ ] Aplicar migraciones solo mediante el flujo aprobado, registrando la versión en `schema_migrations`; nunca desde un checkout con WIP.
+> - [ ] Rotar credenciales que hayan aparecido en chats o historiales y actualizar únicamente los proveedores/Vercel correspondientes; no copiarlas al repositorio.
+> - [ ] Reconectar y autorizar las integraciones externas que dependen de una acción del propietario (Meta/Instagram, Google/YouTube, TikTok, Hotmart, GHL, Calendly y proveedores de pago) y ejecutar después un smoke real por proveedor.
+> - [ ] Completar los workflows reales de GHL para leads, citas y cambios de estado, incluyendo la cabecera secreta, y verificar acta en BD + cita en Agendas.
+> - [ ] Instalar el pixel/snippet en la web real y configurar UTMs/campaign en las fuentes para que los embudos tengan atribución real.
+> - [ ] Decidir retención legal/de negocio de raw events, transcripciones y hechos financieros antes de graduar privacidad/F6.
+> - [ ] Resolver decisiones financieras explícitas: tratamiento de cuotas de proveedores de pago, completar reservas y cualquier backfill que requiera elegir producto/plan.
+>
+> ### Trabajo que debe hacer Claude/otro agente desde `origin/main`
+> - [ ] Auditar cada bloque local de Hotmart, inbox social, TikTok, VSL, YouTube OAuth, facturas IA, comisiones batch, contratos adjuntos y colaboradores; publicar solo lo que tenga diff, tests, migraciones y CI verificables.
+> - [ ] Completar el tipado de clientes Supabase y el auditor de columnas fantasma en CI antes de aceptar nuevas queries.
+> - [ ] Revisar drift esquema↔migraciones, RLS y funciones `SECURITY DEFINER` con dry-run funcional.
+> - [ ] Eliminar ramas, worktrees y artefactos ya fusionados solo después de demostrar que no contienen trabajo único.
+>
+> Doc vivo de tareas pendientes. Última actualización: 2026-09-22.
 > App en producción: https://growth-ops-weld.vercel.app · Deploy por PR (protección de rama: CI required en main — nada se pushea directo).
 > Contribuir: rama → PR → CI verde (format/lint/typecheck/tests/build/gitleaks) → merge squash.
 
@@ -77,10 +96,17 @@ Faltan como automatización con aviso real (necesitan canal: WhatsApp/email/Slac
 Hecho: skills canónicas `.claude/skills/sales-engineering.md` (§1-7) y `.claude/skills/marketing-and-copywriting.md` (§1-6) · system prompts en `src/prompts/` · esquemas RAG en `docs/rag_*_knowledge_schema.json` · reglas obligatorias en CLAUDE.md (PR #71) · tabla `knowledge_chunks` con pgvector + RPC `match_knowledge_chunks` (RLS admin-only, sin ciclos) · tool `searchKnowledge` del agente + contexto RAG en su system prompt · endpoint `/api/[tenant]/evergreen/ai/knowledge` · ingesta idempotente sembrada (88 filas, PR #73).
 Pendiente:
 
-- [ ] **Pipeline de embeddings**: generar `vector(1536)` para los chunks (columna lista, hoy NULL), índice HNSW y búsqueda híbrida (vector + FTS) en la RPC. La búsqueda léxica española ya funciona sin esto.
-- [ ] **Inspector de conocimiento en UI admin**: buscador conectado al endpoint `/ai/knowledge` con filtros por categoría y visor de chunks.
+- [x] **Pipeline de embeddings** (hecho): `gemini-embedding-001` de Google (gratis, multilingüe) recortado a 1536 dims — misma columna `vector(1536)`, sin migración. Clave `GEMINI_API_KEY` en Vercel + ingesta sembrada; la RPC `match_knowledge_chunks` fusiona semántica+léxica con RRF y degrada a léxica sin clave. Re-ingesta tras editar skills: `GEMINI_API_KEY=… POSTGRES_URL=<pooler-ipv4> node scripts/ingestar-knowledge.mjs` (idempotente).
+- [x] **Inspector de conocimiento en UI admin** (hecho): Configuración › Conocimiento IA (`/settings/ai-knowledge`) — buscador conectado a `/ai/knowledge` con filtro por categoría **y por tipo** (guion/fórmula/framework/secuencia/checklist), visor de chunks con badges de tipo y tags, e **indicador de rama** (Semántica + léxica vs Solo léxica) para detectar una clave de embeddings caída.
+- [x] **Metadatos enriquecidos + filtro por tipo en el RAG** (hecho, 20-sep): ingesta asigna `type` (script/formula/framework/sequence/checklist, enums de los esquemas RAG; swipe→script) y `tags` de rol a cada chunk; RPC con `p_types` (firma de 6 args, la de 5 conservada como envoltorio para no romper callers ni schema cache); `searchKnowledge`/tool del agente (`types` en el schema de la tool, con guía de cuándo usarlo) y endpoint con validación; el contexto del agente muestra el tipo de cada fragmento. Re-ingesta necesaria tras mergear para poblar los metadatos.
 - [ ] **Re-ingesta tras editar skills**: `POSTGRES_URL=<pooler-ipv4> node scripts/ingestar-knowledge.mjs` (ON CONFLICT actualiza; ver run doc para el pooler IPv4).
-- [ ] **Alta de colaboradores no encadena el envío del contrato de equipo** (hallazgo E2E 19-sep): el colaborador nace activo pero bloqueado hasta firma manual — cablear el envío automático.
+- [x] **Alta de colaboradores encadena el contrato de equipo** (hallazgo E2E 19-sep, resuelto): la ruta admin de Colaboradores y el registro público de afiliados crean y envían el contrato automáticamente vía `lib/contracts/team-contract.ts` (helper compartido con la ruta manual de Contratos › Equipo, con dedup idempotente y el % del alta mandando en las condiciones). Estado `pending_contract` hasta que el colaborador FIRMA — la firma (public-contracts/sign) lo activa a `active`.
+
+## 🧱 Deuda técnica (nuevo 20-sep)
+
+- [ ] **Tipar los clientes de Supabase** (`lib/supabase/client.ts` y `lib/supabase/server.ts` con el genérico `Database` de `lib/types/database-generated.ts`): hoy las queries NO se validan en compilación — las columnas fantasma pasan tsc y tests (así entraron `calendly_event_id` y `appointments.start_time`; 5 queries rotas corregidas el 20-sep, PR #89). Requiere barrido previo de casts `as` y payloads dinámicos que hoy silencian desfases; mientras no esté hecho, verificar toda columna nueva de query contra el esquema vivo (information_schema vía pooler) o contra `database-generated.ts`.
+- [ ] **Auditoría de columnas fantasma como test de CI**: el parser estático (selects/eq/order/or/inserts vs information_schema) ya demostró valor (5 queries rotas + el caso `calendly_event_id`); falta versionarlo en `scripts/` y gatearlo en el workflow. Límite conocido del parser: payloads por variable (no literales) no son verificables estáticamente — el tipado del punto anterior cubre ese hueco.
+- [ ] **Inventario esquema vs migraciones del repo** (relacionado, ya apuntado en 🔒 Seguridad): la auditoría de columnas cubre código→BD; el drift inverso (columnas en BD sin migración en el repo, tipo `flagged_delinquent`) sigue abierto.
 
 ## 💡 Mejoras futuras / ideas
 
@@ -93,5 +119,7 @@ Pendiente:
 
 ### Hecho recientemente (para contexto)
 
+**22-sep**: **Smoke E2E en CI con Playwright** (commit `70021b8`): job `e2e` tras quality — reservas end-to-end (diálogo → wizard con plan preseleccionado → cobro → detalle → visible en Reservas) y ficha de contacto (Información por defecto, persistencia de custom fields, filtro por campo) contra tenant QA `qa-e2e` provisionado idempotentemente (`scripts/e2e/setup-tenant.mjs`, password solo en secret `E2E_PASSWORD`). Lección clave: rotar la contraseña del usuario QA invalida sus sesiones (session_not_found) — fixtures UNA vez, antes del login, nunca en los specs.
+**20-sep**: **auditoría de columnas fantasma** — 5 queries rotas corregidas (PR #89): dashboard del colaborador sin citas/revenue (`start_time`/`amount`), audit de documentos que nunca se registró en `audit_logs` (columnas inexistentes tragadas por try/catch), backfill Stripe roto (`users.tenant_id`) · fix `calendly_event_id` en unit-economics (PR #86: el Funnel del negocio quedaba vacío en silencio) · cadena del `provider_message_id` de Resend + webhook idempotente con exención de middleware (PR #79/#82). Hallazgo estructural: clientes de Supabase sin tipar → nueva sección 🧱 Deuda técnica.
 **19-sep**: skills ventas/marketing + system prompts + esquemas RAG + reglas CLAUDE.md (#71) · protección de rama main con CI required (#70) · RAG: knowledge_chunks + tool searchKnowledge + endpoint + ingesta (#73) · fee_percent en UI de planes (base neta de comisiones) · sync Stripe con stripe_fee real + reconcile-all verificado al céntimo.
 Anteriores: Arquitectura por departamentos + RBAC · webhook GHL (matching por ID, customData) · IA facturas + análisis de llamadas (Groq+Claude) · Morosidad + rol Cobros · gastos recurrentes/sueldos (crons) · devoluciones · agendas (calendario + duración + métricas equipo + análisis IA) · biblioteca de facturas · dashboards del sheet antiguo (Company, Calls_Sales, Marketing funnel, Prospección, CSM, Leaderboards por rol) · recuperación de contraseña + invitaciones.

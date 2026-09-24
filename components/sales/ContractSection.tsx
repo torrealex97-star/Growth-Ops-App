@@ -5,6 +5,8 @@ import { FileText, Copy, Check, ExternalLink, Send, Loader2, ShieldCheck } from 
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
 import { useTenant } from '@/lib/tenant-context'
+import { AttachSignedContractButton } from '@/components/contracts/AttachSignedContractButton'
+import { SignedContractPdfButton } from '@/components/contracts/SignedContractPdfButton'
 
 type StudentContract = {
   id: string
@@ -301,6 +303,9 @@ export function ContractSection({ saleId }: { saleId: string }) {
           {/* Acciones */}
           <div className="flex flex-wrap gap-2 pt-1">
             {contract.status !== 'firmado' && (
+              <AttachSignedContractButton tenant={tenant} contractId={contract.id} onDone={load} />
+            )}
+            {contract.status !== 'firmado' && (
               <button
                 onClick={() => generate(true)}
                 disabled={busy}
@@ -311,14 +316,7 @@ export function ContractSection({ saleId }: { saleId: string }) {
               </button>
             )}
             {contract.signed_pdf_url && (
-              <a
-                href={contract.signed_pdf_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-emerald-600/20 text-emerald-300 border border-emerald-600/30 hover:bg-emerald-600/30"
-              >
-                <ExternalLink className="w-3.5 h-3.5" /> Descargar PDF firmado
-              </a>
+              <SignedContractPdfButton tenant={tenant} contractId={contract.id} label="Descargar PDF firmado" />
             )}
             <a
               href={contract.signUrl}
@@ -358,15 +356,11 @@ export function ContractSection({ saleId }: { saleId: string }) {
             />
           </div>
           <div className="flex flex-wrap gap-2 pt-1">
+            {payerContract.status !== 'firmado' && (
+              <AttachSignedContractButton tenant={tenant} contractId={payerContract.id} onDone={load} />
+            )}
             {payerContract.signed_pdf_url && (
-              <a
-                href={payerContract.signed_pdf_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-emerald-600/20 text-emerald-300 border border-emerald-600/30 hover:bg-emerald-600/30"
-              >
-                <ExternalLink className="w-3.5 h-3.5" /> Descargar PDF firmado
-              </a>
+              <SignedContractPdfButton tenant={tenant} contractId={payerContract.id} label="Descargar PDF firmado" />
             )}
             <a
               href={payerContract.signUrl}

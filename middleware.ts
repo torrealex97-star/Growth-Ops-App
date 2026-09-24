@@ -20,11 +20,18 @@ const PUBLIC_PATHS = [
   // Webhook de Resend (estados de entrega del módulo Emails): se autentica con la firma
   // svix de RESEND_WEBHOOK_SECRET — fail-closed en producción, como los demás webhooks.
   '/api/webhooks/resend',
+  // Webhook de Apify (investigación externa): se autentica con APIFY_WEBHOOK_SECRET (si está
+  // definido) y por "run conocido" — como los demás webhooks, no lleva sesión de usuario.
+  '/api/webhooks/apify',
   // Callback de OAuth con Google. No puede llevar la subcuenta en la ruta porque el URI de
   // redirección se registra literalmente en Google Cloud, así que no hay tenant del que exigir
   // sesión aquí. La ruta se autentica con el `state` FIRMADO que verifica ella misma: sin firma
   // válida no sigue adelante. Ver lib/google/oauth-state.ts.
   '/api/oauth/google/callback',
+  // Página intermedia de "Ver como": se autentica con el token OTP de un solo uso que trae en la
+  // query (el middleware NO puede exigir sesión — la sesión que crea es justamente su output).
+  // Vive fuera de /[tenant] porque el layout del tenant exige sesión (punto muerto).
+  '/ver-como',
 ]
 
 // Sub-rutas públicas DENTRO de un tenant (no requieren sesión Supabase),

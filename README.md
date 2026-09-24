@@ -1,6 +1,7 @@
 # Growth Ops
 
-**Sistema operativo de crecimiento multi-tenant**: CRM, ventas, marketing, finanzas y analítica en una sola aplicación Next.js, donde cada empresa trabaja en su propia **subcuenta aislada** dentro de la misma plataforma.
+**Sistema operativo multi-tenant**: 
+, donde cada empresa trabaja en su propia **subcuenta aislada** dentro de la misma plataforma.
 
 [![CI](https://github.com/torrealex97-star/Growth-Ops-App/actions/workflows/ci.yml/badge.svg)](https://github.com/torrealex97-star/Growth-Ops-App/actions/workflows/ci.yml)
 
@@ -10,7 +11,7 @@
 
 ## Qué es
 
-Plataforma de operaciones para negocios de venta consultiva (closers, admisiones, marketing de resultados) que necesita gobernar **todo el funnel en un único lugar**:
+Plataforma privada**:
 
 ```
 Lead → Agenda → Show → Oferta → Venta → Cobro → Entrega

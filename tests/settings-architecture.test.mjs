@@ -132,16 +132,14 @@ test('/crm redirige a la agenda en servidor, sin parpadeo de cliente', () => {
   assert.match(read('lib/nav.ts'), /label: 'CRM',\s*\n\s*href: '\/crm\/agendas'/)
 })
 
-// El payload crudo del webhook es un volcado interno: ids externos, campos técnicos y datos del
-// lead sin normalizar. Antes se pintaba abierto para cualquiera que pudiera ver la cita.
-test('el payload crudo de una cita está plegado y restringido', () => {
+// El payload crudo del webhook se RETIRA de la ficha: la decisión del usuario es que no aporta
+// nada — es ruido técnico (ids externos, JSON del proveedor) que nadie lee. El dato crudo sigue
+// en la base (raw_payload) para las métricas de cualificación y el diagnóstico del webhook.
+test('la ficha de cita ya no muestra el payload crudo del webhook', () => {
   const detail = read('components/appointments/AppointmentDetail.tsx')
-  assert.match(detail, /canSeeRawPayload\?: boolean/)
-  assert.match(detail, /canSeeRawPayload && appointment\.raw_payload/)
-  assert.match(detail, /<details/, 'debe ir plegado, fuera del flujo normal de la ficha')
-  // Y las respuestas legibles siguen visibles para todos: eso no se restringe.
-  assert.match(detail, /qualificationEntries\.length > 0/)
+  assert.doesNotMatch(detail, /rawPayloadVisible|Payload crudo del webhook/)
+  assert.doesNotMatch(detail, /canSeeRawPayload/, 'ni la prop, ni en ninguna llamada')
   for (const caller of ['app/[tenant]/crm/agendas/page.tsx', 'app/[tenant]/crm/seguimiento/page.tsx']) {
-    assert.match(read(caller), /canSeeRawPayload=\{isAdmin\}/, `${caller} no pasa la restricción`)
+    assert.doesNotMatch(read(caller), /canSeeRawPayload/, `${caller} aún pasa la prop`)
   }
 })

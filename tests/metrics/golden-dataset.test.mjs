@@ -24,6 +24,16 @@ const GOLDEN = {
     { id: 'cus_3', contactId: null },
   ],
   contactosConVenta: ['c1'],
+  // Pagos: pi_1 registrado por su charge; pi_2 (la segunda cuota de c1, cuyo cliente "ya tiene venta")
+  // sin cobro → 1 incidencia; pi_dev devuelto y aún contado como cobro → 1; pi_disp en disputa y sin
+  // cobro no cuenta como pendiente.
+  pagosStripe: [
+    { id: 'pi_1', refs: ['pi_1', 'ch_1'], status: 'succeeded' },
+    { id: 'pi_2', refs: ['pi_2', 'ch_2'], status: 'succeeded' },
+    { id: 'pi_dev', refs: ['pi_dev', 'ch_dev'], status: 'refunded' },
+    { id: 'pi_disp', refs: ['pi_disp', 'ch_disp'], status: 'disputed' },
+  ],
+  referenciasCobro: ['ch_1', 'pi_dev'],
   // s2 apunta a un contacto que no existe; s3 no tiene contacto → 2 incidencias.
   ventas: [
     { id: 's1', contactId: 'c1' },
@@ -60,6 +70,8 @@ test('golden dataset: cada control da el número exacto contado a mano', () => {
   assert.deepEqual(c.meta_cuenta_sin_datos.ejemplos, ['act_B'])
   assert.equal(c.pago_stripe_sin_venta.afectados, 1)
   assert.deepEqual(c.pago_stripe_sin_venta.ejemplos, ['cus_2'])
+  assert.deepEqual(c.pago_stripe_sin_cobro.ejemplos, ['pi_2'])
+  assert.deepEqual(c.cobro_de_pago_devuelto.ejemplos, ['pi_dev'])
   assert.equal(c.venta_sin_contacto.afectados, 2)
   assert.deepEqual(c.venta_sin_contacto.ejemplos, ['s2', 's3'])
   assert.equal(c.cliente_sin_emparejar.afectados, 1)
@@ -77,6 +89,8 @@ test('golden dataset: un universo sano da CERO en todos los controles', () => {
     cuentasConCampanas: ['act_A', 'act_B'],
     clientesStripe: [{ id: 'cus_1', contactId: 'c1' }],
     contactosConVenta: ['c1'],
+    pagosStripe: [{ id: 'pi_1', refs: ['pi_1', 'ch_1'], status: 'succeeded' }],
+    referenciasCobro: ['pi_1'],
     ventas: [{ id: 's1', contactId: 'c1' }],
     campanas: [{ id: 'camp_1', conAtribucion: true }],
     agendas: [{ id: 'a1', contactId: 'c1' }],
@@ -110,6 +124,8 @@ test('el resumen prioriza crítico, y "incompleto" gana a "ok"', () => {
     ...GOLDEN,
     cuentasConCampanas: ['act_A', 'act_B'],
     clientesStripe: [{ id: 'cus_3', contactId: null }],
+    pagosStripe: [{ id: 'pi_1', refs: ['pi_1', 'ch_1'], status: 'succeeded' }],
+    referenciasCobro: ['pi_1'],
     ventas: [{ id: 's1', contactId: 'c1' }],
     agendas: [{ id: 'a1', contactId: 'c1' }],
   }
@@ -119,6 +135,8 @@ test('el resumen prioriza crítico, y "incompleto" gana a "ok"', () => {
     ...GOLDEN,
     cuentasConCampanas: ['act_A', 'act_B'],
     clientesStripe: [{ id: 'cus_1', contactId: 'c1' }],
+    pagosStripe: [{ id: 'pi_1', refs: ['pi_1', 'ch_1'], status: 'succeeded' }],
+    referenciasCobro: ['pi_1'],
     ventas: [{ id: 's1', contactId: 'c1' }],
     campanas: [{ id: 'camp_1', conAtribucion: true }],
     agendas: [{ id: 'a1', contactId: 'c1' }],

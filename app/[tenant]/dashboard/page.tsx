@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
+import { mensajeDeCarga, primerError } from '@/lib/supabase/resultado'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { TeamRanking } from '@/components/os/TeamRanking'
 import { AttributionTable } from '@/components/os/AttributionTable'
-import { SetterAgendas } from '@/components/os/SetterAgendas'
 import { KaizenWidget } from '@/components/os/KaizenWidget'
 import { DailyQuoteWidget } from '@/components/os/DailyQuoteWidget'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
@@ -39,16 +39,19 @@ import {
   teamRanking,
   attributionBySource,
   targetCurrentValue,
-  setterAgendaStats,
   isActiveSale,
   funnelBySource,
   aggregateFunnel,
+  leadDate,
   type SaleRow,
   type CollectionRow,
   type AttributionRow,
   type UserRow,
   type AppointmentRow,
 } from '@/lib/analytics'
+import { agendasPorPersona, ventasPorColaborador } from '@/lib/analytics-agendas'
+import { AgendasPorPersona, type PersonaTab } from '@/components/os/AgendasPorPersona'
+import { isCancelled } from '@/lib/unit-economics'
 import { formatCurrency } from '@/lib/utils'
 import { FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 import type { SavedDashboardView } from '@/lib/types/database'
@@ -136,6 +139,8 @@ function DashboardEquipo() {
   const sesion = useSesion()
 
   const [loading, setLoading] = useState(true)
+  // Un fallo de lectura NO se pinta como 0 €: ver lib/supabase/resultado.ts.
+  const [errorCarga, setErrorCarga] = useState<string | null>(null)
   const [userName, setUserName] = useState('')
   const [userId, setUserId] = useState<string | null>(null)
   const [myRoleKey, setMyRoleKey] = useState<AppRole | ''>('')
@@ -144,14 +149,28 @@ function DashboardEquipo() {
   const [commissions, setCommissions] = useState<
     { user_id: string; sale_id: string | null; commission_amount: number | string; direction: string; status: string }[]
   >([])
-  const [futureCommissions, setFutureCommissions] = useState<{ userId: string; saleId: string; amount: number }[]>([])
+  const [futureCommissions, setFutureCommissions] = useState<
+    {
+      userId: string
+      saleId: string
+      amount: number
+      dueDate: string
+      source: string
+      estado?: 'pending' | 'overdue' | 'review'
+    }[]
+  >([])
   const [users, setUsers] = useState<UserRow[]>([])
   const [roleUsers, setRoleUsers] = useState<RoleUser[]>([])
   const [contactIds, setContactIds] = useState<string[]>([])
-  const [contacts, setContacts] = useState<{ id: string; created_at: string | null }[]>([])
+  const [contacts, setContacts] = useState<
+    { id: string; created_at: string | null; first_seen_at: string | null; first_contact_at: string | null }[]
+  >([])
   const [attributions, setAttributions] = useState<AttributionRow[]>([])
   const [appointments, setAppointments] = useState<AppointmentRow[]>([])
   const [targets, setTargets] = useState<TargetRow[]>([])
+  // Perfiles de colaborador activos de la subcuenta (para el tab Colaboradores de agendas/ventas).
+  const [collabProfiles, setCollabProfiles] = useState<{ id: string; name: string }[]>([])
+  const [personaTab, setPersonaTab] = useState<PersonaTab>('closer')
   const [ym, setYm] = useState(nowYm())
 
   // --- Eficiencia de marketing (gasto real de Meta Ads del periodo, vía campaign_daily) ---
@@ -221,53 +240,79 @@ function DashboardEquipo() {
       setMyFijoMinSales(Number(userData.fijo_min_sales ?? 0))
       setMyFijoMinRevenue(Number(userData.fijo_min_revenue ?? 0))
 
-      const [salesRes, collRes, usersRes, roleUsersRes, contactsRes, attrRes, apptRes, targetsRes, viewsRes, commRes] =
-        await Promise.all([
-          supabase
-            .from('sales')
-            .select('id, gross_amount, status, sale_date, closer_id, setter_id, affiliate_id, contact_id')
-            .range(0, FINANCE_QUERY_ROW_CAP),
-          supabase
-            .from('collections')
-            .select('sale_id, gross_amount, collected_at, status')
-            .range(0, FINANCE_QUERY_ROW_CAP),
-          supabase.from('users').select('id, full_name'),
-          supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
-          supabase.from('contacts').select('id, created_at').range(0, FINANCE_QUERY_ROW_CAP),
-          supabase
-            .from('contact_attributions')
-            .select('contact_id, source, utm_source, utm_campaign, utm_content, is_primary')
-            .range(0, FINANCE_QUERY_ROW_CAP),
-          supabase
-            .from('appointments')
-            .select('appointment_datetime, status, setter_id, closer_id, cold_caller_id, affiliate_id')
-            .range(0, FINANCE_QUERY_ROW_CAP),
-          supabase
-            .from('targets')
-            .select(
-              'id, name, metric_key, scope_type, scope_user_id, period_type, period_start, period_end, target_value'
-            )
-            .eq('is_active', true)
-            .eq('scope_type', 'company'),
-          supabase.from('saved_dashboard_views').select('*').or(`user_id.eq.${sesion.userId},scope.eq.shared`),
-          supabase
-            .from('commissions')
-            .select('user_id, sale_id, commission_amount, direction, status')
-            .range(0, FINANCE_QUERY_ROW_CAP),
-        ])
+      const [
+        salesRes,
+        collRes,
+        usersRes,
+        roleUsersRes,
+        contactsRes,
+        attrRes,
+        apptRes,
+        targetsRes,
+        viewsRes,
+        commRes,
+        collabRes,
+      ] = await Promise.all([
+        supabase
+          .from('sales')
+          .select('id, gross_amount, status, sale_date, closer_id, setter_id, affiliate_id, contact_id')
+          .range(0, FINANCE_QUERY_ROW_CAP),
+        supabase
+          .from('collections')
+          .select('sale_id, gross_amount, collected_at, status')
+          .range(0, FINANCE_QUERY_ROW_CAP),
+        supabase.from('users').select('id, full_name'),
+        supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
+        supabase
+          .from('contacts')
+          .select('id, created_at, first_seen_at, first_contact_at')
+          .range(0, FINANCE_QUERY_ROW_CAP),
+        supabase
+          .from('contact_attributions')
+          .select('contact_id, source, utm_source, utm_campaign, utm_content, is_primary, collaborator_id')
+          .range(0, FINANCE_QUERY_ROW_CAP),
+        supabase
+          .from('appointments')
+          .select('appointment_datetime, status, setter_id, closer_id, cold_caller_id, affiliate_id, contact_id')
+          .range(0, FINANCE_QUERY_ROW_CAP),
+        supabase
+          .from('targets')
+          .select(
+            'id, name, metric_key, scope_type, scope_user_id, period_type, period_start, period_end, target_value'
+          )
+          .eq('is_active', true)
+          .eq('scope_type', 'company'),
+        supabase.from('saved_dashboard_views').select('*').or(`user_id.eq.${sesion.userId},scope.eq.shared`),
+        supabase
+          .from('commissions')
+          .select('user_id, sale_id, commission_amount, direction, status')
+          .range(0, FINANCE_QUERY_ROW_CAP),
+        // Perfiles de colaborador de la subcuenta (RLS la acota): nombres del tab Colaboradores.
+        supabase.from('collaborator_profiles').select('id, name, status').eq('status', 'active'),
+      ])
 
       if (!mounted) return
+      const fallo = primerError(salesRes, collRes, usersRes, contactsRes, attrRes, apptRes, targetsRes, commRes)
+      setErrorCarga(fallo ? mensajeDeCarga('los datos del panel', fallo) : null)
       setSales(salesRes.data || [])
       setCollections(collRes.data || [])
       setUsers(usersRes.data || [])
       setRoleUsers((roleUsersRes.data as RoleUser[] | null) || [])
       setContactIds((contactsRes.data || []).map((c: { id: string }) => c.id))
-      setContacts((contactsRes.data as { id: string; created_at: string | null }[]) || [])
+      setContacts(
+        (contactsRes.data as {
+          id: string
+          created_at: string | null
+          first_seen_at: string | null
+          first_contact_at: string | null
+        }[]) || []
+      )
       setAttributions(attrRes.data || [])
       setAppointments(apptRes.data || [])
       setTargets(targetsRes.data || [])
       setSavedViews((viewsRes.data as SavedDashboardView[] | null) || [])
       setCommissions(commRes.data || [])
+      setCollabProfiles((collabRes.data as { id: string; name: string; status: string }[] | null) || [])
       setLoading(false)
 
       // Comisiones futuras (esperadas, por cobrar) — endpoint server-side (respeta visibilidad por rol)
@@ -372,7 +417,12 @@ function DashboardEquipo() {
   }, [collections, filteredSaleIds, range])
 
   const filteredAppointments = useMemo(() => {
-    return appointments.filter((a) => apptMatches(a) && inPeriod(a.appointment_datetime, range))
+    // Una cancelación NO es una agenda del embudo: la cita no ocurrirá. (Unificado con
+    // buildSalesOverview de unit-economics, que ya excluía canceladas; antes el strip contaba
+    // canceladas y por eso "Agendas" inflaba: 120 en el mes eran 73 vivas + 47 canceladas.)
+    return appointments.filter(
+      (a) => !isCancelled(a.status) && apptMatches(a) && inPeriod(a.appointment_datetime, range)
+    )
   }, [appointments, apptMatches, range])
 
   const cur = useMemo(
@@ -407,7 +457,10 @@ function DashboardEquipo() {
   // toda la vida de la cuenta?"). No se filtra por rol/persona: un lead no pertenece a un closer.
   const filteredContactIds = useMemo(() => {
     // Sin atajo para 'all' (inPeriod con rango abierto = todo): un solo camino de filtrado.
-    return contacts.filter((c) => inPeriod(c.created_at, range)).map((c) => c.id)
+    // Por FECHA REAL del lead (leadDate = first_seen_at → first_contact_at → created_at), no por
+    // created_at: la importación histórica de GHL estampó todos los created_at el mismo día y
+    // "Este mes" contaba los ~1000 leads importados como si fueran de este mes.
+    return contacts.filter((c) => inPeriod(leadDate(c), range)).map((c) => c.id)
   }, [contacts, range])
 
   const funnelTotals = useMemo(
@@ -433,9 +486,36 @@ function DashboardEquipo() {
     [filteredSales]
   )
 
-  const setterAgendas = useMemo(
-    () => setterAgendaStats(filteredAppointments, usersWithRole),
-    [filteredAppointments, usersWithRole]
+  // --- Agendas y ventas POR PERSONA (closer/setter/colaborador) ---
+  // Los colaboradores se resuelven vía contact_attributions.collaborator_id (relación estructurada;
+  // el código legible nunca es identidad). Los perfiles dan el nombre legible.
+  const colaboradorDe = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const a of attributions) if (a.collaborator_id) m.set(a.contact_id, a.collaborator_id)
+    return m
+  }, [attributions])
+  const nombreDe = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const u of users) m.set(u.id, u.full_name)
+    for (const p of collabProfiles) m.set(p.id, p.name)
+    return m
+  }, [users, collabProfiles])
+  const agendasPersona = useMemo(
+    () =>
+      agendasPorPersona(filteredAppointments, {
+        persona: personaTab,
+        nameOf: nombreDe,
+        collaboratorOf: colaboradorDe,
+      }),
+    [filteredAppointments, personaTab, nombreDe, colaboradorDe]
+  )
+  const ventasColab = useMemo(
+    () =>
+      ventasPorColaborador(filteredSales, filteredCollections, {
+        nameOf: nombreDe,
+        collaboratorOf: colaboradorDe,
+      }),
+    [filteredSales, filteredCollections, nombreDe, colaboradorDe]
   )
 
   // Comisiones del ámbito filtrado: ganada (cash collected, sin liquidar, neto de devoluciones) y
@@ -454,6 +534,31 @@ function DashboardEquipo() {
       .reduce((s, f) => s + Number(f.amount), 0)
     return { ganada, futura }
   }, [commissions, futureCommissions, filteredSaleIds, member])
+
+  // COMISIONES FUTURAS POR MES (claridad del colaborador): cada fila de la proyección lleva la
+  // fecha de vencimiento de la cuota — agrupo por ese mes para responder "cuánto me caerá cada
+  // mes SI mis referidos pagan". El mes en curso separa lo YA COBRADO (cash recogido, la
+  // comisión es real y entra en la próxima liquidación) de lo POR COBRAR (aún depende del pago
+  // del cliente). Igual para closer, setter y afiliado: cada quien ve SUS filas.
+  const futurePorMes = useMemo(() => {
+    const visibles = futureCommissions.filter(
+      (f) => filteredSaleIds.has(f.saleId) && (member === 'all' || f.userId === member)
+    )
+    const mapa = new Map<string, { cobrado: number; porCobrar: number }>()
+    const ymActual = nowYm()
+    for (const f of visibles) {
+      // Impago real (vencida sin cobrar): no es ni cobrado ni futuro — vive en Cobros/morosidad.
+      if (f.estado === 'overdue') continue
+      const ymCuota = (f.dueDate || '').slice(0, 7)
+      if (!ymCuota) continue
+      const e = mapa.get(ymCuota) ?? { cobrado: 0, porCobrar: 0 }
+      // source 'review' = cuota YA cobrada esperando revisión manual de cobros → comisión real.
+      if (f.source === 'review' || ymCuota < ymActual) e.cobrado += Number(f.amount)
+      else e.porCobrar += Number(f.amount)
+      mapa.set(ymCuota, e)
+    }
+    return [...mapa.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([ym, v]) => ({ ym, ...v }))
+  }, [futureCommissions, filteredSaleIds, member])
 
   // Fijo del usuario logueado en el mes `ym`: cuenta sus ventas del mes, comprueba si desbloquea el
   // fijo (>= fijo_min_sales) y suma fijo + comisiones = total que cobra "on time" este mes.
@@ -572,6 +677,19 @@ function DashboardEquipo() {
 
   return (
     <div className="dashboard-surface p-4 sm:p-6 space-y-5">
+      {errorCarga && (
+        <div className="dashboard-card border-destructive/40 p-4">
+          <p className="text-foreground text-sm font-medium">Faltan datos para calcular estas cifras</p>
+          <p className="text-muted-foreground mt-1 text-sm">{errorCarga}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="text-primary mt-2 text-sm hover:underline"
+            type="button"
+          >
+            Reintentar
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -673,6 +791,42 @@ function DashboardEquipo() {
           />
         </div>
       </div>
+
+      {/* Desglose mes a mes de las comisiones futuras: qué ya está cobrado (cash recogido,
+          comisión real) y qué depende de que los referidos paguen. Igual para closer, setter y
+          afiliado — cada quien ve sus filas respetando los filtros de persona. */}
+      {!loading && futurePorMes.length > 0 && (
+        <div className="dashboard-card p-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+            <h3 className="text-sm font-semibold text-foreground">Comisiones a futuro, mes a mes</h3>
+            <p className="text-xs text-muted-foreground">
+              La comisión de un mes se confirma cuando tus referidos pagan su cuota de ese mes.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
+                  <th className="py-2 pr-4 font-medium">Mes de cobro</th>
+                  <th className="py-2 pr-4 font-medium text-right">Ya cobrado</th>
+                  <th className="py-2 pr-4 font-medium text-right">Por cobrar</th>
+                  <th className="py-2 font-medium text-right">Total del mes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {futurePorMes.map((m) => (
+                  <tr key={m.ym} className="border-t border-border">
+                    <td className="py-2 pr-4 font-medium text-foreground">{monthLabel(m.ym)}</td>
+                    <td className="py-2 pr-4 text-right text-emerald-400">{m.cobrado ? fmt(m.cobrado) : '—'}</td>
+                    <td className="py-2 pr-4 text-right text-amber-400">{m.porCobrar ? fmt(m.porCobrar) : '—'}</td>
+                    <td className="py-2 text-right font-semibold text-foreground">{fmt(m.cobrado + m.porCobrar)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div>
         <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Facturación de {monthLabel(ym)}</h2>
@@ -816,10 +970,10 @@ function DashboardEquipo() {
         />
       )}
 
-      {/* Ranking + Agendas por setter */}
+      {/* Ranking + Agendas por persona */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <TeamRanking closers={closers} setters={setters} />
-        <SetterAgendas rows={setterAgendas} />
+        <TeamRanking closers={closers} setters={setters} colaboradores={ventasColab} />
+        <AgendasPorPersona rows={agendasPersona} persona={personaTab} onPersonaChange={setPersonaTab} />
       </div>
 
       {/* Atribución */}
