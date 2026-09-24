@@ -212,6 +212,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
     const ventas = salesResult.error
       ? null
       : (salesResult.data ?? []).map((v) => ({ id: v.id, contactId: v.contact_id }))
+    const seleccionadas = new Set(parseAccountIds(cfg.META_AD_ACCOUNT_ID))
     const clientesStripe = stripeResult.error
       ? null
       : (stripeResult.data ?? []).map((c) => ({ id: c.id, contactId: c.contact_id }))
@@ -223,6 +224,19 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
       cuentasConCampanas: adAccountsResult.error
         ? null
         : [...new Set((adAccountsResult.data ?? []).map((c) => c.account_id).filter(Boolean))],
+      // Campañas de cuentas FUERA de la selección: la fuga inversa (antes se colaban en dashboards).
+      // Con lista vacía en Integraciones ("todas las accesibles") no hay nada fuera de selección.
+      campanasFueraDeSeleccion: adAccountsResult.error
+        ? null
+        : seleccionadas.size > 0
+          ? [
+              ...new Set(
+                (adAccountsResult.data ?? [])
+                  .map((c) => c.account_id)
+                  .filter((a): a is string => !!a && !seleccionadas.has(a))
+              ),
+            ]
+          : [],
       clientesStripe,
       pagosStripe: pagosResult.error
         ? null

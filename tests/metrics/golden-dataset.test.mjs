@@ -17,6 +17,8 @@ const GOLDEN = {
   // A trajo campañas; B está seleccionada y NO trajo nada → 1 incidencia.
   cuentasSeleccionadas: ['act_A', 'act_B'],
   cuentasConCampanas: ['act_A'],
+  // Una campaña sincronizada de una cuenta deseleccionada → 1 incidencia de la fuga inversa.
+  campanasFueraDeSeleccion: ['act_X', 'act_X', 'act_Y', ''],
   // c1 tiene venta; c2 no (su pago no está registrado) → 1 incidencia. cus_3 sin emparejar → 1.
   clientesStripe: [
     { id: 'cus_1', contactId: 'c1' },
@@ -68,6 +70,9 @@ test('golden dataset: cada control da el número exacto contado a mano', () => {
   const c = porId(runCrossChecks(GOLDEN))
   assert.equal(c.meta_cuenta_sin_datos.afectados, 1)
   assert.deepEqual(c.meta_cuenta_sin_datos.ejemplos, ['act_B'])
+  // Fuga inversa: el control cuenta CUENTAS, no filas — act_X dos veces es UNA cuenta colada.
+  assert.equal(c.campana_cuenta_no_seleccionada.afectados, 2)
+  assert.deepEqual(c.campana_cuenta_no_seleccionada.ejemplos, ['act_X', 'act_Y'])
   assert.equal(c.pago_stripe_sin_venta.afectados, 1)
   assert.deepEqual(c.pago_stripe_sin_venta.ejemplos, ['cus_2'])
   assert.deepEqual(c.pago_stripe_sin_cobro.ejemplos, ['pi_2'])
@@ -87,6 +92,7 @@ test('golden dataset: un universo sano da CERO en todos los controles', () => {
   const sano = {
     ...GOLDEN,
     cuentasConCampanas: ['act_A', 'act_B'],
+    campanasFueraDeSeleccion: [],
     clientesStripe: [{ id: 'cus_1', contactId: 'c1' }],
     contactosConVenta: ['c1'],
     pagosStripe: [{ id: 'pi_1', refs: ['pi_1', 'ch_1'], status: 'succeeded' }],
@@ -117,12 +123,24 @@ test('un conjunto que no se pudo leer da DESCONOCIDO, nunca cero', () => {
   assert.match(c.venta_sin_contacto.detalle, /No se pudo comprobar/)
 })
 
+test('selección vacía ("todas las accesibles") no es fuga: el control queda a cero', () => {
+  const todas = runCrossChecks({ ...GOLDEN, campanasFueraDeSeleccion: ['act_X'], cuentasSeleccionadas: [] })
+  // El control de cuentas coladas NO mira la selección (vacía = todas): pero la sync sí, así que
+  // quien alimenta el control no encontrará fuera-de-selección con lista vacía. Aquí se fija el
+  // comportamiento del MÓDULO: lo que le llega, lo cuenta.
+  assert.equal(porId(todas).campana_cuenta_no_seleccionada.afectados, 1)
+  // Y null (lectura fallida) es desconocido, no 0.
+  const sinLeer = runCrossChecks({ ...GOLDEN, campanasFueraDeSeleccion: null })
+  assert.equal(porId(sinLeer).campana_cuenta_no_seleccionada.gravedad, 'desconocido')
+})
+
 test('el resumen prioriza crítico, y "incompleto" gana a "ok"', () => {
   assert.equal(resumenCross(runCrossChecks(GOLDEN)).estado, 'critico')
   // Solo avisos: ninguna incidencia crítica.
   const soloAvisos = {
     ...GOLDEN,
     cuentasConCampanas: ['act_A', 'act_B'],
+    campanasFueraDeSeleccion: [],
     clientesStripe: [{ id: 'cus_3', contactId: null }],
     pagosStripe: [{ id: 'pi_1', refs: ['pi_1', 'ch_1'], status: 'succeeded' }],
     referenciasCobro: ['pi_1'],
@@ -134,6 +152,7 @@ test('el resumen prioriza crítico, y "incompleto" gana a "ok"', () => {
   const incompleto = {
     ...GOLDEN,
     cuentasConCampanas: ['act_A', 'act_B'],
+    campanasFueraDeSeleccion: [],
     clientesStripe: [{ id: 'cus_1', contactId: 'c1' }],
     pagosStripe: [{ id: 'pi_1', refs: ['pi_1', 'ch_1'], status: 'succeeded' }],
     referenciasCobro: ['pi_1'],
