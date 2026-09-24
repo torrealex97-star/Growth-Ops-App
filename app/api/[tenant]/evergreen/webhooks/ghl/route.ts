@@ -170,7 +170,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const payload = await req.json()
+    // EL CUERPO LLEGA A VECES VACÍO O ROTO. GHL dispara workflows sin cuerpo (o con uno que no
+    // es JSON) y de tanto en tanto lo entrega así. Antes esto reventaba en el catch final como
+    // 500 "Internal error" sin sobre, sin acta y sin ni una línea en el log: la entrega
+    // desaparecía de puro silencio (auditoría del 23-sep: entregas diarias de GHL, cero
+    // registradas desde el día 22). Stripe responde 400 a lo mismo desde su capa en bruto; aquí
+    // también. 400 es la respuesta honesta: no es un fallo nuestro (no hay nada que reintentar)
+    // y queda en el log para distinguir "GHL dejó de enviar" de "GHL envía basura".
+    const crudo = await req.text()
+    let payload: Record<string, unknown>
+    try {
+      payload = JSON.parse(crudo) as Record<string, unknown>
+    } catch {
+      console.warn(`[ghl-webhook] 400: cuerpo vacío o JSON inválido (longitud ${crudo.length}); entrega no procesable`)
+      return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
+    }
 
     // GHL puede enviar los campos de 3 formas: planos, dentro de "customData",
     // o anidados en "contact"/"appointment". Normalizamos todo al nivel raíz para
@@ -288,7 +302,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json(cuerpo, init)
     }
 
-    const event = (req.nextUrl.searchParams.get('event') || payload.event || payload.type || '').toLowerCase()
+    const event = (
+      req.nextUrl.searchParams.get('event') ||
+      (payload.event as string) ||
+      (payload.type as string) ||
+      ''
+    ).toLowerCase()
 
     // --- Campos comunes ---
     const email = (pick(payload.email) as string | null)?.toLowerCase?.()?.trim() || null
@@ -536,7 +555,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Si GHL no manda el setter por email, atribúyelo por el utm_term del enlace de agenda del setter
     // (utm_term → users.tracking_code), igual que en Calendly, para que su agenda se le contabilice.
     if (!setterId && utm.utm_term) {
-      setterId = await resolveUserIdByTrackingCode(sb, utm.utm_term, tenantId)
+      setterId = await resolveUserIdByTrackingCode(sb, utm.utm_term as string, tenantId)
     }
     // Si el lead/agenda viene de un setter, deja constancia del origen en el
     // contacto (sin pisar un origen ya asignado) → marca "De setter" en Leads.
