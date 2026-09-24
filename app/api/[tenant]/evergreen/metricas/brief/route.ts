@@ -9,6 +9,8 @@ import { calcularSalud } from '@/lib/metrics/salud'
 import { construirBrief } from '@/lib/metrics/brief'
 import { alertaCalidadDato, alertaKpi, type Alerta } from '@/lib/metrics/alertas'
 import { cargarContextoNegocio } from '@/lib/ai/agent/contexto'
+import { getTenantConfigWithFallback } from '@/lib/config'
+import { parseAccountIds } from '@/lib/meta/accounts'
 
 export const runtime = 'nodejs'
 
@@ -53,7 +55,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
 
   let consulta
   try {
-    consulta = await consultarMetricas(sb, auth.tenantId, periodo)
+    // Solo las cuentas de ads seleccionadas en Integraciones: el gasto de cuentas históricas
+    // deseleccionadas no es gasto del negocio y no puede entrar en el brief.
+    const cfg = await getTenantConfigWithFallback(auth.tenantId)
+    consulta = await consultarMetricas(sb, auth.tenantId, periodo, parseAccountIds(cfg.META_AD_ACCOUNT_ID))
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'No se pudieron leer las métricas', requestId: auth.requestId },

@@ -97,7 +97,15 @@ async function campanasAsignadas(sb: SupabaseClient, tenantId: string, family: F
   }
 }
 
-async function metaStages(sb: SupabaseClient, tenantId: string, range: DateRange, campaignIds: string[] | null) {
+async function metaStages(
+  sb: SupabaseClient,
+  tenantId: string,
+  range: DateRange,
+  campaignIds: string[] | null,
+  // Cuentas de ads seleccionadas en Integraciones (vacío = todas). La tabla conserva históricos de
+  // cuentas ya deseleccionadas: sin este filtro, su gasto inflaba la inversión del funnel.
+  cuentasAds: string[] = []
+) {
   // Paginado: `campaign_daily` tiene una fila por campaña y día, así que unos meses de histórico
   // pasan de las 1.000 filas que devuelve PostgREST como máximo. Sin paginar, el gasto y las
   // impresiones del embudo salían recortados sin ningún aviso — más bajos que los reales.
@@ -118,6 +126,9 @@ async function metaStages(sb: SupabaseClient, tenantId: string, range: DateRange
     // Con asignaciones manuales, las etapas Meta de la familia cuentan SOLO esas campañas.
     // Sin asignación (null) se mantiene el total del tenant: no convertir "sin clasificar" en 0.
     if (ids) q = q.in('campaign_id', ids)
+    // Y SOLO campañas de las cuentas elegidas en Integraciones: el gasto de cuentas históricas
+    // deseleccionadas no es del negocio que se está mirando.
+    if (cuentasAds.length > 0) q = q.in('account_id', cuentasAds)
     return q
   })
   if (error) {
@@ -215,7 +226,9 @@ export async function loadFunnelCounts(
   range: DateRange,
   // Mapeo de etapa → nombres de evento de esta subcuenta. Vacío por defecto: sin mapeo, las etapas
   // de tracking siguen saliendo como 'no_configurada', que es la verdad.
-  eventMap: EventMap = {}
+  eventMap: EventMap = {},
+  // Cuentas de ads seleccionadas en Integraciones (vacío = todas, el convenio de la app).
+  cuentasAds: string[] = []
 ): Promise<{ counts: Record<string, MetricValue>; inversion: number | null }> {
   const stages = stagesOf(family)
   const needsCrm = stages.some((s) => s.source === 'crm')
@@ -238,7 +251,7 @@ export async function loadFunnelCounts(
     if (!needsMeta) return null
     try {
       const ids = await campanasAsignadas(sb, tenantId, family)
-      return await metaStages(sb, tenantId, range, ids)
+      return await metaStages(sb, tenantId, range, ids, cuentasAds)
     } catch (e) {
       return { error: e instanceof Error ? e.message : 'Error al leer Meta' } as const
     }
