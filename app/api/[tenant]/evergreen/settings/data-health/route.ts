@@ -7,6 +7,7 @@ import { resumenCross, runCrossChecks } from '@/lib/data-health/cross-source'
 import { parseAccountIds } from '@/lib/meta/accounts'
 import { CONECTORES, pendientesDeMigrar } from '@/lib/conectores/registro'
 import { saludDeConector } from '@/lib/data-health/conectores'
+import { saludSobreGhl } from '@/lib/data-health/webhooks'
 import { lastRunsByJob } from '@/lib/integrations/sync-runs'
 
 export const runtime = 'nodejs'
@@ -85,6 +86,19 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
           .limit(10000),
       ])
 
+    // ÚLTIMO SOBRE DE GHL EN LA CAPA EN BRUTO (F1): la evidencia de que el webhook recibe. A
+    // diferencia de la lectura masiva de arriba (limite 10000), esta es una query acotada y ordenada:
+    // el dato que hace falta es UNA fecha, no el histórico. Un fallo NO aborta: sin la fecha el
+    // control dirá "no se pudo comprobar" y el resto de la pantalla sigue informando.
+    const sobreGhlResult = await sb
+      .from('raw_events')
+      .select('created_at')
+      .eq('tenant_id', auth.tenantId)
+      .eq('source', 'ghl')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
     // Estado por CONECTOR: sale del historial de ejecuciones y del manifiesto, no de las filas que
     // haya en las tablas. Una integración que lleva días fallando enseña la fecha del último dato
     // bueno y parece sana; esto dice si la tubería sigue abierta. Si el historial falla, la sección
@@ -99,6 +113,16 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
     const conectores = CONECTORES.filter((c) => c.manifest.provider !== 'plantilla').map((c) =>
       saludDeConector(c.manifest, { clavesConfiguradas, ejecuciones })
     )
+
+    // SALUD DEL WEBHOOK DE GHL (la mitad que ESPERA datos): `raw_events` es la evidencia de
+    // recepción real. Con la integración configurada, 24 h sin sobres = tiempo real roto, aunque el
+    // cron siga trayendo datos viejos que disimulen el síntoma. Configurado = credenciales de pull
+    // o secret del webhook; si no usa GHL, el control no avisa.
+    const saludGhl = saludSobreGhl({
+      configurado: Boolean(cfg.GHL_API_TOKEN && cfg.GHL_LOCATION_ID) || clavesConfiguradas.has('GHL_WEBHOOK_SECRET'),
+      ultimoSobre: sobreGhlResult.error ? null : (sobreGhlResult.data?.created_at ?? null),
+      leido: !sobreGhlResult.error,
+    })
 
     const contacts = (contactsResult.data ?? []) as Contact[]
     const appointments = (appointmentsResult.data ?? []) as Appointment[]
@@ -177,6 +201,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
       conectores,
       // Cuántas integraciones siguen sin contrato: la sección dice de qué está hablando y de qué no.
       conectoresPendientes: pendientesDeMigrar(),
+      saludWebhookGhl: saludGhl,
       totals: { contacts: contacts.length, appointments: appointments.length },
       sources: [
         source('meta', 'Meta Ads', Boolean(cfg.META_ACCESS_TOKEN), campaigns.length, latest(campaigns, 'synced_at')),
