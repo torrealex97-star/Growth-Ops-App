@@ -72,30 +72,30 @@ const TOOLS: Anthropic.Tool[] = [
   },
 ]
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-async function executeTool(tenantId: string, projectId: string, name: string, input: any): Promise<string> {
+async function executeTool(tenantId: string, projectId: string, name: string, input: unknown): Promise<string> {
+  const b = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>
   try {
     if (name === 'add_slide') {
-      const slide = await addSlide(tenantId, projectId, String(input.html || ''), String(input.notes || ''))
+      const slide = await addSlide(tenantId, projectId, String(b.html || ''), String(b.notes || ''))
       if (!slide) return `ERROR: no se pudo añadir la slide (límite ${MAX_SLIDES} alcanzado o proyecto inexistente).`
       return `OK: slide añadida con id ${slide.id}.`
     }
     if (name === 'update_slide') {
-      const slide = await updateSlide(tenantId, projectId, String(input.slideId), {
-        html: input.html !== undefined ? String(input.html) : undefined,
-        notes: input.notes !== undefined ? String(input.notes) : undefined,
+      const slide = await updateSlide(tenantId, projectId, String(b.slideId), {
+        html: b.html !== undefined ? String(b.html) : undefined,
+        notes: b.notes !== undefined ? String(b.notes) : undefined,
       })
-      if (!slide) return `ERROR: no existe la slide ${input.slideId}.`
+      if (!slide) return `ERROR: no existe la slide ${b.slideId}.`
       return `OK: slide ${slide.id} actualizada.`
     }
     if (name === 'delete_slide') {
-      const ok = await deleteSlide(tenantId, projectId, String(input.slideId))
-      return ok ? `OK: slide ${input.slideId} eliminada.` : `ERROR: no existe la slide ${input.slideId}.`
+      const ok = await deleteSlide(tenantId, projectId, String(b.slideId))
+      return ok ? `OK: slide ${b.slideId} eliminada.` : `ERROR: no existe la slide ${b.slideId}.`
     }
     if (name === 'set_caption') {
       await updateProject(tenantId, projectId, {
-        caption: String(input.caption || ''),
-        hashtags: Array.isArray(input.hashtags) ? input.hashtags.map(String) : [],
+        caption: String(b.caption || ''),
+        hashtags: Array.isArray(b.hashtags) ? b.hashtags.map(String) : [],
       })
       return `OK: caption y hashtags guardados.`
     }
@@ -105,7 +105,12 @@ async function executeTool(tenantId: string, projectId: string, name: string, in
   }
 }
 
-const SUPPORTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+const SUPPORTED_IMAGE_TYPES: Array<'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp'> = [
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+]
 
 interface FetchedImage {
   block: Anthropic.ImageBlockParam | null
@@ -133,7 +138,7 @@ async function fetchImageBlock(url: string, name: string): Promise<FetchedImage>
       return { block: null, warning: `"${name}" pesa más de 4MB: no se pudo adjuntar a la IA (redúcela de tamaño).` }
     }
     return {
-      block: { type: 'image', source: { type: 'base64', media_type: media as any, data: buf.toString('base64') } },
+      block: { type: 'image', source: { type: 'base64', media_type: media, data: buf.toString('base64') } },
       warning: null,
     }
   } catch (e) {
@@ -250,18 +255,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           let final: Anthropic.Message
           try {
             const ms = client.messages.stream({
-              model: MODEL as any,
+              model: MODEL,
               max_tokens: 16000,
               // Sonnet 5 activa "adaptive thinking" por defecto y devuelve bloques
               // thinking con texto vacío (display "omitted"). Al reenviar esos bloques
               // en la siguiente vuelta del loop, la API responde 400
               // "each thinking block must contain thinking". Este generador no usa
               // thinking, así que lo desactivamos explícitamente.
+              //
+              // El SDK instalado (0.36.3) es previo al parámetro `thinking`; se añade por
+              // fuera de su tipo en vez de silenciar todo el objeto con `any`.
               thinking: { type: 'disabled' },
               system,
               tools: TOOLS,
               messages,
-            } as any)
+            } as Anthropic.MessageStreamParams & { thinking: { type: 'disabled' } })
             ms.on('text', (t: string) => send({ type: 'token', text: t }))
             final = await ms.finalMessage()
           } catch (apiErr) {
@@ -325,22 +333,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   })
 }
 
+/** Forma laxa de un error del SDK de Anthropic: distintas rutas anidan `error` un nivel más u otro. */
+interface AnthropicLikeError {
+  status?: number
+  type?: string
+  message?: string
+  error?: { type?: string; message?: string; error?: { type?: string; message?: string } }
+  __anthropic?: { status?: number; apiType?: string; apiMessage?: string; raw: unknown }
+}
+
 // Envuelve un error del SDK de Anthropic conservando el status/type/message reales
 // (en vez de perderlos al convertir a Error genérico), para poder diagnosticarlo.
 function enrichApiError(e: unknown): Error {
-  const err = e as any
+  const err = e as AnthropicLikeError
   const status = err?.status
   const apiType = err?.error?.error?.type || err?.error?.type
   const apiMessage = err?.error?.error?.message || err?.error?.message || err?.message
-  const wrapped = new Error(apiMessage || 'Error desconocido de la API de Anthropic')
-  ;(wrapped as any).__anthropic = { status, apiType, apiMessage, raw: err?.error ?? err }
+  const wrapped = new Error(apiMessage || 'Error desconocido de la API de Anthropic') as Error & {
+    __anthropic?: AnthropicLikeError['__anthropic']
+  }
+  wrapped.__anthropic = { status, apiType, apiMessage, raw: err?.error ?? err }
   return wrapped
 }
 
 // Construye un mensaje de error legible para el usuario y un detalle completo para logs,
 // exponiendo el campo/type exacto que rechazó la API cuando está disponible.
 function describeError(e: unknown): { message: string; detail: unknown } {
-  const err = e as any
+  const err = e as AnthropicLikeError
   const enriched = err?.__anthropic
   if (enriched) {
     const parts = [enriched.apiType, enriched.status ? `HTTP ${enriched.status}` : null, enriched.apiMessage]
