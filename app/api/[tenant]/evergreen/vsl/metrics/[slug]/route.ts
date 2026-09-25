@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { sql, mergeConfig } from '@/lib/vsl/db'
-import { requireTenant } from '@/lib/auth/requireTenant'
+import { requirePantalla } from '@/lib/auth/requirePantalla'
+import { PERMISSIONS, type AppRole } from '@/lib/auth/permissions'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,9 +13,16 @@ export const dynamic = 'force-dynamic'
 export async function GET(_req: Request, { params }: { params: Promise<{ tenant: string; slug: string }> }) {
   try {
     const { tenant, slug } = await params
-    const t = await requireTenant(tenant)
+    // Este módulo habla con `postgres` directo, que se salta RLS igual que el service-role: el
+    // filtro por tenant evita la fuga entre subcuentas, pero no dice QUIÉN puede pedir estas
+    // métricas. Se exige el mismo acceso que a la pantalla de VSL (auditoría F02).
+    const t = await requirePantalla(tenant, '/marketing/adquisicion/vsl')
     if ('error' in t) return t.error
     const tenantId = t.tenantId
+    // La lista de personas identificadas es dato personal (correo y nombre), no una métrica. Se
+    // entrega solo a quien ya puede ver contactos en el CRM; el resto recibe las mismas cifras sin
+    // la lista. Antes viajaba a cualquiera que abriera la pantalla, incluido un editor de contenido.
+    const puedeVerPersonas = t.isSuperAdmin || PERMISSIONS.canViewContacts((t.role ?? 'editor') as AppRole)
 
     const [video] = await sql`
       SELECT id, slug, name, source_url, poster_url, duration_seconds, config
@@ -108,7 +116,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       retention,
       drops: drops.slice(0, 5),
       devices: devices.map((d) => ({ device: d.device, n: Number(d.n) })),
-      leads,
+      leads: puedeVerPersonas ? leads : [],
+      // `null` diría "no hay"; esto dice "no te toca", que es distinto y la pantalla puede explicarlo.
+      leadsOcultos: puedeVerPersonas ? 0 : leads.length,
     })
   } catch (e) {
     console.error('[vsl/metrics]', e)
