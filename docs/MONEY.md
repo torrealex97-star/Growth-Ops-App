@@ -14,10 +14,13 @@ changelog, nunca una reescritura silenciosa. Una cifra publicada en UI/API debe
 poder rastrear hasta la decisión que la sustenta (encaja con el contrato de
 `DefinicionVersionada` de `lib/metrics/definiciones.ts`).
 
-**Estado de esta versión:** v1.0.0 (2026-09-25), redactada por Freebuff/Buffy bajo
-delegación explícita de Alex ("MONEY.md: Decides primero"). Las decisiones D1–D7
-son operativas y reversibles; lo que Alex aún no ha decidido queda marcado como
-decisión abierta, no como hecho.
+**Estado de esta versión:** v1.1.0 (2026-09-25). D1–D7 redactadas por Freebuff/Buffy
+bajo delegación explícita de Alex ("MONEY.md: Decides primero"). D8–D10 añadidas el
+mismo día tras un incidente real en producción (comisiones de reserva sin completar,
+una socia comisionando pese a `pays_commissions=false`, y 190k€ de gasto de Meta de
+otro negocio mezclado en este tenant — ver PR #211 y `PROJECT_CONTEXT.md` §14). Todas
+las decisiones son operativas y reversibles; lo que Alex aún no ha decidido queda
+marcado como decisión abierta, no como hecho.
 
 ---
 
@@ -144,7 +147,72 @@ Reglas del cuadro:
   partida contable (decisión abierta A6). Lo contratado sigue contando como
   booked: la financiación no cambia lo que el cliente debe.
 
-## 9. Decisiones abiertas (requieren a Alex)
+## 9. Reservas: cuándo es venta, cuándo comisiona — D8
+
+**Incidente que fija esta decisión:** una reserva (seña, históricamente <100€ en este
+negocio) se creaba con `sales.status = 'active'` desde el primer cobro, así que
+contaba como venta/cliente y su cobro comisionaba al instante — exactamente igual
+que un pago real — aunque la persona nunca completara la compra.
+
+- **Reservar no es comprar.** Una venta con `payment_plans.method = 'reserva'` y
+  `reservation_completed_at` todavía `null` es una reserva ABIERTA: no cuenta como
+  venta ni como cliente en ninguna métrica de negocio (`esReservaAbierta`,
+  `lib/metrics/agregados.ts`), aunque su `status` sea `active` en la fila.
+- **Una reserva abierta no comisiona a nadie** (ni closer, ni setter, ni
+  colaborador), ni siquiera al cobrar la seña. Solo empieza a comisionar cuando la
+  persona EMPIEZA A PAGAR de verdad — fraccionado o completo — y
+  `reservation_completed_at` deja de ser null. En ese momento se reabre y
+  reconcilia el cobro de la seña (`lib/commissions/generate.ts`,
+  `saleNeedsCommissionReview` + `complete-reservation/route.ts`), así que sí
+  comisiona, pero no antes.
+- **El umbral de importe (<100€) es una señal histórica de este negocio, no una
+  regla de código.** No se infiere "reserva" a partir del importe: se marca
+  explícitamente con el plan de pago `reserva` al crear la venta (el closer lo
+  elige en el flujo de `ventas/reservas`). Un importe bajo sin ese plan marcado es
+  un dato mal cargado (ver el caso de la venta importada desde Stripe corregida en
+  el PR #211), no una reserva implícita.
+
+## 10. Elegibilidad de comisión por persona (`pays_commissions`) — D9
+
+**Incidente que fija esta decisión:** una socia con `users.pays_commissions = false`
+llevaba comisionando meses como closer porque ninguna consulta leía esa columna
+(que además ni tenía migración en el repo).
+
+- **`pays_commissions = false` es un veto absoluto,** no una preferencia de
+  visualización: quien lo tenga nunca recibe fila de comisión de ningún cobro
+  (`lib/commissions/calculator.ts`) y nunca aparece en el Dashboard de Comisiones
+  (filtro también en lectura, `app/[tenant]/comisiones/page.tsx`), sea closer,
+  setter, afiliado o colaborador.
+- **Comisión de venta y reparto de socio son cosas distintas y no comparten
+  tabla.** Un socio que no comisiona por venta puede seguir viendo su parte del
+  beneficio real del negocio, pero por un mecanismo aparte (reparto de socios,
+  pendiente de construir — ver `PROJECT_CONTEXT.md` §14), nunca reescribiendo
+  `pays_commissions` a `true` para que "le salga algo" en Comisiones.
+- **Toda persona nueva en `users` comisiona por defecto (`true`).** Desmarcar es un
+  acto explícito en Configuración › Usuarios, nunca automático.
+
+## 11. Aislamiento de gasto por integración (cuentas publicitarias) — D10
+
+**Incidente que fija esta decisión:** con ninguna cuenta de Meta marcada en
+Integraciones, `resolveMetaConfigs` sincronizaba TODAS las cuentas que veía el
+token — y un token de Meta Business Manager puede ver cuentas de negocios
+distintos del dueño. Resultado: 164 campañas y ~190.000 € de gasto de otro negocio
+contaminando `campaign_daily` y `expenses` de este tenant.
+
+- **"Sin selección" nunca es "todas".** Una integración que agrega varias cuentas/
+  fuentes bajo un mismo token o credencial (hoy Meta; mañana cualquier otra) exige
+  selección EXPLÍCITA de qué pertenece a este tenant antes de sincronizar. Si no
+  hay selección ni un flag explícito de "sí, quiero todas" puesto a propósito, la
+  sincronización se detiene y lo dice — nunca sincroniza de más "por si acaso".
+- **Un token compartido no implica propiedad compartida de los datos.** El hecho
+  de que una credencial pueda VER una cuenta no significa que esa cuenta sea de
+  este negocio: la UI de selección (Integraciones) es la única fuente de verdad de
+  "esto es mío", nunca el descubrimiento de la API.
+- **Ningún atajo de UI debe animar a marcar de más.** Un botón "seleccionar todas"
+  en una pantalla de selección de cuentas de una integración compartida es, en la
+  práctica, un atajo hacia este mismo incidente.
+
+## 12. Decisiones abiertas (requieren a Alex)
 
 | Id | Decisión | Qué bloquea | Riesgo de decidir mal |
 |---|---|---|---|
@@ -173,9 +241,23 @@ Reglas del cuadro:
 7. **Toda cifra publicada nombra su definición** (booked/collected/...), modo
    (bruto/atribuible) y periodo. Los nombres de `METRICS.md` son los únicos
    válidos en UI: no resucitar "Net Revenue" para otra cosa.
+8. **Reservar no es comprar, y una reserva sin completar no comisiona a nadie**
+   (D8). El plan de pago (`reserva`/`custom`/...) se marca explícitamente al
+   crear la venta; nunca se infiere de un importe bajo.
+9. **`pays_commissions = false` es un veto absoluto**, en generación y en lectura
+   (D9): sin excepciones por tipo de participante ni por antigüedad de la regla.
+10. **Una integración que agrega varias cuentas bajo un mismo token nunca
+    sincroniza "todas" sin que alguien lo haya pedido a propósito** (D10): sin
+    selección explícita, se detiene y lo dice.
 
 ## Changelog
 
+- **v1.1.0 (2026-09-25)** — D8 (reservas: no son venta ni comisionan hasta
+  completar el pago), D9 (`pays_commissions` es un veto absoluto, en generación y
+  en lectura), D10 (una integración con token compartido nunca sincroniza "todas
+  las cuentas" sin selección explícita). Las tres nacen de un incidente real en
+  producción, corregido en el PR #211 (código + datos): ver
+  `PROJECT_CONTEXT.md` §14.
 - **v1.0.0 (2026-09-25)** — Primera versión. Decisión D1 (mecánica bruto/atribuible,
   sin oficial), D2 (EUR por tenant, FX a fecha del hecho, moneda obligatoria),
   D3 (IVA: bruto para negocio, neto solo con dato), D4 (fees fuera de las métricas
