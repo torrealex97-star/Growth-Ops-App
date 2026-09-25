@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const mod = await import(`file://${join(root, 'lib/finance/nuevo-vs-recurrente.ts')}`)
-const { clasificarCobrosPorMes, serieNuevoVsRecurrente, ymDe } = mod
+const { clasificarCobrosPorMes, serieNuevoVsRecurrente, ymDe, tipoDeCuotaFutura } = mod
 
 test('ymDe: mes YYYY-MM de una fecha; vacío si no hay fecha', () => {
   assert.equal(ymDe('2026-09-15T10:00:00Z'), '2026-09')
@@ -78,6 +78,30 @@ test('serie: una fila por mes pedido, con importes nuevo/recurrente separados', 
   assert.equal(serie[0].recurrente, 0)
   assert.equal(serie[1].nuevo, 500) // b entra nuevo
   assert.equal(serie[1].recurrente, 250) // a es cuota de venta pasada
+})
+
+// ── Cuotas FUTURAS (proyección de comisiones): el mismo concepto, aplicado a lo por cobrar ──
+
+test('cuota futura: venta sin cobros recogidos → NUEVO (será el primer cobro)', () => {
+  assert.equal(tipoDeCuotaFutura('2026-10-01', []), 'nuevo')
+})
+
+test('cuota futura: venta con cobros recogidos → RECURRENTE (plan de venta que ya cobró)', () => {
+  assert.equal(tipoDeCuotaFutura('2026-10-01', ['2026-09-05T12:30:00Z']), 'recurrente')
+  // Un cobro del MISMO día en que vence la cuota (pago parcial) ya la hace recurrente:
+  // lo restante de esa cuota es cuota del plan, no el estreno de la venta.
+  assert.equal(tipoDeCuotaFutura('2026-10-01', ['2026-10-01T09:00:00Z']), 'recurrente')
+})
+
+test('cuota futura en revisión: un cobro posterior NO la hace recurrente (ella puede ser la primera)', () => {
+  assert.equal(tipoDeCuotaFutura('2026-09-15', ['2026-09-20T10:00:00Z']), 'nuevo')
+  // Con un recogido ANTERIOR sí: recurrente.
+  assert.equal(tipoDeCuotaFutura('2026-09-15', ['2026-09-01T10:00:00Z', '2026-09-20T10:00:00Z']), 'recurrente')
+})
+
+test('cuota futura sin fecha legible: conservador — recurrente solo si la venta ya cobró', () => {
+  assert.equal(tipoDeCuotaFutura(null, []), 'nuevo')
+  assert.equal(tipoDeCuotaFutura(null, ['2026-09-05T10:00:00Z']), 'recurrente')
 })
 
 test('SALESCHART (fuente): superpone facturación y cash como dos ÁREAS con leyenda y tooltip', () => {

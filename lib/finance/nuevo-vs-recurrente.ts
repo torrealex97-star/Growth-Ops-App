@@ -79,3 +79,22 @@ export function serieNuevoVsRecurrente(
     return { ym: m.ym, label: m.label, nuevo: r.nuevo.importe, recurrente: r.recurrente.importe }
   })
 }
+
+/**
+ * Clasifica una CUOTA FUTURA (proyección de comisiones por cobrar) con la MISMA semántica
+ * que el cash ya recogido: la cuota es `nuevo` solo si será el PRIMER cobro de su venta
+ * — es decir, si la venta aún no ha recogido ninguno; en cuanto la venta ya cobró algo
+ * (aunque sea un pago parcial de la propia cuota 1), lo que reste por cobrar son cuotas
+ * `recurrentes` del plan: el MRR que sostiene el negocio. Un cobro EN REVISIÓN ya tiene
+ * fecha: la comparación decide si él mismo es el primer cobro de la venta.
+ *
+ * Se comparan DÍAS (prefijo YYYY-MM-DD), no timestamps: `collected_at` viaja con hora y
+ * `due_date` es solo fecha, y un cobro del mismo día en que vence la cuota ya es anterior
+ * a lo que reste por cobrar de ella.
+ */
+export function tipoDeCuotaFutura(fechaCuota: string | null, cobrosRecogidosDeLaVenta: string[]): TipoCobro {
+  const dia = (fechaCuota ?? '').slice(0, 10)
+  if (!dia) return cobrosRecogidosDeLaVenta.length > 0 ? 'recurrente' : 'nuevo'
+  const hayPrevios = cobrosRecogidosDeLaVenta.some((f) => !!f && f.slice(0, 10) <= dia)
+  return hayPrevios ? 'recurrente' : 'nuevo'
+}

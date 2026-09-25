@@ -143,7 +143,39 @@ test('hot path y reconcile cargan los exentos y se los pasan al motor', () => {
 test('la proyección de comisiones futuras no promete lo que el motor no pagará', () => {
   const ruta = leer('app/api/[tenant]/evergreen/commissions/future/route.ts')
   assert.match(ruta, /usuariosExentosDeComision/)
-  assert.match(ruta, /if \(exentos\.has\(repId\)\) return/, 'la fila del exento no se proyecta')
+  // La fila del exento NO se proyecta con importe: o se omite o se lista con importe 0 y flag
+  // `exento` (aviso). Jamás un amount > 0 para un user_id exento.
+  const esExento = /const esExento = exentos\.has\(repId\)/.test(ruta)
+  if (esExento) {
+    assert.match(ruta, /amount: esExento \? 0 :/, 'el exento se lista con importe 0')
+    assert.match(ruta, /exento: true/, 'la fila exenta lleva el flag para el aviso')
+  } else {
+    assert.match(ruta, /if \(exentos\.has\(repId\)\) return/, 'la fila del exento no se proyecta')
+  }
+})
+
+test('el panel de comisiones avisa de las filas exentas para que nadie espere ese pago', () => {
+  const ui = leer('app/[tenant]/comisiones/page.tsx')
+  // El tipo consume el flag y la UI pinta el aviso (banner) + badge por fila.
+  assert.match(ui, /exento\?: boolean/, 'FutureRow declara el flag exento')
+  assert.match(ui, /futurasExentas/, 'la UI calcula las exentas del filtro')
+  assert.match(ui, /no comisiona|Exenta/, 'banner o badge con el aviso de exención')
+  // El importe tachado (visibility) solo puede salir del base*percent — el amount ya es 0.
+  assert.match(ui, /f\.exento \?/, 'la fila exenta se pinta distinto (importe tachado)')
+})
+
+// ── Desglose nuevo vs recurrente en la proyección futura ─────────────────
+
+test('la proyección futura clasifica cada cuota con la definición canónica y expone el desglose', () => {
+  const ruta = leer('app/api/[tenant]/evergreen/commissions/future/route.ts')
+  assert.match(ruta, /tipoDeCuotaFutura/, 'la ruta usa el helper canónico (no se inventa otra definición)')
+  assert.match(ruta, /cobrosDeVenta/, 'la frontera la deciden los cobros RECOGIDOS de cada venta')
+  assert.match(ruta, /desgloseNuevoVsRecurrente/, 'la respuesta expone el desglose agregado')
+  const ui = leer('app/[tenant]/comisiones/page.tsx')
+  assert.match(ui, /desgloseFuturas/, 'el panel de comisiones muestra el desglose nuevo/recurrente')
+  assert.match(ui, /tipo\?: 'nuevo' \| 'recurrente'/, 'FutureRow consume el tipo por fila')
+  const colab = leer('components/collaborators/ColaboradorDashboard.tsx')
+  assert.match(colab, /futurasNuevoVsRecurrente/, 'el panel del colaborador también desglosa')
 })
 
 // ── La marca/desmarca vive en la UI de usuarios, con purga del legado ──────
