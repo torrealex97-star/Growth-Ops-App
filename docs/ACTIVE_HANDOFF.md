@@ -2,67 +2,47 @@
 
 ## Relevo 25-sep — hebra Freebuff 194f9eda (preview 3003)
 
-**Hecho y dónde está.** La unidad **desglose nuevo vs recurrente en comisiones futuras** está
-commiteada en local como `d219974` (pathspec, 7 ficheros: route `commissions/future`,
-`comisiones/page.tsx`, `ColaboradorDashboard`, `% efectivo` en `CommissionsTable`,
-`lib/finance/nuevo-vs-recurrente.ts` y 2 ficheros de tests). Vive en la **serie local sin pushear**
-(`1ec1447 … d219974`, 7 commits) montada sobre una base vieja de `origin/main` — no pushear tal
-cual, ver "siguiente acción".
+**Estado final: la serie local está rebaseada y publicada como PR #225** (`feat/money-25sep`, 8 commits
+sobre `origin/main` `c60f7cb`): gasto de ads solo de cuentas seleccionadas, custom_fields fijados por
+test + `allowImportingTsExtensions`, nuevo vs recurrente canónico (`lib/finance/nuevo-vs-recurrente.ts`),
+desglose nuevo vs recurrente en comisiones futuras + % efectivo, y dual facturación vs cash en
+unit-economics (verificado en pantalla en su día, con capturas). Quality Gate completo (`npm run quality`)
+**exit 0** sobre el árbol rebaseado: 942 unit (939 pass, 3 skips, 0 fallos — el invariante de tipos que
+fallaba en la base vieja pasa solo sobre el main actual) y 752 métricas. Falta: CI de la PR y merge.
 
-**Qué se validó de verdad.**
+**Decisiones del rebase.**
 
-- **Verificado en preview** con la sesión QA WDC (fixture de pruebas): pestaña Futuras con **48
-  cuotas, todas `recurrente`** (correcto: ninguna venta activa queda sin cobros recogidos), KPI
-  "Futuras (por cobrar)" **6.777,13 € = desglose del endpoint al céntimo** (`nuevo 0 · recurrente
-  6.777,13`), badges emerald/sky por fila y desglose respetando filtros. El badge "Nuevo" no tiene
-  caso en los datos actuales; aparecerá con la próxima venta sin cobrar.
-- **Probado** vía arnés `/tmp/qa-gate` (árbol exacto local reconstruido con `git archive` + parche
-  del WIP): format, lint y typecheck **verdes**; **881/882 tests**. El único fallo
-  (`esquema-tenant-invariante`, tipos generados vs BD viva: falta `Annotations`) es **preexistente
-  y ambiental** — la unidad no toca `database-generated.ts` ni ese test.
+- `1ec1447` (exención `pays_commissions`) **descartado**: la PR #211 ya fusionó el núcleo equivalente
+  (migración `_repo_sync`, veto en calculator/generate/future). **Seguimiento opcional, no forzado**:
+  (a) purgar comisiones positivas no liquidadas al marcar `pays_commissions=false` — hoy el veto solo
+  impide generar nuevas y bloquear el borrado, las históricas se borran a mano; (b) flag `exento` con
+  importe 0 y aviso en la proyección futura.
+- El route `commissions/future` se reescribió sobre la versión de #213: se conserva su `noComisionan`
+  inline y se añade solo el desglose `tipoDeCuotaFutura` (sin flag `exento`).
+- `tests/commissions-exencion.test.mjs` eliminado: #211 lo sustituyó y la versión extendida quedaba
+  huérfana sobre una base que ya no existe.
 
-**Hallazgos que el relevo debe conocer.**
+**Auditoría Cash Collected (25-sep) — veredicto: sin bug, semántica distinta por panel.** El KPI
+"Cash Collected" del dashboard (3.761,36 € sept WDC) son los cobros collected del mes pertenecientes a
+ventas VENDIDAS en el mes (`monthlyKpis`, `lib/analytics.ts`); unit-economics (9.475,82 €) es la caja
+total del mes (espejo Stripe 7.478,82 € + 1 cobro interno 1.997,00 €). Puente exacto: los cobros de
+septiembre con venta de cualquier mes suman 7.858,80 € = 3.761,36 € (ventas de sept) + 4.097,44 €
+(cobros de ventas de meses anteriores, MRR invisible al dashboard); además 1.667,02 € de Stripe sin
+referencia en la app (5 pagos). Recomendación **no aplicada**: renombrar el KPI del dashboard
+(p. ej. "Cobrado de ventas del mes") para que el nombre no prometa la caja total.
 
-1. **`origin/main` avanzó y SOLAPA** (`b27edac` → `949637f`, ≥15 commits: #208–#221). El **#211 ya
-   implementa la exención** `pays_commissions` con su migración `_repo_sync` (el `1ec1447` local es
-   probablemente descartable al rebase, comparar diffs) y el **#213 tocó comisiones futuras**
-   (conflicto esperado en el route con `ce57c3b`+`d219974`).
-2. **Doble sesión QA en el navegador de preview**: una cookie httpOnly heredada de otra cuenta QA
-   de un hilo anterior convivió con el login browser-side; los APIs server-side resolvían el
-   usuario equivocado → 404 "Subcuenta no encontrada" en endpoints correctos. Diagnosticado
-   comparando el `sub` del JWT de la cookie server-side con el usuario del email en `auth.users`.
-   Lección: antes de diagnosticar la app (o declarar una anomalía de datos como Adspend=0),
-   verifica que la sesión que ve el server es la cuenta que crees — un 0 pintado puede ser solo
-   una página que no llegó a cargar sus datos.
-3. **El clon `/tmp/growthops-preview-3003` está disputado**: un agente Claude Code trabajaba en él
-   durante esta sesión (escribió ficheros en vivo) y mezcla `origin/main` avanzado con
-   experimentos — **no es fuente de verdad**. La validación se hizo en `/tmp/qa-gate` (efímero,
-   borrable; su `node_modules` está enlazado al del clon).
-4. **Sandbox degradado**: node/npm no arrancan con cwd en el repo (EPERM `uv_cwd`, degradación
-   progresiva hasta bloqueo casi total); git/tar/sed/launchd sí funcionan. Receta que funcionó:
-   `git archive HEAD | tar -x -C /tmp/qa-gate`, `git diff > /tmp/wip.patch` + `git apply` en el
-   arnés, `node_modules` enlazado y Quality Gate vía job launchd efímero (ya retirado).
+**Lecciones que sobreviven al relevo.** (1) Verifica la sesión que ve el server antes de diagnosticar
+la app: una cookie httpOnly heredada de otra cuenta QA convivió con el login browser-side y produjo
+404 "Subcuenta no encontrada" en endpoints correctos — un 0 pintado puede ser una página que no cargó
+sus datos. (2) El clon `/tmp/growthops-preview-3003` está disputado entre hebras: no es fuente de
+verdad; validar en arnés propio (`git archive` + parche, node_modules enlazado). (3) El sandbox sufre
+EPERM intermitentes (node/npm/cat/gh según oleada): git fiable; reintentar y trocear operaciones.
+(4) La hipótesis "Adspend=0" quedó refutada por sonda SQL de solo lectura: los datos de Meta existen,
+están seleccionados y con gasto real; si la UI pinta 0 la causa es de sesión/entorno de visualización.
 
-**Siguiente acción exacta**: rebase de la serie local sobre `origin/main` — (a) comparar `1ec1447`
-con el #211 y descartarlo si es equivalente; (b) adaptar el desglose nuevo/recurrente (`ce57c3b` +
-`d219974`) al route de futuras que dejó #213; (c) regenerar tipos (`npm run tipos:bd`) para calmar
-el invariante; (d) Quality Gate verde → push y PR.
-
-**Hipótesis Adspend=0 en unit-economics: CERRADA Y REFUTADA (25-sep).** Sonda SQL de solo-lectura
-(`.claude/tmp/ref-adspend-cero.mjs`, consolidada y re-ejecutable): las 3 campañas de septiembre de
-`act_2204892919779781` EXISTEN en `campaigns` (3/3) con el `account_id` bien guardado, la cuenta
-está seleccionada en `META_AD_ACCOUNT_ID`, hay gasto real (919,68 € en la daily de sept;
-3.711,50 € acumulado en `campaigns.adspend`, 10/10 campañas del tenant en esa cuenta), el JOIN
-diario↔campaña cuadra y nada se trunca (160 filas vs cap 49.999; daily al día). Si la UI llega a
-pintar 0, la causa es de entorno de visualización (sesión/auth equivocada — ver hallazgo 2 — o
-preview con código/`env` desfasado), no de datos. Siguiente comprobación natural: ver el CAC en
-unit-economics con sesión limpia de QA WDC (≈919,68 € de gasto sept).
-
-**Sigue pendiente** (backlog en `PENDIENTES.md`): dual facturación vs cash en unit-economics
-(CAC solo donde haya adspend del periodo, sin inventar ceros).
-
-**WIP sin commitear**: `.freebuff/run.md`, `.gitignore` y este documento.
-
+**Sigue pendiente.** Merge de PR #225 tras CI y borrado de rama; seguimiento opcional de purga/`exento`;
+renombrar el KPI de cash del dashboard (requiere ok de producto); y el encargo a Claude Code de la
+migración `20260922100000` en producción (fila del tablero, prioridad 1, ajena a esta hebra).
 
 ## MONEY.md v1 en main + relevo de la PR #210 — 2026-09-25 (Freebuff/Buffy)
 
