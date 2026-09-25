@@ -415,3 +415,15 @@ Dos lecciones operativas de esas hebras que siguen vigentes:
 - **No afirmes lo que no has verificado.** Se construyó un panel manual de crons sobre la creencia
   falsa de que Vercel Hobby solo permitía 3, y se recortó CI sobre la creencia falsa de que el repo
   era privado. Las dos premisas eran inventadas.
+
+Tres más del 25-sep (codificadas también en `AGENTS.md`, con el caso que las originó):
+
+- **Arnés canónico o nada**: suites solo por los scripts de `package.json`. Lanzar specs de
+  Playwright o `tests/metrics/` con `node --test` a mano produce fallos falsos — el 25-sep costó
+  dos diagnósticos equivocados antes de mirar el arnés.
+- **Sin merge-base no hay merge**: la PR #210 (rama `docs/money-v1-cierre`) era un linaje huérfano.
+  Se cerró como sustituida tras verificar commit a commit que su único contenido exclusivo era el
+  texto de relevo (relevado en #216). Fusionarla habría revertido el tablero.
+- **La fila del tablero es un contrato de relevo**: el trabajo sin commitear de esta hebra (fix E2E
+  - cron) fue recogido, commitado y publicado por otro agente siguiendo la fila — así funciona el
+    tablero cuando funciona; si un trabajo no debe continuarse, no se deja sin commitear.
