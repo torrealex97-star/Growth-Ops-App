@@ -102,8 +102,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       .eq('sales.tenant_id', t.tenantId)
 
     // Nombres de usuarios
-    const { data: users } = await sb.from('users').select('id, full_name')
+    const { data: users } = await sb.from('users').select('id, full_name, pays_commissions')
     const nameOf = new Map((users ?? []).map((u: { id: string; full_name: string }) => [u.id, u.full_name]))
+    // Quien tenga `pays_commissions = false` (p.ej. un socio) no debe ver comisión futura de
+    // ningún cobro pendiente — mismo veto que ya aplica lib/commissions/calculator.ts a la
+    // comisión real (docs/MONEY.md D9).
+    const noComisionan = new Set(
+      (users ?? [])
+        .filter((u: { id: string; pays_commissions?: boolean | null }) => u.pays_commissions === false)
+        .map((u: { id: string }) => u.id)
+    )
 
     // Tramo/nivel actual por rep (para reglas de comisión enlazadas a un tramo), igual que en generate.ts
     const repIdsForTramo = [
@@ -186,6 +194,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
         // El colaborador no proyecta lanes setter/closer (ni siquiera las de "sus" ventas):
         // esas proyecciones pertenecen a otros miembros y expondrían sus importes.
         if (esColaborador && (pType === 'setter' || pType === 'closer')) return
+        // Quien tenga `pays_commissions = false` (p.ej. un socio) no debe ver comisión futura:
+        // nunca va a comisionar ese cobro cuando entre (docs/MONEY.md D9).
+        if (noComisionan.has(repId)) return
         const percent = pType === 'affiliate' ? Number(fixedPercent ?? 0) : await getRate(repId, pType)
         if (!percent) return
         rows.push({

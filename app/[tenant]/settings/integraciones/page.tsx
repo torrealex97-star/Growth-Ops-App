@@ -1702,6 +1702,28 @@ export default function IntegracionesPage() {
                                         </div>
                                       ) : (
                                         <>
+                                          {(() => {
+                                            // Aviso de reserva (docs/MONEY.md D9): un pago bajo importado
+                                            // como venta con un plan que NO es 'reserva' es, con toda la
+                                            // pinta, la seña de una reserva mal clasificada (así se coló la
+                                            // venta de 50€ que se corrigió a mano en el PR #211) — nunca se
+                                            // bloquea el registro, solo se avisa para que quien elige el
+                                            // plan lo compruebe antes de confirmar.
+                                            const planElegido = (catalogo?.plans ?? []).find(
+                                              (p) => p.id === importChoice.planId
+                                            )
+                                            if (!planElegido || planElegido.method === 'reserva') return null
+                                            const bajos = registrables.filter((r) => r.amount < 100)
+                                            if (bajos.length === 0) return null
+                                            return (
+                                              <div className="mb-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
+                                                {bajos.length} de estos pagos son menores de 100 € y el plan elegido (
+                                                {planElegido.name}) no es de reserva. Si este negocio trata los pagos
+                                                bajos como señas de reserva, comprueba que no sea el caso antes de
+                                                registrar — si lo es, elige aquí el plan de reserva correspondiente.
+                                              </div>
+                                            )
+                                          })()}
                                           <div className="flex flex-wrap items-end gap-2">
                                             <label className="text-muted-foreground text-xs">
                                               Producto

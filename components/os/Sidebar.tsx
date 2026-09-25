@@ -12,10 +12,11 @@ import { Separator } from '@/components/ui/separator'
 import { getInitials } from '@/lib/utils'
 import { performLogout } from '@/lib/auth/logout'
 import { useState, useEffect, useMemo } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Handshake } from 'lucide-react'
 import type { User } from '@/lib/types/database'
 import { NAV_SECTIONS, makeNavFilter, navHrefForRole, type NavItem } from '@/lib/nav'
-import { useTenant, useTenantBranding } from '@/lib/tenant-context'
+import { useTenant, useTenantBranding, useTenantId } from '@/lib/tenant-context'
+import { createClient } from '@/lib/supabase/client'
 
 interface SidebarProps {
   user: User & { roles: { key: string; name: string } }
@@ -27,6 +28,7 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const branding = useTenantBranding()
   const relPathname = pathname.replace(new RegExp(`^/${tenant}`), '') || '/'
   const role = user.roles.key as AppRole
@@ -47,6 +49,39 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
       ),
     [isVisible]
   )
+
+  // Un socio sin rol de dirección (p.ej. closer) no ve Finanzas por rol, pero si tiene su propia
+  // fila en `partners` (vinculada por user_id, ver Configuración > Socios) debe poder llegar a ver
+  // sus ganancias reales igualmente — sin que un admin tenga que sacrificar el resto de su menú
+  // con "Páginas que puede ver" (ese mecanismo SUSTITUYE el menú entero, no lo amplía). Se añade
+  // como item suelto en vez de tocar el filtro de roles: así ningún otro rol se ve afectado.
+  const [esSocioVinculado, setEsSocioVinculado] = useState(false)
+  useEffect(() => {
+    let mounted = true
+    createClient()
+      .from('partners')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .limit(1)
+      .then(({ data }) => {
+        if (mounted) setEsSocioVinculado(!!data && data.length > 0)
+      })
+    return () => {
+      mounted = false
+    }
+  }, [tenantId, user.id])
+
+  const finalSections = useMemo(() => {
+    const yaVisible = visibleSections.some(({ visibleItems }) =>
+      visibleItems.some((i) => i.href === '/finanzas/socios')
+    )
+    if (!esSocioVinculado || yaVisible) return visibleSections
+    const socioItem: NavItem = { label: 'Mis ganancias (socio)', href: '/finanzas/socios', icon: Handshake }
+    return [...visibleSections, { section: { dept: null, items: [socioItem] }, visibleItems: [socioItem] }]
+  }, [visibleSections, esSocioVinculado])
+
   const [loggingOut, setLoggingOut] = useState(false)
 
   // Secciones colapsables (estilo Notion). Se recuerda el estado en localStorage.
@@ -128,7 +163,7 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
-          {visibleSections.map(({ section, visibleItems }) => {
+          {finalSections.map(({ section, visibleItems }) => {
             // El usuario puede minimizar cualquier sección, aunque contenga la ruta activa
             // (antes "ventas" no se podía recoger nunca porque casi siempre hay una página
             // activa dentro de ella: Leads, Agendas, Ventas... y eso forzaba a mantenerla
