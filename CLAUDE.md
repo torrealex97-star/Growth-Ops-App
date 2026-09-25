@@ -60,6 +60,7 @@ Scripts equivalentes sin instalación global: `npm run mcp:supabase`, `mcp:searc
   provienen de las categorías RAG de `docs/rag_marketing_knowledge_schema.json` y el system prompt
   del agente de marketing vive en `src/prompts/marketing_agent_system_prompt.ts`
 - **Privacidad (obligatorio):** nada de tenants, personas o credenciales en commits — ni en docs, comentarios ni "solo en privado". Placeholders neutros y procedimiento en `docs/SECURITY_PRIVACY.md`
+- **Dinero (obligatorio antes de tocar ventas, comisiones, gastos o integraciones de gasto):** consulta `docs/MONEY.md` primero — es la fuente de verdad versionada (decisiones D1-D10) de booked vs collected, fees, reembolsos, comisiones, reservas y aislamiento de gasto por integración. No redefinas estas reglas en código ni las reinventes leyendo solo el código existente: una reserva sin completar no es venta ni comisiona (D8), `pays_commissions=false` es un veto absoluto en generación Y lectura (D9), y ninguna integración con token compartido (Meta y las que vengan) sincroniza "todas las cuentas" sin selección explícita (D10). Las tres nacieron de bugs reales en producción — ver `PROJECT_CONTEXT.md` §14 antes de tocar `lib/commissions/`, `ventas/reservas`, `lib/metrics/agregados.ts` o `lib/meta/`.
 - Helpers de formato: `formatNumber`/`formatPercent` de `@/lib/utils` (NO inline `toLocaleString`))
 - API routes: `app/api/[tenant]/evergreen/...` con `requireTenant()` de `lib/auth/`
 - Tests: `tests/*.test.mjs` con Node.js test runner nativo

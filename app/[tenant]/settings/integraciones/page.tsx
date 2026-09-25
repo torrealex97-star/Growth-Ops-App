@@ -39,7 +39,7 @@ import { toast } from 'sonner'
 import { EstadoPanel } from '@/components/ui/carga/EstadoPanel'
 import { esFalloVisible, pedir, type Fallo } from '@/lib/ui/pedir'
 import { useTenant } from '@/lib/tenant-context'
-import { isAccountSelected, parseAccountIds, serializeAccountIds, toggleAccountId } from '@/lib/meta/accounts'
+import { isAccountSelected, parseAccountIds, toggleAccountId } from '@/lib/meta/accounts'
 import { brandFor, type Brand } from '@/components/integrations/brands'
 import { historyFor } from '@/lib/integrations/history'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -1322,32 +1322,28 @@ export default function IntegracionesPage() {
                                 <div className="flex items-center gap-3 pt-1">
                                   <button
                                     type="button"
-                                    className="text-primary text-xs hover:underline"
-                                    onClick={() =>
-                                      setDrafts({
-                                        ...drafts,
-                                        META_AD_ACCOUNT_ID: serializeAccountIds(metaAccounts.map((a) => a.id)),
-                                      })
-                                    }
-                                  >
-                                    Seleccionar todas
-                                  </button>
-                                  <button
-                                    type="button"
                                     className="text-muted-foreground text-xs hover:underline"
                                     onClick={() => setDrafts({ ...drafts, META_AD_ACCOUNT_ID: '' })}
                                   >
-                                    Ninguna
+                                    Quitar selección
                                   </button>
-                                  <span className="text-muted-foreground ml-auto text-xs">
+                                  <span
+                                    className={`ml-auto text-xs ${
+                                      parseAccountIds(drafts.META_AD_ACCOUNT_ID).length === 0
+                                        ? 'font-medium text-amber-400'
+                                        : 'text-muted-foreground'
+                                    }`}
+                                  >
                                     {parseAccountIds(drafts.META_AD_ACCOUNT_ID).length === 0
-                                      ? 'Sin marcar: se sincronizan TODAS las que vea el token'
+                                      ? 'Sin ninguna marcada: la sincronización se detiene (no se sincroniza nada)'
                                       : `${parseAccountIds(drafts.META_AD_ACCOUNT_ID).length} de ${metaAccounts.length} seleccionadas`}
                                   </span>
                                 </div>
                                 <p className="text-muted-foreground text-xs">
-                                  Puedes marcar varias. Déjalas todas sin marcar para sincronizar todas las que vea el
-                                  token. Solo las cuentas seleccionadas alimentan métricas, campañas y los crons.
+                                  Puedes marcar varias, pero SOLO las que pertenecen a este negocio. El token de Meta
+                                  puede ver cuentas de otros negocios: marcar de más mezcla su gasto con el tuyo. Sin
+                                  ninguna marcada, la sincronización ya NO trae &quot;todas por defecto&quot; — se
+                                  detiene hasta que elijas.
                                 </p>
                               </div>
                             ) : null}

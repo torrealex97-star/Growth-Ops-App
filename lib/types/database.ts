@@ -61,6 +61,9 @@ export type User = {
   // v17 — datos personales (se completan al firmar contratos)
   dni: string | null
   address: string | null
+  // Si es false, este usuario NUNCA recibe comisión de closer/setter/afiliado (p.ej. un socio con
+  // reparto de beneficio aparte). Default true: por defecto todos comisionan como hasta ahora.
+  pays_commissions: boolean
   created_at: string
   updated_at: string
 }
