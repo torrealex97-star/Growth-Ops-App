@@ -8,6 +8,8 @@
 
 **Queda de F3:** `MONEY.md` (decisión financiera: booked/billed/collected/recognized, bruto vs atribuible, FX, IVA, fees — requiere validación de Alex; el plan dice "si bruto vs atribuible no está decidido, implementar ambos y NO marcar ninguno como oficial") y cablear `MetricaPublicada` en consumidores de UI/API. Conectado con #201 (anotaciones, más abajo): las marcas describen periodos, no fechas — el grain del contrato ahora lo hace declarable por métrica.
 
+**Incidente CI en `main` (2026-09-25):** el run del squash de #203 (`67d3ae5`, run 36070984980) falló SOLO en Smoke E2E: `TimeoutError: page.waitForURL` en `tests/e2e/global-setup.mjs:48` — el login del global-setup no navegó a `**/qa-e2e/dashboard` en 30s tras crear el tenant. No es regresión de código: el mismo árbol pasó el mismo E2E en la PR #204 (cuyo HEAD incluía #203 vía merge). Sin permiso para `gh run rerun`, este commit de docs re-lanza el workflow (mismo efecto que el commit vacío ya usado antes). Si este run volviera a fallar en el mismo punto, tratarlo como flakiness del login del global-setup a investigar (reintentos/timeout), no como fallo de #203.
+
 ## Anotaciones en gráficos + limpieza de tipos — 2026-09-24 (Claude Code)
 
 **Fusionado en `origin/main`:** PR #201 (squash `72fe57b`). Cierra tres pendientes de la sesión
