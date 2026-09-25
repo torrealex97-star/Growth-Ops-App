@@ -1,6 +1,6 @@
 # Plan de corrección de dashboards
 
-Fecha: 2026-09-25. Estado: propuesta basada en evidencia; auditoría browser/roles todavía abierta. Referencias F01–F18: [DASHBOARD_AUDIT.md](DASHBOARD_AUDIT.md). No se han aplicado cambios de datos ni RLS en producción.
+Fecha: 2026-09-25. Estado: propuesta basada en evidencia; auditoría browser/roles todavía abierta. Referencias F01–F23: [DASHBOARD_AUDIT.md](DASHBOARD_AUDIT.md). No se han aplicado cambios de datos ni RLS en producción.
 
 ## P0 — proteger acceso antes de ampliar analítica
 
@@ -49,9 +49,9 @@ Fecha: 2026-09-25. Estado: propuesta basada en evidencia; auditoría browser/rol
 | 7. Data Health; campañas atribuidas | name no seleccionado | F17 C | seleccionar identificador usado; test de campaña atribuida/no atribuida | revisar homónimos; no cambiar atribución real | AUTO_FIX; pequeño | fixture con utm coincidente no produce hueco; fallo de lectura=unknown |
 | 8. Delivery/Bajas | recuperación solicitudes ≠ retención; scope y filtros divergentes | F18 C | etiquetas, tenant explícito, errores; export coherente con búsqueda; madurez | definición LTV/retención aún sin validar | AUTO_FIX + BUSINESS_DECISION; medio | sin filas=sin muestra; custom histórico no se cruza con hoy; solo tenant |
 
-## P3 — visualización e interacción (pendiente de browser)
+## P3 — visualización e interacción (browser parcial)
 
-No se ordena un rediseño con capturas inexistentes. Con sesión autenticada:
+Se observaron desktop, branding oscuro/rosa y funnels. Pendiente responsive y build corregido:
 
 - Mantener tipografía/branding del tenant y métricas reales. Funnel prominente solo si representa población compatible; una forma bonita no valida conversiones.
 - Cards para magnitud, serie para evolución, barras/tablas para comparación, ranking con n/N, cohortes con madurez. No depender solo de color.
@@ -65,7 +65,7 @@ No se ordena un rediseño con capturas inexistentes. Con sesión autenticada:
 
 ## USER ACTION REQUIRED — concretas
 
-1. **Sesión browser:** abrir GrowthOps con cuenta admin en el navegador compartido y avisar. Después usar acceso existente de colaborador/closer/setter/socio; no enviar contraseñas ni crear privilegios nuevos. Bloquea la revisión visual y roles UI, no la inspección de código/datos.
+1. **Roles:** sesión admin recuperada y operativa. No repetir Ver como hasta corregir F21. Para roles restantes usar acceso de prueba existente autorizado; no pedir contraseñas por chat ni firmar contratos pendientes para pasar el gate.
 2. **Asignación:** confirmar qué setter(s) reales intervinieron y entregar mapping de citas/ventas sin setter a usuario existente; indicar expresamente casos sin setter. Confirmar relación venta↔cita cuando falte. Preparar lote privado con IDs, no publicarlo en Git. No backfill hasta tener evidencia.
 3. **Asistencia:** confirmar estado de citas pasadas con nota provisional o estado pendiente usando Calendly/GHL/Fathom/evidencia operacional; no inferir asistencia por venta o por KPI esperado.
 4. **Histórico:** indicar fecha inicial esperada por Stripe, cuenta Meta, CRM/agendas, Instagram y vídeo; señalar fuentes/cuentas que el negocio no usa. Solo entonces cuantificar periodo faltante y solicitar export/backfill específico.
@@ -81,7 +81,7 @@ No se ordena un rediseño con capturas inexistentes. Con sesión autenticada:
 
 - Acceso autorizado a conversaciones Instagram depende del proveedor; no está demostrado que otros canales sean obligatorios o falten por error.
 - Timeouts de jobs requieren lectura de logs y siguiente ejecución; no equivalen automáticamente a hueco histórico.
-- Falta sesión browser utilizable; no eludir autenticación para cerrar la auditoría.
+- UI de colaborador limitada por contrato pendiente; otros roles y E2E todavía sin validar.
 
 ## Orden de ejecución y cierre
 
@@ -93,3 +93,17 @@ No se ordena un rediseño con capturas inexistentes. Con sesión autenticada:
 6. Actualizar scorecard con evidencia y cerrar auditoría únicamente cuando no queden rutas/roles/filtros críticos sin revisar.
 
 No fusionar esta auditoría como certificación de producción. Los documentos son un relevo de hallazgos verificables y pendientes, no una declaración de finalización.
+
+## Relevo inmediato — prioridad y estado exactos
+
+1. **PUBLICAR RAMA, NO DAR POR DESPLEGADO:** fixes F19/F20 y docs validados localmente; conservar en `codex/dashboard-metric-audit`. No merge mientras falte verificar consultas nuevas en app/preview y CI relevante. F10 count ya estaba en la misma rama.
+2. **P0 F19 (AUTO_FIX parcial):** filtros tenant aplicados a seis paneles. Completar en carril coordinado CRM/alumnos/contenido/selectores y saved views (lectura/escritura), revisar otras consultas sin tenant. Verificar usuario con acceso A+B, vacíos, navegación y respuestas tardías; no basta RLS de membresía.
+3. **P0 F01/F02 (AUTO_FIX, seguridad):** RLS de colaborador y endpoints privilegiados, coordinar antes de migrar. Alcance medio/alto; dry-run rollback y tests anon/propio/ajeno obligatorios.
+4. **P2 F21 (AUTO_FIX, auth):** corregir retorno Ver como y cookie SSR, sin debilitar ticket cifrado. Sesión del usuario recuperada; no volver a usar impersonación para continuar. Pruebas contrato pendiente/chunks/login/logout/retorno admin.
+5. **P1 F20 (AUTO_FIX realizado local):** CTR corregido y regresión. Verificar valor renderizado después del despliegue.
+6. **P1 F03/F05/F06/F07/F09:** reservas, cash de ventas anteriores, refunds por fecha, moneda, cohortes y denominadores. Trabajar por unidades pequeñas; no tocar cifras para ajustarlas a benchmark.
+7. **P2 F22/F23 (AUTO_FIX pendiente):** ratios sin muestra → desconocido; VSL sin datos no saludable; webhook silencioso no rotura demostrada. Pruebas n=0 y proveedor sin actividad/entrega fallida.
+8. **COMPLETAR BROWSER:** revisar funnels (tab actual), eventos, socios, Brief, integraciones, recursos y Person360; después mobile/tablet y exports/filtros detallados. Registro exacto en auditoría. No repetir páginas ya cubiertas salvo cambio de código.
+9. **USER_ACTION/BUSINESS_DECISION:** mappings reales, inicio histórico esperado, FX y decisiones MONEY. Preparar lista privada de filas afectadas; no publicar nombres/IDs/importes en Git.
+
+**No hay diagnóstico REAL BUSINESS KPI PROBLEM demostrado.** Las alertas identificadas son de calidad/fuente/cálculo/scope/representación.

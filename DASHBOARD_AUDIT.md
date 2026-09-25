@@ -2,7 +2,7 @@
 
 Fecha: 2026-09-25. Base de código: `7a150cc`. Rama: `codex/dashboard-metric-audit`.
 
-**Estado: EN CURSO; no es una certificación de todos los dashboards.** Inspección de código, consultas de producción de solo lectura, prueba de permisos bajo rol autenticado y reproducciones con datos sintéticos. El navegador llega al login: faltan sesión de administrador, recorrido visual, interacciones y contraste de roles en UI. No se validaron exports, drawers, mobile ni cambio de tenant en navegador. No se ha cambiado ningún dato de negocio ni aplicado migraciones.
+**Estado: EN CURSO; no certificada.** Código, SQL de producción de solo lectura, RLS autenticada y recorrido admin real. Se revisaron visualmente los paneles principales y se probaron filtros/tabs concretos (registro abajo). Faltan mobile, exports completos, roles y varias rutas. Los fixes de esta rama tienen quality/build locales, pero no están desplegados. No se modificaron datos de negocio ni migraciones. La sesión admin fue recuperada tras un fallo de «Ver como»; no repetir esa acción durante la revisión.
 
 Este documento es apto para el repositorio: no contiene identificadores, importes, personas ni cifras de negocio reales. La evidencia agregada de producción se comunicó privadamente en la sesión. Los ejemplos numéricos siguientes son sintéticos. Las observaciones SQL son una instantánea, no una monitorización continua.
 
@@ -20,7 +20,7 @@ Referencias: skills del proyecto `.agents/skills/marketing-and-copywriting/SKILL
 - **D**: consulta de producción de solo lectura; sin exportar filas personales.
 - **R**: reproducción ejecutada con entradas sintéticas en funciones reales.
 - **T**: test por script canónico del repositorio.
-- **B pendiente**: no hay validación visual autenticada.
+- **B**: pantalla autenticada observada; los controles concretos probados se enumeran abajo. No equivale a certificar todos los estados.
 - `Parcial` en completitud significa que hay datos, pero no está acreditada la cobertura histórica esperada.
 - Categorías: A cálculo; B fuente; C histórico; D integración; E configuración; F asignación; G filtrado; H atribución; I duplicación; J negocio fuera de KPI; K insuficiencia; L representación; M desconocido. Seguridad se señala aparte como P0.
 
@@ -68,7 +68,7 @@ La capacidad semanal se compara con agendas de un rango arbitrario y las metas m
 
 ### F09 — P1: cohortes sin madurez y clientes contados como ventas (A/L; C)
 
-`app/[tenant]/finanzas/analitica/cohortes/page.tsx`: clients aumenta por fila de venta, no cliente único. Celdas 30/60/90/180 se colorean contra umbrales aunque la cohorte no haya alcanzado esa edad. Denominador excluye ventas inactivas pero el recorrido de cobros no usa el mismo conjunto, lo que puede incluir cash de ventas excluidas. No se han validado visualmente los colores ni los importes renderizados.
+`app/[tenant]/finanzas/analitica/cohortes/page.tsx`: clients aumenta por fila de venta, no cliente único. Celdas 30/60/90/180 se colorean contra umbrales aunque la cohorte no haya alcanzado esa edad. Denominador excluye ventas inactivas pero el recorrido de cobros no usa el mismo conjunto, lo que puede incluir cash de ventas excluidas. El navegador confirmó celdas coloreadas en ventanas todavía inmaduras; no constituye prueba de recuperación final.
 
 ### F10 — P1: Ask/AI no reproduce la semántica de las pantallas (B/G; C)
 
@@ -88,7 +88,7 @@ Los jobs de una fuente tienen estados distintos: GHL-citas y el job agregado de 
 
 ### F13 — P1: errores de lectura pueden convertirse en cero financiero (B/K; C)
 
-Resumen, cohortes, proyección y reparto de socios contienen consumo data ?? [] sin propagar todos los errores de consulta. Ante una lectura parcial, beneficio/reparto puede parecer válido. No se reprodujo una caída real: defecto de manejo de error demostrado en código. Los límites de filas también requieren comprobación de paginación; `.range(0,49999)` no acredita por sí solo que el servidor entregue todo. No se ha demostrado truncamiento real con la cantidad actual.
+P&L, cohortes, proyección y reparto de socios contienen consumo data ?? [] sin propagar todos los errores de consulta. Ante una lectura parcial, beneficio/reparto puede parecer válido. El resumen financiero SÍ usa primerError/errorCarga: se excluye de este hallazgo. No se reprodujo una caída real: defecto de manejo de error demostrado en código. Los límites de filas también requieren comprobación de paginación; `.range(0,49999)` no acredita por sí solo que el servidor entregue todo. No se ha demostrado truncamiento real con la cantidad actual.
 
 ### F14 — P2: ventanas y semántica de fechas (G; C)
 
@@ -126,7 +126,7 @@ La RPC de atribución es histórica, sin fechas; touchRows está limitado y el f
 | Retención/LTV | cohortes clientes, ventana madura, pagos netos y delivery enlazados | faltan verificaciones para contrato implementado | cohortes; celdas inmaduras N/A, nunca rojo automático |
 | Comisiones | estados earned/pending/approved/paid/reversed del motor; D8/D9 | base y fecha según motor, no fórmula paralela UI | tabla y totales por estado/persona |
 
-## Matriz principal (inspección de código; B pendiente)
+## Matriz principal (código; cobertura browser detallada más abajo)
 
 Rutas relativas a `/<tenant>`. ¿Correcto? se refiere al contrato inspeccionado, no certifica el render final.
 
@@ -163,20 +163,68 @@ Rutas relativas a `/<tenant>`. ¿Correcto? se refiere al contrato inspeccionado,
 | setting-ai; kpi/templates | simulación y objetivos | separar entrenamiento de hechos | simulador/config | Pendiente | No aplica/pendiente | Pendiente | no es performance productiva | comprobar etiquetas y acceso |
 | Ask/AI | resumen, campañas, contactos | misma métrica/periodo que UI | agent/tools | No; count corregido | Parcial | Pendiente | F10 | capa semántica compartida |
 
-## Cobertura browser pendiente y criterio de cierre
+## Cobertura browser real y pendientes — actualización de relevo
 
-No se ha recorrido la app autenticada. Inventario por rutas y código no sustituye sidebar, tabs, drawers, modales, exportación ni permisos observados. Completar por cada fila:
+| Pantalla | Observado / probado | Pendiente o hallazgo |
+|---|---|---|
+| Dashboard | desktop, Hoy y restaurar mes; cards, funnel, ranking, tabla | mezcla de tenant F19; cash/cohorte F06; atribución histórica no cambia |
+| Unit economics | desktop, filtro Solo anuncios/Todos | funnel inferior mezcla históricos con periodo, ratios >100%; F04–F08 |
+| Embudo / ranking | desktop; tablas y advertencia de mapping | denominadores distintos entre paneles; selector redundante; roles pendientes |
+| Actividad analítica | abrir KPI de hoy | modal sin formulario de rol; carga final del resto pendiente |
+| Campañas | Meta/Campañas, Hoy/Mes, CSV pulsado | contenido del archivo no validado; CTR F20; cuenta/campaña pendientes |
+| Atribución | desktop, cobertura y tablas | históricos frente a filtro de periodo F16 |
+| VSL | desktop, estado sin sesiones | cero y «Sin caídas relevantes» sin muestra F22 |
+| Instagram | Reels/Crecimiento/Captación/Conversaciones | limitación API visible; cobertura de comparación 30 días no acreditada |
+| Finanzas resumen / P&L | desktop; resumen cambiar mes y restaurar | importes coinciden entre ambos, pero no con dashboard; F03–F05/F19 |
+| Cohortes / proyección / morosidad | desktop y estados vacíos | madurez F09; ausencia de cuotas no equivale ausencia de deuda |
+| Ventas registro / detalle / reservas / pagos | desktop; Ver abre detalle de venta | reservas como activas, pagos históricos bajo filtro mensual; no cambios financieros |
+| Comisiones | desktop y Futuras | estados ledger explícitos; controles de carga ocupan jerarquía principal; no modificar carril ajeno |
+| Agendas | Calendario/Métricas equipo/Tabla | cierres cero frente a ventas existentes por enlaces ausentes; históricos por pestaña |
+| Contactos | lista desktop | contaminación tenant; ficha no confirmada |
+| Colaboradores | listado/KPIs/campañas | atribución estructurada y ledger visibles; contrato impide dashboard personal |
+| Alumnos | desktop y screenshot | fila ajena al tenant; onboarding vacío, porcentajes sin muestra |
+| CSM / bajas | lectura de cards/estados vacíos | ratios 0% y grado 0 sin muestra; recuperación no es retención |
+| Cobros / conciliación / devoluciones | tablas y avisos | conciliación identifica fees/refunds/enlaces pendientes; devoluciones internas vacías; no se ejecutó cotejo |
+| Gastos | desktop/screenshot | gráfico con etiquetas recortadas; gasto Meta contable difiere diario (temporalidad/sync por comprobar); área ajena sin editar |
+| Data Health | estado jobs, fuentes, webhooks, identidad | transporte vs dato diferenciados; inactividad por sí sola no demuestra webhook roto F23 |
+| Setting AI | entrenamiento vacío | simulación diferenciada de hechos; no ejecutar conversaciones que generen coste |
+| Contenido | tabla vacía y filtros | selector de editores incluye usuarios globales; no metricar rendimiento desde vacío |
+| Settings / usuarios | navegación admin | fallo de retorno Ver como F21; sesión recuperada, no volver a impersonar |
+| Funnels | navegación iniciada | captura/estado final pendiente al guardar relevo |
 
-1. Admin: captura desktop y mobile/tablet, pregunta principal resuelta en menos de diez segundos, unidades, leyenda, contraste, overflow y estados vacío/error/loading.
-2. Mes actual por defecto o justificación. Probar hoy, mes, periodo custom sin filas y dos periodos equivalentes. Capturar cards, chart, tabla y export con idéntico scope.
-3. Cuenta/campaña/persona/oferta/funnel: comprobar cada control, drilldown y paginación. Total operativo = atribuido + sin atribuir cuando corresponde.
-4. Colaborador, closer, setter, socio y dirección existentes: mismos pasos y solicitudes directas; lectura ajena denegada en servidor, no solo oculta.
-5. Switch tenant en usuario multitenant: ninguna fila/serie/cache del anterior. No crear usuarios ni conceder roles para hacer la prueba.
-6. Casos sintéticos en entorno de pruebas: reserva abierta/completada, pago de venta antigua, refund posterior, moneda distinta, n=0/1, cohorte inmadura, API caída, duplicado de referencia. Comparar UI/API/AI/export.
+**Sin completar:** funnels/eventos, socios, Brief, integraciones, recursos/testimonios/grabaciones, Person360 y seguimiento/Fathom; revisión mobile/tablet; todos los exports, custom ranges, paginación, cuenta/campaña/oferta, cambio real de tenant y UI de todos los roles. No inventar PASS. La matriz/scorecard original sigue provisional: esta tabla especifica qué dejó de estar pendiente.
+
+**Roles:** admin observado; colaborador probado por RLS previamente. UI de colaborador bloqueada por contrato pendiente: no firmar ni saltar gate. Closer/setter/socio no probados en UI. No crear privilegios para auditar.
+
+### F19 — P0: el tenant seleccionado no acota consultas de paneles (C,D,B,T)
+
+Un admin con acceso amplio ve una venta de otra subcuenta sumada en dashboard/finanzas/unit-economics pero no en registro de ventas. SQL por tenant confirma origen de la diferencia. También aparece en alumnos; contactos y selectores muestran filas globales. No confundir acceso amplio autorizado del admin con datos correctos del tenant seleccionado.
+
+**Fix acotado local:** `.eq('tenant_id', tenantId)` en las consultas iniciales de dashboard, unit-economics y finanzas resumen/P&L/cohortes/proyección. Usuarios por `tenant_members!inner` (FK comprobada). Reconsultar al cambiar tenant y proteger respuestas tardías con guard existente. Test ejecuta expresiones reales con cliente Supabase instalado y HTTP sintético permisivo para dos tenants. No sustituye test RLS ni browser del build corregido. CRM/alumnos/contenido quedan para el carril de producto; saved views escritura y scope de APIs necesitan revisión aparte.
+
+### F20 — P1: CTR de tabla dividido por 100 (A; C,B,T)
+
+La tabla formatea clicks/impressions directamente con `%`; la vista Meta expresa porcentaje. Corregido factor 100 preservando null si denominador cero. Fixture 28 clicks/1000 impressions → 2.8%, 0/1000→0%, 0/0→null. No cambia qué tipo de click selecciona cada fuente.
+
+### F21 — P2: Ver como puede bloquear el retorno y el login (C,B)
+
+El gate de contrato se renderiza antes del banner de retorno. La salida existente responde OK pero escribe cookie auth HttpOnly, incompatible con el cliente browser que debe guardar la sesión. Después la UI volvió al login y rechazó acceso a la subcuenta. Se observó únicamente metadata de cookie, se eliminó solo la cookie defectuosa de ese origen; usuario inició sesión y dashboard admin volvió a cargar. No se leyeron credenciales, ni se cambiaron roles/contratos. **Workaround aplicado al navegador; bug de código NO corregido.** Próximo fix: cookies mediante adaptador SSR canónico, limpieza de chunks anteriores y banner/retorno disponible en gate; pruebas con sesión grande y contrato pendiente. No quitar HttpOnly indiscriminadamente al ticket de impersonación.
+
+### F22 — P2: ausencia de muestra presentada como rendimiento cero (K/L; B,C)
+
+CSM muestra show/success=0% y grado=0 sin eventos; onboarding muestra 0% sin enviados; VSL dice «Sin caídas relevantes» sin sesiones. Mostrar sin muestra/no disponible, denominador y motivo. No concluir deterioro ni salud.
+
+### F23 — P2: Data Health afirma rotura por silencio de webhook (L/M; B)
+
+Superar un umbral de horas sin eventos no prueba por sí solo que el proveedor debiera haber enviado un evento. Rotular «sin recepciones, requiere comprobar» y contrastar logs de entrega/configuración. Separar falta de firma, fallo HTTP confirmado y ausencia de actividad esperada. No disparar sync ni alterar credenciales para simular evidencia.
+
+## Validación de los safe fixes
+
+Quality local: format PASS, lint PASS con warnings existentes, typecheck PASS, unit 902 PASS / 3 SKIP / 0 FAIL, métricas 729 PASS / 0 FAIL. Build de producción PASS. Knip ejecutado, backlog informativo existente, sin borrados. Sin E2E ni verificación visual del build nuevo; producción conserva código anterior. No afirmar desplegado.
 
 ## Scorecard provisional
 
-PARTIAL en visual significa **pendiente de revisión autenticada**, no una valoración estética intermedia. FAIL se apoya en hallazgo concreto; no implica que todas las métricas de esa pantalla fallen.
+PARTIAL en visual significa cobertura parcial; consultar registro browser anterior para distinguir observado de pendiente. FAIL se apoya en hallazgo concreto; no implica que todas las métricas de esa pantalla fallen.
 
 | Screen | Data correctness | Business usefulness | Visual clarity | Filter consistency | Tenant/permission |
 |---|---|---|---|---|---|
@@ -202,6 +250,6 @@ PARTIAL en visual significa **pendiente de revisión autenticada**, no una valor
 
 Positivo: existe vocabulario financiero documentado; exclusión de reservas en agregados y reglas D8/D9 en motor de comisiones; scopes explícitos en Instagram, afiliados y socio propio; advertencias de fuente vacía en AI; fuente de leads distingue fecha histórica e importación; suite canónica de métricas inicial 719/719.
 
-No probado: cobertura histórica completa, igualdad de cada cifra renderizada entre módulos, experiencia móvil, exports, todos los roles, LTV/retención/delivery y ausencia de duplicados global. No hay base para declarar negocio sano o fuera de KPI. No se ha detectado que un benchmark demuestre un error de negocio.
+No probado: cobertura histórica completa, igualdad de cada cifra renderizada entre módulos, experiencia móvil, exports completos, todos los roles, LTV/retención/delivery y ausencia de duplicados global. No hay base para declarar negocio sano o fuera de KPI. No se ha detectado que un benchmark demuestre un error de negocio.
 
 Plan operativo: [DASHBOARD_CORRECTION_PLAN.md](DASHBOARD_CORRECTION_PLAN.md). Coordinación: [docs/ACTIVE_HANDOFF.md](docs/ACTIVE_HANDOFF.md), sección CODEX — DASHBOARD & METRIC AUDIT.

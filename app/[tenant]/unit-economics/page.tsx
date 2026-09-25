@@ -23,7 +23,7 @@ import {
   type SaleRow,
   type ContactRow,
 } from '@/lib/unit-economics'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { useCuentasMetaActivas } from '@/lib/meta/use-cuentas-activas'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset, type PeriodRange } from '@/lib/filters/period'
@@ -365,6 +365,7 @@ type DailyRow = {
 }
 
 export default function UnitEconomicsPage() {
+  const tenantId = useTenantId()
   const tenant = useTenant()
   // Solo las cuentas elegidas en Integraciones. Sin esto, esta pantalla sumaba las CATORCE cuentas
   // que ve el token y lo presentaba como si fuera el negocio.
@@ -407,20 +408,24 @@ export default function UnitEconomicsPage() {
   useEffect(() => {
     let mounted = true
     async function load() {
+      setLoading(true)
       const supabase = createClient()
       const [campRes, salesRes, collRes, stripeRes, contactsRes, apptRes, dailyRes, fathomRes, targetsRes] =
         await Promise.all([
           supabase
             .from('campaigns')
             .select('id, channel, adspend, leads_generated, impressions, clicks, account_id')
+            .eq('tenant_id', tenantId)
             .range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('sales')
             .select('id, gross_amount, status, contact_id, sale_date')
+            .eq('tenant_id', tenantId)
             .range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('collections')
             .select('id, gross_amount, collected_at, status, payment_reference')
+            .eq('tenant_id', tenantId)
             .range(0, FINANCE_QUERY_ROW_CAP),
           // Fuente PRIMARIA del cash (§2): espejo de pagos de Stripe (succeeded, neto de su
           // refunded_amount). Sin filas el merge resuelve por collections — y el desglose por
@@ -428,15 +433,18 @@ export default function UnitEconomicsPage() {
           supabase
             .from('stripe_payments')
             .select('payment_id, charge_id, amount, refunded_amount, status, paid_at, customer_email')
+            .eq('tenant_id', tenantId)
             .range(0, FINANCE_QUERY_ROW_CAP),
           // email/phone entran para la consolidación canónica de leads (dedup por persona, §6/§17).
           supabase
             .from('contacts')
             .select('id, campaign_id, created_at, first_seen_at, email, phone')
+            .eq('tenant_id', tenantId)
             .range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('appointments')
             .select('id, contact_id, status, appointment_datetime, pipe_value, offered, result')
+            .eq('tenant_id', tenantId)
             .range(0, FINANCE_QUERY_ROW_CAP),
           // La serie DIARIA es lo que permite filtrar por periodo. El aviso que había aquí decía que no
           // se podía porque `campaigns.adspend` es un acumulado — cierto, pero `campaign_daily` existe
@@ -444,15 +452,18 @@ export default function UnitEconomicsPage() {
           supabase
             .from('campaign_daily')
             .select('campaign_id, date, spend, impressions, clicks, leads, account_id')
+            .eq('tenant_id', tenantId)
             .range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('fathom_match_review')
             .select('meeting_started_at, invitee_email')
+            .eq('tenant_id', tenantId)
             .eq('status', 'pendiente')
             .range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('targets')
             .select('id, metric_key, scope_type, is_active, period_type, period_start, period_end, target_value')
+            .eq('tenant_id', tenantId)
             .eq('scope_type', 'company'),
         ])
       if (!mounted) return
@@ -483,7 +494,7 @@ export default function UnitEconomicsPage() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [tenantId])
 
   const rango = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
   const hayPeriodo = periodPreset !== 'all'
