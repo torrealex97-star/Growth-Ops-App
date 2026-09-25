@@ -34,10 +34,12 @@ export const manifest: ConnectorManifest = {
   provider: 'stripe',
   version: '1.0',
   label: 'Stripe',
-  // Dos credenciales de naturaleza distinta: la Secret Key para leer su API y el signing secret
-  // para verificar lo que él nos empuja. El modo declara la principal; `requiredKeys` las nombra.
+  // Dos credenciales de naturaleza distinta, y en campos distintos: la Secret Key para LEER su API
+  // y el signing secret para VERIFICAR lo que él empuja. Sin la primera no hay sincronización; sin
+  // la segunda la sincronización va igual y lo que se cae son los avisos en tiempo real.
   authMode: 'api_key',
-  requiredKeys: ['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'],
+  requiredKeys: ['STRIPE_SECRET_KEY'],
+  webhookKeys: ['STRIPE_WEBHOOK_SECRET'],
   // El catálogo de Integraciones solo exige la Secret Key: sin webhook se pierde el tiempo real,
   // pero el backfill y la conciliación siguen funcionando. Aquí se declaran las DOS porque el
   // conector expone las dos mitades; qué falta en cada subcuenta lo dice la salud.
