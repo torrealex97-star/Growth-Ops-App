@@ -110,6 +110,7 @@ fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo 
 
 | Agente            | Qué                                                                                                                                                                                                                            | Rama         | Toca                                                    | Desde  |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------ | ------------------------------------------------------- | ------ |
+| Freebuff (Buffy)  | **MONEY.md v1**: vocabulario financiero de F3 (booked/billed/collected/recognized, bruto vs atribuible, FX, IVA, fees, disputas, comisiones, cuotas, financiación, cash manual) bajo delegación de Alex; decisiones D1–D7 + abiertas A1–A6 | docs/money-v1 | `docs/MONEY.md` (nuevo), `docs/ACTIVE_HANDOFF.md` (tablero) | 25-sep |
 | Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos | (fusionadas) | solo `expenses` vía migración pendiente; nada en código | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
