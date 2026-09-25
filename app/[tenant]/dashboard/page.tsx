@@ -134,6 +134,7 @@ export default function DashboardPage() {
 }
 
 function DashboardEquipo() {
+  const tenantId = useTenantId()
   const tenant = useTenant()
   // La sesión que el layout ya resolvió: evita repetir auth.getUser() + from('users') en esta pantalla.
   const sesion = useSesion()
@@ -206,6 +207,7 @@ function DashboardEquipo() {
   useEffect(() => {
     let mounted = true
     async function load() {
+      setLoading(true)
       const supabase = createClient()
 
       // LA CASCADA QUE SE ELIMINA. Aquí había tres viajes de red EN SERIE antes de pedir un solo dato
@@ -256,39 +258,61 @@ function DashboardEquipo() {
         supabase
           .from('sales')
           .select('id, gross_amount, status, sale_date, closer_id, setter_id, affiliate_id, contact_id')
+          .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('collections')
           .select('sale_id, gross_amount, collected_at, status')
+          .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
-        supabase.from('users').select('id, full_name'),
-        supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
+        supabase
+          .from('users')
+          .select('id, full_name, tenant_members!inner(tenant_id)')
+          .eq('tenant_members.tenant_id', tenantId),
+        supabase
+          .from('users')
+          .select('id, full_name, roles(key), tenant_members!inner(tenant_id)')
+          .eq('tenant_members.tenant_id', tenantId)
+          .eq('is_active', true),
         supabase
           .from('contacts')
           .select('id, created_at, first_seen_at, first_contact_at')
+          .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('contact_attributions')
           .select('contact_id, source, utm_source, utm_campaign, utm_content, is_primary, collaborator_id')
+          .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('appointments')
           .select('appointment_datetime, status, setter_id, closer_id, cold_caller_id, affiliate_id, contact_id')
+          .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('targets')
           .select(
             'id, name, metric_key, scope_type, scope_user_id, period_type, period_start, period_end, target_value'
           )
+          .eq('tenant_id', tenantId)
           .eq('is_active', true)
           .eq('scope_type', 'company'),
-        supabase.from('saved_dashboard_views').select('*').or(`user_id.eq.${sesion.userId},scope.eq.shared`),
+        supabase
+          .from('saved_dashboard_views')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .or(`user_id.eq.${sesion.userId},scope.eq.shared`),
         supabase
           .from('commissions')
           .select('user_id, sale_id, commission_amount, direction, status')
+          .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
-        // Perfiles de colaborador de la subcuenta (RLS la acota): nombres del tab Colaboradores.
-        supabase.from('collaborator_profiles').select('id, name, status').eq('status', 'active'),
+        // Perfiles de colaborador de la subcuenta seleccionada: nombres del tab Colaboradores.
+        supabase
+          .from('collaborator_profiles')
+          .select('id, name, status')
+          .eq('tenant_id', tenantId)
+          .eq('status', 'active'),
       ])
 
       if (!mounted) return
@@ -327,7 +351,7 @@ function DashboardEquipo() {
     return () => {
       mounted = false
     }
-  }, [tenant, sesion])
+  }, [tenant, tenantId, sesion])
 
   // Meses para el selector: últimos 12 (más reciente primero)
   // Personas del rol elegido (para el selector de usuario del filtro de arriba).

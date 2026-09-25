@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useTenantId } from '@/lib/tenant-context'
 import { createClient } from '@/lib/supabase/client'
 import { mensajeDeCarga, primerError } from '@/lib/supabase/resultado'
 import { KPICard } from '@/components/os/DashboardKPICard'
@@ -66,6 +67,7 @@ function MetricCard({ label, value, sublabel }: { label: string; value: string; 
 }
 
 export default function FinanzasPage() {
+  const tenantId = useTenantId()
   const [loading, setLoading] = useState(true)
   // Un fallo de lectura NO se pinta como 0 €: ver lib/supabase/resultado.ts.
   const [errorCarga, setErrorCarga] = useState<string | null>(null)
@@ -85,20 +87,38 @@ export default function FinanzasPage() {
       setLoading(true)
       const supabase = createClient()
       const [salesRes, collRes, expensesRes, refundsRes, commissionsRes, usersRes] = await Promise.all([
-        supabase.from('sales').select('id, gross_amount, discount, sale_date, status').range(0, FINANCE_QUERY_ROW_CAP),
+        supabase
+          .from('sales')
+          .select('id, gross_amount, discount, sale_date, status')
+          .eq('tenant_id', tenantId)
+          .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('collections')
           .select(
             'id, sale_id, gross_amount, commissionable_amount, processing_fee, vat, collected_at, status, expected_installment_id'
           )
+          .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
-        supabase.from('expenses').select('amount, category, expense_date').range(0, FINANCE_QUERY_ROW_CAP),
-        supabase.from('refunds').select('gross_refund_amount, refund_date').range(0, FINANCE_QUERY_ROW_CAP),
+        supabase
+          .from('expenses')
+          .select('amount, category, expense_date')
+          .eq('tenant_id', tenantId)
+          .range(0, FINANCE_QUERY_ROW_CAP),
+        supabase
+          .from('refunds')
+          .select('gross_refund_amount, refund_date')
+          .eq('tenant_id', tenantId)
+          .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('commissions')
           .select('commission_amount, direction, collection_id, liquidation_month')
+          .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
-        supabase.from('users').select('base_salary').eq('is_active', true),
+        supabase
+          .from('users')
+          .select('base_salary, tenant_members!inner(tenant_id)')
+          .eq('tenant_members.tenant_id', tenantId)
+          .eq('is_active', true),
       ])
       if (!mounted) return
       const fallo = primerError(salesRes, collRes, expensesRes, refundsRes, commissionsRes, usersRes)
@@ -115,7 +135,7 @@ export default function FinanzasPage() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [tenantId])
 
   // --- Cálculo de resumen financiero para un mes concreto ---
   const summaryFor = useMemo(() => {

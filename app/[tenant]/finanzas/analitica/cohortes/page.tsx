@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useTenantId } from '@/lib/tenant-context'
 import { createClient } from '@/lib/supabase/client'
 import { CalendarRange } from 'lucide-react'
 import { isActiveSale, monthLabel } from '@/lib/analytics'
@@ -72,6 +73,7 @@ function pctColor(pct: number): string {
 }
 
 export default function CohortsPage() {
+  const tenantId = useTenantId()
   const [loading, setLoading] = useState(true)
   const [sales, setSales] = useState<SaleRow[]>([])
   const [collections, setCollections] = useState<CollectionRow[]>([])
@@ -79,12 +81,18 @@ export default function CohortsPage() {
   useEffect(() => {
     let mounted = true
     async function load() {
+      setLoading(true)
       const supabase = createClient()
       const [salesRes, collRes] = await Promise.all([
-        supabase.from('sales').select('id, sale_date, gross_amount, status').range(0, FINANCE_QUERY_ROW_CAP),
+        supabase
+          .from('sales')
+          .select('id, sale_date, gross_amount, status')
+          .eq('tenant_id', tenantId)
+          .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('collections')
           .select('sale_id, gross_amount, collected_at, status')
+          .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
       ])
       if (!mounted) return
@@ -96,7 +104,7 @@ export default function CohortsPage() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [tenantId])
 
   const cohorts = useMemo(() => buildCohorts(sales, collections).slice(0, 12), [sales, collections])
 

@@ -826,7 +826,7 @@ export default function CampaignsPage() {
                     {displayItems.map((c) => {
                       const cpm = c.impressions > 0 ? (c.adspend / c.impressions) * 1000 : null
                       const cpc = div(c.adspend, c.clicks)
-                      const ctr = div(c.clicks, c.impressions)
+                      const ctr = div(c.clicks * 100, c.impressions)
                       const cpl = div(c.adspend, c.meta_leads)
                       const isAccounted = !!accountingIds[`campaign:${c.id}`]
                       const isMeta = c.provider === 'meta'
