@@ -6,6 +6,7 @@ import {
   Cell,
   Line,
   ComposedChart,
+  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -258,6 +259,118 @@ export function FinanceEvolution({
           </table>
         </div>
       </details>
+    </section>
+  )
+}
+
+// Dual de unidad: facturación y cash son € (comparten eje); el CAC es €/cliente y va en eje
+// propio a la derecha, SOLO si el helper lo considera legible (densidad de cubos con gasto).
+export type DualPoint = { label: string; facturacion: number; cash: number; cac: number | null }
+
+export function FinanceDual({ title, data, showCacAxis }: { title: string; data: DualPoint[]; showCacAxis: boolean }) {
+  // El CAC se mantiene SIEMPRE en los datos: con eje propio cuando hay densidad de gasto, y
+  // sobre el eje de € cuando no (lo verá bajo; pero el tooltip lo muestra — anularlo aquí
+  // dejaría la leyenda prometiendo un CAC que nunca aparece).
+  const conGasto = data.some((d) => d.cac != null)
+  return (
+    <section className="dashboard-card p-5">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-sm font-medium">{title}</h2>
+        <div className="flex gap-4 text-xs text-muted-foreground">
+          <span className="flex items-center gap-2">
+            <i className="h-2 w-2 rounded-full bg-emerald-400" />
+            Facturación
+          </span>
+          <span className="flex items-center gap-2">
+            <i className="h-2 w-2 rounded-full bg-brand-500" />
+            Cash cobrado
+          </span>
+          {conGasto && (
+            <span className="flex items-center gap-2">
+              <i className="h-2 w-2 rounded-full" style={{ background: 'hsl(var(--brand-900))' }} />
+              CAC {showCacAxis ? '· €/cliente (eje der.)' : '(solo tooltip)'}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="h-72" aria-hidden="true">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data} barGap={6} margin={{ top: 12, right: 4, bottom: 0, left: 0 }}>
+            <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.4} strokeDasharray="3 6" />
+            <XAxis
+              dataKey="label"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+              tickMargin={12}
+            />
+            <YAxis
+              yAxisId="eur"
+              axisLine={false}
+              tickLine={false}
+              width={52}
+              tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+              tickFormatter={(v: number) => formatNumber(v, { notation: 'compact' })}
+            />
+            {showCacAxis && (
+              <YAxis
+                yAxisId="cac"
+                orientation="right"
+                axisLine={false}
+                tickLine={false}
+                width={44}
+                tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                tickFormatter={(v: number) => formatNumber(v, { notation: 'compact' })}
+              />
+            )}
+            <Tooltip
+              contentStyle={tooltipStyle}
+              cursor={{ fill: 'hsl(var(--muted) / 0.4)' }}
+              formatter={(v, name) => [formatCurrency(Number(v)), name]}
+            />
+            <Legend
+              wrapperStyle={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}
+              formatter={(value) => <span style={{ color: 'hsl(var(--muted-foreground))' }}>{value}</span>}
+            />
+            <Bar
+              dataKey="facturacion"
+              name="Facturación"
+              fill="#34d399"
+              radius={[8, 8, 0, 0]}
+              maxBarSize={16}
+              yAxisId="eur"
+              isAnimationActive={false}
+            />
+            <Bar
+              dataKey="cash"
+              name="Cash cobrado"
+              fill="hsl(var(--brand-500))"
+              radius={[8, 8, 0, 0]}
+              maxBarSize={16}
+              yAxisId="eur"
+              isAnimationActive={false}
+            />
+            {conGasto && (
+              <Line
+                type="monotone"
+                dataKey="cac"
+                name="CAC"
+                stroke="hsl(var(--brand-900))"
+                strokeWidth={2}
+                strokeDasharray="4 3"
+                connectNulls={false}
+                dot={{ r: 2.5, fill: 'hsl(var(--brand-900))' }}
+                yAxisId={showCacAxis ? 'cac' : 'eur'}
+                isAnimationActive={false}
+              />
+            )}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground">
+        La brecha entre barras es el dinero vendido aún sin cobrar. El CAC solo se traza donde el cubo tuvo gasto
+        publicitario y cierres: sin gasto detrás, un CAC no existe.
+      </p>
     </section>
   )
 }

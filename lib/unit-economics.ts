@@ -204,3 +204,62 @@ export function buildSalesOverview(
     tasaCierre: showsTotales ? (ventasActivas.length / showsTotales) * 100 : null,
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GRÁFICO DUAL: facturación vs cash por cubo, con CAC solo donde hubo gasto.
+//
+// Dos decisiones documentadas:
+//  · Facturación y cash comparten unidad (€) y comparten eje: su distancia ES la brecha
+//    vendido-vs-cobrado y hay que leerla en escala común (mismo criterio que FinanceEvolution
+//    y SalesChart).
+//  · El CAC es € por CLIENTE (unidad distinta): va en un eje propio a la derecha y SOLO en los
+//    cubos con gasto y con clientes del cubo — un CAC sin gasto detrás no existe y dibujarlo
+//    sería inventarlo. Con periodos largos y gasto disperso el eje se apaga (densidad mínima);
+//    el CAC global sigue en los KPI y en la tabla por canal.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type DualBucket = { cubo: string; facturacion: number; cash: number; cac: number | null }
+
+/**
+ * Serie del dual para los cubos pedidos (misma granularidad que Evolución; quien llama decide la
+ * ventana y genera los cubos con SU función de cubo, la misma que alimenta el resto de series).
+ * `cashPorCubo` viene de `serieCanonicaCash` (mismas reglas de dedup que el total canónico). La
+ * facturación del cubo suma las ventas ACTIVAS cuyo cubo de `sale_date` cae en el cubo pedido y
+ * cuenta clientes ÚNICOS por contacto (mismo convenio que `totals`/`buildChannelRows`).
+ */
+export function serieDualFacturacionCash(
+  cubos: string[],
+  sales: SaleRow[],
+  cashPorCubo: Map<string, number>,
+  adspendPorCubo: Map<string, number>,
+  cuboDe: (iso: string) => string
+): DualBucket[] {
+  const facturacionPorCubo = new Map<string, { importe: number; clientes: Set<string> }>()
+  for (const s of sales) {
+    if (!ACTIVE_SALE_STATUSES.includes(s.status) || !s.sale_date) continue
+    const k = cuboDe(s.sale_date)
+    const acc = facturacionPorCubo.get(k) ?? { importe: 0, clientes: new Set<string>() }
+    acc.importe += num(s.gross_amount)
+    if (s.contact_id) acc.clientes.add(s.contact_id)
+    facturacionPorCubo.set(k, acc)
+  }
+
+  return cubos.map((cubo) => {
+    const adspend = adspendPorCubo.get(cubo) ?? 0
+    const clientes = facturacionPorCubo.get(cubo)?.clientes.size ?? 0
+    return {
+      cubo,
+      facturacion: facturacionPorCubo.get(cubo)?.importe ?? 0,
+      cash: cashPorCubo.get(cubo) ?? 0,
+      // CAC del cubo SOLO si el cubo tuvo gasto y clientes: fuera de ahí, hueco.
+      cac: adspend > 0 && clientes > 0 ? adspend / clientes : null,
+    }
+  })
+}
+
+/** ¿El eje derecho del CAC se pinta? Exige densidad mínima de cubos con gasto: un eje que
+ *  aparece para tres puntos sueltos en una serie larga sugiere una evolución ilegible. */
+export function ejeCacVisible(serie: DualBucket[]): boolean {
+  const conGasto = serie.filter((b) => b.cac != null).length
+  return serie.length > 0 && conGasto >= Math.ceil(serie.length / 3)
+}
