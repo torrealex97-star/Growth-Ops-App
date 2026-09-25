@@ -11,11 +11,13 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 import { ArrowDownRight, ArrowRight, ArrowUpRight, TrendingUp } from 'lucide-react'
 import type { ObjetivoMedido } from '@/lib/metrics/objetivos'
 import type { Prevision } from '@/lib/metrics/prevision'
+import type { LtgpCacAproximado } from '@/lib/metrics/ltgp-aproximado'
 import { formatNumber, formatPercent } from '@/lib/utils'
 
 type Props = {
   objetivos: ObjetivoMedido[]
   prevision: Prevision | null
+  ltgpCacAproximado?: LtgpCacAproximado
 }
 
 const RITMO_LABEL: Record<NonNullable<ObjetivoMedido['ritmo']>, string> = {
@@ -62,8 +64,8 @@ function TarjetaObjetivo({ o }: { o: ObjetivoMedido }) {
   )
 }
 
-export function PanelObjetivos({ objetivos, prevision }: Props) {
-  if (objetivos.length === 0 && !prevision) return null
+export function PanelObjetivos({ objetivos, prevision, ltgpCacAproximado }: Props) {
+  if (objetivos.length === 0 && !prevision && !ltgpCacAproximado) return null
 
   // El punto en el que 'real' termina se repite en 'previsto' para que la línea discontinua arranque
   // exactamente donde acaba la sólida, en vez de dejar un hueco visual entre las dos series.
@@ -155,6 +157,36 @@ export function PanelObjetivos({ objetivos, prevision }: Props) {
           {/* EL MÉTODO, SIEMPRE VISIBLE — nunca solo el trazo discontinuo. */}
           <p className="mt-2 text-xs text-muted-foreground">{prevision.explicacion}</p>
           {prevision.aviso && <p className="mt-1 text-xs text-amber-500">{prevision.aviso}</p>}
+        </div>
+      )}
+
+      {ltgpCacAproximado && (
+        <div className="dashboard-card p-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            LTGP:CAC aproximado (por periodo)
+          </p>
+          {ltgpCacAproximado.valor !== null ? (
+            <>
+              <p className="mt-1.5 text-2xl font-semibold tabular-nums text-foreground">
+                {formatNumber(ltgpCacAproximado.valor, { maximumFractionDigits: 2 })}:1
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Coste de entrega por cliente: {formatNumber(ltgpCacAproximado.costePorCliente ?? 0)} € (fuente:{' '}
+                {ltgpCacAproximado.fuenteCoste === 'cogs'
+                  ? 'gastos categorizados como COGS'
+                  : 'coste manual de Configuración'}
+                ).
+              </p>
+            </>
+          ) : (
+            <p className="mt-1.5 text-sm text-muted-foreground">{ltgpCacAproximado.motivo}</p>
+          )}
+          {/* NUNCA se confunde con el LTGP:CAC canónico: este es un proxy del periodo, no el valor de
+              vida real del cliente. */}
+          <p className="mt-2 text-xs text-amber-500">
+            Aproximación del periodo, no LTGP:CAC de por vida — falta el motor que suma la facturación histórica de cada
+            cliente.
+          </p>
         </div>
       )}
     </section>

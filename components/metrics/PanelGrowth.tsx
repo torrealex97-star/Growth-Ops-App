@@ -12,6 +12,7 @@ import type { GrowthBrief } from '@/lib/metrics/brief'
 import type { SaludNegocio } from '@/lib/metrics/salud'
 import type { ObjetivoMedido } from '@/lib/metrics/objetivos'
 import type { Prevision } from '@/lib/metrics/prevision'
+import type { LtgpCacAproximado } from '@/lib/metrics/ltgp-aproximado'
 import { PanelObjetivos } from '@/components/metrics/PanelObjetivos'
 
 // EL PANEL DE GROWTH: la restricción primero, las tarjetas después.
@@ -28,6 +29,7 @@ type Respuesta = {
   brief: GrowthBrief
   objetivos: ObjetivoMedido[]
   prevision: Prevision | null
+  ltgpCacAproximado: LtgpCacAproximado
   mediciones: Record<string, Medicion>
   salud: SaludNegocio
   procedencia: {
@@ -99,7 +101,7 @@ export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }
   if (cargando && !datos) return <EstadoPanel estado="cargando" que="las métricas" filasSkeleton={6} />
   if (!datos) return <EstadoPanel estado="vacio" que="métricas" />
 
-  const { brief, salud, procedencia, objetivos, prevision } = datos
+  const { brief, salud, procedencia, objetivos, prevision, ltgpCacAproximado } = datos
   const medidas = medirTodas(datos.mediciones)
   const cobertura = coberturaDeCategoria(medidas)
 
@@ -199,7 +201,7 @@ export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }
         </section>
       </div>
 
-      <PanelObjetivos objetivos={objetivos} prevision={prevision} />
+      <PanelObjetivos objetivos={objetivos} prevision={prevision} ltgpCacAproximado={ltgpCacAproximado} />
 
       {/* LAS TARJETAS, para comprobar lo de arriba. */}
       <section>

@@ -12,6 +12,7 @@ import { cargarContextoNegocio } from '@/lib/ai/agent/contexto'
 import { medirObjetivos, type EntradaObjetivo, type ObjetivoMedido } from '@/lib/metrics/objetivos'
 import { preverSerie, type Prevision } from '@/lib/metrics/prevision'
 import { avanceDelPeriodo, diaSiguiente } from '@/lib/metrics/series'
+import { calcularLtgpCacAproximado, type LtgpCacAproximado } from '@/lib/metrics/ltgp-aproximado'
 
 export const runtime = 'nodejs'
 
@@ -195,6 +196,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   }
   const objetivos: ObjetivoMedido[] = medirObjetivos(entradasObjetivos)
 
+  // LTGP:CAC APROXIMADO POR PERIODO — no el canónico (ver lib/metrics/ltgp-aproximado.ts). Se calcula
+  // aparte de `mediciones.ltgp_cac` (que sigue en hueco a propósito) para no mezclar una aproximación
+  // con el contrato de métrica versionado del registro.
+  const ltgpCacAproximado: LtgpCacAproximado = calcularLtgpCacAproximado({
+    aov: consulta.agregados.aov?.valor ?? null,
+    cac: consulta.agregados.cac?.valor ?? null,
+    costeEntregaCogsPeriodo: consulta.costeEntregaCogsPeriodo,
+    clientesPeriodo: consulta.agregados.ventas?.valor ?? null,
+    costeManualEur: contexto?.costeMedioEntregaEur ?? null,
+  })
+
   // La previsión solo tiene sentido con periodo en curso y días por delante que proyectar: un periodo
   // cerrado no se prevé, se mide.
   const prevision: Prevision | null =
@@ -229,6 +241,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     objetivos,
     prevision,
     avance,
+    ltgpCacAproximado,
     // Las mediciones en crudo, para el "ver cálculo" de cada tarjeta: sin esto, la nota de salud vuelve
     // a ser un número que nadie puede discutir.
     mediciones: consulta.agregados,
