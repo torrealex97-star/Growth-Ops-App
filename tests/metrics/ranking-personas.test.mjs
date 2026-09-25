@@ -84,7 +84,47 @@ test('agendasPorPersona closer: totales, shows y show rate por closer_id', () =>
   assert.equal(c.total, 3)
   assert.equal(c.shows, 1)
   assert.equal(c.noShows, 1)
-  assert.ok(Math.abs(c.showRate - (1 / 3) * 100) < 0.01)
+  // El ratio va sobre las RESUELTAS (1 de 2), no sobre las 3 agendas. La tercera no tiene estado:
+  // nadie faltó a ella, simplemente nadie la ha marcado. Este test afirmaba lo contrario (1/3) y
+  // por eso el fallo llegó a producción: una persona con 68 agendas, 34 asistidas y CERO no-shows
+  // aparecía con un 50 % de asistencia.
+  assert.equal(c.showRate, 50)
+  assert.equal(c.sinResolver, 1)
+})
+
+test('sin ninguna cita resuelta no hay ratio: null, no 0 %', () => {
+  // Un 0 % aquí es un problema inventado — la misma regla que aplica la definición canónica.
+  const rows = agendasPorPersona([agenda('a1', { closer: 'u-claudia' }), agenda('a2', { closer: 'u-claudia' })], {
+    persona: 'closer',
+    nameOf: nombres,
+    collaboratorOf: new Map(),
+  })
+  const c = rows.find((r) => r.userId === 'u-claudia')
+  assert.equal(c.showRate, null)
+  assert.equal(c.sinResolver, 2)
+})
+
+test('una cita cancelada no cuenta como "sin marcar" ni hunde el ratio', () => {
+  // Nadie dejó de presentarse a algo que se canceló: ni numerador, ni denominador, ni pendiente.
+  const rows = agendasPorPersona(
+    [agenda('a1', { closer: 'u-claudia', status: 'show' }), agenda('a2', { closer: 'u-claudia', status: 'cancelled' })],
+    { persona: 'closer', nameOf: nombres, collaboratorOf: new Map() }
+  )
+  const c = rows.find((r) => r.userId === 'u-claudia')
+  assert.equal(c.showRate, 100)
+  assert.equal(c.sinResolver, 0)
+})
+
+test('completed también es asistir', () => {
+  // `status === 'show'` dejaba fuera a quien cierra la llamada marcándola completada, y esa cita
+  // caía al saco de "sin marcar" hundiendo su ratio.
+  const rows = agendasPorPersona([agenda('a1', { closer: 'u-claudia', status: 'completed' })], {
+    persona: 'closer',
+    nameOf: nombres,
+    collaboratorOf: new Map(),
+  })
+  assert.equal(rows[0].shows, 1)
+  assert.equal(rows[0].showRate, 100)
 })
 
 test('agendasPorPersona sin asignar no inventa fila', () => {

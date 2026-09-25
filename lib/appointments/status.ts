@@ -56,6 +56,14 @@ export type AppointmentDisplayCategory =
 
 const CANCELLED_STATUSES: AppointmentStatus[] = ['cancelled', 'cancelled_admin', 'cancelled_lead']
 
+/**
+ * Una cita CANCELADA no entra en ningún ratio de asistencia: nadie dejó de presentarse a algo que
+ * se canceló. Se exporta para que las métricas no vuelvan a repetir la lista de literales.
+ */
+export function isCancelled(status: string | null | undefined): boolean {
+  return !!status && (CANCELLED_STATUSES as readonly string[]).includes(status as AppointmentStatus)
+}
+
 export function getAppointmentCategory(status: AppointmentStatus, purchased: boolean): AppointmentDisplayCategory {
   if (purchased) return 'compra'
   if (CANCELLED_STATUSES.includes(status)) return 'cancelada'
