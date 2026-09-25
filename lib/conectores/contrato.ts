@@ -63,8 +63,20 @@ export type ConnectorManifest = {
   version: string
   label: string
   authMode: ModoAuth
-  /** Claves de configuración mínimas, las mismas que exige el catálogo de Integraciones. */
+  /**
+   * Claves necesarias para LEER del proveedor. Solo estas deciden si la integración está
+   * configurada: sin ellas no hay sincronización posible.
+   */
   requiredKeys: string[]
+  /**
+   * Claves necesarias para VERIFICAR los webhooks entrantes, aparte de `requiredKeys` a propósito.
+   *
+   * POR QUÉ SEPARADAS. Estaban mezcladas y el panel daba un veredicto falso: Stripe aparecía como
+   * "sin configurar" por faltarle el signing secret mientras sincronizaba 74 filas cada hora sin un
+   * fallo. Son dos cosas distintas —traer datos y aceptar los que empujan— y se rompen por separado:
+   * quien lee la pantalla necesita saber cuál de las dos está rota.
+   */
+  webhookKeys?: string[]
   /** Qué objetos del negocio produce este conector: `contacts`, `appointments`, `payments`… */
   supportedObjects: string[]
   syncModes: ModoSync[]

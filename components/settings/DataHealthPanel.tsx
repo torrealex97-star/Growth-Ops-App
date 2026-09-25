@@ -42,6 +42,7 @@ type SaludConector = {
   label: string
   comoEntra: string
   credenciales: { completas: boolean; faltan: string[] }
+  webhook: { faltan: string[] }
   ultima: {
     job: string
     estado: string
@@ -49,7 +50,7 @@ type SaludConector = {
     duracionMs: number | null
     filasEscritas: number | null
   } | null
-  incidencia: { mensaje: string; codigo: string | null; seReintentaSolo: boolean } | null
+  incidencia: { mensaje: string; codigo: string | null; seReintentaSolo: boolean; job: string; cuando: string } | null
   cursor: { soportado: boolean; motivo: string }
   estado: 'al_dia' | 'en_curso' | 'fallando' | 'sin_credenciales' | 'nunca_ejecutada'
 }
@@ -134,6 +135,14 @@ function ConectorCard({ conector }: { conector: SaludConector }) {
         </p>
       )}
 
+      {conector.webhook.faltan.length > 0 && (
+        // Avería DISTINTA de la anterior: sincroniza bien y lo que se cae es el aviso en tiempo
+        // real. Mezclarlas pintaba "sin configurar" sobre una integración que traía datos cada hora.
+        <p className="mt-3 text-xs text-amber-400">
+          Sincroniza, pero los avisos en tiempo real se rechazan: falta {conector.webhook.faltan.join(', ')}.
+        </p>
+      )}
+
       {ultima && (
         <p className="mt-3 text-xs text-muted-foreground">
           Última pasada ({ultima.job}): {new Date(ultima.empezoEn).toLocaleString('es-ES')}
@@ -146,7 +155,12 @@ function ConectorCard({ conector }: { conector: SaludConector }) {
 
       {conector.incidencia && (
         <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 p-2">
-          <p className="text-xs text-red-300">{conector.incidencia.mensaje}</p>
+          {/* De QUÉ pasada viene: casi nunca es la de arriba (Meta tiene tres jobs), y sin decirlo
+              la tarjeta se contradecía sola — "31 s" encima de "no se sabe cuánto duró". */}
+          <p className="text-[11px] text-muted-foreground">
+            Incidencia en {conector.incidencia.job} · {new Date(conector.incidencia.cuando).toLocaleString('es-ES')}
+          </p>
+          <p className="mt-1 text-xs text-red-300">{conector.incidencia.mensaje}</p>
           <p className="mt-1 text-[11px] text-muted-foreground">
             {conector.incidencia.seReintentaSolo
               ? 'Es un fallo de transporte: la próxima pasada puede arreglarlo sola.'

@@ -23,6 +23,7 @@ const MANIFIESTO = {
   label: 'Meta Ads',
   authMode: 'api_key',
   requiredKeys: ['META_ACCESS_TOKEN'],
+  webhookKeys: [],
   supportedObjects: ['campaigns'],
   syncModes: ['backfill', 'manual'],
   capabilities: { backfill: true },
@@ -163,4 +164,48 @@ test('el barrido de colgados no inventa la hora de fin', () => {
   const src = leer('lib/integrations/sync-runs.ts')
   const barrido = src.slice(src.indexOf('export async function reclaimAllStaleRuns'))
   assert.match(barrido.slice(0, 1200), /finished_at: null/, 'no se puede sellar una hora de fin que nadie conoce')
+})
+
+// ── LO QUE ENSEÑÓ MIRAR LA PANTALLA DE VERDAD (25-sep) ──────────────────────────────────────
+
+test('faltar el secreto del webhook NO es estar sin configurar', () => {
+  // En producción, Stripe salía "Sin configurar" por el signing secret mientras sincronizaba 74
+  // filas cada hora sin un fallo. Son dos averías distintas y se rompen por separado: sin la clave
+  // de lectura no hay sincronización; sin la del webhook lo que se cae es el aviso en tiempo real.
+  const manifiesto = { ...MANIFIESTO, requiredKeys: ['STRIPE_SECRET_KEY'], webhookKeys: ['STRIPE_WEBHOOK_SECRET'] }
+  const s = saludDeConector(manifiesto, {
+    clavesConfiguradas: new Set(['STRIPE_SECRET_KEY']),
+    ejecuciones: { stripe: ejecucion({ job: 'stripe-payments', provider: 'meta' }) },
+  })
+  assert.equal(s.credenciales.completas, true)
+  assert.equal(s.estado, 'al_dia', 'sincroniza: no puede aparecer como "sin configurar"')
+  assert.deepEqual(s.webhook.faltan, ['STRIPE_WEBHOOK_SECRET'], 'pero el hueco del webhook se dice')
+})
+
+test('la incidencia declara de qué pasada viene', () => {
+  // La tarjeta de Meta se contradecía sola: "última pasada 31 s · 160 filas" encima de "se cortó,
+  // no se sabe cuánto duró" — dos ejecuciones distintas presentadas como una.
+  const s = saludDeConector(MANIFIESTO, {
+    clavesConfiguradas: new Set(['META_ACCESS_TOKEN']),
+    ejecuciones: {
+      'meta-daily': ejecucion({ job: 'meta-daily', startedAt: '2026-09-25T11:01:53.000Z' }),
+      meta: ejecucion({
+        job: 'meta',
+        startedAt: '2026-09-25T10:30:00.000Z',
+        status: 'timeout',
+        finishedAt: null,
+        errorCode: 'timeout',
+        errorMessage: 'Se cortó.',
+      }),
+    },
+  })
+  assert.equal(s.ultima.job, 'meta-daily')
+  assert.equal(s.incidencia.job, 'meta', 'el fallo es de otro job, y la pantalla tiene que decirlo')
+  assert.equal(s.incidencia.cuando, '2026-09-25T10:30:00.000Z')
+})
+
+test('la pantalla pinta las dos cosas por separado', () => {
+  const panel = leer('components/settings/DataHealthPanel.tsx')
+  assert.match(panel, /Incidencia en \{conector\.incidencia\.job\}/)
+  assert.match(panel, /conector\.webhook\.faltan/)
 })
