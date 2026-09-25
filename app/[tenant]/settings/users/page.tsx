@@ -104,6 +104,10 @@ export default function UsersPage() {
   const [editMonthlyGoal, setEditMonthlyGoal] = useState('')
   const [editAssignedChannel, setEditAssignedChannel] = useState('')
   const [editMemberStatus, setEditMemberStatus] = useState<'activo' | 'inactivo' | 'prueba'>('activo')
+  // Socios y perfiles sin comisión (p.ej. un socio que cobra reparto de beneficio, no comisión de
+  // venta): si esto está desmarcado, NUNCA se le genera comisión de closer/setter/afiliado por
+  // ningún cobro (lib/commissions/calculator.ts) ni aparece en el Dashboard de Comisiones.
+  const [editPaysCommissions, setEditPaysCommissions] = useState(true)
   const [editAffiliateCode, setEditAffiliateCode] = useState('')
   const [editPageOverrides, setEditPageOverrides] = useState<string[]>([])
   const [editTrackingCode, setEditTrackingCode] = useState('')
@@ -167,6 +171,7 @@ export default function UsersPage() {
     setEditMonthlyGoal(user.monthly_goal !== null && user.monthly_goal !== undefined ? String(user.monthly_goal) : '')
     setEditAssignedChannel(user.assigned_channel ?? '')
     setEditMemberStatus(user.member_status ?? 'activo')
+    setEditPaysCommissions((user as { pays_commissions?: boolean | null }).pays_commissions !== false)
     setEditAffiliateCode(user.affiliate_code ?? '')
     // Muestra las páginas permitidas: usa page_overrides si existe; si no, expande dept_overrides
     // (para que un usuario antiguo restringido por departamento se vea ya marcado por página).
@@ -435,6 +440,7 @@ export default function UsersPage() {
         monthly_goal: editMonthlyGoal ? parseFloat(editMonthlyGoal) : null,
         assigned_channel: editAssignedChannel || null,
         member_status: editMemberStatus,
+        pays_commissions: editPaysCommissions,
         affiliate_code: editAffiliateCode || null,
         dept_overrides: null,
         page_overrides: editPageOverrides.length > 0 ? editPageOverrides : null,
@@ -1154,6 +1160,24 @@ export default function UsersPage() {
               >
                 {editIsActive ? 'Activo' : 'Inactivo'}
               </button>
+            </div>
+            <div className="space-y-2">
+              <Label>Comisiona</Label>
+              <button
+                type="button"
+                onClick={() => setEditPaysCommissions(!editPaysCommissions)}
+                className={`w-full h-10 rounded-md border text-sm transition-colors ${
+                  editPaysCommissions
+                    ? 'bg-emerald-600/20 border-emerald-500/30 text-emerald-400'
+                    : 'bg-muted border-border text-muted-foreground'
+                }`}
+              >
+                {editPaysCommissions ? 'Sí, recibe comisiones' : 'No — socio u otro reparto'}
+              </button>
+              <p className="text-xs text-muted-foreground">
+                Desmárcalo para un socio u otro perfil que no debe recibir comisión de venta (p.ej. cobra reparto de
+                beneficio aparte): no se le generará comisión de ningún cobro ni saldrá en el Dashboard de Comisiones.
+              </p>
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <Button variant="outline" onClick={() => setEditDialog(false)} disabled={submitting}>

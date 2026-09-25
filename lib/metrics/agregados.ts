@@ -66,6 +66,10 @@ export type FilaVenta = {
   status: string | null
   closer_id?: string | null
   appointment_id?: string | null
+  /** Fecha en que una reserva pasó a venta real (pagó el resto). `null` mientras sigue abierta. */
+  reservation_completed_at?: string | null
+  /** Método del plan de pago ('reserva' cuando el cobro fue solo la seña). */
+  payment_plan_method?: string | null
 }
 
 export type FilaCobro = {
@@ -161,6 +165,16 @@ const NO_ASISTIO = new Set(['no_show'])
  */
 const SIN_RESOLVER = new Set(['scheduled', 'confirmed', 'programada', 'confirmada', 'seguimiento', 'reserva'])
 
+/**
+ * Reserva que TODAVÍA no es cliente: pagó la seña (plan `reserva`) pero no ha completado el pago
+ * (`reservation_completed_at` sigue null). No cuenta como venta ni como cliente en ninguna métrica
+ * de negocio — es el mismo criterio que ya usa `lib/commissions/tramos.ts` para no comisionarla.
+ * Solo reservar y pagar la seña no es ser cliente.
+ */
+export function esReservaAbierta(v: Pick<FilaVenta, 'payment_plan_method' | 'reservation_completed_at'>): boolean {
+  return v.payment_plan_method === 'reserva' && !v.reservation_completed_at
+}
+
 export function enPeriodo(fecha: string | null | undefined, p: Periodo): boolean {
   if (!fecha) return false
   const d = fecha.slice(0, 10)
@@ -184,7 +198,7 @@ export function calcularAgregados(e: Entrada): Agregados {
   const cash = cobrosDelPeriodo.reduce((a, c) => a + num(c.gross_amount), 0)
 
   const ventasDelPeriodo = e.ventas.filter(
-    (v) => enPeriodo(v.sale_date, p) && (!v.status || VENTAS_QUE_CUENTAN.has(v.status))
+    (v) => enPeriodo(v.sale_date, p) && (!v.status || VENTAS_QUE_CUENTAN.has(v.status)) && !esReservaAbierta(v)
   )
   // Facturación = precio COMPROMETIDO, no la suma de lo cobrado. Es la corrección que ya costó una
   // migración de datos: un plan a 10 plazos factura el total y cobra una décima parte cada mes.

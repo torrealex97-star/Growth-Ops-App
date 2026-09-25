@@ -79,11 +79,15 @@ export async function consultarMetricas(
 ): Promise<ResultadoConsulta> {
   // Las lecturas son independientes: en serie serían viajes de red encadenados por nada.
   const [ventas, cobros, citas, campanas, contactos, gastosCogs] = await Promise.all([
-    fetchAllRows<FilaVenta>(
+    fetchAllRows<FilaVenta & { payment_plans: { method: string | null } | { method: string | null }[] | null }>(
       () =>
         sb
           .from('sales')
-          .select('sale_date, gross_amount, status, closer_id, appointment_id')
+          // payment_plans(method): para excluir reservas sin completar de ventas/clientes (una
+          // reserva que solo pagó la seña no es cliente — ver esReservaAbierta en agregados.ts).
+          .select(
+            'sale_date, gross_amount, status, closer_id, appointment_id, reservation_completed_at, payment_plans(method)'
+          )
           .eq('tenant_id', tenantId)
           .gte('sale_date', periodo.desde)
           .lte('sale_date', periodo.hasta),
@@ -183,11 +187,20 @@ export async function consultarMetricas(
   // 'cogs' queda desconocido y la aproximación de LTGP:CAC cae al fallback manual (o al hueco).
   const costeEntregaCogsPeriodo = gastosCogs.error ? null : r2(gastosCogs.rows.reduce((a, g) => a + num(g.amount), 0))
 
+  // El embed de payment_plans llega anidado (objeto o array según el driver); se aplana aquí para
+  // que agregados.ts (puro, sin PostgREST) reciba el mismo `payment_plan_method` que ya usa
+  // lib/commissions/tramos.ts para decidir si una reserva sigue abierta.
+  const ventasNormalizadas: FilaVenta[] = ventas.rows.map((v) => {
+    const pp = v.payment_plans
+    const method = Array.isArray(pp) ? (pp[0]?.method ?? null) : (pp?.method ?? null)
+    return { ...v, payment_plan_method: method }
+  })
+
   return {
     // Las filas de una fuente que falló llegan vacías, y el cálculo ya distingue "vacío" de "cero"
     // devolviendo `null` con su motivo. Quien pinta debe mirar `fuentesConError` antes de creerse nada.
     agregados: calcularAgregados({
-      ventas: ventas.rows,
+      ventas: ventasNormalizadas,
       cobros: cobros.rows,
       citas: citas.rows,
       campanas: campanas.rows,
@@ -197,7 +210,7 @@ export async function consultarMetricas(
     fuentesConError,
     fuentesRecortadas,
     citas: citas.rows,
-    serieFacturacion: serieFacturacionAcumulada(ventas.rows, periodo),
+    serieFacturacion: serieFacturacionAcumulada(ventasNormalizadas, periodo),
     serieCash: serieCashAcumulada(cobros.rows, periodo),
     costeEntregaCogsPeriodo,
     atribucion: { contactos: totalContactos.count ?? 0, conAtribucion: conAtribucion.count ?? 0 },

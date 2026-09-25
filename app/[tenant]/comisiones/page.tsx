@@ -119,7 +119,7 @@ export default function CommissionsPage() {
       // `commissions` tiene DOS FK a `users` (user_id y approved_by); hay que desambiguar el embed
       // con el nombre del FK, o PostgREST devuelve PGRST201 y la consulta entera falla (lista vacía).
       .select(
-        `*, users!commissions_user_id_fkey(id, full_name), sales(id, contact_id, contacts(full_name)), collections(commissionable_amount, processing_fee, payment_reference)`
+        `*, users!commissions_user_id_fkey(id, full_name, pays_commissions), sales(id, contact_id, contacts(full_name)), collections(commissionable_amount, processing_fee, payment_reference)`
       )
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
@@ -133,7 +133,12 @@ export default function CommissionsPage() {
     if (error) {
       toast.error('Error al cargar comisiones')
     } else {
-      setCommissions(data as CommissionWithRelations[])
+      // Defensa en el lado de lectura: quien tenga `pays_commissions = false` (p.ej. un socio) no
+      // debe aparecer en este dashboard aunque exista alguna fila histórica de antes de este fix.
+      const visibles = ((data as CommissionWithRelations[]) ?? []).filter(
+        (c) => (c.users as { pays_commissions?: boolean } | null)?.pays_commissions !== false
+      )
+      setCommissions(visibles)
     }
 
     if (canSeeAll) {

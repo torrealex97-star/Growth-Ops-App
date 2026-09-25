@@ -55,7 +55,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const { data: sale } = await sb
       .from('sales')
       .select(
-        'id, contact_id, appointment_id, setter_id, closer_id, affiliate_id, affiliate_commission_percent, notes, payment_plans(cash_collection_ratio, fee_percent, method)'
+        'id, contact_id, appointment_id, setter_id, closer_id, affiliate_id, affiliate_commission_percent, notes, reservation_completed_at, payment_plans(cash_collection_ratio, fee_percent, method)'
       )
       .eq('id', saleId)
       .eq('tenant_id', t.tenantId)
@@ -84,7 +84,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     // Plan personalizado: si esta venta ya tiene un cobro elegible previo (p.ej. esta ruta se
     // reutiliza para un segundo adelanto), este cobro queda en revisión en vez de comisionar ya.
-    const needsReview = await saleNeedsCommissionReview(sb, t.tenantId, saleId, plan?.method)
+    // Reserva sin completar: no comisiona a nadie hasta que la persona empiece a pagar de verdad
+    // (ver saleNeedsCommissionReview).
+    const needsReview = await saleNeedsCommissionReview(
+      sb,
+      t.tenantId,
+      saleId,
+      plan?.method,
+      (sale as { reservation_completed_at?: string | null }).reservation_completed_at
+    )
 
     // Antes de insertar: si esta venta no tenía NINGÚN cobro previo, este es el primero
     // (equivale a "venta creada" de cara a creatuagente, que no ve el alta de la venta en sí,

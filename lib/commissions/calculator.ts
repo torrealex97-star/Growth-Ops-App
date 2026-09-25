@@ -75,7 +75,12 @@ export function calculateCommissionsForCollection(
   // Comisión de la pasarela que procesó el pago (Stripe por API, o la del plan en el
   // cobro manual). La base de TODAS las comisiones es el comisionable MENOS este fee:
   // el equipo comisiona sobre lo realmente entrado. Opcional; 0 = comportamiento previo.
-  gatewayFee?: number | null
+  gatewayFee?: number | null,
+  // user_ids a quienes NO se les debe generar comisión (perfil marcado `pays_commissions = false`,
+  // p.ej. un socio). Si un rep aparece aquí, sencillamente no se empuja su fila — nunca se genera y
+  // se aprueba/liquida después; no comisiona en ningún estado. Opcional; ausente = todos comisionan
+  // (comportamiento previo).
+  noComisionan?: Set<string> | null
 ): InsertCommission[] {
   const commissions: InsertCommission[] = []
   const collectedAt = new Date(collection.collected_at)
@@ -108,7 +113,7 @@ export function calculateCommissionsForCollection(
   }
 
   // Setter commission
-  if (sale.setter_id) {
+  if (sale.setter_id && !noComisionan?.has(sale.setter_id)) {
     const rule = getRule('setter', sale.setter_id)
     const percent = rule?.percent ?? 5
     commissions.push({
@@ -130,7 +135,7 @@ export function calculateCommissionsForCollection(
   }
 
   // Closer commission
-  if (sale.closer_id) {
+  if (sale.closer_id && !noComisionan?.has(sale.closer_id)) {
     const rule = getRule('closer', sale.closer_id)
     const percent = rule?.percent ?? 10
     commissions.push({
@@ -152,7 +157,7 @@ export function calculateCommissionsForCollection(
   }
 
   // Affiliate / Collaborator commission
-  if (sale.affiliate_id && sale.affiliate_commission_percent) {
+  if (sale.affiliate_id && sale.affiliate_commission_percent && !noComisionan?.has(sale.affiliate_id)) {
     const percent = sale.affiliate_commission_percent
     commissions.push({
       tenant_id: tenantId,
