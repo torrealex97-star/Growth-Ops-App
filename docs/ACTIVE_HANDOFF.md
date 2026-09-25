@@ -1,5 +1,22 @@
 # Relevo activo
 
+## Auditoría financiera: reservas, comisiones, socios y gasto de Meta — 2026-09-25 (Claude Code)
+
+**Fusionado en `origin/main`:** PR #211 (`1bb4e5b`), #212 (`5114973`), #213 (`2d73520`). Origen: Alex pidió auditar comisiones/reservas/gastos tras sospechar errores reales (no una tarea de roadmap). Se encontraron y corrigieron 4 bugs de negocio distintos, todos con impacto real en producción:
+
+- **Reservas comisionaban al instante.** `saleNeedsCommissionReview` (`lib/commissions/generate.ts`) ahora bloquea la comisión de un cobro de reserva (`plan.method === 'reserva'`) mientras `reservation_completed_at` siga null; se reabre y reconcilia al completar la reserva. Una reserva abierta tampoco cuenta ya como venta/cliente (`esReservaAbierta`, `lib/metrics/agregados.ts`).
+- **`users.pays_commissions` existía en producción (sin migración en el repo) pero ningún código la leía.** Ahora se respeta en `calculateCommissionsForCollection`, en el Dashboard de Comisiones y en `commissions/future` (proyección). Un socio marcado así puede seguir comisionando por error si algo nuevo genera comisiones sin pasar por estos puntos — grep de `pays_commissions` antes de tocar el motor de comisiones.
+- **`resolveMetaConfigs` trataba "sin cuenta seleccionada" como "sincroniza todas las que vea el token."** Un token de Meta Business Manager que ve cuentas de OTRO negocio mezclaba 164 campañas / ~190.081 € de gasto / 16.552 € ya en `expenses` de este tenant. Corregido: exige selección explícita o `META_AD_ACCOUNTS_ALL` puesto a propósito. Datos ya limpiados en producción.
+- **No existía ningún sitio para ver las ganancias reales de un socio en €** (solo el % configurado en `/settings/socios`, que además no estaba enlazada en el menú). Nuevo `/finanzas/socios` + `lib/finance/socios.ts` (puro): reparte el Pre-Tax Profit del periodo entre socios activos. Un socio vinculado por `partners.user_id` (columna nueva) ve su propia ganancia en el Sidebar sin necesitar rol de dirección.
+
+**Corrección de datos en producción (con confirmación explícita de Alex en cada decisión):** reclasificada una venta de 50€ importada mal desde Stripe como la reserva que era; eliminadas 3 comisiones de reserva nunca completada; **eliminadas las 43 comisiones históricas de closer de una socia marcada `pays_commissions=false`** (1.992,20€, decisión explícita: nunca representaron dinero transferido, su compensación es el reparto de socios); limpiados los 164 campañas/gasto ajeno de Meta.
+
+**Documentado para que no se repita:** `docs/MONEY.md` D8 (reservas no son venta ni comisionan hasta completar), D9 (`pays_commissions` es veto absoluto, en generación y lectura), D10 (integración con token compartido nunca sincroniza "todas" sin selección explícita). `PROJECT_CONTEXT.md` §14 tiene el resumen operativo de los 4 patrones de bug (regla de negocio "a medias", columna sin migración que nadie lee, "vacío" como default peligroso, fix de código que no repara datos ya escritos).
+
+**Verificado:** CI de las 4 PRs en verde (quality, build, Smoke E2E — un fallo de Smoke E2E en #211 confirmado como flake ajeno, tests/e2e/contacto-ficha, re-run verde). Local: typecheck exit 0, 902/905 unit (3 fallos preexistentes de esquema Supabase en vivo, sin relación), 719/719 métricas (incluye tests nuevos de `lib/finance/socios.ts` y los de Meta reescritos a la nueva política de selección de cuentas).
+
+**Queda pendiente, no abordado en esta auditoría:** claridad de pagos/impagos por cliente y KPIs personales en tiempo real — revisados (`ventas/pagos`, `ventas/registro/[id]`, Dashboard de Comisiones) y ya cubren bien lo pedido, no se tocó código ahí.
+
 ## F3 trozo 1: contrato de métrica versionado — 2026-09-24 (Freebuff/Buffy)
 
 **Fusionado en `origin/main`:** PR #202 (squash `48e32be`, rama `feat/f3-metric-definitions` borrada). `lib/metrics/definiciones.ts`: `DefinicionVersionada` (version, grain period/cohort, ventana de maduración, muestra mínima, lineage) construida DESDE el registro canónico, y `evaluarDefinicion` que etiqueta cada resultado (`muestra_insuficiente`, `en_maduracion`) sin sustituir el valor. MER y refund_rate declaradas con fórmula y motivo, sin cálculo a medias. 14 tests con golden fixtures deterministas (show_rate 70.59, close_rate 25, CAC 1249.99, ROAS) en `tests/metrics/f3-definiciones.test.mjs`.
