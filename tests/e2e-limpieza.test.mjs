@@ -74,24 +74,42 @@ test('cada tabla del orden es escopable por tenant_id (CREATE, ALTER o bucle mul
 
 // ── COMPORTAMIENTO DEL LIMPIADOR (con fake client, sin BD) ───────────────────
 
-/** Fake de SupabaseClient: encadena .delete().eq() y devuelve conteo por tabla. */
-function fakeSb(contenidoPorTabla, errores = {}) {
+/**
+ * Fake de SupabaseClient: encadena .delete().eq().select() y devuelve conteo por tabla.
+ * La lectura de contratos (purga de Storage) y storage.remove se simulan aparte:
+ *   · opciones.pathsContratos → filas devueltas por la lectura de contracts.
+ *   · errores.storage         → fallo simulado de storage.remove.
+ */
+function fakeSb(contenidoPorTabla, errores = {}, opciones = {}) {
   const llamadas = []
+  const storageRemoves = []
   const sb = {
     from(tabla) {
-      llamadas.push(tabla)
       const chain = {
         delete() {
+          chain.__delete = true
           return chain
         },
         eq() {
           return chain
         },
-        async select(_cols, opts) {
-          if (errores[tabla]) return { count: null, error: { message: errores[tabla] } }
-          const count = contenidoPorTabla[tabla] ?? 0
-          llamadas.push(`__borrado_${tabla}`)
-          return { count: opts?.count === 'exact' ? count : null, error: null }
+        select(_cols, opts) {
+          // Síncrono a propósito: el limpiador llama .select(...).eq(...) sobre la lectura
+          // (y await al final), así que select no puede devolver una Promise plana.
+          if (chain.__delete) {
+            if (errores[tabla]) return { count: null, error: { message: errores[tabla] } }
+            const count = contenidoPorTabla[tabla] ?? 0
+            llamadas.push(tabla, `__borrado_${tabla}`)
+            return { count: opts?.count === 'exact' ? count : null, error: null }
+          }
+          // Lectura (sin .delete() previo): la única que hace el limpiador es la de
+          // contratos para la purga de Storage.
+          llamadas.push(`__read_${tabla}`)
+          if (errores[tabla]) {
+            return { eq: () => Promise.resolve({ data: null, error: { message: errores[tabla] } }) }
+          }
+          const filas = tabla === 'contracts' ? (opciones.pathsContratos ?? []).map((p) => ({ signed_pdf_url: p })) : []
+          return { eq: () => Promise.resolve({ data: filas, error: null }) }
         },
         async insert() {
           return { error: null }
@@ -99,8 +117,20 @@ function fakeSb(contenidoPorTabla, errores = {}) {
       }
       return chain
     },
+    storage: {
+      from(bucket) {
+        return {
+          async remove(paths) {
+            llamadas.push(`__storage_${bucket}`)
+            storageRemoves.push(paths)
+            if (errores.storage) return { error: { message: errores.storage } }
+            return { data: paths.map((p) => ({ path: p })), error: null }
+          },
+        }
+      },
+    },
   }
-  return { sb, llamadas }
+  return { sb, llamadas, storageRemoves }
 }
 
 test('borra en orden FK y suma el total', async () => {
@@ -135,4 +165,32 @@ test('tenant ya limpio → 0 filas, ok=true (idempotente)', async () => {
   const { ok, total } = await limpiarActividadTenant(sb, 'tenant-1')
   assert.equal(ok, true)
   assert.equal(total, 0)
+})
+
+test('purga los PDF de contratos en Storage ANTES de borrar las filas', async () => {
+  const { sb, llamadas, storageRemoves } = fakeSb(
+    { contracts: 2, collections: 1, sales: 1 },
+    {},
+    { pathsContratos: ['id-a.pdf', 'id-b.pdf'] }
+  )
+  const { ok, total, resultados } = await limpiarActividadTenant(sb, 'tenant-1')
+
+  assert.equal(ok, true)
+  // Los dos PDF salen en UNA llamada a remove y la purga precede al primer DELETE
+  // (si borrara filas primero, el listado de rutas ya no sería fiable).
+  assert.deepEqual(storageRemoves, [['id-a.pdf', 'id-b.pdf']])
+  assert.ok(llamadas.indexOf('__storage_contratos') < llamadas.indexOf('__borrado_document_verifications'))
+  // La purga se reporta junto al resto y cuenta en el total.
+  assert.ok(resultados.some((r) => r.tabla === 'storage/contratos' && r.filas === 2))
+  assert.equal(total, 2 + 2 + 1 + 1) // pdfs + contracts + collections + sales
+})
+
+test('un fallo de Storage no aborta la limpieza y marca ok=false', async () => {
+  const { sb } = fakeSb({ contracts: 1 }, { storage: 'objeto bloqueado' }, { pathsContratos: ['id-a.pdf'] })
+  const { ok, resultados } = await limpiarActividadTenant(sb, 'tenant-1')
+
+  assert.equal(ok, false)
+  const falloStorage = resultados.find((r) => r.tabla === 'storage/contratos')
+  assert.equal(falloStorage.filas, null)
+  assert.match(falloStorage.error, /bloqueado/)
 })
