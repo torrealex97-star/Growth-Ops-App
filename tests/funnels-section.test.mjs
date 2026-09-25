@@ -49,7 +49,9 @@ test('la pantalla pinta los cuatro estados de forma distinguible', () => {
 test('el endpoint saca el tenant de la URL y valida el rango de fechas', () => {
   const route = read('app/api/[tenant]/evergreen/funnels/route.ts')
   assert.match(route, /params: Promise<\{ tenant: string \}>/)
-  assert.match(route, /await requireTenant\(tenant\)/)
+  // Desde F02 no basta con pertenecer a la subcuenta: esta ruta cuenta con service-role, así que
+  // exige además acceso a la pantalla /funnels.
+  assert.match(route, /await requirePantalla\(tenant, '\/funnels'\)/)
   assert.match(route, /session\.tenantId/)
   // El tenant nunca del body ni de la query string.
   assert.doesNotMatch(route, /req\.json\(\)/)

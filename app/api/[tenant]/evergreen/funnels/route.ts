@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { requireTenant } from '@/lib/auth/requireTenant'
+import { requirePantalla } from '@/lib/auth/requirePantalla'
 import { getTenantConfig } from '@/lib/config'
 import { computeFunnel } from '@/lib/funnels/compute'
 import { FUNNEL_FAMILIES, type FunnelFamily } from '@/lib/funnels/definitions'
@@ -15,7 +15,10 @@ export const runtime = 'nodejs'
 // consulta, para que no se pueda pedir el funnel de otra subcuenta cambiando un id.
 export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
-  const session = await requireTenant(tenant)
+  // Pertenecer a la subcuenta NO basta: esta ruta cuenta con service-role para que el funnel no
+  // cambie según quién mire (ver más abajo), así que RLS no la protege. Se exige el mismo acceso
+  // que a la pantalla /funnels (auditoría F02).
+  const session = await requirePantalla(tenant, '/funnels')
   if ('error' in session) return session.error
 
   const url = new URL(req.url)
