@@ -568,7 +568,13 @@ export default function PipelinePage() {
                           <td className="py-2 text-foreground">{s.name}</td>
                           <td className="py-2 text-right text-foreground">{s.total}</td>
                           <td className="py-2 text-right text-foreground">{s.shows}</td>
-                          <td className="py-2 text-right text-foreground">{s.showRate.toFixed(1)}%</td>
+                          <td className="py-2 text-right text-foreground">
+                            {s.showRate === null ? (
+                              <span className="text-amber-400">sin marcar</span>
+                            ) : (
+                              `${s.showRate.toFixed(1)}%`
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

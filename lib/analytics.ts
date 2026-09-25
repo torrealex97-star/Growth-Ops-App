@@ -1,7 +1,7 @@
 // Agregaciones puras para el centro de mando (dashboard, ranking, atribución, objetivos).
 // Sin I/O: reciben filas crudas de Supabase y devuelven datos listos para pintar.
 
-import { isNoShow } from '@/lib/appointments/status'
+import { isAttended, isCancelled, isNoShow } from '@/lib/appointments/status'
 import { esReservaAbierta } from '@/lib/metrics/agregados'
 
 /**
@@ -220,10 +220,22 @@ export function attributionBySource(
 export type SetterAgendaRow = {
   userId: string
   name: string
+  /** Citas asignadas a esta persona en el periodo, pasadas o futuras. */
   total: number
   shows: number
   noShows: number
-  showRate: number
+  /** Ni asistida ni no asistida ni cancelada: todavía no se sabe qué pasó. */
+  sinResolver: number
+  /**
+   * % de asistencia sobre las citas RESUELTAS. `null` = ninguna resuelta todavía, que no es un 0.
+   *
+   * POR QUÉ SOBRE LAS RESUELTAS (visto en producción el 25-sep). Se dividía entre el total: una
+   * persona con 68 agendas, 34 asistidas y CERO no-shows aparecía con «50% show». Los otros 34 no
+   * faltaron a nada — nadie los ha marcado todavía. La definición canónica
+   * (`lib/metrics/agregados.ts`) mide solo lo resuelto por esto mismo: un 0% inventado es un
+   * problema inventado, y aquí era medio equipo pareciendo la mitad de bueno de lo que es.
+   */
+  showRate: number | null
 }
 export function setterAgendaStats(appointments: AppointmentRow[], users: UserRow[]): SetterAgendaRow[] {
   const nameOf = new Map(users.map((u) => [u.id, u.full_name]))
@@ -240,15 +252,20 @@ export function setterAgendaStats(appointments: AppointmentRow[], users: UserRow
           total: 0,
           shows: 0,
           noShows: 0,
-          showRate: 0,
+          sinResolver: 0,
+          showRate: null,
         })
         .get(a.setter_id)!
     row.total += 1
-    if (a.status === 'show') row.shows += 1
-    if (isNoShow(a.status)) row.noShows += 1
+    // `isAttended`, no `status === 'show'`: 'completed' también es asistir, y contarlo como no
+    // resuelto hundía el ratio de quien cierra la llamada marcándola completada.
+    if (isAttended(a.status)) row.shows += 1
+    else if (isNoShow(a.status)) row.noShows += 1
+    else if (!isCancelled(a.status)) row.sinResolver += 1
   }
   map.forEach((r) => {
-    r.showRate = r.total ? (r.shows / r.total) * 100 : 0
+    const resueltas = r.shows + r.noShows
+    r.showRate = resueltas > 0 ? (r.shows / resueltas) * 100 : null
   })
   return Array.from(map.values()).sort((a, b) => b.total - a.total)
 }

@@ -64,9 +64,19 @@ export function AgendasPorPersona({
                 </p>
                 <p className="text-[11px] text-muted-foreground">
                   {formatNumber(r.shows)} asistieron · {formatNumber(r.noShows)} no asistieron ·{' '}
-                  <span className={r.showRate >= 60 ? 'text-emerald-400' : 'text-muted-foreground'}>
-                    {formatPercent(r.showRate, 0)} show
-                  </span>
+                  {r.showRate === null ? (
+                    // Sin ninguna cita resuelta no hay ratio: un 0% aquí sería un problema inventado.
+                    <span className="text-amber-400">sin marcar</span>
+                  ) : (
+                    <span className={r.showRate >= 60 ? 'text-emerald-400' : 'text-muted-foreground'}>
+                      {formatPercent(r.showRate, 0)} show
+                    </span>
+                  )}
+                  {r.sinResolver > 0 ? (
+                    // El ratio se mide sobre lo resuelto; decir cuántas faltan evita leerlo como si
+                    // cubriera todas las agendas.
+                    <span className="text-muted-foreground"> · {formatNumber(r.sinResolver)} sin marcar</span>
+                  ) : null}
                 </p>
               </div>
             </div>
