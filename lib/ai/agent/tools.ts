@@ -7,7 +7,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { computeAdFunnel, perCampaign, type AdFunnel } from '@/lib/ads/funnel'
 import { buildContactTimeline, type TimelineEvent } from '@/lib/contact-timeline'
-import { isActiveSale } from '@/lib/analytics'
+import { cuentaComoVenta } from '@/lib/analytics'
+import { metodoDePlan } from '@/lib/metrics/agregados'
 import { getMetricDefinition as lookupMetricDefinition } from '@/lib/ai/metrics/registry'
 import {
   searchKnowledge as buscarKnowledgeChunks,
@@ -199,12 +200,19 @@ async function emptySourceWarning(
 // getBusinessOverview — resumen ejecutivo rápido: inversión, leads, ventas, ingresos del periodo.
 // Primera parada para preguntas tipo "¿qué ha cambiado?" / "resumen del negocio".
 // ─────────────────────────────────────────────────────────────────────────────
+/** Aplana el embed de plan para poder aplicar el predicado canónico de venta. */
+function conMetodo<T extends { status: string }>(v: T) {
+  return { ...v, payment_plan_method: metodoDePlan(v as { payment_plans?: unknown }) }
+}
+
 export async function getBusinessOverview({ tenantId, sb }: ToolContext, period: Period) {
   const [{ data: campaigns }, { data: sales }, { count: contactCount }] = await Promise.all([
     sb.from('campaigns').select('*').eq('tenant_id', tenantId).limit(500),
     sb
       .from('sales')
-      .select('id,sale_date,gross_amount,status')
+      // Las mismas columnas que mira la pantalla: sin ellas la IA contaría como venta una reserva
+      // que el Dashboard no cuenta, y las dos cifras serían "ventas del periodo" (D8, F03).
+      .select('id,sale_date,gross_amount,status,reservation_completed_at,payment_plans(method)')
       .eq('tenant_id', tenantId)
       .gte('sale_date', period.from || '1970-01-01')
       .lte('sale_date', period.to || '2999-12-31')
@@ -216,7 +224,7 @@ export async function getBusinessOverview({ tenantId, sb }: ToolContext, period:
     (c) => !period.from || !c.start_date || inPeriod(c.start_date, period) || !c.end_date
   )
   const funnel = computeAdFunnel(periodCampaigns)
-  const activeSales = (sales || []).filter((s) => isActiveSale(s as { status: string }))
+  const activeSales = (sales || []).filter((s) => cuentaComoVenta(conMetodo(s)))
   const revenue = activeSales.reduce((sum, s) => sum + (s.gross_amount || 0), 0)
 
   const aviso = await emptySourceWarning({ tenantId, sb }, [
@@ -372,12 +380,14 @@ export async function searchTranscripts({ tenantId, sb }: ToolContext, query: st
 
 // ─────────────────────────────────────────────────────────────────────────────
 // getSales — resumen de ventas/cobros del periodo (solo ventas activas, misma definición
-// canónica que docs/METRICS.md: isActiveSale / ACTIVE_SALE_STATUSES).
+// canónica que docs/METRICS.md: cuentaComoVenta, que además excluye las reservas abiertas).
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getSales({ tenantId, sb }: ToolContext, period: Period, limit = 20) {
   const { data } = await sb
     .from('sales')
-    .select('id,contact_id,sale_date,gross_amount,status,contacts(full_name)')
+    .select(
+      'id,contact_id,sale_date,gross_amount,status,contacts(full_name),reservation_completed_at,payment_plans(method)'
+    )
     .eq('tenant_id', tenantId)
     .gte('sale_date', period.from || '1970-01-01')
     .lte('sale_date', period.to || '2999-12-31')
@@ -391,8 +401,10 @@ export async function getSales({ tenantId, sb }: ToolContext, period: Period, li
     gross_amount: number
     status: string
     contacts: { full_name: string } | null
+    reservation_completed_at?: string | null
+    payment_plans?: unknown
   }>
-  const active = rows.filter((r) => isActiveSale({ status: r.status }))
+  const active = rows.filter((r) => cuentaComoVenta(conMetodo(r)))
   const total = active.reduce((s, r) => s + (r.gross_amount || 0), 0)
   return {
     period,
@@ -527,7 +539,7 @@ export async function compareClosers({ tenantId, sb }: ToolContext, period: Peri
       .limit(3000),
     sb
       .from('sales')
-      .select('closer_id, gross_amount, status, sale_date')
+      .select('closer_id, gross_amount, status, sale_date, reservation_completed_at, payment_plans(method)')
       .eq('tenant_id', tenantId)
       .not('closer_id', 'is', null)
       .gte('sale_date', period.from || '1970-01-01')
@@ -553,8 +565,14 @@ export async function compareClosers({ tenantId, sb }: ToolContext, period: Peri
       e.scoreCount++
     }
   }
-  for (const s of (sales || []) as Array<{ closer_id: string; gross_amount: number; status: string }>) {
-    if (!isActiveSale(s)) continue
+  for (const s of (sales || []) as Array<{
+    closer_id: string
+    gross_amount: number
+    status: string
+    reservation_completed_at?: string | null
+    payment_plans?: unknown
+  }>) {
+    if (!cuentaComoVenta(conMetodo(s))) continue
     const e = ensure(s.closer_id)
     e.ventas++
     e.ingresos += s.gross_amount || 0

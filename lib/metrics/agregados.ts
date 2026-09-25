@@ -171,6 +171,17 @@ const SIN_RESOLVER = new Set(['scheduled', 'confirmed', 'programada', 'confirmad
  * de negocio — es el mismo criterio que ya usa `lib/commissions/tramos.ts` para no comisionarla.
  * Solo reservar y pagar la seña no es ser cliente.
  */
+/**
+ * Aplana el embed `payment_plans(method)` de PostgREST, que llega como objeto o como array según el
+ * driver. Vive aquí, junto al predicado que lo consume, porque cada pantalla que lo resolvía a su
+ * manera era una oportunidad de resolverlo mal y volver a contar reservas como ventas.
+ */
+export function metodoDePlan(v: { payment_plans?: unknown }): string | null {
+  const pp = v.payment_plans as { method?: string | null } | { method?: string | null }[] | null | undefined
+  if (Array.isArray(pp)) return pp[0]?.method ?? null
+  return pp?.method ?? null
+}
+
 export function esReservaAbierta(v: Pick<FilaVenta, 'payment_plan_method' | 'reservation_completed_at'>): boolean {
   return v.payment_plan_method === 'reserva' && !v.reservation_completed_at
 }

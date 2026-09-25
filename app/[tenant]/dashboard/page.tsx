@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
+import { metodoDePlan } from '@/lib/metrics/agregados'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
 import { mensajeDeCarga, primerError } from '@/lib/supabase/resultado'
@@ -39,7 +40,7 @@ import {
   teamRanking,
   attributionBySource,
   targetCurrentValue,
-  isActiveSale,
+  cuentaComoVenta,
   funnelBySource,
   aggregateFunnel,
   leadDate,
@@ -257,7 +258,11 @@ function DashboardEquipo() {
       ] = await Promise.all([
         supabase
           .from('sales')
-          .select('id, gross_amount, status, sale_date, closer_id, setter_id, affiliate_id, contact_id')
+          // reservation_completed_at + payment_plans(method): sin ellos una reserva abierta es
+          // indistinguible de una venta y vuelve a contarse como facturación (MONEY D8, F03).
+          .select(
+            'id, gross_amount, status, sale_date, closer_id, setter_id, affiliate_id, contact_id, reservation_completed_at, payment_plans(method)'
+          )
           .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
@@ -318,7 +323,9 @@ function DashboardEquipo() {
       if (!mounted) return
       const fallo = primerError(salesRes, collRes, usersRes, contactsRes, attrRes, apptRes, targetsRes, commRes)
       setErrorCarga(fallo ? mensajeDeCarga('los datos del panel', fallo) : null)
-      setSales(salesRes.data || [])
+      // El embed de payment_plans llega anidado: se aplana aquí para que el predicado de venta
+      // (cuentaComoVenta) pueda ver si la fila es una reserva todavía abierta.
+      setSales(((salesRes.data || []) as SaleRow[]).map((v) => ({ ...v, payment_plan_method: metodoDePlan(v) })))
       setCollections(collRes.data || [])
       setUsers(usersRes.data || [])
       setRoleUsers((roleUsersRes.data as RoleUser[] | null) || [])
@@ -496,14 +503,14 @@ function DashboardEquipo() {
   // histórico importado no tiene contacts.campaign_id; hacerlo fingiría 0 € de ingresos. El gasto
   // sí queda acotado a las cuentas seleccionadas en Integraciones desde el endpoint server-side.
   const periodRevenue = useMemo(
-    () => filteredSales.filter(isActiveSale).reduce((total, sale) => total + Number(sale.gross_amount || 0), 0),
+    () => filteredSales.filter(cuentaComoVenta).reduce((total, sale) => total + Number(sale.gross_amount || 0), 0),
     [filteredSales]
   )
   const periodCustomers = useMemo(
     () =>
       new Set(
         filteredSales
-          .filter(isActiveSale)
+          .filter(cuentaComoVenta)
           .map((sale) => sale.contact_id)
           .filter(Boolean)
       ).size,
@@ -590,12 +597,14 @@ function DashboardEquipo() {
     if (!userId || myBaseSalary <= 0) return null
     // Ventas del usuario en el mes. OJO: completar una reserva actualiza la MISMA fila de venta,
     // así que contar filas ya cuenta 1 (no se duplica reserva + pago completado). Igual la facturación.
-    // Canónico (Fase 5): isActiveSale (excluye cancelled/refunded/chargeback) — el filtro ad-hoc
-    // anterior solo excluía cancelled/refunded y dejaba pasar chargeback, contando dinero que
-    // salió de vuelta como si desbloqueara el fijo o generase comisión real.
+    // Canónico: `cuentaComoVenta` excluye cancelled/refunded/chargeback Y las reservas todavía
+    // abiertas. Una seña no puede desbloquear el fijo ni aparecer como facturación propia: el
+    // dinero del resto del programa aún no existe (MONEY D8).
     const mySalesMonth = sales.filter(
       (s) =>
-        (s.closer_id === userId || s.setter_id === userId) && (s.sale_date || '').slice(0, 7) === ym && isActiveSale(s)
+        (s.closer_id === userId || s.setter_id === userId) &&
+        (s.sale_date || '').slice(0, 7) === ym &&
+        cuentaComoVenta(s)
     )
     const salesCount = mySalesMonth.length
     const revenue = mySalesMonth.reduce((acc, s) => acc + Number(s.gross_amount || 0), 0)
