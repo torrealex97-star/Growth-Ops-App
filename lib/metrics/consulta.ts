@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 import {
   calcularAgregados,
+  metodoDePlan,
   type Agregados,
   type FilaCampana,
   type FilaCita,
@@ -190,11 +191,7 @@ export async function consultarMetricas(
   // El embed de payment_plans llega anidado (objeto o array según el driver); se aplana aquí para
   // que agregados.ts (puro, sin PostgREST) reciba el mismo `payment_plan_method` que ya usa
   // lib/commissions/tramos.ts para decidir si una reserva sigue abierta.
-  const ventasNormalizadas: FilaVenta[] = ventas.rows.map((v) => {
-    const pp = v.payment_plans
-    const method = Array.isArray(pp) ? (pp[0]?.method ?? null) : (pp?.method ?? null)
-    return { ...v, payment_plan_method: method }
-  })
+  const ventasNormalizadas: FilaVenta[] = ventas.rows.map((v) => ({ ...v, payment_plan_method: metodoDePlan(v) }))
 
   return {
     // Las filas de una fuente que falló llegan vacías, y el cálculo ya distingue "vacío" de "cero"

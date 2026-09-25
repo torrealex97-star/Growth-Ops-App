@@ -5,6 +5,7 @@ import { useTenantId } from '@/lib/tenant-context'
 import { createClient } from '@/lib/supabase/client'
 import { Receipt } from 'lucide-react'
 import { lastNMonths, monthLabel } from '@/lib/analytics'
+import { metodoDePlan } from '@/lib/metrics/agregados'
 import { formatCurrency } from '@/lib/utils'
 import { computeMonthlyPnl, FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 
@@ -13,6 +14,10 @@ type SaleRow = {
   discount: number | string | null
   status: string
   sale_date: string | null
+  /** Reserva: método del plan y cuándo se completó. Sin esto una reserva abierta parece venta (D8). */
+  payment_plans?: unknown
+  payment_plan_method?: string | null
+  reservation_completed_at?: string | null
 }
 type CollectionRow = {
   id: string
@@ -104,7 +109,9 @@ export default function PnlPage() {
       const [salesRes, collRes, refundsRes, expensesRes, commissionsRes] = await Promise.all([
         supabase
           .from('sales')
-          .select('gross_amount, discount, status, sale_date')
+          // reservation_completed_at + payment_plans(method): sin ellos una reserva abierta es
+          // indistinguible de una venta y vuelve a contarse como facturación (MONEY D8, F03).
+          .select('gross_amount, discount, status, sale_date, reservation_completed_at, payment_plans(method)')
           .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
@@ -129,7 +136,9 @@ export default function PnlPage() {
           .range(0, FINANCE_QUERY_ROW_CAP),
       ])
       if (!mounted) return
-      setSales(salesRes.data || [])
+      // El embed de payment_plans llega anidado: se aplana aquí para que el predicado de venta
+      // (cuentaComoVenta) pueda ver si la fila es una reserva todavía abierta.
+      setSales(((salesRes.data || []) as SaleRow[]).map((v) => ({ ...v, payment_plan_method: metodoDePlan(v) })))
       setCollections(collRes.data || [])
       setRefunds(refundsRes.data || [])
       setExpenses(expensesRes.data || [])

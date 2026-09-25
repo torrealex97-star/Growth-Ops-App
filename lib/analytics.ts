@@ -2,6 +2,7 @@
 // Sin I/O: reciben filas crudas de Supabase y devuelven datos listos para pintar.
 
 import { isNoShow } from '@/lib/appointments/status'
+import { esReservaAbierta } from '@/lib/metrics/agregados'
 
 /**
  * FECHA REAL DE UN LEAD — para el filtro de periodo de cualquier métrica de leads.
@@ -30,6 +31,16 @@ export type SaleRow = {
   closer_id: string | null
   setter_id: string | null
   contact_id: string | null
+  /**
+   * Datos de RESERVA. Opcionales porque no todas las pantallas los piden todavía, pero sin ellos
+   * una reserva abierta es indistinguible de una venta: quien consulte `sales` para estas
+   * funciones tiene que traerlos (`reservation_completed_at, payment_plans(method)`). Hay un test
+   * que lo comprueba consulta a consulta.
+   */
+  reservation_completed_at?: string | null
+  payment_plan_method?: string | null
+  /** El embed crudo de PostgREST, antes de aplanarlo con `metodoDePlan`. */
+  payment_plans?: unknown
 }
 export type CollectionRow = {
   sale_id: string
@@ -59,6 +70,28 @@ export type UserRow = { id: string; full_name: string; role?: string | null }
 // Una venta cuenta para facturación si no está anulada/devuelta del todo.
 export const ACTIVE_SALE_STATUSES = ['active', 'partial_refund']
 export const isActiveSale = (s: { status: string }) => ACTIVE_SALE_STATUSES.includes(s.status)
+
+/**
+ * ¿Cuenta esta fila como VENTA de negocio?
+ *
+ * Estado activo Y que no sea una reserva todavía abierta. La segunda mitad es la decisión D8 de
+ * `docs/MONEY.md`: quien paga la seña y no completa el pago no es cliente, no factura y no
+ * comisiona. `lib/metrics/agregados.ts` ya lo aplicaba —y el motor de comisiones también—, pero
+ * este módulo, que es el que alimenta el Dashboard, el ranking, el P&L y la IA, solo miraba el
+ * estado. El resultado era que la MISMA reserva salía como 0 ventas en un sitio y como 1 venta,
+ * con su importe completo, en otro (auditoría F03).
+ *
+ * El predicado de reserva NO se reescribe aquí: se importa el canónico. Dos definiciones de lo
+ * mismo es exactamente cómo nació esta discrepancia.
+ */
+export const cuentaComoVenta = (
+  s: { status: string } & Partial<Pick<SaleRow, 'reservation_completed_at' | 'payment_plan_method'>>
+) =>
+  isActiveSale(s) &&
+  !esReservaAbierta({
+    payment_plan_method: s.payment_plan_method ?? null,
+    reservation_completed_at: s.reservation_completed_at ?? null,
+  })
 const isCollected = (c: { status: string }) => c.status === 'collected'
 export const num = (x: number | string | null | undefined) => Number(x ?? 0)
 const ymOf = (d: string | null | undefined) => (d ? String(d).slice(0, 7) : '') // 'YYYY-MM'
@@ -91,7 +124,7 @@ export function monthLabel(ym: string): string {
 
 // --- KPIs de un mes concreto ---
 export function monthlyKpis(sales: SaleRow[], collections: CollectionRow[], ym: string) {
-  const monthSales = sales.filter((s) => isActiveSale(s) && ymOf(s.sale_date) === ym)
+  const monthSales = sales.filter((s) => cuentaComoVenta(s) && ymOf(s.sale_date) === ym)
   const gross = monthSales.reduce((acc, s) => acc + num(s.gross_amount), 0)
   const count = monthSales.length
   const cash = collections
@@ -110,7 +143,7 @@ export function revenueByMonth(sales: SaleRow[], months: string[]) {
   return months.map((ym) => ({
     date: monthLabel(ym),
     amount: sales
-      .filter((s) => isActiveSale(s) && ymOf(s.sale_date) === ym)
+      .filter((s) => cuentaComoVenta(s) && ymOf(s.sale_date) === ym)
       .reduce((acc, s) => acc + num(s.gross_amount), 0),
   }))
 }
@@ -137,7 +170,7 @@ export function teamRanking(
   for (const s of sales) {
     const owner = role === 'closer' ? s.closer_id : s.setter_id
     saleOwner.set(s.id, owner)
-    if (!owner || !isActiveSale(s)) continue
+    if (!owner || !cuentaComoVenta(s)) continue
     const row = ensure(owner)
     row.sales += 1
     row.gross += num(s.gross_amount)
@@ -171,7 +204,7 @@ export function attributionBySource(
 
   for (const cid of contactIds) ensure(contactSource.get(cid) || SOURCE_FALLBACK).leads += 1
   for (const s of sales) {
-    if (!isActiveSale(s) || !s.contact_id) continue
+    if (!cuentaComoVenta(s) || !s.contact_id) continue
     const src = contactSource.get(s.contact_id) || SOURCE_FALLBACK
     const row = ensure(src)
     row.sales += 1
@@ -252,7 +285,7 @@ export function funnelBySource(
   for (const cid of contactIds) ensure(srcOf(cid)).leads += 1
   for (const a of appointments) ensure(srcOf(a.contact_id)).appointments += 1
   for (const s of sales) {
-    if (!isActiveSale(s)) continue
+    if (!cuentaComoVenta(s)) continue
     const row = ensure(srcOf(s.contact_id))
     row.sales += 1
     row.gross += num(s.gross_amount)
@@ -400,7 +433,9 @@ function targetValueBetween(t: TargetLike, data: TargetData, start: string, end:
   const matchCloser = (s: SaleRow) => !userScope || s.closer_id === uid
   const matchSetterAppt = (a: AppointmentRow) => !userScope || a.setter_id === uid
 
-  const periodSales = data.sales.filter((s) => isActiveSale(s) && inWindow(s.sale_date) && matchCloser(s))
+  // Los objetivos se miden contra las mismas ventas que enseña el Dashboard: una reserva abierta
+  // no puede acercar a nadie a su objetivo de facturación.
+  const periodSales = data.sales.filter((s) => cuentaComoVenta(s) && inWindow(s.sale_date) && matchCloser(s))
   const saleIds = new Set(periodSales.map((s) => s.id))
 
   switch (t.metric_key) {

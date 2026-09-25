@@ -7,7 +7,8 @@ import { mensajeDeCarga, primerError } from '@/lib/supabase/resultado'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { FinanceBreakdown, FinanceEvolution } from '@/components/finanzas/FinanceCharts'
 import { PieChart, Wallet, ShoppingCart, Receipt, TrendingDown, Scale, Users, CreditCard } from 'lucide-react'
-import { isActiveSale, lastNMonths, prevMonth, monthLabel, pctDelta } from '@/lib/analytics'
+import { cuentaComoVenta, lastNMonths, prevMonth, monthLabel, pctDelta } from '@/lib/analytics'
+import { metodoDePlan } from '@/lib/metrics/agregados'
 import { formatCurrency } from '@/lib/utils'
 import { computeMonthlyPnl, FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 
@@ -17,6 +18,10 @@ type SaleRow = {
   discount: number | string | null
   sale_date: string | null
   status: string
+  /** Reserva: método del plan y cuándo se completó. Sin esto una reserva abierta parece venta (D8). */
+  payment_plans?: unknown
+  payment_plan_method?: string | null
+  reservation_completed_at?: string | null
 }
 type CollectionRow = {
   id: string
@@ -89,7 +94,9 @@ export default function FinanzasPage() {
       const [salesRes, collRes, expensesRes, refundsRes, commissionsRes, usersRes] = await Promise.all([
         supabase
           .from('sales')
-          .select('id, gross_amount, discount, sale_date, status')
+          // reservation_completed_at + payment_plans(method): sin ellos una reserva abierta es
+          // indistinguible de una venta y vuelve a contarse como facturación (MONEY D8, F03).
+          .select('id, gross_amount, discount, sale_date, status, reservation_completed_at, payment_plans(method)')
           .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
@@ -123,7 +130,9 @@ export default function FinanzasPage() {
       if (!mounted) return
       const fallo = primerError(salesRes, collRes, expensesRes, refundsRes, commissionsRes, usersRes)
       setErrorCarga(fallo ? mensajeDeCarga('los datos de facturación', fallo) : null)
-      setSales(salesRes.data || [])
+      // El embed de payment_plans llega anidado: se aplana aquí para que el predicado de venta
+      // (cuentaComoVenta) pueda ver si la fila es una reserva todavía abierta.
+      setSales(((salesRes.data || []) as SaleRow[]).map((v) => ({ ...v, payment_plan_method: metodoDePlan(v) })))
       setCollections(collRes.data || [])
       setExpenses(expensesRes.data || [])
       setRefunds(refundsRes.data || [])
@@ -143,7 +152,7 @@ export default function FinanzasPage() {
       // Canónico (Fase 5): igual filtro que Dashboard/PNL — solo ventas activas cuentan como
       // "ventas del mes". Antes esta pantalla sumaba TODAS las ventas (incl. canceladas/
       // reembolsadas), dando una cifra distinta a la del Dashboard para el mismo periodo.
-      const monthSales = sales.filter((s) => isActiveSale(s) && ymOf(s.sale_date) === targetYm)
+      const monthSales = sales.filter((s) => cuentaComoVenta(s) && ymOf(s.sale_date) === targetYm)
       const monthCollections = collections.filter((c) => c.status === 'collected' && ymOf(c.collected_at) === targetYm)
       const monthExpenses = expenses.filter((e) => ymOf(e.expense_date) === targetYm)
       const monthRefunds = refunds.filter((r) => ymOf(r.refund_date) === targetYm)
@@ -220,7 +229,7 @@ export default function FinanzasPage() {
   const paymentsSummary = useMemo(() => {
     const targetYm = ym
     const monthCollections = collections.filter((c) => c.status === 'collected' && ymOf(c.collected_at) === targetYm)
-    const monthSales = sales.filter((s) => isActiveSale(s) && ymOf(s.sale_date) === targetYm)
+    const monthSales = sales.filter((s) => cuentaComoVenta(s) && ymOf(s.sale_date) === targetYm)
     const monthExpenses = expenses.filter((e) => ymOf(e.expense_date) === targetYm)
     const monthRefunds = refunds.filter((r) => ymOf(r.refund_date) === targetYm)
 
