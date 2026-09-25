@@ -36,6 +36,9 @@ type FutureRow = {
   amount: number
   source: 'installment' | 'review'
   collectionId?: string
+  /** NUEVO = será el primer cobro de una venta que aún no cobró; RECURRENTE = cuota del
+   * plan de una venta que ya cobró (MRR). Canónico: lib/finance/nuevo-vs-recurrente. */
+  tipo?: 'nuevo' | 'recurrente'
 }
 
 const PARTICIPANT_LABELS: Record<ParticipantType, string> = {
@@ -382,6 +385,21 @@ export default function CommissionsPage() {
     [future, filterMember, filterType]
   )
   const totalFuture = filteredFuture.reduce((sum, f) => sum + f.amount, 0)
+  // AVISO DE EXENCIONES (users.pays_commissions=false): las cuotas de ventas con closer/setter
+  // El KPI "Futuras" solo
+  // suma lo proyectable; las exentas se cuentan aparte para el banner.
+
+  const totalFutureExcluyendoExentas = totalFuture // ya es 0 en las exentas (amount=0)
+
+  // DESGLOSE nuevo vs recurrente (clasificación canónica decidida por la ruta según los
+  // cobros reales de cada venta): primeras cuotas de ventas nuevas frente a cuotas del plan
+  // de ventas que ya cobraron (el MRR). Recalculado del filtro para que el filtro de
+  // miembro/tipo también lo respete.
+  const desgloseFuturas = useMemo(() => {
+    const acc = { nuevo: 0, recurrente: 0 }
+    for (const f of filteredFuture) acc[f.tipo ?? 'recurrente'] += f.amount
+    return acc
+  }, [filteredFuture])
 
   // KPIs generales del filtro aplicado (todas las comisiones que cumplen el filtro, sin distinguir tab)
   const filteredTotal = filteredCommissions.reduce((sum, c) => sum + c.commission_amount, 0)
@@ -648,7 +666,7 @@ export default function CommissionsPage() {
           value={formatCurrency(totalFuture)}
           icon={Percent}
           loading={loading}
-          description={`${filteredFuture.length} cuotas · esperadas`}
+          description={`nuevo ${formatCurrency(desgloseFuturas.nuevo)} · recurrente ${formatCurrency(desgloseFuturas.recurrente)}`}
         />
       </div>
 
@@ -717,7 +735,10 @@ export default function CommissionsPage() {
             Comisión <span className="text-amber-400 font-medium">esperada</span> de las cuotas que el cliente aún tiene
             que pagar (autofinanciado / Sequra), más las cuotas de un plan{' '}
             <span className="text-blue-400 font-medium">personalizado</span> ya cobradas pero en revisión manual de
-            cobros. Se convierte en comisión real cuando se cobra (o, en revisión, cuando el equipo la aprueba).
+            cobros. Se convierte en comisión real cuando se cobra (o, en revisión, cuando el equipo la aprueba).{' '}
+            <span className="text-emerald-400 font-medium">Nuevo</span> = primera cuota de ventas que aún no han
+            cobrado; <span className="text-sky-400 font-medium">recurrente</span> = cuotas del plan de ventas que ya
+            cobraron (el MRR que sostiene el negocio).
           </p>
           <div className="rounded-lg border border-border overflow-hidden">
             <div className="divide-y divide-border max-h-[520px] overflow-y-auto">
@@ -746,6 +767,22 @@ export default function CommissionsPage() {
                         <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground capitalize shrink-0">
                           {PARTICIPANT_LABELS[f.participantType] ?? f.participantType}
                         </span>
+                        {f.tipo === 'nuevo' && (
+                          <span
+                            className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 shrink-0"
+                            title="Primera cuota de una venta que aún no ha cobrado nada"
+                          >
+                            Nuevo
+                          </span>
+                        )}
+                        {f.tipo === 'recurrente' && (
+                          <span
+                            className="text-xs px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-400 shrink-0"
+                            title="Cuota del plan de una venta que ya ha cobrado (MRR)"
+                          >
+                            Recurrente
+                          </span>
+                        )}
                         {f.source === 'review' && (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 shrink-0">
                             En revisión

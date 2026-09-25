@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { pickCommissionRule } from '@/lib/commissions/calculator'
 import { repNetCash } from '@/lib/commissions/generate'
+import { tipoDeCuotaFutura } from '@/lib/finance/nuevo-vs-recurrente'
 import { tramoIdByReps } from '@/lib/commissions/tramos'
 import { resolverScopeColaborador } from '@/lib/collaborators/scope'
 import type { CommissionRule } from '@/lib/types/database'
@@ -101,6 +102,32 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       .eq('sales.status', 'active')
       .eq('sales.tenant_id', t.tenantId)
 
+    // Fechas de los cobros ya RECOGIDOS por venta: clasifican cada cuota futura como
+    // 'nuevo' (será el primer cobro de una venta que aún no cobró) o 'recurrente' (cuota
+    // del plan de una venta que ya cobró: el MRR) con la definición canónica de
+    // lib/finance/nuevo-vs-recurrente. Una sola lectura para calendario, revisión y previsión.
+    const saleIdsParaClasificar = [
+      ...(insts ?? []).map((raw) => (raw as unknown as { sales: { id: string } }).sales.id),
+      ...(reviewColls ?? []).map((raw) => (raw as unknown as { sales: { id: string } }).sales.id),
+      ...(ventasSinCalendario ?? []).map((v) => v.id),
+    ]
+    const idsUnicosParaClasificar = [...new Set(saleIdsParaClasificar)]
+    const { data: cobrosClasificacion } = idsUnicosParaClasificar.length
+      ? await sb
+          .from('collections')
+          .select('sale_id, collected_at')
+          .in('sale_id', idsUnicosParaClasificar)
+          .eq('status', 'collected')
+          .eq('tenant_id', t.tenantId)
+      : { data: [] }
+    const cobrosDeVenta = new Map<string, string[]>()
+    for (const c of (cobrosClasificacion ?? []) as { sale_id: string; collected_at: string | null }[]) {
+      if (!c.collected_at) continue
+      const lista = cobrosDeVenta.get(c.sale_id) ?? []
+      lista.push(c.collected_at)
+      cobrosDeVenta.set(c.sale_id, lista)
+    }
+
     // Nombres de usuarios
     const { data: users } = await sb.from('users').select('id, full_name, pays_commissions')
     const nameOf = new Map((users ?? []).map((u: { id: string; full_name: string }) => [u.id, u.full_name]))
@@ -159,6 +186,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       source: 'installment' | 'review'
       estado: 'pending' | 'overdue' | 'review'
       collectionId?: string
+      /** NUEVO = será el primer cobro de una venta que aún no cobró; RECURRENTE = cuota
+       * del plan de una venta que ya cobró (MRR). Definición canónica compartida con el
+       * cash recogido: lib/finance/nuevo-vs-recurrente. */
+      tipo: 'nuevo' | 'recurrente'
     }
     const rows: Row[] = []
 
@@ -178,6 +209,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       instId: string,
       source: 'installment' | 'review',
       estado: 'pending' | 'overdue' | 'review',
+      tipo: 'nuevo' | 'recurrente',
       collectionId?: string
     ) => {
       if (base <= 0) return
@@ -213,6 +245,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
           source,
           estado,
           collectionId,
+          tipo,
         })
       }
 
@@ -238,14 +271,27 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
         'installment',
         // Vencida sin cobrar = impago real, aunque el cron aún no la haya pasado a overdue
         // (mismo criterio que planCuotasDeVenta: la vista nunca pinta cobrado lo vencido).
-        inst.status === 'overdue' || inst.due_date < HOY ? 'overdue' : 'pending'
+        inst.status === 'overdue' || inst.due_date < HOY ? 'overdue' : 'pending',
+        tipoDeCuotaFutura(inst.due_date, cobrosDeVenta.get(inst.sales.id) ?? [])
       )
     }
 
     type ReviewRow = { id: string; collected_at: string; commissionable_amount: number | string; sales: SaleRel }
     for (const raw of reviewColls ?? []) {
       const c = raw as unknown as ReviewRow
-      await addRowsFor(c.sales, Number(c.commissionable_amount || 0), c.collected_at, c.id, 'review', 'review', c.id)
+      // El cobro en revisión ya está recogido: de la lista de su venta se excluye a sí mismo
+      // para que la comparación decida si ÉL es el primer cobro (nuevo) o hay anteriores.
+      const previosSinEl = (cobrosDeVenta.get(c.sales.id) ?? []).filter((f) => f !== c.collected_at)
+      await addRowsFor(
+        c.sales,
+        Number(c.commissionable_amount || 0),
+        c.collected_at,
+        c.id,
+        'review',
+        'review',
+        tipoDeCuotaFutura(c.collected_at, previosSinEl),
+        c.id
+      )
     }
 
     // Cuotas derivadas (previsión) de las ventas sin calendario materializado: mismas firmas
@@ -304,7 +350,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       for (let i = 0; i < n; i++) {
         if (!(restantes[i] > 0.005)) continue
         // Vencida sin cobrar = impago real (estado 'overdue'): la proyección la incluye para
-        // el KPI de impagos, pero nunca cuenta como comisión futura del mes en curso.        // Vencida sin cobrar = impago real (estado 'overdue'): la proyección la incluye para
         // el KPI de impagos, pero nunca cuenta como comisión futura del mes en curso.
         const vencida = fechas[i] < HOY
         await addRowsFor(
@@ -313,13 +358,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
           fechas[i],
           `${v.id}#${i + 1}`,
           'installment',
-          vencida ? 'overdue' : 'pending'
+          vencida ? 'overdue' : 'pending',
+          tipoDeCuotaFutura(fechas[i], cobrosDeVenta.get(v.id) ?? [])
         )
       }
     }
 
     const total = rows.reduce((s, r) => s + r.amount, 0)
-    return NextResponse.json({ ok: true, rows, total })
+    // DESGLOSE nuevo vs recurrente de la proyección (mismos importes que suman las filas):
+    // primeras cuotas de ventas nuevas frente a cuotas del plan de ventas que ya cobraron.
+    const desgloseNuevoVsRecurrente = { nuevo: 0, recurrente: 0 }
+    for (const r of rows) desgloseNuevoVsRecurrente[r.tipo] += r.amount
+    return NextResponse.json({ ok: true, rows, total, desgloseNuevoVsRecurrente })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }
