@@ -94,7 +94,9 @@ export const cuentaComoVenta = (
   })
 const isCollected = (c: { status: string }) => c.status === 'collected'
 export const num = (x: number | string | null | undefined) => Number(x ?? 0)
-const ymOf = (d: string | null | undefined) => (d ? String(d).slice(0, 7) : '') // 'YYYY-MM'
+// 'YYYY-MM' — exportada: la clasificación nuevo vs recurrente y las series de cash por mes la
+// necesitan fuera de este módulo (dashboard, resumen financiero).
+export const ymOf = (d: string | null | undefined) => (d ? String(d).slice(0, 7) : '') // 'YYYY-MM'
 const dayOf = (d: string | null | undefined) => (d ? String(d).slice(0, 10) : '') // 'YYYY-MM-DD'
 
 const SOURCE_FALLBACK = 'Directo / Sin atribuir'

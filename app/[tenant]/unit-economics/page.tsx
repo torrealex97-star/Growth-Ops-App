@@ -8,6 +8,7 @@ import { FunnelDinamico, FUNNEL_LABELS, FUNNEL_ORDEN, type OpcionFunnel } from '
 import { TrendChart } from '@/components/os/TrendChart'
 import { cn } from '@/lib/utils'
 import { DonutChart, type Segmento } from '@/components/os/DonutChart'
+import { FinanceDual } from '@/components/finanzas/FinanceCharts'
 import { KPICard, TargetRow } from '@/components/os/DashboardKPICard'
 import { evaluaTarget, eligeTarget, valorTarget, METRICAS_CON_OBJETIVO } from '@/lib/targets/vs-actual'
 import { PieChart, Target, Users, TrendingUp, Wallet, Filter, MousePointerClick, Megaphone } from 'lucide-react'
@@ -17,6 +18,8 @@ import { FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 import {
   buildChannelRows,
   buildSalesOverview,
+  ejeCacVisible,
+  serieDualFacturacionCash,
   type AttributionFilter,
   type FathomSinCita,
   type CampaignRow,
@@ -31,7 +34,7 @@ import { isCancelled } from '@/lib/unit-economics'
 import { leadDate } from '@/lib/analytics'
 import type { FunnelOperativo, FiltroAtribucion } from '@/lib/metrics/operativo'
 import { canonicalizeLeads, canonicalizeAppointments } from '@/lib/canonical/dedup'
-import { canonicalCash, type StripePaymentRow } from '@/lib/canonical/cash'
+import { canonicalCash, serieCanonicaCash, type StripePaymentRow } from '@/lib/canonical/cash'
 import { resolverOferta, CONFIG_OFERTA_POR_DEFECTO } from '@/lib/metrics/oferta'
 import { FunnelCanonicoPanel } from '@/components/os/DataQualityPanel'
 import { PanelOrganico } from '@/components/os/PanelOrganico'
@@ -786,6 +789,90 @@ export default function UnitEconomicsPage() {
   }
   const evolucionVisible = Object.values(hayEvolucion).some(Boolean)
 
+  // ── DUAL FACTURACIÓN vs CASH (misma granularidad que Evolución) ──
+  // Brecha vendido-vs-cobrado por cubo, con el CAC del cubo SOLO donde hubo gasto (un CAC sin
+  // gasto detrás no existe). La clave de cubo es EXACTAMENTE la de Evolución: una sola definición
+  // de día/semana/mes para toda la sección. El cash por cubo sale del canónico (serieCanonicaCash)
+  // sobre las MISMAS filas ya filtradas por periodo que alimentan el total `cash.net`; así la suma
+  // de la serie cuadra con el KPI al céntimo. Sin periodo se usan los últimos 90 días (igual que
+  // Evolución): el dual es una lectura de tendencia, no un acumulado histórico.
+  const dualFacturacionCash = useMemo(() => {
+    const fin = rango.to ?? new Date()
+    const t1 = fin.getTime()
+    const t0 = rango.from ? new Date(rango.from).getTime() : t1 - 90 * 86400000
+    const ventana = (iso: string | null) => {
+      if (!iso) return false
+      const key = iso.slice(0, 10)
+      return key >= new Date(t0).toISOString().slice(0, 10) && key <= new Date(t1).toISOString().slice(0, 10)
+    }
+    const cuboDe = (iso: string): string => {
+      if (granularidad === 'dia') return iso.slice(0, 10)
+      if (granularidad === 'semana') {
+        const dt = new Date(`${iso.slice(0, 10)}T00:00:00Z`)
+        dt.setUTCDate(dt.getUTCDate() - dt.getUTCDay())
+        return dt.toISOString().slice(0, 10)
+      }
+      return iso.slice(0, 7)
+    }
+
+    // Cubos: unión ordenada de donde haya algo (ventas, cash, gasto) dentro de la ventana.
+    const cubos = new Set<string>()
+    for (const s of ventasVisibles) {
+      if (ACTIVE_SALE_STATUSES.includes(s.status) && s.sale_date && ventana(s.sale_date)) cubos.add(cuboDe(s.sale_date))
+    }
+    for (const p of stripePagos) if (p.paid_at && ventana(p.paid_at)) cubos.add(cuboDe(p.paid_at))
+    for (const c of collections) if (c.collected_at && ventana(c.collected_at)) cubos.add(cuboDe(c.collected_at))
+    for (const d of dailyVisible) if (ventana(d.date)) cubos.add(cuboDe(d.date))
+
+    // Gasto por cubo de la daily YA filtrada por cuenta (campañasVisibles ∩ cuentaSel): el gasto
+    // que cuenta es el del negocio, el mismo número que alimenta totalAdspend con periodo activo.
+    const adspendPorCubo = new Map<string, number>()
+    for (const d of dailyVisible) {
+      if (!ventana(d.date)) continue
+      const k = cuboDe(d.date)
+      adspendPorCubo.set(k, (adspendPorCubo.get(k) ?? 0) + num(d.spend))
+    }
+
+    // Cash por cubo: el canónico sobre las mismas filas del periodo (mismas reglas de dedup que
+    // cash.net; aquí SIN recortar por ventana para que la dedup vea las contrapartes completas).
+    const cashPorCubo = new Map<string, number>(
+      serieCanonicaCash(
+        stripePagos.filter((p) => !hayPeriodo || inPeriod(p.paid_at, rango)),
+        collections
+          .filter((c) => !hayPeriodo || inPeriod(c.collected_at, rango))
+          .map((c) => ({
+            id: c.id ?? `${c.collected_at}:${c.gross_amount}`,
+            payment_reference: c.payment_reference ?? null,
+            gross_amount: num(c.gross_amount),
+            status: c.status,
+            collected_at: c.collected_at,
+          })),
+        [],
+        granularidad
+      ).map((b) => [b.cubo, b.neto])
+    )
+
+    const lista = [...cubos].sort()
+    const serie = serieDualFacturacionCash(lista, ventasVisibles, cashPorCubo, adspendPorCubo, cuboDe)
+    return {
+      serie,
+      // Etiquetas legibles por granularidad (día/mes tal cual; semana → "sem 30-ago").
+      puntos: serie.map((b) => ({
+        label:
+          granularidad === 'semana'
+            ? `sem ${b.cubo.slice(5).split('-').reverse().join('/')}`
+            : granularidad === 'mes'
+              ? b.cubo
+              : b.cubo.slice(5).split('-').reverse().join('/'),
+        facturacion: b.facturacion,
+        cash: b.cash,
+        cac: b.cac,
+      })),
+      ejeCac: ejeCacVisible(serie),
+      conDatos: serie.some((b) => b.facturacion > 0 || b.cash > 0),
+    }
+  }, [ventasVisibles, stripePagos, collections, dailyVisible, hayPeriodo, rango, granularidad])
+
   // Distribución de facturación por canal (para el donut de la vista de anuncios).
   const donutCanal: Segmento[] = useMemo(
     () =>
@@ -1085,6 +1172,17 @@ export default function UnitEconomicsPage() {
             )}
           </div>
         </section>
+      )}
+
+      {/* DUAL FACTURACIÓN vs CASH: la brecha vendido-vs-cobrado por cubo, con el CAC del cubo
+          solo donde hubo gasto publicitario y cierres. Comparte la granularidad y la clave de
+          cubo de Evolución; sin datos no se pinta (hueco ≠ cero). */}
+      {dualFacturacionCash.conDatos && (
+        <FinanceDual
+          title={`Facturación vs cash por ${etiquetaGranularidad}`}
+          data={dualFacturacionCash.puntos}
+          showCacAxis={dualFacturacionCash.ejeCac}
+        />
       )}
 
       {/* ADQUISICIÓN ORGÁNICA (prototipo): contenido público del negocio vía Apify. Números con

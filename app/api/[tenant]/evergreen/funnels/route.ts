@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { requirePantalla } from '@/lib/auth/requirePantalla'
 import { getTenantConfig } from '@/lib/config'
+import { parseAccountIds } from '@/lib/meta/accounts'
 import { computeFunnel } from '@/lib/funnels/compute'
 import { FUNNEL_FAMILIES, type FunnelFamily } from '@/lib/funnels/definitions'
 import { EVENT_MAP_KEY, parseEventMap } from '@/lib/funnels/event-map'
@@ -58,7 +59,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
       // `to` se extiende al final del día: appointment_datetime es timestamptz, y comparar contra
       // la fecha desnuda dejaría fuera todo lo del último día salvo la medianoche exacta.
       { from, to: `${to}T23:59:59.999Z` },
-      eventMap
+      eventMap,
+      // La inversión del funnel solo cuenta las cuentas de ads elegidas en Integraciones.
+      parseAccountIds(cfg.META_AD_ACCOUNT_ID)
     )
     return NextResponse.json({ ...computeFunnel({ family, counts, inversion }), range: { from, to } })
   } catch (e) {

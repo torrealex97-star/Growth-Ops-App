@@ -1,5 +1,49 @@
 # Relevo activo
 
+## Relevo 25-sep — hebra Freebuff 194f9eda (preview 3003)
+
+**Estado final: la serie local está rebaseada y publicada como PR #225** (`feat/money-25sep`, 8 commits
+sobre `origin/main` `c60f7cb`): gasto de ads solo de cuentas seleccionadas, custom_fields fijados por
+test + `allowImportingTsExtensions`, nuevo vs recurrente canónico (`lib/finance/nuevo-vs-recurrente.ts`),
+desglose nuevo vs recurrente en comisiones futuras + % efectivo, y dual facturación vs cash en
+unit-economics (verificado en pantalla en su día, con capturas). Quality Gate completo (`npm run quality`)
+**exit 0** sobre el árbol rebaseado: 942 unit (939 pass, 3 skips, 0 fallos — el invariante de tipos que
+fallaba en la base vieja pasa solo sobre el main actual) y 752 métricas. Falta: CI de la PR y merge.
+
+**Decisiones del rebase.**
+
+- `1ec1447` (exención `pays_commissions`) **descartado**: la PR #211 ya fusionó el núcleo equivalente
+  (migración `_repo_sync`, veto en calculator/generate/future). **Seguimiento opcional, no forzado**:
+  (a) purgar comisiones positivas no liquidadas al marcar `pays_commissions=false` — hoy el veto solo
+  impide generar nuevas y bloquear el borrado, las históricas se borran a mano; (b) flag `exento` con
+  importe 0 y aviso en la proyección futura.
+- El route `commissions/future` se reescribió sobre la versión de #213: se conserva su `noComisionan`
+  inline y se añade solo el desglose `tipoDeCuotaFutura` (sin flag `exento`).
+- `tests/commissions-exencion.test.mjs` eliminado: #211 lo sustituyó y la versión extendida quedaba
+  huérfana sobre una base que ya no existe.
+
+**Auditoría Cash Collected (25-sep) — veredicto: sin bug, semántica distinta por panel.** El KPI
+"Cash Collected" del dashboard (3.761,36 € sept WDC) son los cobros collected del mes pertenecientes a
+ventas VENDIDAS en el mes (`monthlyKpis`, `lib/analytics.ts`); unit-economics (9.475,82 €) es la caja
+total del mes (espejo Stripe 7.478,82 € + 1 cobro interno 1.997,00 €). Puente exacto: los cobros de
+septiembre con venta de cualquier mes suman 7.858,80 € = 3.761,36 € (ventas de sept) + 4.097,44 €
+(cobros de ventas de meses anteriores, MRR invisible al dashboard); además 1.667,02 € de Stripe sin
+referencia en la app (5 pagos). Recomendación **no aplicada**: renombrar el KPI del dashboard
+(p. ej. "Cobrado de ventas del mes") para que el nombre no prometa la caja total.
+
+**Lecciones que sobreviven al relevo.** (1) Verifica la sesión que ve el server antes de diagnosticar
+la app: una cookie httpOnly heredada de otra cuenta QA convivió con el login browser-side y produjo
+404 "Subcuenta no encontrada" en endpoints correctos — un 0 pintado puede ser una página que no cargó
+sus datos. (2) El clon `/tmp/growthops-preview-3003` está disputado entre hebras: no es fuente de
+verdad; validar en arnés propio (`git archive` + parche, node_modules enlazado). (3) El sandbox sufre
+EPERM intermitentes (node/npm/cat/gh según oleada): git fiable; reintentar y trocear operaciones.
+(4) La hipótesis "Adspend=0" quedó refutada por sonda SQL de solo lectura: los datos de Meta existen,
+están seleccionados y con gasto real; si la UI pinta 0 la causa es de sesión/entorno de visualización.
+
+**Sigue pendiente.** Merge de PR #225 tras CI y borrado de rama; seguimiento opcional de purga/`exento`;
+renombrar el KPI de cash del dashboard (requiere ok de producto); y el encargo a Claude Code de la
+migración `20260922100000` en producción (fila del tablero, prioridad 1, ajena a esta hebra).
+
 ## MONEY.md v1 en main + relevo de la PR #210 — 2026-09-25 (Freebuff/Buffy)
 
 **Estado real del vocabulario financiero (F3):** `MONEY.md` v1 está en `main` desde #209 (`43f78e5`):

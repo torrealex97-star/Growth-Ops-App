@@ -62,6 +62,9 @@ type FilaFutura = {
   dueDate: string
   source: string
   estado?: 'pending' | 'overdue' | 'review'
+  /** NUEVO = primera cuota de una venta que aún no cobró; RECURRENTE = cuota del plan de
+   * una venta que ya cobró (MRR). Canónico: lib/finance/nuevo-vs-recurrente. */
+  tipo?: 'nuevo' | 'recurrente'
 }
 
 type Actividad = {
@@ -254,6 +257,15 @@ export default function ColaboradorDashboard({
       .reduce((acc, f) => acc + importe(f), 0)
     return { cobrado, pendiente, aPercibirProximo, impagos }
   }, [comisiones, futuras])
+
+  // NUEVO vs RECURRENTE de SU proyección (misma definición canónica que el resto de la app):
+  // primeras cuotas de ventas que aún no han cobrado nada frente a cuotas del plan de ventas
+  // que ya cobraron (el MRR que sostiene su comisión mes a mes).
+  const futurasNuevoVsRecurrente = useMemo(() => {
+    const acc = { nuevo: 0, recurrente: 0 }
+    for (const f of futuras) acc[f.tipo ?? 'recurrente'] += num(f.amount)
+    return acc
+  }, [futuras])
 
   // COMISIONES A FUTURO MES A MES (§25): de la proyección (SU lane) agrupo por mes de
   // vencimiento de la cuota. "Confirmado" = cash ya recogido (review o mes pasado); "por
@@ -462,7 +474,7 @@ export default function ColaboradorDashboard({
           value={eur(cobros.pendiente)}
           icon={Clock}
           loading={cargando}
-          description="Ganado desde septiembre, por aprobar y pagar"
+          description="Ganado desde septiembre, por aprobar y pagar — % sobre base neta (bruto − fee pasarela)"
         />
         <KPICard
           title="A percibir el mes que viene"
@@ -487,7 +499,10 @@ export default function ColaboradorDashboard({
           <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
             <h2 className="text-sm font-semibold text-foreground">Comisiones a futuro, mes a mes</h2>
             <p className="text-xs text-muted-foreground">
-              La comisión de un mes se confirma cuando tus leads pagan su cuota de ese mes.
+              La comisión de un mes se confirma cuando tus leads pagan su cuota de ese mes.{' '}
+              <span className="text-emerald-400">Nuevo</span> (primeras cuotas de ventas nuevas):{' '}
+              {eur(futurasNuevoVsRecurrente.nuevo)} · <span className="text-sky-400">Recurrente</span> (plan de ventas
+              que ya cobraron): {eur(futurasNuevoVsRecurrente.recurrente)}
             </p>
           </div>
           <div className="overflow-x-auto">

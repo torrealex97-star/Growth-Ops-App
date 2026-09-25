@@ -11,6 +11,7 @@ import { cuentaComoVenta, lastNMonths, prevMonth, monthLabel, pctDelta } from '@
 import { metodoDePlan } from '@/lib/metrics/agregados'
 import { formatCurrency } from '@/lib/utils'
 import { computeMonthlyPnl, FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
+import { clasificarCobrosPorMes, type FilaCobroParaClasificar } from '@/lib/finance/nuevo-vs-recurrente'
 
 type SaleRow = {
   id: string
@@ -216,6 +217,14 @@ export default function FinanzasPage() {
   const cur = useMemo(() => summaryFor(ym), [summaryFor, ym])
   const prev = useMemo(() => summaryFor(prevMonth(ym)), [summaryFor, ym])
 
+  // NUEVO vs RECURRENTE del mes seleccionado (canónico: lib/finance/nuevo-vs-recurrente).
+  // "Nuevo" = primer cobro de cada venta; "recurrente" = cuotas de ventas de meses pasados
+  // (el MRR cobrado este mes). Va en la tarjeta para que la composición del cash sea visible.
+  const cobroMes = useMemo(
+    () => clasificarCobrosPorMes(collections as FilaCobroParaClasificar[], ym),
+    [collections, ym]
+  )
+
   // --- Salarios del equipo ---
   const salariesSummary = useMemo(() => {
     const committed = activeUsers.reduce((a, u) => a + num(u.base_salary), 0)
@@ -245,33 +254,13 @@ export default function FinanzasPage() {
     const pctRefund = grossSum > 0 ? (totalRefundsAmount / grossSum) * 100 : null
 
     // %New GR vs %Followup GR
-    // Para cada sale_id presente en TODAS las collections, determinamos cuál es
-    // el primer cobro (por collected_at) y si dicho primer cobro cae en el mes seleccionado
-    // lo clasificamos como "new"; el resto de cobros del mes son "followup".
-    const bySale = new Map<string, CollectionRow[]>()
-    for (const c of collections) {
-      if (c.status !== 'collected') continue
-      const arr = bySale.get(c.sale_id) || []
-      arr.push(c)
-      bySale.set(c.sale_id, arr)
-    }
-    const firstCollectionIdBySale = new Map<string, CollectionRow>()
-    for (const [saleId, arr] of Array.from(bySale.entries())) {
-      const sorted = [...arr].sort((a, b) => {
-        const da = a.collected_at ? new Date(a.collected_at).getTime() : 0
-        const db = b.collected_at ? new Date(b.collected_at).getTime() : 0
-        return da - db
-      })
-      firstCollectionIdBySale.set(saleId, sorted[0])
-    }
-    let newGr = 0
-    let followupGr = 0
-    for (const c of monthCollections) {
-      const first = firstCollectionIdBySale.get(c.sale_id)
-      const isNew = first === c
-      if (isNew) newGr += num(c.gross_amount)
-      else followupGr += num(c.gross_amount)
-    }
+    // %New GR vs %Followup GR — AHORA vía la definición canónica compartida
+    // (lib/finance/nuevo-vs-recurrente): primer cobro de la venta = nuevo; el resto =
+    // recurrente (cuotas de ventas pasadas). Misma clasificación que el dashboard y los
+    // gráficos, para que todos los paneles digan lo mismo.
+    const reparto = clasificarCobrosPorMes(collections as FilaCobroParaClasificar[], targetYm)
+    const newGr = reparto.nuevo.importe
+    const followupGr = reparto.recurrente.importe
     const pctNewGr = grossSum > 0 ? (newGr / grossSum) * 100 : null
     const pctFollowupGr = grossSum > 0 ? (followupGr / grossSum) * 100 : null
 
@@ -320,7 +309,16 @@ export default function FinanzasPage() {
     () =>
       months6.map((m) => {
         const s = summaryFor(m)
-        return { ym: m, label: monthLabel(m), cash: s.cashCollected, expenses: s.totalExpenses, net: s.netResult }
+        return {
+          ym: m,
+          label: monthLabel(m),
+          cash: s.cashCollected,
+          expenses: s.totalExpenses,
+          net: s.netResult,
+          // Facturación contratada superpuesta a los cobros: la brecha vendido-vs-cobrado
+          // del mes se lee en la propia gráfica (data-viz-pro, misma unidad y eje).
+          facturacion: s.contractedSales,
+        }
       }),
     [months6, summaryFor]
   )
@@ -406,7 +404,11 @@ export default function FinanzasPage() {
                 title="Cash Collected"
                 value={fmt(cur.cashCollected)}
                 icon={Wallet}
-                description="facturación bruta, sin restar devoluciones"
+                description={
+                  loading
+                    ? 'facturación bruta, sin restar devoluciones'
+                    : `nuevo ${fmt(cobroMes.nuevo.importe)} · recurrente ${fmt(cobroMes.recurrente.importe)}`
+                }
                 {...delta(cur.cashCollected, prev.cashCollected)}
               />
               <KPICard
