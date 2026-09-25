@@ -22,6 +22,7 @@ type Campos = {
   target_cash_roas: string
   capacity_calls_per_week: string
   capacity_active_clients: string
+  avg_delivery_cost_eur: string
   notes: string
 }
 
@@ -37,6 +38,7 @@ const VACIO: Campos = {
   target_cash_roas: '',
   capacity_calls_per_week: '',
   capacity_active_clients: '',
+  avg_delivery_cost_eur: '',
   notes: '',
 }
 
@@ -53,6 +55,7 @@ function desdeContexto(contexto: ContextoNegocio): Campos {
     target_cash_roas: textoInput(contexto.objetivoCashRoas),
     capacity_calls_per_week: textoInput(contexto.capacidadLlamadasSemana),
     capacity_active_clients: textoInput(contexto.capacidadClientesActivos),
+    avg_delivery_cost_eur: textoInput(contexto.costeMedioEntregaEur),
     notes: textoInput(contexto.notas),
   }
 }
@@ -86,12 +89,21 @@ const OBJETIVOS: CampoNumero[] = [
   {
     key: 'target_ltgp_cac',
     label: 'LTGP:CAC objetivo',
-    help: 'Objetivo estratégico; la métrica real seguirá sin calcularse hasta disponer de margen bruto de por vida.',
+    help: 'Objetivo estratégico. La métrica REAL necesita además el coste de entrega de abajo — y aun con eso, calcular el LTV de por vida es un motor que todavía no está construido.',
     min: 0.01,
     max: 1000,
     step: '0.01',
   },
 ]
+
+const COSTE_ENTREGA: CampoNumero = {
+  key: 'avg_delivery_cost_eur',
+  label: 'Coste medio de entrega por cliente (€)',
+  help: 'Cuánto cuesta entregar tu oferta a UN cliente a lo largo de toda su vida (soporte, materiales, tiempo del equipo). Sin este número, LTGP:CAC no se puede calcular aunque haya facturación.',
+  min: 0,
+  max: 1_000_000,
+  step: '0.01',
+}
 
 const CAPACIDAD: CampoNumero[] = [
   {
@@ -287,6 +299,11 @@ export function GrowthContextForm() {
       <div className="border-t border-border pt-5">
         <h3 className="mb-3 text-sm font-medium text-foreground">Capacidad operativa</h3>
         <div className="grid gap-4 sm:grid-cols-2">{CAPACIDAD.map(campoNumero)}</div>
+      </div>
+
+      <div className="border-t border-border pt-5">
+        <h3 className="mb-3 text-sm font-medium text-foreground">Coste de entrega</h3>
+        <div className="grid gap-4 sm:grid-cols-2">{campoNumero(COSTE_ENTREGA)}</div>
       </div>
 
       <div className="space-y-1.5 border-t border-border pt-5">
