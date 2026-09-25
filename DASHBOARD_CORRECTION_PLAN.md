@@ -1,6 +1,6 @@
 # Plan de corrección de dashboards
 
-Fecha: 2026-09-25. Estado: propuesta basada en evidencia; auditoría browser/roles todavía abierta. Referencias F01–F23: [DASHBOARD_AUDIT.md](DASHBOARD_AUDIT.md). No se han aplicado cambios de datos ni RLS en producción.
+Fecha: 2026-09-25. Estado: propuesta basada en evidencia; auditoría browser/roles todavía abierta. Referencias F01–F25: [DASHBOARD_AUDIT.md](DASHBOARD_AUDIT.md). No se han aplicado cambios de datos ni RLS en producción.
 
 ## P0 — proteger acceso antes de ampliar analítica
 
@@ -107,3 +107,9 @@ No fusionar esta auditoría como certificación de producción. Los documentos s
 9. **USER_ACTION/BUSINESS_DECISION:** mappings reales, inicio histórico esperado, FX y decisiones MONEY. Preparar lista privada de filas afectadas; no publicar nombres/IDs/importes en Git.
 
 **No hay diagnóstico REAL BUSINESS KPI PROBLEM demostrado.** Las alertas identificadas son de calidad/fuente/cálculo/scope/representación.
+
+### Siguiente lote específico de Funnels
+
+- F24 / AUTO_FIX / P2: legibilidad cuando primera etapa cero. Componente existente, sin cambiar métricas. Verificar etiquetas externas y geometría sin falsa conversión, desktop/móvil.
+- F25 / AUTO_FIX / P2: reproducir HTTP 400 de la consulta VSL; corregir sintaxis NOT en querystring y comprobar columnas/timestamps. Distinguir tabla ausente/error/cero. No escribir sesiones ni disparar eventos ficticios.
+- Browser ya completó Funnels desktop/móvil y parte superior de unit-economics móvil. Continuar eventos/socios/Brief/integraciones/recursos/Person360 y controles pendientes del registro.

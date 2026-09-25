@@ -160,7 +160,7 @@ Quedan expresamente fuera contratos, colaboradores, RAG, facturación, IA, integ
 
 - `lib/ai/agent/tools.ts`: HEAD de contactos devuelve count, no filas; Ask ahora conserva total/0/null. Test nuevo `tests/metrics/agent-overview-count.test.mjs` falló en 12 y 0 antes, pasa después.
 - F19: filtros tenant en dashboard/unit-economics/finanzas resumen,P&L,cohortes,proyección; usuarios por membresía. F20: CTR multiplicado por 100. Regresiones en tests/metrics/dashboard-tenant-scope.test.mjs (dos tenants y n=0).
-- Documentos actualizados F01–F23. Correcciones en rama, sin despliegue. CRM/alumnos/selectores globales y seguridad siguen pendientes.
+- Documentos actualizados F01–F25. Correcciones en rama, sin despliegue. CRM/alumnos/selectores globales y seguridad siguen pendientes.
 
 ### USER ACTION REQUIRED
 
@@ -193,7 +193,7 @@ Asignaciones y enlaces incompletos, notas provisionales, fuentes de vídeo/conve
 ### NEXT RECOMMENDED WORK
 
 1. Resolver P0 con dry-run y contrato por rol; no confiar en UI.
-2. Continuar desde Funnels; completar rutas/roles/periodos pendientes, mobile y exports. Sesión admin activa, no Ver como.
+2. Funnels desktop/móvil ya observado: F24 ancho=1 cuando primera etapa cero; F25 HTTP400 con sintaxis NOT sospechosa. Sin fix aún. Unit-economics móvil solo cabecera/filtros (sin overflow); viewport restaurado. Continuar eventos/socios/Brief/integraciones/recursos/Person360, roles/exports. Sesión admin activa, no Ver como.
 3. Corregir P1 en unidades pequeñas, comparar UI/API/AI con mismo scope y datos sintéticos.
 4. Obtener mappings/fechas humanas y ejecutar backfill auditado en unidad separada.
 5. Actualizar scorecard y cerrar solo al verificar todos los módulos/roles críticos. La auditoría permanece abierta.

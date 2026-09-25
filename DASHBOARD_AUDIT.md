@@ -190,7 +190,7 @@ Rutas relativas a `/<tenant>`. ¿Correcto? se refiere al contrato inspeccionado,
 | Setting AI | entrenamiento vacío | simulación diferenciada de hechos; no ejecutar conversaciones que generen coste |
 | Contenido | tabla vacía y filtros | selector de editores incluye usuarios globales; no metricar rendimiento desde vacío |
 | Settings / usuarios | navegación admin | fallo de retorno Ver como F21; sesión recuperada, no volver a impersonar |
-| Funnels | navegación iniciada | captura/estado final pendiente al guardar relevo |
+| Funnels | desktop y móvil 390×844; fuente VSL HTTP 400 | barras estrechas y texto oculto F24; consulta REST F25 |
 
 **Sin completar:** funnels/eventos, socios, Brief, integraciones, recursos/testimonios/grabaciones, Person360 y seguimiento/Fathom; revisión mobile/tablet; todos los exports, custom ranges, paginación, cuenta/campaña/oferta, cambio real de tenant y UI de todos los roles. No inventar PASS. La matriz/scorecard original sigue provisional: esta tabla especifica qué dejó de estar pendiente.
 
@@ -253,3 +253,15 @@ Positivo: existe vocabulario financiero documentado; exclusión de reservas en a
 No probado: cobertura histórica completa, igualdad de cada cifra renderizada entre módulos, experiencia móvil, exports completos, todos los roles, LTV/retención/delivery y ausencia de duplicados global. No hay base para declarar negocio sano o fuera de KPI. No se ha detectado que un benchmark demuestre un error de negocio.
 
 Plan operativo: [DASHBOARD_CORRECTION_PLAN.md](DASHBOARD_CORRECTION_PLAN.md). Coordinación: [docs/ACTIVE_HANDOFF.md](docs/ACTIVE_HANDOFF.md), sección CODEX — DASHBOARD & METRIC AUDIT.
+
+## Última revisión tras guardar la rama
+
+### F24 — P2: funnel ilegible si la primera etapa vale cero (C,B)
+
+Desktop y móvil muestran las barras como cápsulas estrechas con etiquetas ocultas, aunque etapas CRM posteriores tengan datos. `components/os/FunnelChart.tsx:anchos` toma la primera etapa usable incluso si es 0; al ser falsy devuelve ancho 1 para TODAS las etapas. La barra usa overflow-hidden y contiene el texto. Próximo AUTO_FIX: separar etiqueta/número de la anchura, definir geometría honesta con primera etapa cero y no atribuir caídas causales a poblaciones no enlazadas. Test con [0,0,null,120,50,20] y n=0 completo; revisar desktop/móvil/reduced-motion. No implementado.
+
+### F25 — P2: fuente VSL falla en Funnels (C,B)
+
+UI muestra HTTP 400, correctamente distinto de cero. `lib/funnels/queries.ts:countVslSessions` construye `not.<columna>=is.null`; el operador debe estar en el valor del filtro, no en el nombre de columna. Hipótesis de causa muy concreta por código, pendiente de reproducir respuesta REST sanitizada y verificar esquema/fechas antes de corregir. No afirmar fallo del tracking ni eliminar aviso. AUTO_FIX pequeño + test de URL y respuesta count, sin tocar sesiones reales.
+
+**Responsive parcial:** Funnels y cabecera/filtros de unit-economics revisados a 390×844. Unit-economics no desborda documento (390/390); ocupa casi todo el primer viewport con filtros. No se verificó todavía el funnel inferior ni todas sus tablas en móvil. Viewport restaurado al finalizar. Resto de responsive sigue pendiente.
