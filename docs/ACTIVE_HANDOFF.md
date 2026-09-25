@@ -1,16 +1,67 @@
 # Relevo activo
 
-## Lote facturas IA + comisiones lote + contratos externos — 2026-09-23 (Freebuff 7a08c143)
+## Relevo 25-sep — hebra Freebuff 194f9eda (preview 3003)
 
-**Publicado en `origin/main`:** #192 (`4293c06`, facturas IA — identidad del emisor y trazabilidad del pago), #190 (`09afde9`, comisiones: aprobar/liquidar en lote), #191 (`ec708a7`, contratos: adjuntar firmado externamente + verificación de identidad pospuesta). Los tres con quality, build, Smoke E2E y Vercel en verde. Ramas remotas ya eliminadas.
+**Hecho y dónde está.** La unidad **desglose nuevo vs recurrente en comisiones futuras** está
+commiteada en local como `d219974` (pathspec, 7 ficheros: route `commissions/future`,
+`comisiones/page.tsx`, `ColaboradorDashboard`, `% efectivo` en `CommissionsTable`,
+`lib/finance/nuevo-vs-recurrente.ts` y 2 ficheros de tests). Vive en la **serie local sin pushear**
+(`1ec1447 … d219974`, 7 commits) montada sobre una base vieja de `origin/main` — no pushear tal
+cual, ver "siguiente acción".
 
-**🔴 Bloqueo URGENTE — migración `20260922100000_invoice_ai_identity_traceability.sql` SIN APLICAR en producción.** La UI de Gastos ya desplegada en Vercel hace `INSERT` con las columnas nuevas: **crear un gasto o marcarlo pagado falla hasta aplicar la migración**. Las lecturas (`select *`) siguen funcionando. No se pudo aplicar desde la máquina local: el host `db.***.supabase.co` solo resuelve por IPv6 y esta red no tiene ruta IPv6; el pooler tampoco es alcanzable. Instrucción exacta para el siguiente relevo:
+**Qué se validó de verdad.**
 
-1. Desde cualquier entorno con salida a Supabase (otra red, o la CLI/SQL editor del Dashboard): dry-run obligatorio por reglas del repo — `BEGIN;` + DDL del fichero `supabase/migrations/20260922100000_*.sql` + `ROLLBACK`, verificar que añade 9 columnas a `expenses` y 2 índices parciales; después aplicarlo de verdad (`supabase db push` o pegarlo en el SQL editor del Dashboard).
-2. Regenerar tipos: `npm run tipos:bd` y commitear `lib/types/database-generated.ts` si cambia.
-3. Verificar: crear un gasto de prueba desde la UI y marcarlo pagado; borrarlo.
+- **Verificado en preview** con la sesión QA WDC (fixture de pruebas): pestaña Futuras con **48
+  cuotas, todas `recurrente`** (correcto: ninguna venta activa queda sin cobros recogidos), KPI
+  "Futuras (por cobrar)" **6.777,13 € = desglose del endpoint al céntimo** (`nuevo 0 · recurrente
+  6.777,13`), badges emerald/sky por fila y desglose respetando filtros. El badge "Nuevo" no tiene
+  caso en los datos actuales; aparecerá con la próxima venta sin cobrar.
+- **Probado** vía arnés `/tmp/qa-gate` (árbol exacto local reconstruido con `git archive` + parche
+  del WIP): format, lint y typecheck **verdes**; **881/882 tests**. El único fallo
+  (`esquema-tenant-invariante`, tipos generados vs BD viva: falta `Annotations`) es **preexistente
+  y ambiental** — la unidad no toca `database-generated.ts` ni ese test.
 
-**Notas:** el checkout de `~/Documents/.../Scalix Systems App` sigue siendo el linaje viejo con WIP ajeno sin commitear — no se ha tocado. El preview de este hilo corre en `/tmp/growthops-preview-3003` (launchd `growthops-preview-3003`, puerto 3003) sincronizado a `ec708a7`.
+**Hallazgos que el relevo debe conocer.**
+
+1. **`origin/main` avanzó y SOLAPA** (`b27edac` → `949637f`, ≥15 commits: #208–#221). El **#211 ya
+   implementa la exención** `pays_commissions` con su migración `_repo_sync` (el `1ec1447` local es
+   probablemente descartable al rebase, comparar diffs) y el **#213 tocó comisiones futuras**
+   (conflicto esperado en el route con `ce57c3b`+`d219974`).
+2. **Doble sesión QA en el navegador de preview**: una cookie httpOnly heredada de otra cuenta QA
+   de un hilo anterior convivió con el login browser-side; los APIs server-side resolvían el
+   usuario equivocado → 404 "Subcuenta no encontrada" en endpoints correctos. Diagnosticado
+   comparando el `sub` del JWT de la cookie server-side con el usuario del email en `auth.users`.
+   Lección: antes de diagnosticar la app (o declarar una anomalía de datos como Adspend=0),
+   verifica que la sesión que ve el server es la cuenta que crees — un 0 pintado puede ser solo
+   una página que no llegó a cargar sus datos.
+3. **El clon `/tmp/growthops-preview-3003` está disputado**: un agente Claude Code trabajaba en él
+   durante esta sesión (escribió ficheros en vivo) y mezcla `origin/main` avanzado con
+   experimentos — **no es fuente de verdad**. La validación se hizo en `/tmp/qa-gate` (efímero,
+   borrable; su `node_modules` está enlazado al del clon).
+4. **Sandbox degradado**: node/npm no arrancan con cwd en el repo (EPERM `uv_cwd`, degradación
+   progresiva hasta bloqueo casi total); git/tar/sed/launchd sí funcionan. Receta que funcionó:
+   `git archive HEAD | tar -x -C /tmp/qa-gate`, `git diff > /tmp/wip.patch` + `git apply` en el
+   arnés, `node_modules` enlazado y Quality Gate vía job launchd efímero (ya retirado).
+
+**Siguiente acción exacta**: rebase de la serie local sobre `origin/main` — (a) comparar `1ec1447`
+con el #211 y descartarlo si es equivalente; (b) adaptar el desglose nuevo/recurrente (`ce57c3b` +
+`d219974`) al route de futuras que dejó #213; (c) regenerar tipos (`npm run tipos:bd`) para calmar
+el invariante; (d) Quality Gate verde → push y PR.
+
+**Hipótesis Adspend=0 en unit-economics: CERRADA Y REFUTADA (25-sep).** Sonda SQL de solo-lectura
+(`.claude/tmp/ref-adspend-cero.mjs`, consolidada y re-ejecutable): las 3 campañas de septiembre de
+`act_2204892919779781` EXISTEN en `campaigns` (3/3) con el `account_id` bien guardado, la cuenta
+está seleccionada en `META_AD_ACCOUNT_ID`, hay gasto real (919,68 € en la daily de sept;
+3.711,50 € acumulado en `campaigns.adspend`, 10/10 campañas del tenant en esa cuenta), el JOIN
+diario↔campaña cuadra y nada se trunca (160 filas vs cap 49.999; daily al día). Si la UI llega a
+pintar 0, la causa es de entorno de visualización (sesión/auth equivocada — ver hallazgo 2 — o
+preview con código/`env` desfasado), no de datos. Siguiente comprobación natural: ver el CAC en
+unit-economics con sesión limpia de QA WDC (≈919,68 € de gasto sept).
+
+**Sigue pendiente** (backlog en `PENDIENTES.md`): dual facturación vs cash en unit-economics
+(CAC solo donde haya adspend del periodo, sin inventar ceros).
+
+**WIP sin commitear**: `.freebuff/run.md`, `.gitignore` y este documento.
 
 ## Cierre de consolidación — 2026-09-22
 
@@ -41,10 +92,9 @@ Quedan expresamente fuera contratos, colaboradores, RAG, facturación, IA, integ
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente            | Qué                                                                                                                                                                                                                            | Rama                  | Toca                                                                                                         | Desde  |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------ | ------ |
-| Claude Code       | **F2 — contrato de conectores**. Hecho: contrato + plantilla (#184), GHL (#185), tests de arquitectura (#186), Meta (#187), salud de datos (esta rama). F2 queda cerrada salvo la deuda anotada                                | `feat/f2-salud-datos` | `lib/data-health/conectores.ts`, `lib/integrations/sync-runs.ts`, crons de Meta/Instagram, `DataHealthPanel` | 23-sep |
-| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos | (fusionadas)          | solo `expenses` vía migración pendiente; nada en código                                                      | 23-sep |
+| Agente      | Qué                                                                                                                                                                                             | Rama                  | Toca                                                                                                         | Desde  |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------ | ------ |
+| Claude Code | **F2 — contrato de conectores**. Hecho: contrato + plantilla (#184), GHL (#185), tests de arquitectura (#186), Meta (#187), salud de datos (esta rama). F2 queda cerrada salvo la deuda anotada | `feat/f2-salud-datos` | `lib/data-health/conectores.ts`, `lib/integrations/sync-runs.ts`, crons de Meta/Instagram, `DataHealthPanel` | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
