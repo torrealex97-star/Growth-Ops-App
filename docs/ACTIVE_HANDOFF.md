@@ -1,12 +1,20 @@
 # Relevo activo
 
+## MONEY.md v1: vocabulario financiero de F3 — 2026-09-25 (Freebuff/Buffy)
+
+**Fusionado en `origin/main`:** PR #209 (squash `43f78e5`, rama `docs/money-v1` borrada). Bajo delegación explícita de Alex ("MONEY.md: decides primero"), cierra la lista que el plan exigía para F3: booked/collected mapeados a Contracted Revenue y Cash Collected (los nombres que ya existen — no se crean segundos términos), billed y recognized declarados abiertos (A1/A2) porque no tienen fuente ni política — no se calculan a medias; mecánica bruto/atribuible SIN modo oficial (D1, como manda el plan mientras no se decida); EUR por tenant, moneda obligatoria y FX a la fecha del hecho, sin tabla de tipos hoy (D2); IVA: bruto para negocio, neto solo con dato real (D3); fees solo en P&L y base comisionable solo para comisiones (D4); refunds cuando ocurren y disputas a cola de revisión (D5); cash manual con dedup por `payment_reference` (D6); comisiones, cuotas y financiación neta (D7). Abiertas A1–A6 con qué bloquea cada una; changelog versionado dentro del documento (cambiar una decisión = versión nueva, nunca reescritura silenciosa).
+
+**Verificado:** CI completo de la PR en verde (E2E 5m31s). Docs-only: sin código ni migraciones.
+
+**Pendiente de Alex:** validar las decisiones y desbloquear las que quiera (sobre todo A3 — el modo oficial del consolidado — y A5 clawback). Ninguna bloquea código hoy.
+
 ## F3 trozo 1: contrato de métrica versionado — 2026-09-24 (Freebuff/Buffy)
 
 **Fusionado en `origin/main`:** PR #202 (squash `48e32be`, rama `feat/f3-metric-definitions` borrada). `lib/metrics/definiciones.ts`: `DefinicionVersionada` (version, grain period/cohort, ventana de maduración, muestra mínima, lineage) construida DESDE el registro canónico, y `evaluarDefinicion` que etiqueta cada resultado (`muestra_insuficiente`, `en_maduracion`) sin sustituir el valor. MER y refund_rate declaradas con fórmula y motivo, sin cálculo a medias. 14 tests con golden fixtures deterministas (show_rate 70.59, close_rate 25, CAC 1249.99, ROAS) en `tests/metrics/f3-definiciones.test.mjs`.
 
 **Verificado:** CI de la PR y de `main` (run 36069960953) en verde; local: 693/693 métricas, 894/897 unit, typecheck exit 0.
 
-**Queda de F3:** `MONEY.md` (decisión financiera: booked/billed/collected/recognized, bruto vs atribuible, FX, IVA, fees — requiere validación de Alex; el plan dice "si bruto vs atribuible no está decidido, implementar ambos y NO marcar ninguno como oficial") y cablear `MetricaPublicada` en consumidores de UI/API. Conectado con #201 (anotaciones, más abajo): las marcas describen periodos, no fechas — el grain del contrato ahora lo hace declarable por métrica.
+**Queda de F3:** cablear `MetricaPublicada` en consumidores de UI/API (`MONEY.md` ya está cerrado como v1 — ver la sección anterior). Conectado con #201 (anotaciones, más abajo): las marcas describen periodos, no fechas — el grain del contrato ahora lo hace declarable por métrica.
 
 **Incidente CI en `main` (2026-09-25):** el run del squash de #203 (`67d3ae5`, run 36070984980) falló SOLO en Smoke E2E: `TimeoutError: page.waitForURL` en `tests/e2e/global-setup.mjs:48` — el login del global-setup no navegó a `**/qa-e2e/dashboard` en 30s tras crear el tenant. No es regresión de código: el mismo árbol pasó el mismo E2E en la PR #204 (cuyo HEAD incluía #203 vía merge). Sin permiso para `gh run rerun`, la validación verde del árbol idéntico quedó en la PR #205 (run 36098777163, Smoke E2E 4m52s). Ojo con el mecanismo: los pushes docs-only a `main` no crean run (paths-ignore) — un commit de docs NO re-lanza el CI de main; el commit vacío solo funciona como workaround en ramas de PR. Conclusión: flakiness transitorio del login del global-setup; si se repite, añadir reintento/timeout ahí, no revertir #203. Hallazgo añadido al diagnosticar el incidente: la concurrencia del workflow es GLOBAL (un solo run a la vez en todo el repo, no por rama) — un push de cualquier PR cancela los runs en marcha de las demás (pasó con esta misma nota: su primer run fue cancelado a mitad de build por el push de `claude/growth-context-coste-entrega`; cancelled ≠ fallo). Al coordinar en paralelo: no pushear encima del run ajeno en marcha y re-disparar con commit nuevo cuando la ventana esté libre.
 
@@ -110,7 +118,6 @@ fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo 
 
 | Agente            | Qué                                                                                                                                                                                                                            | Rama         | Toca                                                    | Desde  |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------ | ------------------------------------------------------- | ------ |
-| Freebuff (Buffy)  | **MONEY.md v1**: vocabulario financiero de F3 (booked/billed/collected/recognized, bruto vs atribuible, FX, IVA, fees, disputas, comisiones, cuotas, financiación, cash manual) bajo delegación de Alex; decisiones D1–D7 + abiertas A1–A6 | docs/money-v1 | `docs/MONEY.md` (nuevo), `docs/ACTIVE_HANDOFF.md` (tablero) | 25-sep |
 | Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos | (fusionadas) | solo `expenses` vía migración pendiente; nada en código | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
