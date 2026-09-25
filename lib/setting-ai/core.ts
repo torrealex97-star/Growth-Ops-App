@@ -143,7 +143,7 @@ Devuelve SOLO un JSON válido, sin texto alrededor:
 {"ok": true|false, "issues": [{"severidad":"critica|alta|media|baja","regla":"nombre corto","nota":"qué estuvo mal, concreto","better":"cómo debería haber respondido (reescribe el mensaje)"}]}
 Si no hay fallos: {"ok":true,"issues":[]}. Máximo 3 issues, prioriza los más graves.`
 
-interface Issue {
+export interface Issue {
   severidad: string
   regla: string
   nota: string

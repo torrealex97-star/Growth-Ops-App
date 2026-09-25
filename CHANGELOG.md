@@ -10,7 +10,9 @@
 ## Sin publicar (pendiente de confirmar)
 
 <!-- Añade aquí lo que está pendiente de confirmar -->
-- _(vacío)_
+
+- `[mejora]` **Fiabilidad CI/ops (PR #214)**: el login E2E del global-setup reintenta una segunda vez y deja captura + errores de consola en `test-results/` si falla del todo (fin del flake del 25-sep que tumbó CI de `main`); el cron `calendly-ghl` baja su presupuesto de 35+25 s a 20+18 s para dejar colchón bajo el corte de 60 s de Vercel (504 `FUNCTION_INVOCATION_TIMEOUT` del 25-sep).
+- `[mejora]` `AGENTS.md`: nuevas reglas aprendidas el 25-sep — suites solo por los scripts canónicos de `package.json` (los specs E2E no son `node:test`), prohibido fusionar linajes sin merge-base (caso PR #210), presupuestos de cron muy por debajo del `maxDuration` de Vercel, y la fila del tablero como contrato de relevo de trabajo sin commitear.
 
 ---
 

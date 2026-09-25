@@ -20,10 +20,13 @@ export const manifest: ConnectorManifest = {
   provider: 'ghl',
   version: '1.0',
   label: 'GoHighLevel',
-  // Dos credenciales de naturaleza distinta: token para leer su API, secreto para verificar lo que
-  // él nos manda. El modo declara la principal; `requiredKeys` las nombra todas.
+  // Credenciales de naturaleza distinta, en campos distintos: token y ubicación para LEER su API,
+  // secreto para VERIFICAR lo que él manda. Una subcuenta puede sincronizar perfectamente y tener
+  // el webhook caído, y al revés: mezclarlas hacía que el panel diera un solo veredicto para dos
+  // cosas que se rompen por separado.
   authMode: 'api_key',
-  requiredKeys: ['GHL_API_TOKEN', 'GHL_LOCATION_ID', 'GHL_WEBHOOK_SECRET'],
+  requiredKeys: ['GHL_API_TOKEN', 'GHL_LOCATION_ID'],
+  webhookKeys: ['GHL_WEBHOOK_SECRET'],
   supportedObjects: ['contacts', 'appointments'],
   // NO declara 'incremental' a propósito. La API de GHL lista TODOS los contactos de la ubicación
   // antes de tocar eventos y no cabe en los 60 s de Vercel: dos pasadas en producción acabaron en

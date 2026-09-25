@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { reconcileSaleCommissions } from '@/lib/commissions/generate'
 import type { Sale } from '@/lib/types/database'
 
 export const runtime = 'nodejs'
@@ -62,6 +63,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       },
       new_values: { ...payload, _accion: 'completar_reserva' },
     })
+
+    // La reserva ya es cliente: el cobro de la reserva (que se dejó sin comisionar a propósito,
+    // ver saleNeedsCommissionReview) ahora sí debe comisionar. Se reabre y se reconcilia junto con
+    // cualquier otro cobro elegible de esta venta, sin tocar nada ya liquidado.
+    const { error: reopenErr } = await sb
+      .from('collections')
+      .update({
+        needs_commission_review: false,
+        is_eligible_for_commission: true,
+        eligible_at: new Date().toISOString(),
+      })
+      .eq('tenant_id', t.tenantId)
+      .eq('sale_id', saleId)
+      .eq('needs_commission_review', true)
+    if (reopenErr) {
+      return NextResponse.json(
+        { error: `Reserva completada, pero no se pudo reabrir su cobro para comisionar: ${reopenErr.message}` },
+        { status: 500 }
+      )
+    }
+    await reconcileSaleCommissions(sb, t.tenantId, saleId)
 
     return NextResponse.json({ ok: true })
   } catch (err) {

@@ -48,8 +48,12 @@ test('sin fecha del hecho se declara vacío, no se inventa "ahora"', () => {
 test('las credenciales declaradas son las que exige el catálogo de Integraciones', () => {
   // Dos listas que se separan dejarían el panel pidiendo una clave que el conector no usa (o al
   // revés). Es el mismo fallo que tuvo Calendly con su secreto.
+  //
+  // El manifiesto las reparte en dos campos —leer vs verificar webhooks— porque son averías
+  // distintas, así que lo que tiene que coincidir con el catálogo es la UNIÓN de ambos.
   const grupo = INTEGRATION_GROUPS.find((g) => g.id === 'ghl')
-  assert.deepEqual([...manifest.requiredKeys].sort(), [...grupo.required].sort())
+  assert.deepEqual([...manifest.requiredKeys, ...(manifest.webhookKeys ?? [])].sort(), [...grupo.required].sort())
+  assert.ok(!manifest.requiredKeys.includes('GHL_WEBHOOK_SECRET'), 'el secreto del webhook no impide sincronizar')
   assert.equal(manifest.webhookPath, grupo.webhookPath)
 })
 

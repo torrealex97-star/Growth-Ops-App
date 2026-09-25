@@ -39,6 +39,13 @@ export type Incidencia = {
   codigo: string | null
   /** `true` = el fallo es del transporte y la próxima pasada puede arreglarlo sola. */
   seReintentaSolo: boolean
+  /**
+   * De QUÉ pasada viene el fallo. Casi nunca es la última: Meta tiene tres jobs y el que falló
+   * puede no ser el que corrió al final. Sin decirlo, la tarjeta se contradecía sola — "última
+   * pasada: 31 s" encima de "no se sabe cuánto duró", que hablaban de ejecuciones distintas.
+   */
+  job: string
+  cuando: string
 }
 
 export type SaludConector = {
@@ -47,6 +54,11 @@ export type SaludConector = {
   /** Cómo entran los datos, en una frase, derivada del manifiesto. */
   comoEntra: string
   credenciales: EstadoCredenciales
+  /**
+   * Claves del webhook que faltan. Aparte de las credenciales de lectura porque son dos averías
+   * distintas: sin estas la sincronización va igual y lo que se cae es el aviso en tiempo real.
+   */
+  webhook: { faltan: string[] }
   ultima: UltimaEjecucion | null
   incidencia: Incidencia | null
   /** Qué sabe el conector de dónde se quedó. */
@@ -89,6 +101,9 @@ export function saludDeConector(
 ): SaludConector {
   const faltan = manifest.requiredKeys.filter((k) => !hechos.clavesConfiguradas.has(k))
   const credenciales: EstadoCredenciales = { completas: faltan.length === 0, faltan }
+  // Solo las de LECTURA deciden si la integración está configurada. Mezclarlas daba un veredicto
+  // falso: Stripe salía "sin configurar" por el signing secret mientras sincronizaba sin un fallo.
+  const webhook = { faltan: (manifest.webhookKeys ?? []).filter((k) => !hechos.clavesConfiguradas.has(k)) }
 
   // La última ejecución del proveedor, sea cual sea el job: Meta tiene tres pasadas distintas y
   // mirar solo una diría "al día" con las otras dos caídas.
@@ -115,6 +130,8 @@ export function saludDeConector(
         mensaje: redactSecrets(fallida.errorMessage ?? 'Falló sin dejar mensaje.'),
         codigo: fallida.errorCode,
         seReintentaSolo: isRetryableCode(fallida.errorCode),
+        job: fallida.job,
+        cuando: fallida.startedAt,
       }
     : null
 
@@ -138,6 +155,7 @@ export function saludDeConector(
     label: manifest.label,
     comoEntra: comoEntra(manifest),
     credenciales,
+    webhook,
     ultima,
     incidencia,
     cursor,

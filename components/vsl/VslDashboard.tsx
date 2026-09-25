@@ -45,6 +45,8 @@ interface Metrics {
     reachedEnd: boolean
     updatedAt: string
   }[]
+  /** Cuántas personas identificadas NO se muestran por permisos. 0 = las ves todas. */
+  leadsOcultos?: number
 }
 
 function fmt(sec: number): string {
@@ -320,10 +322,19 @@ export function VslDashboard() {
               <CardTitle className="text-base text-foreground">
                 <Users className="mr-1 inline h-4 w-4" /> Leads y dónde se quedan
               </CardTitle>
-              <span className="text-xs text-muted-foreground">{metrics.leads.length} identificados</span>
+              <span className="text-xs text-muted-foreground">
+                {(metrics.leadsOcultos ?? 0) > 0 ? metrics.leadsOcultos : metrics.leads.length} identificados
+              </span>
             </CardHeader>
             <CardContent>
-              {metrics.leads.length === 0 ? (
+              {(metrics.leadsOcultos ?? 0) > 0 ? (
+                // "No te toca" no es lo mismo que "no hay nadie": decirlo evita que alguien concluya
+                // que el vídeo no capta.
+                <p className="text-sm text-muted-foreground">
+                  Hay {metrics.leadsOcultos} personas identificadas, pero ver correos y nombres requiere acceso a
+                  Contactos. Las métricas de arriba sí los incluyen.
+                </p>
+              ) : metrics.leads.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   Nadie identificado aún. Llama a <code className="text-brand-400">tccVSL.identify(email)</code> al
                   enviar el form.

@@ -10,6 +10,7 @@ import type { DataHealthSummary } from '@/lib/types/tracking'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { TrackingSitesPanel } from '@/components/settings/TrackingSitesPanel'
 import { formatPercent } from '@/lib/utils'
+import type { SaludWebhook } from '@/lib/data-health/webhooks'
 
 type EventRow = {
   id: string
@@ -41,6 +42,7 @@ type SaludConector = {
   label: string
   comoEntra: string
   credenciales: { completas: boolean; faltan: string[] }
+  webhook: { faltan: string[] }
   ultima: {
     job: string
     estado: string
@@ -48,7 +50,7 @@ type SaludConector = {
     duracionMs: number | null
     filasEscritas: number | null
   } | null
-  incidencia: { mensaje: string; codigo: string | null; seReintentaSolo: boolean } | null
+  incidencia: { mensaje: string; codigo: string | null; seReintentaSolo: boolean; job: string; cuando: string } | null
   cursor: { soportado: boolean; motivo: string }
   estado: 'al_dia' | 'en_curso' | 'fallando' | 'sin_credenciales' | 'nunca_ejecutada'
 }
@@ -73,6 +75,8 @@ type OperationalHealth = {
     appointmentsWithoutContact: number
     leadChannelGaps: number
   }
+  saludWebhookGhl?: SaludWebhook
+  saludWebhooksEntrantes?: Array<SaludWebhook & { proveedor: 'calendly' | 'stripe' }>
 }
 
 const EMPTY: DataHealthSummary = {
@@ -131,6 +135,14 @@ function ConectorCard({ conector }: { conector: SaludConector }) {
         </p>
       )}
 
+      {conector.webhook.faltan.length > 0 && (
+        // Avería DISTINTA de la anterior: sincroniza bien y lo que se cae es el aviso en tiempo
+        // real. Mezclarlas pintaba "sin configurar" sobre una integración que traía datos cada hora.
+        <p className="mt-3 text-xs text-amber-400">
+          Sincroniza, pero los avisos en tiempo real se rechazan: falta {conector.webhook.faltan.join(', ')}.
+        </p>
+      )}
+
       {ultima && (
         <p className="mt-3 text-xs text-muted-foreground">
           Última pasada ({ultima.job}): {new Date(ultima.empezoEn).toLocaleString('es-ES')}
@@ -143,7 +155,12 @@ function ConectorCard({ conector }: { conector: SaludConector }) {
 
       {conector.incidencia && (
         <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 p-2">
-          <p className="text-xs text-red-300">{conector.incidencia.mensaje}</p>
+          {/* De QUÉ pasada viene: casi nunca es la de arriba (Meta tiene tres jobs), y sin decirlo
+              la tarjeta se contradecía sola — "31 s" encima de "no se sabe cuánto duró". */}
+          <p className="text-[11px] text-muted-foreground">
+            Incidencia en {conector.incidencia.job} · {new Date(conector.incidencia.cuando).toLocaleString('es-ES')}
+          </p>
+          <p className="mt-1 text-xs text-red-300">{conector.incidencia.mensaje}</p>
           <p className="mt-1 text-[11px] text-muted-foreground">
             {conector.incidencia.seReintentaSolo
               ? 'Es un fallo de transporte: la próxima pasada puede arreglarlo sola.'
@@ -175,6 +192,31 @@ function Metric({
       <p className={`mt-1 text-2xl font-semibold ${colors[tone]}`}>{value}</p>
       <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
     </div>
+  )
+}
+
+const ETIQUETA_WEBHOOK: Record<'calendly' | 'stripe', string> = {
+  calendly: 'Webhook de Calendly',
+  stripe: 'Webhook de Stripe',
+}
+
+/** Métrica de un webhook entrante: horas desde la última recepción y tono según su estado. */
+function MetricWebhook({ label, salud }: { label: string; salud: SaludWebhook }) {
+  return (
+    <Metric
+      label={label}
+      value={
+        salud.horasDesde !== null
+          ? `${Math.round(salud.horasDesde)} h`
+          : salud.estado === 'sin_configurar'
+            ? '—'
+            : salud.estado === 'desconocido'
+              ? 'sin evidencia'
+              : 'sin recepciones'
+      }
+      detail={salud.mensaje}
+      tone={salud.estado === 'silencio' ? 'bad' : salud.estado === 'al_dia' ? 'good' : 'warn'}
+    />
   )
 }
 
@@ -466,6 +508,25 @@ export function DataHealthPanel() {
               />
             </div>
           </section>
+
+          {/* Webhooks entrantes: la mitad que ESPERA datos. El pull del cron puede disimular un webhook
+              roto trayendo datos viejos; aquí el silencio de la recepción se ve. La evidencia de cada
+              uno es la suya: sobres en la capa en bruto (GHL, Stripe) o actas de auditoría (Calendly). */}
+          {operational.saludWebhookGhl && (
+            <section className="rounded-xl border border-border bg-card p-5">
+              <h2 className="font-semibold text-foreground">Webhooks entrantes</h2>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Evidencia de recepción real (capa de eventos en bruto o actas de auditoría); si nada llega en 24 h con
+                la integración configurada, el tiempo real está roto.
+              </p>
+              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
+                <MetricWebhook label="Webhook de GHL" salud={operational.saludWebhookGhl} />
+                {(operational.saludWebhooksEntrantes ?? []).map((salud) => (
+                  <MetricWebhook key={salud.proveedor} label={ETIQUETA_WEBHOOK[salud.proveedor]} salud={salud} />
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className="rounded-xl border border-border bg-card p-5">
             <h2 className="font-semibold text-foreground">Integridad y deduplicación</h2>

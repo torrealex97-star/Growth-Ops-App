@@ -129,7 +129,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
     }
 
     // Nombres de usuarios
-    const { data: users } = await sb.from('users').select('id, full_name')
+    const { data: users } = await sb.from('users').select('id, full_name, pays_commissions')
     const nameOf = new Map((users ?? []).map((u: { id: string; full_name: string }) => [u.id, u.full_name]))
 
     // Tramo/nivel actual por rep (para reglas de comisión enlazadas a un tramo), igual que en generate.ts

@@ -39,7 +39,7 @@ import { toast } from 'sonner'
 import { EstadoPanel } from '@/components/ui/carga/EstadoPanel'
 import { esFalloVisible, pedir, type Fallo } from '@/lib/ui/pedir'
 import { useTenant } from '@/lib/tenant-context'
-import { isAccountSelected, parseAccountIds, serializeAccountIds, toggleAccountId } from '@/lib/meta/accounts'
+import { isAccountSelected, parseAccountIds, toggleAccountId } from '@/lib/meta/accounts'
 import { brandFor, type Brand } from '@/components/integrations/brands'
 import { historyFor } from '@/lib/integrations/history'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -1322,32 +1322,28 @@ export default function IntegracionesPage() {
                                 <div className="flex items-center gap-3 pt-1">
                                   <button
                                     type="button"
-                                    className="text-primary text-xs hover:underline"
-                                    onClick={() =>
-                                      setDrafts({
-                                        ...drafts,
-                                        META_AD_ACCOUNT_ID: serializeAccountIds(metaAccounts.map((a) => a.id)),
-                                      })
-                                    }
-                                  >
-                                    Seleccionar todas
-                                  </button>
-                                  <button
-                                    type="button"
                                     className="text-muted-foreground text-xs hover:underline"
                                     onClick={() => setDrafts({ ...drafts, META_AD_ACCOUNT_ID: '' })}
                                   >
-                                    Ninguna
+                                    Quitar selección
                                   </button>
-                                  <span className="text-muted-foreground ml-auto text-xs">
+                                  <span
+                                    className={`ml-auto text-xs ${
+                                      parseAccountIds(drafts.META_AD_ACCOUNT_ID).length === 0
+                                        ? 'font-medium text-amber-400'
+                                        : 'text-muted-foreground'
+                                    }`}
+                                  >
                                     {parseAccountIds(drafts.META_AD_ACCOUNT_ID).length === 0
-                                      ? 'Sin marcar: se sincronizan TODAS las que vea el token'
+                                      ? 'Sin ninguna marcada: la sincronización se detiene (no se sincroniza nada)'
                                       : `${parseAccountIds(drafts.META_AD_ACCOUNT_ID).length} de ${metaAccounts.length} seleccionadas`}
                                   </span>
                                 </div>
                                 <p className="text-muted-foreground text-xs">
-                                  Puedes marcar varias. Déjalas todas sin marcar para sincronizar todas las que vea el
-                                  token. Solo las cuentas seleccionadas alimentan métricas, campañas y los crons.
+                                  Puedes marcar varias, pero SOLO las que pertenecen a este negocio. El token de Meta
+                                  puede ver cuentas de otros negocios: marcar de más mezcla su gasto con el tuyo. Sin
+                                  ninguna marcada, la sincronización ya NO trae &quot;todas por defecto&quot; — se
+                                  detiene hasta que elijas.
                                 </p>
                               </div>
                             ) : null}
@@ -1706,6 +1702,28 @@ export default function IntegracionesPage() {
                                         </div>
                                       ) : (
                                         <>
+                                          {(() => {
+                                            // Aviso de reserva (docs/MONEY.md D9): un pago bajo importado
+                                            // como venta con un plan que NO es 'reserva' es, con toda la
+                                            // pinta, la seña de una reserva mal clasificada (así se coló la
+                                            // venta de 50€ que se corrigió a mano en el PR #211) — nunca se
+                                            // bloquea el registro, solo se avisa para que quien elige el
+                                            // plan lo compruebe antes de confirmar.
+                                            const planElegido = (catalogo?.plans ?? []).find(
+                                              (p) => p.id === importChoice.planId
+                                            )
+                                            if (!planElegido || planElegido.method === 'reserva') return null
+                                            const bajos = registrables.filter((r) => r.amount < 100)
+                                            if (bajos.length === 0) return null
+                                            return (
+                                              <div className="mb-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
+                                                {bajos.length} de estos pagos son menores de 100 € y el plan elegido (
+                                                {planElegido.name}) no es de reserva. Si este negocio trata los pagos
+                                                bajos como señas de reserva, comprueba que no sea el caso antes de
+                                                registrar — si lo es, elige aquí el plan de reserva correspondiente.
+                                              </div>
+                                            )
+                                          })()}
                                           <div className="flex flex-wrap items-end gap-2">
                                             <label className="text-muted-foreground text-xs">
                                               Producto

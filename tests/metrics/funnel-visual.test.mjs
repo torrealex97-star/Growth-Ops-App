@@ -9,16 +9,19 @@ const css = read('../../app/globals.css')
 test('es una gráfica, no seis tarjetas seguidas', () => {
   // §30: el ancho de cada barra codifica el volumen, así que la reducción entre etapas SE VE.
   assert.match(chart, /width: `\$\{ws\[i\]\}%`/)
-  assert.match(chart, /function anchos/)
+  // La aritmética vive en lib/funnels/geometria.ts desde F24, para poder probarla de verdad
+  // (tests/auditoria-cifras-falsas.test.mjs); el componente la usa.
+  assert.match(chart, /anchos\(stages\)/)
   // Centrada (mx-auto) para que el estrechamiento se lea como un embudo.
   assert.match(chart, /funnel-bar[^"]*mx-auto/)
 })
 
-test('el ancho es proporcional a la primera etapa, con suelo visible', () => {
-  // La cima es el 100 %; una etapa con muy poco volumen sigue siendo visible y clicable en vez de
-  // quedar en una línea de 0 px.
-  assert.match(chart, /Math\.max\(6, \(\(s\.count\.value \?\? 0\) \/ primera\) \* 100\)/)
-  assert.match(chart, /stages\.find\(\(s\) => isUsable\(s\.count\)\)/)
+test('el ancho es proporcional a la etapa mayor, con suelo visible', () => {
+  // La referencia dejó de ser la PRIMERA etapa con dato: si esa valía cero —sin impresiones pero
+  // con gente en el CRM— todas las barras salían al 1 % con el texto recortado (F24).
+  const geometria = read('../../lib/funnels/geometria.ts')
+  assert.match(geometria, /Math\.max\(6, \(\(s\.count\.value \?\? 0\) \/ referencia\) \* 100\)/)
+  assert.match(geometria, /const referencia = Math\.max\(/)
 })
 
 test('cada etapa muestra nombre, volumen, conversión y caída', () => {
@@ -133,7 +136,7 @@ test('los dos embudos comparten el suelo de visibilidad y el color de marca', ()
   const panel = read('../../components/os/AdsFunnelPanel.tsx')
   // La misma regla en los dos: la cima es el 100 % y nadie baja del 6 %.
   assert.match(panel, /Math\.max\(6, \(v \/ cima\) \* 100\)/)
-  assert.match(chart, /Math\.max\(6,/)
+  assert.match(read('../../lib/funnels/geometria.ts'), /Math\.max\(6,/)
   // Color de marca por token, no hardcodeado (bg-primary/15 sale del accent del tenant).
   assert.ok(!/#[0-9a-fA-F]{6}/.test(panel.slice(panel.indexOf('function FunnelList'), panel.indexOf('const chartBox'))))
 })

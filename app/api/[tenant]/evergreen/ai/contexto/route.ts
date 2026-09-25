@@ -30,6 +30,7 @@ const CAMPOS: Record<string, 'texto' | 'numero' | 'entero'> = {
   target_cash_roas: 'numero',
   capacity_calls_per_week: 'entero',
   capacity_active_clients: 'entero',
+  avg_delivery_cost_eur: 'numero',
   notes: 'texto',
 }
 
@@ -41,6 +42,9 @@ const LIMITES: Record<string, [number, number]> = {
   target_cash_roas: [0.01, 1000],
   capacity_calls_per_week: [1, 10_000],
   capacity_active_clients: [1, 1_000_000],
+  // 0 es válido a propósito: un producto puramente digital sin soporte puede tener coste de
+  // entrega real de cero, y eso es distinto de "sin configurar" (null).
+  avg_delivery_cost_eur: [0, 1_000_000],
 }
 
 const MAX_TEXTO = 2000

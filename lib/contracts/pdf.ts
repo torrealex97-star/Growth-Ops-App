@@ -129,7 +129,9 @@ export async function buildContractPdf(input: ContractPdfInput): Promise<Uint8Ar
   const fijo =
     input.terms.fixed_salary != null ? `${formatNumber(input.terms.fixed_salary)} EUR/mes` : 'Sin retribucion fija'
   draw(`Retribucion fija: ${fijo}`)
-  if (input.terms.commissions.length) {
+  // `terms` puede no existir (contrato sin condiciones, p. ej. PDF adjuntado externamente):
+  // sin este guard, firmar un contrato así rompe la firma nativa con un 500 opaco.
+  if (input.terms.commissions?.length) {
     draw('Comisiones (sobre cash collected):', { font: bold })
     for (const t of input.terms.commissions) {
       draw(`  - ${tierLine(t)}`)

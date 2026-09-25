@@ -129,10 +129,17 @@ export async function fetchAdAccounts(
 
 // Resuelve la lista de cuentas a sincronizar, enriquecida con el nombre de cada
 // una. Reglas:
-//   · Si META_AD_ACCOUNT_ID trae ids explícitos → se usan esos (comportamiento
-//     previo), pero se les añade el nombre descubierto por /me/adaccounts.
-//   · Si NO hay ids explícitos, o META_AD_ACCOUNTS_ALL está activo → se sincronizan
-//     TODAS las cuentas accesibles por el token.
+//   · Si META_AD_ACCOUNT_ID trae ids explícitos → se usan esos, con el nombre
+//     descubierto por /me/adaccounts.
+//   · Si NO hay ids explícitos, se sincronizan TODAS las accesibles por el token
+//     SOLO cuando META_AD_ACCOUNTS_ALL lo pide explícitamente ("1"/"true"/"all"/
+//     "todas"/"todos"). Sin esa marca, "vacío" es un hueco de configuración, no
+//     "todas": un token de Meta Business Manager ve TODAS las cuentas a las que
+//     tiene acceso el usuario, que en la práctica pueden ser de negocios
+//     distintos — sincronizar "todas por defecto" mezclaba el gasto de otro
+//     negocio con este tenant en cuanto Integraciones › Meta se quedaba sin
+//     cuenta marcada (nunca guardada, o borrada). Antes de este cambio esa
+//     ausencia de selección se trataba como "sí, todas".
 // El descubrimiento de nombres es best-effort: si /me/adaccounts falla, seguimos
 // con lo que haya (sin nombre) para no romper la sync.
 export async function resolveMetaConfigs(env: MetaEnv): Promise<MetaConfig[]> {
@@ -147,7 +154,16 @@ export async function resolveMetaConfigs(env: MetaEnv): Promise<MetaConfig[]> {
   const version = env.META_API_VERSION || META_API_VERSION
   const appSecret = env.META_APP_SECRET?.trim() || undefined
   const explicit = parseAccountIds(env.META_AD_ACCOUNT_ID)
-  const wantAll = explicit.length === 0 || /^(1|true|all|todas|todos)$/i.test((env.META_AD_ACCOUNTS_ALL || '').trim())
+  const optedIntoAll = /^(1|true|all|todas|todos)$/i.test((env.META_AD_ACCOUNTS_ALL || '').trim())
+
+  if (explicit.length === 0 && !optedIntoAll) {
+    throw new MetaError({
+      code: 'sin_cuenta_seleccionada',
+      message:
+        'No hay ninguna cuenta publicitaria de Meta seleccionada para esta subcuenta. Elige la(s) cuenta(s) en Configuración › Integraciones › Meta Ads: el token puede ver cuentas de otros negocios y sin selección explícita ya no se sincronizan todas por defecto.',
+    })
+  }
+  const wantAll = optedIntoAll
 
   let discovered: AdAccount[] = []
   let discoveryError: unknown = null

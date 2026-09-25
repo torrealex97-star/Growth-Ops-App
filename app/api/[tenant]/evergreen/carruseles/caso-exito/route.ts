@@ -83,32 +83,38 @@ const TOOL: Anthropic.Tool = {
   },
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-function parseSpec(input: any, fallbackName: string): CasoExitoSpec | null {
+function parseSpec(input: unknown, fallbackName: string): CasoExitoSpec | null {
   if (!input || typeof input !== 'object') return null
-  const slides = Array.isArray(input.slides)
-    ? input.slides
-        .filter((s: any) => s && typeof s.heading === 'string' && s.heading.trim())
-        .map((s: any) => ({
+  const raw = input as Record<string, unknown>
+  const slides = Array.isArray(raw.slides)
+    ? (raw.slides as unknown[])
+        .filter(
+          (s): s is Record<string, unknown> =>
+            !!s &&
+            typeof s === 'object' &&
+            typeof (s as Record<string, unknown>).heading === 'string' &&
+            ((s as Record<string, unknown>).heading as string).trim().length > 0
+        )
+        .map((s) => ({
           kicker: typeof s.kicker === 'string' ? s.kicker.trim() : undefined,
-          heading: s.heading.trim(),
+          heading: (s.heading as string).trim(),
           body: typeof s.body === 'string' && s.body.trim() ? s.body.trim() : undefined,
           big: typeof s.big === 'string' && s.big.trim() ? s.big.trim() : undefined,
         }))
     : []
   if (!slides.length) return null
-  const name = (typeof input.name === 'string' && input.name.trim()) || fallbackName
+  const name = (typeof raw.name === 'string' && raw.name.trim()) || fallbackName
   return {
-    title: normalizeCasoTitle(typeof input.title === 'string' ? input.title : '', name),
+    title: normalizeCasoTitle(typeof raw.title === 'string' ? raw.title : '', name),
     name,
-    label: input.label === 'Caso cliente' ? 'Caso cliente' : 'Caso de éxito',
-    hook: typeof input.hook === 'string' && input.hook.trim() ? input.hook.trim() : `El caso de ${name}`,
+    label: raw.label === 'Caso cliente' ? 'Caso cliente' : 'Caso de éxito',
+    hook: typeof raw.hook === 'string' && raw.hook.trim() ? raw.hook.trim() : `El caso de ${name}`,
     slides,
-    ctaLead: typeof input.ctaLead === 'string' && input.ctaLead.trim() ? input.ctaLead.trim() : undefined,
-    caption: typeof input.caption === 'string' ? input.caption : '',
-    hashtags: Array.isArray(input.hashtags)
-      ? input.hashtags
-          .map((h: any) => String(h).replace(/^#/, '').trim())
+    ctaLead: typeof raw.ctaLead === 'string' && raw.ctaLead.trim() ? raw.ctaLead.trim() : undefined,
+    caption: typeof raw.caption === 'string' ? raw.caption : '',
+    hashtags: Array.isArray(raw.hashtags)
+      ? (raw.hashtags as unknown[])
+          .map((h) => String(h).replace(/^#/, '').trim())
           .filter(Boolean)
           .slice(0, 8)
       : [],
@@ -144,10 +150,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
   const client = new Anthropic({ apiKey: anthropicKey })
 
+  // El SDK instalado (0.36.3) es previo al parámetro `thinking`; se añade por fuera de su tipo
+  // en vez de silenciar todo el objeto con `any`.
+  type CreateParams = Anthropic.MessageCreateParamsNonStreaming & { thinking: { type: 'disabled' } }
+
   let spec: CasoExitoSpec | null = null
   try {
     const res = await client.messages.create({
-      model: MODEL as any,
+      model: MODEL,
       max_tokens: 4000,
       // Igual que en /chat: este flujo no usa thinking y los bloques vacíos rompen la request.
       thinking: { type: 'disabled' },
@@ -160,13 +170,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           content: `Nombre del protagonista: ${name}\n\nRelato del caso de éxito:\n\n${story}`,
         },
       ],
-    } as any)
+    } as CreateParams)
     const use = res.content.find(
       (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use' && b.name === 'build_caso_exito'
     )
     spec = parseSpec(use?.input, name)
   } catch (e) {
-    const err = e as any
+    const err = e as { error?: { error?: { message?: string }; message?: string }; message?: string }
     const msg = err?.error?.error?.message || err?.error?.message || err?.message || 'Error de la API'
     console.error('[carruseles/caso-exito] error:', err?.error ?? err)
     return NextResponse.json({ error: `No se pudo generar el carrusel: ${msg}` }, { status: 502 })

@@ -5,8 +5,8 @@
 // A DIFERENCIA de teamRanking/setterAgendaStats, aquí NO se filtra por rol: la agenda ya lleva
 // a la persona asignada (webhooks vivos) y quien cierra puede tener rol admin (caso WDC: Claudia).
 // Filtrar por rol aquí era lo que borraba del panel a quien realmente trabaja.
-import { isActiveSale, num } from '@/lib/analytics'
-import { isNoShow } from '@/lib/appointments/status'
+import { cuentaComoVenta, num } from '@/lib/analytics'
+import { isAttended, isCancelled, isNoShow } from '@/lib/appointments/status'
 import type { AppointmentRow, SaleRow } from '@/lib/analytics'
 
 export type PersonaRow = {
@@ -15,7 +15,16 @@ export type PersonaRow = {
   total: number
   shows: number
   noShows: number
-  showRate: number
+  /** Ni asistida ni no asistida ni cancelada: todavía no se sabe qué pasó. */
+  sinResolver: number
+  /**
+   * % de asistencia sobre las citas RESUELTAS. `null` = ninguna resuelta, que no es un 0.
+   *
+   * Visto en producción el 25-sep: 68 agendas, 34 asistidas y CERO no-shows daban «50% show».
+   * Los otros 34 no faltaron a nada — nadie los ha marcado. Es la misma regla que aplica la
+   * definición canónica en `lib/metrics/agregados.ts`.
+   */
+  showRate: number | null
 }
 
 export function agendasPorPersona(
@@ -44,15 +53,19 @@ export function agendasPorPersona(
           total: 0,
           shows: 0,
           noShows: 0,
-          showRate: 0,
+          sinResolver: 0,
+          showRate: null,
         })
         .get(id)!
     row.total += 1
-    if (a.status === 'show') row.shows += 1
-    if (isNoShow(a.status)) row.noShows += 1
+    // `isAttended`, no `status === 'show'`: 'completed' también es asistir.
+    if (isAttended(a.status)) row.shows += 1
+    else if (isNoShow(a.status)) row.noShows += 1
+    else if (!isCancelled(a.status)) row.sinResolver += 1
   }
   map.forEach((r) => {
-    r.showRate = r.total ? (r.shows / r.total) * 100 : 0
+    const resueltas = r.shows + r.noShows
+    r.showRate = resueltas > 0 ? (r.shows / resueltas) * 100 : null
   })
   return Array.from(map.values()).sort((a, b) => b.total - a.total)
 }
@@ -79,7 +92,7 @@ export function ventasPorColaborador(
     agg.set(id, { userId: id, name: opts.nameOf.get(id) || 'Colaborador', sales: 0, gross: 0, cash: 0 }).get(id)!
 
   for (const s of sales) {
-    if (!s.contact_id || !isActiveSale(s)) continue
+    if (!s.contact_id || !cuentaComoVenta(s)) continue
     const colab = opts.collaboratorOf.get(s.contact_id)
     if (!colab) continue
     saleColab.set(s.id, colab)

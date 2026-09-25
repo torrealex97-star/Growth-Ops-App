@@ -2,6 +2,114 @@
 
 ## Relevo 25-sep — hebra Freebuff 194f9eda (preview 3003)
 
+## MONEY.md v1 en main + relevo de la PR #210 — 2026-09-25 (Freebuff/Buffy)
+
+**Estado real del vocabulario financiero (F3):** `MONEY.md` v1 está en `main` desde #209 (`43f78e5`):
+booked/collected mapeados a Contracted Revenue y Cash Collected; billed y recognized declarados
+abiertos (A1/A2) sin cálculo a medias; mecánica bruto/atribuible SIN modo oficial (D1); EUR por
+tenant con FX a la fecha del hecho (D2); IVA bruto para negocio (D3); fees solo en P&L (D4);
+refunds cuando ocurren y disputas a cola de revisión (D5); cash manual deduplicado por
+`payment_reference` (D6); comisiones, cuotas y financiación neta (D7). La auditoría de Claude Code
+(#212/#213) añadió encima D8 (reservas no comisionan hasta completar), D9 (`pays_commissions` veto
+absoluto) y D10 (token compartido nunca sincroniza "todas" sin selección) — compatible, no conflicto.
+
+**PR #210 cerrada como sustituida (no fusionada).** Su rama `docs/money-v1-cierre` era un linaje
+huérfano (sin merge-base con `main`, exactamente el caso de las reglas de trabajo del 21-sep): lo
+único exclusivo que contenía era este texto de relevo, que entra ahora por esta PR. Verificado antes
+de cerrarla: ni `MONEY.md` ni ningún otro fichero del linaje tenía contenido que no estuviera ya en
+`main` (comparado commit a commit).
+
+**Pendiente de Alex:** validar las decisiones y desbloquear las que quiera (sobre todo A3 — el modo
+oficial del consolidado — y A5 clawback). Ninguna bloquea código hoy. El tablero queda con la
+migración `20260922100000` como única fila activa (prioridad 1 de Claude Code).
+
+## Auditoría financiera: reservas, comisiones, socios y gasto de Meta — 2026-09-25 (Claude Code)
+
+**Fusionado en `origin/main`:** PR #211 (`1bb4e5b`), #212 (`5114973`), #213 (`2d73520`). Origen: Alex pidió auditar comisiones/reservas/gastos tras sospechar errores reales (no una tarea de roadmap). Se encontraron y corrigieron 4 bugs de negocio distintos, todos con impacto real en producción:
+
+- **Reservas comisionaban al instante.** `saleNeedsCommissionReview` (`lib/commissions/generate.ts`) ahora bloquea la comisión de un cobro de reserva (`plan.method === 'reserva'`) mientras `reservation_completed_at` siga null; se reabre y reconcilia al completar la reserva. Una reserva abierta tampoco cuenta ya como venta/cliente (`esReservaAbierta`, `lib/metrics/agregados.ts`).
+- **`users.pays_commissions` existía en producción (sin migración en el repo) pero ningún código la leía.** Ahora se respeta en `calculateCommissionsForCollection`, en el Dashboard de Comisiones y en `commissions/future` (proyección). Un socio marcado así puede seguir comisionando por error si algo nuevo genera comisiones sin pasar por estos puntos — grep de `pays_commissions` antes de tocar el motor de comisiones.
+- **`resolveMetaConfigs` trataba "sin cuenta seleccionada" como "sincroniza todas las que vea el token."** Un token de Meta Business Manager que ve cuentas de OTRO negocio mezclaba 164 campañas / ~190.081 € de gasto / 16.552 € ya en `expenses` de este tenant. Corregido: exige selección explícita o `META_AD_ACCOUNTS_ALL` puesto a propósito. Datos ya limpiados en producción.
+- **No existía ningún sitio para ver las ganancias reales de un socio en €** (solo el % configurado en `/settings/socios`, que además no estaba enlazada en el menú). Nuevo `/finanzas/socios` + `lib/finance/socios.ts` (puro): reparte el Pre-Tax Profit del periodo entre socios activos. Un socio vinculado por `partners.user_id` (columna nueva) ve su propia ganancia en el Sidebar sin necesitar rol de dirección.
+
+**Corrección de datos en producción (con confirmación explícita de Alex en cada decisión):** reclasificada una venta de 50€ importada mal desde Stripe como la reserva que era; eliminadas 3 comisiones de reserva nunca completada; **eliminadas las 43 comisiones históricas de closer de una socia marcada `pays_commissions=false`** (1.992,20€, decisión explícita: nunca representaron dinero transferido, su compensación es el reparto de socios); limpiados los 164 campañas/gasto ajeno de Meta.
+
+**Documentado para que no se repita:** `docs/MONEY.md` D8 (reservas no son venta ni comisionan hasta completar), D9 (`pays_commissions` es veto absoluto, en generación y lectura), D10 (integración con token compartido nunca sincroniza "todas" sin selección explícita). `PROJECT_CONTEXT.md` §14 tiene el resumen operativo de los 4 patrones de bug (regla de negocio "a medias", columna sin migración que nadie lee, "vacío" como default peligroso, fix de código que no repara datos ya escritos).
+
+**Verificado:** CI de las 4 PRs en verde (quality, build, Smoke E2E — un fallo de Smoke E2E en #211 confirmado como flake ajeno, tests/e2e/contacto-ficha, re-run verde). Local: typecheck exit 0, 902/905 unit (3 fallos preexistentes de esquema Supabase en vivo, sin relación), 719/719 métricas (incluye tests nuevos de `lib/finance/socios.ts` y los de Meta reescritos a la nueva política de selección de cuentas).
+
+**Queda pendiente, no abordado en esta auditoría:** claridad de pagos/impagos por cliente y KPIs personales en tiempo real — revisados (`ventas/pagos`, `ventas/registro/[id]`, Dashboard de Comisiones) y ya cubren bien lo pedido, no se tocó código ahí.
+
+## F3 trozo 1: contrato de métrica versionado — 2026-09-24 (Freebuff/Buffy)
+
+**Fusionado en `origin/main`:** PR #202 (squash `48e32be`, rama `feat/f3-metric-definitions` borrada). `lib/metrics/definiciones.ts`: `DefinicionVersionada` (version, grain period/cohort, ventana de maduración, muestra mínima, lineage) construida DESDE el registro canónico, y `evaluarDefinicion` que etiqueta cada resultado (`muestra_insuficiente`, `en_maduracion`) sin sustituir el valor. MER y refund_rate declaradas con fórmula y motivo, sin cálculo a medias. 14 tests con golden fixtures deterministas (show_rate 70.59, close_rate 25, CAC 1249.99, ROAS) en `tests/metrics/f3-definiciones.test.mjs`.
+
+**Verificado:** CI de la PR y de `main` (run 36069960953) en verde; local: 693/693 métricas, 894/897 unit, typecheck exit 0.
+
+**Queda de F3:** `MONEY.md` (decisión financiera: booked/billed/collected/recognized, bruto vs atribuible, FX, IVA, fees — requiere validación de Alex; el plan dice "si bruto vs atribuible no está decidido, implementar ambos y NO marcar ninguno como oficial") y cablear `MetricaPublicada` en consumidores de UI/API. Conectado con #201 (anotaciones, más abajo): las marcas describen periodos, no fechas — el grain del contrato ahora lo hace declarable por métrica.
+
+**Incidente CI en `main` (2026-09-25):** el run del squash de #203 (`67d3ae5`, run 36070984980) falló SOLO en Smoke E2E: `TimeoutError: page.waitForURL` en `tests/e2e/global-setup.mjs:48` — el login del global-setup no navegó a `**/qa-e2e/dashboard` en 30s tras crear el tenant. No es regresión de código: el mismo árbol pasó el mismo E2E en la PR #204 (cuyo HEAD incluía #203 vía merge). Sin permiso para `gh run rerun`, la validación verde del árbol idéntico quedó en la PR #205 (run 36098777163, Smoke E2E 4m52s). Ojo con el mecanismo: los pushes docs-only a `main` no crean run (paths-ignore) — un commit de docs NO re-lanza el CI de main; el commit vacío solo funciona como workaround en ramas de PR. Conclusión: flakiness transitorio del login del global-setup; si se repite, añadir reintento/timeout ahí, no revertir #203. Hallazgo añadido al diagnosticar el incidente: la concurrencia del workflow es GLOBAL (un solo run a la vez en todo el repo, no por rama) — un push de cualquier PR cancela los runs en marcha de las demás (pasó con esta misma nota: su primer run fue cancelado a mitad de build por el push de `claude/growth-context-coste-entrega`; cancelled ≠ fallo). Al coordinar en paralelo: no pushear encima del run ajeno en marcha y re-disparar con commit nuevo cuando la ventana esté libre.
+
+## Anotaciones en gráficos + limpieza de tipos — 2026-09-24 (Claude Code)
+
+**Fusionado en `origin/main`:** PR #201 (squash `72fe57b`). Cierra tres pendientes de la sesión
+anterior:
+
+- **#66** — tabla `annotations` (fecha, título, descripción, categoría, autor) para marcar
+  picos/valles en `TrendChart`. Migración `20260924100000_annotations.sql` con RLS calcada de
+  `ai_business_facts` (el equipo lee y anota, el autor o admin/director corrige o borra,
+  aislamiento por tenant vía `auth_tenant_ids()`). API en `/anotaciones` y `/anotaciones/[id]`,
+  componente `AnotacionesInspector`, wiring de ejemplo en `analitica/embudo`.
+- **#54** — eliminados los `any` restantes de `setting-ai`, `carruseles/*` y `VslPlayer`. De paso
+  corrigió un bug real: el contador `convo` de las correcciones automáticas de setting-ai nunca se
+  guardaba (el panel mostraba "CNaN" en vez del número de conversación).
+- **#53** — verificado que ya estaba resuelto por trabajo previo (`cascada-sesion.test.mjs`,
+  17/17). Sin cambios de código, solo confirmación.
+
+**Migración aplicada y verificada en producción** vía el conector MCP de Supabase, sin depender de
+red local (ver "Puedo hacer mejor que Freebuff" más abajo): 5 políticas RLS confirmadas por SQL
+directo contra `pg_policies`, `get_advisors` sin hallazgos nuevos.
+
+**CI se puso rojo, causa raíz encontrada y arreglada sin reabrir el PR**:
+`tests/esquema-tenant-invariante.test.mjs` falló porque `lib/types/database-generated.ts` no traía
+la tabla nueva. `npm run tipos:bd` no pudo correr en este sandbox (sin red real a Supabase,
+`.env.local` con placeholders); se añadió el bloque `Annotations` a mano siguiendo el patrón
+mecánico del generador (todo opcional/nullable, igual que el resto del artefacto) y se verificó
+1:1 contra las 111 tablas reales del esquema vivo vía el conector — 0 faltan, 0 sobran. CI en
+verde tras el push; PR mergeado.
+
+**Extra — `CRON_SECRET` creado en Preview** (Vercel, proyecto `growth-ops`). Llevaba desde el
+21-sep como bloqueo abierto ("CRON_SECRET existe solo en Production... bloquea el staging que F1
+necesita") sin que nadie lo tocara; verificado hoy que seguía faltando. Es aditivo, no toca
+Production ni sustituye ningún valor existente: cualquier disparo manual de cron sobre un preview
+deja de devolver 401 por falta de secreto.
+
+**Verificado hoy — estado real de los bloqueos de hace 3 días (nada ha cambiado salvo lo de
+arriba)**:
+
+- `RESEND_API_KEY` sigue marcada `readable-secret` en Vercel. No se puede rotar desde aquí: hace
+  falta que Alex regenere la clave en el dashboard de Resend primero.
+- El repo sigue público (decisión ya tomada, no es una regresión).
+- El proyecto `go-prod` de Vercel sigue existiendo, vacío (`live: false`). No lo he borrado sin
+  confirmación explícita de hoy — es una acción destructiva sobre infraestructura compartida y la
+  aprobación de la sesión del 21-sep no cuenta como vigente.
+- `growth_context` (bloqueo de #57): **parcialmente relleno, no vacío como se creía**. Tiene
+  `business_type` = "Formación B2C", `offer_price_eur` = 1996.97, `target_monthly_revenue_eur` =
+  30000, `target_cash_roas` = 4.00. **Faltan**: `target_ltgp_cac`, `capacity_calls_per_week`,
+  `capacity_active_clients` — sin esos tres, el motor de objetivos/previsión (#65, en curso) sigue
+  sin poder calcular ritmo ni capacidad aunque el código (`lib/metrics/series.ts`) ya esté listo.
+
+## F2 completa: Stripe sobre el contrato — 2026-09-24 (Freebuff/Buffy)
+
+**Fusionado en `origin/main`:** PR #199 (squash `9f8ba50`, rama `feat/stripe-conector-f2` borrada). El conector de Stripe completa el alcance de F2 (GHL #185, Meta #187, Stripe #199). Envuelve el webhook y el sync ya probados sin reescribir semántica económica: `normalize` delega en `derivarStripe` (`lib/eventos/stripe.ts`), `backfill` en `syncStripePayments`, salud con `GET /v1/balance` del cliente existente. Fixture sanitizado + 7 tests nuevos en la suite de contrato; el marcador `pendientesDeMigrar` ya no lista Stripe.
+
+**Verificado:** CI de la PR en verde (quality 1m28s, gitleaks, build 2m54s, Smoke E2E 4m40s, Vercel) y CI de `main` en verde sobre el squash (run 36061066607, los 4 jobs). Validación local previa: 30/30 en contrato+arquitectura, 894/897 unit (0 fallos, 3 skips), 679/679 métricas, typecheck exit 0.
+
+**Queda de F2:** nada de código. Los conectores restantes del catálogo (Calendly y demás) no formaban parte del alcance declarado del plan ("solo GHL, Stripe y Meta"); migrarlos sería decisión de relevo, no deuda.
+
+## Lote facturas IA + comisiones lote + contratos externos — 2026-09-23 (Freebuff 7a08c143)
+>>>>>>> origin/main
+
 **Hecho y dónde está.** La unidad **desglose nuevo vs recurrente en comisiones futuras** está
 commiteada en local como `d219974` (pathspec, 7 ficheros: route `commissions/future`,
 `comisiones/page.tsx`, `ColaboradorDashboard`, `% efectivo` en `CommissionsTable`,
@@ -87,14 +195,80 @@ Quedan expresamente fuera contratos, colaboradores, RAG, facturación, IA, integ
 > agentes que trabajan en el proyecto (Claude Code, Freebuff, Codex, Copilot). Debajo de la sección
 > "Estado" hay un histórico por hebras que se conserva como registro; lo vigente es lo de arriba.
 
+## CODEX — DASHBOARD & METRIC AUDIT
+
+**2026-09-25 — EN CURSO, NO CERTIFICADA.** Base `7a150cc`; rama única `codex/dashboard-metric-audit`. Matriz: [DASHBOARD_AUDIT.md](../DASHBOARD_AUDIT.md). Plan: [DASHBOARD_CORRECTION_PLAN.md](../DASHBOARD_CORRECTION_PLAN.md). No confundir inspección de código con revisión visual completa.
+
+### COMPLETED
+
+- Skills de marketing/copywriting y sales-engineering del proyecto, MONEY/METRICS y contratos existentes revisados.
+- Inventario por rutas; trazabilidad de métricas críticas de dashboard, analytics, funnels, marketing, CRM, ventas, comisiones, finanzas, delivery y Ask.
+- Consultas de producción de solo lectura: cobertura, asignación, estados, monedas y jobs. Evidencia real comunicada privadamente; documentos sin datos de tenant.
+- Prueba de lectura RLS con rol autenticado de colaborador y rollback: scope excesivo demostrado (F01). Endpoints privilegiados revisados (F02); HTTP por rol pendiente.
+- Reproducciones sintéticas: reserva abierta, cobro pendiente, moneda ignorada y refund de cobro antiguo. No se modificaron datos, roles, políticas ni integraciones.
+- Quality local PASS: format/lint/typecheck, unit 902 pass / 3 skipped / 0 fail, métricas 729 pass. Build PASS; knip informativo ejecutado. Sin E2E ni browser del build modificado. Producción aún anterior.
+- Browser admin: paneles principales, campañas/Meta, Instagram, CRM/ventas/comisiones, finanzas/cohortes, alumnos/CSM/bajas, Data Health, contenido/Setting AI. Interacciones y pendientes exactos en DASHBOARD_AUDIT.md.
+- Incidente Ver como: contrato ocultó retorno; salida dejó cookie auth HttpOnly. Se eliminó únicamente sesión local defectuosa, usuario volvió a iniciar sesión y dashboard admin verificado. No repetir impersonación. F21 código pendiente.
+
+### SAFE FIXES APPLIED
+
+- `lib/ai/agent/tools.ts`: HEAD de contactos devuelve count, no filas; Ask ahora conserva total/0/null. Test nuevo `tests/metrics/agent-overview-count.test.mjs` falló en 12 y 0 antes, pasa después.
+- F19: filtros tenant en dashboard/unit-economics/finanzas resumen,P&L,cohortes,proyección; usuarios por membresía. F20: CTR multiplicado por 100. Regresiones en tests/metrics/dashboard-tenant-scope.test.mjs (dos tenants y n=0).
+- Documentos actualizados F01–F25. Correcciones en rama, sin despliegue. CRM/alumnos/selectores globales y seguridad siguen pendientes.
+
+### USER ACTION REQUIRED
+
+- Admin ya operativo. Roles restantes requieren acceso existente de prueba; no firmar contratos ni ampliar permisos.
+- Confirmar setters y mapping real de citas/ventas sin asignar; confirmar enlaces venta-cita y asistencia provisional con evidencia. Preparar lotes privados, jamás IDs reales en Git.
+- Indicar inicio esperado de histórico por fuente/cuenta para poder cuantificar huecos; primer registro importado no demuestra completitud.
+
+### EXTERNAL BLOCKERS
+
+- Colaborador bloqueado en UI por contrato; no omitirlo. Mobile, exports y otros roles siguen sin validar.
+- Conversaciones orgánicas sujetas a acceso del proveedor. Logs de timeout y éxito mezclados requieren revisión por job, no un diagnóstico global de integración rota.
+
+### BUSINESS DECISIONS REQUIRED
+
+- Pendientes de MONEY (modo bruto/atribuible y fuente FX, billed/recognized/clawback cuando se activen).
+- Grano clientes únicos vs ventas en cohortes, close rate total vs cualificado y ventanas de maduración por oferta/canal. No sustituir definiciones por benchmark.
+
+### FINDINGS BY PRIORITY
+
+- **P0 F01–F02:** colaborador lee equipo por RLS; APIs Funnels/VSL usan privilegio sin scope de rol suficiente. Coordinar carril de seguridad antes de migrar.
+- **P1 F03–F10,F13:** reservas contadas de forma distinta; FX ausente; refunds/fechas y cash heterogéneos; filtros del resumen; población del funnel; diagnóstico sin gates; cohortes inmaduras; capa AI divergente; errores como cero financiero.
+- **P2 F11–F12,F14–F18:** mapping/asistencia/histórico; fronteras temporales; proyección/morosidad; filtros atribución; control Data Health usa name no seleccionado; delivery no acredita retención.
+- **P0 F19:** datos de otra subcuenta en panel seleccionado, fix local parcial. **P1 F20:** CTR, fix local. **P2 F21–F23:** retorno de sesión, ratios sin muestra, webhook sin actividad.
+- **P3:** desktop revisado parcialmente; gastos tiene etiquetas recortadas y dashboard prioriza tabla de comisiones sobre KPIs. Responsive pendiente.
+
+### DATA GAPS
+
+Asignaciones y enlaces incompletos, notas provisionales, fuentes de vídeo/conversaciones sin datos y fecha histórica esperada sin acreditar. Alcance exacto en plan. **Ningún hallazgo clasificado como problema real de negocio fuera de KPI.** Orden obligatorio: definición → fuente → completitud → periodo → maduración → asignación → cálculo → benchmark orientativo.
+
+### NEXT RECOMMENDED WORK
+
+1. Resolver P0 con dry-run y contrato por rol; no confiar en UI.
+2. Funnels desktop/móvil ya observado: F24 ancho=1 cuando primera etapa cero; F25 HTTP400 con sintaxis NOT sospechosa. Sin fix aún. Unit-economics móvil solo cabecera/filtros (sin overflow); viewport restaurado. Continuar eventos/socios/Brief/integraciones/recursos/Person360, roles/exports. Sesión admin activa, no Ver como.
+3. Corregir P1 en unidades pequeñas, comparar UI/API/AI con mismo scope y datos sintéticos.
+4. Obtener mappings/fechas humanas y ejecutar backfill auditado en unidad separada.
+5. Actualizar scorecard y cerrar solo al verificar todos los módulos/roles críticos. La auditoría permanece abierta.
+
+### CONCURRENCY NOTES
+
+Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de colaborador, clasificación nuevo/recurrente y documentación de otros agentes. Migración/gastos `20260922100000` y tipos BD reclamados por Claude Code: no tocados. No reset, stash, rebase ni force push. No se desplegó ni fusionó este trabajo.
+
 ## Tablero de reclamaciones (en curso AHORA)
+
+**CODEX — DASHBOARD & METRIC AUDIT (25-sep):** Ampliación tras browser: reclama filtros tenant en `dashboard/page.tsx`, `unit-economics/page.tsx`, `finanzas/analitica/{resumen,pnl,cohortes,proyeccion}/page.tsx`, CTR en `marketing/adquisicion/campanas/page.tsx` y tests asociados. No toca RLS ni motor financiero.  auditoría transversal solicitada por el usuario; rama `codex/dashboard-metric-audit`. Reclama `DASHBOARD_AUDIT.md`, `DASHBOARD_CORRECTION_PLAN.md`, sección propia de relevo y fix acotado del conteo HEAD de contactos en `lib/ai/agent/tools.ts` con `tests/metrics/agent-overview-count.test.mjs`. Inspección de código y producción de solo lectura; ningún cambio de datos. No tocar el WIP del checkout Documents ni las migraciones/gastos reclamados por Claude Code. Regla KPI: definición → fuente → completitud → periodo → maduración → asignación → cálculo → benchmark orientativo.
+
 
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente      | Qué                                                                                                                                                                                             | Rama                  | Toca                                                                                                         | Desde  |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------ | ------ |
-| Claude Code | **F2 — contrato de conectores**. Hecho: contrato + plantilla (#184), GHL (#185), tests de arquitectura (#186), Meta (#187), salud de datos (esta rama). F2 queda cerrada salvo la deuda anotada | `feat/f2-salud-datos` | `lib/data-health/conectores.ts`, `lib/integrations/sync-runs.ts`, crons de Meta/Instagram, `DataHealthPanel` | 23-sep |
+| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama           | Toca                                                                                            | Desde  |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
+| Freebuff (Buffy)  | **MONEY.md v1**: vocabulario financiero de F3 (booked/billed/collected/recognized, bruto vs atribuible, FX, IVA, fees, disputas, comisiones, cuotas, financiación, cash manual) bajo delegación de Alex; decisiones D1–D7 + abiertas A1–A6                                                                                                                   | docs/money-v1  | `docs/MONEY.md` (nuevo), `docs/ACTIVE_HANDOFF.md` (tablero)                                    | 25-sep |
+| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
+| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                     | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                       | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
@@ -359,3 +533,15 @@ Dos lecciones operativas de esas hebras que siguen vigentes:
 - **No afirmes lo que no has verificado.** Se construyó un panel manual de crons sobre la creencia
   falsa de que Vercel Hobby solo permitía 3, y se recortó CI sobre la creencia falsa de que el repo
   era privado. Las dos premisas eran inventadas.
+
+Tres más del 25-sep (codificadas también en `AGENTS.md`, con el caso que las originó):
+
+- **Arnés canónico o nada**: suites solo por los scripts de `package.json`. Lanzar specs de
+  Playwright o `tests/metrics/` con `node --test` a mano produce fallos falsos — el 25-sep costó
+  dos diagnósticos equivocados antes de mirar el arnés.
+- **Sin merge-base no hay merge**: la PR #210 (rama `docs/money-v1-cierre`) era un linaje huérfano.
+  Se cerró como sustituida tras verificar commit a commit que su único contenido exclusivo era el
+  texto de relevo (relevado en #216). Fusionarla habría revertido el tablero.
+- **La fila del tablero es un contrato de relevo**: el trabajo sin commitear de esta hebra (fix E2E
+  - cron) fue recogido, commitado y publicado por otro agente siguiendo la fila — así funciona el
+    tablero cuando funciona; si un trabajo no debe continuarse, no se deja sin commitear.

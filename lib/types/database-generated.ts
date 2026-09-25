@@ -543,6 +543,38 @@ export type EsquemaPublico = {
         tenant_id: string | undefined
       }
     }
+    Annotations: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        date: string | null
+        title: string | null
+        description: string | null
+        category: string | null
+        created_by: string | null
+        created_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        date: string | null | undefined
+        title: string | null | undefined
+        description: string | null | undefined
+        category: string | null | undefined
+        created_by: string | null | undefined
+        created_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        date: string | undefined
+        title: string | undefined
+        description: string | undefined
+        category: string | undefined
+        created_by: string | undefined
+        created_at: string | undefined
+      }
+    }
     AppSettings: {
       Row: {
         key: string | null

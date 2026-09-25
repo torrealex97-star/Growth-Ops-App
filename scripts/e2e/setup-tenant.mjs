@@ -8,11 +8,14 @@
 //   · producto 'E2E Producto' con plan 'reserva' (300) y plan 'pago completo' (3000)
 //   · contactos 'E2E Contacto' y 'E2E Contacto Dos'
 //   · custom_field_defs 'E2E Campo Texto' (text) y 'E2E Campo Booleano' (boolean)
+//   · colaborador 'colaborador@qa-e2e.test' con perfil 'E2E-COLAB' en 'pending_contract'
+//     + contrato de equipo 'E2E Contrato Colaborador' en 'enviado' (spec de contratos)
 //
 // SIEMPRE limpia antes la actividad transaccional del tenant (ventas, cobros, comisiones,
 // contratos… FK-safe, ver lib/e2e/limpieza.ts): los specs parten de un tenant sin métricas.
 // Credenciales: SOLO el password viene de env (E2E_PASSWORD); nunca se imprime.
 import { createClient } from '@supabase/supabase-js'
+import { randomUUID } from 'node:crypto'
 import { limpiarActividadTenant } from '../../lib/e2e/limpieza.ts'
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -233,6 +236,95 @@ let contactDosId
   if (total > 0) console.error(`[setup] Limpieza previa: ${total} filas de actividad borradas`)
 }
 
+// ── 9. COLABORADOR + CONTRATO DE EQUIPO (fixture del spec de adjuntar firmado) ──
+// Va DESPUÉS del reset porque el reset borra contratos: cada corrida deja el contrato
+// 'enviado' con token fresco y el perfil en 'pending_contract', que es exactamente el
+// estado inicial que el spec necesita.
+//
+//   · usuario auth colaborador@qa-e2e.test (rol closer) — NO entra a la app, es el firmante.
+//   · perfil collaborator_profiles 'E2E-COLAB' en pending_contract (estado de 'contrato
+//     enviado, pendiente de firma': el alta lo deja así y FIRMAR es lo que lo activa).
+//   · contrato de equipo 'E2E Contrato Colaborador' en 'enviado' con signing_token, para
+//     que la UI ofrezca 'Adjuntar firmado' y el enlace de firma nativa.
+const EMAIL_COLAB = 'colaborador@qa-e2e.test'
+let colaboradorId
+let colaboradorPerfilId
+let contratoEquipoId
+{
+  const { data: rolCloser } = await sb.from('roles').select('id').eq('key', 'closer').single()
+  const { data: listed } = await sb.auth.admin.listUsers()
+  const existing = (listed?.users ?? []).find((u) => u.email === EMAIL_COLAB)
+  if (existing) {
+    colaboradorId = existing.id
+  } else {
+    // Password del firmante: el colaborador NO se autentica en la app (la firma es por token),
+    // se genera desechable. email_confirm true para que no quede pendiente de verificación.
+    const { data: created, error } = await sb.auth.admin.createUser({
+      email: EMAIL_COLAB,
+      password: randomUUID() + 'Aa1!',
+      email_confirm: true,
+    })
+    if (error) throw error
+    colaboradorId = created.user.id
+  }
+  await sb.from('users').upsert({
+    id: colaboradorId,
+    full_name: 'E2E Colaborador',
+    email: EMAIL_COLAB,
+    role_id: rolCloser?.id ?? roleId,
+    is_active: true,
+  })
+  const { error } = await sb
+    .from('tenant_members')
+    .upsert({ tenant_id: tenantId, user_id: colaboradorId, role: 'member' }, { onConflict: 'tenant_id,user_id' })
+  if (error) throw error
+
+  const { data: perfil } = await sb
+    .from('collaborator_profiles')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('user_id', colaboradorId)
+    .single()
+  if (perfil) {
+    colaboradorPerfilId = perfil.id
+    // Reset al estado inicial del flujo: una firma previa pudo dejarlo 'active'.
+    const { error } = await sb
+      .from('collaborator_profiles')
+      .update({ status: 'pending_contract' })
+      .eq('id', colaboradorPerfilId)
+    if (error) throw error
+  } else {
+    const { data: created, error } = await sb
+      .from('collaborator_profiles')
+      .insert({
+        tenant_id: tenantId,
+        user_id: colaboradorId,
+        code: 'E2E-COLAB',
+        name: 'E2E Colaborador',
+        status: 'pending_contract',
+      })
+      .select('id')
+      .single()
+    if (error) throw error
+    colaboradorPerfilId = created.id
+  }
+
+  const { data: contrato, error: cErr } = await sb
+    .from('contracts')
+    .insert({
+      tenant_id: tenantId,
+      kind: 'equipo',
+      user_id: colaboradorId,
+      title: 'E2E Contrato Colaborador',
+      status: 'enviado',
+      signing_token: randomUUID().replace(/-/g, ''),
+    })
+    .select('id')
+    .single()
+  if (cErr) throw cErr
+  contratoEquipoId = contrato.id
+}
+
 // ── SALIDA para Playwright (JSON en stdout, nada más) ────────────────────────
 process.stdout.write(
   JSON.stringify({
@@ -243,6 +335,8 @@ process.stdout.write(
     completoPlanId,
     contactId,
     contactDosId,
+    colaboradorPerfilId,
+    contratoEquipoId,
     email: EMAIL,
     slug: SLUG,
   })

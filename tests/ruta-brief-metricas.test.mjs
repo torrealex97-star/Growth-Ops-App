@@ -75,10 +75,14 @@ test('las fuentes que fallan se declaran y acaban en una alerta de calidad de da
 
 test('el nombre de las columnas es el real, no el que uno recuerda', () => {
   const codigo = leer(CONSULTA)
+  const sinComent = sinComentarios(codigo)
   // El importe de un cobro está en gross_amount. Con `amount`, el cash collected sale 0 € sin que
-  // ninguna consulta falle.
+  // ninguna consulta falle. La regla es solo sobre `collections`: `expenses.amount` SÍ es la columna
+  // real de esa tabla (comprobada contra el esquema), y prohibir `amount` en todo el fichero daría un
+  // falso positivo justo cuando se lee bien.
   assert.match(codigo, /collected_at, gross_amount, is_confirmed/)
-  assert.doesNotMatch(sinComentarios(codigo), /select\('[^']*\bamount\b[^']*'\)/)
+  const bloqueCobros = sinComent.slice(sinComent.indexOf("from('collections')"), sinComent.indexOf('maxPages') + 20)
+  assert.doesNotMatch(bloqueCobros, /select\('[^']*\bamount\b[^']*'\)/)
   // Y las respuestas del formulario están en raw_payload, no en qualification (0 de 559 en producción).
   assert.match(codigo, /qualification, raw_payload/)
   // Speed to Lead sale de dos timestamps reales del contacto; no de la fecha de la cita ni de una

@@ -1,0 +1,25 @@
+{
+  "_nota": "Fixture SANITIZADO: evento de webhook de Stripe con claves de ejemplo y ningún dato real de ninguna persona. Un fixture con el correo de un cliente dentro convierte el repositorio (público) en una filtración. Ver docs/SECURITY_PRIVACY.md.",
+  "id": "evt_000000000001",
+  "object": "event",
+  "api_version": "2026-01-30.clover",
+  "created": 1781000000,
+  "type": "payment_intent.succeeded",
+  "data": {
+    "object": {
+      "object": "payment_intent",
+      "id": "pi_000000000001",
+      "amount": 49900,
+      "amount_received": 49900,
+      "currency": "eur",
+      "status": "succeeded",
+      "created": 1781000000,
+      "customer": "cus_000000000001",
+      "receipt_email": "pagador@example.test",
+      "latest_charge": "ch_000000000001"
+    }
+  },
+  "livemode": false,
+  "pending_webhooks": 1,
+  "request": { "id": "req_000000000001", "idempotency_key": null }
+}

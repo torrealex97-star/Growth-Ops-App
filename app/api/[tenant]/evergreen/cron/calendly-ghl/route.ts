@@ -29,10 +29,14 @@ export async function GET(req: NextRequest) {
     const { data: tenants, error: tenantsErr } = await sb.from('tenants').select('id, slug').eq('status', 'active')
     if (tenantsErr) throw new Error(tenantsErr.message)
 
-    // Presupuesto por subcuenta y POR PROVEEDOR: dos proveedores × ~25 s no caben en el corte de
-    // 60 s si comparten un único deadline (la primera pasada de producción lo demostró: Calendly
-    // consumió el presupuesto y GHL quedó a 0 páginas). Cada uno recibe el suyo y, si alguno se
-    // corta, lo hecho está guardado (upsert idempotente) y la siguiente ejecución continúa.
+    // Presupuesto por subcuenta y POR PROVEEDOR, y POR DEBAJO del corte de Vercel. La suma de
+    // los dos deadlines NO puede acercarse a los 60 s del maxDuration: antes del primer fetch ya
+    // se gastan cold start, updateSession del middleware, la lectura de tenants y la config por
+    // subcuenta, y después quedan por escribir los candados de recordSyncRun. El 25-sep el run
+    // diario murió con 504 FUNCTION_INVOCATION_TIMEOUT porque 35+25=60 s exactos no dejaban
+    // margen: si ambos proveedores agotan su presupuesto, la respuesta nunca llega. Con 20+18
+    // (~38 s de trabajo) queda ~20 s de colchón; un corte por presupuesto NO es un fallo (lo
+    // hecho está guardado — upsert idempotente — y el run siguiente continúa).
     const desde = new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString()
 
     const porSubcuenta: Record<string, unknown> = {}
@@ -59,7 +63,7 @@ export async function GET(req: NextRequest) {
               trigger: 'cron',
               secrets: [cfg.CALENDLY_API_TOKEN],
             },
-            () => syncCalendly(sb, tn.id, cfg, { desdeInicio: desde, deadlineMs: Date.now() + 35_000 }),
+            () => syncCalendly(sb, tn.id, cfg, { desdeInicio: desde, deadlineMs: Date.now() + 20_000 }),
             (r) => ({
               rowsWritten: r.imported + r.updated,
               // Un corte por presupuesto NO es un fallo: es el candado funcionando y queda declarado
@@ -82,7 +86,7 @@ export async function GET(req: NextRequest) {
             () =>
               syncGhl(sb, tn.id, cfg, {
                 desdeInicio: desde,
-                deadlineMs: Date.now() + 25_000,
+                deadlineMs: Date.now() + 18_000,
                 modo: 'soloEventos',
               }),
             (r) => ({

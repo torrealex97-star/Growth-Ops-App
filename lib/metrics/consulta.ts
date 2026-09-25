@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 import {
   calcularAgregados,
+  metodoDePlan,
   type Agregados,
   type FilaCampana,
   type FilaCita,
@@ -10,6 +11,8 @@ import {
   type FilaVenta,
   type Periodo,
 } from './agregados'
+import { serieCashAcumulada, serieFacturacionAcumulada } from './series-negocio'
+import type { PuntoSerie } from './prevision'
 
 // LA MITAD DE I/O: leer las filas de una subcuenta y pasarlas al cálculo.
 //
@@ -46,10 +49,29 @@ export type ResultadoConsulta = {
    * enteros hasta la ruta sería pasear datos financieros sin necesidad.
    */
   citas: FilaCita[]
+  /**
+   * Series diarias ACUMULADAS del periodo, para el objetivo/previsión de facturación y cash. No se
+   * exponen las filas de ventas/cobros enteras (serían datos financieros paseados sin necesidad, ver
+   * nota de arriba): solo el punto por día, ya reducido a lo que el gráfico necesita.
+   */
+  serieFacturacion: PuntoSerie[]
+  serieCash: PuntoSerie[]
+  /**
+   * Suma de gastos categorizados como `cogs` en el periodo, para la aproximación de LTGP:CAC (ver
+   * lib/metrics/ltgp-aproximado.ts). `null` si no se pudo leer la fuente, nunca 0 por defecto.
+   */
+  costeEntregaCogsPeriodo: number | null
 }
 
 /** Techo de páginas por fuente. 50 × 1.000 = 50.000 filas, suficiente y acotado. */
 const MAX_PAGINAS = 50
+
+const num = (v: unknown): number => {
+  if (v === null || v === undefined || v === '') return 0
+  const n = typeof v === 'number' ? v : Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+const r2 = (n: number) => Math.round(n * 100) / 100
 
 export async function consultarMetricas(
   sb: SupabaseClient,
@@ -61,13 +83,17 @@ export async function consultarMetricas(
   // las dos rutas que consumen esta capa (IA y brief) se lo pasan siempre.
   cuentasAds: string[] = []
 ): Promise<ResultadoConsulta> {
-  // Las cinco lecturas son independientes: en serie serían cinco viajes de red encadenados por nada.
-  const [ventas, cobros, citas, campanas, contactos] = await Promise.all([
-    fetchAllRows<FilaVenta>(
+  // Las lecturas son independientes: en serie serían viajes de red encadenados por nada.
+  const [ventas, cobros, citas, campanas, contactos, gastosCogs] = await Promise.all([
+    fetchAllRows<FilaVenta & { payment_plans: { method: string | null } | { method: string | null }[] | null }>(
       () =>
         sb
           .from('sales')
-          .select('sale_date, gross_amount, status, closer_id, appointment_id')
+          // payment_plans(method): para excluir reservas sin completar de ventas/clientes (una
+          // reserva que solo pagó la seña no es cliente — ver esReservaAbierta en agregados.ts).
+          .select(
+            'sale_date, gross_amount, status, closer_id, appointment_id, reservation_completed_at, payment_plans(method)'
+          )
           .eq('tenant_id', tenantId)
           .gte('sale_date', periodo.desde)
           .lte('sale_date', periodo.hasta),
@@ -127,6 +153,21 @@ export async function consultarMetricas(
           ),
       { maxPages: MAX_PAGINAS }
     ),
+    // Solo la categoría 'cogs': es la que la app usa como coste de entrega (ver
+    // app/[tenant]/finanzas/gastos-facturas/gastos/page.tsx). El resto de categorías (publicidad,
+    // sueldos, comisiones...) no son coste de ENTREGAR lo vendido, y mezclarlas infla el margen a la baja
+    // sin que signifique lo mismo que LTGP.
+    fetchAllRows<{ amount: number | string | null }>(
+      () =>
+        sb
+          .from('expenses')
+          .select('amount')
+          .eq('tenant_id', tenantId)
+          .eq('category', 'cogs')
+          .gte('expense_date', periodo.desde)
+          .lte('expense_date', periodo.hasta),
+      { maxPages: MAX_PAGINAS }
+    ),
   ])
 
   // LA ATRIBUCIÓN, contada aparte. Comprobado en producción: `contact_attributions` está a 0 filas y
@@ -143,7 +184,7 @@ export async function consultarMetricas(
       .eq('is_primary', true),
   ])
 
-  const fuentes = { ventas, cobros, citas, campanas, contactos }
+  const fuentes = { ventas, cobros, citas, campanas, contactos, gastosCogs }
   const fuentesConError = Object.entries(fuentes)
     .filter(([, r]) => r.error !== null)
     .map(([fuente, r]) => ({ fuente, error: r.error as string }))
@@ -151,11 +192,20 @@ export async function consultarMetricas(
     .filter(([, r]) => r.truncated)
     .map(([fuente]) => fuente)
 
+  // Un error de lectura no es un coste de cero: sin poder leer los gastos, el coste de entrega por
+  // 'cogs' queda desconocido y la aproximación de LTGP:CAC cae al fallback manual (o al hueco).
+  const costeEntregaCogsPeriodo = gastosCogs.error ? null : r2(gastosCogs.rows.reduce((a, g) => a + num(g.amount), 0))
+
+  // El embed de payment_plans llega anidado (objeto o array según el driver); se aplana aquí para
+  // que agregados.ts (puro, sin PostgREST) reciba el mismo `payment_plan_method` que ya usa
+  // lib/commissions/tramos.ts para decidir si una reserva sigue abierta.
+  const ventasNormalizadas: FilaVenta[] = ventas.rows.map((v) => ({ ...v, payment_plan_method: metodoDePlan(v) }))
+
   return {
     // Las filas de una fuente que falló llegan vacías, y el cálculo ya distingue "vacío" de "cero"
     // devolviendo `null` con su motivo. Quien pinta debe mirar `fuentesConError` antes de creerse nada.
     agregados: calcularAgregados({
-      ventas: ventas.rows,
+      ventas: ventasNormalizadas,
       cobros: cobros.rows,
       citas: citas.rows,
       campanas: campanas.rows,
@@ -165,6 +215,9 @@ export async function consultarMetricas(
     fuentesConError,
     fuentesRecortadas,
     citas: citas.rows,
+    serieFacturacion: serieFacturacionAcumulada(ventasNormalizadas, periodo),
+    serieCash: serieCashAcumulada(cobros.rows, periodo),
+    costeEntregaCogsPeriodo,
     atribucion: { contactos: totalContactos.count ?? 0, conAtribucion: conAtribucion.count ?? 0 },
     filasLeidas: {
       ventas: ventas.rows.length,
@@ -172,6 +225,7 @@ export async function consultarMetricas(
       citas: citas.rows.length,
       campanas: campanas.rows.length,
       contactos: contactos.rows.length,
+      gastosCogs: gastosCogs.rows.length,
     },
   }
 }

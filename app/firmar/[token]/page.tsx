@@ -35,7 +35,10 @@ const tierText = (t: Tier) =>
   } → ${t.percent}%`
 
 // Sustitución en vivo de las variables del firmante para la vista previa.
-function preview(body: string, sd: Record<string, string>): string {
+function preview(body: string | null | undefined, sd: Record<string, string>): string {
+  // Un contrato sin snapshot (p. ej. creado solo con PDF adjuntado) no debe romper la
+  // página pública de firma: se muestra sin cuerpo en vez de fallar con un 500 opaco.
+  if (!body) return ''
   const dir = [sd.address, sd.postal_code, sd.city].filter(Boolean).join(', ')
   const map: Record<string, string> = {
     dni: sd.dni || '__________',
@@ -65,7 +68,9 @@ export default function FirmarPage() {
       .then((d) => {
         if (d.error) setError(d.error)
         else {
-          setData(d)
+          // Un contrato sin snapshot ni condiciones (PDF externo) no debe romper la página:
+          // se normalizan los campos opcionales para renderizar sin asumir presencia.
+          setData({ ...d, body: d.body ?? '', terms: d.terms ?? {} })
           setName(d.signerName || d.memberName || '')
           const pf = d.signerPrefill || {}
           setSd(Object.fromEntries(Object.entries(pf).map(([k, v]) => [k, (v as string) ?? ''])))

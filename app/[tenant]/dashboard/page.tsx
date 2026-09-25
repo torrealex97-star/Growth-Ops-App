@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
+import { metodoDePlan } from '@/lib/metrics/agregados'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
 import { mensajeDeCarga, primerError } from '@/lib/supabase/resultado'
@@ -42,7 +43,7 @@ import {
   ymOf,
   num,
   targetCurrentValue,
-  isActiveSale,
+  cuentaComoVenta,
   funnelBySource,
   aggregateFunnel,
   leadDate,
@@ -137,6 +138,7 @@ export default function DashboardPage() {
 }
 
 function DashboardEquipo() {
+  const tenantId = useTenantId()
   const tenant = useTenant()
   // La sesión que el layout ya resolvió: evita repetir auth.getUser() + from('users') en esta pantalla.
   const sesion = useSesion()
@@ -209,6 +211,7 @@ function DashboardEquipo() {
   useEffect(() => {
     let mounted = true
     async function load() {
+      setLoading(true)
       const supabase = createClient()
 
       // LA CASCADA QUE SE ELIMINA. Aquí había tres viajes de red EN SERIE antes de pedir un solo dato
@@ -258,46 +261,74 @@ function DashboardEquipo() {
       ] = await Promise.all([
         supabase
           .from('sales')
-          .select('id, gross_amount, status, sale_date, closer_id, setter_id, affiliate_id, contact_id')
+          // reservation_completed_at + payment_plans(method): sin ellos una reserva abierta es
+          // indistinguible de una venta y vuelve a contarse como facturación (MONEY D8, F03).
+          .select(
+            'id, gross_amount, status, sale_date, closer_id, setter_id, affiliate_id, contact_id, reservation_completed_at, payment_plans(method)'
+          )
+          .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('collections')
           .select('sale_id, gross_amount, collected_at, status')
+          .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
-        supabase.from('users').select('id, full_name'),
-        supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
+        supabase
+          .from('users')
+          .select('id, full_name, tenant_members!inner(tenant_id)')
+          .eq('tenant_members.tenant_id', tenantId),
+        supabase
+          .from('users')
+          .select('id, full_name, roles(key), tenant_members!inner(tenant_id)')
+          .eq('tenant_members.tenant_id', tenantId)
+          .eq('is_active', true),
         supabase
           .from('contacts')
           .select('id, created_at, first_seen_at, first_contact_at')
+          .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('contact_attributions')
           .select('contact_id, source, utm_source, utm_campaign, utm_content, is_primary, collaborator_id')
+          .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('appointments')
           .select('appointment_datetime, status, setter_id, closer_id, cold_caller_id, affiliate_id, contact_id')
+          .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('targets')
           .select(
             'id, name, metric_key, scope_type, scope_user_id, period_type, period_start, period_end, target_value'
           )
+          .eq('tenant_id', tenantId)
           .eq('is_active', true)
           .eq('scope_type', 'company'),
-        supabase.from('saved_dashboard_views').select('*').or(`user_id.eq.${sesion.userId},scope.eq.shared`),
+        supabase
+          .from('saved_dashboard_views')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .or(`user_id.eq.${sesion.userId},scope.eq.shared`),
         supabase
           .from('commissions')
           .select('user_id, sale_id, commission_amount, direction, status')
+          .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
-        // Perfiles de colaborador de la subcuenta (RLS la acota): nombres del tab Colaboradores.
-        supabase.from('collaborator_profiles').select('id, name, status').eq('status', 'active'),
+        // Perfiles de colaborador de la subcuenta seleccionada: nombres del tab Colaboradores.
+        supabase
+          .from('collaborator_profiles')
+          .select('id, name, status')
+          .eq('tenant_id', tenantId)
+          .eq('status', 'active'),
       ])
 
       if (!mounted) return
       const fallo = primerError(salesRes, collRes, usersRes, contactsRes, attrRes, apptRes, targetsRes, commRes)
       setErrorCarga(fallo ? mensajeDeCarga('los datos del panel', fallo) : null)
-      setSales(salesRes.data || [])
+      // El embed de payment_plans llega anidado: se aplana aquí para que el predicado de venta
+      // (cuentaComoVenta) pueda ver si la fila es una reserva todavía abierta.
+      setSales(((salesRes.data || []) as SaleRow[]).map((v) => ({ ...v, payment_plan_method: metodoDePlan(v) })))
       setCollections(collRes.data || [])
       setUsers(usersRes.data || [])
       setRoleUsers((roleUsersRes.data as RoleUser[] | null) || [])
@@ -330,7 +361,7 @@ function DashboardEquipo() {
     return () => {
       mounted = false
     }
-  }, [tenant, sesion])
+  }, [tenant, tenantId, sesion])
 
   // Meses para el selector: últimos 12 (más reciente primero)
   // Personas del rol elegido (para el selector de usuario del filtro de arriba).
@@ -491,14 +522,14 @@ function DashboardEquipo() {
   // histórico importado no tiene contacts.campaign_id; hacerlo fingiría 0 € de ingresos. El gasto
   // sí queda acotado a las cuentas seleccionadas en Integraciones desde el endpoint server-side.
   const periodRevenue = useMemo(
-    () => filteredSales.filter(isActiveSale).reduce((total, sale) => total + Number(sale.gross_amount || 0), 0),
+    () => filteredSales.filter(cuentaComoVenta).reduce((total, sale) => total + Number(sale.gross_amount || 0), 0),
     [filteredSales]
   )
   const periodCustomers = useMemo(
     () =>
       new Set(
         filteredSales
-          .filter(isActiveSale)
+          .filter(cuentaComoVenta)
           .map((sale) => sale.contact_id)
           .filter(Boolean)
       ).size,
@@ -585,12 +616,14 @@ function DashboardEquipo() {
     if (!userId || myBaseSalary <= 0) return null
     // Ventas del usuario en el mes. OJO: completar una reserva actualiza la MISMA fila de venta,
     // así que contar filas ya cuenta 1 (no se duplica reserva + pago completado). Igual la facturación.
-    // Canónico (Fase 5): isActiveSale (excluye cancelled/refunded/chargeback) — el filtro ad-hoc
-    // anterior solo excluía cancelled/refunded y dejaba pasar chargeback, contando dinero que
-    // salió de vuelta como si desbloqueara el fijo o generase comisión real.
+    // Canónico: `cuentaComoVenta` excluye cancelled/refunded/chargeback Y las reservas todavía
+    // abiertas. Una seña no puede desbloquear el fijo ni aparecer como facturación propia: el
+    // dinero del resto del programa aún no existe (MONEY D8).
     const mySalesMonth = sales.filter(
       (s) =>
-        (s.closer_id === userId || s.setter_id === userId) && (s.sale_date || '').slice(0, 7) === ym && isActiveSale(s)
+        (s.closer_id === userId || s.setter_id === userId) &&
+        (s.sale_date || '').slice(0, 7) === ym &&
+        cuentaComoVenta(s)
     )
     const salesCount = mySalesMonth.length
     const revenue = mySalesMonth.reduce((acc, s) => acc + Number(s.gross_amount || 0), 0)

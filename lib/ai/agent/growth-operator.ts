@@ -143,6 +143,8 @@ export type ContextoNegocio = {
   objetivoCashRoas: number | null
   capacidadLlamadasSemana: number | null
   capacidadClientesActivos: number | null
+  /** Coste medio de entregar la oferta a UN cliente de por vida. La pieza que faltaba para LTGP:CAC. */
+  costeMedioEntregaEur: number | null
   notas: string | null
 }
 
@@ -156,6 +158,7 @@ export const CONTEXTO_VACIO: ContextoNegocio = {
   objetivoCashRoas: null,
   capacidadLlamadasSemana: null,
   capacidadClientesActivos: null,
+  costeMedioEntregaEur: null,
   notas: null,
 }
 
@@ -169,6 +172,7 @@ const ETIQUETAS_CONTEXTO: Record<keyof ContextoNegocio, string> = {
   objetivoCashRoas: 'Objetivo Cash ROAS',
   capacidadLlamadasSemana: 'Capacidad de llamadas/semana',
   capacidadClientesActivos: 'Capacidad de clientes activos',
+  costeMedioEntregaEur: 'Coste medio de entrega por cliente (€)',
   notas: 'Notas',
 }
 

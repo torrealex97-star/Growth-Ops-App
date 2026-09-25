@@ -70,7 +70,9 @@ test('tenant scoping: videos y metrics filtran tenant_id en TODAS sus consultas'
   assert.match(videos, /AND tenant_id = \$\{auth\.tenantId\}/, 'update/delete filtrados por tenant')
   assert.match(videos, /WHERE slug = \$\{slug\} AND tenant_id/, 'chequeo de slug dentro del tenant')
   const metrics = lee('app/api/[tenant]/evergreen/vsl/metrics/[slug]/route.ts')
-  assert.match(metrics, /requireTenant/, 'metrics exige sesión de subcuenta')
+  // F02: además de la sesión de subcuenta, acceso a la pantalla de VSL (la ruta usa `postgres`
+  // directo, que se salta RLS).
+  assert.match(metrics, /requirePantalla/, 'metrics exige acceso a la pantalla de VSL')
   // La consulta de sesión de métricas une con el vídeo del tenant (no confía en el slug solo).
   assert.match(metrics, /tenant_id = \$\{tenantId\}/, 'métricas acotadas al tenant')
 })

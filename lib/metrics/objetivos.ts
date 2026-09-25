@@ -34,6 +34,7 @@ export type ObjetivoMedido = {
   nombre: string
   periodo: PeriodoObjetivo
   clase: ClaseObjetivo
+  unidad?: string
   /** `null` = no medido. No es cero. */
   actual: number | null
   objetivo: number
@@ -132,6 +133,7 @@ export function medirObjetivo(e: EntradaObjetivo): ObjetivoMedido {
     nombre: o.nombre,
     periodo: o.periodo,
     clase: o.clase,
+    unidad: o.unidad,
     actual,
     objetivo: o.valor,
     brecha,

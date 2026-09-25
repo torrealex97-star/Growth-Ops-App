@@ -47,7 +47,9 @@ test('la pantalla de Integraciones permite marcar VARIAS cuentas', () => {
   assert.ok(!/name="meta-account"/.test(ui), 'el radio group impedía elegir varias cuentas')
   assert.match(ui, /type="checkbox"\s*\n\s*checked=\{elegida\}/)
   assert.match(ui, /toggleAccountId\(drafts\.META_AD_ACCOUNT_ID, acc\.id\)/)
-  assert.match(ui, /Seleccionar todas/)
+  // "Seleccionar todas" se quitó a propósito: el token puede ver cuentas de OTROS negocios y ese
+  // atajo invitaba a marcarlas todas sin mirar cuáles son de este tenant.
+  assert.ok(!/Seleccionar todas/.test(ui), '"Seleccionar todas" anima a marcar cuentas de otros negocios')
 })
 
 test('la UI y el servidor usan la MISMA definición de cuenta seleccionada', () => {
@@ -59,10 +61,14 @@ test('la UI y el servidor usan la MISMA definición de cuenta seleccionada', () 
   assert.ok(!/function normalizeAccountId/.test(client), 'normalizeAccountId debe vivir solo en lib/meta/accounts.ts')
 })
 
-test('sin cuentas marcadas se sincronizan todas las accesibles, y eso no borra histórico', () => {
+test('sin cuentas marcadas NI "todas" pedida a propósito, la sync se detiene en vez de traerlas todas', () => {
   const client = read('../../lib/meta/client.ts')
-  // Lista vacía = todas: es la regla que documenta la UI, y tiene que seguir siendo la del servidor.
-  assert.match(client, /const wantAll = explicit\.length === 0/)
+  // Vacío YA NO es "todas": el token de Meta Business Manager puede ver cuentas de otros negocios,
+  // y sincronizar "todas por defecto" mezclaba su gasto con el de este tenant. Solo
+  // META_AD_ACCOUNTS_ALL, puesto a propósito (no por ausencia de selección), sincroniza todas.
+  assert.match(client, /if \(explicit\.length === 0 && !optedIntoAll\)/)
+  assert.match(client, /code: 'sin_cuenta_seleccionada'/)
+  assert.ok(!/const wantAll = explicit\.length === 0 \|\|/.test(client), 'vacío ya no debe significar "todas"')
   // Y una cuenta que deja de estar disponible no dispara ningún borrado.
   assert.ok(!/\.delete\(\)/.test(client), 'el cliente de Meta no debe borrar nada')
   const sync = read('../../lib/meta/sync.ts')

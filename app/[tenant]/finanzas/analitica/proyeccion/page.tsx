@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useTenantId } from '@/lib/tenant-context'
 import { createClient } from '@/lib/supabase/client'
 import { TrendingUp, Download } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
@@ -30,6 +31,7 @@ const WINDOWS = [30, 60, 90] as const
 const num = (x: number | string | null | undefined) => Number(x ?? 0)
 
 export default function ProyeccionPage() {
+  const tenantId = useTenantId()
   const [loading, setLoading] = useState(true)
   const [installments, setInstallments] = useState<InstallmentRow[]>([])
   const [commissions, setCommissions] = useState<CommissionRow[]>([])
@@ -37,16 +39,19 @@ export default function ProyeccionPage() {
   useEffect(() => {
     let mounted = true
     const load = async () => {
+      setLoading(true)
       const supabase = createClient()
       const [instRes, commRes] = await Promise.all([
         supabase
           .from('sale_expected_installments')
           .select('id, due_date, expected_gross_amount, status, sales(contacts(full_name))')
+          .eq('tenant_id', tenantId)
           .neq('status', 'collected')
           .order('due_date'),
         supabase
           .from('commissions')
           .select('commission_amount, direction, status, liquidation_month')
+          .eq('tenant_id', tenantId)
           .in('status', ['approved', 'pending']),
       ])
       if (!mounted) return
@@ -58,7 +63,7 @@ export default function ProyeccionPage() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [tenantId])
 
   const proj = useMemo(() => {
     const today = new Date()

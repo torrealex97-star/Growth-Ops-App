@@ -86,8 +86,11 @@ export function calculateCommissionsForCollection(
   // cobro manual). La base de TODAS las comisiones es el comisionable MENOS este fee:
   // el equipo comisiona sobre lo realmente entrado. Opcional; 0 = comportamiento previo.
   gatewayFee?: number | null,
-  // user_ids EXENTOS de comisión (users.pays_commissions=false, p.ej. socios). Opcional.
-  exentos?: Set<string> | null
+  // user_ids a quienes NO se les debe generar comisión (perfil marcado `pays_commissions = false`,
+  // p.ej. un socio). Si un rep aparece aquí, sencillamente no se empuja su fila — nunca se genera y
+  // se aprueba/liquida después; no comisiona en ningún estado. Opcional; ausente = todos comisionan
+  // (comportamiento previo).
+  noComisionan?: Set<string> | null
 ): InsertCommission[] {
   const commissions: InsertCommission[] = []
   const collectedAt = new Date(collection.collected_at)
@@ -119,8 +122,8 @@ export function calculateCommissionsForCollection(
     return pickRuleFromPool(pool, repCash, repTramo)
   }
 
-  // Setter commission (los exentos no comisionan: sin fila, sin métricas río abajo)
-  if (sale.setter_id && !esExentoDeComision(sale.setter_id, exentos)) {
+  // Setter commission
+  if (sale.setter_id && !noComisionan?.has(sale.setter_id)) {
     const rule = getRule('setter', sale.setter_id)
     const percent = rule?.percent ?? 5
     commissions.push({
@@ -141,9 +144,8 @@ export function calculateCommissionsForCollection(
     })
   }
 
-  // Closer commission — mismo rasero: un socio puede cerrar ventas y aun así no
-  // comisionar; su user_id exento suprime la fila aquí y en la proyección.
-  if (sale.closer_id && !esExentoDeComision(sale.closer_id, exentos)) {
+  // Closer commission
+  if (sale.closer_id && !noComisionan?.has(sale.closer_id)) {
     const rule = getRule('closer', sale.closer_id)
     const percent = rule?.percent ?? 10
     commissions.push({
@@ -164,9 +166,8 @@ export function calculateCommissionsForCollection(
     })
   }
 
-  // Affiliate / Collaborator commission — la exención también aplica al lane de afiliado:
-  // si el socio trae el contacto por su enlace, su beneficio ya está en la sociedad.
-  if (sale.affiliate_id && sale.affiliate_commission_percent && !esExentoDeComision(sale.affiliate_id, exentos)) {
+  // Affiliate / Collaborator commission
+  if (sale.affiliate_id && sale.affiliate_commission_percent && !noComisionan?.has(sale.affiliate_id)) {
     const percent = sale.affiliate_commission_percent
     commissions.push({
       tenant_id: tenantId,

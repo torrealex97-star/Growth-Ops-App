@@ -141,7 +141,8 @@ test('el dashboard parte de 30 días y el gasto respeta las cuentas Meta activas
 
   assert.match(dashboard, /periodPreset: DEFAULT_PERIOD/)
   assert.match(dashboard, /const periodRevenue = useMemo/)
-  assert.match(dashboard, /filteredSales\.filter\(isActiveSale\)/)
+  // `cuentaComoVenta` desde F03: el estado activo ya no basta, una reserva abierta no factura (D8).
+  assert.match(dashboard, /filteredSales\.filter\(cuentaComoVenta\)/)
   assert.doesNotMatch(dashboard, /revenue=\{cur\.gross\}/)
   assert.match(spendRoute, /parseAccountIds\(cfg\.META_AD_ACCOUNT_ID\)/)
   assert.match(spendRoute, /q = q\.in\('account_id', activeAccountIds\)/)

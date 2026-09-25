@@ -70,12 +70,41 @@ test('con la cuenta elegida a mano, un descubrimiento que falla no impide sincro
   }
 })
 
+test('sin cuenta seleccionada NI "todas" pedida explícitamente, se rechaza sin llamar a Meta', async () => {
+  // "Vacío" ya NO significa "todas": un token de Meta Business Manager puede ver cuentas de otros
+  // negocios, y sincronizar "todas por defecto" mezclaba su gasto con el de este tenant en cuanto
+  // Integraciones › Meta se quedaba sin cuenta marcada (nunca guardada, o borrada a mano).
+  const f = stubFetch(() => cuentas(['act_1', 'act_de_otro_negocio']))
+  try {
+    await assert.rejects(() => resolveMetaConfigs({ META_ACCESS_TOKEN: 'tok' }), { code: 'sin_cuenta_seleccionada' })
+    assert.equal(f.calls.length, 0, 'no debe ni descubrir cuentas sin selección ni "todas" explícito')
+  } finally {
+    f.restore()
+  }
+})
+
+test('META_AD_ACCOUNTS_ALL="1" sigue sincronizando todas, a propósito y no por defecto', async () => {
+  const f = stubFetch(() => cuentas(['act_1', 'act_2']))
+  try {
+    const configs = await resolveMetaConfigs({ META_ACCESS_TOKEN: 'tok', META_AD_ACCOUNTS_ALL: '1' })
+    assert.deepEqual(
+      configs.map((c) => c.accountId),
+      ['act_1', 'act_2']
+    )
+  } finally {
+    f.restore()
+  }
+})
+
 test('sin cuenta elegida, el error del token llega arriba en vez de convertirse en "faltan credenciales"', async () => {
   // Este era el fallo que mandaba a revisar un campo perfecto: el token estaba mal (o la firma), y el
-  // mensaje hablaba de credenciales que faltaban.
+  // mensaje hablaba de credenciales que faltaban. META_AD_ACCOUNTS_ALL='1' para llegar a la parte que
+  // se está probando (el manejo del error de Meta), no la política de selección de cuentas.
   const f = stubFetch(() => errorMeta(190, 'Invalid OAuth access token', 400))
   try {
-    await assert.rejects(() => resolveMetaConfigs({ META_ACCESS_TOKEN: 'tok' }), { code: 'token_invalido' })
+    await assert.rejects(() => resolveMetaConfigs({ META_ACCESS_TOKEN: 'tok', META_AD_ACCOUNTS_ALL: '1' }), {
+      code: 'token_invalido',
+    })
   } finally {
     f.restore()
   }
@@ -84,7 +113,9 @@ test('sin cuenta elegida, el error del token llega arriba en vez de convertirse 
 test('un token que no ve ninguna cuenta dice exactamente eso', async () => {
   const f = stubFetch(() => cuentas([]))
   try {
-    await assert.rejects(() => resolveMetaConfigs({ META_ACCESS_TOKEN: 'tok' }), { code: 'sin_cuentas' })
+    await assert.rejects(() => resolveMetaConfigs({ META_ACCESS_TOKEN: 'tok', META_AD_ACCOUNTS_ALL: '1' }), {
+      code: 'sin_cuentas',
+    })
   } finally {
     f.restore()
   }
@@ -95,7 +126,7 @@ test('la firma appsecret_proof se calcula sobre el token y el secreto RECORTADOS
   // que sobraba un carácter invisible.
   const f = stubFetch(() => cuentas(['act_9']))
   try {
-    await resolveMetaConfigs({ META_ACCESS_TOKEN: '  tok  ', META_APP_SECRET: ' sec \n' })
+    await resolveMetaConfigs({ META_ACCESS_TOKEN: '  tok  ', META_APP_SECRET: ' sec \n', META_AD_ACCOUNTS_ALL: '1' })
     const esperada = createHmac('sha256', 'sec').update('tok').digest('hex')
     assert.ok(f.calls[0].includes(`appsecret_proof=${esperada}`), f.calls[0])
   } finally {
@@ -108,7 +139,7 @@ test('se reintenta un límite de uso, pero NO un token inválido', async () => {
   // rate limit sin ninguna posibilidad de éxito.
   const limitado = stubFetch((_u, _o, n) => (n < 3 ? errorMeta(4, 'rate limit', 400) : cuentas(['act_1'])))
   try {
-    const configs = await resolveMetaConfigs({ META_ACCESS_TOKEN: 'tok' })
+    const configs = await resolveMetaConfigs({ META_ACCESS_TOKEN: 'tok', META_AD_ACCOUNTS_ALL: '1' })
     assert.equal(configs.length, 1)
     assert.equal(limitado.calls.length, 3, 'debe reintentar hasta que responda')
   } finally {
@@ -117,7 +148,7 @@ test('se reintenta un límite de uso, pero NO un token inválido', async () => {
 
   const invalido = stubFetch(() => errorMeta(190, 'Invalid OAuth access token', 400))
   try {
-    await assert.rejects(() => resolveMetaConfigs({ META_ACCESS_TOKEN: 'tok' }))
+    await assert.rejects(() => resolveMetaConfigs({ META_ACCESS_TOKEN: 'tok', META_AD_ACCOUNTS_ALL: '1' }))
     assert.equal(invalido.calls.length, 1, 'no debe reintentar un fallo de credenciales')
   } finally {
     invalido.restore()
@@ -141,7 +172,11 @@ test('varias cuentas separadas por comas se sincronizan todas, sin repetidas', a
 test('la versión de la API se toma de la config de la subcuenta', async () => {
   const f = stubFetch(() => cuentas(['act_1']))
   try {
-    const configs = await resolveMetaConfigs({ META_ACCESS_TOKEN: 'tok', META_API_VERSION: 'v25.0' })
+    const configs = await resolveMetaConfigs({
+      META_ACCESS_TOKEN: 'tok',
+      META_API_VERSION: 'v25.0',
+      META_AD_ACCOUNTS_ALL: '1',
+    })
     assert.equal(configs[0].version, 'v25.0')
     assert.ok(f.calls[0].includes('/v25.0/'), f.calls[0])
   } finally {

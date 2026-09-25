@@ -37,6 +37,7 @@ export function mapearContexto(row: Record<string, unknown> | null | undefined):
     objetivoCashRoas: numero(row.target_cash_roas),
     capacidadLlamadasSemana: numero(row.capacity_calls_per_week),
     capacidadClientesActivos: numero(row.capacity_active_clients),
+    costeMedioEntregaEur: numero(row.avg_delivery_cost_eur),
     notas: texto(row.notes),
   }
 }
@@ -45,7 +46,7 @@ export async function cargarContextoNegocio(sb: SupabaseClient, tenantId: string
   const { data, error } = await sb
     .from('growth_context')
     .select(
-      'business_type,offer_name,offer_price_eur,sales_cycle_days,target_monthly_revenue_eur,target_ltgp_cac,target_cash_roas,capacity_calls_per_week,capacity_active_clients,notes'
+      'business_type,offer_name,offer_price_eur,sales_cycle_days,target_monthly_revenue_eur,target_ltgp_cac,target_cash_roas,capacity_calls_per_week,capacity_active_clients,avg_delivery_cost_eur,notes'
     )
     .eq('tenant_id', tenantId)
     .maybeSingle()

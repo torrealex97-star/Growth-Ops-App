@@ -25,12 +25,21 @@ type Role = 'setter' | 'closer'
 // Plan personalizado: solo el primer pago que adelanta el cliente (reserva/entrada) comisiona al
 // instante. Cualquier cobro posterior de la misma venta, si ya existe un cobro elegible previo,
 // debe quedar en revisión manual de cobros en vez de generar comisión real de inmediato.
+//
+// RESERVA QUE AÚN NO ES CLIENTE: quien solo reserva (method='reserva' y `reservation_completed_at`
+// sigue null) no ha "empezado a pagar" en el sentido de negocio — solo asegura una plaza. El cobro
+// de esa reserva NO comisiona a nadie (ni closer, ni setter, ni colaborador) hasta que la persona
+// complete el pago (fraccionado o total): en ese momento `complete-reservation` reabre este cobro
+// para que SÍ comisione (ver ese route). Antes de esto, cualquier `method === 'reserva'` sin
+// completar generaba su comisión al instante, exactamente igual que un cobro normal.
 export async function saleNeedsCommissionReview(
   sb: SupabaseClient,
   tenantId: string,
   saleId: string,
-  planMethod: string | null | undefined
+  planMethod: string | null | undefined,
+  reservationCompletedAt?: string | null
 ): Promise<boolean> {
+  if (planMethod === 'reserva' && !reservationCompletedAt) return true
   if (planMethod !== 'custom') return false
   const { data: existingEligible } = await sb
     .from('collections')
@@ -132,6 +141,16 @@ async function activeRules(sb: SupabaseClient, tenantId: string): Promise<Commis
   const { data, error } = await sb.from('commission_rules').select('*').eq('tenant_id', tenantId).eq('is_active', true)
   if (error) throw new Error(`No se pudieron leer las reglas de comisión: ${error.message}`)
   return (data ?? []) as CommissionRule[]
+}
+
+// Quiénes de estos user_ids tienen `pays_commissions = false` (p.ej. un socio): no se les genera
+// comisión de closer/setter/afiliado por ningún cobro. Ausente/NULL en la columna = comisiona (el
+// valor por defecto es `true`), así que solo se excluye a quien lo tenga EXPLÍCITAMENTE a false.
+async function usuariosSinComision(sb: SupabaseClient, userIds: (string | null | undefined)[]): Promise<Set<string>> {
+  const ids = Array.from(new Set(userIds.filter((x): x is string => !!x)))
+  if (!ids.length) return new Set()
+  const { data } = await sb.from('users').select('id, pays_commissions').in('id', ids).eq('pays_commissions', false)
+  return new Set((data ?? []).map((u) => u.id as string))
 }
 
 /**
@@ -248,12 +267,12 @@ export async function generateCommissionsForCollection(
   // participant_type='collaborator' (misma matemática, lane propia del ledger).
   const colaboradoresActivos = await usuariosColaboradoresActivos(sb, tenantId)
 
-  // Exentos de comisión (socios…): el motor ni les genera fila.
-  const exentos = await usuariosExentosDeComision(sb, tenantId)
-
   // BASE NETA de pasarela: el fee real (Stripe por espejo/API o el del plan) descuenta de la base
   // de TODAS las comisiones de este cobro — setter, closer, clásico y colaborador por igual.
   const fees = await feesForCollections(sb, tenantId, [collection])
+
+  // Quien tenga `pays_commissions = false` (p.ej. un socio) no recibe comisión de este cobro.
+  const noComisionan = await usuariosSinComision(sb, [sale.setter_id, sale.closer_id, sale.affiliate_id])
 
   const commissions = calculateCommissionsForCollection(
     tenantId,
@@ -264,7 +283,7 @@ export async function generateCommissionsForCollection(
     tramoByRep,
     colaboradoresActivos,
     fees.get(collection.id) ?? 0,
-    exentos
+    noComisionan
   )
   // Se devuelven las filas ESCRITAS, no las calculadas, y un fallo se propaga. Antes se devolvía
   // `commissions.length` con el error del insert descartado: la pantalla decía "3 comisiones
@@ -372,12 +391,11 @@ export async function reconcileSaleCommissions(
   // Colaboradores activos: lane 'collaborator' del ledger, igual que en el hot path.
   const colaboradoresActivos = await usuariosColaboradoresActivos(sb, tenantId)
 
-  // Exentos de comisión: el reconcile reconstruye filas, así que aquí TAMBIÉN hay que respetar
-  // la exención — sin esto, reparar la contabilidad reviviría las comisiones del socio borradas.
-  const exentos = await usuariosExentosDeComision(sb, tenantId)
-
   // BASE NETA: mismo fee por cobro que usa el hot path (espejo/API Stripe o plan del cobro manual).
   const fees = await feesForCollections(sb, tenantId, colls)
+
+  // Quien tenga `pays_commissions = false` (p.ej. un socio) no recibe comisión al reconciliar.
+  const noComisionan = await usuariosSinComision(sb, [s.setter_id, s.closer_id, s.affiliate_id])
 
   const toInsert: InsertCommission[] = []
   for (const col of colls) {
@@ -390,7 +408,7 @@ export async function reconcileSaleCommissions(
       tramoByRep,
       colaboradoresActivos,
       fees.get(col.id) ?? 0,
-      exentos
+      noComisionan
     )
     for (const r of rows) {
       const key = `${r.collection_id}|${r.user_id}|${r.participant_type}`

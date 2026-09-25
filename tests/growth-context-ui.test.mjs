@@ -20,6 +20,7 @@ const camposPersistidos = [
   'target_cash_roas',
   'capacity_calls_per_week',
   'capacity_active_clients',
+  'avg_delivery_cost_eur',
   'notes',
 ]
 

@@ -69,6 +69,27 @@ export async function limpiarActividadTenant(
   const errores: string[] = []
   const resultados: ResultadoLimpieza[] = []
 
+  // Los contratos firmados guardan su PDF en Storage (bucket `contratos`, ruta
+  // `{contractId}.pdf`): purgar los objetos antes de que el bucle borre las filas evita
+  // huérfanos en el bucket corrida tras corrida (solo las filas ya limpiadas).
+  {
+    const { data: contratos } = await sb.from('contracts').select('id, signed_pdf_url').eq('tenant_id', tenantId)
+    const paths = (contratos ?? [])
+      .map((c) => c.signed_pdf_url)
+      .filter((p): p is string => typeof p === 'string' && p.length > 0)
+    if (paths.length) {
+      const { error } = await sb.storage.from('contratos').remove(paths)
+      if (error) {
+        errores.push(`storage/contratos: ${error.message}`)
+        // null = no se sabe cuántos objetos quedaron sin purgar (misma semántica que
+        // un fallo de borrado en tabla).
+        resultados.push({ tabla: 'storage/contratos', filas: null, error: error.message })
+      } else {
+        resultados.push({ tabla: 'storage/contratos', filas: paths.length })
+      }
+    }
+  }
+
   for (const tabla of ORDEN_BORRADO) {
     const filas = await borrarTabla(sb, tabla, tenantId, errores)
     resultados.push({ tabla, filas, ...(filas === null ? { error: errores[errores.length - 1] } : {}) })

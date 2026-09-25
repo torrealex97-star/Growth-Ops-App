@@ -1,13 +1,24 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useTenantId } from '@/lib/tenant-context'
 import { createClient } from '@/lib/supabase/client'
 import { CalendarRange } from 'lucide-react'
-import { isActiveSale, monthLabel } from '@/lib/analytics'
+import { cuentaComoVenta, monthLabel } from '@/lib/analytics'
+import { metodoDePlan } from '@/lib/metrics/agregados'
 import { formatCurrency } from '@/lib/utils'
 import { FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 
-type SaleRow = { id: string; sale_date: string | null; gross_amount: number | string; status: string }
+type SaleRow = {
+  id: string
+  sale_date: string | null
+  gross_amount: number | string
+  status: string
+  /** Reserva: método del plan y cuándo se completó. Sin esto una reserva abierta parece venta (D8). */
+  payment_plans?: unknown
+  payment_plan_method?: string | null
+  reservation_completed_at?: string | null
+}
 type CollectionRow = { sale_id: string; gross_amount: number | string; collected_at: string | null; status: string }
 
 const WINDOWS = [30, 60, 90, 180] as const
@@ -40,7 +51,7 @@ function buildCohorts(sales: SaleRow[], collections: CollectionRow[]): CohortRow
   // Dashboard/PNL) — una venta cancelada/reembolsada/con chargeback nunca fue negocio real, y
   // dejarla en el denominador hacía que el %cobrado de la cohorte pareciera peor de lo que es.
   for (const s of sales) {
-    if (!s.sale_date || !isActiveSale(s)) continue
+    if (!s.sale_date || !cuentaComoVenta(s)) continue
     const ym = ymOf(s.sale_date)
     if (!ym) continue
     const row = ensure(ym)
@@ -72,6 +83,7 @@ function pctColor(pct: number): string {
 }
 
 export default function CohortsPage() {
+  const tenantId = useTenantId()
   const [loading, setLoading] = useState(true)
   const [sales, setSales] = useState<SaleRow[]>([])
   const [collections, setCollections] = useState<CollectionRow[]>([])
@@ -79,16 +91,26 @@ export default function CohortsPage() {
   useEffect(() => {
     let mounted = true
     async function load() {
+      setLoading(true)
       const supabase = createClient()
       const [salesRes, collRes] = await Promise.all([
-        supabase.from('sales').select('id, sale_date, gross_amount, status').range(0, FINANCE_QUERY_ROW_CAP),
+        supabase
+          .from('sales')
+          // reservation_completed_at + payment_plans(method): sin ellos una reserva abierta es
+          // indistinguible de una venta y vuelve a contarse como facturación (MONEY D8, F03).
+          .select('id, sale_date, gross_amount, status, reservation_completed_at, payment_plans(method)')
+          .eq('tenant_id', tenantId)
+          .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('collections')
           .select('sale_id, gross_amount, collected_at, status')
+          .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
       ])
       if (!mounted) return
-      setSales(salesRes.data || [])
+      // El embed de payment_plans llega anidado: se aplana aquí para que el predicado de venta
+      // (cuentaComoVenta) pueda ver si la fila es una reserva todavía abierta.
+      setSales(((salesRes.data || []) as SaleRow[]).map((v) => ({ ...v, payment_plan_method: metodoDePlan(v) })))
       setCollections(collRes.data || [])
       setLoading(false)
     }
@@ -96,7 +118,7 @@ export default function CohortsPage() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [tenantId])
 
   const cohorts = useMemo(() => buildCohorts(sales, collections).slice(0, 12), [sales, collections])
 

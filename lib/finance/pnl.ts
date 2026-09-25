@@ -1,4 +1,4 @@
-import { isActiveSale } from '@/lib/analytics'
+import { cuentaComoVenta } from '@/lib/analytics'
 
 // Única fuente de verdad para el cálculo de I&G/Resultado neto mensual — antes vivía
 // duplicado (con fórmulas ya divergentes) en finanzas/page.tsx, pnl/page.tsx y gestoria/page.tsx.
@@ -31,6 +31,9 @@ export type PnlSaleRow = {
   discount: number | string | null
   sale_date: string | null
   status: string
+  /** Reserva abierta: no es venta ni factura (MONEY D8). Sin estos campos volvería a contarse. */
+  payment_plan_method?: string | null
+  reservation_completed_at?: string | null
 }
 export type PnlCollectionRow = {
   id: string
@@ -84,7 +87,7 @@ export function computeMonthlyPnl(
   }
 ): MonthlyPnl {
   const { sales, collections, refunds, expenses, commissions } = data
-  const monthSales = sales.filter((s) => isActiveSale(s) && ymOf(s.sale_date) === ym)
+  const monthSales = sales.filter((s) => cuentaComoVenta(s) && ymOf(s.sale_date) === ym)
   const monthCollections = collections.filter((c) => c.status === 'collected' && ymOf(c.collected_at) === ym)
   const monthRefunds = refunds.filter((r) => ymOf(r.refund_date) === ym)
   const monthExpenses = expenses.filter((e) => ymOf(e.expense_date) === ym)

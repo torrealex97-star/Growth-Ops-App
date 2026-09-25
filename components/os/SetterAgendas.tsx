@@ -28,9 +28,16 @@ export function SetterAgendas({ rows }: { rows: SetterAgendaRow[] }) {
                 </p>
                 <p className="text-[11px] text-muted-foreground">
                   {formatNumber(r.shows)} llamadas atendidas · {formatNumber(r.noShows)} no asistieron ·{' '}
-                  <span className={r.showRate >= 60 ? 'text-emerald-400' : 'text-muted-foreground'}>
-                    {formatPercent(r.showRate, 0)} show
-                  </span>
+                  {r.showRate === null ? (
+                    <span className="text-amber-400">sin marcar</span>
+                  ) : (
+                    <span className={r.showRate >= 60 ? 'text-emerald-400' : 'text-muted-foreground'}>
+                      {formatPercent(r.showRate, 0)} show
+                    </span>
+                  )}
+                  {r.sinResolver > 0 ? (
+                    <span className="text-muted-foreground"> · {formatNumber(r.sinResolver)} sin marcar</span>
+                  ) : null}
                 </p>
               </div>
             </div>
