@@ -141,7 +141,67 @@ Quedan expresamente fuera contratos, colaboradores, RAG, facturación, IA, integ
 > agentes que trabajan en el proyecto (Claude Code, Freebuff, Codex, Copilot). Debajo de la sección
 > "Estado" hay un histórico por hebras que se conserva como registro; lo vigente es lo de arriba.
 
+## CODEX — DASHBOARD & METRIC AUDIT
+
+**2026-09-25 — EN CURSO, NO CERTIFICADA.** Base `7a150cc`; rama única `codex/dashboard-metric-audit`. Matriz: [DASHBOARD_AUDIT.md](../DASHBOARD_AUDIT.md). Plan: [DASHBOARD_CORRECTION_PLAN.md](../DASHBOARD_CORRECTION_PLAN.md). No confundir inspección de código con revisión visual completa.
+
+### COMPLETED
+
+- Skills de marketing/copywriting y sales-engineering del proyecto, MONEY/METRICS y contratos existentes revisados.
+- Inventario por rutas; trazabilidad de métricas críticas de dashboard, analytics, funnels, marketing, CRM, ventas, comisiones, finanzas, delivery y Ask.
+- Consultas de producción de solo lectura: cobertura, asignación, estados, monedas y jobs. Evidencia real comunicada privadamente; documentos sin datos de tenant.
+- Prueba de lectura RLS con rol autenticado de colaborador y rollback: scope excesivo demostrado (F01). Endpoints privilegiados revisados (F02); HTTP por rol pendiente.
+- Reproducciones sintéticas: reserva abierta, cobro pendiente, moneda ignorada y refund de cobro antiguo. No se modificaron datos, roles, políticas ni integraciones.
+- Quality Gate local exit 0: format, lint (advertencias existentes), typecheck, unit 902 pass / 3 skipped / 0 fail, métricas 722 pass / 0 fail. Los 3 skipped NO validan esquema vivo. No build ni E2E/browser autenticado; no se cambiaron páginas.
+
+### SAFE FIXES APPLIED
+
+- `lib/ai/agent/tools.ts`: HEAD de contactos devuelve count, no filas; Ask ahora conserva total/0/null. Test nuevo `tests/metrics/agent-overview-count.test.mjs` falló en 12 y 0 antes, pasa después.
+- Documentos de auditoría/plan y esta sección. Corrección en rama, sin despliegue. Los otros hallazgos siguen abiertos.
+
+### USER ACTION REQUIRED
+
+- Abrir sesión admin de GrowthOps en navegador compartido; posteriormente usar roles existentes para la revisión. No enviar contraseñas ni ampliar permisos.
+- Confirmar setters y mapping real de citas/ventas sin asignar; confirmar enlaces venta-cita y asistencia provisional con evidencia. Preparar lotes privados, jamás IDs reales en Git.
+- Indicar inicio esperado de histórico por fuente/cuenta para poder cuantificar huecos; primer registro importado no demuestra completitud.
+
+### EXTERNAL BLOCKERS
+
+- Navegador accesible pero login sin sesión: bloquea capturas, filtros, exports, responsive y comparación UI por roles.
+- Conversaciones orgánicas sujetas a acceso del proveedor. Logs de timeout y éxito mezclados requieren revisión por job, no un diagnóstico global de integración rota.
+
+### BUSINESS DECISIONS REQUIRED
+
+- Pendientes de MONEY (modo bruto/atribuible y fuente FX, billed/recognized/clawback cuando se activen).
+- Grano clientes únicos vs ventas en cohortes, close rate total vs cualificado y ventanas de maduración por oferta/canal. No sustituir definiciones por benchmark.
+
+### FINDINGS BY PRIORITY
+
+- **P0 F01–F02:** colaborador lee equipo por RLS; APIs Funnels/VSL usan privilegio sin scope de rol suficiente. Coordinar carril de seguridad antes de migrar.
+- **P1 F03–F10,F13:** reservas contadas de forma distinta; FX ausente; refunds/fechas y cash heterogéneos; filtros del resumen; población del funnel; diagnóstico sin gates; cohortes inmaduras; capa AI divergente; errores como cero financiero.
+- **P2 F11–F12,F14–F18:** mapping/asistencia/histórico; fronteras temporales; proyección/morosidad; filtros atribución; control Data Health usa name no seleccionado; delivery no acredita retención.
+- **P3:** visual pendiente de browser; ninguna promesa de fidelidad a mockup sin captura.
+
+### DATA GAPS
+
+Asignaciones y enlaces incompletos, notas provisionales, fuentes de vídeo/conversaciones sin datos y fecha histórica esperada sin acreditar. Alcance exacto en plan. **Ningún hallazgo clasificado como problema real de negocio fuera de KPI.** Orden obligatorio: definición → fuente → completitud → periodo → maduración → asignación → cálculo → benchmark orientativo.
+
+### NEXT RECOMMENDED WORK
+
+1. Resolver P0 con dry-run y contrato por rol; no confiar en UI.
+2. Abrir sesión browser y completar lista de verificación por pantalla/rol/periodo del documento, incluidos mobile y exports.
+3. Corregir P1 en unidades pequeñas, comparar UI/API/AI con mismo scope y datos sintéticos.
+4. Obtener mappings/fechas humanas y ejecutar backfill auditado en unidad separada.
+5. Actualizar scorecard y cerrar solo al verificar todos los módulos/roles críticos. La auditoría permanece abierta.
+
+### CONCURRENCY NOTES
+
+Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de colaborador, clasificación nuevo/recurrente y documentación de otros agentes. Migración/gastos `20260922100000` y tipos BD reclamados por Claude Code: no tocados. No reset, stash, rebase ni force push. No se desplegó ni fusionó este trabajo.
+
 ## Tablero de reclamaciones (en curso AHORA)
+
+**CODEX — DASHBOARD & METRIC AUDIT (25-sep):** auditoría transversal solicitada por el usuario; rama `codex/dashboard-metric-audit`. Reclama `DASHBOARD_AUDIT.md`, `DASHBOARD_CORRECTION_PLAN.md`, sección propia de relevo y fix acotado del conteo HEAD de contactos en `lib/ai/agent/tools.ts` con `tests/metrics/agent-overview-count.test.mjs`. Inspección de código y producción de solo lectura; ningún cambio de datos. No tocar el WIP del checkout Documents ni las migraciones/gastos reclamados por Claude Code. Regla KPI: definición → fuente → completitud → periodo → maduración → asignación → cálculo → benchmark orientativo.
+
 
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.

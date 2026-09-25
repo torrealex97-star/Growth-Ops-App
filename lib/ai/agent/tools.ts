@@ -200,7 +200,7 @@ async function emptySourceWarning(
 // Primera parada para preguntas tipo "¿qué ha cambiado?" / "resumen del negocio".
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getBusinessOverview({ tenantId, sb }: ToolContext, period: Period) {
-  const [{ data: campaigns }, { data: sales }, { data: contacts }] = await Promise.all([
+  const [{ data: campaigns }, { data: sales }, { count: contactCount }] = await Promise.all([
     sb.from('campaigns').select('*').eq('tenant_id', tenantId).limit(500),
     sb
       .from('sales')
@@ -233,7 +233,7 @@ export async function getBusinessOverview({ tenantId, sb }: ToolContext, period:
     roas: funnel.roas,
     ventas: activeSales.length,
     ingresos: revenue,
-    total_contactos: contacts?.length ?? null,
+    total_contactos: contactCount ?? null,
     campanas_activas: periodCampaigns.filter((c) => c.status === 'activa').length,
     ...(aviso ? { aviso_datos: aviso } : {}),
   }
