@@ -360,7 +360,8 @@ async function vslSessionStage(
   // y eso se declara. countRows ya devuelve rows:null con el error — lo aprovechamos.
   if (stageId !== 'visitas' && stageId !== 'registros') return null
   const dateCol = stageId === 'visitas' ? 'created_at' : 'updated_at'
-  const extra = stageId === 'registros' ? { column: 'lead_email', neq: null as unknown as string } : undefined
+  // "Registro" = sesión que dejó correo. La condición es lead_email NOT NULL.
+  const extra = stageId === 'registros' ? { column: 'lead_email' } : undefined
   const res = await countVslSessions(sb, tenantId, dateCol, range, extra)
   return res
 }
@@ -370,7 +371,7 @@ async function countVslSessions(
   tenantId: string,
   dateColumn: string,
   range: DateRange,
-  extra?: { column: string; neq: string }
+  extra?: { column: string }
 ): Promise<MetricValue> {
   try {
     // El builder de supabase-js con nombres de columna dinámicos satura la inferencia (TS2589).
@@ -384,8 +385,14 @@ async function countVslSessions(
     // Un solo gte no basta para acotar por ambos lados; PostgREST acepta dos filtros sobre la
     // misma columna ANDados si van como parámetros separados. El 'lte' añade el segundo.
     restUrl.searchParams.append(dateColumn, `lte.${range.to}`)
-    restUrl.searchParams.set('not.' + dateColumn, 'is.null')
-    if (extra) restUrl.searchParams.set('not.' + extra.column, 'is.null')
+    // EL 400 QUE DEVOLVÍA ESTA CONSULTA (auditoría F25): el operador va en el VALOR del filtro, no
+    // en el nombre de la columna. `not.lead_email=is.null` le pide a PostgREST una columna llamada
+    // "not.lead_email", que no existe; la forma correcta es `lead_email=not.is.null`. La pantalla
+    // enseñaba "HTTP 400" en la etapa de registros — correctamente distinto de cero, pero sin dato.
+    //
+    // El filtro de no-nulo sobre la columna de fecha se retira por redundante: una fila con fecha
+    // nula no puede satisfacer el gte/lte de arriba.
+    if (extra) restUrl.searchParams.append(extra.column, 'not.is.null')
     restUrl.searchParams.set('limit', '0')
     const res = await fetch(restUrl, {
       headers: {

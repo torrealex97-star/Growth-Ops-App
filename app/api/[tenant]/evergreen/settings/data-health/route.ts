@@ -71,7 +71,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
         )
         .eq('tenant_id', auth.tenantId)
         .limit(10000),
-      sb.from('campaigns').select('id,synced_at').eq('tenant_id', auth.tenantId).eq('provider', 'meta').limit(10000),
+      // `name` entra porque el control de atribución compara por NOMBRE contra utm_campaign: sin
+      // seleccionarlo, `c.name` era undefined y NINGUNA campaña podía reconocerse como atribuida,
+      // así que el control inventaba huecos de atribución que no existían (auditoría F17).
+      sb
+        .from('campaigns')
+        .select('id,name,synced_at')
+        .eq('tenant_id', auth.tenantId)
+        .eq('provider', 'meta')
+        .limit(10000),
       sb.from('ig_media').select('id,synced_at').eq('tenant_id', auth.tenantId).limit(10000),
       sb.from('canonical_events').select('id,received_at').eq('tenant_id', auth.tenantId).limit(10000),
     ])
@@ -234,7 +242,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
       campanas:
         campanasAtribuidas === null
           ? null
-          : campaigns.map((c) => ({ id: c.id, conAtribucion: campanasAtribuidas.has((c as { name?: string }).name) })),
+          : campaigns.map((c) => ({
+              id: c.id,
+              conAtribucion: campanasAtribuidas.has((c as { name?: string | null }).name ?? ''),
+            })),
       agendas: appointments.map((a) => ({ id: a.id, contactId: a.contact_id })),
       // Una llamada es una cita con grabación: si no hay cita, no hay grabación que colgar de nada.
       llamadas: appointments

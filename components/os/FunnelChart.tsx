@@ -24,6 +24,7 @@ import { useId, useState } from 'react'
 import { AlertTriangle, Loader2, Settings2 } from 'lucide-react'
 import type { FunnelResult, StageResult } from '@/lib/funnels/compute'
 import { isUsable, STATUS_LABELS } from '@/lib/funnels/types'
+import { ANCHO_LEGIBLE, anchos } from '@/lib/funnels/geometria'
 import { formatNumber, formatPercent } from '@/lib/utils'
 
 type FunnelChartState = 'loading' | 'not_connected' | 'error' | 'ok'
@@ -43,16 +44,6 @@ type Props = {
 
 const fmt = (n: number) => formatNumber(Math.round(n))
 const fmtPct = (n: number) => formatPercent(n, n < 10 ? 1 : 0)
-
-/** Ancho de la barra: proporción respecto a la PRIMERA etapa con dato. La cima es el 100 %. */
-function anchos(stages: StageResult[]): number[] {
-  const primera = stages.find((s) => isUsable(s.count))?.count.value ?? 0
-  return stages.map((s) => {
-    if (!isUsable(s.count) || !primera) return 1
-    // Suelo del 6 %: una etapa con muy poco volumen tiene que seguir siendo visible y clicable.
-    return Math.max(6, ((s.count.value ?? 0) / primera) * 100)
-  })
-}
 
 function Contenedor({ children, className }: { children: React.ReactNode; className?: string }) {
   return <div className={`border-border bg-card rounded-2xl border p-5 ${className ?? ''}`}>{children}</div>
@@ -143,6 +134,9 @@ export function FunnelChart({ result, state = 'ok', message, onStageClick, tabla
                   ? (stages[i - 1].count.value ?? 0) - (s.count.value ?? 0)
                   : null
               const Fila = clicable ? 'button' : 'div'
+              // Barra estrecha: el texto NO cabe dentro y la barra recorta lo que sobra. En ese
+              // caso la etiqueta y la cifra se pintan debajo, donde sí se leen.
+              const estrecha = ws[i] < ANCHO_LEGIBLE
               return (
                 <li key={s.stage.id}>
                   <Fila
@@ -178,14 +172,23 @@ export function FunnelChart({ result, state = 'ok', message, onStageClick, tabla
                           aria-hidden
                         />
                       ) : null}
-                      <span className="text-foreground relative truncate text-xs font-medium">{s.stage.label}</span>
-                      <span className="text-foreground relative shrink-0 text-sm font-semibold tabular-nums">
-                        {usable ? fmt(s.count.value ?? 0) : '—'}
-                      </span>
+                      {!estrecha ? (
+                        <>
+                          <span className="text-foreground relative truncate text-xs font-medium">{s.stage.label}</span>
+                          <span className="text-foreground relative shrink-0 text-sm font-semibold tabular-nums">
+                            {usable ? fmt(s.count.value ?? 0) : '—'}
+                          </span>
+                        </>
+                      ) : null}
                     </div>
 
                     {/* Debajo de cada barra: conversión desde la anterior y cuántos se pierden. */}
                     <div className="text-muted-foreground mt-0.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 px-1 text-xs">
+                      {estrecha ? (
+                        <span className="text-foreground font-medium">
+                          {s.stage.label}: {usable ? fmt(s.count.value ?? 0) : '—'}
+                        </span>
+                      ) : null}
                       {!usable ? (
                         <span className="text-amber-400">{s.count.error || STATUS_LABELS[s.count.status]}</span>
                       ) : (
