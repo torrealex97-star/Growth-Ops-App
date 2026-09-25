@@ -1,5 +1,26 @@
 # Relevo activo
 
+## MONEY.md v1 en main + relevo de la PR #210 — 2026-09-25 (Freebuff/Buffy)
+
+**Estado real del vocabulario financiero (F3):** `MONEY.md` v1 está en `main` desde #209 (`43f78e5`):
+booked/collected mapeados a Contracted Revenue y Cash Collected; billed y recognized declarados
+abiertos (A1/A2) sin cálculo a medias; mecánica bruto/atribuible SIN modo oficial (D1); EUR por
+tenant con FX a la fecha del hecho (D2); IVA bruto para negocio (D3); fees solo en P&L (D4);
+refunds cuando ocurren y disputas a cola de revisión (D5); cash manual deduplicado por
+`payment_reference` (D6); comisiones, cuotas y financiación neta (D7). La auditoría de Claude Code
+(#212/#213) añadió encima D8 (reservas no comisionan hasta completar), D9 (`pays_commissions` veto
+absoluto) y D10 (token compartido nunca sincroniza "todas" sin selección) — compatible, no conflicto.
+
+**PR #210 cerrada como sustituida (no fusionada).** Su rama `docs/money-v1-cierre` era un linaje
+huérfano (sin merge-base con `main`, exactamente el caso de las reglas de trabajo del 21-sep): lo
+único exclusivo que contenía era este texto de relevo, que entra ahora por esta PR. Verificado antes
+de cerrarla: ni `MONEY.md` ni ningún otro fichero del linaje tenía contenido que no estuviera ya en
+`main` (comparado commit a commit).
+
+**Pendiente de Alex:** validar las decisiones y desbloquear las que quiera (sobre todo A3 — el modo
+oficial del consolidado — y A5 clawback). Ninguna bloquea código hoy. El tablero queda con la
+migración `20260922100000` como única fila activa (prioridad 1 de Claude Code).
+
 ## Auditoría financiera: reservas, comisiones, socios y gasto de Meta — 2026-09-25 (Claude Code)
 
 **Fusionado en `origin/main`:** PR #211 (`1bb4e5b`), #212 (`5114973`), #213 (`2d73520`). Origen: Alex pidió auditar comisiones/reservas/gastos tras sospechar errores reales (no una tarea de roadmap). Se encontraron y corrigieron 4 bugs de negocio distintos, todos con impacto real en producción:
@@ -125,12 +146,11 @@ Quedan expresamente fuera contratos, colaboradores, RAG, facturación, IA, integ
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama                              | Toca                                                                                                | Desde  |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------- | ------ |
-| Freebuff (Buffy)  | **MONEY.md v1**: vocabulario financiero de F3 (booked/billed/collected/recognized, bruto vs atribuible, FX, IVA, fees, disputas, comisiones, cuotas, financiación, cash manual) bajo delegación de Alex; decisiones D1–D7 + abiertas A1–A6                                                                                                                                                     | docs/money-v1                     | `docs/MONEY.md` (nuevo), `docs/ACTIVE_HANDOFF.md` (tablero)                                         | 25-sep |
-| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar)                    | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts`     | 25-sep |
-| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)                      | solo `expenses` vía migración pendiente; nada en código                                             | 23-sep |
-| Freebuff (Buffy)  | **Fiabilidad de CI/ops**: reintento + diagnóstico en el login E2E del global-setup (flakiness del 25-sep) y presupuesto del cron `calendly-ghl` bajo el corte de Vercel (504 de hoy). Cambios ya en el workspace, pendientes de commit por Alex                                                                                                                                                | `fix/e2e-login-retry-cron-budget` | `tests/e2e/global-setup.mjs`, `app/api/[tenant]/evergreen/cron/calendly-ghl/route.ts`, este tablero | 25-sep |
+| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama           | Toca                                                                                            | Desde  |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
+| Freebuff (Buffy)  | **MONEY.md v1**: vocabulario financiero de F3 (booked/billed/collected/recognized, bruto vs atribuible, FX, IVA, fees, disputas, comisiones, cuotas, financiación, cash manual) bajo delegación de Alex; decisiones D1–D7 + abiertas A1–A6                                                                                                                                                     | docs/money-v1  | `docs/MONEY.md` (nuevo), `docs/ACTIVE_HANDOFF.md` (tablero)                                     | 25-sep |
+| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
+| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
