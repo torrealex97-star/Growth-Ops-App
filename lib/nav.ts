@@ -51,6 +51,7 @@ import {
   Scale,
   Filter,
   FileAudio,
+  Handshake,
 } from 'lucide-react'
 import { allowedPrefixesFor, type AppRole, type Department } from '@/lib/auth/permissions'
 
@@ -342,6 +343,11 @@ export const NAV_SECTIONS: NavSection[] = [
         ],
       },
       { label: 'Morosidad', href: '/finanzas/morosidad', icon: AlertTriangle, roles: [...LEAD, 'cobros'] },
+      // Ganancias REALES de los socios (% sobre Pre-Tax Profit, no comisión de venta — ver
+      // lib/finance/socios.ts y docs/MONEY.md D9). Visible por rol para dirección; un socio sin
+      // rol de dirección llega vía su propio page_overrides (Configuración > Usuarios), y el
+      // endpoint que alimenta esta pantalla comprueba aparte que sea realmente un socio.
+      { label: 'Socios', href: '/finanzas/socios', icon: Handshake, roles: LEAD },
     ],
   },
   {
@@ -368,6 +374,7 @@ export const NAV_SECTIONS: NavSection[] = [
           { label: 'Productos', href: '/settings/products', icon: Package, roles: ['admin'] },
           { label: 'Reglas Comisión', href: '/settings/commission-rules', icon: Percent, roles: ['admin'] },
           { label: 'Usuarios', href: '/settings/users', icon: UserCog, roles: ['admin'] },
+          { label: 'Socios', href: '/settings/socios', icon: Handshake, roles: ['admin', 'director'] },
           { label: 'Tramos', href: '/settings/tramos', icon: Layers, roles: ['admin'] },
           {
             label: 'Plantillas de contratos',

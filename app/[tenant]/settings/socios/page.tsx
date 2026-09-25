@@ -13,7 +13,10 @@ type Partner = {
   profit_percent: number
   notes: string | null
   is_active: boolean
+  user_id: string | null
 }
+
+type SimpleUser = { id: string; full_name: string }
 
 const cls =
   'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500'
@@ -29,6 +32,8 @@ export default function SociosSettingsPage() {
   const [nName, setNName] = useState('')
   const [nPercent, setNPercent] = useState('')
   const [nNotes, setNNotes] = useState('')
+  const [nUserId, setNUserId] = useState('')
+  const [users, setUsers] = useState<SimpleUser[]>([])
   const [adding, setAdding] = useState(false)
   // La RLS deja LEER socios a todo el equipo pero solo escribir a admin/director. Mostrar el
   // formulario y los botones a quien no puede escribir solo produce fallos silenciosos.
@@ -42,15 +47,19 @@ export default function SociosSettingsPage() {
 
   const load = useCallback(async () => {
     const sb = createClient()
-    const { data, error } = await sb
-      .from('partners')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .order('profit_percent', { ascending: false })
+    const [partnersRes, usersRes] = await Promise.all([
+      sb.from('partners').select('*').eq('tenant_id', tenantId).order('profit_percent', { ascending: false }),
+      sb.from('users').select('id, full_name').order('full_name'),
+    ])
     // Solo "la tabla no existe" (42P01). El patrón anterior incluía la palabra "partners", así que
     // un "permission denied for table partners" se mostraba como "falta la migración".
-    if (error && (error.code === '42P01' || /relation .* does not exist/i.test(error.message))) setTableMissing(true)
-    setPartners((data as Partner[]) ?? [])
+    if (
+      partnersRes.error &&
+      (partnersRes.error.code === '42P01' || /relation .* does not exist/i.test(partnersRes.error.message))
+    )
+      setTableMissing(true)
+    setPartners((partnersRes.data as Partner[]) ?? [])
+    setUsers((usersRes.data as SimpleUser[]) ?? [])
     setLoading(false)
   }, [tenantId])
 
@@ -81,6 +90,7 @@ export default function SociosSettingsPage() {
         notes: nNotes.trim() || null,
         is_active: true,
         tenant_id: tenantId,
+        user_id: nUserId || null,
       })
       .select()
       .single()
@@ -95,6 +105,7 @@ export default function SociosSettingsPage() {
     setNName('')
     setNPercent('')
     setNNotes('')
+    setNUserId('')
     toast.success('Socio añadido')
   }
 
@@ -179,6 +190,12 @@ export default function SociosSettingsPage() {
                   >
                     {p.name}
                   </p>
+                  {p.user_id && (
+                    <p className="text-xs text-brand-400 truncate">
+                      Ve sus ganancias en Finanzas → Socios (
+                      {users.find((u) => u.id === p.user_id)?.full_name ?? 'usuario'})
+                    </p>
+                  )}
                   {p.notes && <p className="text-xs text-muted-foreground truncate">{p.notes}</p>}
                 </div>
                 <span className="text-sm text-amber-300 font-semibold whitespace-nowrap">
@@ -232,6 +249,19 @@ export default function SociosSettingsPage() {
               placeholder="30"
               className={cls}
             />
+          </div>
+          <div className="space-y-1 sm:col-span-2">
+            <label className="text-xs text-muted-foreground">
+              Vincular a un usuario (opcional — le deja ver sus ganancias en Finanzas → Socios)
+            </label>
+            <select value={nUserId} onChange={(e) => setNUserId(e.target.value)} className={cls}>
+              <option value="">Sin vincular</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.full_name}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="space-y-1 sm:col-span-2">
             <label className="text-xs text-muted-foreground">Notas (opcional)</label>
