@@ -223,10 +223,10 @@ test('el CPQBC se calcula sobre las cualificadas por formulario', () => {
 // LOS HUECOS DECLARADOS. Un panel al que le falta una métrica sin decirlo parece completo y no lo está.
 // =============================================================================================
 
-test('LTGP:CAC sigue declarado como hueco mientras no exista margen bruto por cliente', () => {
+test('LTGP:CAC sigue declarado como hueco mientras no exista el motor de valor de vida por cliente', () => {
   const m = con({ ventas: [venta()], cobros: [cobro()], citas: [cita()], campanas: [dia()] })
   assert.equal(m.ltgp_cac.valor, null)
-  assert.match(m.ltgp_cac.motivo, /margen bruto por cliente/)
+  assert.match(m.ltgp_cac.motivo, /valor de vida por cliente/)
 })
 
 test('speed to lead usa la mediana de pares válidos y no deja que un extremo arrastre el dato', () => {

@@ -318,10 +318,14 @@ export function calcularAgregados(e: Entrada): Agregados {
       ? porcentaje(ventasConCita, ofertas.length, '')
       : sinDato('No hay ofertas marcadas en el periodo: no se puede medir el cierre sobre oferta.')
 
-  // LTGP sigue siendo un hueco real: ninguna tabla registra todavía el margen bruto de por vida por
-  // cliente. Usar facturación o cash como sustituto convertiría ingresos en beneficio y falsearía la
-  // métrica que decide si se puede escalar.
-  m.ltgp_cac = sinDato('Falta el margen bruto por cliente (LTGP) para poder dividirlo por el CAC.')
+  // LTGP sigue siendo un hueco real. growth_context.avg_delivery_cost_eur ya declara el coste de
+  // entrega (la mitad que faltaba), pero el LTV de por vida por cliente requiere un motor de
+  // agregación histórica que todavía no existe (sales no está enlazado por contacto en esta capa).
+  // Usar facturación o cash del periodo como sustituto convertiría ingresos en beneficio y falsearía
+  // la métrica que decide si se puede escalar — así que se declara el hueco en vez de aproximarlo.
+  m.ltgp_cac = sinDato(
+    'Falta el motor de valor de vida por cliente (LTV) para calcular el margen bruto y dividirlo por el CAC.'
+  )
 
   m.speed_to_lead =
     medianaSpeedToLead === null
