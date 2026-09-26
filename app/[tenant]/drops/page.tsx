@@ -1,8 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { activeUserNamesQuery } from '@/lib/users'
 import { UserMinus, Plus, X, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -10,9 +9,9 @@ import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { DEFAULT_PERIOD, getCustomDateRange } from '@/lib/filters/period'
+import { DEFAULT_PERIOD } from '@/lib/filters/period'
 import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
-import { useSesion } from '@/lib/tenant-context'
+import { useSesion, useTenantId } from '@/lib/tenant-context'
 import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
 
 function csvEscape(value: string): string {
@@ -81,7 +80,7 @@ function resultBadgeClass(v: string) {
 }
 
 type Contact = { id: string; full_name: string }
-type DbUser = { id: string; full_name: string }
+type DbUser = { id: string; full_name: string | null }
 type DropRow = {
   id: string
   sale_id: string | null
@@ -103,6 +102,7 @@ type DropRow = {
 
 export default function DropsPage() {
   const sesion = useSesion()
+  const tenantId = useTenantId()
   const [items, setItems] = useState<DropRow[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [users, setUsers] = useState<DbUser[]>([])
@@ -124,25 +124,57 @@ export default function DropsPage() {
   const [customFrom, setCustomFrom] = useState<string>('')
   const [customTo, setCustomTo] = useState<string>('')
   const [q, setQ] = useState('')
+  const loadSequence = useRef(0)
 
-  const load = async () => {
-    const supabase = createClient()
-    const [dRes, cRes, uRes] = await Promise.all([
-      supabase
-        .from('drops')
-        .select('*, contacts(full_name), handler:handled_by(full_name)')
-        .order('created_at', { ascending: false }),
-      supabase.from('contacts').select('id, full_name').order('full_name').limit(300),
-      activeUserNamesQuery(supabase),
-    ])
-    setItems((dRes.data as DropRow[]) || [])
-    setContacts((cRes.data as Contact[]) || [])
-    setUsers((uRes.data as DbUser[]) || [])
-    setLoading(false)
-  }
+  const load = useCallback(async () => {
+    const sequence = ++loadSequence.current
+    setLoading(true)
+    setItems([])
+    setContacts([])
+    setUsers([])
+
+    try {
+      const supabase = createClient()
+      const [dRes, cRes, uRes] = await Promise.all([
+        supabase
+          .from('drops')
+          .select('*, contacts(full_name), handler:handled_by(full_name)')
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false }),
+        supabase.from('contacts').select('id, full_name').eq('tenant_id', tenantId).order('full_name').limit(300),
+        supabase.from('tenant_members').select('users!inner(id, full_name, is_active)').eq('tenant_id', tenantId),
+      ])
+      if (sequence !== loadSequence.current) return
+      if (dRes.error || cRes.error || uRes.error) {
+        toast.error('No se pudieron cargar todas las cancelaciones de esta subcuenta')
+        return
+      }
+      setItems((dRes.data as DropRow[]) || [])
+      setContacts((cRes.data as Contact[]) || [])
+      const memberRows = (uRes.data ?? []) as unknown as Array<{
+        users: DbUser | (DbUser & { is_active: boolean })[] | null
+      }>
+      setUsers(
+        memberRows
+          .map((row) => (Array.isArray(row.users) ? row.users[0] : row.users))
+          .filter(
+            (user): user is DbUser =>
+              !!user &&
+              typeof user.full_name === 'string' &&
+              !!user.full_name.trim() &&
+              (!('is_active' in user) || user.is_active !== false)
+          )
+          .sort((a, b) => (a.full_name ?? '').localeCompare(b.full_name ?? ''))
+      )
+    } catch {
+      if (sequence === loadSequence.current) toast.error('No se pudieron cargar las cancelaciones')
+    } finally {
+      if (sequence === loadSequence.current) setLoading(false)
+    }
+  }, [tenantId])
   useEffect(() => {
-    load()
-  }, [])
+    void load()
+  }, [load])
 
   const periodRange = useMemo(
     () => getPeriodRange(periodPreset, customFrom, customTo),
@@ -218,10 +250,14 @@ export default function DropsPage() {
   }, [filteredItems])
 
   const updateResult = async (id: string, result: string) => {
+    const previousResult = items.find((item) => item.id === id)?.result
     setItems((prev) => prev.map((d) => (d.id === id ? { ...d, result } : d)))
     const supabase = createClient()
-    const { error } = await supabase.from('drops').update({ result }).eq('id', id)
-    if (error) toast.error('No se pudo actualizar el resultado')
+    const { error } = await supabase.from('drops').update({ result }).eq('id', id).eq('tenant_id', tenantId)
+    if (error) {
+      setItems((prev) => prev.map((d) => (d.id === id ? { ...d, result: previousResult ?? d.result } : d)))
+      toast.error('No se pudo actualizar el resultado')
+    }
   }
 
   const create = async () => {
@@ -231,6 +267,7 @@ export default function DropsPage() {
     }
     const supabase = createClient()
     const { error } = await supabase.from('drops').insert({
+      tenant_id: tenantId,
       contact_id: nd.contact_id,
       reason: nd.reason,
       type: nd.type,

@@ -249,9 +249,7 @@ test('el webhook valida run conocido, maneja los 4 estados finales y es idempote
   assert.ok(webhook.includes('run desconocido'))
   assert.ok(webhook.includes('provider_run_id'))
   assert.ok(webhook.includes('processRunResults'))
-  // procesar un job ya completado sale temprano sin duplicar
   assert.ok(apifySrc.includes("job.status === 'completed'"))
-  // los estados del brief están contemplados
   for (const ev of ['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED.OUT']) {
     assert.ok(webhook.includes(ev), `falta el estado ${ev}`)
   }
@@ -316,4 +314,38 @@ test('la pestaña Investigación está en el layout sin tocar las pestañas ofic
   assert.ok(layout.includes('/instagram/investigacion'))
   assert.ok(layout.includes('/instagram/reels'))
   assert.ok(layout.includes('/instagram/competencia'))
+})
+
+// ------------------------------------------------------------------
+// §8 — errores de persistencia, claim concurrente y reintento recuperable
+// ------------------------------------------------------------------
+test('Apify propaga errores de lectura/escritura y solo completa tras persistir todo', () => {
+  const processSource = apifySrc.slice(apifySrc.indexOf('export async function processRunResults'))
+  assert.match(processSource, /if \(jobError\) return \{ ok: false/)
+  assert.match(processSource, /if \(upErr \|\| !up\) throw new Error/)
+  assert.match(processSource, /if \(upErr\) throw new Error/)
+  assert.match(processSource, /if \(rawReadError\) throw new Error/)
+  assert.match(processSource, /if \(rawInsertError\) throw new Error/)
+  assert.match(processSource, /if \(completionError \|\| !completedJob\) throw new Error/)
+  assert.ok(processSource.indexOf('if (upErr) throw new Error') < processSource.indexOf("status: 'completed'"))
+})
+
+test('el claim CAS diferencia la ejecución del actor de la lease del webhook y habilita retry', () => {
+  const processSource = apifySrc.slice(apifySrc.indexOf('export async function processRunResults'))
+  assert.match(processSource, /const leaseMs = 5 \* 60 \* 1000/)
+  assert.match(processSource, /APIFY_WEBHOOK_CLAIM_PREFIX/)
+  assert.match(processSource, /previousError\?\.startsWith\(APIFY_WEBHOOK_CLAIM_PREFIX\)/)
+  assert.match(processSource, /job\.status !== 'processing' && job\.status !== 'failed'/)
+  assert.match(processSource, /\.eq\('status', job\.status\)/)
+  assert.match(processSource, /\.eq\('started_at', previousStartedAt\)/)
+  assert.match(processSource, /\.eq\('error_message', previousError\)/)
+  assert.match(processSource, /if \(claimError \|\| !claimedJob\)/)
+  assert.match(processSource, /\.eq\('started_at', processingStartedAt\)[\s\S]*?\.eq\('error_message', claimToken\)/)
+  assert.match(processSource, /\.update\(\{ status: 'failed', error_message: msg/)
+})
+
+test('un webhook solicita retry si la lectura, escritura o procesamiento Apify falla', () => {
+  assert.match(webhook, /if \(jobError\) return NextResponse\.json\([\s\S]*status: 500/)
+  assert.match(webhook, /if \(datasetError\) return NextResponse\.json\([\s\S]*status: 500/)
+  assert.match(webhook, /if \(!result\.ok\) return NextResponse\.json\(\{ error: result\.error \}, \{ status: 500 \}\)/)
 })

@@ -68,11 +68,18 @@ test('resend.ts: firma pública de los send* intacta (las 9 llamadas de la app n
   }
 })
 
-test('API: claves validadas contra el catálogo y auditoría en guardar/restaurar', () => {
+test('API: claves validadas contra el catálogo, tenant admin y auditoría en guardar/restaurar', () => {
   assert.match(api, /KEYS\.has\(key\)/, 'template_key debe validarse contra el catálogo')
   assert.match(api, /from\('audit_logs'\)\.insert/, 'los cambios deben quedar auditados')
   assert.match(api, /expandSkeletonDirectives/, 'los esqueletos se expanden a HTML puro antes de guardar')
   assert.match(api, /onConflict: 'tenant_id,template_key'/, 'upsert por (tenant, plantilla)')
+  for (const handler of ['GET', 'PUT']) {
+    const body = api.match(
+      new RegExp(`export async function ${handler}\\([\\s\\S]*?(?=\\nexport async function |$)`)
+    )?.[0]
+    assert.ok(body, `falta handler ${handler}`)
+    assert.match(body, /if \(!t\.administraTenant\)/, `${handler} debe exigir administración de esta subcuenta`)
+  }
 })
 
 test('RLS de email_templates: aislamiento por subcuenta (estándar de la casa, nunca solo-auth)', () => {
