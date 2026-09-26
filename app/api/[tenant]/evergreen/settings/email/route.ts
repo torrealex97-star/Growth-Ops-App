@@ -25,6 +25,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   const { tenant } = await params
   const t = await requireTenant(tenant)
   if ('error' in t) return t.error
+  if (!t.administraTenant) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
   const sb = sbAdmin()
 
   const [{ data: settings }, cfg] = await Promise.all([
@@ -51,6 +54,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ tena
   const { tenant } = await params
   const t = await requireTenant(tenant)
   if ('error' in t) return t.error
+  if (!t.administraTenant) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
 
   try {
     const body = await req.json()

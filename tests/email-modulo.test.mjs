@@ -88,11 +88,13 @@ test('migración: settings + historial + eventos con RLS tenant y constraint de 
 test('API emails: historial filtrable, detalle 404 cross-tenant y prueba sin lógica de negocio', () => {
   const hist = read('app/api/[tenant]/evergreen/emails/route.ts')
   assert.match(hist, /eq\('tenant_id', t\.tenantId\)/, 'historial siempre acotado al tenant')
+  assert.match(hist, /!t\.administraTenant/, 'historial y prueba requieren administración del tenant')
   assert.match(hist, /isTest: true/, 'la prueba se marca como tal')
   assert.match(hist, /sendEmail\(\{/, 'la prueba pasa por EmailService')
   const detail = read('app/api/[tenant]/evergreen/emails/[id]/route.ts')
   assert.match(detail, /eq\('tenant_id', t\.tenantId\)/, 'detalle acotado al tenant (aislamiento §28)')
   assert.match(detail, /404/, 'email de otro tenant = 404, no 403 (no revelar existencia)')
+  assert.match(detail, /!t\.administraTenant/, 'el detalle de email requiere administración del tenant')
 })
 
 test('UI Emails: tres pestañas, banner de proveedor y prueba sin tocar integraciones', () => {
@@ -114,4 +116,27 @@ test('identidad del tenant: dominio del remitente validado contra la integració
   assert.match(api, /debe usar el dominio de tu integración/, 'mensaje claro al rechazar')
   // No duplica la API key en esta pantalla (§4)
   assert.doesNotMatch(api, /input.*api.?key/i)
+})
+
+test('APIs de correos exigen administración de ESTE tenant, no solo login', () => {
+  const routes = [
+    ['app/api/[tenant]/evergreen/settings/email/route.ts', ['GET', 'PUT']],
+    ['app/api/[tenant]/evergreen/settings/email-templates/route.ts', ['GET', 'PUT']],
+    ['app/api/[tenant]/evergreen/emails/route.ts', ['GET', 'POST']],
+    ['app/api/[tenant]/evergreen/emails/[id]/route.ts', ['GET']],
+  ]
+  for (const [path, methods] of routes) {
+    const source = read(path)
+    for (const method of methods) {
+      const handler = source.match(
+        new RegExp(`export async function ${method}\\([\\s\\S]*?(?=\\nexport async function |$)`)
+      )?.[0]
+      assert.ok(handler, `${path}: falta handler ${method}`)
+      assert.match(
+        handler,
+        /if \(!t\.administraTenant\)/,
+        `${path}: ${method} debe exigir administración de esta subcuenta`
+      )
+    }
+  }
 })

@@ -56,28 +56,30 @@ export async function POST(req: NextRequest) {
   const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
   // 1-2) ¿Es un run nuestro? (§8 paso 1: "validar que la petición corresponde a una ejecución conocida")
-  const { data: job } = await sb
+  const { data: job, error: jobError } = await sb
     .from('social_research_jobs')
     .select('id, tenant_id')
     .eq('provider', 'apify')
     .eq('provider_run_id', runId)
     .maybeSingle()
+  if (jobError) return NextResponse.json({ error: 'No se pudo consultar el trabajo' }, { status: 500 })
   if (!job) return NextResponse.json({ ok: true, ignored: 'run desconocido' }, { status: 200 })
 
   // Si el webhook trae datasetId y el job aún no lo tiene, se estampa antes de procesar.
   if (body.resource.defaultDatasetId) {
-    await sb
+    const { error: datasetError } = await sb
       .from('social_research_jobs')
       .update({ provider_dataset_id: body.resource.defaultDatasetId })
       .eq('id', job.id)
       .is('provider_dataset_id', null)
+    if (datasetError) return NextResponse.json({ error: 'No se pudo guardar el dataset del trabajo' }, { status: 500 })
   }
 
   // Credenciales de LA SUBCUENTA del job (config cifrada en Integraciones; fallback env).
   const cfgEnv = await getTenantConfigWithFallback(job.tenant_id, true)
   const cfg = getApifyConfig(cfgEnv)
   if (!cfg) {
-    await sb
+    const { error: stateError } = await sb
       .from('social_research_jobs')
       .update({
         status: 'failed',
@@ -85,6 +87,7 @@ export async function POST(req: NextRequest) {
         completed_at: new Date().toISOString(),
       })
       .eq('id', job.id)
+    if (stateError) return NextResponse.json({ error: 'No se pudo actualizar el trabajo' }, { status: 500 })
     return NextResponse.json({ ok: true, ignored: 'apify sin configurar' })
   }
 
@@ -92,7 +95,10 @@ export async function POST(req: NextRequest) {
   const result = await processRunResults(sb, cfg, runId, {
     finalStatus,
     errorMessage: body.resource.statusMessage || undefined,
-  })
+  }).catch((error: unknown) => ({
+    ok: false as const,
+    error: error instanceof Error ? error.message : 'Error interno procesando el run',
+  }))
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 500 })
   return NextResponse.json({ ok: true, jobId: result.jobId, records: result.records ?? 0 })
 }

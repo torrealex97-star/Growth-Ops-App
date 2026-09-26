@@ -12,6 +12,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   const { tenant, id } = await params
   const t = await requireTenant(tenant)
   if ('error' in t) return t.error
+  if (!t.administraTenant) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
   const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
     auth: { autoRefreshToken: false, persistSession: false },
   })
