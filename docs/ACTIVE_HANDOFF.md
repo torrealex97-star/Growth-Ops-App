@@ -491,3 +491,11 @@ Tres más del 25-sep (codificadas también en `AGENTS.md`, con el caso que las o
 - **La fila del tablero es un contrato de relevo**: el trabajo sin commitear de esta hebra (fix E2E
   - cron) fue recogido, commitado y publicado por otro agente siguiendo la fila — así funciona el
     tablero cuando funciona; si un trabajo no debe continuarse, no se deja sin commitear.
+
+### Continuación FASE A — Correo, Drops, Documentos y Apify (Auditoría Estática)
+
+- **APIs de Correo:** posible autorización funcional ausente en los endpoints de correo. (Inspección estática, no se verificó con ejecución).
+- **Drops:** la inserción de nuevos `drops` desde la UI es incompatible con la restricción `tenant_id NOT NULL` en la base de datos, lo que podría causar fallos silenciosos en producción. (Inspección estática).
+- **Subida Documental:** la subida de documentos no verifica que el `contactId` proporcionado en el formulario coincida con el contacto de la venta asociada, lo que podría llevar a asignaciones incorrectas. (Inspección estática).
+- **Apify Jobs:** manejo no fiable de errores e idempotencia en los jobs de Apify, lo que podría resultar en finalizaciones parciales o inconsistencias de datos. (Inspección estática).
+- **Migraciones Duplicadas:** dos pares de versiones de migración con prefijos temporales repetidos, lo que representa un riesgo potencial de conflictos en el historial o en el orden de aplicación de las migraciones. (Riesgo estático, requiere contraste con el ledger de producción para confirmación).
