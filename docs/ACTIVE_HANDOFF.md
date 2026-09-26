@@ -39,8 +39,8 @@ nuevo hallazgo P0. El invariante de esquema vivo (`esquema-tenant-invariante.tes
 aquí se salta sin credenciales.
 
 **Desfase confirmado (no corregido, fila de Claude Code):** `lib/types/database-generated.ts` NO
-contiene las 9 columnas de `20260922100000` (invoice_*, paid_at, paid_from_account,
-payment_reference, counterparty_*). La pantalla de gastos usa tipos a mano en la propia página, por
+contiene las 9 columnas de `20260922100000` (invoice__, paid_at, paid_from_account,
+payment_reference, counterparty__). La pantalla de gastos usa tipos a mano en la propia página, por
 eso typecheck no lo caza: es otra señal de que **la migración sigue sin aplicar en producción**.
 
 **Queda (priorizado):** (1) el barrido de los ~88 escritos sin comprobar restantes, empezando por
@@ -252,8 +252,7 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 
 ## Tablero de reclamaciones (en curso AHORA)
 
-**CODEX — DASHBOARD & METRIC AUDIT (25-sep):** Ampliación tras browser: reclama filtros tenant en `dashboard/page.tsx`, `unit-economics/page.tsx`, `finanzas/analitica/{resumen,pnl,cohortes,proyeccion}/page.tsx`, CTR en `marketing/adquisicion/campanas/page.tsx` y tests asociados. No toca RLS ni motor financiero.  auditoría transversal solicitada por el usuario; rama `codex/dashboard-metric-audit`. Reclama `DASHBOARD_AUDIT.md`, `DASHBOARD_CORRECTION_PLAN.md`, sección propia de relevo y fix acotado del conteo HEAD de contactos en `lib/ai/agent/tools.ts` con `tests/metrics/agent-overview-count.test.mjs`. Inspección de código y producción de solo lectura; ningún cambio de datos. No tocar el WIP del checkout Documents ni las migraciones/gastos reclamados por Claude Code. Regla KPI: definición → fuente → completitud → periodo → maduración → asignación → cálculo → benchmark orientativo.
-
+**CODEX — DASHBOARD & METRIC AUDIT (25-sep):** Ampliación tras browser: reclama filtros tenant en `dashboard/page.tsx`, `unit-economics/page.tsx`, `finanzas/analitica/{resumen,pnl,cohortes,proyeccion}/page.tsx`, CTR en `marketing/adquisicion/campanas/page.tsx` y tests asociados. No toca RLS ni motor financiero. auditoría transversal solicitada por el usuario; rama `codex/dashboard-metric-audit`. Reclama `DASHBOARD_AUDIT.md`, `DASHBOARD_CORRECTION_PLAN.md`, sección propia de relevo y fix acotado del conteo HEAD de contactos en `lib/ai/agent/tools.ts` con `tests/metrics/agent-overview-count.test.mjs`. Inspección de código y producción de solo lectura; ningún cambio de datos. No tocar el WIP del checkout Documents ni las migraciones/gastos reclamados por Claude Code. Regla KPI: definición → fuente → completitud → periodo → maduración → asignación → cálculo → benchmark orientativo.
 
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
