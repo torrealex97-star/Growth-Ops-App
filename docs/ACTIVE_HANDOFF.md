@@ -1,5 +1,53 @@
 # Relevo activo
 
+## Revisión integral: bugs de dinero (fase 1) — 2026-09-26 (Freebuff/Buffy)
+
+**PUBLICADO: PR #231 (`fix/money-path-silent-writes`, commit `fcb6457`) abierta contra `main` con CI
+en verde (quality 1m47s, gitleaks, build 2m18s, Smoke E2E 4m54s, Vercel). Fila de tablero cerrada al
+publicar; el barrido de los ~88 escritos restantes queda como siguiente relevo.**
+
+**Fila de tablero (CERRADA — publicada en #231):** Freebuff/Buffy — revisión integral de bugs y
+seguridad; carril producto (cobros/comisiones/gastos). Ficheros: `app/api/[tenant]/
+evergreen/collections/[id]/route.ts`, `app/api/[tenant]/evergreen/payments/mark/route.ts`,
+`app/api/[tenant]/evergreen/afiliados/registro/route.ts`.
+
+**Hallazgo estructural confirmado (el backlog lo avisaba, sin fila):** los inserts/updates de
+supabase-js que no comprueban `{ error }` siguen siendo el patrón dominante — contados ~92 escrituras
+`await` sin comprobar en `app/api`+`lib`. Los más caros ya corregidos (todo de dinero):
+
+1. **DELETE de cobro (`collections/[id]`)**: el borrado de comisiones y del cobro se hacía con `await`
+   plano. Un fallo silencioso dejaba **comisiones huérfanas apuntando a un cobro ya borrado** — el
+   invariante exacto que S0-5 cerró. Ahora: se comprueba el error del delete de comisiones, se
+   verifica con `.select('id')` que el cobro realmente se borró, y el `audit_logs` de update/delete
+   ya no es fire-and-forget (un cambio de dinero sin rastro de auditoría devuelve 500 con motivo).
+2. **`payments/mark`**: las tres escrituras de `sale_expected_installments` (paid/monitoring/delinquent/
+   unflag) iban sin comprobar; "marcar pagada" devolvía `ok` aunque la cuota no quedara cobrada.
+   Ahora cada escritura se verifica y devuelve 500 con el motivo.
+3. **`afiliados/registro` (alta pública)**: el upsert de `users` tras invitar al usuario en Auth iba
+   sin comprobar; un fallo dejaba **cuenta huérfana en Auth con correo enviado y sin perfil, ni código
+   de tracking, ni forma de cobrar comisiones**. Ahora revierte con `deleteUser` (mismo patrón que la
+   ruta de invitación) y avisa.
+
+**Verificado local:** typecheck OK · format:check OK · 928/928 unit (3 skips de credenciales, como
+en el baseline) · 740/740 métricas · 21/21 y 46/46 en suites focales de aislamiento/comisiones/
+webhook GHL. E2E Playwright no ejecutable en este sandbox (sin `E2E_PASSWORD`); corre en CI.
+
+**Seguridad (spot-check, inspeccionado no probado en vivo):** webhooks GHL/contract/onboarding
+comparan secreto con `timingSafeEqual` (`lib/webhooks/verifySecret.ts`); Stripe verifica firma sobre
+el body crudo; Resend svix fail-closed; `ver-como` exige OTP + coincidencia de sesión y audita. Sin
+nuevo hallazgo P0. El invariante de esquema vivo (`esquema-tenant-invariante.test.mjs`) corre en CI;
+aquí se salta sin credenciales.
+
+**Desfase confirmado (no corregido, fila de Claude Code):** `lib/types/database-generated.ts` NO
+contiene las 9 columnas de `20260922100000` (invoice__, paid_at, paid_from_account,
+payment_reference, counterparty__). La pantalla de gastos usa tipos a mano en la propia página, por
+eso typecheck no lo caza: es otra señal de que **la migración sigue sin aplicar en producción**.
+
+**Queda (priorizado):** (1) el barrido de los ~88 escritos sin comprobar restantes, empezando por
+webhook GHL (`contact_attributions`, updates de citas) y crons; (2) smoke con navegador cuando haya
+preview/credenciales E2E; (3) regenerar tipos tras aplicar la migración pendiente; (4) pulido UX/UI
+global (F3/Taste) — explícitamente DESPUÉS de estabilizar.
+
 ## MONEY.md v1 en main + relevo de la PR #210 — 2026-09-25 (Freebuff/Buffy)
 
 **Estado real del vocabulario financiero (F3):** `MONEY.md` v1 está en `main` desde #209 (`43f78e5`):
@@ -204,8 +252,7 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 
 ## Tablero de reclamaciones (en curso AHORA)
 
-**CODEX — DASHBOARD & METRIC AUDIT (25-sep):** Ampliación tras browser: reclama filtros tenant en `dashboard/page.tsx`, `unit-economics/page.tsx`, `finanzas/analitica/{resumen,pnl,cohortes,proyeccion}/page.tsx`, CTR en `marketing/adquisicion/campanas/page.tsx` y tests asociados. No toca RLS ni motor financiero.  auditoría transversal solicitada por el usuario; rama `codex/dashboard-metric-audit`. Reclama `DASHBOARD_AUDIT.md`, `DASHBOARD_CORRECTION_PLAN.md`, sección propia de relevo y fix acotado del conteo HEAD de contactos en `lib/ai/agent/tools.ts` con `tests/metrics/agent-overview-count.test.mjs`. Inspección de código y producción de solo lectura; ningún cambio de datos. No tocar el WIP del checkout Documents ni las migraciones/gastos reclamados por Claude Code. Regla KPI: definición → fuente → completitud → periodo → maduración → asignación → cálculo → benchmark orientativo.
-
+**CODEX — DASHBOARD & METRIC AUDIT (25-sep):** Ampliación tras browser: reclama filtros tenant en `dashboard/page.tsx`, `unit-economics/page.tsx`, `finanzas/analitica/{resumen,pnl,cohortes,proyeccion}/page.tsx`, CTR en `marketing/adquisicion/campanas/page.tsx` y tests asociados. No toca RLS ni motor financiero. auditoría transversal solicitada por el usuario; rama `codex/dashboard-metric-audit`. Reclama `DASHBOARD_AUDIT.md`, `DASHBOARD_CORRECTION_PLAN.md`, sección propia de relevo y fix acotado del conteo HEAD de contactos en `lib/ai/agent/tools.ts` con `tests/metrics/agent-overview-count.test.mjs`. Inspección de código y producción de solo lectura; ningún cambio de datos. No tocar el WIP del checkout Documents ni las migraciones/gastos reclamados por Claude Code. Regla KPI: definición → fuente → completitud → periodo → maduración → asignación → cálculo → benchmark orientativo.
 
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.

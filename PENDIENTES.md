@@ -59,7 +59,7 @@ Feature completo y desplegado: Config → Datos de empresa, plantillas (pega tex
 
 ## 🔒 Seguridad
 
-- [ ] **Inserts de cuotas silenciosos en otro punto** (`app/api/[tenant]/evergreen/payments/mark` y `complete-reservation` ya comprueban error; revisar los `.insert(` del resto de rutas server-side — patrón: supabase-js **no lanza** en fallo, devuelve `{ error }`). El caso crítico (registro de ventas) ya corregido el 18-sep.
+- [~] **Inserts de cuotas silenciosos en otro punto** — REVISIÓN 26-sep (Freebuff): el patrón contado a fondo son **~92 escrituras** `await` sin comprobar `{ error }` en `app/api`+`lib`. Corregidos los más caros (DELETE de cobro/comisiones en `collections/[id]`, las 3 escrituras de cuota en `payments/mark`, upsert de `users` con rollback en `afiliados/registro`, audit_logs de cambios de cobro). **Quedan ~88**, el mayor foco el webhook de GHL (updates de citas e inserts de `contact_attributions`) y los crons. Criterio: cualquier escritura de dinero/estado de negocio verifica y falla ruidosamente; audit_logs de dinero nunca fire-and-forget.
 - [ ] **Audit log de DDL aplicado a mano**: la columna `flagged_delinquent` existía en prod sin su migración en el repo — hubo cambios aplicados fuera de git. Inventariar el esquema real vs. migraciones del repo (columnas extra = migraciones perdidas).
 - [ ] **Rotar claves compartidas por chat** (todas están en `.env.local` + Vercel): `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, token Management de Supabase (`sbp_…`).
 - [ ] **Cambiar `GHL_WEBHOOK_SECRET`** por uno más fuerte (ahora `[tenant]`) — actualizar en Vercel y en GHL a la vez.
