@@ -1,5 +1,49 @@
 # Relevo activo
 
+## Revisión integral: bugs de dinero (fase 1) — 2026-09-26 (Freebuff/Buffy)
+
+**Fila de tablero (en curso):** Freebuff/Buffy — revisión integral de bugs y seguridad; carril
+producto (cobros/comisiones/gastos). Ramas: sin publicar aún; ficheros en curso: `app/api/[tenant]/
+evergreen/collections/[id]/route.ts`, `app/api/[tenant]/evergreen/payments/mark/route.ts`,
+`app/api/[tenant]/evergreen/afiliados/registro/route.ts`.
+
+**Hallazgo estructural confirmado (el backlog lo avisaba, sin fila):** los inserts/updates de
+supabase-js que no comprueban `{ error }` siguen siendo el patrón dominante — contados ~92 escrituras
+`await` sin comprobar en `app/api`+`lib`. Los más caros ya corregidos (todo de dinero):
+
+1. **DELETE de cobro (`collections/[id]`)**: el borrado de comisiones y del cobro se hacía con `await`
+   plano. Un fallo silencioso dejaba **comisiones huérfanas apuntando a un cobro ya borrado** — el
+   invariante exacto que S0-5 cerró. Ahora: se comprueba el error del delete de comisiones, se
+   verifica con `.select('id')` que el cobro realmente se borró, y el `audit_logs` de update/delete
+   ya no es fire-and-forget (un cambio de dinero sin rastro de auditoría devuelve 500 con motivo).
+2. **`payments/mark`**: las tres escrituras de `sale_expected_installments` (paid/monitoring/delinquent/
+   unflag) iban sin comprobar; "marcar pagada" devolvía `ok` aunque la cuota no quedara cobrada.
+   Ahora cada escritura se verifica y devuelve 500 con el motivo.
+3. **`afiliados/registro` (alta pública)**: el upsert de `users` tras invitar al usuario en Auth iba
+   sin comprobar; un fallo dejaba **cuenta huérfana en Auth con correo enviado y sin perfil, ni código
+   de tracking, ni forma de cobrar comisiones**. Ahora revierte con `deleteUser` (mismo patrón que la
+   ruta de invitación) y avisa.
+
+**Verificado local:** typecheck OK · format:check OK · 928/928 unit (3 skips de credenciales, como
+en el baseline) · 740/740 métricas · 21/21 y 46/46 en suites focales de aislamiento/comisiones/
+webhook GHL. E2E Playwright no ejecutable en este sandbox (sin `E2E_PASSWORD`); corre en CI.
+
+**Seguridad (spot-check, inspeccionado no probado en vivo):** webhooks GHL/contract/onboarding
+comparan secreto con `timingSafeEqual` (`lib/webhooks/verifySecret.ts`); Stripe verifica firma sobre
+el body crudo; Resend svix fail-closed; `ver-como` exige OTP + coincidencia de sesión y audita. Sin
+nuevo hallazgo P0. El invariante de esquema vivo (`esquema-tenant-invariante.test.mjs`) corre en CI;
+aquí se salta sin credenciales.
+
+**Desfase confirmado (no corregido, fila de Claude Code):** `lib/types/database-generated.ts` NO
+contiene las 9 columnas de `20260922100000` (invoice_*, paid_at, paid_from_account,
+payment_reference, counterparty_*). La pantalla de gastos usa tipos a mano en la propia página, por
+eso typecheck no lo caza: es otra señal de que **la migración sigue sin aplicar en producción**.
+
+**Queda (priorizado):** (1) el barrido de los ~88 escritos sin comprobar restantes, empezando por
+webhook GHL (`contact_attributions`, updates de citas) y crons; (2) smoke con navegador cuando haya
+preview/credenciales E2E; (3) regenerar tipos tras aplicar la migración pendiente; (4) pulido UX/UI
+global (F3/Taste) — explícitamente DESPUÉS de estabilizar.
+
 ## MONEY.md v1 en main + relevo de la PR #210 — 2026-09-25 (Freebuff/Buffy)
 
 **Estado real del vocabulario financiero (F3):** `MONEY.md` v1 está en `main` desde #209 (`43f78e5`):

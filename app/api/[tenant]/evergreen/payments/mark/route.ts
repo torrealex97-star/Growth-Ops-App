@@ -57,10 +57,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       // Cuota de monitorización (p.ej. alumno→Sequra): NO es cash nuestro.
       // Solo marcamos que el alumno pagó a la financiera; sin collection ni comisión.
       if (inst.is_monitoring) {
-        await sb
+        const { error: monErr } = await sb
           .from('sale_expected_installments')
           .update({ status: 'collected', flagged_delinquent: false })
           .eq('id', installmentId)
+        if (monErr) {
+          return NextResponse.json(
+            { error: 'Error al marcar la cuota de monitorización', detail: monErr.message },
+            { status: 500 }
+          )
+        }
         return NextResponse.json({ ok: true, status: 'collected', monitoring: true })
       }
       const now = new Date().toISOString()
@@ -117,10 +123,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         }
         return NextResponse.json({ error: 'Error al registrar el cobro', detail: collErr.message }, { status: 500 })
       }
-      await sb
+      // La cuota queda cobrada SOLO si la escritura lo confirma; no se avisa "ok" si falló en
+      // silencio (supabase-js no lanza, devuelve { error } — el caso crítico del backlog).
+      const { error: instErr2 } = await sb
         .from('sale_expected_installments')
         .update({ status: 'collected', flagged_delinquent: false })
         .eq('id', installmentId)
+      if (instErr2) {
+        return NextResponse.json(
+          { error: 'Error al marcar la cuota como cobrada', detail: instErr2.message },
+          { status: 500 }
+        )
+      }
 
       // Generar comisiones (pendientes) para este cobro — salvo que esté en revisión
       let commissionsGenerated = 0
@@ -144,7 +158,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
 
     if (action === 'delinquent') {
-      await sb
+      const { error: delErr } = await sb
         .from('sale_expected_installments')
         .update({
           flagged_delinquent: true,
@@ -153,14 +167,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           last_reminder_at: new Date().toISOString(),
         })
         .eq('id', installmentId)
+      if (delErr) {
+        return NextResponse.json(
+          { error: 'Error al marcar la cuota como morosa', detail: delErr.message },
+          { status: 500 }
+        )
+      }
       return NextResponse.json({ ok: true, status: 'overdue' })
     }
 
     // unflag
-    await sb
+    const { error: unflagErr } = await sb
       .from('sale_expected_installments')
       .update({ flagged_delinquent: false, status: 'pending' })
       .eq('id', installmentId)
+    if (unflagErr) {
+      return NextResponse.json({ error: 'Error al desmarcar la cuota', detail: unflagErr.message }, { status: 500 })
+    }
     return NextResponse.json({ ok: true, status: 'pending' })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
