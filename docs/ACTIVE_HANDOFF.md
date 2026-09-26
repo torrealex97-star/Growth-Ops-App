@@ -1,5 +1,26 @@
 # Relevo activo
 
+## 🔴 BLOQUEO DE ENTORNO (26-sep): sin credencial GitHub → PR de `fix/ghl-webhook-silent-writes` pendiente de publicar
+
+Desde las ~17:40 UTC, los 10 intentos consecutivos de `git fetch`/`git push` (17:40–18:15 UTC) fallan
+con «Could not get GitHub access for torrealex97-star/Growth-Ops-App right now»: la App de GitHub de
+Freebuff no puede mintear la credencial del repo. No es git ni el trabajo local: está commiteado.
+
+- **Estado:** rama `fix/ghl-webhook-silent-writes`, commit `02573ab` en
+  `.worktrees/audit-integrity` (limpio, sobre `main` = `2b696d8`). Cambios: webhook GHL sin
+  escrituras silenciosas + tests estáticos nuevos + tablero + PENDIENTES (~76 restantes).
+- **Validado en local:** tests del webhook y suites relacionadas 80/80; suite completa 937 pass
+  (3 skip sin credenciales Supabase) + 740 métricas; typecheck, lint (warnings preexistentes) y
+  `format:check` en verde. `dead-code`: no disponible en local (knip muere por memoria del
+  sandbox, limitation conocida); el CI lo correrá en la PR.
+- **Siguiente acción exacta (el primero que pueda):** `git push -u origin
+fix/ghl-webhook-silent-writes` desde `.worktrees/audit-integrity`, abrir PR a `main`, CI verde
+  (correr `npm run quality` con `NODE_OPTIONS='--max-old-space-size=3584'` si hay dudas) y
+  fusionar. Al fusionar, borrar la fila del tablero de la unidad y actualizar este bloque.
+- **Si el fallo persiste más de unas horas:** reconectar la App de GitHub de Freebuff en el repo
+  (Settings → Integraciones de Freebuff) o que otro agente con credencial propia publiquen la
+  rama — el commit es autosuficiente.
+
 ## Revisión integral: bugs de dinero (fase 1) — 2026-09-26 (Freebuff/Buffy)
 
 **PUBLICADO: PR #231 (`fix/money-path-silent-writes`, commit `fcb6457`) abierta contra `main` con CI
