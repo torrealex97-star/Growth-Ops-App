@@ -2,8 +2,12 @@
 
 ## Revisión integral: bugs de dinero (fase 1) — 2026-09-26 (Freebuff/Buffy)
 
-**Fila de tablero (en curso):** Freebuff/Buffy — revisión integral de bugs y seguridad; carril
-producto (cobros/comisiones/gastos). Ramas: sin publicar aún; ficheros en curso: `app/api/[tenant]/
+**PUBLICADO: PR #231 (`fix/money-path-silent-writes`, commit `fcb6457`) abierta contra `main` con CI
+en verde (quality 1m47s, gitleaks, build 2m18s, Smoke E2E 4m54s, Vercel). Fila de tablero cerrada al
+publicar; el barrido de los ~88 escritos restantes queda como siguiente relevo.**
+
+**Fila de tablero (CERRADA — publicada en #231):** Freebuff/Buffy — revisión integral de bugs y
+seguridad; carril producto (cobros/comisiones/gastos). Ficheros: `app/api/[tenant]/
 evergreen/collections/[id]/route.ts`, `app/api/[tenant]/evergreen/payments/mark/route.ts`,
 `app/api/[tenant]/evergreen/afiliados/registro/route.ts`.
 
