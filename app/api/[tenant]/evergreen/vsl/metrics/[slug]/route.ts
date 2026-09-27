@@ -50,6 +50,27 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
     const duration = Math.max(Number(video.duration_seconds) || 0, Number(tot.max_duration) || 0)
     const plays = Number(tot.plays) || 0
 
+    // Hitos de visión (paridad de reporting de Vidalytics/Wistia): % de sesiones que alcanzaron
+    // cada tramo del vídeo. Derivado de max_position — sin migración ni columnas nuevas. El 100%
+    // es el completado (reached_end), que no depende del último segundo exacto registrado.
+    const [hitos] = await sql`
+      SELECT
+        count(*) FILTER (WHERE duration > 0 AND max_position >= duration * 0.25)::int AS h25,
+        count(*) FILTER (WHERE duration > 0 AND max_position >= duration * 0.50)::int AS h50,
+        count(*) FILTER (WHERE duration > 0 AND max_position >= duration * 0.75)::int AS h75,
+        count(*) FILTER (WHERE duration > 0 AND max_position >= duration * 0.95)::int AS h95
+      FROM vsl_sessions
+      WHERE video_id = ${videoId} AND tenant_id = ${tenantId} AND max_position > 0
+    `
+    const pctDe = (n: number) => (plays > 0 ? Math.round((n / plays) * 100) : 0)
+    const milestones = [
+      { pct: 25, sessions: Number(hitos.h25), rate: pctDe(Number(hitos.h25)) },
+      { pct: 50, sessions: Number(hitos.h50), rate: pctDe(Number(hitos.h50)) },
+      { pct: 75, sessions: Number(hitos.h75), rate: pctDe(Number(hitos.h75)) },
+      { pct: 95, sessions: Number(hitos.h95), rate: pctDe(Number(hitos.h95)) },
+      { pct: 100, sessions: Number(tot.completed), rate: pctDe(Number(tot.completed)) },
+    ]
+
     // Curva de retención: cuántas sesiones alcanzaron cada segundo
     const rows = await sql`
       SELECT e AS sec, count(*)::int AS viewers
@@ -114,6 +135,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
         completionRate: plays > 0 ? Math.round((Number(tot.completed) / plays) * 100) : 0,
       },
       retention,
+      milestones,
       drops: drops.slice(0, 5),
       devices: devices.map((d) => ({ device: d.device, n: Number(d.n) })),
       leads: puedeVerPersonas ? leads : [],
