@@ -1,5 +1,29 @@
 # Relevo activo
 
+## ✅ RESULTADO (27-sep): Paridad VSL II — carga, customización, thumbnails y métricas (PR #246)
+
+Fusionada en `main` (`405821f`), CI en verde tras re-disparo (quality 1m32s, build 2m42s, Smoke E2E
+5m18s; el primer run salió CANCELADO por la cola e2e-tenant-qa, no es fallo). Segunda pasada de la
+petición de Alex — lo más importante de Wistia/PandaVideo/Vidalytics, todo SIN migración:
+
+- **Velocidad de carga**: HLS fast-start (`startLevel 0`, ABR conservador) para el primer frame ya,
+  y preload selectivo (auto solo con autoplay). Se suma al preconnect/preload del embed existente.
+- **Customización**: botón play central y pantalla completa configurables por vídeo (por defecto
+  visibles). Con #241: colores, barra, autoplay, lockSeek, fakeProgress, loop, prueba social,
+  exit hook y CTA programado.
+- **Thumbnails dinámicos**: `derivadosDeSource()` (en `lib/vsl/types.ts`, módulo puro, porque
+  `bunny.ts` arrastra `node:crypto` y lo importa el dashboard en cliente) deriva thumbnail.jpg,
+  preview.webp animado y storyboard.vtt de la URL de Bunny sin API ni migración; las tarjetas del
+  dashboard muestran miniatura + preview animado al hover (lazy).
+- **Métricas conectadas**: nuevo `/vsl/resumen` (KPIs agregados de la subcuenta, mismos criterios
+  que las métricas por vídeo, `requirePantalla`, filtro tenant en todas las subconsultas) pintado
+  como fila superior de KPIs del dashboard de VSL.
+- **Verificado:** suite focal 11/11 (el test importa la función pura real vía alias-loader) ·
+  quality completo (971 unit / 0 fail / 3 skips, 740 métricas) · CI verde · rama borrada. **No
+  verificado:** review visual con navegador (sandbox sin sesión).
+- **Anotado:** scrub con thumbnails en el player (storyboard ya derivado) y `cta_clicks` requieren
+  migración/decisión; pendientes del próximo lote.
+
 ## ⚠️ CONCURRENCIA (27-sep, tarde): Codebuff corriendo la skill "taste" — no tocar UI sin comprobar antes
 
 Alex tiene a **Codebuff ejecutando la skill `taste`** en paralelo a esta sesión. Esa skill es de
@@ -586,11 +610,10 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                                                      | Rama                             | Toca                                                                                                                                                                                                                                     | Desde  |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI                           | (por reclamar)                   | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts`                                                                                                                                          | 25-sep |
-| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                                                | (fusionadas)                     | solo `expenses` vía migración pendiente; nada en código                                                                                                                                                                                  | 23-sep |
-| Freebuff (Buffy)  | **Paridad VSL II** (petición de Alex 27-sep, lo más importante de Wistia/PandaVideo/Vidalytics): velocidad de carga (HLS fast-start + preload selectivo), customización del reproductor (botón central y fullscreen configurables), thumbnails dinámicos (thumbnail.jpg + preview.webp animado de Bunny en hover, derivados sin migración) y métricas conectadas (resumen agregado por subcuenta en el dashboard de VSL) | feat/vsl-carga-thumbnail-resumen | `lib/vsl/types.ts`, `lib/vsl/bunny.ts` (revertido), `components/vsl/VslPlayer.tsx`, `components/vsl/VslDashboard.tsx`, `app/api/[tenant]/evergreen/vsl/resumen/route.ts` (nuevo), `tests/vsl-paridad-2.test.mjs` (nuevo), este documento | 27-sep |
+| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama           | Toca                                                                                            | Desde  |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
+| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
+| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
