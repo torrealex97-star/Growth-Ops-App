@@ -26,7 +26,7 @@ import {
   Clock,
 } from 'lucide-react'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar } from 'recharts'
-import { formatNumber } from '@/lib/utils'
+import { formatNumber, formatDateTime } from '@/lib/utils'
 
 type Media = {
   id: string
@@ -347,7 +347,7 @@ export default function InstagramPage() {
               </p>
               {lastSync?.started_at && (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Último intento: {new Date(lastSync.started_at).toLocaleString('es-ES')}
+                  Último intento: {formatDateTime(lastSync.started_at)}
                 </p>
               )}
             </div>
