@@ -76,7 +76,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       if (plan?.method === 'reserva') {
         const { data: colls } = await sb.from('collections').select('id, gross_amount').eq('sale_id', saleId)
         if (colls && colls.length === 1 && Number(colls[0].gross_amount) === Number(prev.gross_amount)) {
-          await sb.from('collections').update({ gross_amount: payload.gross_amount }).eq('id', colls[0].id)
+          const { error: collErr } = await sb
+            .from('collections')
+            .update({ gross_amount: payload.gross_amount })
+            .eq('id', colls[0].id)
+          if (collErr) {
+            return NextResponse.json(
+              { error: `Venta actualizada pero el cobro no se pudo sincronizar: ${collErr.message}` },
+              { status: 500 }
+            )
+          }
         }
       }
     }
@@ -89,7 +98,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     ]
     const result = await reconcileSaleCommissions(sb, t.tenantId, saleId, oldReps)
 
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       actor_user_id: t.userId,
       entity_type: 'sale',
@@ -104,6 +113,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       },
       new_values: { ...payload, reconcile: result },
     })
+    if (auditErr) console.error('[sales/update] audit_logs no se pudo escribir:', auditErr.message)
 
     // No hay evento de cancelación confirmado en creatuagente (solo venta.registrada); pendiente
     // de confirmar antes de notificar cancelaciones.

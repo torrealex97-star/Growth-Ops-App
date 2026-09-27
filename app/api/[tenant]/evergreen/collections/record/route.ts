@@ -148,7 +148,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     // Auditoría del cobro. La hacía la pantalla de "Registrar cobro" por su cuenta y esta ruta no,
     // así que el mismo hecho de negocio quedaba auditado o no según por dónde entrara.
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       actor_user_id: t.userId,
       entity_type: 'collection',
@@ -162,6 +162,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         needs_commission_review: needsReview,
       },
     })
+    if (auditErr) console.error('[collections/record] audit_logs no se pudo escribir:', auditErr.message)
 
     // Fire-and-forget: no debe tumbar el registro del cobro (ya aplicado arriba) si
     // creatuagente está caído o el lead no tiene token. Un solo evento venta.registrada

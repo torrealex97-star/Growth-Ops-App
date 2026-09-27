@@ -36,10 +36,11 @@ async function syncInstallmentStatus(sb: ReturnType<typeof serviceClient>, insta
     .neq('status', 'reversed')
     .limit(1)
   const hasCollection = !!(remaining && remaining.length > 0)
-  await sb
+  const { error } = await sb
     .from('sale_expected_installments')
     .update({ status: hasCollection ? 'collected' : 'pending' })
     .eq('id', installmentId)
+  if (error) console.error('[collections/[id]] sale_expected_installments no se pudo sincronizar:', error.message)
 }
 
 // PATCH — edita un cobro (importe, comisionable, fecha, método, elegibilidad) y RECONCILIA las
