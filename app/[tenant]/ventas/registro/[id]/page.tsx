@@ -585,7 +585,11 @@ export default function SaleDetailPage() {
 
   if (!sale) return null
 
-  const totalCollected = collections.reduce((sum, c) => sum + c.gross_amount, 0)
+  // Definición canónica (docs/MONEY.md D5, igual que lib/canonical/cash.ts: esCobrado = status
+  // === 'collected'): un cobro 'reversed' (ya devuelto) o 'disputed' (en el aire, sin resolver)
+  // NO es cash confirmado. Sumar el array entero inflaba "Total cobrado" con dinero ya devuelto
+  // o en disputa — y ese número prellenaba el importe de la devolución más abajo.
+  const totalCollected = collections.filter((c) => c.status === 'collected').reduce((sum, c) => sum + c.gross_amount, 0)
 
   // Cobros duplicados: 2+ cobros (no revertidos) para la misma cuota esperada. Marcamos como
   // "duplicado" todos menos el primero (por fecha) de cada cuota, para que el admin los elimine.
