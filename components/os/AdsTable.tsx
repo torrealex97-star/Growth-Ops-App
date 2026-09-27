@@ -208,7 +208,7 @@ export function AdsTable({ campaigns, accounts, version }: Props) {
                         {a.name}
                       </div>
                       {a.adset_name && (
-                        <div className="text-[11px] text-muted-foreground truncate" title={a.adset_name}>
+                        <div className="text-2xs text-muted-foreground truncate" title={a.adset_name}>
                           {a.adset_name}
                         </div>
                       )}
@@ -219,12 +219,12 @@ export function AdsTable({ campaigns, accounts, version }: Props) {
                       </span>
                     </td>
                     {accounts.length > 1 && (
-                      <td className="px-4 py-3 text-[11px] text-muted-foreground">
+                      <td className="px-4 py-3 text-2xs text-muted-foreground">
                         {a.account_name || a.account_id || '—'}
                       </td>
                     )}
                     <td className="px-4 py-3">
-                      <span className={`text-[11px] px-1.5 py-0.5 rounded border ${statusBadge(a.status)}`}>
+                      <span className={`text-2xs px-1.5 py-0.5 rounded border ${statusBadge(a.status)}`}>
                         {a.status || '—'}
                       </span>
                     </td>

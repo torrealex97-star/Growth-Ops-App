@@ -9,6 +9,8 @@ import { entradasDiagnostico, entradasSalud } from '@/lib/metrics/entradas'
 import { calcularSalud } from '@/lib/metrics/salud'
 import { runAgent, type ChatMessage } from '@/lib/ai/agent/gateway'
 import { tenantAiEnv } from '@/lib/ai/provider'
+import { getTenantConfigWithFallback } from '@/lib/config'
+import { parseAccountIds } from '@/lib/meta/accounts'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -92,7 +94,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         desde: new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), 1)).toISOString().slice(0, 10),
         hasta: hoy.toISOString().slice(0, 10),
       }
-      const consulta = await consultarMetricas(sb, auth.tenantId, periodo)
+      // El gasto de ads solo cuenta el de las cuentas seleccionadas en Integraciones: el brief y el
+      // agente no pueden mezclar cuentas históricas deseleccionadas en el negocio que se está mirando.
+      const cfg = await getTenantConfigWithFallback(auth.tenantId)
+      const consulta = await consultarMetricas(sb, auth.tenantId, periodo, parseAccountIds(cfg.META_AD_ACCOUNT_ID))
       const config = {
         muestraAlta: 100,
         muestraMinima: 20,

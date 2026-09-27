@@ -23,6 +23,16 @@ export function participantTypeForUser(
   return 'affiliate'
 }
 
+// EXENTOS DE COMISIÓN (migración 20260923160000, users.pays_commissions=false):
+// socios o roles cuyo beneficio no va por el ledger. La exención es por PERSONA
+// y vale para CUALQUIER rol (un socio puede cerrar como closer): si está en el
+// conjunto, el motor no le genera fila — ni positiva al cobrar ni, por el mismo
+// rasero, en la proyección de comisiones futuras.
+export function esExentoDeComision(userId: string | null | undefined, exentos?: Set<string> | null): boolean {
+  if (!userId || !exentos) return false
+  return exentos.has(userId)
+}
+
 function getLiquidationMonth(collectedAt: Date): string {
   // First day of NEXT month
   const nextMonth = addMonths(collectedAt, 1)

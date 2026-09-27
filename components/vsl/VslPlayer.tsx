@@ -110,6 +110,9 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
   const [sp, setSp] = useState<{ watching: number; watched: number } | null>(null) // prueba social
   const [showExitHook, setShowExitHook] = useState(false) // overlay "no te vayas"
   const exitShownRef = useRef(0) // veces mostrado (máx 2/sesión)
+  const [showCta, setShowCta] = useState(false) // CTA programado (paridad Vidalytics)
+  const ctaShownRef = useRef(false) // ya se disparó en esta sesión
+  const ctaDismissedRef = useRef(false) // el usuario lo cerró (si ctaOnce)
 
   const cfg = video.config
   const src = video.source_url || ''
@@ -207,7 +210,16 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
       import('hls.js').then(({ default: Hls }) => {
         if (cancelled) return
         if (Hls.isSupported()) {
-          hls = new Hls({ enableWorker: true, lowLatencyMode: false, maxBufferLength: 30 })
+          // Fast start (velocidad de carga percibida, lo que venden Wistia/PandaVideo): empieza
+          // por el fragmento de menor calidad para arrancar ya y sube de calidad (ABR) según
+          // ancho de banda real; buffer acotado para no gastar datos de móvil sin necesidad.
+          hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: false,
+            maxBufferLength: 30,
+            startLevel: 0, // arranca por la calidad más baja: primer frame en cuanto antes
+            abrEwmaDefaultEstimate: 500_000, // estimación inicial conservadora (0,5 Mbps)
+          })
           hls.loadSource(src)
           hls.attachMedia(el)
         } else {
@@ -329,6 +341,21 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
     if (!el) return
     const d = el.duration || video.duration_seconds || 0
     if (d > 0) setPct(Math.min(100, (el.currentTime / d) * 100))
+    // CTA programado: aparece UNA vez al cruzar el % configurado; con ctaPause, pausa el vídeo.
+    // No se dispara al rebobinar por debajo (solo en el primer cruce); si !ctaOnce vuelve
+    // a mostrarse en la siguiente pasada tras terminar el vídeo (loop).
+    if (
+      cfg.ctaEnabled &&
+      cfg.ctaUrl &&
+      d > 0 &&
+      !ctaShownRef.current &&
+      !ctaDismissedRef.current &&
+      (el.currentTime / d) * 100 >= Math.min(100, Math.max(0, cfg.ctaAtPercent))
+    ) {
+      ctaShownRef.current = true
+      setShowCta(true)
+      if (cfg.ctaPause) el.pause()
+    }
     if (!el.paused && !el.seeking) {
       const sec = Math.floor(el.currentTime)
       if (!watchedRef.current.has(sec)) {
@@ -379,6 +406,9 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
     setPlaying(false)
     sendBeat('ended')
     clearPos(video.slug) // ya lo terminó: la próxima vez empieza de cero
+    if (cfg.ctaEnabled && !cfg.ctaOnce) {
+      ctaShownRef.current = false // en loop sin once: el CTA vuelve en la siguiente vuelta
+    }
     if (cfg.loop) {
       const el = videoRef.current
       if (el) {
@@ -535,7 +565,9 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
         ref={videoRef}
         poster={video.poster_url || undefined}
         playsInline
-        preload="auto"
+        // Con autoplay el vídeo va a sonar a la carga (preload auto); si no, metadata basta:
+        // descarga menos al primer render (móvil/4G) y el arranque real la impulsa.
+        preload={cfg.autoplay ? 'auto' : 'metadata'}
         className="h-full w-full object-contain"
         onClick={togglePlay}
         onTimeUpdate={onTimeUpdate}
@@ -545,6 +577,57 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
         onPause={onPause}
         onEnded={onEnded}
       />
+
+      {/* CTA programado (paridad Vidalytics): botón en un % del vídeo, con auto-pausa opcional */}
+      {showCta && cfg.ctaEnabled && cfg.ctaUrl && (
+        <div
+          className="absolute inset-x-0 bottom-14 z-30 flex flex-col items-center gap-2 px-4"
+          role="dialog"
+          aria-label="Llamada a la acción"
+        >
+          <div className="flex items-center gap-2 rounded-full bg-black/80 p-2 pl-4 shadow-2xl ring-1 ring-white/15 backdrop-blur-md">
+            <a
+              href={
+                cfg.ctaUrl.startsWith('/') || /^https?:\/\//i.test(cfg.ctaUrl) ? cfg.ctaUrl : `https://${cfg.ctaUrl}`
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => sendBeat('cta')}
+              className="flex items-center gap-2 whitespace-nowrap rounded-full px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white active:scale-[0.98]"
+              style={{ backgroundColor: cfg.primaryColor }}
+            >
+              {cfg.ctaText || 'Reservar llamada'}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="white" aria-hidden>
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </a>
+            {cfg.ctaOnce && (
+              <button
+                onClick={() => {
+                  ctaDismissedRef.current = true
+                  setShowCta(false)
+                  const el = videoRef.current
+                  if (el && el.paused && !el.ended) el.play().catch(() => {})
+                }}
+                aria-label="Cerrar y seguir viendo"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                >
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Póster por encima del <video> hasta que se pinta el 1er frame real:
           evita el ~1,5s en negro mientras el navegador bufferea al arrancar. */}
@@ -559,7 +642,7 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
       {sp && (cfg.socialProof === 'fake' || cfg.socialProof === 'real') && (
         <div className="pointer-events-none absolute left-2.5 top-2.5 z-20 flex flex-col gap-1">
           {sp.watching > 0 && (
-            <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
+            <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 text-2xs font-medium text-white backdrop-blur-sm">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
@@ -568,7 +651,7 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
             </span>
           )}
           {sp.watched > 0 && (
-            <span className="inline-flex w-fit items-center rounded-full bg-black/45 px-2.5 py-1 text-[10px] text-white/85 backdrop-blur-sm">
+            <span className="inline-flex w-fit items-center rounded-full bg-black/45 px-2.5 py-1 text-3xs text-white/85 backdrop-blur-sm">
               {fmtNum(sp.watched)} ya lo han visto
             </span>
           )}
@@ -649,8 +732,8 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
         </button>
       )}
 
-      {/* Botón play central cuando está pausado y con sonido */}
-      {!playing && !muted && resumeSec === null && !showExitHook && (
+      {/* Botón play central cuando está pausado y con sonido (customizable, paridad Wistia) */}
+      {cfg.showCentralPlay !== false && !playing && !muted && resumeSec === null && !showExitHook && (
         <button onClick={togglePlay} className="absolute inset-0 flex items-center justify-center bg-black/20">
           <span
             className="flex h-16 w-16 items-center justify-center rounded-full shadow-lg"
@@ -663,40 +746,42 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
         </button>
       )}
 
-      {/* Botón de pantalla completa (esquina inferior derecha, por encima de overlays) */}
-      <button
-        onClick={toggleFullscreen}
-        aria-label="Pantalla completa"
-        className="absolute bottom-2.5 right-2.5 z-20 flex h-9 w-9 items-center justify-center rounded-md bg-black/45 text-foreground opacity-80 transition hover:bg-black/65 hover:opacity-100"
-      >
-        {isFs ? (
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />
-          </svg>
-        ) : (
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />
-          </svg>
-        )}
-      </button>
+      {/* Botón de pantalla completa (customizable, paridad Wistia/PandaVideo) */}
+      {cfg.showFullscreenBtn !== false && (
+        <button
+          onClick={toggleFullscreen}
+          aria-label="Pantalla completa"
+          className="absolute bottom-2.5 right-2.5 z-20 flex h-9 w-9 items-center justify-center rounded-md bg-black/45 text-foreground opacity-80 transition hover:bg-black/65 hover:opacity-100"
+        >
+          {isFs ? (
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />
+            </svg>
+          ) : (
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />
+            </svg>
+          )}
+        </button>
+      )}
 
       {/* Barra de progreso (azul). Con fakeProgress va "acelerada": el ancho
           mostrado va por delante del tiempo real para dar sensación de que queda poco. */}

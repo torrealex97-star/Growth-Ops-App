@@ -142,7 +142,27 @@ export function CommissionsTable({
       }),
       columnHelper.accessor('percent', {
         header: '%',
-        cell: ({ getValue }) => <span className="text-muted-foreground">{formatPercent(getValue())}</span>,
+        cell: ({ row, getValue }) => {
+          // TRANSPARENCIA (23-sep): el % de la regla es NOMINAL sobre la base NETA
+          // (bruto − fee real de la pasarela). Sobre el BRUTO el efectivo es menor
+          // (p. ej. 20% nominal ≈ 19,35% efectivo con fee Stripe ~3,2%). Se muestran
+          // ambos para que nadie tenga que hacer la cuenta de nuevo.
+          const nominal = getValue()
+          const base = Number(row.original.base_amount ?? 0)
+          const importe = Number(row.original.commission_amount ?? 0)
+          const efectivo = base > 0 ? (importe / base) * 100 : null
+          return (
+            <span
+              className="text-muted-foreground"
+              title={`% nominal de la regla sobre la base neta${efectivo != null ? ` · efectivo calculado ${formatPercent(efectivo)}` : ''}`}
+            >
+              {formatPercent(nominal)}
+              {efectivo != null && Math.abs(efectivo - nominal) > 0.01 && (
+                <span className="text-muted-foreground/60"> ({formatPercent(efectivo)} efectivo)</span>
+              )}
+            </span>
+          )
+        },
       }),
       columnHelper.accessor('commission_amount', {
         header: 'Importe',

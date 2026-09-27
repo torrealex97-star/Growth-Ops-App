@@ -46,7 +46,7 @@ function TimingStat({ label, value, warn }: { label: string; value: string | nul
     <div
       className={`rounded-lg border px-3 py-2 ${warn ? 'border-amber-500/30 bg-amber-500/10' : 'border-border bg-muted/40'}`}
     >
-      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="text-2xs text-muted-foreground">{label}</p>
       <p className={`text-sm font-semibold ${warn ? 'text-amber-300' : 'text-foreground'}`}>{value}</p>
     </div>
   )
@@ -175,7 +175,7 @@ export function ContractSection({ saleId }: { saleId: string }) {
               </button>
             ))}
           </div>
-          <p className="text-[11px] text-muted-foreground mt-2">
+          <p className="text-2xs text-muted-foreground mt-2">
             En financiación debe firmar el pagador (queda obligado al pago). En full pay basta con el alumno y así
             evitas fricción con el pagador.
           </p>

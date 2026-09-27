@@ -283,9 +283,7 @@ export function FeedbackDialog() {
                           <Icon className="w-3.5 h-3.5" />
                           {formatDateTime(s.created_at)}
                         </div>
-                        <span
-                          className={cn('shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-medium', st.color)}
-                        >
+                        <span className={cn('shrink-0 rounded-md border px-2 py-0.5 text-3xs font-medium', st.color)}>
                           {st.label}
                         </span>
                       </div>
@@ -346,11 +344,11 @@ export function FeedbackDialog() {
                           {isMe ? ' (tú)' : ''}
                         </p>
                         <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                          <span className="text-[11px] rounded-md border px-1.5 py-0.5 bg-emerald-500/15 text-emerald-300 border-emerald-500/30">
+                          <span className="text-2xs rounded-md border px-1.5 py-0.5 bg-emerald-500/15 text-emerald-300 border-emerald-500/30">
                             {t.resolved_total} implementada{t.resolved_total === 1 ? '' : 's'}
                           </span>
                           {t.resolved_this_month > 0 && (
-                            <span className="text-[11px] text-amber-300 flex items-center gap-0.5">
+                            <span className="text-2xs text-amber-300 flex items-center gap-0.5">
                               <Sparkles className="w-3 h-3" /> {t.resolved_this_month} este mes
                             </span>
                           )}
@@ -358,7 +356,7 @@ export function FeedbackDialog() {
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-sm font-semibold text-foreground">{t.total}</p>
-                        <p className="text-[11px] text-muted-foreground">tiradas</p>
+                        <p className="text-2xs text-muted-foreground">tiradas</p>
                       </div>
                     </div>
                   )

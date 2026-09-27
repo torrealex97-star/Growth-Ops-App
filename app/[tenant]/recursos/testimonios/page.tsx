@@ -128,7 +128,7 @@ export default function TestimoniosPage() {
           >
             {f.label}
             {f.key === 'sin-video' && sinVideo > 0 && (
-              <span className="ml-1.5 text-[10px] text-muted-foreground">({sinVideo})</span>
+              <span className="ml-1.5 text-3xs text-muted-foreground">({sinVideo})</span>
             )}
           </button>
         ))}
@@ -170,12 +170,12 @@ export default function TestimoniosPage() {
                     </a>
                   )}
                   {!t.hasRevenue && (
-                    <span className="absolute top-2 left-2 px-2 py-1 rounded-md bg-card/90 border border-border text-[10px] font-medium text-muted-foreground">
+                    <span className="absolute top-2 left-2 px-2 py-1 rounded-md bg-card/90 border border-border text-3xs font-medium text-muted-foreground">
                       Sin cifras · proceso
                     </span>
                   )}
                   {t.kind === 'cliente' && (
-                    <span className="absolute top-2 right-2 px-2 py-1 rounded-md bg-card/90 border border-border text-[10px] font-medium text-muted-foreground">
+                    <span className="absolute top-2 right-2 px-2 py-1 rounded-md bg-card/90 border border-border text-3xs font-medium text-muted-foreground">
                       Cliente, no alumno
                     </span>
                   )}
@@ -189,14 +189,12 @@ export default function TestimoniosPage() {
                     >
                       {t.name}
                     </Link>
-                    <p className="text-[11px] text-muted-foreground">
-                      {[t.avatar, t.sector].filter(Boolean).join(' · ')}
-                    </p>
+                    <p className="text-2xs text-muted-foreground">{[t.avatar, t.sector].filter(Boolean).join(' · ')}</p>
                   </div>
 
                   {t.cifra && <p className="text-xs text-brand-300 font-medium leading-snug">{t.cifra}</p>}
 
-                  <div className="text-[11px] text-muted-foreground space-y-1 leading-relaxed">
+                  <div className="text-2xs text-muted-foreground space-y-1 leading-relaxed">
                     {t.puntoA && (
                       <p>
                         <span className="text-foreground/70 font-medium">Antes:</span> {t.puntoA}
@@ -210,7 +208,7 @@ export default function TestimoniosPage() {
                   </div>
 
                   {!t.consent && (
-                    <p className="text-[10px] text-amber-500/90 flex items-center gap-1">
+                    <p className="text-3xs text-amber-500/90 flex items-center gap-1">
                       <AlertTriangle className="h-3 w-3" /> Consentimiento sin verificar
                     </p>
                   )}
@@ -218,25 +216,25 @@ export default function TestimoniosPage() {
                   <div className="mt-auto pt-2 flex items-center gap-1.5 flex-wrap">
                     <Link
                       href={`/${tenant}/recursos/testimonios/${t.id}`}
-                      className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground"
+                      className="flex items-center gap-1 text-2xs px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground"
                     >
                       <Award className="h-3 w-3" /> Ficha
                     </Link>
                     <button
                       onClick={() => copy(testimonioPitch(t), 'Testimonio copiado')}
-                      className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground"
+                      className="flex items-center gap-1 text-2xs px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground"
                     >
                       <Copy className="h-3 w-3" /> Copiar
                     </button>
                     {t.youtubeUrl ? (
                       <button
                         onClick={() => copy(t.youtubeUrl!, 'Enlace copiado')}
-                        className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground"
+                        className="flex items-center gap-1 text-2xs px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground"
                       >
                         <PlayCircle className="h-3 w-3" /> Enlace
                       </button>
                     ) : (
-                      <span className="text-[11px] text-amber-500/90">Falta el vídeo</span>
+                      <span className="text-2xs text-amber-500/90">Falta el vídeo</span>
                     )}
                     {canWrite && editing !== t.id && (
                       <button
@@ -244,7 +242,7 @@ export default function TestimoniosPage() {
                           setEditing(t.id)
                           setDraftUrl(t.youtubeUrl || '')
                         }}
-                        className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground ml-auto"
+                        className="flex items-center gap-1 text-2xs px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground ml-auto"
                       >
                         <Pencil className="h-3 w-3" /> {t.youtubeUrl ? 'Cambiar' : 'Añadir vídeo'}
                       </button>

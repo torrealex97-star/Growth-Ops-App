@@ -19,6 +19,7 @@ import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { ShareDonut } from '@/components/os/ShareDonut'
 import { TrendChart } from '@/components/os/TrendChart'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 function csvEscape(value: string): string {
   if (value == null) return ''
@@ -204,11 +205,11 @@ function extractStoragePath(pathOrUrl: string): string | null {
 // y bajar es positivo (verde) — al revés que en ingresos.
 function KpiDelta({ current, previous, hasPrevious }: { current: number; previous: number; hasPrevious: boolean }) {
   if (!hasPrevious) {
-    return <p className="text-[11px] text-muted-foreground mt-1">—</p>
+    return <p className="text-2xs text-muted-foreground mt-1">—</p>
   }
   if (previous === 0) {
-    if (current === 0) return <p className="text-[11px] text-muted-foreground mt-1">Sin cambios</p>
-    return <p className="text-[11px] text-red-400 mt-1">▲ nuevo vs periodo anterior</p>
+    if (current === 0) return <p className="text-2xs text-muted-foreground mt-1">Sin cambios</p>
+    return <p className="text-2xs text-red-400 mt-1">▲ nuevo vs periodo anterior</p>
   }
   const pct = ((current - previous) / previous) * 100
   const up = pct > 0.05
@@ -216,7 +217,7 @@ function KpiDelta({ current, previous, hasPrevious }: { current: number; previou
   const colorClass = up ? 'text-red-400' : down ? 'text-emerald-400' : 'text-muted-foreground'
   const arrow = up ? '▲' : down ? '▼' : '—'
   return (
-    <p className={`text-[11px] mt-1 ${colorClass}`}>
+    <p className={`text-2xs mt-1 ${colorClass}`}>
       {arrow} {Math.abs(pct).toFixed(1)}% vs periodo anterior
     </p>
   )
@@ -534,6 +535,7 @@ export default function ExpensesPage() {
       }
 
       const { error } = await supabase.from('expenses').insert({
+        tenant_id: tenantId,
         concept: extracted.concept || file.name,
         category: (extracted.category as Expense['category']) || 'otros',
         subcategory: extracted.counterparty || null,
@@ -657,6 +659,7 @@ export default function ExpensesPage() {
     }
 
     const { error } = await supabase.from('expenses').insert({
+      tenant_id: tenantId,
       concept: ne.concept.trim(),
       category: ne.category,
       subcategory: ne.subcategory.trim() || null,
@@ -1016,17 +1019,17 @@ export default function ExpensesPage() {
                           <td className="px-4 py-3 text-foreground">
                             {e.concept}
                             {e.recurring && (
-                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300 border border-brand-500/30">
+                              <span className="ml-2 text-3xs px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300 border border-brand-500/30">
                                 recurrente
                               </span>
                             )}
                             {e.auto_source && (
-                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                              <span className="ml-2 text-3xs px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
                                 auto
                               </span>
                             )}
                             {e.needs_review && (
-                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              <span className="ml-2 text-3xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
                                 Revisar
                               </span>
                             )}
@@ -1175,195 +1178,177 @@ export default function ExpensesPage() {
         </>
       )}
 
-      {showNew && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={resetNewModal}>
-          <div
-            className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-foreground font-semibold">Nuevo gasto</h3>
-              <button
-                onClick={resetNewModal}
-                aria-label="Cerrar"
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            {analyzing && (
-              <p className="text-xs text-brand-300 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 animate-pulse" /> Analizando factura…
-              </p>
-            )}
-            {aiExtracted && !analyzing && (
-              <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 space-y-1">
-                <p className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5" /> Datos extraídos con IA — revisa antes de crear
-                </p>
-                {typeof aiExtracted.confidence === 'number' && (
-                  <p className="text-muted-foreground">
-                    Confianza: {Math.round(aiExtracted.confidence * (aiExtracted.confidence <= 1 ? 100 : 1))}%
-                  </p>
-                )}
-                {typeof aiExtracted.vat === 'number' && (
-                  <p className="text-muted-foreground">IVA detectado: {formatCurrency(aiExtracted.vat)}</p>
-                )}
-              </div>
-            )}
-            <input
-              value={ne.concept}
-              onChange={(e) => setNe({ ...ne, concept: e.target.value })}
-              placeholder="Concepto"
-              className={cls}
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <select
-                value={ne.category}
-                onChange={(e) => setNe({ ...ne, category: e.target.value as Expense['category'] })}
-                className={cls}
-              >
-                {CATEGORIES.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={ne.subcategory}
-                onChange={(e) => setNe({ ...ne, subcategory: e.target.value })}
-                placeholder="Subcategoría"
-                className={cls}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={ne.amount}
-                onChange={(e) => setNe({ ...ne, amount: e.target.value })}
-                placeholder="Importe (€)"
-                className={cls}
-              />
-              <input
-                type="date"
-                value={ne.expense_date}
-                onChange={(e) => setNe({ ...ne, expense_date: e.target.value })}
-                className={cls}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <select
-                value={ne.payment_method}
-                onChange={(e) => setNe({ ...ne, payment_method: e.target.value })}
-                className={cls}
-              >
-                {PAYMENT_METHODS.map((p) => (
-                  <option key={p.value} value={p.value}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={ne.status}
-                onChange={(e) => setNe({ ...ne, status: e.target.value as Expense['status'] })}
-                className={cls}
-              >
-                {STATUS_OPTIONS.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <input
-                placeholder="Cuenta propia de pago (ej. BBVA …)"
-                value={ne.paid_from_account}
-                onChange={(e) => setNe({ ...ne, paid_from_account: e.target.value })}
-                className={cls}
-              />
-              <input
-                placeholder="Referencia del pago"
-                value={ne.payment_reference}
-                onChange={(e) => setNe({ ...ne, payment_reference: e.target.value })}
-                className={cls}
-              />
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              La cuenta bancaria extraída de la factura es la del EMISOR: no demuestra el pago. La cuenta propia y la
-              referencia los introduce el usuario al registrar el pago.
+      <Dialog open={showNew} onOpenChange={(o) => !o && resetNewModal()}>
+        <DialogContent className="max-w-md w-full gap-3 p-5 max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-foreground font-semibold">Nuevo gasto</DialogTitle>
+          </DialogHeader>
+          {analyzing && (
+            <p className="text-xs text-brand-300 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 animate-pulse" /> Analizando factura…
             </p>
-            <div className="flex items-center gap-2">
-              <label className="flex items-center gap-2 text-sm text-foreground">
-                <input
-                  type="checkbox"
-                  checked={ne.recurring}
-                  onChange={(e) => setNe({ ...ne, recurring: e.target.checked })}
-                  className="rounded border-border bg-muted"
-                />
-                Gasto recurrente
-              </label>
-              {ne.recurring && (
-                <select
-                  value={ne.frequency}
-                  onChange={(e) => setNe({ ...ne, frequency: e.target.value as NonNullable<Expense['frequency']> })}
-                  className="flex-1 bg-muted border border-border rounded-lg p-2 text-sm text-foreground"
-                >
-                  {FREQUENCIES.map((f) => (
-                    <option key={f.value} value={f.value}>
-                      {f.label}
-                    </option>
-                  ))}
-                </select>
+          )}
+          {aiExtracted && !analyzing && (
+            <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2 space-y-1">
+              <p className="flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" /> Datos extraídos con IA — revisa antes de crear
+              </p>
+              {typeof aiExtracted.confidence === 'number' && (
+                <p className="text-muted-foreground">
+                  Confianza: {Math.round(aiExtracted.confidence * (aiExtracted.confidence <= 1 ? 100 : 1))}%
+                </p>
+              )}
+              {typeof aiExtracted.vat === 'number' && (
+                <p className="text-muted-foreground">IVA detectado: {formatCurrency(aiExtracted.vat)}</p>
               )}
             </div>
-            <input
-              value={ne.counterparty}
-              onChange={(e) => setNe({ ...ne, counterparty: e.target.value })}
-              placeholder="Proveedor / contraparte"
+          )}
+          <input
+            value={ne.concept}
+            onChange={(e) => setNe({ ...ne, concept: e.target.value })}
+            placeholder="Concepto"
+            className={cls}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <select
+              value={ne.category}
+              onChange={(e) => setNe({ ...ne, category: e.target.value as Expense['category'] })}
               className={cls}
-            />
-            <select value={ne.person_id} onChange={(e) => setNe({ ...ne, person_id: e.target.value })} className={cls}>
-              <option value="">— persona (opcional) —</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.full_name}
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
                 </option>
               ))}
             </select>
-            <textarea
-              value={ne.notes}
-              onChange={(e) => setNe({ ...ne, notes: e.target.value })}
-              rows={2}
-              placeholder="Notas"
+            <input
+              value={ne.subcategory}
+              onChange={(e) => setNe({ ...ne, subcategory: e.target.value })}
+              placeholder="Subcategoría"
               className={cls}
             />
-            <div className="flex justify-end gap-2 pt-1">
-              <button onClick={resetNewModal} className="px-3 py-2 text-sm text-muted-foreground">
-                Cancelar
-              </button>
-              <button onClick={create} className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg">
-                Crear
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+          <div className="grid grid-cols-2 gap-3">
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={ne.amount}
+              onChange={(e) => setNe({ ...ne, amount: e.target.value })}
+              placeholder="Importe (€)"
+              className={cls}
+            />
+            <input
+              type="date"
+              value={ne.expense_date}
+              onChange={(e) => setNe({ ...ne, expense_date: e.target.value })}
+              className={cls}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <select
+              value={ne.payment_method}
+              onChange={(e) => setNe({ ...ne, payment_method: e.target.value })}
+              className={cls}
+            >
+              {PAYMENT_METHODS.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={ne.status}
+              onChange={(e) => setNe({ ...ne, status: e.target.value as Expense['status'] })}
+              className={cls}
+            >
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <input
+              placeholder="Cuenta propia de pago (ej. BBVA …)"
+              value={ne.paid_from_account}
+              onChange={(e) => setNe({ ...ne, paid_from_account: e.target.value })}
+              className={cls}
+            />
+            <input
+              placeholder="Referencia del pago"
+              value={ne.payment_reference}
+              onChange={(e) => setNe({ ...ne, payment_reference: e.target.value })}
+              className={cls}
+            />
+          </div>
+          <p className="text-2xs text-muted-foreground">
+            La cuenta bancaria extraída de la factura es la del EMISOR: no demuestra el pago. La cuenta propia y la
+            referencia los introduce el usuario al registrar el pago.
+          </p>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                checked={ne.recurring}
+                onChange={(e) => setNe({ ...ne, recurring: e.target.checked })}
+                className="rounded border-border bg-muted"
+              />
+              Gasto recurrente
+            </label>
+            {ne.recurring && (
+              <select
+                value={ne.frequency}
+                onChange={(e) => setNe({ ...ne, frequency: e.target.value as NonNullable<Expense['frequency']> })}
+                className="flex-1 bg-muted border border-border rounded-lg p-2 text-sm text-foreground"
+              >
+                {FREQUENCIES.map((f) => (
+                  <option key={f.value} value={f.value}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          <input
+            value={ne.counterparty}
+            onChange={(e) => setNe({ ...ne, counterparty: e.target.value })}
+            placeholder="Proveedor / contraparte"
+            className={cls}
+          />
+          <select value={ne.person_id} onChange={(e) => setNe({ ...ne, person_id: e.target.value })} className={cls}>
+            <option value="">— persona (opcional) —</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.full_name}
+              </option>
+            ))}
+          </select>
+          <textarea
+            value={ne.notes}
+            onChange={(e) => setNe({ ...ne, notes: e.target.value })}
+            rows={2}
+            placeholder="Notas"
+            className={cls}
+          />
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={resetNewModal} className="px-3 py-2 text-sm text-muted-foreground">
+              Cancelar
+            </button>
+            <button onClick={create} className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg">
+              Crear
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={closeEdit}>
-          <div
-            className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-foreground font-semibold">Editar gasto</h3>
-              <button onClick={closeEdit} aria-label="Cerrar" className="text-muted-foreground hover:text-foreground">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+        <Dialog open onOpenChange={(o) => !o && closeEdit()}>
+          <DialogContent className="max-w-md w-full gap-3 p-5 max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-foreground font-semibold">Editar gasto</DialogTitle>
+            </DialogHeader>
             <input
               value={ee.concept}
               onChange={(e) => setEe({ ...ee, concept: e.target.value })}
@@ -1450,8 +1435,8 @@ export default function ExpensesPage() {
                 Guardar
               </button>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

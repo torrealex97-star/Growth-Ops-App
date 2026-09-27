@@ -50,7 +50,7 @@ function HeroRow({ stats }: { stats: HeroStat[] }) {
           >
             {s.value}
           </p>
-          {s.hint && <p className="text-[11px] text-muted-foreground mt-0.5">{s.hint}</p>}
+          {s.hint && <p className="text-2xs text-muted-foreground mt-0.5">{s.hint}</p>}
         </div>
       ))}
     </div>
@@ -233,7 +233,7 @@ export function AdsFunnelPanel({ campaigns, targets }: { campaigns: Campaign[]; 
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-foreground">Embudo de Ads</h2>
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-2xs text-muted-foreground">
           Agendas · Llamadas · Cierres se cruzan con el CRM por UTM del contacto
         </span>
       </div>

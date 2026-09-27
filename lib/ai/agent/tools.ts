@@ -8,6 +8,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { computeAdFunnel, perCampaign, type AdFunnel } from '@/lib/ads/funnel'
 import { buildContactTimeline, type TimelineEvent } from '@/lib/contact-timeline'
 import { cuentaComoVenta } from '@/lib/analytics'
+import { parseAccountIds } from '@/lib/meta/accounts'
 import { metodoDePlan } from '@/lib/metrics/agregados'
 import { getMetricDefinition as lookupMetricDefinition } from '@/lib/ai/metrics/registry'
 import {
@@ -36,6 +37,23 @@ export type ToolContext = {
 // Periodo en fechas YYYY-MM-DD. Sin "from"/"to" = todo el histórico disponible (acotado por
 // row limits en cada query, nunca "trae toda la tabla").
 export type Period = { from?: string; to?: string }
+
+/**
+ * Cuentas de ads seleccionadas en Integraciones, leídas de la instantánea de config que ya viaja en
+ * el ToolContext (mismo parseo canónico que el resto de la app). La tabla `campaigns` conserva
+ * históricos de cuentas deseleccionadas (el token ve todas las del business): sin este filtro, la
+ * inversión y el CPL que el agente cita mezclan dinero que no es del negocio. Vacío = todas.
+ */
+function cuentasAdsDeContexto(env: Record<string, string | undefined> | undefined): string[] {
+  return parseAccountIds(env?.META_AD_ACCOUNT_ID)
+}
+
+/** Filtra campañas por las cuentas seleccionadas. Una campaña sin cuenta (manual) siempre entra. */
+function campanasDeCuentas<T extends { account_id?: string | null }>(filas: T[], cuentas: string[]): T[] {
+  if (cuentas.length === 0) return filas
+  const permitidas = new Set(cuentas)
+  return filas.filter((f) => !f.account_id || permitidas.has(f.account_id))
+}
 
 const inPeriod = (dateStr: string | null, p: Period): boolean => {
   if (!dateStr) return false
@@ -205,7 +223,8 @@ function conMetodo<T extends { status: string }>(v: T) {
   return { ...v, payment_plan_method: metodoDePlan(v as { payment_plans?: unknown }) }
 }
 
-export async function getBusinessOverview({ tenantId, sb }: ToolContext, period: Period) {
+export async function getBusinessOverview({ tenantId, sb, env }: ToolContext, period: Period) {
+  const cuentasAds = cuentasAdsDeContexto(env)
   const [{ data: campaigns, error: campaignsErr }, { data: sales, error: salesErr }, { count: contactCount }] =
     await Promise.all([
       sb.from('campaigns').select('*').eq('tenant_id', tenantId).limit(500),
@@ -221,7 +240,9 @@ export async function getBusinessOverview({ tenantId, sb }: ToolContext, period:
       sb.from('contacts').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId),
     ])
 
-  const periodCampaigns = ((campaigns as Campaign[]) || []).filter(
+  // Solo campañas de las cuentas elegidas en Integraciones: el gasto de cuentas históricas
+  // deseleccionadas no es del negocio (mismo convenio que la pantalla de Campañas).
+  const periodCampaigns = campanasDeCuentas((campaigns as Campaign[]) || [], cuentasAds).filter(
     (c) => !period.from || !c.start_date || inPeriod(c.start_date, period) || !c.end_date
   )
   const funnel = computeAdFunnel(periodCampaigns)
@@ -265,7 +286,7 @@ export async function getBusinessOverview({ tenantId, sb }: ToolContext, period:
 // lib/ads/funnel.ts), para no calcular métricas "a mano" en el LLM.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getFunnel(
-  { tenantId, sb }: ToolContext,
+  { tenantId, sb, env }: ToolContext,
   period: Period
 ): Promise<Partial<AdFunnel> & { aviso_datos?: string; error?: string }> {
   const { data, error: campaignsErr } = await sb.from('campaigns').select('*').eq('tenant_id', tenantId).limit(500)
@@ -273,7 +294,8 @@ export async function getFunnel(
   // 0/inventado) — detectAnomalies compara este resultado contra el del periodo anterior y un
   // 0 falso aquí anunciaría una caída de ROAS que nunca ocurrió.
   if (campaignsErr) return { error: `campañas: ${campaignsErr.message}` }
-  const campaigns = ((data as Campaign[]) || []).filter(
+  // Solo cuentas seleccionadas en Integraciones (mismo convenio que la pantalla de Campañas).
+  const campaigns = campanasDeCuentas((data as Campaign[]) || [], cuentasAdsDeContexto(env)).filter(
     (c) => !period.from || !c.start_date || inPeriod(c.start_date, period)
   )
   const funnel = computeAdFunnel(campaigns)
@@ -288,11 +310,13 @@ export async function getFunnel(
 // métricas derivadas ya calculadas — el modelo puede comparar sin inventar fórmulas.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getCampaignPerformance(
-  { tenantId, sb }: ToolContext,
+  { tenantId, sb, env }: ToolContext,
   opts: { period?: Period; nameContains?: string }
 ) {
   const { data } = await sb.from('campaigns').select('*').eq('tenant_id', tenantId).limit(500)
-  let campaigns = (data as Campaign[]) || []
+  // Solo cuentas seleccionadas en Integraciones: el rendimiento por campaña no debe listar
+  // campañas de cuentas que el usuario ya quitó del negocio.
+  let campaigns = campanasDeCuentas((data as Campaign[]) || [], cuentasAdsDeContexto(env))
   if (opts.period)
     campaigns = campaigns.filter((c) => !opts.period!.from || !c.start_date || inPeriod(c.start_date, opts.period!))
   if (opts.nameContains) {

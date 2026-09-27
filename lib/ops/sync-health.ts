@@ -66,13 +66,20 @@ export const SYNC_DEFS: SyncDef[] = [
   {
     id: 'instagram',
     label: 'Instagram orgánico',
+    // La ruta de cron EXISTE (app/api/[tenant]/evergreen/cron/instagram) y se ejecuta a diario por
+    // GitHub Actions (cron-instagram.yml, 02:30 UTC), NO por Vercel: se retiró de vercel.json porque
+    // el plan Hobby solo admite 2 crons (ver comentario en ese fichero). Declararla `vercel` aquí
+    // hacía que este panel dijera "nadie la ejecuta" aunque SÍ corriera a diario — el mismo patrón
+    // que stripe-payments/calendly-citas de abajo, resuelto igual.
     route: 'cron/instagram',
     // `ig_media` es la tabla que ESCRIBE el cron (y la que lee la pantalla de Instagram). Aquí ponía
     // `instagram_posts`, que no existe en ninguna migración: el panel iba a decir "sin datos" para
     // siempre por contar una tabla inexistente, justo el fallo que este módulo existe para evitar.
     table: 'ig_media',
     requiredKeys: ['INSTAGRAM_ACCESS_TOKEN'],
-    scheduler: 'vercel',
+    scheduler: 'manual',
+    manualReason:
+      'Se ejecuta a diario por GitHub Actions (02:30 UTC, cron-instagram.yml): sincroniza ig_media, audiencia y estadísticas orgánicas. No está en vercel.json porque el plan Hobby solo admite 2 crons.',
   },
   {
     id: 'analyze-calls',
