@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Loader2, Save, CheckCircle2, AlertTriangle, Send, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTenant } from '@/lib/tenant-context'
+import { formatDateTime } from '@/lib/utils'
 import { LABELS } from './email-labels'
 
 type ProviderInfo = { connected: boolean; usingGlobalFallback: boolean; providerDomain: string | null }
@@ -234,12 +235,10 @@ export function EmailHistoryPanel() {
           <tbody className="divide-y divide-border">
             {(messages ?? []).map((m) => (
               <tr key={m.id} className="hover:bg-muted/40">
-                <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
-                  {new Date(m.created_at).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}
-                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{formatDateTime(m.created_at)}</td>
                 <td className="px-4 py-3">
                   {m.to_email}
-                  {m.is_test && <span className="ml-2 text-[10px] uppercase text-amber-400">prueba</span>}
+                  {m.is_test && <span className="ml-2 text-3xs uppercase text-amber-400">prueba</span>}
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">{LABELS[m.template_key] ?? m.template_key}</td>
                 <td className="px-4 py-3 max-w-72 truncate">{m.subject}</td>

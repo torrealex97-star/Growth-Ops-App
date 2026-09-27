@@ -65,7 +65,7 @@ function MetricCard({
     <div className="rounded-lg border border-border bg-card p-4">
       <p className="text-xs text-muted-foreground mb-1">{label}</p>
       <p className={`text-xl font-bold tabular-nums ${valueColor}`}>{value}</p>
-      {sublabel && <p className="text-[11px] text-muted-foreground mt-1">{sublabel}</p>}
+      {sublabel && <p className="text-2xs text-muted-foreground mt-1">{sublabel}</p>}
     </div>
   )
 }
@@ -273,10 +273,10 @@ export default function GestoriaPage() {
                 >
                   {fmt(summary.netResult)}
                 </p>
-                <p className="text-[11px] text-muted-foreground mt-1">margen {pct(summary.margin)}</p>
+                <p className="text-2xs text-muted-foreground mt-1">margen {pct(summary.margin)}</p>
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground mt-2">
+            <p className="text-2xs text-muted-foreground mt-2">
               Resultado neto = mismo cálculo que I&amp;G (Dirección › Métricas): Net Revenue − COGS − OpEx
             </p>
           </div>

@@ -54,34 +54,34 @@ function isOverdue(row: InstallmentRow, today: string): boolean {
 function StatusBadge({ row, today }: { row: InstallmentRow; today: string }) {
   if (row.flagged_delinquent) {
     return (
-      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">
+      <span className="text-3xs font-semibold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">
         MOROSO
       </span>
     )
   }
   if (isOverdue(row, today)) {
     return (
-      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30">
+      <span className="text-3xs font-semibold px-2 py-0.5 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30">
         VENCIDA
       </span>
     )
   }
   if (row.status === 'collected') {
     return (
-      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+      <span className="text-3xs font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
         COBRADA
       </span>
     )
   }
   if (row.status === 'cancelled') {
     return (
-      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-muted/50 text-muted-foreground border border-border/30">
+      <span className="text-3xs font-semibold px-2 py-0.5 rounded bg-muted/50 text-muted-foreground border border-border/30">
         CANCELADA
       </span>
     )
   }
   return (
-    <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+    <span className="text-3xs font-semibold px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">
       PENDIENTE
     </span>
   )
@@ -350,7 +350,7 @@ export function InstallmentsMorosidadView() {
                           {row.is_monitoring ? '—' : row.installment_number}
                           {row.is_monitoring && (
                             <span
-                              className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/30"
+                              className="ml-1.5 text-3xs px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/30"
                               title="Cuota del alumno con la financiera (Sequra). Solo control de impago; no es cash nuestro."
                             >
                               monitor. Sequra

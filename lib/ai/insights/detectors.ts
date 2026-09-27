@@ -44,8 +44,15 @@ function weekKey(d: Date): string {
 const pctChange = (curr: number | null, prev: number | null): number | null =>
   curr === null || prev === null || prev === 0 ? null : ((curr - prev) / prev) * 100
 
-export async function detectAnomalies(tenantId: string, sb: SupabaseClient): Promise<DetectedAnomaly[]> {
-  const ctx: ToolContext = { tenantId, sb }
+export async function detectAnomalies(
+  tenantId: string,
+  sb: SupabaseClient,
+  // Instantánea de config del tenant (getTenantConfigWithFallback): sin ella, las tools de campaigns
+  // no pueden acotar a las cuentas seleccionadas en Integraciones y las anomalías de CAC/ROAS se
+  // calcularían con el gasto de cuentas históricas deseleccionadas.
+  env?: Record<string, string | undefined>
+): Promise<DetectedAnomaly[]> {
+  const ctx: ToolContext = { tenantId, sb, env }
   const { current, previous } = last7DaysWindows()
   const wk = weekKey(new Date())
   const [now, prev] = await Promise.all([getBusinessOverview(ctx, current), getBusinessOverview(ctx, previous)])

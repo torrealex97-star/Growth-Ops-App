@@ -209,3 +209,53 @@ test('PREVISIÓN derivada: los cobros cubren FIFO aunque vengan en desorden', ()
   assert.equal(plan.cobrado, 1000)
   assert.equal(plan.porCobrar, 500)
 })
+
+// -----------------------------------------------------------------------------
+// REGRESIÓN — 'disputed' NO es cash confirmado (docs/MONEY.md D5, informe FASE A
+// 26-sep, hallazgo P1 #4). Antes `cobros.filter((c) => c.status !== 'reversed')`
+// dejaba pasar 'disputed': una cuota en disputa se pintaba "cobrada" (verde)
+// aunque el dinero está en el aire hasta que el banco/Stripe resuelva.
+// -----------------------------------------------------------------------------
+
+test('calendario REAL: un cobro DISPUTED no cubre la cuota — sigue pendiente/impago, no verde', () => {
+  const cuotas = [
+    {
+      id: 'q1',
+      sale_id: 's1',
+      installment_number: 1,
+      due_date: '2026-10-01',
+      expected_gross_amount: 500,
+      expected_commissionable_amount: 470,
+      status: 'pending',
+      is_monitoring: false,
+      flagged_delinquent: false,
+    },
+  ]
+  const cobroDisputado = { ...coleccionesReales([cuotas[0]])[0], status: 'disputed' }
+  const plan = planCuotasDeVenta(cuotas, [cobroDisputado], metaBase)
+  assert.equal(plan.cuotas[0].estado, 'pending')
+  assert.equal(plan.cobrado, 0)
+  assert.equal(plan.porCobrar, 500)
+})
+
+test('PREVISIÓN derivada: un cobro DISPUTED no cubre nada de la cuota prevista', () => {
+  const cobroDisputado = {
+    id: 'c1',
+    sale_id: 's1',
+    expected_installment_id: null,
+    collected_at: '2026-09-05T10:00:00Z',
+    gross_amount: 1497,
+    commissionable_amount: 1497,
+    status: 'disputed',
+    processing_fee: 0,
+    extra_fee: 0,
+  }
+  const plan = planCuotasDeVenta([], [cobroDisputado], metaBase)
+  assert.equal(plan.fuente, 'prevision')
+  // La fecha de venta (2026-09-05) ya pasó y sigue sin cubrirse de verdad: vencida → overdue,
+  // NO 'collected'. Lo importante de esta regresión es que el disputado no cuenta como cash.
+  assert.equal(plan.cuotas[0].estado, 'overdue')
+  assert.equal(plan.cobrado, 0)
+  assert.equal(plan.porCobrar, 1497)
+  assert.equal(plan.impagado, 1497)
+})

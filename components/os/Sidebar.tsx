@@ -142,12 +142,12 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed left-0 top-0 z-[45] h-full w-64 flex-col bg-[#0A0A0B] border-r border-[#26262A] transition-transform duration-300 lg:static lg:flex lg:translate-x-0',
+          'fixed left-0 top-0 z-[45] h-full w-64 flex-col bg-zinc-950 border-r border-zinc-800 transition-transform duration-300 lg:static lg:flex lg:translate-x-0',
           isOpen ? 'flex translate-x-0' : '-translate-x-full hidden lg:flex'
         )}
       >
         {/* Logo */}
-        <div className="flex items-center justify-between px-6 py-6 border-b border-[#26262A]">
+        <div className="flex items-center justify-between px-6 py-6 border-b border-zinc-800">
           <div className="flex items-center gap-2.5">
             <div className="relative flex h-9 w-9 items-center justify-center" aria-label={branding.name}>
               <span className="text-[34px] font-semibold leading-none tracking-[-0.18em] text-white">
@@ -175,7 +175,7 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
                   <button
                     type="button"
                     onClick={() => toggleSection(section.dept as string)}
-                    className="w-full flex items-center justify-between px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                    className="w-full flex items-center justify-between px-3 pt-4 pb-1 text-3xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <span>{DEPARTMENT_LABELS[section.dept]}</span>
                     <ChevronDown
@@ -194,8 +194,8 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
                           className={cn(
                             'relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group',
                             isActive(itemHref)
-                              ? 'bg-[#1C1C1F] text-white border border-[#343438] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
-                              : 'text-[#A1A1AA] hover:text-white hover:bg-[#141416] border border-transparent'
+                              ? 'bg-zinc-900 text-white border border-zinc-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
+                              : 'text-zinc-400 hover:text-white hover:bg-zinc-900 border border-transparent'
                           )}
                         >
                           {/* Barra de acento del item activo */}
@@ -205,7 +205,7 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
                           <item.icon
                             className={cn(
                               'w-4 h-4 shrink-0 transition-colors',
-                              isActive(itemHref) ? 'text-white' : 'text-[#6B6B70] group-hover:text-white'
+                              isActive(itemHref) ? 'text-white' : 'text-zinc-500 group-hover:text-white'
                             )}
                           />
                           {item.label}

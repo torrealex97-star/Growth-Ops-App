@@ -437,7 +437,7 @@
     display: none;
   }
   .go-hero__media {
-    background-image: url('/panel/hero-poster.png');
+    background-image: url('/panel/hero-poster.webp');
     background-size: cover;
     background-position: center;
   }

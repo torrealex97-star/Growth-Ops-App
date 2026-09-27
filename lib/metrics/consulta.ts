@@ -76,7 +76,12 @@ const r2 = (n: number) => Math.round(n * 100) / 100
 export async function consultarMetricas(
   sb: SupabaseClient,
   tenantId: string,
-  periodo: Periodo
+  periodo: Periodo,
+  // Cuentas de ads seleccionadas en Integraciones. La tabla conserva históricos de cuentas ya
+  // deseleccionadas: sin este filtro, su gasto se sumaba a las métricas del negocio. Vacío = todas
+  // (el convenio de toda la app); el parámetro es opcional para no romper a quienes ya llaman, pero
+  // las dos rutas que consumen esta capa (IA y brief) se lo pasan siempre.
+  cuentasAds: string[] = []
 ): Promise<ResultadoConsulta> {
   // Las lecturas son independientes: en serie serían viajes de red encadenados por nada.
   const [ventas, cobros, citas, campanas, contactos, gastosCogs] = await Promise.all([
@@ -119,13 +124,16 @@ export async function consultarMetricas(
       { maxPages: MAX_PAGINAS }
     ),
     fetchAllRows<FilaCampana>(
-      () =>
-        sb
+      () => {
+        let q = sb
           .from('campaign_daily')
           .select('date, spend, impressions, clicks, leads')
           .eq('tenant_id', tenantId)
           .gte('date', periodo.desde)
-          .lte('date', periodo.hasta),
+          .lte('date', periodo.hasta)
+        if (cuentasAds.length > 0) q = q.in('account_id', cuentasAds)
+        return q
+      },
       { maxPages: MAX_PAGINAS }
     ),
     fetchAllRows<FilaContacto>(

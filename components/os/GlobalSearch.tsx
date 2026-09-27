@@ -196,7 +196,7 @@ export function GlobalSearch({ user }: { user: User & { roles: { key: string; na
       >
         <Search className="w-4 h-4" />
         <span className="hidden md:inline text-xs">Buscar</span>
-        <kbd className="hidden md:inline text-[10px] px-1 py-0.5 rounded border border-border bg-muted/60">⌘K</kbd>
+        <kbd className="hidden md:inline text-3xs px-1 py-0.5 rounded border border-border bg-muted/60">⌘K</kbd>
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -229,7 +229,7 @@ export function GlobalSearch({ user }: { user: User & { roles: { key: string; na
                 return (
                   <div key={r.key}>
                     {showGroup && (
-                      <p className="px-4 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                      <p className="px-4 pt-2 pb-1 text-3xs uppercase tracking-wider text-muted-foreground">
                         {groupLabel(r.kind)}
                       </p>
                     )}
@@ -254,7 +254,7 @@ export function GlobalSearch({ user }: { user: User & { roles: { key: string; na
             )}
           </div>
 
-          <div className="px-4 py-2 border-t border-border flex items-center gap-3 text-[10px] text-muted-foreground">
+          <div className="px-4 py-2 border-t border-border flex items-center gap-3 text-3xs text-muted-foreground">
             <span>↑↓ moverse</span>
             <span>↵ abrir</span>
             <span>esc cerrar</span>

@@ -12,6 +12,36 @@ function serviceClient(): SupabaseClient {
   })
 }
 
+/**
+ * PURGA por exención: al marcar pays_commissions=false a una persona, sus comisiones NO
+ * liquidadas ya generadas siguen en el ledger y contaminarían métricas. Se borran las
+ * POSITIVAS no liquidadas (pendientes/aprobadas — dinero que NUNCA se le pagará) y sus
+ * reflejos... las negativas se conservan: son el espejo de devoluciones y cuadran contra
+ * positivas ya liquidadas que sí existieron. Liquidadas jamás se tocan (dinero ya pagado).
+ * Devuelve cuántas filas quitó.
+ */
+async function purgarComisionesDeExento(sb: SupabaseClient, tenantId: string, userId: string): Promise<number> {
+  const { data: rows, error } = await sb
+    .from('commissions')
+    .select('id, direction, status')
+    .eq('tenant_id', tenantId)
+    .eq('user_id', userId)
+    .neq('status', 'liquidated')
+  if (error) throw new Error(`No se pudieron leer las comisiones a purgar: ${error.message}`)
+  const aBorrar = (rows ?? []).filter((r) => r.direction === 'positive')
+  if (aBorrar.length === 0) return 0
+  const { error: delErr } = await sb
+    .from('commissions')
+    .delete()
+    .eq('tenant_id', tenantId)
+    .in(
+      'id',
+      aBorrar.map((r) => r.id)
+    )
+  if (delErr) throw new Error(`No se pudieron purgar las comisiones del exento: ${delErr.message}`)
+  return aBorrar.length
+}
+
 // Verifica que quien llama está autenticado y es admin/director de ESTA subcuenta (o super_admin).
 // Devuelve el caller o una respuesta de error ya lista para retornar.
 async function requireAdmin(
@@ -67,6 +97,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       userId?: string
       companyEmail?: string
       personalEmail?: string | null
+      paysCommissions?: boolean
     }
     const userId = body.userId
     if (!userId) return NextResponse.json({ error: 'Falta userId' }, { status: 400 })
@@ -118,7 +149,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ ok: true, authEmailChanged })
+    // EXENCIÓN DE COMISIONES: al desmarcar "comisiona", se purgan sus comisiones no liquidadas
+    // (dinero que el motor ya no reconocerá) para que las métricas queden coherentes al instante.
+    let purgadas = 0
+    if (body.paysCommissions === false) {
+      try {
+        purgadas = await purgarComisionesDeExento(sb, guard.tenantId, userId)
+      } catch (e) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : 'No se pudieron purgar las comisiones' },
+          { status: 500 }
+        )
+      }
+    }
+
+    return NextResponse.json({ ok: true, authEmailChanged, purgadas })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }

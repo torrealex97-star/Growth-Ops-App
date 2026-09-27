@@ -159,7 +159,9 @@ function SyncProgress({
         >
           <div
             className="h-full rounded-full transition-[width] duration-500"
-            style={{ width: `${pct}%`, background: 'var(--brand-600, #6366f1)' }}
+            // --brand-600 siempre está definida en :root (app/globals.css) antes de montar; el
+            // fallback aquí no coincidía con ningún tenant real y nunca llegaba a usarse.
+            style={{ width: `${pct}%`, background: 'var(--brand-600)' }}
           />
         </div>
       ) : (

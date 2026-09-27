@@ -49,10 +49,10 @@ function RateDelta({
 }) {
   if (!hasPrevPeriod || current === null || previous === null) return null
   const delta = current - previous
-  if (Math.abs(delta) < 0.05) return <span className="text-[11px] text-muted-foreground ml-1.5">· = vs. anterior</span>
+  if (Math.abs(delta) < 0.05) return <span className="text-2xs text-muted-foreground ml-1.5">· = vs. anterior</span>
   const up = delta > 0
   return (
-    <span className={`text-[11px] ml-1.5 ${up ? 'text-emerald-400' : 'text-red-400'}`}>
+    <span className={`text-2xs ml-1.5 ${up ? 'text-emerald-400' : 'text-red-400'}`}>
       {up ? '▲' : '▼'} {formatPercent(Math.abs(delta), 1).replace('%', ' pp')} vs. anterior
     </span>
   )

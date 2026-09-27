@@ -29,7 +29,7 @@ function RankList({ rows }: { rows: RankRow[] }) {
           <span className="flex-1 min-w-0 truncate text-sm text-foreground">{r.name}</span>
           <div className="text-right shrink-0">
             <p className="text-sm font-semibold text-foreground">{formatCurrency(r.gross)}</p>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               {r.sales} {r.sales === 1 ? 'venta' : 'ventas'} · {formatCurrency(r.cash)} cobrado
             </p>
           </div>

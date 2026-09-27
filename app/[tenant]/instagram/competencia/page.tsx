@@ -12,7 +12,6 @@ import {
   MessageCircle,
   ExternalLink,
   Sparkles,
-  X,
   Wand2,
   Settings2,
   Save,
@@ -26,11 +25,12 @@ import {
   AlertTriangle,
 } from 'lucide-react'
 import { CTAS } from '@/lib/ctas'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { Testimonio } from '@/lib/testimonios-shared'
 import { createClient } from '@/lib/supabase/client'
 import { useScriptQueue } from '@/components/os/ScriptQueue'
 import { useTenant } from '@/lib/tenant-context'
-import { formatNumber } from '@/lib/utils'
+import { formatNumber, formatDateTime } from '@/lib/utils'
 
 type Competitor = {
   id: string
@@ -470,7 +470,7 @@ export default function CompetenciaPage() {
               {adding ? 'Analizando…' : 'Analizar'}
             </button>
           </div>
-          <p className="text-[11px] text-muted-foreground mt-2">
+          <p className="text-2xs text-muted-foreground mt-2">
             Se ordena por likes + comentarios (la API no da views de terceros).
           </p>
         </div>
@@ -500,7 +500,7 @@ export default function CompetenciaPage() {
               {addingReel ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
             </button>
           </div>
-          <p className="text-[11px] text-muted-foreground mt-2">
+          <p className="text-2xs text-muted-foreground mt-2">
             Si el enlace no lleva el usuario, ponlo en @usuario. Debe ser un reel reciente y público.
           </p>
         </div>
@@ -523,9 +523,7 @@ export default function CompetenciaPage() {
               <button
                 onClick={() => setSelected(c.id)}
                 title={
-                  c.last_synced_at
-                    ? `Última actualización: ${new Date(c.last_synced_at).toLocaleString('es-ES')}`
-                    : 'Sin sincronizar'
+                  c.last_synced_at ? `Última actualización: ${formatDateTime(c.last_synced_at)}` : 'Sin sincronizar'
                 }
                 className="pl-3 py-1.5"
               >
@@ -616,7 +614,7 @@ export default function CompetenciaPage() {
                 {/* Marca "Ya en Ideas" */}
                 {inIdeas && (
                   <span
-                    className="absolute top-2 right-2 z-10 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                    className="absolute top-2 right-2 z-10 flex items-center gap-1 text-3xs px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
                     title="Ya generaste un guión de este reel"
                   >
                     <Check className="w-3 h-3" /> En Ideas
@@ -729,14 +727,8 @@ export default function CompetenciaPage() {
 
       {/* Modal de ajustes (estilo / negocio) */}
       {settingsTab && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setSettingsTab(null)}
-        >
-          <div
-            className="bg-card border border-border rounded-xl p-5 w-full max-w-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <Dialog open onOpenChange={(o) => !o && setSettingsTab(null)}>
+          <DialogContent className="max-w-xl w-full gap-0 p-5">
             <div className="flex items-center justify-between mb-2">
               <div className="flex gap-1">
                 <button
@@ -752,9 +744,7 @@ export default function CompetenciaPage() {
                   Negocio y CTAs
                 </button>
               </div>
-              <button onClick={() => setSettingsTab(null)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-4 h-4" />
-              </button>
+              <DialogTitle className="sr-only">Ajustes de guiones</DialogTitle>
             </div>
             {settingsTab === 'estilo' ? (
               <>
@@ -782,7 +772,7 @@ export default function CompetenciaPage() {
                   placeholder="Describe tu negocio, avatares y funnel…"
                   className="w-full bg-muted border border-border rounded-lg p-3 text-sm text-foreground focus:outline-none focus:border-pink-500"
                 />
-                <div className="mt-2 text-[11px] text-muted-foreground space-y-0.5 max-h-32 overflow-y-auto">
+                <div className="mt-2 text-2xs text-muted-foreground space-y-0.5 max-h-32 overflow-y-auto">
                   {CTAS.map((c) => (
                     <div key={c.code}>
                       <span className="text-pink-400 font-medium">{c.code}</span> — {c.description}
@@ -803,28 +793,21 @@ export default function CompetenciaPage() {
                 <Save className="w-4 h-4" /> Guardar
               </button>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Modal generador de guión (flujo individual) */}
       {gen && (
-        <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-          onClick={() => setGen(null)}
-        >
-          <div
-            className="bg-card border border-border rounded-xl max-w-2xl w-full max-h-[88vh] overflow-y-auto p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Wand2 className="w-5 h-5 text-pink-400" /> Crear guión a tu estilo
-              </h3>
-              <button onClick={() => setGen(null)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+        <Dialog open onOpenChange={(o) => !o && setGen(null)}>
+          <DialogContent className="max-w-2xl w-full max-h-[88vh] overflow-y-auto gap-0 p-5">
+            <DialogHeader className="flex-row items-center justify-between space-y-0 mb-3">
+              <DialogTitle asChild>
+                <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                  <Wand2 className="w-5 h-5 text-pink-400" /> Crear guión a tu estilo
+                </h3>
+              </DialogTitle>
+            </DialogHeader>
 
             {gen.phase !== 'result' && (
               <div className="space-y-3">
@@ -896,7 +879,7 @@ export default function CompetenciaPage() {
                     className="w-full mt-1 bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground focus:outline-none focus:border-pink-500"
                   />
                 </div>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   Mantendrá el hook y la primera parte del original, y a partir de ahí lo reconduce a tu negocio
                   cerrando con el CTA.
                   {gen.testimonio && ' Meterá el caso de éxito como prueba social en el puente, con sus cifras reales.'}
@@ -976,8 +959,8 @@ export default function CompetenciaPage() {
                 </div>
               </div>
             )}
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

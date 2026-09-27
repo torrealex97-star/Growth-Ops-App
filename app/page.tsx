@@ -79,7 +79,7 @@ export default function HomePage() {
           loop
           playsInline
           preload="auto"
-          poster="/panel/hero-poster.png"
+          poster="/panel/hero-poster.webp"
           src="/panel/hero.mp4"
         />
       </div>

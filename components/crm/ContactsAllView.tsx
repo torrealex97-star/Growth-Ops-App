@@ -606,9 +606,7 @@ export function ContactsAllView() {
                 <div className="absolute right-0 mt-2 w-60 rounded-lg border border-border bg-card shadow-xl z-20 p-2 max-h-96 overflow-y-auto">
                   {['Datos', 'CRM', 'VSL', 'Atribución', 'Detalle'].map((group) => (
                     <div key={group}>
-                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground px-2 pt-2 pb-1">
-                        {group}
-                      </p>
+                      <p className="text-3xs uppercase tracking-wider text-muted-foreground px-2 pt-2 pb-1">{group}</p>
                       {COLUMNS.filter((c) => c.group === group).map((c) => (
                         <label
                           key={c.key}
@@ -752,7 +750,7 @@ export function ContactsAllView() {
       <div className="rounded-lg border border-border overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
+            <tr className="text-2xs uppercase tracking-wider text-muted-foreground border-b border-border">
               {isVisible('nombre') && <th className="text-left font-medium p-3">Nombre</th>}
               {isVisible('telefono') && <th className="text-left font-medium p-3">Teléfono</th>}
               {isVisible('email') && <th className="text-left font-medium p-3">Email</th>}
@@ -810,17 +808,17 @@ export function ContactsAllView() {
                           </Link>
                           <div className="flex flex-wrap gap-1 mt-1">
                             {l.set_source === 'setter' && (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-brand-500/20 text-brand-300 border border-brand-500/40">
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-3xs font-semibold bg-brand-500/20 text-brand-300 border border-brand-500/40">
                                 <UserCheck className="w-2.5 h-2.5" /> Setter
                               </span>
                             )}
                             {isNoCall(l) && (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500/20 text-red-400 border border-red-500/40">
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-3xs font-semibold bg-red-500/20 text-red-400 border border-red-500/40">
                                 <Ban className="w-2.5 h-2.5" /> No llamar
                               </span>
                             )}
                             {Number(l.vsl_watch_pct ?? 0) >= HOT_PCT && (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-500/20 text-orange-300 border border-orange-500/40">
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-3xs font-semibold bg-orange-500/20 text-orange-300 border border-orange-500/40">
                                 🔥 {Number(l.vsl_watch_pct)}%
                               </span>
                             )}
@@ -861,7 +859,7 @@ export function ContactsAllView() {
                           <select
                             value={l.lead_status}
                             onChange={(e) => update(l.id, { lead_status: e.target.value as LeadStatus })}
-                            className="text-[11px] bg-muted border border-border rounded px-2 py-1 text-foreground cursor-pointer"
+                            className="text-2xs bg-muted border border-border rounded px-2 py-1 text-foreground cursor-pointer"
                           >
                             {STATUS.map((s) => (
                               <option key={s.value} value={s.value}>
@@ -876,7 +874,7 @@ export function ContactsAllView() {
                           <select
                             value={l.lead_channel ?? ''}
                             onChange={(e) => update(l.id, { lead_channel: e.target.value as Channel })}
-                            className="text-[11px] bg-muted border border-border rounded px-2 py-1 text-foreground cursor-pointer"
+                            className="text-2xs bg-muted border border-border rounded px-2 py-1 text-foreground cursor-pointer"
                           >
                             <option value="">—</option>
                             <option value="whatsapp">WhatsApp</option>
@@ -892,13 +890,13 @@ export function ContactsAllView() {
                       {isVisible('seguimiento') && (
                         <td className="p-3">
                           <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${fuMeta.color}`}
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-3xs font-semibold border ${fuMeta.color}`}
                           >
                             <span className={`w-1.5 h-1.5 rounded-full ${fuMeta.dot}`} />
                             {relativeDays(fu.days)}
                           </span>
                           {(l.contact_attempts ?? 0) > 0 && (
-                            <span className="block text-[10px] text-muted-foreground mt-0.5">
+                            <span className="block text-3xs text-muted-foreground mt-0.5">
                               {l.contact_attempts} intento{(l.contact_attempts ?? 0) > 1 ? 's' : ''}
                             </span>
                           )}
@@ -1040,7 +1038,7 @@ export function ContactsAllView() {
                   >
                     <div className="min-w-0">
                       <p className="text-sm text-foreground truncate">{d.label}</p>
-                      <p className="text-[11px] text-muted-foreground">{d.field_type}</p>
+                      <p className="text-2xs text-muted-foreground">{d.field_type}</p>
                     </div>
                     <Button
                       size="sm"
@@ -1077,7 +1075,7 @@ export function ContactsAllView() {
                   {savingField ? 'Creando…' : 'Crear'}
                 </Button>
               </div>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 Se añaden a la ficha de todos los contactos. Al eliminar un campo se borran también sus valores.
               </p>
             </div>

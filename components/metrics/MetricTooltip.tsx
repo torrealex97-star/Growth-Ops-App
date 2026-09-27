@@ -115,7 +115,7 @@ export function MetricTooltip({
 
           <Bloque titulo="Qué es">{contenido.queEs}</Bloque>
           <Bloque titulo="Fórmula">
-            <span className="font-mono text-[11px]">{contenido.formula}</span>
+            <span className="font-mono text-2xs">{contenido.formula}</span>
           </Bloque>
           <Bloque titulo="Por qué importa">{contenido.porQueImporta}</Bloque>
           <Bloque titulo="Fuente">{contenido.fuente}</Bloque>
@@ -140,7 +140,7 @@ export function MetricTooltip({
 function Bloque({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
     <span className="mt-2 block">
-      <span className="block text-[11px] font-medium text-muted-foreground">{titulo}</span>
+      <span className="block text-2xs font-medium text-muted-foreground">{titulo}</span>
       <span className="block text-xs leading-snug text-foreground">{children}</span>
     </span>
   )

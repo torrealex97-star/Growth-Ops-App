@@ -62,7 +62,7 @@ export function AgendasPorPersona({
                 <p className="text-sm font-semibold text-foreground">
                   {formatNumber(r.total)} <span className="text-xs font-normal text-muted-foreground">agendas</span>
                 </p>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   {formatNumber(r.shows)} asistieron · {formatNumber(r.noShows)} no asistieron ·{' '}
                   {r.showRate === null ? (
                     // Sin ninguna cita resuelta no hay ratio: un 0% aquí sería un problema inventado.

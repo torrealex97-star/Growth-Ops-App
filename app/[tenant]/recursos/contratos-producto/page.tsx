@@ -120,12 +120,12 @@ export default function ContratosProductoPage() {
                     <span className="text-foreground font-medium flex-1">{t.name}</span>
                   </button>
                   {t.payment_method && (
-                    <span className="text-[11px] px-2 py-0.5 rounded-md border border-border text-muted-foreground">
+                    <span className="text-2xs px-2 py-0.5 rounded-md border border-border text-muted-foreground">
                       {PAYMENT_LABEL[t.payment_method] || t.payment_method}
                     </span>
                   )}
                   <span
-                    className={`text-[11px] px-2 py-0.5 rounded-md border ${KIND_STYLE[t.kind] || 'border-border text-foreground'}`}
+                    className={`text-2xs px-2 py-0.5 rounded-md border ${KIND_STYLE[t.kind] || 'border-border text-foreground'}`}
                   >
                     {KIND_LABEL[t.kind] || t.kind}
                   </span>
@@ -134,7 +134,7 @@ export default function ContratosProductoPage() {
                     target="_blank"
                     rel="noopener noreferrer"
                     title="Descargar plantilla en PDF"
-                    className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted/60 shrink-0"
+                    className="inline-flex items-center gap-1 text-2xs px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted/60 shrink-0"
                   >
                     <Download className="w-3.5 h-3.5" /> PDF
                   </a>
