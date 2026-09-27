@@ -159,7 +159,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       { repId: (sale as { closer_id?: string | null }).closer_id, role: 'closer' },
     ])
 
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       actor_user_id: t.userId,
       entity_type: 'sale',
@@ -172,6 +172,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         negativeCommissions: negatives.length,
       },
     })
+    if (auditErr) console.error('[refunds/create] audit_logs no se pudo escribir:', auditErr.message)
 
     // No hay evento de devolución confirmado en creatuagente (solo venta.registrada); pendiente
     // de confirmar antes de notificar reembolsos.
