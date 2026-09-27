@@ -39,6 +39,20 @@ const ALLOWED_PATCH_FIELDS = new Set([
   'notes',
 ])
 
+// Allowlist de columnas por fila del calendario de cuotas (buildInstallmentRows /
+// buildRestInstallments de la UI): sale_id/tenant_id van sellados por el servidor al construir la
+// fila. Sin esto, el spread del cliente permitía columnas o estados no previstos — p. ej.
+// is_monitoring=true esconde la cuota del motor de morosidad (flagged_delinquent sale de ahí).
+const ALLOWED_INSTALLMENT_FIELDS = new Set([
+  'sale_id',
+  'installment_number',
+  'due_date',
+  'expected_gross_amount',
+  'expected_commissionable_amount',
+  'status',
+  'is_monitoring',
+])
+
 // Completa una RESERVA: promueve la venta (misma fila) al plan final y marca reservation_completed_at.
 // Va por SERVICE ROLE porque `sales`/`sale_expected_installments` solo permiten UPDATE/INSERT a
 // admin/director vía RLS. Un closer/setter que completaba el pago desde el cliente hacía un UPDATE
@@ -93,7 +107,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         { status: 500 }
       )
     if (Array.isArray(installments) && installments.length > 0) {
-      const rows = installments.map((r: Record<string, unknown>) => ({ ...r, sale_id: saleId, tenant_id: t.tenantId }))
+      // Mismo criterio que el patch: el cliente construye filas con campos fijos; cualquier campo
+      // fuera de la allowlist se rechaza antes de tocar la base. sale_id/tenant_id se sellan aquí
+      // (nunca salen del cuerpo).
+      const filasNoPermitidas = [
+        ...new Set(
+          (installments as Record<string, unknown>[]).flatMap((r) =>
+            Object.keys(r).filter((k) => !ALLOWED_INSTALLMENT_FIELDS.has(k))
+          )
+        ),
+      ]
+      if (filasNoPermitidas.length > 0) {
+        return NextResponse.json(
+          { error: `Campos no permitidos en las cuotas: ${filasNoPermitidas.join(', ')}` },
+          { status: 400 }
+        )
+      }
+      const rows = (installments as Record<string, unknown>[]).map((r) => ({
+        sale_id: saleId,
+        tenant_id: t.tenantId,
+        installment_number: r.installment_number,
+        due_date: r.due_date,
+        expected_gross_amount: r.expected_gross_amount,
+        expected_commissionable_amount: r.expected_commissionable_amount,
+        status: r.status,
+        is_monitoring: r.is_monitoring,
+      }))
       const { error: instErr } = await sb.from('sale_expected_installments').insert(rows)
       if (instErr) return NextResponse.json({ error: instErr.message }, { status: 500 })
     }

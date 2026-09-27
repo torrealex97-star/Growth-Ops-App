@@ -13,7 +13,9 @@ import { fileURLToPath } from 'node:url'
 // de cuotas previo, sin comprobar, podía dejarlo DUPLICADO si fallaba antes del insert.
 //
 // Estilo de la casa (webhook-ghl.test.mjs, sales-delete-atomico.test.mjs): invariantes estáticos
-// sobre el código fuente; los comentarios se eliminan antes de analizar.
+// sobre el código fuente; los comentarios se eliminan antes de analizar. Se usan búsquedas de
+// cadena (includes/indexOf) en vez de regex con escapes para que el invariante no dependa del
+// formateo.
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
 const read = (p) => readFileSync(join(root, p), 'utf8')
@@ -23,14 +25,18 @@ const RUTA = 'app/api/[tenant]/evergreen/sales/complete-reservation/route.ts'
 const src = limpiar(read(RUTA))
 
 test('existe una allowlist explícita de campos y el patch se valida contra ella', () => {
-  assert.match(src, /ALLOWED_PATCH_FIELDS\s*=\s*new Set/)
-  assert.match(src, /Object\.keys\(patch\)\.filter\(\(k\)\s*=>\s*!ALLOWED_PATCH_FIELDS\.has\(k\)\)/)
+  assert.ok(src.includes('ALLOWED_PATCH_FIELDS = new Set'), 'debe existir la allowlist del patch')
+  assert.ok(
+    src.includes('Object.keys(patch).filter((k) => !ALLOWED_PATCH_FIELDS.has(k))'),
+    'el patch se valida contra la allowlist'
+  )
   assert.ok(src.includes('Campos no permitidos en completar reserva'), 'un campo fuera de la lista se rechaza')
-  assert.match(src, /status:\s*400/)
+  assert.ok(src.includes('status: 400'))
 })
 
 test('la allowlist NUNCA incluye tenant_id, id, created_by ni columnas de auditoría/documentos', () => {
-  const bloque = src.slice(src.indexOf('ALLOWED_PATCH_FIELDS'), src.indexOf('])') + 2)
+  const inicio = src.indexOf('ALLOWED_PATCH_FIELDS')
+  const bloque = src.slice(inicio, src.indexOf('])', inicio) + 2)
   for (const prohibido of [
     "'tenant_id'",
     "'id'",
@@ -73,7 +79,7 @@ test('la allowlist cubre exactamente los campos que envía la UI (registro/nueva
     'notes',
   ]
   for (const campo of esperados) {
-    assert.ok(src.includes(`'${campo}'`), `falta '${campo}' en la allowlist`)
+    assert.ok(src.includes("'" + campo + "'"), `falta '${campo}' en la allowlist`)
   }
 })
 
@@ -86,12 +92,42 @@ test('la validación del patch va ANTES del update de sales', () => {
 test('el borrado del calendario de cuotas previo se comprueba antes de insertar el nuevo', () => {
   // Antes: `await sb.from('sale_expected_installments').delete()...` sin capturar error, seguido
   // directo del insert — si el delete fallaba, el insert añadía cuotas ENCIMA de las viejas.
-  assert.match(
-    src,
-    /const\s*\{\s*error:\s*delInstErr\s*\}\s*=\s*await sb\.from\('sale_expected_installments'\)\.delete\(\)/
-  )
+  const idxDel = src.indexOf("sb.from('sale_expected_installments').delete()")
   const idxCheck = src.indexOf('if (delInstErr)')
   const idxInsert = src.indexOf(".from('sale_expected_installments').insert(rows)")
-  assert.ok(idxCheck > -1 && idxCheck < idxInsert, 'el error del borrado se comprueba antes del insert')
+  assert.ok(idxDel > -1, 'el delete del calendario previo debe existir')
+  assert.ok(idxCheck > idxDel, 'el error del borrado se captura')
+  assert.ok(idxInsert > idxCheck, 'el error del borrado se comprueba antes del insert')
   assert.ok(src.includes('No se pudo limpiar el calendario de cuotas anterior'))
+})
+
+test('las filas de cuotas también van por allowlist: sin spread del cuerpo del cliente', () => {
+  // El insert regeneraba filas con { ...r, sale_id, tenant_id }: un caller podía inyectar
+  // columnas no previstas o estados no válidos (p. ej. is_monitoring=true esconde la cuota del
+  // motor de morosidad, flagged_delinquent sale de ahí). Ahora cada campo se copia explícito y
+  // un campo fuera de la allowlist responde 400 antes de tocar la base.
+  assert.ok(src.includes('ALLOWED_INSTALLMENT_FIELDS = new Set'), 'debe existir la allowlist de cuotas')
+  assert.ok(src.includes('Campos no permitidos en las cuotas'), 'un campo de cuota fuera de la lista se rechaza')
+  // El spread directo del cuerpo ya no llega al insert: los campos se copian uno a uno.
+  // (se comprueba sobre el bloque de filas ya limpio de comentarios: un literal de búsqueda
+  // con // dentro sería destruido por limpiar() y la aserción pasaría vacía)
+  // sale_id/tenant_id se sellan por servidor, nunca salen del cuerpo.
+  const idxFilas = src.indexOf('const rows =')
+  const idxInsert = src.indexOf(".from('sale_expected_installments').insert(rows)")
+  assert.ok(idxFilas > -1 && idxInsert > idxFilas, 'las filas se construyen antes del insert')
+  const bloqueFilas = src.slice(idxFilas, idxInsert)
+  assert.ok(!bloqueFilas.includes('...'), 'las filas se copian campo a campo, sin spread del cuerpo')
+  assert.ok(bloqueFilas.includes('sale_id: saleId'), 'sale_id se sella con el de la URL')
+  assert.ok(bloqueFilas.includes('tenant_id: t.tenantId'), 'tenant_id se sella con el de la sesión')
+  for (const campo of [
+    'sale_id',
+    'installment_number',
+    'due_date',
+    'expected_gross_amount',
+    'expected_commissionable_amount',
+    'status',
+    'is_monitoring',
+  ]) {
+    assert.ok(src.includes("'" + campo + "'"), `falta '${campo}' en la allowlist de cuotas`)
+  }
 })
