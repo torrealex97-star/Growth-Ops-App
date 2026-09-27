@@ -35,6 +35,7 @@ interface Metrics {
     completionRate: number
   }
   retention: { sec: number; viewers: number; pct: number }[]
+  milestones: { pct: number; sessions: number; rate: number }[]
   drops: { sec: number; from: number; to: number; delta: number }[]
   devices: { device: string; n: number }[]
   leads: {
@@ -264,6 +265,23 @@ export function VslDashboard() {
               ) : (
                 <p className="py-8 text-center text-sm text-muted-foreground">Sin datos de visionado todavía.</p>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Hitos de visión (25/50/75/95/100 %): paridad de reporting de Vidalytics/Wistia */}
+          <Card className="dashboard-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base text-foreground">Hitos de visión</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                {metrics.milestones.map((m) => (
+                  <div key={m.pct} className="rounded-lg bg-black/30 px-3 py-2 text-center">
+                    <p className="text-lg font-semibold tabular-nums text-foreground">{m.rate}%</p>
+                    <p className="text-[11px] text-muted-foreground">llegan al {m.pct}%</p>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
 
@@ -688,6 +706,50 @@ function VideoForm({
                 placeholder="Mensaje del gancho…"
                 className="mt-2 bg-black/30 text-sm"
               />
+            )}
+          </div>
+
+          {/* CTA programado (paridad Vidalytics): botón en un % del vídeo con auto-pausa opcional */}
+          <div className="md:col-span-2 border-t border-white/10 pt-3">
+            <label className="flex items-center gap-2 text-sm text-foreground">
+              <Checkbox checked={config.ctaEnabled} onCheckedChange={(v) => setCfg('ctaEnabled', !!v)} /> Mostrar un
+              botón de acción en un momento del vídeo
+            </label>
+            {config.ctaEnabled && (
+              <div className="mt-2 grid gap-2 md:grid-cols-2">
+                <Input
+                  value={config.ctaText}
+                  onChange={(e) => setCfg('ctaText', e.target.value)}
+                  placeholder="Texto del botón (p. ej. Reservar llamada)"
+                  className="bg-black/30 text-sm"
+                />
+                <Input
+                  value={config.ctaUrl}
+                  onChange={(e) => setCfg('ctaUrl', e.target.value)}
+                  placeholder="URL de destino (p. ej. https://… o /calendly/…)"
+                  className="bg-black/30 text-sm"
+                />
+                <label className="flex items-center gap-2 text-sm text-foreground">
+                  <span className="whitespace-nowrap">Aparece en:</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={config.ctaAtPercent}
+                    onChange={(e) => setCfg('ctaAtPercent', Math.min(100, Math.max(0, Number(e.target.value))))}
+                    className="h-8 w-20 bg-black/30"
+                  />
+                  <span className="text-muted-foreground">% del vídeo</span>
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground">
+                  <Checkbox checked={config.ctaPause} onCheckedChange={(v) => setCfg('ctaPause', !!v)} /> Pausar el
+                  vídeo cuando aparece
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground">
+                  <Checkbox checked={config.ctaOnce} onCheckedChange={(v) => setCfg('ctaOnce', !!v)} /> Cerrable (si el
+                  usuario lo cierra no vuelve hasta recargar)
+                </label>
+              </div>
             )}
           </div>
         </div>
