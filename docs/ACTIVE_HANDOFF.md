@@ -1,5 +1,53 @@
 # Relevo activo
 
+## ✅ RESULTADO (27-sep): skill taste instalada + paridad VSL (PR #241)
+
+Fusionada en `main` (`fef2673`), CI en verde (quality 1m49s con dead-code, gitleaks 7s, build 2m14s,
+Smoke E2E 3m39s). Petición de Alex: instalar la skill taste para el diseño y completar las
+funcionalidades de Vidalytics/PandaVideo/Wistia que "se avanzaron" y no están (el trabajo "VSL V1/V2"
+de una hebra perdida nunca llegó a main — confirmado por el registro de peticiones).
+
+- **Skill taste**: `.codebuff/skills/design-taste-frontend/SKILL.md` (taste-skill v2 de
+  Leonxlnx/taste-skill, MIT) + puntero de uso obligatorio en `AGENTS.md` (design read, dials,
+  bans anti-slop, pre-flight check; respeta #2563EB y copy en español; no reescribe dashboards).
+- **CTA programado con auto-pausa** en `VslPlayer` (el clásico de Vidalytics): aparece al cruzar
+  un % configurable, pausa el vídeo opcionalmente, cerrable (ctaOnce), URL saneada (solo relativa
+  o http(s)), evento 'cta' en el latido, accesible (role/aria/foco/contraste).
+- **Hitos de visión 25/50/75/95/100** en métricas (paridad reporting Vidalytics/Wistia),
+  derivados de `max_position` de `vsl_sessions` — SIN migración: la config nueva es JSONB
+  fusionada por `mergeConfig` y los vídeos existentes quedan con CTA desactivado.
+- **Dashboard**: tarjeta "Hitos de visión" + editor del CTA (texto/URL/%/pausa/cerrable).
+- **% VSL directo del reproductor (WISHLIST 4/REQ-WISH-04): ya existía** — `syncContactWatchPct`
+  copia el % exacto a `contacts.vsl_watch_pct` en cada latido; lo que faltaba era el reporting de
+  hitos, añadido. El webhook `vsl.progress` de la landing sigue como vía complementaria.
+- **Verificado:** suite focal 6/6 (`tests/vsl-cta-paridad.test.mjs`) · quality local completo
+  (966 unit / 0 fail / 3 skips, 740 métricas) · CI verde · rama borrada. **No verificado:** review
+  visual del overlay/editor con navegador (sandbox sin sesión).
+- **Anotado (requiere migración):** `vsl_sessions.cta_clicks` para contar clicks del CTA, con el
+  lote de migraciones pendientes (misma lección de `20260922100000`).
+
+## ✅ RESULTADO (27-sep): PR-R2.2b — allowlist de campos en `sales/complete-reservation` (PR #240)
+
+Fusionada en `main` (`c8d70b2`), CI de la PR en verde (quality 1m30s con dead-code, gitleaks 8s,
+build 2m47s, Smoke E2E 5m8s). Hallazgo P1 #1 del informe FASE A del 26-sep:
+
+- **Allowlist del `patch`** (commit de Claude adoptado, verificado campo a campo contra la UI):
+  exactamente los 24 campos de `ventas/registro/nueva`; campo fuera de la lista → 400 antes de
+  tocar la base. Cerraba la escritura arbitraria de columnas de `sales` por service role desde
+  roles no directivos (manager/closer/setter/cobros).
+- **Extensión de esta unidad:** el insert del calendario de cuotas también recibía spread del
+  cuerpo del cliente; ahora filas copiadas campo a campo contra `ALLOWED_INSTALLMENT_FIELDS`,
+  400 ante campo no previsto y `sale_id`/`tenant_id` sellados por servidor (p. ej.
+  `is_monitoring=true` escondía cuotas del motor de morosidad).
+- **Delete de cuotas verificado** antes del insert (un fallo duplicaba el calendario) — parte
+  del commit adoptado.
+- **Test:** `tests/sales-complete-reservation-allowlist.test.mjs` (6 invariantes estáticos).
+- **Verificado:** suite focal 6/6 · quality local completo (960 unit pass / 0 fail / 3 skips
+  preexistentes, 740 métricas) · CI verde · rama borrada.
+- **Sigue del informe FASE A (unidad siguiente):** `approve-review` (limpia el flag antes de
+  garantizar la comisión y el retry responde 400), PATCH `reversed` sin devolver la cuota a
+  pendiente, `disputed` tratado como cobrado (contradice D5 de MONEY.md).
+
 ## ✅ RESULTADO (27-sep): PR-R0.1 y PR-R0.2 del RECOVERY_ROADMAP fusionadas en main
 
 - **PR-R0.1 — PR #237** (`579a379`): port de `docs/BASELINE_QUALITY_2026-09-26.md` desde la rama
@@ -99,7 +147,20 @@ BLOCKED_USER credenciales) → PR-R2.1 (port #225 con Alex) → PR-R2.2/2.3 → 
 
 ### CONCURRENCY NOTES
 
-Checkout raíz (`fix/money-path-silent-writes`) conserva WIP ajeno sin commitear: NO tocado, NO borrado.
+⚠️ **27-sep (Buffy): 6 ramas `claude/*` remotas son linajes HUÉRFANOS** (`git merge-base origin/main <rama>`
+vacío: `claude/{comisiones-reservas-fix, app-continuation-lpbupf, socios-reparto-beneficio,
+ltgp-cac-aproximado, objetivos-prevision-f65, growth-context-coste-entrega}`). Sus puntas describen
+trabajo que YA ESTÁ en main vía #201/#208/#211–#213 (anterior al repunto del 19-sep). **NO fusionar
+NI rebasar** (regla «sin merge-base no hay merge», caso #210); verificado contenido a contenido.
+Solo `claude/socios-flecos-finales` tiene base legítima (`5114973`) — pero su hermana
+`socios-reparto-beneficio` (mismo tema) ya llegó a main por #213: tratarla como superseded salvo
+verificación inversa. El clon del worktree tiene refspec de rama única (`origin/main`): para
+inspeccionar ramas remotas, fetch con refspec explícito.
+
+Checkout raíz (`fix/money-path-silent-writes`) conserva WIP ajeno sin commitear (informe FASE A del
+26-sep en `docs/ACTIVE_HANDOFF.md`, +176 líneas: sus hallazgos de crons/sales-delete/commissions-
+future/Correo-Drops ya están resueltos por #238/#239/#233 — cerrarlos en el doc antes de publicarlo;
+stash@{0} del checkout raíz es copia redundante del mismo diff): NO tocado, NO borrado.
 Rama local conservada por contener ese WIP (borrar la ref no borra el working tree). `gh run list
 --commit` usado para diagnóstico de CI (un run cancelled no es fallo). Sin migraciones, sin deletes,
 sin merges de ramas antiguas durante la auditoría.

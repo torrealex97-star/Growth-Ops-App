@@ -20,11 +20,17 @@ export interface VslConfig {
   socialProof: SocialProofMode // off | fake (inventado) | real (sesiones reales)
   spViewersMin: number // fake: mínimo de "viendo ahora"
   spViewersMax: number // fake: máximo de "viendo ahora"
-  spWatchedBase: number // fake: base de "ya lo han visto" (sube poco a poco)
-
-  // --- Recuperación de caída (overlay al pausar / intentar salir) ---
+  spWatchedBase: number // fake: base de "ya lo han visto" (sube poco a poco)// --- Gancho de recuperación (overlay al pausar / intentar salir) ---
   exitHook: boolean // mostrar overlay de "espera, no te vayas"
   exitHookText: string // mensaje del overlay
+
+  // --- CTA programado (paridad Vidalytics): overlay con botón que aparece en un % del vídeo ---
+  ctaEnabled: boolean // activar el CTA en el vídeo
+  ctaText: string // texto del botón
+  ctaUrl: string // destino del botón (relativo o absoluto; se sanea al render)
+  ctaAtPercent: number // % del vídeo en el que aparece (0-100)
+  ctaPause: boolean // pausar el vídeo cuando aparece (el clásico de Vidalytics)
+  ctaOnce: boolean // no volver a mostrarlo si el usuario lo cierra (1 vez por sesión)
 }
 
 // Azul eléctrico (marca)
@@ -48,6 +54,12 @@ export const DEFAULT_CONFIG: VslConfig = {
   spWatchedBase: 1000,
   exitHook: true,
   exitHookText: 'Espera… justo ahora viene lo más importante 👇',
+  ctaEnabled: false,
+  ctaText: 'Reservar llamada',
+  ctaUrl: '',
+  ctaAtPercent: 66,
+  ctaPause: true,
+  ctaOnce: true,
 }
 
 interface VslVideo {
