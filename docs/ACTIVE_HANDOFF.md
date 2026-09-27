@@ -103,6 +103,16 @@ reales disponibles (no subir máscaras): `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, 
 `SUPABASE_URL`/`SUPABASE_SECRET_KEY`, `SEQURA_MERCHANT_REFERENCE`, `SENTRY_AUTH_TOKEN` —
 pedirlas a Alex / dashboard Supabase.
 
+**Fase 1 de optimización Vercel ejecutada (27-sep tarde, con ok explícito de Alex):** borrado el
+proyecto huérfano `go-prod` (creado 19-sep, 0 deployments en toda su vida, sin git, solo su dominio
+automático — verificado vacío en el mismo comando del DELETE) y purgados los 32 deployments
+muertos de `growthops-preview-3003` (28 CANCELED + 4 ERROR, 32/32 borrados, guard de ningún READY).
+Quedan los 72 READY (casi todo de ayer/hoy). **Política de retención a partir de ahora:** los
+CANCELED/ERROR se pueden purgar sin preguntar; los READY de producción viejos (>14 días) y los
+previews de PRs ya cerradas son candidatos a purga; nunca borrar el deployment con el dominio
+asignado (comprobar alias antes). Verificado tras la limpieza: dominio 200, deployment que sirve
+intacto, solo queda 1 proyecto en el equipo.
+
 **Crons verificados en vivo (27-sep 14:40 UTC, tras el build de las 13:36 que ya horneó las envs
 nuevas):** `cron-stripe-payments` → **HTTP 200** `{ok:true}` con informe por subcuenta (omitidas
 honestamente: "Stripe no está configurado en esta subcuenta" — las credenciales cifradas son
