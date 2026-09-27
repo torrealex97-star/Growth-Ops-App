@@ -9,6 +9,7 @@ import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { useSesion } from '@/lib/tenant-context'
+import { formatDateTime } from '@/lib/utils'
 
 const STATUSES = [
   { value: 'agendado', label: 'Agendado' },
@@ -331,10 +332,7 @@ export default function CsmEventsPage() {
                         </span>
                       </div>
                       {e.csm?.full_name && <p className="text-xs text-muted-foreground">CSM: {e.csm.full_name}</p>}
-                      <p className="text-xs text-muted-foreground">
-                        📅{' '}
-                        {new Date(e.event_datetime).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}
-                      </p>
+                      <p className="text-xs text-muted-foreground">📅 {formatDateTime(e.event_datetime)}</p>
                       {e.grade != null && <p className="text-xs text-muted-foreground">Grade: {e.grade}/10</p>}
                       {e.notes && <p className="text-xs text-muted-foreground line-clamp-2">{e.notes}</p>}
                       <select

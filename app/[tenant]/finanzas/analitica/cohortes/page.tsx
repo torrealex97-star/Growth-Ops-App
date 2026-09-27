@@ -8,73 +8,18 @@ import { cuentaComoVenta, monthLabel } from '@/lib/analytics'
 import { metodoDePlan } from '@/lib/metrics/agregados'
 import { formatCurrency } from '@/lib/utils'
 import { FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
+import {
+  buildCohorts,
+  COHORT_WINDOWS,
+  type CohortRow,
+  type CohortSaleRow,
+  type CohortCollectionRow,
+} from '@/lib/finance/cohortes'
 
-type SaleRow = {
-  id: string
-  sale_date: string | null
-  gross_amount: number | string
-  status: string
-  /** Reserva: método del plan y cuándo se completó. Sin esto una reserva abierta parece venta (D8). */
-  payment_plans?: unknown
-  payment_plan_method?: string | null
-  reservation_completed_at?: string | null
-}
-type CollectionRow = { sale_id: string; gross_amount: number | string; collected_at: string | null; status: string }
+type SaleRow = CohortSaleRow & { payment_plans?: unknown }
+type CollectionRow = CohortCollectionRow
 
-const WINDOWS = [30, 60, 90, 180] as const
-
-const num = (x: number | string | null | undefined) => Number(x ?? 0)
-const ymOf = (d: string | null | undefined) => (d ? String(d).slice(0, 7) : '')
-
-type CohortRow = {
-  ym: string
-  contracted: number
-  clients: number
-  collectedAt: Record<number, number>
-}
-
-function daysBetween(a: string, b: string): number {
-  const da = new Date(a).getTime()
-  const db = new Date(b).getTime()
-  return (db - da) / (1000 * 60 * 60 * 24)
-}
-
-function buildCohorts(sales: SaleRow[], collections: CollectionRow[]): CohortRow[] {
-  const saleMap = new Map(sales.map((s) => [s.id, s]))
-  const byCohort = new Map<string, CohortRow>()
-
-  const ensure = (ym: string) =>
-    byCohort.get(ym) ??
-    byCohort.set(ym, { ym, contracted: 0, clients: 0, collectedAt: { 30: 0, 60: 0, 90: 0, 180: 0 } }).get(ym)!
-
-  // "Contratado" solo cuenta ventas activas (isActiveSale, misma definición canónica que
-  // Dashboard/PNL) — una venta cancelada/reembolsada/con chargeback nunca fue negocio real, y
-  // dejarla en el denominador hacía que el %cobrado de la cohorte pareciera peor de lo que es.
-  for (const s of sales) {
-    if (!s.sale_date || !cuentaComoVenta(s)) continue
-    const ym = ymOf(s.sale_date)
-    if (!ym) continue
-    const row = ensure(ym)
-    row.contracted += num(s.gross_amount)
-    row.clients += 1
-  }
-
-  for (const c of collections) {
-    if (c.status !== 'collected' || !c.collected_at) continue
-    const sale = saleMap.get(c.sale_id)
-    if (!sale || !sale.sale_date) continue
-    const ym = ymOf(sale.sale_date)
-    if (!ym || !byCohort.has(ym)) continue
-    const row = byCohort.get(ym)!
-    const diff = daysBetween(sale.sale_date, c.collected_at)
-    if (diff < 0) continue
-    for (const w of WINDOWS) {
-      if (diff <= w) row.collectedAt[w] += num(c.gross_amount)
-    }
-  }
-
-  return Array.from(byCohort.values()).sort((a, b) => (a.ym < b.ym ? 1 : -1))
-}
+const WINDOWS = COHORT_WINDOWS
 
 function pctColor(pct: number): string {
   if (pct >= 80) return 'text-emerald-400'
@@ -98,7 +43,7 @@ export default function CohortsPage() {
           .from('sales')
           // reservation_completed_at + payment_plans(method): sin ellos una reserva abierta es
           // indistinguible de una venta y vuelve a contarse como facturación (MONEY D8, F03).
-          .select('id, sale_date, gross_amount, status, reservation_completed_at, payment_plans(method)')
+          .select('id, sale_date, gross_amount, status, contact_id, reservation_completed_at, payment_plans(method)')
           .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
