@@ -22,6 +22,7 @@ import {
   GraduationCap,
 } from 'lucide-react'
 import ConversacionesTab from './ConversacionesTab'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 
 type Who = 'lead' | 'agent'
 interface Msg {
@@ -1102,16 +1103,23 @@ function EntrenamientoTab() {
 
 function Modal({ children, onClose, big }: { children: ReactNode; onClose: () => void; big?: boolean }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className={`bg-card border border-border rounded-2xl flex flex-col ${big ? 'w-[min(1150px,95vw)] h-[min(88vh,900px)]' : 'w-[min(900px,92vw)] h-[min(80vh,760px)]'}`}
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent
+        className={
+          big
+            ? 'w-[min(1150px,95vw)] h-[min(88vh,900px)] max-w-none rounded-2xl gap-0 p-0'
+            : 'w-[min(900px,92vw)] h-[min(80vh,760px)] max-w-none rounded-2xl gap-0 p-0'
+        }
       >
         {children}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 function ModalHead({ title }: { title: ReactNode }) {
-  return <h3 className="px-4 py-3 border-b border-border text-sm text-foreground font-semibold">{title}</h3>
+  return (
+    <DialogTitle className="px-4 py-3 border-b border-border text-sm text-foreground font-semibold">
+      {title}
+    </DialogTitle>
+  )
 }

@@ -6,9 +6,10 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { Tags, X } from 'lucide-react'
+import { Tags } from 'lucide-react'
 import type { Campaign } from '@/lib/types/database'
 import { suggestFunnelByName, type AsignacionFunnel } from '@/lib/meta/funnels'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 const OPCIONES: { value: AsignacionFunnel; label: string }[] = [
   { value: 'vsl', label: 'VSL' },
@@ -76,29 +77,17 @@ export function MetaFunnelAssigner({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
-      <div
-        className="max-h-[85vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-border bg-card p-5 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h3 className="font-display text-lg font-semibold flex items-center gap-2">
-              <Tags className="h-5 w-5 text-brand-400" /> Funnel por campaña
-            </h3>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Cada campaña Meta se asigna al funnel que le corresponde. El dashboard recalcula sus KPIs y columnas según
-              esta asignación. La sugerencia automática es solo un punto de partida: corrígela donde toque.
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Cerrar"
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[85vh] w-full max-w-3xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 font-display">
+            <Tags className="h-5 w-5 text-brand-400" /> Funnel por campaña
+          </DialogTitle>
+          <DialogDescription>
+            Cada campaña Meta se asigna al funnel que le corresponde. El dashboard recalcula sus KPIs y columnas según
+            esta asignación. La sugerencia automática es solo un punto de partida: corrígela donde toque.
+          </DialogDescription>
+        </DialogHeader>
 
         {meta.length === 0 ? (
           <p className="mt-6 text-center text-sm text-muted-foreground">No hay campañas Meta sincronizadas todavía.</p>
@@ -141,7 +130,7 @@ export function MetaFunnelAssigner({
             })}
           </div>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
