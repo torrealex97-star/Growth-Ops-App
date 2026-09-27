@@ -57,6 +57,7 @@ import {
   type PeriodPreset,
 } from '@/lib/filters/period'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   CATEGORY_BADGE_CLASSES,
   CATEGORY_BLOCK_CLASSES,
@@ -1906,223 +1907,229 @@ export default function AppointmentsPage() {
       </Sheet>
 
       {/* New Appointment Modal */}
-      {showNewModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => {
+      <Dialog
+        open={showNewModal}
+        onOpenChange={(o) => {
+          if (!o) {
             setShowNewModal(false)
             resetNewAppointmentForm()
-          }}
-        >
-          <div
-            className="bg-card border border-border rounded-xl p-5 w-full max-w-lg space-y-4 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-foreground font-semibold">Nueva agenda</h3>
-              <button
-                onClick={() => {
-                  setShowNewModal(false)
-                  resetNewAppointmentForm()
-                }}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg w-full gap-4 p-5 max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-foreground font-semibold">Nueva agenda</DialogTitle>
+          </DialogHeader>
 
-            {/* Contact selection */}
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-foreground">Contacto</p>
+          {/* Contact selection */}
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-foreground">Contacto</p>
 
-              {naSelectedContact ? (
-                <div className="bg-muted border border-border rounded-lg p-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{naSelectedContact.full_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {naSelectedContact.email || naSelectedContact.phone || 'Sin datos'}
-                    </p>
-                  </div>
-                  <button
-                    className="text-xs text-muted-foreground hover:text-foreground"
-                    onClick={() => setNaSelectedContact(null)}
-                  >
-                    Cambiar
-                  </button>
-                </div>
-              ) : null}
-
-              {naSelectedContact && (
-                <div className="space-y-1">
+            {naSelectedContact ? (
+              <div className="bg-muted border border-border rounded-lg p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-foreground">{naSelectedContact.full_name}</p>
                   <p className="text-xs text-muted-foreground">
-                    Zona horaria del contacto (esta es la que verá el lead en la confirmación de Calendly, no la tuya)
+                    {naSelectedContact.email || naSelectedContact.phone || 'Sin datos'}
                   </p>
-                  <select
-                    value={naContactTimezone}
-                    onChange={(e) => setNaContactTimezone(e.target.value)}
-                    className={cls}
-                  >
-                    {!TIMEZONE_OPTIONS.some((o) => o.value === naContactTimezone) && (
-                      <option value={naContactTimezone}>{naContactTimezone}</option>
+                </div>
+                <button
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setNaSelectedContact(null)}
+                >
+                  Cambiar
+                </button>
+              </div>
+            ) : null}
+
+            {naSelectedContact && (
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">
+                  Zona horaria del contacto (esta es la que verá el lead en la confirmación de Calendly, no la tuya)
+                </p>
+                <select
+                  value={naContactTimezone}
+                  onChange={(e) => setNaContactTimezone(e.target.value)}
+                  className={cls}
+                >
+                  {!TIMEZONE_OPTIONS.some((o) => o.value === naContactTimezone) && (
+                    <option value={naContactTimezone}>{naContactTimezone}</option>
+                  )}
+                  {TIMEZONE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {!naSelectedContact && (
+              <div className="space-y-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <input
+                    placeholder="Buscar por nombre, email o teléfono..."
+                    value={naContactSearch}
+                    onChange={(e) => setNaContactSearch(e.target.value)}
+                    className={`${cls} pl-9`}
+                  />
+                </div>
+
+                {(naContactResults.length > 0 || naSearchLoading) && (
+                  <div className="border border-border rounded-lg overflow-hidden">
+                    {naSearchLoading ? (
+                      <div className="p-3 text-center text-muted-foreground text-sm">Buscando...</div>
+                    ) : (
+                      naContactResults.map((c) => (
+                        <button
+                          key={c.id}
+                          className="w-full text-left px-4 py-3 hover:bg-muted transition-colors border-b border-border last:border-0"
+                          onClick={() => {
+                            setNaSelectedContact(c)
+                            setNaContactSearch('')
+                            setNaContactResults([])
+                          }}
+                        >
+                          <p className="text-foreground text-sm font-medium">{c.full_name}</p>
+                          <p className="text-muted-foreground text-xs">{c.email || c.phone || 'Sin datos'}</p>
+                        </button>
+                      ))
                     )}
-                    {TIMEZONE_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {!naSelectedContact && (
-                <div className="space-y-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <input
-                      placeholder="Buscar por nombre, email o teléfono..."
-                      value={naContactSearch}
-                      onChange={(e) => setNaContactSearch(e.target.value)}
-                      className={`${cls} pl-9`}
-                    />
                   </div>
-
-                  {(naContactResults.length > 0 || naSearchLoading) && (
-                    <div className="border border-border rounded-lg overflow-hidden">
-                      {naSearchLoading ? (
-                        <div className="p-3 text-center text-muted-foreground text-sm">Buscando...</div>
-                      ) : (
-                        naContactResults.map((c) => (
-                          <button
-                            key={c.id}
-                            className="w-full text-left px-4 py-3 hover:bg-muted transition-colors border-b border-border last:border-0"
-                            onClick={() => {
-                              setNaSelectedContact(c)
-                              setNaContactSearch('')
-                              setNaContactResults([])
-                            }}
-                          >
-                            <p className="text-foreground text-sm font-medium">{c.full_name}</p>
-                            <p className="text-muted-foreground text-xs">{c.email || c.phone || 'Sin datos'}</p>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )}
-
-                  {!naShowNewContactForm && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full border-dashed border-border text-brand-400 hover:text-brand-300"
-                      onClick={() => {
-                        setNaShowNewContactForm(true)
-                        setNaNewContactName(naContactSearch)
-                      }}
-                    >
-                      + Crear nuevo contacto
-                    </Button>
-                  )}
-
-                  {naShowNewContactForm && (
-                    <div className="border border-border rounded-lg p-3 space-y-2">
-                      <p className="text-sm font-medium text-foreground">Nuevo contacto</p>
-                      <input
-                        placeholder="Nombre completo *"
-                        value={naNewContactName}
-                        onChange={(e) => setNaNewContactName(e.target.value)}
-                        className={cls}
-                      />
-                      <input
-                        placeholder="Email"
-                        type="email"
-                        value={naNewContactEmail}
-                        onChange={(e) => setNaNewContactEmail(e.target.value)}
-                        className={cls}
-                      />
-                      <input
-                        placeholder="Teléfono"
-                        type="tel"
-                        value={naNewContactPhone}
-                        onChange={(e) => setNaNewContactPhone(e.target.value)}
-                        className={cls}
-                      />
-                      <input
-                        placeholder="Instagram (opcional)"
-                        value={naNewContactInstagram}
-                        onChange={(e) => setNaNewContactInstagram(e.target.value)}
-                        className={cls}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        * Nombre obligatorio, y al menos email o teléfono.
-                      </p>
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={handleCreateContactInline} disabled={!naNewContactName}>
-                          Crear y seleccionar
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setNaShowNewContactForm(false)}>
-                          Cancelar
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Setter / Closer */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-foreground">Setter (opcional)</p>
-                <select value={naSetterId} onChange={(e) => setNaSetterId(e.target.value)} className={cls}>
-                  <option value="">— sin setter —</option>
-                  {setters.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.full_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-foreground">Closer</p>
-                <select value={naCloserId} onChange={(e) => setNaCloserId(e.target.value)} className={cls}>
-                  <option value="">— sin closer —</option>
-                  {closers.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.full_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Agenda: con closer → huecos reales de Calendly (o modo manual); sin closer → manual */}
-            {naCloserId ? (
-              <div className="space-y-3">
-                {naHasCalendly === true && (
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={naManualMode}
-                      onChange={(e) => {
-                        setNaManualMode(e.target.checked)
-                        setNaSelectedSlot('')
-                      }}
-                      className="accent-brand-500"
-                    />
-                    Elegir hora libre en la plataforma (sin crear evento en Calendly)
-                  </label>
                 )}
 
-                {naManualMode ? (
+                {!naShowNewContactForm && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-dashed border-border text-brand-400 hover:text-brand-300"
+                    onClick={() => {
+                      setNaShowNewContactForm(true)
+                      setNaNewContactName(naContactSearch)
+                    }}
+                  >
+                    + Crear nuevo contacto
+                  </Button>
+                )}
+
+                {naShowNewContactForm && (
+                  <div className="border border-border rounded-lg p-3 space-y-2">
+                    <p className="text-sm font-medium text-foreground">Nuevo contacto</p>
+                    <input
+                      placeholder="Nombre completo *"
+                      value={naNewContactName}
+                      onChange={(e) => setNaNewContactName(e.target.value)}
+                      className={cls}
+                    />
+                    <input
+                      placeholder="Email"
+                      type="email"
+                      value={naNewContactEmail}
+                      onChange={(e) => setNaNewContactEmail(e.target.value)}
+                      className={cls}
+                    />
+                    <input
+                      placeholder="Teléfono"
+                      type="tel"
+                      value={naNewContactPhone}
+                      onChange={(e) => setNaNewContactPhone(e.target.value)}
+                      className={cls}
+                    />
+                    <input
+                      placeholder="Instagram (opcional)"
+                      value={naNewContactInstagram}
+                      onChange={(e) => setNaNewContactInstagram(e.target.value)}
+                      className={cls}
+                    />
+                    <p className="text-xs text-muted-foreground">* Nombre obligatorio, y al menos email o teléfono.</p>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={handleCreateContactInline} disabled={!naNewContactName}>
+                        Crear y seleccionar
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setNaShowNewContactForm(false)}>
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Setter / Closer */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">Setter (opcional)</p>
+              <select value={naSetterId} onChange={(e) => setNaSetterId(e.target.value)} className={cls}>
+                <option value="">— sin setter —</option>
+                {setters.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.full_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">Closer</p>
+              <select value={naCloserId} onChange={(e) => setNaCloserId(e.target.value)} className={cls}>
+                <option value="">— sin closer —</option>
+                {closers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.full_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Agenda: con closer → huecos reales de Calendly (o modo manual); sin closer → manual */}
+          {naCloserId ? (
+            <div className="space-y-3">
+              {naHasCalendly === true && (
+                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={naManualMode}
+                    onChange={(e) => {
+                      setNaManualMode(e.target.checked)
+                      setNaSelectedSlot('')
+                    }}
+                    className="accent-brand-500"
+                  />
+                  Elegir hora libre en la plataforma (sin crear evento en Calendly)
+                </label>
+              )}
+
+              {naManualMode ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-foreground">Fecha y hora</p>
+                    <input
+                      type="datetime-local"
+                      value={naDatetime}
+                      onChange={(e) => setNaDatetime(e.target.value)}
+                      className={cls}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-foreground">Duración (min)</p>
+                    <input
+                      type="number"
+                      min={5}
+                      step={5}
+                      value={naDurationMinutes}
+                      onChange={(e) => setNaDurationMinutes(e.target.value)}
+                      className={cls}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <p className="text-sm font-medium text-foreground">Fecha y hora</p>
-                      <input
-                        type="datetime-local"
-                        value={naDatetime}
-                        onChange={(e) => setNaDatetime(e.target.value)}
-                        className={cls}
-                      />
+                      <p className="text-sm font-medium text-foreground">Día</p>
+                      <CalendarPopover value={naSlotDate || null} onChange={setNaSlotDate} placeholder="Elige un día" />
                     </div>
                     <div className="space-y-2">
                       <p className="text-sm font-medium text-foreground">Duración (min)</p>
@@ -2136,139 +2143,115 @@ export default function AppointmentsPage() {
                       />
                     </div>
                   </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium text-foreground">Día</p>
-                        <CalendarPopover
-                          value={naSlotDate || null}
-                          onChange={setNaSlotDate}
-                          placeholder="Elige un día"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <p className="text-sm font-medium text-foreground">Duración (min)</p>
-                        <input
-                          type="number"
-                          min={5}
-                          step={5}
-                          value={naDurationMinutes}
-                          onChange={(e) => setNaDurationMinutes(e.target.value)}
-                          className={cls}
-                        />
-                      </div>
+
+                  {!naSlotDate && (
+                    <p className="text-xs text-muted-foreground">
+                      Elige un día para ver los huecos disponibles en el Calendly del closer.
+                    </p>
+                  )}
+                  {naSlotDate && naSlotsLoading && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Cargando huecos de Calendly…
                     </div>
-
-                    {!naSlotDate && (
-                      <p className="text-xs text-muted-foreground">
-                        Elige un día para ver los huecos disponibles en el Calendly del closer.
+                  )}
+                  {naSlotDate && !naSlotsLoading && naHasCalendly === false && (
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 space-y-2">
+                      <p className="text-xs text-amber-400">
+                        {naCalendlyMsg || 'Este closer no tiene Calendly.'} La cita se creará solo en la app.
                       </p>
-                    )}
-                    {naSlotDate && naSlotsLoading && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Loader2 className="w-4 h-4 animate-spin" /> Cargando huecos de Calendly…
+                      <input
+                        type="datetime-local"
+                        value={naDatetime}
+                        onChange={(e) => setNaDatetime(e.target.value)}
+                        className={cls}
+                      />
+                    </div>
+                  )}
+                  {naSlotDate && !naSlotsLoading && naCalendlyMsg && naHasCalendly === null && (
+                    <p className="text-xs text-red-400">{naCalendlyMsg}</p>
+                  )}
+                  {naSlotDate &&
+                    !naSlotsLoading &&
+                    naHasCalendly === true &&
+                    (naSlots.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        No hay huecos disponibles ese día. Prueba otra fecha.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-4 gap-2 max-h-40 overflow-y-auto">
+                        {naSlots.map((s) => {
+                          const label = new Date(s.start_time).toLocaleTimeString('es-ES', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            timeZone: userTimezone,
+                          })
+                          const active = naSelectedSlot === s.start_time
+                          return (
+                            <button
+                              key={s.start_time}
+                              type="button"
+                              onClick={() => setNaSelectedSlot(s.start_time)}
+                              className={`rounded-lg border p-2 text-sm transition ${active ? 'border-brand-500 bg-brand-600/20 text-foreground' : 'border-border bg-muted text-foreground hover:border-brand-500/50'}`}
+                            >
+                              {label}
+                            </button>
+                          )
+                        })}
                       </div>
-                    )}
-                    {naSlotDate && !naSlotsLoading && naHasCalendly === false && (
-                      <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 space-y-2">
-                        <p className="text-xs text-amber-400">
-                          {naCalendlyMsg || 'Este closer no tiene Calendly.'} La cita se creará solo en la app.
-                        </p>
-                        <input
-                          type="datetime-local"
-                          value={naDatetime}
-                          onChange={(e) => setNaDatetime(e.target.value)}
-                          className={cls}
-                        />
-                      </div>
-                    )}
-                    {naSlotDate && !naSlotsLoading && naCalendlyMsg && naHasCalendly === null && (
-                      <p className="text-xs text-red-400">{naCalendlyMsg}</p>
-                    )}
-                    {naSlotDate &&
-                      !naSlotsLoading &&
-                      naHasCalendly === true &&
-                      (naSlots.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">
-                          No hay huecos disponibles ese día. Prueba otra fecha.
-                        </p>
-                      ) : (
-                        <div className="grid grid-cols-4 gap-2 max-h-40 overflow-y-auto">
-                          {naSlots.map((s) => {
-                            const label = new Date(s.start_time).toLocaleTimeString('es-ES', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              timeZone: userTimezone,
-                            })
-                            const active = naSelectedSlot === s.start_time
-                            return (
-                              <button
-                                key={s.start_time}
-                                type="button"
-                                onClick={() => setNaSelectedSlot(s.start_time)}
-                                className={`rounded-lg border p-2 text-sm transition ${active ? 'border-brand-500 bg-brand-600/20 text-foreground' : 'border-border bg-muted text-foreground hover:border-brand-500/50'}`}
-                              >
-                                {label}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      ))}
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-foreground">Fecha y hora</p>
-                  <input
-                    type="datetime-local"
-                    value={naDatetime}
-                    onChange={(e) => setNaDatetime(e.target.value)}
-                    className={cls}
-                  />
-                  <p className="text-xs text-muted-foreground">Sin closer: cita manual (no se envía a Calendly).</p>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-foreground">Duración (min)</p>
-                  <input
-                    type="number"
-                    min={5}
-                    step={5}
-                    value={naDurationMinutes}
-                    onChange={(e) => setNaDurationMinutes(e.target.value)}
-                    className={cls}
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2 pt-1">
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setShowNewModal(false)
-                  resetNewAppointmentForm()
-                }}
-                disabled={naSaving}
-              >
-                Cancelar
-              </Button>
-              <Button onClick={handleCreateAppointment} disabled={naSaving} className="bg-brand-600 hover:bg-brand-500">
-                {naSaving ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creando...
-                  </>
-                ) : (
-                  'Crear agenda'
-                )}
-              </Button>
+                    ))}
+                </>
+              )}
             </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Fecha y hora</p>
+                <input
+                  type="datetime-local"
+                  value={naDatetime}
+                  onChange={(e) => setNaDatetime(e.target.value)}
+                  className={cls}
+                />
+                <p className="text-xs text-muted-foreground">Sin closer: cita manual (no se envía a Calendly).</p>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Duración (min)</p>
+                <input
+                  type="number"
+                  min={5}
+                  step={5}
+                  value={naDurationMinutes}
+                  onChange={(e) => setNaDurationMinutes(e.target.value)}
+                  className={cls}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowNewModal(false)
+                resetNewAppointmentForm()
+              }}
+              disabled={naSaving}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleCreateAppointment} disabled={naSaving} className="bg-brand-600 hover:bg-brand-500">
+              {naSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creando...
+                </>
+              ) : (
+                'Crear agenda'
+              )}
+            </Button>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

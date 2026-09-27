@@ -12,7 +12,6 @@ import {
   MessageCircle,
   ExternalLink,
   Sparkles,
-  X,
   Wand2,
   Settings2,
   Save,
@@ -26,6 +25,7 @@ import {
   AlertTriangle,
 } from 'lucide-react'
 import { CTAS } from '@/lib/ctas'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { Testimonio } from '@/lib/testimonios-shared'
 import { createClient } from '@/lib/supabase/client'
 import { useScriptQueue } from '@/components/os/ScriptQueue'
@@ -727,14 +727,8 @@ export default function CompetenciaPage() {
 
       {/* Modal de ajustes (estilo / negocio) */}
       {settingsTab && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setSettingsTab(null)}
-        >
-          <div
-            className="bg-card border border-border rounded-xl p-5 w-full max-w-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <Dialog open onOpenChange={(o) => !o && setSettingsTab(null)}>
+          <DialogContent className="max-w-xl w-full gap-0 p-5">
             <div className="flex items-center justify-between mb-2">
               <div className="flex gap-1">
                 <button
@@ -750,9 +744,7 @@ export default function CompetenciaPage() {
                   Negocio y CTAs
                 </button>
               </div>
-              <button onClick={() => setSettingsTab(null)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-4 h-4" />
-              </button>
+              <DialogTitle className="sr-only">Ajustes de guiones</DialogTitle>
             </div>
             {settingsTab === 'estilo' ? (
               <>
@@ -801,28 +793,21 @@ export default function CompetenciaPage() {
                 <Save className="w-4 h-4" /> Guardar
               </button>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Modal generador de guión (flujo individual) */}
       {gen && (
-        <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-          onClick={() => setGen(null)}
-        >
-          <div
-            className="bg-card border border-border rounded-xl max-w-2xl w-full max-h-[88vh] overflow-y-auto p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Wand2 className="w-5 h-5 text-pink-400" /> Crear guión a tu estilo
-              </h3>
-              <button onClick={() => setGen(null)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+        <Dialog open onOpenChange={(o) => !o && setGen(null)}>
+          <DialogContent className="max-w-2xl w-full max-h-[88vh] overflow-y-auto gap-0 p-5">
+            <DialogHeader className="flex-row items-center justify-between space-y-0 mb-3">
+              <DialogTitle asChild>
+                <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                  <Wand2 className="w-5 h-5 text-pink-400" /> Crear guión a tu estilo
+                </h3>
+              </DialogTitle>
+            </DialogHeader>
 
             {gen.phase !== 'result' && (
               <div className="space-y-3">
@@ -974,8 +959,8 @@ export default function CompetenciaPage() {
                 </div>
               </div>
             )}
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )
