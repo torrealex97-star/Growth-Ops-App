@@ -6,6 +6,39 @@ import type { Sale } from '@/lib/types/database'
 
 export const runtime = 'nodejs'
 
+// ALLOWLIST de columnas que "completar reserva" puede tocar — EXACTAMENTE las que envía
+// app/[tenant]/ventas/registro/nueva/page.tsx (updatePayload + teamFields + buyerFields).
+// Sin esto, `{ ...patch, updated_by }` deja que cualquier rol permitido (manager/closer/
+// setter/cobros, no solo admin/director) escriba CUALQUIER columna de `sales` vía
+// service-role — que salta la RLS a propósito para este flujo. Un patch con `gross_amount`,
+// `status` o `tenant_id` fuera de estos campos pasaría sin que la base lo impida.
+const ALLOWED_PATCH_FIELDS = new Set([
+  'appointment_id',
+  'product_id',
+  'payment_plan_id',
+  'sale_date',
+  'refund_deadline_at',
+  'gross_amount',
+  'expected_commissionable_amount',
+  'reservation_amount',
+  'down_payment_amount',
+  'installments_count',
+  'installments_start_date',
+  'reservation_completed_at',
+  'payment_method',
+  'custom_plan',
+  'payment_proof_path',
+  'setter_id',
+  'closer_id',
+  'affiliate_id',
+  'affiliate_commission_percent',
+  'buyer_is_scheduler',
+  'payer_data',
+  'access_email',
+  'status',
+  'notes',
+])
+
 // Completa una RESERVA: promueve la venta (misma fila) al plan final y marca reservation_completed_at.
 // Va por SERVICE ROLE porque `sales`/`sale_expected_installments` solo permiten UPDATE/INSERT a
 // admin/director vía RLS. Un closer/setter que completaba el pago desde el cliente hacía un UPDATE
@@ -28,6 +61,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
+    const camposNoPermitidos = Object.keys(patch).filter((k) => !ALLOWED_PATCH_FIELDS.has(k))
+    if (camposNoPermitidos.length > 0) {
+      return NextResponse.json(
+        { error: `Campos no permitidos en completar reserva: ${camposNoPermitidos.join(', ')}` },
+        { status: 400 }
+      )
+    }
+
     const { data: prevData, error: prevErr } = await sb
       .from('sales')
       .select('*')
@@ -41,8 +82,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const { error: updErr } = await sb.from('sales').update(payload).eq('id', saleId).eq('tenant_id', t.tenantId)
     if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 })
 
-    // Regenera el calendario de cuotas (por si se recompleta): borra las previas e inserta las nuevas.
-    await sb.from('sale_expected_installments').delete().eq('sale_id', saleId)
+    // Regenera el calendario de cuotas (por si se recompleta): borra las previas e inserta las
+    // nuevas. Si el borrado falla y el insert sigue adelante, el calendario queda DUPLICADO
+    // (viejas cuotas + nuevas) — se comprueba antes de insertar, igual que el resto de escrituras
+    // de dinero de esta ruta.
+    const { error: delInstErr } = await sb.from('sale_expected_installments').delete().eq('sale_id', saleId)
+    if (delInstErr)
+      return NextResponse.json(
+        { error: `No se pudo limpiar el calendario de cuotas anterior: ${delInstErr.message}` },
+        { status: 500 }
+      )
     if (Array.isArray(installments) && installments.length > 0) {
       const rows = installments.map((r: Record<string, unknown>) => ({ ...r, sale_id: saleId, tenant_id: t.tenantId }))
       const { error: instErr } = await sb.from('sale_expected_installments').insert(rows)
