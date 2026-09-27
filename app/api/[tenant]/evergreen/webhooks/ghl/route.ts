@@ -456,7 +456,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       console.warn('[atribucion] no se pudo registrar el toque:', e instanceof Error ? e.message : e)
     }
     if (!resolved.created) {
-      await sb
+      // "Última vez visto" no es un dato de negocio: si falla, la entrega sigue siendo válida y
+      // GHL reintentando no lo arregla. Se registra y se sigue — igual que el sobre y el hecho.
+      const { error: errorLastSeen } = await sb
         .from('contacts')
         .update({
           last_seen_at: now,
@@ -467,6 +469,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         })
         .eq('id', contact.id)
         .eq('tenant_id', tenantId)
+      if (errorLastSeen) console.warn('[ghl-webhook] no se pudo actualizar el contacto:', errorLastSeen.message)
     }
 
     // --- Cualificación del formulario (si GHL la reenvía) ---
@@ -488,11 +491,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           )
         if (qqError) console.error('[ghl] no se pudo registrar la pregunta de cualificación:', qqError.message)
       }
-      await sb
+      // La cualificación alimenta la pantalla de Atribución y la calidad del lead: si no se
+      // guarda, se pierde la única copia de las respuestas del formulario. La entrega responde
+      // 500 para que GHL la reintente cuando la base de datos vuelva a estar sana.
+      const { error: errorQualification } = await sb
         .from('contacts')
         .update({ qualification: ghlQualification, qualification_updated_at: now })
         .eq('id', contact.id)
         .eq('tenant_id', tenantId)
+      if (errorQualification) {
+        return await responder(
+          { error: 'Error guardando la cualificación del contacto', detail: errorQualification.message },
+          { status: 500 }
+        )
+      }
     }
 
     // --- 2) Atribución (solo si llegan UTMs/source) ---
@@ -504,13 +516,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         .eq('tenant_id', tenantId)
         .eq('is_primary', true)
         .maybeSingle()
+      // La atribución decide a qué canal (y con qué presupuesto) se le acredita el lead: que se
+      // pierda en silencio es exactamente el "parece idempotente pero corrompe datos" del backlog.
+      // 500 → GHL reintenta la entrega y el atributo vuelve a intentarse sobre el mismo contacto.
       if (attr) {
-        await sb
+        const { error: errorAttr } = await sb
           .from('contact_attributions')
           .update({ last_touch_at: now, ...utm, ...lastUtm, source: source || attr.source })
           .eq('id', attr.id)
+        if (errorAttr) {
+          return await responder(
+            { error: 'Error actualizando la atribución del contacto', detail: errorAttr.message },
+            { status: 500 }
+          )
+        }
       } else {
-        await sb.from('contact_attributions').insert({
+        const { error: errorAttr } = await sb.from('contact_attributions').insert({
           tenant_id: tenantId,
           contact_id: contact.id,
           source,
@@ -521,6 +542,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           last_touch_at: now,
           is_primary: true,
         })
+        if (errorAttr) {
+          return await responder(
+            { error: 'Error creando la atribución del contacto', detail: errorAttr.message },
+            { status: 500 }
+          )
+        }
       }
     }
 
@@ -560,12 +587,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Si el lead/agenda viene de un setter, deja constancia del origen en el
     // contacto (sin pisar un origen ya asignado) → marca "De setter" en Leads.
     if (setterId) {
-      await sb
+      // La marca "De setter" se inserta condicionada (solo si set_source IS NULL), así que el
+      // fallo se registra y se sigue: repetir la entrega no la aplicaría de nuevo de todos modos.
+      const { error: errorSetter } = await sb
         .from('contacts')
         .update({ set_source: 'setter' })
         .eq('id', contact.id)
         .eq('tenant_id', tenantId)
         .is('set_source', null)
+      if (errorSetter) console.warn('[ghl-webhook] no se pudo marcar el origen del setter:', errorSetter.message)
     }
 
     const isAppointmentEvent = !!(externalId || aptRaw || status || event.startsWith('appointment'))
@@ -608,16 +638,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       if (hasUtm) Object.assign(upd, utm)
       if (durationMin != null) upd.duration_minutes = durationMin
       if (ghlQualification) upd.qualification = ghlQualification
-      await sb.from('appointments').update(upd).eq('id', appt.id).eq('tenant_id', tenantId)
+      // EL ESTADO DE LA CITA SOLO EXISTE AQUÍ: devolver `ok` con el update no aplicado hacía que
+      // GHL diera la entrega por servida y la cita quedara obsoleta para siempre (show/no_show/
+      // cancelación perdidos, closer equivocado en pantalla y en comisiones). Respondiendo 500,
+      // GHL reintenta hasta que el estado quede escrito.
+      const { error: errorAppt } = await sb.from('appointments').update(upd).eq('id', appt.id).eq('tenant_id', tenantId)
+      if (errorAppt) {
+        return await responder({ error: 'Error actualizando la agenda', detail: errorAppt.message }, { status: 500 })
+      }
       // El lead pasa a 'agendado' al confirmarse/actualizarse su agenda
-      await sb.from('contacts').update({ lead_status: 'agendado' }).eq('id', contact.id).eq('tenant_id', tenantId)
-      await sb.from('audit_logs').insert({
+      const { error: errorLead } = await sb
+        .from('contacts')
+        .update({ lead_status: 'agendado' })
+        .eq('id', contact.id)
+        .eq('tenant_id', tenantId)
+      if (errorLead) {
+        return await responder(
+          { error: 'Error actualizando el estado del lead', detail: errorLead.message },
+          { status: 500 }
+        )
+      }
+      // Si el cambio de estado de la cita no deja rastro, la pantalla de auditoría mentiría.
+      const { error: errorAudit } = await sb.from('audit_logs').insert({
         tenant_id: tenantId,
         entity_type: 'appointment',
         entity_id: appt.id,
         action: 'update',
         new_values: { ...upd, via: 'ghl_webhook' },
       })
+      if (errorAudit) {
+        return await responder(
+          { error: 'Error registrando la auditoría de la agenda', detail: errorAudit.message },
+          { status: 500 }
+        )
+      }
       console.log('[ghl-webhook] ok: appointment.updated', appt.id, status ?? '')
       return await responder({
         ok: true,
@@ -657,14 +711,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (aptErr) return await responder({ error: 'Error creando agenda', detail: aptErr.message }, { status: 500 })
 
     // El lead pasa a 'agendado' al crearse su agenda
-    await sb.from('contacts').update({ lead_status: 'agendado' }).eq('id', contact.id).eq('tenant_id', tenantId)
-    await sb.from('audit_logs').insert({
+    const { error: errorLeadNew } = await sb
+      .from('contacts')
+      .update({ lead_status: 'agendado' })
+      .eq('id', contact.id)
+      .eq('tenant_id', tenantId)
+    if (errorLeadNew) {
+      return await responder(
+        { error: 'Error actualizando el estado del lead', detail: errorLeadNew.message },
+        { status: 500 }
+      )
+    }
+    const { error: errorAuditNew } = await sb.from('audit_logs').insert({
       tenant_id: tenantId,
       entity_type: 'appointment',
       entity_id: created.id,
       action: 'create',
       new_values: { contact_id: contact.id, source, ...utm, via: 'ghl_webhook' },
     })
+    if (errorAuditNew) {
+      return await responder(
+        { error: 'Error registrando la auditoría de la agenda', detail: errorAuditNew.message },
+        { status: 500 }
+      )
+    }
     console.log('[ghl-webhook] ok: appointment.created', created.id)
     return await responder({
       ok: true,

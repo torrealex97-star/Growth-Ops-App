@@ -169,6 +169,38 @@ test('los fallos de escritura se devuelven, no se tragan', () => {
   assert.match(codigo, /'Error creando agenda'[\s\S]{0,120}?status: 500/)
 })
 
+// supabase-js no lanza en fallo: devuelve { error }. El webhook es la única entrada del estado de
+// cita que decide shows, comisiones y dashboards: si un update se queda sin aplicar y se responde
+// `ok`, GHL da la entrega por servida y el dato queda divergente para siempre. El único estado que
+// se degrada a warn sin tumbar la entrega es el que una re-entrega no puede arreglar de todos modos.
+test('ninguna escritura de estado de negocio es fire-and-forget', () => {
+  // ── 500 y reintento de GHL: el dato solo existe si la escritura lo confirma ──
+  // Update de la cita existente (show/no_show/fecha/closer): divergencia silenciosa del estado.
+  const updAppt = codigo.indexOf(".from('appointments').update(upd)")
+  assert.ok(updAppt > -1, 'el update de la cita existente debe existir')
+  const errorAppt = codigo.indexOf("{ error: 'Error actualizando la agenda'", updAppt)
+  assert.ok(
+    errorAppt > updAppt && errorAppt - updAppt < 200,
+    'el fallo del update de la cita responde 500, no se traga'
+  )
+  // lead_status 'agendado' en los DOS caminos (cita actualizada y creada): debe haber dos guardias.
+  const guardiasLead = (codigo.match(/Error actualizando el estado del lead/g) || []).length
+  assert.equal(guardiasLead, 2, 'lead_status se comprueba en el update y en el create de la agenda')
+  // Atribución: canal y presupuesto. Update del toque primario e insert del primero, ambos 500.
+  assert.match(codigo, /\{ error: 'Error actualizando la atribución del contacto'/)
+  assert.match(codigo, /\{ error: 'Error creando la atribución del contacto'/)
+  // audit_logs de citas: un cambio de cita sin rastro haría mentirosa la auditoría.
+  assert.match(codigo, /Error registrando la auditoría de la agenda/)
+  // Cualificación del formulario: si no se guarda, se pierde la única copia de las respuestas.
+  assert.match(codigo, /Error guardando la cualificación del contacto/)
+
+  // ── degrade a warn, a propósito: la re-entrega no lo arreglaría ──
+  // last_seen_at (el contacto ya existe; volver a marcarlo no recupera nada) y set_source (la
+  // marca es condicionada a IS NULL, repetir no la aplica de nuevo). Deben existir como warns.
+  assert.match(codigo, /no se pudo actualizar el contacto/)
+  assert.match(codigo, /no se pudo marcar el origen del setter/)
+})
+
 // ── ESTADO CONOCIDO, FIJADO A PROPÓSITO ──────────────────────────────────────────────────────
 
 test('la capa raw YA existe (F1) y la atribución sigue dependiendo de que GHL mande UTMs', () => {
