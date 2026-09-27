@@ -142,12 +142,12 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed left-0 top-0 z-[45] h-full w-64 flex-col bg-[#0A0A0B] border-r border-[#26262A] transition-transform duration-300 lg:static lg:flex lg:translate-x-0',
+          'fixed left-0 top-0 z-[45] h-full w-64 flex-col bg-background border-r border-border transition-transform duration-300 lg:static lg:flex lg:translate-x-0',
           isOpen ? 'flex translate-x-0' : '-translate-x-full hidden lg:flex'
         )}
       >
         {/* Logo */}
-        <div className="flex items-center justify-between px-6 py-6 border-b border-[#26262A]">
+        <div className="flex items-center justify-between px-6 py-6 border-b border-border">
           <div className="flex items-center gap-2.5">
             <div className="relative flex h-9 w-9 items-center justify-center" aria-label={branding.name}>
               <span className="text-[34px] font-semibold leading-none tracking-[-0.18em] text-white">

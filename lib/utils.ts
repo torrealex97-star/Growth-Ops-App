@@ -22,13 +22,18 @@ export function formatCurrency(amount: number | null | undefined, currency = 'EU
 
 export function formatDateTime(date: string | Date | null | undefined): string {
   if (!date) return '—'
+  const d = new Date(date)
+  // Intl.DateTimeFormat.format() LANZA RangeError con una Invalid Date en vez de devolver algo
+  // pintable — sin este guard, un valor de fecha malformado tumbaba el render entero en vez de
+  // mostrar un guion, exactamente lo que formatCurrency/formatPercent sí evitan con su null-check.
+  if (Number.isNaN(d.getTime())) return '—'
   return new Intl.DateTimeFormat('es-ES', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(date))
+  }).format(d)
 }
 
 // `.toFixed()` siempre usa punto decimal (es-en), mezclando con el resto de la app que

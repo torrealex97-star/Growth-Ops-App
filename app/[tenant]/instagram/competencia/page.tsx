@@ -30,7 +30,7 @@ import type { Testimonio } from '@/lib/testimonios-shared'
 import { createClient } from '@/lib/supabase/client'
 import { useScriptQueue } from '@/components/os/ScriptQueue'
 import { useTenant } from '@/lib/tenant-context'
-import { formatNumber } from '@/lib/utils'
+import { formatNumber, formatDateTime } from '@/lib/utils'
 
 type Competitor = {
   id: string
@@ -523,9 +523,7 @@ export default function CompetenciaPage() {
               <button
                 onClick={() => setSelected(c.id)}
                 title={
-                  c.last_synced_at
-                    ? `Última actualización: ${new Date(c.last_synced_at).toLocaleString('es-ES')}`
-                    : 'Sin sincronizar'
+                  c.last_synced_at ? `Última actualización: ${formatDateTime(c.last_synced_at)}` : 'Sin sincronizar'
                 }
                 className="pl-3 py-1.5"
               >

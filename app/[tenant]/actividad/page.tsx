@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Activity, CalendarCheck, Trophy, StickyNote, PhoneCall } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatDateTime } from '@/lib/utils'
 import { useTenant } from '@/lib/tenant-context'
 
 // Timeline unificado de actividad por comercial. La tabla `activities` (llamadas registradas
@@ -217,9 +217,7 @@ export default function ActividadPage() {
                 <div className="bg-card border border-border rounded-lg px-4 py-2.5">
                   <div className="flex items-center justify-between gap-3">
                     <span className={`text-[10px] uppercase tracking-wider font-semibold ${color}`}>{label}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {dt.toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })}
-                    </span>
+                    <span className="text-xs text-muted-foreground">{formatDateTime(dt)}</span>
                   </div>
                   <p className="text-sm text-foreground mt-0.5">
                     {it.contactId ? (

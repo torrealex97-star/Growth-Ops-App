@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 import { Loader2, RefreshCw, Search, ExternalLink, AlertTriangle, CheckCircle2, Clock } from 'lucide-react'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { SOURCE_LABEL } from '@/lib/social/types'
+import { formatNumber, formatDateTime } from '@/lib/utils'
 
 type Platform = 'instagram' | 'tiktok' | 'youtube'
 type JobType = 'profile' | 'reels'
@@ -134,7 +135,7 @@ export default function InvestigacionPage() {
   }
 
   const fmt = (n: number | null | undefined) =>
-    n == null ? '—' : new Intl.NumberFormat('es-ES', { notation: 'compact', maximumFractionDigits: 1 }).format(n)
+    n == null ? '—' : formatNumber(n, { notation: 'compact', maximumFractionDigits: 1 })
 
   const jobsRecientes = useMemo(() => jobs.slice(0, 8), [jobs])
 
@@ -261,7 +262,7 @@ export default function InvestigacionPage() {
                     {job.error_message && <span className="text-red-600">{job.error_message}</span>}
                     <span className="inline-flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      {new Date(job.created_at).toLocaleString('es-ES')}
+                      {formatDateTime(job.created_at)}
                     </span>
                   </div>
                 </div>
