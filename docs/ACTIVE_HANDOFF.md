@@ -1,5 +1,19 @@
 # Relevo activo
 
+## Assets hero comprimidos: −88% de bytes por visitante nuevo — 27-sep noche (Freebuff/Buffy)
+
+**hero.mp4 5,28 MB → 806 KB** (re-encode H.264 1080p CRF 26, sin audio, +faststart; SSIM 0,9947
+contra el original — visualmente idéntico, verificado con comparador lado a lado + zooms 2× en
+`.freebuff/asset-compare.html`) y **hero-poster.png 1,42 MB → hero-poster.webp 17 KB** (q82).
+Referencias actualizadas en `app/page.tsx` y `app/panel.css`; test del panel adaptado al WebP
+(7/7 verde en arnés; build verde). Descarga por visitante nuevo: 6,70 MB → 0,82 MB (−88%);
+página total a networkidle −26%. Bonus: el re-encode elimina los metadatos C2PA (procedencia IA)
+que pesaban dentro del mp4 original. **Asset muerto detectado: `public/brand/iawinners-logo.png`
+(1,47 MB) no tiene NI UNA referencia en el código — candidato a borrar de repo y disco (pendiente
+de ok de Alex).** Pendiente de decidir (Fase 2, no ejecutada): mover el vídeo a Bunny Stream (ya
+conectada) si el tráfico de la landing crece; a escala actual no ahorra dinero (Vercel Hobby
+gratis, 100 GB/mes) y la compresión ya resuelve el problema.
+
 ## ✅ RESULTADO (27-sep): taste lote 3 — deuda UX R4 (REQ-UX-02/03/05) + revisión visual (PR #250)
 
 Rama `feat/r4-ux-lote-3` (commits `be8e8a8` + merge `f81e410` sobre `origin/main` `2d8e18c`). Quality Gate local
