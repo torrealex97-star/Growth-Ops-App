@@ -31,6 +31,10 @@ export interface VslConfig {
   ctaAtPercent: number // % del vídeo en el que aparece (0-100)
   ctaPause: boolean // pausar el vídeo cuando aparece (el clásico de Vidalytics)
   ctaOnce: boolean // no volver a mostrarlo si el usuario lo cierra (1 vez por sesión)
+
+  // --- Customización del reproductor (paridad Wistia/PandaVideo) ---
+  showCentralPlay: boolean // botón play central grande cuando está pausado
+  showFullscreenBtn: boolean // botón de pantalla completa
 }
 
 // Azul eléctrico (marca)
@@ -60,6 +64,8 @@ export const DEFAULT_CONFIG: VslConfig = {
   ctaAtPercent: 66,
   ctaPause: true,
   ctaOnce: true,
+  showCentralPlay: true,
+  showFullscreenBtn: true,
 }
 
 interface VslVideo {
@@ -77,6 +83,31 @@ interface VslVideo {
 export function mergeConfig(raw: unknown): VslConfig {
   const c = (raw ?? {}) as Partial<VslConfig>
   return { ...DEFAULT_CONFIG, ...c }
+}
+
+/**
+ * Artefactos que Bunny genera automáticamente para CADA vídeo de su biblioteca: miniatura estática
+ * (thumbnail.jpg), preview animado de 2-3 s (preview.webp) y sprite del storyboard para el scrub
+ * con thumbnails. Se derivan de la URL de origen SIN migración ni llamadas a la API. Vive aquí y
+ * no en bunny.ts porque lo consume el DASHBOARD en cliente y bunny.ts arrastra node:crypto.
+ * Si el vídeo no viene de Bunny (Vimeo/Wistia/YouTube pegados a mano), no hay derivados: null.
+ */
+export function derivadosDeSource(sourceUrl: string | null | undefined): {
+  playlist: string | null
+  thumbnail: string | null
+  preview: string | null
+  storyboard: string | null
+} {
+  if (!sourceUrl) return { playlist: null, thumbnail: null, preview: null, storyboard: null }
+  const m = sourceUrl.match(/^https:\/\/([a-z0-9.-]+)\/([0-9a-f-]{36})\/playlist\.m3u8$/i)
+  if (!m) return { playlist: null, thumbnail: null, preview: null, storyboard: null }
+  const base = `https://${m[1]}/${m[2]}`
+  return {
+    playlist: `${base}/playlist.m3u8`,
+    thumbnail: `${base}/thumbnail.jpg`,
+    preview: `${base}/preview.webp`,
+    storyboard: `${base}/storyboard.vtt`,
+  }
 }
 
 // Slug URL-safe a partir de un nombre.
