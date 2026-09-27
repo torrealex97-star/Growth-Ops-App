@@ -1,6 +1,68 @@
 # Relevo activo
 
-## ✅ RESULTADO (27-sep, noche): PRs #251-#254 — barrido de dinero, fixes de Instagram y arranque de Conversaciones (Claude Code)
+## ✅ RESULTADO (27-sep, noche): cierre de las 12 ramas de Claude Code — 2 obsoletas descartadas, resto en cola (Claude Code)
+
+Instrucción de Alex: "todo lo que ya esté listo mejor mergearlo... sino tendremos cientos de ramas".
+Mientras se esperaba la CI de PR #245 (varias horas de reloj), otros agentes concurrentes fusionaron
+#246-#254 en `main` — dos de las 12 ramas quedaron **superseded por contenido más completo** y
+mergearlas sería un RETROCESO. Verificado archivo por archivo antes de descartar, no solo por nombre:
+
+- **`chore/ux04-formato-moneda-fuente-unica` — NO MERGEAR.** `main` (vía PR #249) ya usa
+  `formatCurrency` (2 decimales, canónico) en `ColaboradorDashboard.tsx`; mi rama volvía a
+  `formatNumber` con `maximumFractionDigits: 0` y de paso borraba los campos `tipo`/`exento` de
+  `FilaFutura` que #249 añadió. Cerrarla sin PR.
+- **`feat/port-pr225-ads-filter-nuevo-recurrente` — NO MERGEAR.** Las 3 piezas del port de PR #225
+  del propio Alex ya están en `main` por otra vía (#249): `lib/finance/nuevo-vs-recurrente.ts`,
+  filtro de cuentas ads en `lib/metrics/consulta.ts`, y el dual chart (`tests/unit-economics-dual.test.mjs`).
+  Mi versión de `commissions/future/route.ts` y `comisiones/page.tsx` es más VIEJA que la de `main`:
+  le falta el veto `pays_commissions=false` (exención, MONEY D9) y el fail-closed en
+  `resolverScopeColaborador` que #249 ya tiene. Mergearla borraría ambos. Cerrarla sin PR. **PR-R2.1
+  del roadmap queda resuelta — no requiere más decisión de Alex, el port ya ocurrió.**
+
+Ramas que SÍ seguían vigentes (verificadas contra el código actual, no por nombre) y su estado:
+
+| Rama                                             | Estado                                                                                                                                                                                     |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `fix/collections-patch-sync-cuota`               | Ya en `main` (PR #244) — hecha antes de este barrido                                                                                                                                       |
+| `docs/a3-alertas-deprioritizadas`                | Ya en `main` (PR #242) — hecha antes de este barrido                                                                                                                                       |
+| `docs/relevo-sesion-27sep-r4-y-ramas-pendientes` | Redundante (su contenido ya está en `main`, señalado por Freebuff más abajo) — no mergear                                                                                                  |
+| `fix/collections-approve-review-recuperable`     | **PR #245, mergeada (squash) esta sesión** — 2 reruns de CI por cancelación de concurrency global (no fallos reales)                                                                       |
+| `fix/disputed-no-es-cash`                        | **PR #256, abierta, en cola de CI**                                                                                                                                                        |
+| `fix/ai-tools-lectura-fallida-no-es-cero`        | Pendiente, verificada vigente (`getSales` en `main` sigue sin comprobar `error`)                                                                                                           |
+| `fix/ai-agent-historial-orden`                   | Pendiente, verificada vigente (`ai/agent/route.ts:62` sigue con `ascending: true`)                                                                                                         |
+| `chore/recharts-3-major`                         | Pendiente, verificada vigente (`package.json` sigue en `^2.12.7`)                                                                                                                          |
+| `chore/eslint-9-config-next-16`                  | Pendiente, verificada vigente (`eslint` sigue en `^8`, `eslint-config-next` en `^15.5.25`)                                                                                                 |
+| `chore/tailwind-4-major`                         | Pendiente, verificada vigente (`tailwindcss` sigue en `^3.4.1`) — **revisar solape con tailwind.config.ts del lote 3 de taste (REQ-UX-03, tokens `text-3xs`/`text-2xs`) antes de mergear** |
+
+**Lección para próximas sesiones:** con varios agentes concurrentes fusionando en `main` a lo largo
+de horas, una rama abierta hace tiempo puede quedar SUPERSEDED sin que nadie la cierre. Antes de
+mergear una rama "pendiente" del inventario, diffear sus ficheros clave contra `main` actual — no
+asumir que sigue vigente solo porque nadie la tocó.
+
+## 📋 "¿Qué falta para el 100%?" — resumen pedido por Alex (27-sep)
+
+Fuera del barrido de ramas, esto es lo que falta según `RECOVERY_ROADMAP.md`, en orden:
+
+1. **Bloqueadores de Alex** (desbloquean todo lo demás): credenciales Supabase read-only en el
+   entorno de agentes; rotar `ANTHROPIC_API_KEY`/`GROQ_API_KEY`/token Management Supabase/GHL secret;
+   `SEQURA_MERCHANT_REFERENCE` en Vercel (cron de morosos en fallo recurrente); pixel en
+   womendigitalclosers.com + UTMs; reconexiones GHL con cabecera secreta; Railway worker; retención
+   legal de raw_events/transcripciones. **PR #225 ya no bloquea nada — ver arriba, el port ya está en `main`.**
+2. **Datos/métricas** (fase R3): clasificación de llamadas desde datos canónicos (no IA); gate de
+   columnas fantasma en CI; verificar % shows/reservas con el golden dataset.
+3. **UX/frontend** (fase R4): el lote 3 de taste (PR #250) ya cerró REQ-UX-02/03 completos y
+   REQ-UX-05 parcial (6/14 modales) — queda backlog de 8 modales y la revisión visual de dashboards
+   autenticados (bloqueada por falta de credenciales de sesión en sandbox).
+4. **Features nuevas** (fase R5, deliberadamente al final): resto del contrato de métricas F3;
+   creación de usuarios desde Config › Subcuentas; % VSL desde el reproductor; alertas A3
+   (deprioritizada por Alex); rate limiting de login. **Fase 2 del VoC mining sobre Conversaciones**
+   (pedida por Alex, acordada, no arrancada — prompt de research ya lo tiene pegado en el handoff de arriba).
+5. **Legacy** (fase R6): rename Afiliados→Colaboradores; tipado `Database` completo; quitar
+   `?secret=` del webhook de onboarding.
+
+El núcleo de dinero/comisiones está saneado (P1 de la auditoría FASE A cerrados + barrido de
+escrituras sin comprobar error en #251/#252). Lo que queda es sobre todo credenciales/decisiones de
+Alex, no código bloqueado.
 
 Sesión completa: 4 PRs mergeadas en `main`, producción verificada sirviendo el HEAD tras liberar un
 build zombi que bloqueaba la cola. Quality Gate en `main` tras el último merge: typecheck 0, lint sin
@@ -16,13 +78,13 @@ errores nuevos, `npm test` 1023 pass / 0 fail / 3 skips (falta de credenciales S
   (rollback de venta huérfana sin comprobar) en #252. `audit_logs.insert` secundarios en varios
   endpoints ahora se loguean si fallan en vez de perderse.
 - **PR #253 — Instagram, dos bugs reportados por Alex con el mismo síntoma:**
-  1. *Conversaciones no cargaban* ("Instagram tardó demasiado en responder"): el reintento con
+  1. _Conversaciones no cargaban_ ("Instagram tardó demasiado en responder"): el reintento con
      página más pequeña en `fetchIgConversationsWithMessages` nunca se ejecutaba porque el timeout
      de cada llamada (`IG_TIMEOUT_MS`=15s) era MAYOR que el presupuesto total para reintentar (12s)
      — cuando el primer intento expiraba, el presupuesto ya estaba agotado. Fix: `graphGet`/
      `graphGetAll` aceptan timeout explícito; el primer intento del listado usa uno más corto (7s)
      que deja margen real para el reintento.
-  2. *Panel de Integraciones mentía*: `lib/ops/sync-health.ts` declaraba `instagram` con
+  2. _Panel de Integraciones mentía_: `lib/ops/sync-health.ts` declaraba `instagram` con
      `scheduler:'vercel'`, así que comprobaba si `cron/instagram` estaba en `vercel.json` — pero ese
      cron se movió a GitHub Actions (`cron-instagram.yml`, diario 02:30 UTC) cuando se sacó de Vercel
      por el límite de 2 crons del plan Hobby. El panel decía "nadie la ejecuta" aunque SÍ corre a
