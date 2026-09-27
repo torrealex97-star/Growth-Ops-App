@@ -210,7 +210,16 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
       import('hls.js').then(({ default: Hls }) => {
         if (cancelled) return
         if (Hls.isSupported()) {
-          hls = new Hls({ enableWorker: true, lowLatencyMode: false, maxBufferLength: 30 })
+          // Fast start (velocidad de carga percibida, lo que venden Wistia/PandaVideo): empieza
+          // por el fragmento de menor calidad para arrancar ya y sube de calidad (ABR) según
+          // ancho de banda real; buffer acotado para no gastar datos de móvil sin necesidad.
+          hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: false,
+            maxBufferLength: 30,
+            startLevel: 0, // arranca por la calidad más baja: primer frame en cuanto antes
+            abrEwmaDefaultEstimate: 500_000, // estimación inicial conservadora (0,5 Mbps)
+          })
           hls.loadSource(src)
           hls.attachMedia(el)
         } else {
@@ -556,7 +565,9 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
         ref={videoRef}
         poster={video.poster_url || undefined}
         playsInline
-        preload="auto"
+        // Con autoplay el vídeo va a sonar a la carga (preload auto); si no, metadata basta:
+        // descarga menos al primer render (móvil/4G) y el arranque real la impulsa.
+        preload={cfg.autoplay ? 'auto' : 'metadata'}
         className="h-full w-full object-contain"
         onClick={togglePlay}
         onTimeUpdate={onTimeUpdate}
@@ -721,8 +732,8 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
         </button>
       )}
 
-      {/* Botón play central cuando está pausado y con sonido */}
-      {!playing && !muted && resumeSec === null && !showExitHook && (
+      {/* Botón play central cuando está pausado y con sonido (customizable, paridad Wistia) */}
+      {cfg.showCentralPlay !== false && !playing && !muted && resumeSec === null && !showExitHook && (
         <button onClick={togglePlay} className="absolute inset-0 flex items-center justify-center bg-black/20">
           <span
             className="flex h-16 w-16 items-center justify-center rounded-full shadow-lg"
@@ -735,40 +746,42 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
         </button>
       )}
 
-      {/* Botón de pantalla completa (esquina inferior derecha, por encima de overlays) */}
-      <button
-        onClick={toggleFullscreen}
-        aria-label="Pantalla completa"
-        className="absolute bottom-2.5 right-2.5 z-20 flex h-9 w-9 items-center justify-center rounded-md bg-black/45 text-foreground opacity-80 transition hover:bg-black/65 hover:opacity-100"
-      >
-        {isFs ? (
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />
-          </svg>
-        ) : (
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />
-          </svg>
-        )}
-      </button>
+      {/* Botón de pantalla completa (customizable, paridad Wistia/PandaVideo) */}
+      {cfg.showFullscreenBtn !== false && (
+        <button
+          onClick={toggleFullscreen}
+          aria-label="Pantalla completa"
+          className="absolute bottom-2.5 right-2.5 z-20 flex h-9 w-9 items-center justify-center rounded-md bg-black/45 text-foreground opacity-80 transition hover:bg-black/65 hover:opacity-100"
+        >
+          {isFs ? (
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />
+            </svg>
+          ) : (
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3" />
+            </svg>
+          )}
+        </button>
+      )}
 
       {/* Barra de progreso (azul). Con fakeProgress va "acelerada": el ancho
           mostrado va por delante del tiempo real para dar sensación de que queda poco. */}

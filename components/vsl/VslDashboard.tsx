@@ -10,8 +10,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { DEFAULT_CONFIG, type VslConfig } from '@/lib/vsl/types'
-import { Plus, Copy, Check, Trash2, Upload, Loader2, Play, Eye, Users, Flag, Percent } from 'lucide-react'
+import { DEFAULT_CONFIG, derivadosDeSource, type VslConfig } from '@/lib/vsl/types'
+import { Plus, Copy, Check, Trash2, Upload, Loader2, Play, Eye, Users, Flag, Percent, Video } from 'lucide-react'
 
 interface Video {
   id: string
@@ -50,6 +50,18 @@ interface Metrics {
   leadsOcultos?: number
 }
 
+// KPIs agregados de TODOS los vídeos de la subcuenta (criterios idénticos a las métricas por vídeo).
+interface Resumen {
+  videos: number
+  impressions: number
+  plays: number
+  completed: number
+  identified: number
+  playRate: number
+  completionRate: number
+  avgPercent: number
+}
+
 function fmt(sec: number): string {
   const m = Math.floor(sec / 60)
   const s = Math.floor(sec % 60)
@@ -66,7 +78,9 @@ export function VslDashboard() {
   const [editing, setEditing] = useState<Partial<Video> | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [metrics, setMetrics] = useState<Metrics | null>(null)
+  const [resumen, setResumen] = useState<Resumen | null>(null)
   const [copied, setCopied] = useState(false)
+  const [previewSlug, setPreviewSlug] = useState<string | null>(null) // hover: preview animado
 
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
 
@@ -83,6 +97,12 @@ export function VslDashboard() {
 
   useEffect(() => {
     loadVideos()
+    // Resumen agregado de la subcuenta (error ≠ vacío: se muestra aviso, no ceros).
+    fetch(`/api/${tenant}/evergreen/vsl/resumen`)
+      .then(async (r) => {
+        if (r.ok) setResumen(await r.json())
+      })
+      .catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadMetrics = useCallback(
@@ -135,22 +155,53 @@ export function VslDashboard() {
         </Button>
       </div>
 
-      {/* Selector de vídeos */}
+      {/* Resumen de la subcuenta: KPIs agregados de todos los VSL (conectado a las métricas) */}
+      {resumen && (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          <Kpi icon={Video} label="Vídeos" value={resumen.videos} />
+          <Kpi icon={Eye} label="Impresiones" value={resumen.impressions} />
+          <Kpi icon={Play} label="Play rate" value={`${resumen.playRate}%`} sub={`${resumen.plays} plays`} />
+          <Kpi icon={Percent} label="% medio visto" value={`${resumen.avgPercent}%`} />
+          <Kpi
+            icon={Flag}
+            label="Completado"
+            value={`${resumen.completionRate}%`}
+            sub={`${resumen.completed} llegan al final`}
+          />
+        </div>
+      )}
+
+      {/* Selector de vídeos: tarjetas con miniatura y preview animado de Bunny al pasar el ratón */}
       <div className="flex flex-wrap gap-2">
         {loading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
-        {videos.map((v) => (
-          <button
-            key={v.id}
-            onClick={() => setSelected(v.slug)}
-            className={`rounded-lg border px-3 py-2 text-sm transition ${
-              selected === v.slug
-                ? 'border-brand-500 bg-brand-500/15 text-foreground'
-                : 'dashboard-card text-foreground hover:border-white/20'
-            }`}
-          >
-            {v.name}
-          </button>
-        ))}
+        {videos.map((v) => {
+          const d = derivadosDeSource(v.source_url)
+          return (
+            <button
+              key={v.id}
+              onClick={() => setSelected(v.slug)}
+              onMouseEnter={() => d.preview && setPreviewSlug(v.slug)}
+              onMouseLeave={() => setPreviewSlug((s) => (s === v.slug ? null : s))}
+              className={`group relative w-44 overflow-hidden rounded-lg border text-left transition ${
+                selected === v.slug
+                  ? 'border-brand-500 bg-brand-500/15 text-foreground'
+                  : 'dashboard-card text-foreground hover:border-white/20'
+              }`}
+            >
+              <div className="relative aspect-video w-full overflow-hidden bg-black">
+                {d.thumbnail ? (
+                  <img src={d.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover opacity-90" />
+                ) : v.poster_url ? (
+                  <img src={v.poster_url} alt="" loading="lazy" className="h-full w-full object-cover opacity-90" />
+                ) : null}
+                {d.preview && previewSlug === v.slug && (
+                  <img src={d.preview} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                )}
+              </div>
+              <div className="truncate px-3 py-2 text-sm">{v.name}</div>
+            </button>
+          )
+        })}
         {!loading && loadError && (
           <p className="text-sm text-destructive">
             No se pudieron cargar los vídeos (error del servidor). Comprueba la conexión a la base de datos e inténtalo
@@ -645,6 +696,14 @@ function VideoForm({
           </label>
           <label className="flex items-center gap-2 text-sm text-foreground">
             <Checkbox checked={config.loop} onCheckedChange={(v) => setCfg('loop', !!v)} /> Repetir en bucle al terminar
+          </label>
+          <label className="flex items-center gap-2 text-sm text-foreground">
+            <Checkbox checked={config.showCentralPlay} onCheckedChange={(v) => setCfg('showCentralPlay', !!v)} /> Botón
+            play central al pausar
+          </label>
+          <label className="flex items-center gap-2 text-sm text-foreground">
+            <Checkbox checked={config.showFullscreenBtn} onCheckedChange={(v) => setCfg('showFullscreenBtn', !!v)} />{' '}
+            Botón de pantalla completa
           </label>
 
           {/* Prueba social */}
