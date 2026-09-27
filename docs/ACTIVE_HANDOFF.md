@@ -1,5 +1,146 @@
 # Relevo activo
 
+## ⚠️ CONCURRENCIA (27-sep, tarde): Codebuff corriendo la skill "taste" — no tocar UI sin comprobar antes
+
+Alex tiene a **Codebuff ejecutando la skill `taste`** en paralelo a esta sesión. Esa skill es de
+diseño/UX visual — el mismo terreno que el bloque de "R4 pendiente" de más abajo. **Antes de tocar
+cualquier fichero de `app/**/page.tsx` o `components/ui/*` por temas de tokens de color, tipografía
+o modales, comprueba primero**:
+
+1. `git log --all --oneline -20` y `git branch -r` — si ya existe una rama de Codebuff sobre estos
+   mismos ficheros, no la pises: extrae lo útil, no la sobrescribas (regla de siempre: DIFF →
+   UNDERSTAND → CLASSIFY → PORT, nunca merge a ciegas).
+2. Esta sección del tablero (más abajo) — si Codebuff ha reclamado fila, respétala.
+3. Si no hay rastro de Codebuff en git pero Alex dice que sigue corriendo, es probable que su
+   resultado llegue como PR o rama nueva DESPUÉS de que leas esto: vuelve a mirar `git branch -r`
+   justo antes de empezar a escribir código, no solo al principio de la sesión.
+
+## 📋 RELEVO (27-sep, tarde): 12 ramas de Claude Code sin PR + inventario detallado de UX R4
+
+**Contexto:** sesión completa de Claude Code (torre.alex97) trabajando sobre el informe de auditoría
+FASE A (26-sep) + puesta al día de Dependabot + arranque de UX R4. Nada de esto se ha mergeado
+todavía (salvo lo que ya diga "✅ RESULTADO" más abajo) — son 12 ramas remotas, cada una con su
+propio quality gate local en verde, esperando revisión/PR. Alex prefirió revisar antes de abrir PRs.
+
+**Ramas pendientes de PR** (todas verificadas: format+lint+typecheck+tests+build en verde en su día;
+re-verificar contra `main` actual antes de abrir PR, puede haber avanzado):
+
+**Hallazgos P1 del informe FASE A (dinero/seguridad), cierran el hilo abierto en la sección de
+arriba de PR-R2.2b:**
+
+- `fix/disputed-no-es-cash` — `disputed` dejaba de tratarse como cash confirmado en
+  `lib/sales/plan-cuotas.ts`, `payments/mark` y la ficha de venta (`ventas/registro/[id]`, donde
+  además inflaba el importe prellenado de una devolución). Docs/MONEY.md D5.
+- `fix/collections-patch-sync-cuota` — `PATCH` de `collections/[id]` con status `reversed`/`disputed`
+  no llamaba a `syncInstallmentStatus` (solo lo hacía `DELETE`): la cuota quedaba `collected` para
+  siempre, bloqueada para recobrarse.
+- `fix/collections-approve-review-recuperable` — `approve-review` limpiaba el flag de revisión
+  ANTES de garantizar la comisión; si `generateCommissionsForCollection` fallaba después, el cobro
+  quedaba aprobado sin comisión y sin poder reintentar (el propio guard respondía 400). Ahora lee la
+  venta primero, verifica errores, y revierte el flag si la generación falla.
+- `fix/ai-tools-lectura-fallida-no-es-cero` — `getSales`/`getBusinessOverview`/`getFunnel` (tools del
+  agente IA) y `detectAnomalies` presentaban un fallo de lectura como "0 ventas"/"ROAS cayó". Ahora
+  devuelven `error` explícito y `detectAnomalies` se salta la comparación en vez de inventar una
+  anomalía sobre un cero fabricado.
+
+**Otros, fuera del informe FASE A pero de la misma sesión:**
+
+- `fix/ai-agent-historial-orden` — el historial del agente mandaba los MAX_HISTORY mensajes más
+  ANTIGUOS de la conversación (bug de `order(ascending:true) + limit`), no los recientes.
+- `feat/port-pr225-ads-filter-nuevo-recurrente` — port manual (no rebase) de 2 de las 3 piezas de tu
+  PR #225 (`feat/money-25sep`, todavía abierta, tuya): filtro de cuentas ads en `consultarMetricas`
+  (agente/brief) + nuevo-vs-recurrente canónico cableado en comisiones futuras. **Queda 1/2**: el
+  gráfico dual facturación-vs-cash de unit-economics (más abajo, sección propia).
+- `docs/a3-alertas-deprioritizadas` — solo documentación: registra que las 5 alertas A3 (impago,
+  vencimiento, lead sin contactar, no-show, onboarding/engagement) están DEPRIORIZADAS por decisión
+  de Alex (no bloqueadas por canal), con el criterio para cuando se retomen (detección separada del
+  envío). Sin riesgo, se puede mergear sola en cualquier momento.
+
+**Dependabot majors — investigados de verdad (peer deps + build real), no aceptados a ciegas. Las 5
+PRs de Dependabot (#227-230, #235) deberían cerrarse como CLOSED/superseded una vez esto se mergee:**
+
+- `chore/recharts-3-major` — recharts 2.12.7→3.10.1. Sin conflicto de peer deps. Único cambio real:
+  tipo de `labelFormatter` en `app/[tenant]/instagram/page.tsx` (`ReactNode` en vez de
+  `string | null`). Build limpio en los 9 ficheros que usan recharts.
+- `chore/eslint-9-config-next-16` — eslint 8→**9** (NO 10) + `eslint-config-next` 15→16, migrado a
+  flat config (`eslint.config.mjs`, sustituye `.eslintrc.json`). **ESLint 10 crashea de verdad**:
+  `eslint-plugin-react@7.37.5` (dependencia de `eslint-config-next@16`) llama a una API de contexto
+  de regla que ESLint 10 quitó (`getFilename is not a function`) — verificado ejecutando `next lint`
+  real, no en documentación. ESLint 9 resuelve limpio. Las 4 reglas nuevas de
+  "React Compiler readiness" de `eslint-plugin-react-hooks@7` (`set-state-in-effect`, `purity`,
+  `immutability`, `incompatible-library`) se desactivan EXPLÍCITAMENTE en el config con el motivo
+  escrito: penalizan `useEffect(() => fetchX(), [...])`, patrón válido de React 18 en 109 sitios de
+  esta app — adoptarlas es decisión de arquitectura para cuando se migre a React 19, no algo que
+  deba colar en un bump de linter. **Si algún día se migra a React 19**: revisar si esas 4 reglas
+  deben reactivarse antes de reescribir esos 109 sitios.
+- `chore/tailwind-4-major` — tailwindcss 3.4.1→4.3.3. `postcss.config.js` → `@tailwindcss/postcss`
+  (autoprefixer desinstalado, ya lo hace Lightning CSS). `globals.css`: `@tailwind base/components/
+utilities` → `@import 'tailwindcss'` + `@config '../tailwind.config.ts'`. Un error real de tipos:
+  `darkMode: ['class']` (sintaxis v3) no tipa en v4 (`DarkModeStrategy` exige `'class'` a secas o el
+  par `['class', selector]`) — cambiado a `darkMode: 'class'`, misma semántica (la app usa
+  `classList.toggle('dark', ...)`). **Verificado en el CSS COMPILADO** (no solo que el build no
+  reviente — el primer intento con `| tail` ocultó un fallo real por la trampa del exit-code de
+  `tail`, ojo con eso si se repite el build en background): el sistema de color de marca por tenant
+  (`hsl(var(--brand-NNN) / <alpha-value>)`, 114 líneas de tokens) resuelve igual, incluidos los
+  modificadores de opacidad vía el `color-mix()` nuevo de v4; `tailwindcss-animate` (usado por
+  dialog/alert-dialog/sheet/popover/select, TODA la capa de overlays) sigue generando
+  `animate-in/out`, `fade-in-0`, `zoom-in-95`, `slide-in-from-*`.
+- **Los tres de arriba comparten la misma advertencia**: verificado el artefacto real (CSS
+  compilado / build / lint ejecutado), no solo que compile — pero **sigue pendiente un vistazo
+  VISUAL en preview desplegado** antes de mergear a main. Esta sesión no tuvo navegador. Mínimo:
+  dashboard, finanzas, comisiones, y abrir un modal/dropdown cualquiera (Dialog/Select/Popover) para
+  confirmar que la animación de entrada/salida se ve.
+
+**UX R4 — arrancado, 1 de 4 hecho:**
+
+- `chore/ux04-formato-moneda-fuente-unica` — HECHO. Barrido completo de la app: solo había un
+  duplicado real de `formatCurrency`/`Intl.NumberFormat` inline (`ColaboradorDashboard.tsx`), ahora
+  reusa `formatNumber` de `@/lib/utils`. Los otros 2 sitios con `style: 'currency'` fuera de
+  `lib/utils.ts` (`components/metrics/KpiCard.tsx`, `settings/integraciones/page.tsx`) YA reusaban
+  correctamente el helper — no tocar, no son duplicados.
+
+### UX R4 — lo que queda, inventariado con precisión para no redescubrirlo
+
+**REQ-UX-02 (paleta duplicada → tokens) — 7 ficheros con hex hardcodeado en vez de los tokens de
+marca (`bg-brand-*`, `hsl(var(--...))`), grep exacto para reproducir:**
+`grep -rEo "#[0-9a-fA-F]{6}\b" --include="*.tsx" app/ components/ | grep -v "components/ui/"`
+→ `components/os/Sidebar.tsx` (8), `components/settings/EmailTemplatesPanel.tsx` (3),
+`components/vsl/VslDashboard.tsx` (2), `app/[tenant]/layout.tsx` (2),
+`components/os/MetaAdsDashboard.tsx` (1), `app/[tenant]/settings/integraciones/page.tsx` (1),
+`app/[tenant]/instagram/page.tsx` (1). Antes de tocar cada uno: comprobar si el hex es intencional
+(p. ej. un color de marca de un proveedor externo como Instagram/Meta que no debe seguir el sistema
+de tokens propio) o si debería ser un token — no convertir a ciegas.
+
+**REQ-UX-03 (escala tipográfica, falta `text-2xs`) — mucho más grande de lo que sugería el registro:
+80 ficheros, cientos de usos de `text-[10px]`/`text-[11px]` en vez de un token. Grep exacto:**
+`grep -rc "text-\[1[0-1]px\]" --include="*.tsx" app/ components/ | grep -v ":0$"` (top 10 por
+volumen: `setting-ai/page.tsx` 22, `marketing/contenido/page.tsx` 22, `ContactsAllView.tsx` 11,
+`recursos/testimonios/page.tsx` 11, `instagram/reels/page.tsx` 11...). Plan sugerido, NO ejecutado:
+(1) añadir `text-2xs` (probablemente `0.6875rem`/`11px`, a decidir con Alex si hay dos tamaños o
+solo uno) a `tailwind.config.ts` → `theme.extend.fontSize`; (2) sustituir mecánicamente
+`text-[10px]`/`text-[11px]` por el token nuevo, fichero a fichero, con verificación visual — es
+demasiado volumen para un solo PR, dividir en varios.
+
+**REQ-UX-05 (migrar 6+ modales caseros a `components/ui/dialog.tsx`) — 14 candidatos encontrados
+(el registro decía "6+", hay más). Grep exacto:**
+`grep -rl "fixed inset-0" --include="*.tsx" app/ components/ | grep -v "components/ui/" | xargs grep -L "from '@/components/ui/dialog'\|from '@/components/ui/sheet'\|from '@/components/ui/alert-dialog'"`
+→ `tasks/page.tsx`, `recursos/biblioteca/page.tsx`, `settings/subcuentas/page.tsx`,
+`setting-ai/page.tsx`, `marketing/contenido/page.tsx`, `marketing/adquisicion/campanas/page.tsx`,
+`instagram/page.tsx`, `instagram/competencia/page.tsx`, `csm-events/page.tsx`, `contratos/page.tsx`,
+`finanzas/gastos-facturas/gastos/page.tsx`, `drops/page.tsx`, `components/os/MetaFunnelAssigner.tsx`,
+`components/os/ScriptQueue.tsx`. **`components/os/Sidebar.tsx` salió en el grep pero es
+probablemente un falso positivo** (drawer de navegación móvil, no un modal) — triar antes de tocar.
+Cada uno: confirmar que es de verdad un overlay modal (backdrop + cierre) antes de migrar, y probar
+visualmente que el foco/cierre con Esc/click-fuera sigue funcionando tras migrar a Dialog (Radix ya
+lo da gratis, pero hay que confirmarlo).
+
+**Por qué esta sesión no llegó más lejos en R4**: REQ-UX-02/03/05 exigen criterio visual (qué es
+intencional vs qué debería ser un token, cómo se ve el resultado) que no se puede verificar sin
+navegador — esta sesión no tuvo uno. El siguiente agente con `browser-testing-with-devtools` o un
+preview desplegado puede ejecutar el plan de arriba con mucha más confianza que intentarlo a ciegas.
+
+---
+
 ## ✅ RESULTADO (27-sep): PR-R2.2b — allowlist de campos en `sales/complete-reservation` (PR #240)
 
 Fusionada en `main` (`c8d70b2`), CI de la PR en verde (quality 1m30s con dead-code, gitleaks 8s,
