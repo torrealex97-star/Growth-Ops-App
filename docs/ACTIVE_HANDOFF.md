@@ -99,7 +99,20 @@ BLOCKED_USER credenciales) → PR-R2.1 (port #225 con Alex) → PR-R2.2/2.3 → 
 
 ### CONCURRENCY NOTES
 
-Checkout raíz (`fix/money-path-silent-writes`) conserva WIP ajeno sin commitear: NO tocado, NO borrado.
+⚠️ **27-sep (Buffy): 6 ramas `claude/*` remotas son linajes HUÉRFANOS** (`git merge-base origin/main <rama>`
+vacío: `claude/{comisiones-reservas-fix, app-continuation-lpbupf, socios-reparto-beneficio,
+ltgp-cac-aproximado, objetivos-prevision-f65, growth-context-coste-entrega}`). Sus puntas describen
+trabajo que YA ESTÁ en main vía #201/#208/#211–#213 (anterior al repunto del 19-sep). **NO fusionar
+NI rebasar** (regla «sin merge-base no hay merge», caso #210); verificado contenido a contenido.
+Solo `claude/socios-flecos-finales` tiene base legítima (`5114973`) — pero su hermana
+`socios-reparto-beneficio` (mismo tema) ya llegó a main por #213: tratarla como superseded salvo
+verificación inversa. El clon del worktree tiene refspec de rama única (`origin/main`): para
+inspeccionar ramas remotas, fetch con refspec explícito.
+
+Checkout raíz (`fix/money-path-silent-writes`) conserva WIP ajeno sin commitear (informe FASE A del
+26-sep en `docs/ACTIVE_HANDOFF.md`, +176 líneas: sus hallazgos de crons/sales-delete/commissions-
+future/Correo-Drops ya están resueltos por #238/#239/#233 — cerrarlos en el doc antes de publicarlo;
+stash@{0} del checkout raíz es copia redundante del mismo diff): NO tocado, NO borrado.
 Rama local conservada por contener ese WIP (borrar la ref no borra el working tree). `gh run list
 --commit` usado para diagnóstico de CI (un run cancelled no es fallo). Sin migraciones, sin deletes,
 sin merges de ramas antiguas durante la auditoría.
