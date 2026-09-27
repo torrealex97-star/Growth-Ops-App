@@ -1,5 +1,64 @@
 # Relevo activo
 
+## ✅ RESULTADO (27-sep, noche): PRs #251-#254 — barrido de dinero, fixes de Instagram y arranque de Conversaciones (Claude Code)
+
+Sesión completa: 4 PRs mergeadas en `main`, producción verificada sirviendo el HEAD tras liberar un
+build zombi que bloqueaba la cola. Quality Gate en `main` tras el último merge: typecheck 0, lint sin
+errores nuevos, `npm test` 1023 pass / 0 fail / 3 skips (falta de credenciales Supabase en vivo).
+
+- **PR #251 y #252 — continúa el barrido de "~92 escrituras sin comprobar `{ error }`"** (criterio
+  fijado en §Seguridad más abajo): `webhooks/calendly` (UPDATE de estado de cita en cancelación/
+  reprogramación ahora responde 500 en vez de silencio, Calendly reintenta la entrega) y
+  `api/track/[site]` (log del error real sin cambiar el comportamiento ya correcto) en #251;
+  `sales/update` (sync de depósito en ventas "reserva" — hueco real, se desincronizaba en silencio),
+  `collections/[id]` (estado de cuota tras editar/borrar un cobro), `payments/mark` (dos ramas de
+  idempotencia devolvían `ok:true` aunque la escritura fallara) y `stripe-backfill/registrar`
+  (rollback de venta huérfana sin comprobar) en #252. `audit_logs.insert` secundarios en varios
+  endpoints ahora se loguean si fallan en vez de perderse.
+- **PR #253 — Instagram, dos bugs reportados por Alex con el mismo síntoma:**
+  1. *Conversaciones no cargaban* ("Instagram tardó demasiado en responder"): el reintento con
+     página más pequeña en `fetchIgConversationsWithMessages` nunca se ejecutaba porque el timeout
+     de cada llamada (`IG_TIMEOUT_MS`=15s) era MAYOR que el presupuesto total para reintentar (12s)
+     — cuando el primer intento expiraba, el presupuesto ya estaba agotado. Fix: `graphGet`/
+     `graphGetAll` aceptan timeout explícito; el primer intento del listado usa uno más corto (7s)
+     que deja margen real para el reintento.
+  2. *Panel de Integraciones mentía*: `lib/ops/sync-health.ts` declaraba `instagram` con
+     `scheduler:'vercel'`, así que comprobaba si `cron/instagram` estaba en `vercel.json` — pero ese
+     cron se movió a GitHub Actions (`cron-instagram.yml`, diario 02:30 UTC) cuando se sacó de Vercel
+     por el límite de 2 crons del plan Hobby. El panel decía "nadie la ejecuta" aunque SÍ corre a
+     diario. Cambiado a `scheduler:'manual'` con `manualReason`, mismo patrón ya usado para
+     `stripe-payments`/`calendly-citas` en el mismo fichero.
+- **PR #254 — primera fase del panel de métricas de Conversaciones** (pedido explícito de Alex:
+  "esta sección debería llamarse Conversaciones... panel de métricas e insights... saber cuál
+  [plataforma] genera más leads, agendas"). Alcance acordado antes de codificar (3 preguntas al
+  usuario): solo Instagram por ahora (Facebook/TikTok sin integración de mensajería, sin
+  credenciales ni cliente API — quedan "próximamente" en el mismo panel); cruce con datos reales
+  cuando sea posible, fallback a la propia conversación cuando no. Implementado:
+  `lib/instagram/conversation-metrics.ts` (función pura, 6 tests) cruza el username del participante
+  con `contacts.instagram` (normalizado) y, si encaja, comprueba cita/venta REAL en BD — nunca
+  `false` sin evidencia (queda `null`, no determinable), nunca cuenta un enlace de Calendly en el
+  texto como agenda confirmada (se expone aparte, `enlaceAgendaEnTexto`). Endpoint
+  `/setting-ai/conversations/metrics` reutiliza el snapshot ya guardado (no duplica llamadas a la
+  Graph API). Panel de 3 tarjetas en `ConversacionesTab` siempre visible.
+  **Pendiente (fase 2, acordada con Alex, no arrancada):** motor VoC (Voice of Customer mining) sobre
+  estas conversaciones para pains/hooks/objeciones/clusters — Alex pegó un prompt de research
+  completo para esto; primero como informe puntual sobre datos reales, después como feature.
+- **Build zombi de Vercel, otra vez:** el deploy de producción de #253 (`b1e9151`) se quedó colgado
+  ~43 min sin nuevas líneas de log tras el paso de lint, bloqueando en cola el deploy de #254. Mismo
+  patrón que los builds de `out_of_memory`/timeout vistos antes hoy — cancelado con
+  `mcp__Vercel__cancel_deployment` (autorización explícita de Alex de sesiones anteriores:
+  "solucionalo por api... como sea"), lo que liberó la cola. **Sigue sin fix estructural — solo
+  mitigación reactiva cada vez que aparece.** Si vuelve a repetirse con frecuencia, vale la pena abrir
+  un ticket con soporte de Vercel (proyecto en Hobby, single build-concurrency slot).
+- **Verificado en vivo:** `app.scalixsystems.com` (alias de producción) sirve `63d7062` (HEAD de
+  `main` tras #254, `aliasError: null`). 2 builds de preview obsoletos de la propia rama ya mergeada
+  cancelados (limpieza, no bloqueaban nada).
+- **Siguiente paso natural:** fase 2 del VoC mining cuando Alex confirme, y seguir el barrido de
+  escrituras sin comprobar error (quedan candidatos en `appointments/*`, `contracts/*`,
+  `webhooks/onboarding`, `instagram/transcribe`, `lib/tenants/provision.ts`,
+  `lib/contracts/team-contract.ts` — recuento exacto pendiente, identificados con escaneo estático +
+  verificación manual archivo a archivo para descartar falsos positivos, mismo método que #251/#252).
+
 ## Assets hero comprimidos: −88% de bytes por visitante nuevo — 27-sep noche (Freebuff/Buffy)
 
 **hero.mp4 5,28 MB → 806 KB** (re-encode H.264 1080p CRF 26, sin audio, +faststart; SSIM 0,9947
