@@ -1,5 +1,29 @@
 # Relevo activo
 
+## ✅ RESULTADO (27-sep, noche): taste lote 4 — REQ-UX-05 completo (PR #255)
+
+Rama `feat/r4-ux-lote-4` (squash `2183bc2` sobre `origin/main` `930d219`, rama eliminada). Los ~14 modales
+con overlay casero que quedaban tras el lote 3 pasan a `components/ui/dialog` (Radix): campanas ×3,
+marketing/contenido ×2 (nueva pieza + tarjeta de detalle, título editable intacto), setting-ai ×3 (las
+funciones `Modal`/`ModalHead` ahora envuelven Radix conservando los tamaños big/normal), instagram ×2,
+instagram/competencia ×2, gastos ×2, subcuentas ×1 (confirmación de archivado: Radix aporta el
+`aria-modal`/foco que el `role="dialog"` manual emulaba) y agendas ×1. `MetaFunnelAssigner` y `ScriptQueue`
+(lote 3) entran en el invariante. Foco atrapado, Esc, click-fuera y X accesible gratis; −946 líneas de
+boilerplate. **Intencionales preservados:** el click-catcher `z-30` del dropdown de columnas (contenido),
+los overlays no-modales de `ContactsAllView` (z-10, dropdown) y los hexes de email/`#0866FF`/recharts del
+lote 3.
+
+**Validado:** `npm run quality` completo en local (format:check, lint, typecheck, `npm test` 1027/0/3 skips
+sin credenciales, `test:metrics` 752/0) y build local ✓; CI del SHA final `6581eb5` (run `36344012044`):
+Quality 1m14s, Build 2m54s, gitleaks y **Smoke E2E 5m18s en verde**. `tests/taste-public-pages.test.mjs`
+ahora 9 invariantes (nuevo: nada de overlays `fixed inset-0 z-50` ni `bg-black/60` a mano en los 10
+ficheros del lote 4). **Nota CI:** el E2E se canceló dos veces por la concurrency GLOBAL `e2e-tenant-qa`
+compartida con la rama docs paralela de Claude Code (`docs/relevo-27sep-ramas-obsoletas-y-que-falta`,
+hoy PR #257, CI success); re-lanzado con 2 commits vacíos documentados (`7015f15`, `6581eb5`) hasta que
+su run terminó. Los specs E2E que usan `getByRole('dialog')` siguen
+válidos: Radix emite ese rol. **No verificado:** navegación de dashboards autenticados (falta
+`E2E_PASSWORD`, igual que lotes 1-3).
+
 ## ✅ RESULTADO (27-sep, noche): PRs #251-#254 — barrido de dinero, fixes de Instagram y arranque de Conversaciones (Claude Code)
 
 Sesión completa: 4 PRs mergeadas en `main`, producción verificada sirviendo el HEAD tras liberar un
@@ -16,13 +40,13 @@ errores nuevos, `npm test` 1023 pass / 0 fail / 3 skips (falta de credenciales S
   (rollback de venta huérfana sin comprobar) en #252. `audit_logs.insert` secundarios en varios
   endpoints ahora se loguean si fallan en vez de perderse.
 - **PR #253 — Instagram, dos bugs reportados por Alex con el mismo síntoma:**
-  1. *Conversaciones no cargaban* ("Instagram tardó demasiado en responder"): el reintento con
+  1. _Conversaciones no cargaban_ ("Instagram tardó demasiado en responder"): el reintento con
      página más pequeña en `fetchIgConversationsWithMessages` nunca se ejecutaba porque el timeout
      de cada llamada (`IG_TIMEOUT_MS`=15s) era MAYOR que el presupuesto total para reintentar (12s)
      — cuando el primer intento expiraba, el presupuesto ya estaba agotado. Fix: `graphGet`/
      `graphGetAll` aceptan timeout explícito; el primer intento del listado usa uno más corto (7s)
      que deja margen real para el reintento.
-  2. *Panel de Integraciones mentía*: `lib/ops/sync-health.ts` declaraba `instagram` con
+  2. _Panel de Integraciones mentía_: `lib/ops/sync-health.ts` declaraba `instagram` con
      `scheduler:'vercel'`, así que comprobaba si `cron/instagram` estaba en `vercel.json` — pero ese
      cron se movió a GitHub Actions (`cron-instagram.yml`, diario 02:30 UTC) cuando se sacó de Vercel
      por el límite de 2 crons del plan Hobby. El panel decía "nadie la ejecuta" aunque SÍ corre a
