@@ -1,5 +1,10 @@
 # Guía operativa para agentes
 
+**Skill de diseño instalada**: `.codebuff/skills/design-taste-frontend/SKILL.md` (taste-skill v2,
+anti-slop). Cárgala SIEMPRE antes de construir o rediseñar landings, embeds públicos o UI nueva —
+declarando primero el "Design Read" (§0.B) y aplicando el pre-flight check (§10). No reescribe
+dashboards de datos; respeta el accent lock de la marca (#2563EB) y el copy en español.
+
 Estas reglas son obligatorias para cualquier agente que modifique este repositorio.
 **El plan de implementación vive en `docs/plan/`; empieza por `docs/plan/README.md`.** Ese directorio es la fuente autoritativa de qué se construye y en qué orden: constitución, arquitectura, seguridad, operación, IA, producto, calidad y el prompt de cada fase. Este archivo define _cómo_ se trabaja. Una fase = una rama = un PR.
 GitHub `main` es la fuente de verdad del código. Supabase es la fuente de verdad de los datos persistentes y Vercel despliega la aplicación.

@@ -72,6 +72,13 @@ Feature completo y desplegado: Config → Datos de empresa, plantillas (pega tex
 Crons ya hechos: `cron/monthly` (sueldos + gastos recurrentes) y `cron/reminders` (marca cuotas vencidas).
 Faltan como automatización con aviso real (necesitan canal: WhatsApp/email/Slack):
 
+**Decisión de Alex (27-sep): DEPRIORIZADO, no tocar código todavía.** Para el tramo que llega al
+alumno (WhatsApp de impago, email de renovación...) hay que dejarlo todo listo para conectar el
+día que se decida el canal, pero implementarlo hoy no es prioridad. Cuando se retome: construir la
+detección (lógica pura, sin canal) primero — igual que `cron/reminders` ya marca cuotas vencidas sin
+enviar nada — y separar esa detección del envío real, para que activar el canal sea enchufar un
+adapter, no reescribir la lógica de negocio. No crear tablas ni cron nuevos hasta esa decisión.
+
 - [ ] Alerta de impago (Pago atrasado ≥3 días → aviso admin + WhatsApp alumno)
 - [ ] Alerta de vencimiento de acceso (email renovación + tarea al closer)
 - [ ] Lead no contactado >2h → aviso al setter
