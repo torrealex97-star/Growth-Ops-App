@@ -38,12 +38,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       // duplicados: la misma cuota generaba 2 collections + 2 comisiones idénticas).
       const { data: existingColl } = await sb
         .from('collections')
-        .select('id')
+        .select('id, status')
         .eq('expected_installment_id', installmentId)
         .eq('tenant_id', t.tenantId)
         .neq('status', 'reversed')
         .limit(1)
-      if (inst.status === 'collected' || (existingColl && existingColl.length > 0)) {
+      const cobroExistente = existingColl?.[0] ?? null
+      // 'disputed' no es cash confirmado (docs/MONEY.md D5, igual que lib/canonical/cash.ts:
+      // esCobrado = status === 'collected'). No se duplica el cobro, pero TAMPOCO se marca la
+      // cuota como cobrada mientras el dinero está en el aire — antes se pintaba en verde.
+      if (cobroExistente?.status === 'disputed') {
+        return NextResponse.json({
+          ok: true,
+          status: inst.status,
+          already: true,
+          disputed: true,
+          commissionsGenerated: 0,
+        })
+      }
+      if (inst.status === 'collected' || cobroExistente?.status === 'collected') {
         // Asegura que la cuota queda marcada como cobrada, pero sin duplicar el cobro.
         if (inst.status !== 'collected') {
           await sb
