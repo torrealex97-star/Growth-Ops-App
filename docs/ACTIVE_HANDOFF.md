@@ -81,6 +81,7 @@ solo si Alex lo añade (dryRun mientras tanto, ver next.config.js).
    limpieza de Storage del 26-sep (404 desde entonces; solo quedan `growthops-preview-3003` y
    `go-prod` en el equipo). Fix: variable de repo **`CRON_APP_URL=https://app.scalixsystems.com`**
    (los workflows ya traían el override `vars.CRON_APP_URL || default`).
+
 2. **Error propio del relevo del 26-sep, corregido:** al restaurar envs desde el `.env.local` del
    clon, `CRON_SECRET` y `TRACKING_INGEST_KEY` eran la máscara `[ SENSITIVE ] ` que `vercel env
 pull` escribe para variables _sensitive_ — quedaron guardadas literalmente y todo cron daba 401
@@ -102,9 +103,14 @@ reales disponibles (no subir máscaras): `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, 
 `SUPABASE_URL`/`SUPABASE_SECRET_KEY`, `SEQURA_MERCHANT_REFERENCE`, `SENTRY_AUTH_TOKEN` —
 pedirlas a Alex / dashboard Supabase.
 
-**Verificación de crons pendiente al cerrar esta sección:** el redeploy con las envs nuevas
-segía en BUILDING al escribir esto; disparar `cron-stripe-payments` (workflow_dispatch) y exigir
-HTTP 200 como prueba de que `CRON_APP_URL` + `CRON_SECRET` funcionan juntos.
+**Crons verificados en vivo (27-sep 14:40 UTC, tras el build de las 13:36 que ya horneó las envs
+nuevas):** `cron-stripe-payments` → **HTTP 200** `{ok:true}` con informe por subcuenta (omitidas
+honestamente: "Stripe no está configurado en esta subcuenta" — las credenciales cifradas son
+indescifrables hasta regrabarlas); `cron-sequra-morosos` → ya no 401, sino **HTTP 500** con
+`{"error":"Falta configurar SEQURA_MERCHANT_REFERENCE"}` (fallo ruidoso esperado; credencial de
+negocio pendiente de Alex). El resto de crons usan la misma cadena CRON_APP_URL + CRON_SECRET.
+Verificado también: el deployment vigente es el build de GitHub de `2d8e18c` (READY/PROMOTED,
+alias en app.scalixsystems.com) y el DSN de Sentry sigue horneado en su chunk.
 
 ## INCIDENTE PRODUCCIÓN RESUELTO — app.scalixsystems.com caída por envs borradas de Vercel — 26-sep (Freebuff/Buffy)
 
