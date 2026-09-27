@@ -112,7 +112,13 @@ export default function LoginPage() {
       <div className="relative w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
           <div className="mb-3 flex items-center gap-3">
-            <span className="text-5xl font-semibold leading-none tracking-[-0.16em] text-white">S</span>
+            {/* Monograma con la inicial REAL de la subcuenta (resolveTenantBranding). Antes era
+                una "S" fija — la inicial de otra marca — en cada login: el primer elemento que
+                ve el usuario mentía sobre dónde estaba. aria-hidden: es decorativo, el nombre
+                está al lado y lo leen los lectores. */}
+            <span aria-hidden className="text-5xl font-semibold leading-none tracking-[-0.16em] text-white">
+              {(branding.name || tenant).trim().charAt(0).toUpperCase()}
+            </span>
             <span className="text-2xl font-semibold tracking-tight text-white">{branding.name}</span>
           </div>
           <p className="text-muted-foreground text-sm mt-1 font-display">{tenant}</p>

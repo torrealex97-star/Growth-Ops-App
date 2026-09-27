@@ -939,7 +939,7 @@ export default function SaleDetailPage() {
                         <TableCell className="text-foreground text-sm">
                           {formatDate(c.collected_at)}
                           {isDupe && (
-                            <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-300">
+                            <span className="ml-2 text-3xs px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-300">
                               duplicado
                             </span>
                           )}
@@ -1026,7 +1026,7 @@ export default function SaleDetailPage() {
                 <p className="text-xs text-muted-foreground">
                   Por recolectar
                   {loadingPlanCuotas.proximoVencimiento && (
-                    <span className="block text-[10px]">
+                    <span className="block text-3xs">
                       Próx. vencimiento: {formatDate(loadingPlanCuotas.proximoVencimiento)}
                     </span>
                   )}
@@ -1113,7 +1113,7 @@ export default function SaleDetailPage() {
                         {sale?.payment_plans?.method === 'custom' &&
                           inst.installment_number > 1 &&
                           inst.status !== 'collected' && (
-                            <span className="block text-[10px] text-blue-400 mt-0.5">
+                            <span className="block text-3xs text-blue-400 mt-0.5">
                               Al cobrarla: revisión manual (no comisiona sola)
                             </span>
                           )}
@@ -1261,7 +1261,7 @@ export default function SaleDetailPage() {
                                 timeZone: 'UTC',
                               })
                             : '—'}
-                          <span className="block text-[10px] text-muted-foreground">
+                          <span className="block text-3xs text-muted-foreground">
                             generada {formatDate(com.created_at)}
                           </span>
                         </TableCell>

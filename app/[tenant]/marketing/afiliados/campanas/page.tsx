@@ -474,7 +474,7 @@ export default function CampanasAfiliadosPage() {
                     <div className="min-w-0">
                       <p className="text-sm text-foreground truncate">{a.full_name}</p>
                       {a.affiliate_code && (
-                        <p className="text-[11px] text-muted-foreground font-mono">{a.affiliate_code}</p>
+                        <p className="text-2xs text-muted-foreground font-mono">{a.affiliate_code}</p>
                       )}
                     </div>
                   </label>

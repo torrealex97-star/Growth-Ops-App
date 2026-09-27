@@ -204,11 +204,11 @@ function extractStoragePath(pathOrUrl: string): string | null {
 // y bajar es positivo (verde) — al revés que en ingresos.
 function KpiDelta({ current, previous, hasPrevious }: { current: number; previous: number; hasPrevious: boolean }) {
   if (!hasPrevious) {
-    return <p className="text-[11px] text-muted-foreground mt-1">—</p>
+    return <p className="text-2xs text-muted-foreground mt-1">—</p>
   }
   if (previous === 0) {
-    if (current === 0) return <p className="text-[11px] text-muted-foreground mt-1">Sin cambios</p>
-    return <p className="text-[11px] text-red-400 mt-1">▲ nuevo vs periodo anterior</p>
+    if (current === 0) return <p className="text-2xs text-muted-foreground mt-1">Sin cambios</p>
+    return <p className="text-2xs text-red-400 mt-1">▲ nuevo vs periodo anterior</p>
   }
   const pct = ((current - previous) / previous) * 100
   const up = pct > 0.05
@@ -216,7 +216,7 @@ function KpiDelta({ current, previous, hasPrevious }: { current: number; previou
   const colorClass = up ? 'text-red-400' : down ? 'text-emerald-400' : 'text-muted-foreground'
   const arrow = up ? '▲' : down ? '▼' : '—'
   return (
-    <p className={`text-[11px] mt-1 ${colorClass}`}>
+    <p className={`text-2xs mt-1 ${colorClass}`}>
       {arrow} {Math.abs(pct).toFixed(1)}% vs periodo anterior
     </p>
   )
@@ -534,6 +534,7 @@ export default function ExpensesPage() {
       }
 
       const { error } = await supabase.from('expenses').insert({
+        tenant_id: tenantId,
         concept: extracted.concept || file.name,
         category: (extracted.category as Expense['category']) || 'otros',
         subcategory: extracted.counterparty || null,
@@ -657,6 +658,7 @@ export default function ExpensesPage() {
     }
 
     const { error } = await supabase.from('expenses').insert({
+      tenant_id: tenantId,
       concept: ne.concept.trim(),
       category: ne.category,
       subcategory: ne.subcategory.trim() || null,
@@ -1016,17 +1018,17 @@ export default function ExpensesPage() {
                           <td className="px-4 py-3 text-foreground">
                             {e.concept}
                             {e.recurring && (
-                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300 border border-brand-500/30">
+                              <span className="ml-2 text-3xs px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300 border border-brand-500/30">
                                 recurrente
                               </span>
                             )}
                             {e.auto_source && (
-                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                              <span className="ml-2 text-3xs px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
                                 auto
                               </span>
                             )}
                             {e.needs_review && (
-                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              <span className="ml-2 text-3xs px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
                                 Revisar
                               </span>
                             )}
@@ -1291,7 +1293,7 @@ export default function ExpensesPage() {
                 className={cls}
               />
             </div>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               La cuenta bancaria extraída de la factura es la del EMISOR: no demuestra el pago. La cuenta propia y la
               referencia los introduce el usuario al registrar el pago.
             </p>

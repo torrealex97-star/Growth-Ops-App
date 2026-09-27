@@ -14,6 +14,7 @@ import type { Roleplay } from '@/lib/types/database'
 import { toast } from 'sonner'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 type Call = {
   id: string
@@ -300,11 +301,11 @@ export default function BibliotecaPage() {
                     <span className="text-muted-foreground">
                       Closer: <span className="text-foreground">{c.closer?.full_name || '—'}</span>
                     </span>
-                    <Badge className="bg-muted text-foreground border-border border text-[10px]">
+                    <Badge className="bg-muted text-foreground border-border border text-3xs">
                       {STATUS_LABELS[c.status] ?? c.status}
                     </Badge>
                     {!c.library_shared && (
-                      <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 border text-[10px]">
+                      <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 border text-3xs">
                         Oculta
                       </Badge>
                     )}
@@ -416,22 +417,13 @@ export default function BibliotecaPage() {
           )}
 
           {showNewRp && (
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-              onClick={() => !savingRp && setShowNewRp(false)}
-            >
-              <div
-                className="bg-card border border-border rounded-xl p-5 w-full max-w-lg space-y-3"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-center justify-between">
-                  <h3 className="text-foreground font-semibold flex items-center gap-2">
+            <Dialog open={showNewRp} onOpenChange={(open) => !savingRp && setShowNewRp(open)}>
+              <DialogContent className="w-full max-w-lg gap-3">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
                     <Drama className="w-4 h-4 text-brand-400" /> Nuevo roleplay
-                  </h3>
-                  <button onClick={() => setShowNewRp(false)} className="text-muted-foreground hover:text-foreground">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+                  </DialogTitle>
+                </DialogHeader>
                 <div className="space-y-1">
                   <label className="text-xs text-muted-foreground">Título</label>
                   <Input
@@ -532,8 +524,8 @@ export default function BibliotecaPage() {
                     )}
                   </button>
                 </div>
-              </div>
-            </div>
+              </DialogContent>
+            </Dialog>
           )}
         </>
       )}

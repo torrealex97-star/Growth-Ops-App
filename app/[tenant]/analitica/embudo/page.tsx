@@ -557,20 +557,20 @@ export default function VentasMetricasPage() {
               </div>
               <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
                 <div>
-                  <dt className="text-[11px] text-muted-foreground">Agendadas → cierre</dt>
+                  <dt className="text-2xs text-muted-foreground">Agendadas → cierre</dt>
                   <dd className="mt-1 font-display text-lg font-semibold tabular-nums text-foreground">
                     {pct(metrics.closes, metrics.bookedSalesCalls)}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-[11px] text-muted-foreground">Facturación cerrada</dt>
+                  <dt className="text-2xs text-muted-foreground">Facturación cerrada</dt>
                   <dd className="mt-1 font-display text-lg font-semibold tabular-nums text-foreground">
                     {formatCurrency(metrics.closedValue)}
                   </dd>
                 </div>
                 {tracking.pipe && (
                   <div>
-                    <dt className="text-[11px] text-muted-foreground">Pipe activo</dt>
+                    <dt className="text-2xs text-muted-foreground">Pipe activo</dt>
                     <dd className="mt-1 font-display text-lg font-semibold tabular-nums text-foreground">
                       {formatCurrency(metrics.pipeValue)}
                     </dd>
@@ -578,7 +578,7 @@ export default function VentasMetricasPage() {
                 )}
                 {tracking.refunds && (
                   <div>
-                    <dt className="text-[11px] text-muted-foreground">Devoluciones</dt>
+                    <dt className="text-2xs text-muted-foreground">Devoluciones</dt>
                     <dd className="mt-1 font-display text-lg font-semibold tabular-nums text-foreground">
                       {metrics.refunds}
                     </dd>

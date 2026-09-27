@@ -16,6 +16,7 @@
 
 type CrossCheckId =
   | 'meta_cuenta_sin_datos'
+  | 'campana_cuenta_no_seleccionada'
   | 'pago_stripe_sin_venta'
   | 'pago_stripe_sin_cobro'
   | 'cobro_de_pago_devuelto'
@@ -73,6 +74,12 @@ export type CrossInput = {
   cuentasSeleccionadas: string[] | null
   /** account_id de las campañas que sí tienen filas sincronizadas. */
   cuentasConCampanas: string[] | null
+  /**
+   * Campañas sincronizadas de cuentas que NO están en la selección de Integraciones, con un id
+   * de ejemplo. La sync solo puede recortar con la lista si el usuario la escribió: una lista
+   * vacía ("todas las accesibles") es legítima y este control no debe llamarla fuga.
+   */
+  campanasFueraDeSeleccion: string[] | null
   /** Clientes de Stripe: id + contacto emparejado (null si no lo está). */
   clientesStripe: Array<{ id: string; contactId: string | null }> | null
   /**
@@ -113,6 +120,13 @@ export function runCrossChecks(input: CrossInput): CrossCheck[] {
     input.cuentasSeleccionadas === null || input.cuentasConCampanas === null
       ? null
       : input.cuentasSeleccionadas.filter((a) => !input.cuentasConCampanas!.includes(a))
+
+  // LA FUGA INVERSA: campañas sincronizadas de cuentas que el usuario ya quitó de Integraciones.
+  // Son las que antes se colaban en dashboards y sumas de gasto cuando un lector olvidaba el
+  // filtro por account_id. Con lista vacía ("todas las accesibles") no hay fuera-de-selección
+  // posible: nada que avisar. Se deduplica: el control cuenta CUENTAS, no filas de campaña.
+  const campanasFueraDeSeleccion =
+    input.campanasFueraDeSeleccion === null ? null : [...new Set(input.campanasFueraDeSeleccion.filter(Boolean))]
 
   // Un cliente de Stripe emparejado con un contacto que NO tiene ninguna venta: su pago no está
   // registrado como ingreso, así que falta facturación en los informes.
@@ -196,6 +210,13 @@ export function runCrossChecks(input: CrossInput): CrossCheck[] {
       cuentasSinDatos,
       'Están seleccionadas en Integraciones pero no han traído ninguna campaña. Comprueba la integración y lanza "Cargar histórico" para esas cuentas.',
       'critico'
+    ),
+    check(
+      'campana_cuenta_no_seleccionada',
+      'Campañas de cuentas NO seleccionadas',
+      campanasFueraDeSeleccion,
+      'Están sincronizadas de cuentas publicitarias que ya no están en la selección de Integraciones: su gasto no debe entrar en los dashboards. Revisa la selección o borra esos históricos.',
+      'aviso'
     ),
     check(
       'pago_stripe_sin_venta',

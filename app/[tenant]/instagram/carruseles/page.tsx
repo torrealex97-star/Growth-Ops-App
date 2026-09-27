@@ -124,7 +124,7 @@ export default function CarruselesDashboard() {
       </div>
       <div className="p-3">
         <p className="text-sm font-medium text-foreground truncate">{p.title}</p>
-        <p className="text-[11px] text-muted-foreground mt-0.5">
+        <p className="text-2xs text-muted-foreground mt-0.5">
           {p.kind === 'flyer' ? 'Flyer' : 'Carrusel'} · {ASPECT_LABELS[p.aspectRatio]} · {p.slides.length}{' '}
           {p.slides.length === 1 ? 'slide' : 'slides'}
         </p>
@@ -175,7 +175,7 @@ export default function CarruselesDashboard() {
                 <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                   <Trophy className="h-4 w-4 text-brand-400" /> Casos de éxito
                 </h2>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
+                <p className="text-2xs text-muted-foreground mt-0.5">
                   Sube la foto del alumno y pega la explicación: se monta el carrusel entero solo.
                 </p>
               </div>
@@ -265,9 +265,7 @@ export default function CarruselesDashboard() {
                     </div>
                     <div className="p-3">
                       <p className="text-sm font-medium text-foreground truncate">{t.title}</p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        Usar plantilla · {t.slides.length} slides
-                      </p>
+                      <p className="text-2xs text-muted-foreground mt-0.5">Usar plantilla · {t.slides.length} slides</p>
                     </div>
                   </button>
                 ))}

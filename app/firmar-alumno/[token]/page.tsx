@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { CheckCircle2 } from 'lucide-react'
 
 type Condition = { label: string; value: string }
 type SignerField = {
@@ -107,11 +108,11 @@ export default function FirmarAlumnoPage() {
       <div className="min-h-screen bg-background py-12 px-4">
         <div className="mx-auto max-w-lg text-center">
           <div className="bg-gradient-to-b from-brand-600/20 to-zinc-900 border border-brand-500/30 rounded-2xl p-10">
-            <div className="text-5xl mb-4">🎉</div>
-            <h1 className="text-2xl font-bold text-foreground mb-2">¡Ya eres un Winner!</h1>
-            <p className="text-foreground">
-              Contrato firmado correctamente. En breve recibirás tus accesos a la Academia por email.
-            </p>
+            {/* Icono de biblioteca en vez de emoji (misma gramática de éxito que el alta de
+                colaboradores y la recuperación de contraseña: CheckCircle2 esmeralda). */}
+            <CheckCircle2 aria-hidden className="mx-auto mb-4 h-12 w-12 text-emerald-400" />
+            <h1 className="text-2xl font-bold text-foreground mb-2">¡Registro completado!</h1>
+            <p className="text-foreground">Contrato firmado correctamente. Recibirás tus accesos por email en breve.</p>
             {signedUrl && (
               <a
                 href={signedUrl}

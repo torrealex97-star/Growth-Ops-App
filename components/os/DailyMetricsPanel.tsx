@@ -141,7 +141,7 @@ export function DailyMetricsPanel({ from, to }: { from?: string | null; to?: str
           <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
             <CalendarDays className="w-4 h-4 text-brand-400" /> Resumen diario de métricas
           </h2>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
+          <p className="text-2xs text-muted-foreground mt-0.5">
             Del {effFrom} al {effTo} · {paidOnly ? 'agendas de tráfico pago' : 'todas las agendas'}
           </p>
         </div>
@@ -319,7 +319,7 @@ export function DailyMetricsPanel({ from, to }: { from?: string | null; to?: str
         ) : (
           <table className="w-full text-sm whitespace-nowrap">
             <thead className="sticky top-0 z-10 bg-card">
-              <tr className="border-b border-border text-left text-muted-foreground text-[11px] uppercase">
+              <tr className="border-b border-border text-left text-muted-foreground text-2xs uppercase">
                 <th className="px-3 py-2.5 sticky left-0 bg-card/50">Fecha</th>
                 {COLS.map((c) => (
                   <th key={c.label} className="px-3 py-2.5 text-right" title={c.hint}>

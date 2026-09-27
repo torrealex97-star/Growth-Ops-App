@@ -213,7 +213,7 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
             >
               <Bell className="w-4 h-4" />
               {count > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-foreground text-[10px] font-bold flex items-center justify-center">
+                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-foreground text-3xs font-bold flex items-center justify-center">
                   {count > 9 ? '9+' : count}
                 </span>
               )}

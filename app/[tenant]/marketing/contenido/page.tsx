@@ -453,9 +453,7 @@ export default function ContentPage() {
               <>
                 <div className="fixed inset-0 z-30" onClick={() => setShowCols(false)} />
                 <div className="absolute left-0 mt-2 z-40 w-56 bg-card border border-border rounded-lg p-2 shadow-xl">
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground px-2 py-1">
-                    Mostrar columnas
-                  </p>
+                  <p className="text-2xs uppercase tracking-wider text-muted-foreground px-2 py-1">Mostrar columnas</p>
                   {COLUMNS.map((col) => (
                     <label
                       key={col.key}
@@ -631,7 +629,7 @@ function MonthlyPriceSummary({ items }: { items: Content[] }) {
       <div className="flex flex-wrap gap-3">
         {byMonth.map(([month, total]) => (
           <div key={month} className="rounded-lg border border-border px-3 py-2 min-w-[110px]">
-            <p className="text-[11px] text-muted-foreground">{month}</p>
+            <p className="text-2xs text-muted-foreground">{month}</p>
             <p className="text-sm font-semibold text-foreground">{formatCurrency(total)}</p>
           </div>
         ))}
@@ -782,7 +780,7 @@ function TableView({
     <div className="overflow-x-auto rounded-xl border border-border">
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border bg-card/50">
+          <tr className="text-left text-2xs uppercase tracking-wider text-muted-foreground border-b border-border bg-card/50">
             <th className="px-3 py-2 font-semibold w-10">#</th>
             <th className="px-3 py-2 font-semibold">Reel / Idea</th>
             {cols.editor && <th className="px-3 py-2 font-semibold">Editor</th>}
@@ -850,7 +848,7 @@ function TableView({
                     placeholder="(sin título)"
                     className="w-full min-w-0 bg-transparent border border-transparent hover:border-border focus:border-brand-500 rounded px-2 py-1 text-sm font-medium text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-500/60 truncate"
                   />
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                  <span className="text-3xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
                     {TYPES.find((t) => t.value === c.content_type)?.label}
                   </span>
                 </div>
@@ -950,7 +948,7 @@ function KanbanView({ items, users, patch, persist, onOpen }: EditProps) {
                     <p className="text-sm text-foreground leading-snug group-hover:text-foreground">
                       {c.title || '(sin título)'}
                     </p>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                    <span className="text-3xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
                       {TYPES.find((t) => t.value === c.content_type)?.label}
                     </span>
                   </div>
@@ -1036,7 +1034,7 @@ function DetailCard({
 
   const field = (label: string, key: keyof Content, rows: number, placeholder: string) => (
     <div>
-      <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">{label}</label>
+      <label className="block text-2xs uppercase tracking-wider text-muted-foreground mb-1">{label}</label>
       <textarea
         defaultValue={(item[key] as string) || ''}
         onBlur={(e) => {
@@ -1054,7 +1052,7 @@ function DetailCard({
   )
   const linkField = (label: string, key: keyof Content) => (
     <div>
-      <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">{label}</label>
+      <label className="block text-2xs uppercase tracking-wider text-muted-foreground mb-1">{label}</label>
       <div className="flex items-center gap-2">
         <input
           defaultValue={(item[key] as string) || ''}
@@ -1095,11 +1093,11 @@ function DetailCard({
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <span
-                className={`text-[10px] px-1.5 py-0.5 rounded ${STATUS_COLORS[item.status] || 'bg-muted text-muted-foreground'}`}
+                className={`text-3xs px-1.5 py-0.5 rounded ${STATUS_COLORS[item.status] || 'bg-muted text-muted-foreground'}`}
               >
                 {STATUSES.find((s) => s.value === item.status)?.label}
               </span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+              <span className="text-3xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                 {TYPES.find((t) => t.value === item.content_type)?.label}
               </span>
             </div>
@@ -1128,7 +1126,7 @@ function DetailCard({
         <div className="p-5 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">Estado</label>
+              <label className="block text-2xs uppercase tracking-wider text-muted-foreground mb-1">Estado</label>
               <select
                 value={item.status}
                 onChange={(e) => {
@@ -1145,7 +1143,7 @@ function DetailCard({
               </select>
             </div>
             <div>
-              <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
+              <label className="block text-2xs uppercase tracking-wider text-muted-foreground mb-1">
                 Fecha de publicación
               </label>
               <input
@@ -1164,7 +1162,7 @@ function DetailCard({
           </div>
 
           <div>
-            <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
+            <label className="block text-2xs uppercase tracking-wider text-muted-foreground mb-1">
               Editor asignado
             </label>
             <select
@@ -1195,7 +1193,7 @@ function DetailCard({
 
           {/* Testimonio de la pieza: el editor coge de aquí la foto, la historia y el vídeo. */}
           <div>
-            <label className="block text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
+            <label className="block text-2xs uppercase tracking-wider text-muted-foreground mb-1">
               Testimonio que lleva
             </label>
             <select
@@ -1231,19 +1229,19 @@ function DetailCard({
                     <p className="text-xs font-semibold text-foreground">
                       {testimonio.name}
                       {!testimonio.hasRevenue && (
-                        <span className="ml-1.5 text-[10px] font-normal text-amber-400">sin cifras</span>
+                        <span className="ml-1.5 text-3xs font-normal text-amber-400">sin cifras</span>
                       )}
                       {testimonio.kind === 'cliente' && (
-                        <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">cliente, no alumno</span>
+                        <span className="ml-1.5 text-3xs font-normal text-muted-foreground">cliente, no alumno</span>
                       )}
                     </p>
                     {testimonio.cifra && testimonio.hasRevenue && (
-                      <p className="text-[11px] text-brand-300 mt-0.5">{testimonio.cifra}</p>
+                      <p className="text-2xs text-brand-300 mt-0.5">{testimonio.cifra}</p>
                     )}
-                    {testimonio.hook && <p className="text-[11px] text-muted-foreground mt-0.5">{testimonio.hook}</p>}
+                    {testimonio.hook && <p className="text-2xs text-muted-foreground mt-0.5">{testimonio.hook}</p>}
                   </div>
                 </div>
-                <div className="text-[11px] text-muted-foreground space-y-1 mt-2 leading-relaxed">
+                <div className="text-2xs text-muted-foreground space-y-1 mt-2 leading-relaxed">
                   {testimonio.puntoA && (
                     <p>
                       <span className="text-foreground/70 font-medium">Antes:</span> {testimonio.puntoA}
@@ -1258,7 +1256,7 @@ function DetailCard({
                 <div className="flex flex-wrap items-center gap-3 mt-2.5">
                   <Link
                     href={`/${tenant}/recursos/testimonios/${testimonio.id}`}
-                    className="text-[11px] text-brand-300 hover:underline"
+                    className="text-2xs text-brand-300 hover:underline"
                   >
                     Ver ficha completa
                   </Link>
@@ -1267,7 +1265,7 @@ function DetailCard({
                       href={testimonio.youtubeUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-[11px] text-sky-400 hover:underline flex items-center gap-1"
+                      className="text-2xs text-sky-400 hover:underline flex items-center gap-1"
                     >
                       <ExternalLink className="w-3 h-3" /> Vídeo original
                     </a>
@@ -1277,13 +1275,13 @@ function DetailCard({
                       navigator.clipboard.writeText(testimonioPitch(testimonio))
                       toast.success('Testimonio copiado')
                     }}
-                    className="text-[11px] text-muted-foreground hover:text-foreground ml-auto"
+                    className="text-2xs text-muted-foreground hover:text-foreground ml-auto"
                   >
                     Copiar historia
                   </button>
                 </div>
                 {!testimonio.youtubeUrl && (
-                  <p className="text-[10px] text-amber-400/90 mt-2">
+                  <p className="text-3xs text-amber-400/90 mt-2">
                     Este testimonio todavía no tiene el vídeo cargado: añádelo desde su ficha.
                   </p>
                 )}

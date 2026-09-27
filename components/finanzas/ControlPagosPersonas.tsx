@@ -88,7 +88,7 @@ const ESTADO_COLOR: Record<EstadoPersona, string> = {
 function Chip({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
     <span
-      className={`text-[11px] px-2 py-0.5 rounded-full border ${className || 'bg-muted text-muted-foreground border-border'}`}
+      className={`text-2xs px-2 py-0.5 rounded-full border ${className || 'bg-muted text-muted-foreground border-border'}`}
     >
       {children}
     </span>
@@ -231,7 +231,7 @@ export function ControlPagosPersonas({ tenant, q }: { tenant: string; q: string 
                               <p className="text-sm font-medium text-foreground truncate">{p.nombre}</p>
                             )}
                             <span
-                              className={`text-[11px] px-2 py-0.5 rounded-full border shrink-0 ${ESTADO_COLOR[p.estadoCliente]}`}
+                              className={`text-2xs px-2 py-0.5 rounded-full border shrink-0 ${ESTADO_COLOR[p.estadoCliente]}`}
                             >
                               {ESTADO_LABEL[p.estadoCliente]}
                             </span>

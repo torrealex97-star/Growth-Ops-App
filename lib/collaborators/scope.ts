@@ -19,26 +19,38 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 //   const q = sb.from('sales').select('*').eq('tenant_id', tenantId)
 //   const scoped = aplicarScopeAContactos(q, scope)  // ← no-op para el resto
 
-export type ScopeColaborador = { tipo: 'none' } | { tipo: 'collaborator'; collaboratorId: string; code: string }
+export type ScopeColaborador =
+  { tipo: 'none' } | { tipo: 'collaborator'; collaboratorId: string; code: string } | { tipo: 'error' }
 
 /**
  * Resuelve el perfil de colaborador de un usuario EN ESTA subcuenta.
  *
- * `null` cuando no lo es (o su perfil está inactivo): el resto del sistema
+ * `none` cuando no lo es (o su perfil está inactivo): el resto del sistema
  * sigue funcionando igual para admins, closers y setters — esta capa solo
  * añade el estrechamiento cuando existe el perfil.
+ *
+ * FAIL CLOSED: un error de lectura NO puede resolverse como `none` — eso
+ * dejaría a un colaborador real (a quien la consulta falló por una razón
+ * transitoria) viendo el tenant sin restringir, exactamente lo que este
+ * módulo existe para impedir. `error` se trata en `contactIdsDeScope` igual
+ * que un colaborador sin contactos atribuidos: pantalla vacía, nunca fuga.
  */
 export async function resolverScopeColaborador(
   sb: SupabaseClient,
   userId: string,
   tenantId: string
 ): Promise<ScopeColaborador> {
-  const { data } = await sb
+  const { data, error } = await sb
     .from('collaborator_profiles')
     .select('id, code, status')
     .eq('tenant_id', tenantId)
     .eq('user_id', userId)
     .maybeSingle()
+
+  if (error) {
+    console.error('[collaborators/scope] no se pudo resolver el perfil de colaborador:', error.message)
+    return { tipo: 'error' }
+  }
 
   const row = data as { id: string; code: string; status: string } | null
   if (!row || row.status !== 'active') return { tipo: 'none' }
@@ -102,6 +114,7 @@ export async function contactIdsDeScope(
   tenantId: string,
   scope: ScopeColaborador
 ): Promise<string[] | null> {
+  if (scope.tipo === 'error') return []
   if (scope.tipo !== 'collaborator') return null
   const { data, error } = await sb
     .from('contact_attributions')

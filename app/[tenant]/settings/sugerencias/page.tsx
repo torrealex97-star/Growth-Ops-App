@@ -203,21 +203,21 @@ export default function SugerenciasPage() {
                         {t.full_name || t.email || 'Sin nombre'}
                       </p>
                       <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                        <Badge className="border text-[11px] bg-emerald-500/15 text-emerald-300 border-emerald-500/30">
+                        <Badge className="border text-2xs bg-emerald-500/15 text-emerald-300 border-emerald-500/30">
                           {t.resolved_total} implementada{t.resolved_total === 1 ? '' : 's'}
                         </Badge>
                         {t.by_status.en_progreso > 0 && (
-                          <Badge className="border text-[11px] bg-cyan-500/15 text-cyan-300 border-cyan-500/30">
+                          <Badge className="border text-2xs bg-cyan-500/15 text-cyan-300 border-cyan-500/30">
                             {t.by_status.en_progreso} en progreso
                           </Badge>
                         )}
                         {t.by_status.descartada > 0 && (
-                          <Badge className="border text-[11px] bg-zinc-500/15 text-muted-foreground border-border/30">
+                          <Badge className="border text-2xs bg-zinc-500/15 text-muted-foreground border-border/30">
                             {t.by_status.descartada} descartada{t.by_status.descartada === 1 ? '' : 's'}
                           </Badge>
                         )}
                         {t.resolved_this_month > 0 && (
-                          <span className="text-[11px] text-amber-300 flex items-center gap-0.5">
+                          <span className="text-2xs text-amber-300 flex items-center gap-0.5">
                             <Sparkles className="w-3 h-3" /> {t.resolved_this_month} este mes
                           </span>
                         )}
@@ -225,7 +225,7 @@ export default function SugerenciasPage() {
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-sm font-semibold text-foreground">{t.total}</p>
-                      <p className="text-[11px] text-muted-foreground">tiradas</p>
+                      <p className="text-2xs text-muted-foreground">tiradas</p>
                     </div>
                   </div>
                 ))}

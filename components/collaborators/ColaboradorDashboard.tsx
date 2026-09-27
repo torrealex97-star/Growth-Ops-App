@@ -29,6 +29,7 @@ import {
 } from '@/lib/filters/period'
 import { isActiveSale, monthLabel } from '@/lib/analytics'
 import { isAttended, isNoShow } from '@/lib/appointments/status'
+import { formatCurrency } from '@/lib/utils'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { contactIdsDeScope, type ScopeColaborador } from '@/lib/collaborators/scope'
 import { useTenant, useTenantId, type SesionTenant } from '@/lib/tenant-context'
@@ -62,6 +63,11 @@ type FilaFutura = {
   dueDate: string
   source: string
   estado?: 'pending' | 'overdue' | 'review'
+  /** NUEVO = primera cuota de una venta que aún no cobró; RECURRENTE = cuota del plan de
+   * una venta que ya cobró (MRR). Canónico: lib/finance/nuevo-vs-recurrente. */
+  tipo?: 'nuevo' | 'recurrente'
+  /** Exenta (pays_commissions=false): importe 0 — nunca se generará. */
+  exento?: boolean
 }
 
 type Actividad = {
@@ -73,8 +79,10 @@ type Actividad = {
 }
 
 const num = (x: number | string | null | undefined) => Number(x ?? 0)
-const eur = (n: number) =>
-  new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
+// Formato canónico de dinero (lib/utils.formatCurrency): 2 decimales siempre, igual que el resto
+// de paneles de dinero de la app. Antes este panel redondeaba a entero (maximumFractionDigits: 0),
+// así que un cobro de 1.234,50 € se veía distinto aquí que en cualquier otra pantalla de comisiones.
+const eur = (n: number) => formatCurrency(n)
 
 const TIPO_STYLE: Record<Actividad['tipo'], string> = {
   contacto: 'bg-sky-500/10 text-sky-400',
@@ -254,6 +262,15 @@ export default function ColaboradorDashboard({
       .reduce((acc, f) => acc + importe(f), 0)
     return { cobrado, pendiente, aPercibirProximo, impagos }
   }, [comisiones, futuras])
+
+  // NUEVO vs RECURRENTE de SU proyección (misma definición canónica que el resto de la app):
+  // primeras cuotas de ventas que aún no han cobrado nada frente a cuotas del plan de ventas
+  // que ya cobraron (el MRR que sostiene su comisión mes a mes).
+  const futurasNuevoVsRecurrente = useMemo(() => {
+    const acc = { nuevo: 0, recurrente: 0 }
+    for (const f of futuras) acc[f.tipo ?? 'recurrente'] += num(f.amount)
+    return acc
+  }, [futuras])
 
   // COMISIONES A FUTURO MES A MES (§25): de la proyección (SU lane) agrupo por mes de
   // vencimiento de la cuota. "Confirmado" = cash ya recogido (review o mes pasado); "por
@@ -462,7 +479,7 @@ export default function ColaboradorDashboard({
           value={eur(cobros.pendiente)}
           icon={Clock}
           loading={cargando}
-          description="Ganado desde septiembre, por aprobar y pagar"
+          description="Ganado desde septiembre, por aprobar y pagar — % sobre base neta (bruto − fee pasarela)"
         />
         <KPICard
           title="A percibir el mes que viene"
@@ -487,7 +504,10 @@ export default function ColaboradorDashboard({
           <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
             <h2 className="text-sm font-semibold text-foreground">Comisiones a futuro, mes a mes</h2>
             <p className="text-xs text-muted-foreground">
-              La comisión de un mes se confirma cuando tus leads pagan su cuota de ese mes.
+              La comisión de un mes se confirma cuando tus leads pagan su cuota de ese mes.{' '}
+              <span className="text-emerald-400">Nuevo</span> (primeras cuotas de ventas nuevas):{' '}
+              {eur(futurasNuevoVsRecurrente.nuevo)} · <span className="text-sky-400">Recurrente</span> (plan de ventas
+              que ya cobraron): {eur(futurasNuevoVsRecurrente.recurrente)}
             </p>
           </div>
           <div className="overflow-x-auto">
@@ -554,7 +574,7 @@ export default function ColaboradorDashboard({
               <li key={a.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
                 <div className="flex min-w-0 items-center gap-2">
                   <span
-                    className={`inline-flex w-20 shrink-0 justify-center rounded px-1.5 py-0.5 text-[11px] font-medium ${TIPO_STYLE[a.tipo]}`}
+                    className={`inline-flex w-20 shrink-0 justify-center rounded px-1.5 py-0.5 text-2xs font-medium ${TIPO_STYLE[a.tipo]}`}
                   >
                     {a.tipo}
                   </span>

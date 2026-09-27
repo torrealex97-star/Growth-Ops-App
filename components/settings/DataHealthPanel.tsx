@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import type { DataHealthSummary } from '@/lib/types/tracking'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { TrackingSitesPanel } from '@/components/settings/TrackingSitesPanel'
-import { formatPercent } from '@/lib/utils'
+import { formatPercent, formatDateTime } from '@/lib/utils'
 import type { SaludWebhook } from '@/lib/data-health/webhooks'
 
 type EventRow = {
@@ -145,7 +145,7 @@ function ConectorCard({ conector }: { conector: SaludConector }) {
 
       {ultima && (
         <p className="mt-3 text-xs text-muted-foreground">
-          Última pasada ({ultima.job}): {new Date(ultima.empezoEn).toLocaleString('es-ES')}
+          Última pasada ({ultima.job}): {formatDateTime(ultima.empezoEn)}
           {ultima.duracionMs !== null
             ? ` · ${Math.round(ultima.duracionMs / 1000)} s`
             : ' · se cortó, no se sabe cuánto duró'}
@@ -157,11 +157,11 @@ function ConectorCard({ conector }: { conector: SaludConector }) {
         <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 p-2">
           {/* De QUÉ pasada viene: casi nunca es la de arriba (Meta tiene tres jobs), y sin decirlo
               la tarjeta se contradecía sola — "31 s" encima de "no se sabe cuánto duró". */}
-          <p className="text-[11px] text-muted-foreground">
-            Incidencia en {conector.incidencia.job} · {new Date(conector.incidencia.cuando).toLocaleString('es-ES')}
+          <p className="text-2xs text-muted-foreground">
+            Incidencia en {conector.incidencia.job} · {formatDateTime(conector.incidencia.cuando)}
           </p>
           <p className="mt-1 text-xs text-red-300">{conector.incidencia.mensaje}</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">
+          <p className="mt-1 text-2xs text-muted-foreground">
             {conector.incidencia.seReintentaSolo
               ? 'Es un fallo de transporte: la próxima pasada puede arreglarlo sola.'
               : 'No se arregla solo: hay que tocar la configuración o la fuente.'}
@@ -169,7 +169,7 @@ function ConectorCard({ conector }: { conector: SaludConector }) {
         </div>
       )}
 
-      <p className="mt-3 text-[11px] text-muted-foreground">{conector.cursor.motivo}</p>
+      <p className="mt-3 text-2xs text-muted-foreground">{conector.cursor.motivo}</p>
     </div>
   )
 }
@@ -720,7 +720,7 @@ export function DataHealthPanel() {
                       <p className="font-mono text-xs text-muted-foreground">{event.event_id}</p>
                     </td>
                     <td className="text-muted-foreground">{event.source}</td>
-                    <td className="text-muted-foreground">{new Date(event.received_at).toLocaleString('es-ES')}</td>
+                    <td className="text-muted-foreground">{formatDateTime(event.received_at)}</td>
                     <td className="pr-5">
                       <Badge variant="outline" className={statusStyle[event.processing_status]}>
                         {event.processing_status}

@@ -37,27 +37,57 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: 'Este cobro no está en revisión' }, { status: 400 })
     }
 
-    const now = new Date().toISOString()
-    const { data: updated } = await sb
-      .from('collections')
-      .update({ is_eligible_for_commission: true, eligible_at: now, needs_commission_review: false })
-      .eq('id', collectionId)
-      .select()
-      .single()
-
-    const { data: sale } = await sb
+    // La venta se lee ANTES de tocar el cobro: si esta lectura falla, no se ha mutado nada
+    // todavía y el cobro sigue 'needs_commission_review' — se puede reintentar sin más.
+    const { data: sale, error: saleErr } = await sb
       .from('sales')
       .select('id, setter_id, closer_id, affiliate_id, affiliate_commission_percent')
       .eq('id', coll.sale_id)
       .eq('tenant_id', t.tenantId)
       .single()
+    if (saleErr || !sale)
+      return NextResponse.json({ error: `No se pudo leer la venta del cobro: ${saleErr?.message}` }, { status: 500 })
 
+    const now = new Date().toISOString()
+    const { data: updated, error: updErr } = await sb
+      .from('collections')
+      .update({ is_eligible_for_commission: true, eligible_at: now, needs_commission_review: false })
+      .eq('id', collectionId)
+      .eq('tenant_id', t.tenantId)
+      .select()
+      .single()
+    if (updErr || !updated)
+      return NextResponse.json({ error: `No se pudo aprobar el cobro: ${updErr?.message}` }, { status: 500 })
+
+    // A partir de aquí el flag YA está limpio en BD. Si generar la comisión falla, no dejamos el
+    // cobro "aprobado sin comisión" e irrecuperable (el guard de arriba responde 400 a cualquier
+    // reintento porque ya no está en revisión): se revierte al estado de revisión para que el
+    // equipo pueda reintentarlo, y se informa del fallo real en vez de un ok:true falso.
     let commissionsGenerated = 0
-    if (updated && sale) {
+    try {
       commissionsGenerated = await generateCommissionsForCollection(sb, t.tenantId, updated as Collection, sale as Sale)
+    } catch (genErr) {
+      const { error: revertErr } = await sb
+        .from('collections')
+        .update({ is_eligible_for_commission: false, eligible_at: null, needs_commission_review: true })
+        .eq('id', collectionId)
+        .eq('tenant_id', t.tenantId)
+      const motivo = genErr instanceof Error ? genErr.message : String(genErr)
+      if (revertErr) {
+        return NextResponse.json(
+          {
+            error: `No se pudo generar la comisión (${motivo}) y tampoco se pudo revertir la aprobación (${revertErr.message}). El cobro quedó aprobado SIN comisión — revisar a mano.`,
+          },
+          { status: 500 }
+        )
+      }
+      return NextResponse.json(
+        { error: `No se pudo generar la comisión: ${motivo}. El cobro volvió a la cola de revisión.` },
+        { status: 500 }
+      )
     }
 
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       actor_user_id: t.userId,
       entity_type: 'collection',
@@ -66,6 +96,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       old_values: { needs_commission_review: true, is_eligible_for_commission: false },
       new_values: { needs_commission_review: false, is_eligible_for_commission: true },
     })
+    if (auditErr) {
+      return NextResponse.json(
+        { error: `Comisión generada pero no se pudo registrar la auditoría: ${auditErr.message}` },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json({ ok: true, commissionsGenerated })
   } catch (err) {

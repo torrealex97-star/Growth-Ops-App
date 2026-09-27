@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { getTenantConfigWithFallback } from '@/lib/config'
+import { parseAccountIds } from '@/lib/meta/accounts'
 import { deriveDailyRow, isPaidSource, type DailyFunnelInput, type DailyFunnelRow } from '@/lib/ads/funnel'
 
 export const runtime = 'nodejs'
@@ -31,6 +33,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     const campaignQ = (req.nextUrl.searchParams.get('campaign') || '').trim().toLowerCase()
     const paidOnly = req.nextUrl.searchParams.get('paidOnly') !== '0' // por defecto: solo tráfico pago
 
+    // La selección hecha en Integraciones es la fuente de verdad para toda la app (mismo convenio
+    // que spend-range/daily-actions): la tabla conserva históricos de cuentas ya deseleccionadas y
+    // sin el filtro su gasto se colaba en las métricas diarias del negocio.
+    const cfg = await getTenantConfigWithFallback(t.tenantId)
+    const activeAccountIds = parseAccountIds(cfg.META_AD_ACCOUNT_ID)
+
     // Nombre de cada campaña (para el filtro "contiene" sobre la serie diaria).
     const { data: campRows } = await sb.from('campaigns').select('id, name').eq('tenant_id', t.tenantId)
     const nameById = new Map<string, string>(
@@ -53,6 +61,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     let offset = 0
     for (let guard = 0; guard < 200; guard++) {
       let q = sb.from('campaign_daily').select('*').eq('tenant_id', t.tenantId)
+      if (activeAccountIds.length > 0) q = q.in('account_id', activeAccountIds)
       if (from) q = q.gte('date', from)
       if (to) q = q.lte('date', to)
       const { data, error } = await q.range(offset, offset + PAGE - 1)
