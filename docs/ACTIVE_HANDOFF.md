@@ -139,7 +139,38 @@ intencional vs qué debería ser un token, cómo se ve el resultado) que no se p
 navegador — esta sesión no tuvo uno. El siguiente agente con `browser-testing-with-devtools` o un
 preview desplegado puede ejecutar el plan de arriba con mucha más confianza que intentarlo a ciegas.
 
+**Nota (post-merge de esta misma actualización):** el PR #241 de abajo (skill taste + paridad VSL)
+ya se fusionó MIENTRAS se escribía este relevo — confirma que el aviso de concurrencia de arriba
+era necesario, no teórico. Comprobar `git branch -r` de nuevo antes de reclamar cualquier fichero de
+UI: puede haber más trabajo de Codebuff en curso que este documento todavía no registre.
+
 ---
+
+## ✅ RESULTADO (27-sep): skill taste instalada + paridad VSL (PR #241)
+
+Fusionada en `main` (`fef2673`), CI en verde (quality 1m49s con dead-code, gitleaks 7s, build 2m14s,
+Smoke E2E 3m39s). Petición de Alex: instalar la skill taste para el diseño y completar las
+funcionalidades de Vidalytics/PandaVideo/Wistia que "se avanzaron" y no están (el trabajo "VSL V1/V2"
+de una hebra perdida nunca llegó a main — confirmado por el registro de peticiones).
+
+- **Skill taste**: `.codebuff/skills/design-taste-frontend/SKILL.md` (taste-skill v2 de
+  Leonxlnx/taste-skill, MIT) + puntero de uso obligatorio en `AGENTS.md` (design read, dials,
+  bans anti-slop, pre-flight check; respeta #2563EB y copy en español; no reescribe dashboards).
+- **CTA programado con auto-pausa** en `VslPlayer` (el clásico de Vidalytics): aparece al cruzar
+  un % configurable, pausa el vídeo opcionalmente, cerrable (ctaOnce), URL saneada (solo relativa
+  o http(s)), evento 'cta' en el latido, accesible (role/aria/foco/contraste).
+- **Hitos de visión 25/50/75/95/100** en métricas (paridad reporting Vidalytics/Wistia),
+  derivados de `max_position` de `vsl_sessions` — SIN migración: la config nueva es JSONB
+  fusionada por `mergeConfig` y los vídeos existentes quedan con CTA desactivado.
+- **Dashboard**: tarjeta "Hitos de visión" + editor del CTA (texto/URL/%/pausa/cerrable).
+- **% VSL directo del reproductor (WISHLIST 4/REQ-WISH-04): ya existía** — `syncContactWatchPct`
+  copia el % exacto a `contacts.vsl_watch_pct` en cada latido; lo que faltaba era el reporting de
+  hitos, añadido. El webhook `vsl.progress` de la landing sigue como vía complementaria.
+- **Verificado:** suite focal 6/6 (`tests/vsl-cta-paridad.test.mjs`) · quality local completo
+  (966 unit / 0 fail / 3 skips, 740 métricas) · CI verde · rama borrada. **No verificado:** review
+  visual del overlay/editor con navegador (sandbox sin sesión).
+- **Anotado (requiere migración):** `vsl_sessions.cta_clicks` para contar clicks del CTA, con el
+  lote de migraciones pendientes (misma lección de `20260922100000`).
 
 ## ✅ RESULTADO (27-sep): PR-R2.2b — allowlist de campos en `sales/complete-reservation` (PR #240)
 
