@@ -6,7 +6,6 @@ import { activeUserNamesQuery } from '@/lib/users'
 import {
   Clapperboard,
   Plus,
-  X,
   ExternalLink,
   LayoutGrid,
   Table2,
@@ -21,6 +20,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import { testimonioPitch, type Testimonio } from '@/lib/testimonios-shared'
 import { useSesion, useTenant } from '@/lib/tenant-context'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatCurrency } from '@/lib/utils'
 
 const STATUSES = [
@@ -511,88 +511,77 @@ export default function ContentPage() {
         />
       )}
 
-      {showNew && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setShowNew(false)}
-        >
-          <div
-            className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-foreground font-semibold">Nueva pieza de contenido</h3>
-              <button onClick={() => setShowNew(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      <Dialog open={showNew} onOpenChange={(o) => !o && setShowNew(false)}>
+        <DialogContent className="w-full max-w-md gap-3 p-5">
+          <DialogHeader>
+            <DialogTitle className="text-foreground font-semibold">Nueva pieza de contenido</DialogTitle>
+          </DialogHeader>
+          <input
+            value={nc.title}
+            onChange={(e) => setNc({ ...nc, title: e.target.value })}
+            placeholder="Título"
+            className={cls}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <select
+              value={nc.content_type}
+              onChange={(e) => setNc({ ...nc, content_type: e.target.value })}
+              className={cls}
+            >
+              {TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
             <input
-              value={nc.title}
-              onChange={(e) => setNc({ ...nc, title: e.target.value })}
-              placeholder="Título"
+              type="date"
+              value={nc.publish_date}
+              onChange={(e) => setNc({ ...nc, publish_date: e.target.value })}
               className={cls}
             />
-            <div className="grid grid-cols-2 gap-3">
-              <select
-                value={nc.content_type}
-                onChange={(e) => setNc({ ...nc, content_type: e.target.value })}
-                className={cls}
-              >
-                {TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="date"
-                value={nc.publish_date}
-                onChange={(e) => setNc({ ...nc, publish_date: e.target.value })}
-                className={cls}
-              />
-            </div>
-            <input
-              value={nc.link_url}
-              onChange={(e) => setNc({ ...nc, link_url: e.target.value })}
-              placeholder="Enlace (Drive, etc.)"
-              className={cls}
-            />
-            {myRole === 'editor' ? (
-              <p className="text-xs text-muted-foreground">
-                Se te asignará a ti la pieza ({users.find((u) => u.id === myId)?.full_name || 'tú'}).
-              </p>
-            ) : (
-              <select
-                value={nc.assigned_to}
-                onChange={(e) => setNc({ ...nc, assigned_to: e.target.value })}
-                className={cls}
-              >
-                <option value="">— asignar editor —</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.full_name}
-                  </option>
-                ))}
-              </select>
-            )}
-            <textarea
-              value={nc.notes}
-              onChange={(e) => setNc({ ...nc, notes: e.target.value })}
-              rows={2}
-              placeholder="Notas"
-              className={cls}
-            />
-            <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setShowNew(false)} className="px-3 py-2 text-sm text-muted-foreground">
-                Cancelar
-              </button>
-              <button onClick={create} className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg">
-                Crear
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+          <input
+            value={nc.link_url}
+            onChange={(e) => setNc({ ...nc, link_url: e.target.value })}
+            placeholder="Enlace (Drive, etc.)"
+            className={cls}
+          />
+          {myRole === 'editor' ? (
+            <p className="text-xs text-muted-foreground">
+              Se te asignará a ti la pieza ({users.find((u) => u.id === myId)?.full_name || 'tú'}).
+            </p>
+          ) : (
+            <select
+              value={nc.assigned_to}
+              onChange={(e) => setNc({ ...nc, assigned_to: e.target.value })}
+              className={cls}
+            >
+              <option value="">— asignar editor —</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.full_name}
+                </option>
+              ))}
+            </select>
+          )}
+          <textarea
+            value={nc.notes}
+            onChange={(e) => setNc({ ...nc, notes: e.target.value })}
+            rows={2}
+            placeholder="Notas"
+            className={cls}
+          />
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={() => setShowNew(false)} className="px-3 py-2 text-sm text-muted-foreground">
+              Cancelar
+            </button>
+            <button onClick={create} className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg">
+              Crear
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -1081,16 +1070,11 @@ function DetailCard({
   )
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 overflow-y-auto"
-      onClick={onClose}
-    >
-      <div
-        className="bg-card border border-border rounded-xl w-full max-w-2xl my-8"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="w-full max-w-2xl p-0 max-h-[90vh] overflow-y-auto">
         <div className="flex items-start justify-between gap-3 p-5 border-b border-border">
           <div className="min-w-0">
+            <DialogTitle className="sr-only">Detalle de la pieza</DialogTitle>
             <div className="flex items-center gap-2 mb-1">
               <span
                 className={`text-3xs px-1.5 py-0.5 rounded ${STATUS_COLORS[item.status] || 'bg-muted text-muted-foreground'}`}
@@ -1114,13 +1098,6 @@ function DetailCard({
               className="w-full bg-transparent text-lg font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-brand-500/60 border-b border-transparent focus:border-brand-500"
             />
           </div>
-          <button
-            onClick={onClose}
-            aria-label="Cerrar"
-            className="text-muted-foreground hover:text-foreground shrink-0"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
         <div className="p-5 space-y-4">
@@ -1279,18 +1256,18 @@ function DetailCard({
                   >
                     Copiar historia
                   </button>
+                  {!testimonio.youtubeUrl && (
+                    <p className="text-3xs text-amber-400/90 mt-2">
+                      Este testimonio todavía no tiene el vídeo cargado: añádelo desde su ficha.
+                    </p>
+                  )}
                 </div>
-                {!testimonio.youtubeUrl && (
-                  <p className="text-3xs text-amber-400/90 mt-2">
-                    Este testimonio todavía no tiene el vídeo cargado: añádelo desde su ficha.
-                  </p>
-                )}
               </div>
             )}
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 

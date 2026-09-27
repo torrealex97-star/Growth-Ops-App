@@ -81,6 +81,21 @@ const MODALES_LOTE3 = [
   'app/[tenant]/recursos/biblioteca/page.tsx',
 ].map((r) => join(aqui, '..', r))
 
+// LOTE 4 (27-sep): resto del REQ-UX-05. En 'marketing/contenido' queda UN 'fixed inset-0 z-30'
+// intencional: es el click-catcher que cierra el dropdown de columnas, no un modal.
+const MODALES_LOTE4 = [
+  'app/[tenant]/marketing/adquisicion/campanas/page.tsx',
+  'app/[tenant]/marketing/contenido/page.tsx',
+  'app/[tenant]/setting-ai/page.tsx',
+  'app/[tenant]/instagram/page.tsx',
+  'app/[tenant]/instagram/competencia/page.tsx',
+  'app/[tenant]/finanzas/gastos-facturas/gastos/page.tsx',
+  'app/[tenant]/settings/subcuentas/page.tsx',
+  'app/[tenant]/crm/agendas/page.tsx',
+  'components/os/MetaFunnelAssigner.tsx',
+  'components/os/ScriptQueue.tsx',
+].map((r) => join(aqui, '..', r))
+
 // Recolecta los .tsx bajo un directorio (para invariante global de la base de código).
 const walkTsx = (dir, acc = []) => {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -124,6 +139,18 @@ test('los modales migrados al Dialog de la casa no vuelven a overlays caseros (R
       !src.includes('fixed inset-0'),
       `${f}: los modales de la casa van sobre components/ui/dialog (Radix: foco, Esc, click-fuera gratis)`
     )
+    assert.ok(src.includes("from '@/components/ui/dialog'"), `${f}: debe usar el Dialog de la casa`)
+  }
+})
+
+test('lote 4 de modales: ni overlays z-50 caseros ni fondos a mano; el fondo lo pone el Dialog (REQ-UX-05)', () => {
+  for (const f of MODALES_LOTE4) {
+    const src = read(f)
+    assert.ok(
+      !/fixed inset-0 z-50/.test(src),
+      `${f}: nada de overlays z-50 caseros (los modales van sobre components/ui/dialog)`
+    )
+    assert.ok(!src.includes('bg-black/60'), `${f}: el fondo oscuro del modal lo pone el Dialog de la casa`)
     assert.ok(src.includes("from '@/components/ui/dialog'"), `${f}: debe usar el Dialog de la casa`)
   }
 })

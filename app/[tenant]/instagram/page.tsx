@@ -21,11 +21,11 @@ import {
   Sparkles,
   FileText,
   ExternalLink,
-  X,
   AlertTriangle,
   Clock,
 } from 'lucide-react'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar } from 'recharts'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatNumber, formatDateTime } from '@/lib/utils'
 
 type Media = {
@@ -950,15 +950,9 @@ export default function InstagramPage() {
         (() => {
           const fb = matchFb(detail)
           return (
-            <div
-              className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-              onClick={() => setDetail(null)}
-            >
-              <div
-                className="bg-card border border-border rounded-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-5"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-start justify-between gap-3 mb-4">
+            <Dialog open onOpenChange={(o) => !o && setDetail(null)}>
+              <DialogContent className="max-w-2xl w-full max-h-[85vh] overflow-y-auto gap-0 p-5">
+                <DialogHeader className="flex-row items-start justify-between gap-3 space-y-0">
                   <div className="flex gap-3 min-w-0">
                     {detail.thumbnail_url ? (
                       <img
@@ -972,17 +966,13 @@ export default function InstagramPage() {
                       </div>
                     )}
                     <div className="min-w-0">
-                      <p className="text-sm text-foreground line-clamp-2">{detail.caption || 'Sin descripción'}</p>
+                      <DialogTitle asChild>
+                        <p className="text-sm text-foreground line-clamp-2">{detail.caption || 'Sin descripción'}</p>
+                      </DialogTitle>
                       <p className="text-xs text-muted-foreground mt-1">{fecha(detail.published_at)}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setDetail(null)}
-                    className="text-muted-foreground hover:text-foreground shrink-0"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
+                </DialogHeader>
 
                 {/* Instagram */}
                 <div className="rounded-lg border border-pink-900/40 bg-pink-950/10 p-3 mb-3">
@@ -1047,29 +1037,22 @@ export default function InstagramPage() {
                     </p>
                   </div>
                 )}
-              </div>
-            </div>
+              </DialogContent>
+            </Dialog>
           )
         })()}
 
       {/* Modal de guión IA */}
       {scriptModal && (
-        <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-          onClick={() => setScriptModal(null)}
-        >
-          <div
-            className="bg-card border border-border rounded-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-pink-400" /> Guión generado
-              </h3>
-              <button onClick={() => setScriptModal(null)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+        <Dialog open onOpenChange={(o) => !o && setScriptModal(null)}>
+          <DialogContent className="max-w-2xl w-full max-h-[85vh] overflow-y-auto gap-0 p-5">
+            <DialogHeader className="flex-row items-center justify-between space-y-0 mb-3">
+              <DialogTitle asChild>
+                <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-pink-400" /> Guión generado
+                </h3>
+              </DialogTitle>
+            </DialogHeader>
             {scriptModal.loading ? (
               <p className="text-muted-foreground py-8 text-center">Generando guión…</p>
             ) : (
@@ -1116,8 +1099,8 @@ export default function InstagramPage() {
                 </div>
               )
             )}
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )
