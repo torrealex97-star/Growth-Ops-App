@@ -926,7 +926,7 @@ export default function InstagramPage() {
                 }}
                 labelFormatter={fecha}
               />
-              <Bar dataKey="new_follows" name="Nuevos seguidores" fill="#10b981" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="new_follows" name="Nuevos seguidores" fill="hsl(var(--brand-500))" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ChartCard>
           {convos.length === 0 && (

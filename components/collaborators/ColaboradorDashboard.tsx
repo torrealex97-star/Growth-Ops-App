@@ -29,6 +29,7 @@ import {
 } from '@/lib/filters/period'
 import { isActiveSale, monthLabel } from '@/lib/analytics'
 import { isAttended, isNoShow } from '@/lib/appointments/status'
+import { formatCurrency } from '@/lib/utils'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { contactIdsDeScope, type ScopeColaborador } from '@/lib/collaborators/scope'
 import { useTenant, useTenantId, type SesionTenant } from '@/lib/tenant-context'
@@ -73,8 +74,10 @@ type Actividad = {
 }
 
 const num = (x: number | string | null | undefined) => Number(x ?? 0)
-const eur = (n: number) =>
-  new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
+// Formato canónico de dinero (lib/utils.formatCurrency): 2 decimales siempre, igual que el resto
+// de paneles de dinero de la app. Antes este panel redondeaba a entero (maximumFractionDigits: 0),
+// así que un cobro de 1.234,50 € se veía distinto aquí que en cualquier otra pantalla de comisiones.
+const eur = (n: number) => formatCurrency(n)
 
 const TIPO_STYLE: Record<Actividad['tipo'], string> = {
   contacto: 'bg-sky-500/10 text-sky-400',
