@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { createClient } from '@/lib/supabase/server'
 import { consultarMetricas } from '@/lib/metrics/consulta'
+import { getTenantConfigWithFallback } from '@/lib/config'
+import { parseAccountIds } from '@/lib/meta/accounts'
 import { coberturaMarcado } from '@/lib/metrics/agregados'
 import { entradasDiagnostico, entradasSalud } from '@/lib/metrics/entradas'
 import { diagnosticarCuelloBotella, evaluarEscalado } from '@/lib/metrics/cuello-botella'
@@ -57,7 +59,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
 
   let consulta
   try {
-    consulta = await consultarMetricas(sb, auth.tenantId, periodo)
+    // El gasto de ads solo cuenta el de las cuentas seleccionadas en Integraciones (mismo convenio
+    // que spend-range y Campañas): sin filtrar, las cuentas históricas deseleccionadas inflarían
+    // inversión, MER/CAC/ROAS y las cifras que enseña el brief.
+    const cfg = await getTenantConfigWithFallback(auth.tenantId)
+    consulta = await consultarMetricas(sb, auth.tenantId, periodo, parseAccountIds(cfg.META_AD_ACCOUNT_ID))
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'No se pudieron leer las métricas', requestId: auth.requestId },
