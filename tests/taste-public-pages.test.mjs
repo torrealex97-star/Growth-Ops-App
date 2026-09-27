@@ -16,6 +16,7 @@ const FIRMAR = join(aqui, '..', 'app', 'firmar', '[token]', 'page.tsx')
 const FIRMAR_ALUMNO = join(aqui, '..', 'app', 'firmar-alumno', '[token]', 'page.tsx')
 const RECOVER = join(aqui, '..', 'app', '[tenant]', 'recover', 'page.tsx')
 const REGISTRO = join(aqui, '..', 'app', '[tenant]', 'afiliados', 'registro', 'page.tsx')
+const VER_COMO = join(aqui, '..', 'app', 'ver-como', 'entrar', 'page.tsx')
 
 const faltan = [LOGIN, FIRMAR, FIRMAR_ALUMNO, RECOVER, REGISTRO].filter((p) => !existsSync(p))
 if (faltan.length > 0) {
@@ -55,4 +56,14 @@ test('las cuatro pantallas comparten la misma gramática de éxito (CheckCircle2
   const recover = read(RECOVER)
   assert.ok(registro.includes('CheckCircle2') && recover.includes('CheckCircle2'))
   assert.ok(registro.includes('text-emerald-400') && recover.includes('text-emerald-400'))
+})
+
+// LOTE 2 (27-sep): audit-first de marketing dio veredicto «preservar» (esmeralda = convención de
+// la casa para positivo/dinero; labels uppercase funcionales), así que no hay invariantes de
+// acento para esas pantallas — se fijan aquí los que sí cambiaron y los que NO deben cambiar.
+test('ver-como/entrar usa la familia zinc de la casa, no neutral', () => {
+  const src = read(VER_COMO)
+  assert.ok(src.includes('bg-zinc-950'), 'el fondo de la página puente usa zinc-950 como global-error')
+  assert.ok(!src.includes('neutral-'), 'ninguna superficie pública usa la familia neutral (§4.2: una paleta de grises)')
+  assert.ok(src.includes('focus-visible:ring'), 'el botón Volver tiene foco de teclado visible')
 })

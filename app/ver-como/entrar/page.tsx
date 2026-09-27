@@ -37,13 +37,13 @@ export default function PaginaEntrarVerComo() {
   }, [router])
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-neutral-950 text-sm text-neutral-300">
+    <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-sm text-zinc-300">
       <div className="text-center">
         <p>{aviso}</p>
         <button
           type="button"
           onClick={() => router.back()}
-          className="mt-4 rounded border border-neutral-700 px-3 py-1.5 text-xs hover:bg-neutral-800"
+          className="mt-4 rounded border border-zinc-700 px-3 py-1.5 text-xs hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
         >
           Volver
         </button>
