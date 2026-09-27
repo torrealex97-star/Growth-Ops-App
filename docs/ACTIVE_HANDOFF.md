@@ -1,5 +1,83 @@
 # Relevo activo
 
+## Sentry activo + crons reanimados + rotación de secretos — 27-sep (Freebuff/Buffy)
+
+**Sentry (javascript-nextjs, org scalix-52):** DSN obtenido vía MCP (`find_dsns`) y subido como
+`NEXT_PUBLIC_SENTRY_DSN` (Production+Preview) → redeploy → **DSN horneado verificado en el chunk
+`main-app-*.js` de app.scalixsystems.com** (y el ref de Supabase sigue horneado en el suyo). En
+Sentry solo hay 1 issue (JAVASCRIPT-NEXTJS-1), el evento de prueba del proyecto; la app aún no ha
+enviado errores reales — el usuario dio la verificación end-to-end por suficiente. `SENTRY_ORG` /
+`SENTRY_PROJECT` ya estaban. `SENTRY_AUTH_TOKEN` sigue sin existir: los builds suben source maps
+solo si Alex lo añade (dryRun mientras tanto, ver next.config.js).
+
+**Causa raíz del fallo de los crons desde el 26-sep (2 incidentes encadenados, ambos resueltos):**
+1. Los 9 workflows de cron llamaban a `https://growth-ops-weld.vercel.app` — host borrado en la
+   limpieza de Storage del 26-sep (404 desde entonces; solo quedan `growthops-preview-3003` y
+   `go-prod` en el equipo). Fix: variable de repo **`CRON_APP_URL=https://app.scalixsystems.com`**
+   (los workflows ya traían el override `vars.CRON_APP_URL || default`).
+2. **Error propio del relevo del 26-sep, corregido:** al restaurar envs desde el `.env.local` del
+   clon, `CRON_SECRET` y `TRACKING_INGEST_KEY` eran la máscara `[ SENSITIVE ] ` que `vercel env
+   pull` escribe para variables *sensitive* — quedaron guardadas literalmente y todo cron daba 401
+   (canario: workflow sequra-morosos → HTTP 401). Lección anotada en el código (`lib/vsl/db.ts`
+   comprueba `=== '[SENSITIVE]'` exactamente por esto): **nunca poblar envs de Vercel desde un
+   `.env.local` descargado con el CLI**. Rotación: nuevo valor en Vercel (delete+post: las envs
+   *sensitive* no aceptan PATCH de tipo) y **el mismo valor en `gh secret set CRON_SECRET`**.
+   `TRACKING_INGEST_KEY` rota también en Vercel (nada externo lo consumía: la ingesta legacy
+   acepta la clave de la config en BD).
+
+**Paridad Fase 1.1 aplicada (Vercel, Production+Preview salvo que se diga):** restaurado `preview`
+en las 8 envs del incidente (lo habían perdido); creadas `NEXT_PUBLIC_SITE_URL=https://
+app.scalixsystems.com` (antes los emails/embeds caían a `http://localhost:3000`) y
+`CONFIG_ENC_KEY` nueva (production). **Ojo: 14 credenciales cifradas en `integration_settings`
+(`enc:v1:`) son indescifrables sin la clave vieja** (desde el 26-sep no había ninguna
+`CONFIG_ENC_KEY`): Meta, Stripe, Calendly, GHL, YouTube, Apify, Fathom… → regrabarlas desde
+Integraciones cuando toque (fail-closed: devuelven error controlado, no caen nada). Sin valores
+reales disponibles (no subir máscaras): `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `POSTGRES_*`,
+`SUPABASE_URL`/`SUPABASE_SECRET_KEY`, `SEQURA_MERCHANT_REFERENCE`, `SENTRY_AUTH_TOKEN` —
+pedirlas a Alex / dashboard Supabase.
+
+**Verificación de crons pendiente al cerrar esta sección:** el redeploy con las envs nuevas
+segía en BUILDING al escribir esto; disparar `cron-stripe-payments` (workflow_dispatch) y exigir
+HTTP 200 como prueba de que `CRON_APP_URL` + `CRON_SECRET` funcionan juntos.
+
+## INCIDENTE PRODUCCIÓN RESUELTO — app.scalixsystems.com caída por envs borradas de Vercel — 26-sep (Freebuff/Buffy)
+
+**Síntoma:** tras borrar Alex un deployment bloqueado por Function Storage (10 GB), el dominio servía
+HTML pero toda ruta caía en el `global-error` ("No se ha podido abrir la aplicación").
+
+**Causa raíz:** el proyecto Vercel `growthops-preview-3003` quedó **sin NI UNA variable de entorno**
+(los borrados en masa del storage las eliminaron). Los builds desde GitHub se hacen sin `.env`
+local, así que el cliente de Supabase (`lib/supabase/client.ts`) se construía con `undefined` y
+lanzaba `supabaseUrl is required` al hidratar en cada ruta. El SSR no tocaba ese módulo: por eso el
+HTML llegaba bien y el crash era solo cliente. El último deployment funcional (aliasado desde 33
+min antes) ya estaba roto: la app llevaba caída desde el build de GitHub de esa tarde.
+
+**Cierre (verificado en navegador):** 8 variables restauradas en Production+Preview vía API Vercel
+(`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
+`SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `RESEND_FROM`, `CRON_SECRET`, `TRACKING_INGEST_KEY`;
+valores del `.env.local` del clon `/tmp/growthops-preview-3003` tras verificar que sus
+package-lock coincidían byte a byte con HEAD). Dos redeploys: el primero horneó la URL pero la anon
+key aún no estaba (CLI de Vercel traga el valor de `NEXT_PUBLIC_*` en un prompt interactivo — usar
+la API REST v10 para esas); el segundo (`s9rlinuu0`) dejó URL + anon key horneadas en el bundle,
+sin refs runtime restantes, y el login y la raíz renderizan. **Ojo:** si un build limpio de GitHub
+vuelve a salir roto, revisar primero que las envs siguen ahí.
+
+**Pendiente del incidente:** falta de paridad un puñado de variables runtime de servidor
+(GEMINI_API_KEY, ADMIN_SESSION_SECRET, CC_SESSION_SECRET, CONFIG_ENC_KEY, GHL_WEBHOOK_SECRET,
+APIFY_API_TOKEN/APIFY_WEBHOOK_SECRET, POSTGRES_*, SUPABASE_URL/SUPABASE_SECRET_KEY y otras que
+enumera `.env.local.example`) — la app funciona con lo crítico, pero los flujos que las lean
+devolverán undefined. Completarlas en Vercel es la Fase 1.1 del encargo de optimización.
+
+## Buffy (Freebuff) — merge de origin/main + PR #224 + auditoría de dashboards — 25-sep
+
+**Hecho (pedido de Alex: fusionar PR #224 con merge commit, borrar rama remota, actualizar main local).**
+
+- **PR #224 fusionada** con merge commit `c60f7cb` (checks todos en verde: Build, Quality, gitleaks, Smoke E2E, Vercel). Rama remota `feat/e2e-seed-canonica` **eliminada** (verificado con `ls-remote`: 0 refs).
+- **`main` local actualizado a `origin/main`** con merge commit propio `c4bfb9a` (resuelve la serie local sin pushear con 30 commits upstream). Conflictos resueltos: `pays_commissions` por la implementación canónica upstream (`usuariosSinComision`), conservando el **desglose nuevo-vs-recurrente** local en `commissions/future` y el listado de exentos con importe 0 (contrato de la UI). `tests/commissions-exencion.test.mjs` eliminado a petición de Alex (probaba la implementación descartada). **HUECO ABIERTO: upstream no tiene tests de `pays_commissions`; añadir cobertura sobre `usuariosSinComision`.** Validado: tsc 0, prettier CI OK, 948 unit + 752 metrics pass / 0 fail (sobre el árbol del merge, en clon aislado).
+- **NO pusheado** (no se pidió): `main` local va 10 commits por delante de `origin/main`; pushear es el siguiente paso natural cuando toque.
+- **Auditoría de dashboards/métricas** (encargo previo de Alex, siguiendo su brief de 58 puntos): entregables en `docs/DASHBOARD_AUDIT.md` (matriz + scorecards) y `docs/DASHBOARD_CORRECTION_PLAN.md` (P1→P4). Hallazgo principal **P1**: cash dividido — `collections` congelada desde 19-sep vs espejo `stripe_payments` completo; la capa canónica `lib/canonical/cash.ts` solo la consume unit-economics → Dashboard/Embudo/Ranking/Resumen/P&L subcuentan septiembre. Fix commiteado en local como `45f7710` (25-sep tarde; Quality Gate completo + build en verde, validados en arnés aislado `/tmp/qa-gate` por la degradación EPERM del sandbox — el repo sigue sin poder ejecutar node en su cwd): cohortes «Clientes» = contactos únicos (`lib/finance/cohortes.ts` + `tests/cohortes.test.mjs`, 5/5, adaptado al predicado `cuentaComoVenta` post-#221) y `tenant_id` en los 2 inserts de gastos (bug 23502 verificado en preview). Sigue sin pushear: `main` local va 11 commits por delante de `origin/main`. Respaldo completo del estado pre-merge en rama `backup-pre-merge-20260925` (`e784fbe`), borrar cuando se confirme.
+- **USER ACTION**: decidir P1-1 del plan (consumir `canonicalCash` en las pantallas) ANTES de leer números de septiembre; marcado `result`/`offered` en Agenda sigue a 4/610 y 3/610 (NOT_TRACKED, no bug).
+
 ## Relevo 25-sep — hebra Freebuff 194f9eda (preview 3003)
 
 ## MONEY.md v1 en main + relevo de la PR #210 — 2026-09-25 (Freebuff/Buffy)
@@ -108,7 +186,6 @@ arriba)**:
 **Queda de F2:** nada de código. Los conectores restantes del catálogo (Calendly y demás) no formaban parte del alcance declarado del plan ("solo GHL, Stripe y Meta"); migrarlos sería decisión de relevo, no deuda.
 
 ## Lote facturas IA + comisiones lote + contratos externos — 2026-09-23 (Freebuff 7a08c143)
->>>>>>> origin/main
 
 **Hecho y dónde está.** La unidad **desglose nuevo vs recurrente en comisiones futuras** está
 commiteada en local como `d219974` (pathspec, 7 ficheros: route `commissions/future`,
@@ -122,7 +199,7 @@ cual, ver "siguiente acción".
 - **Verificado en preview** con la sesión QA WDC (fixture de pruebas): pestaña Futuras con **48
   cuotas, todas `recurrente`** (correcto: ninguna venta activa queda sin cobros recogidos), KPI
   "Futuras (por cobrar)" **6.777,13 € = desglose del endpoint al céntimo** (`nuevo 0 · recurrente
-  6.777,13`), badges emerald/sky por fila y desglose respetando filtros. El badge "Nuevo" no tiene
+6.777,13`), badges emerald/sky por fila y desglose respetando filtros. El badge "Nuevo" no tiene
   caso en los datos actuales; aparecerá con la próxima venta sin cobrar.
 - **Probado** vía arnés `/tmp/qa-gate` (árbol exacto local reconstruido con `git archive` + parche
   del WIP): format, lint y typecheck **verdes**; **881/882 tests**. El único fallo
@@ -258,17 +335,16 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 
 ## Tablero de reclamaciones (en curso AHORA)
 
-**CODEX — DASHBOARD & METRIC AUDIT (25-sep):** Ampliación tras browser: reclama filtros tenant en `dashboard/page.tsx`, `unit-economics/page.tsx`, `finanzas/analitica/{resumen,pnl,cohortes,proyeccion}/page.tsx`, CTR en `marketing/adquisicion/campanas/page.tsx` y tests asociados. No toca RLS ni motor financiero.  auditoría transversal solicitada por el usuario; rama `codex/dashboard-metric-audit`. Reclama `DASHBOARD_AUDIT.md`, `DASHBOARD_CORRECTION_PLAN.md`, sección propia de relevo y fix acotado del conteo HEAD de contactos en `lib/ai/agent/tools.ts` con `tests/metrics/agent-overview-count.test.mjs`. Inspección de código y producción de solo lectura; ningún cambio de datos. No tocar el WIP del checkout Documents ni las migraciones/gastos reclamados por Claude Code. Regla KPI: definición → fuente → completitud → periodo → maduración → asignación → cálculo → benchmark orientativo.
-
+**CODEX — DASHBOARD & METRIC AUDIT (25-sep):** Ampliación tras browser: reclama filtros tenant en `dashboard/page.tsx`, `unit-economics/page.tsx`, `finanzas/analitica/{resumen,pnl,cohortes,proyeccion}/page.tsx`, CTR en `marketing/adquisicion/campanas/page.tsx` y tests asociados. No toca RLS ni motor financiero. auditoría transversal solicitada por el usuario; rama `codex/dashboard-metric-audit`. Reclama `DASHBOARD_AUDIT.md`, `DASHBOARD_CORRECTION_PLAN.md`, sección propia de relevo y fix acotado del conteo HEAD de contactos en `lib/ai/agent/tools.ts` con `tests/metrics/agent-overview-count.test.mjs`. Inspección de código y producción de solo lectura; ningún cambio de datos. No tocar el WIP del checkout Documents ni las migraciones/gastos reclamados por Claude Code. Regla KPI: definición → fuente → completitud → periodo → maduración → asignación → cálculo → benchmark orientativo.
 
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
 | Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama           | Toca                                                                                            | Desde  |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
-| Freebuff (Buffy)  | **MONEY.md v1**: vocabulario financiero de F3 (booked/billed/collected/recognized, bruto vs atribuible, FX, IVA, fees, disputas, comisiones, cuotas, financiación, cash manual) bajo delegación de Alex; decisiones D1–D7 + abiertas A1–A6                                                                                                                   | docs/money-v1  | `docs/MONEY.md` (nuevo), `docs/ACTIVE_HANDOFF.md` (tablero)                                    | 25-sep |
+| Freebuff (Buffy)  | **MONEY.md v1**: vocabulario financiero de F3 (booked/billed/collected/recognized, bruto vs atribuible, FX, IVA, fees, disputas, comisiones, cuotas, financiación, cash manual) bajo delegación de Alex; decisiones D1–D7 + abiertas A1–A6                                                                                                                                                     | docs/money-v1  | `docs/MONEY.md` (nuevo), `docs/ACTIVE_HANDOFF.md` (tablero)                                     | 25-sep |
 | Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
-| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                     | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                       | 23-sep |
+| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
