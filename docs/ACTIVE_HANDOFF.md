@@ -1,5 +1,31 @@
 # Relevo activo
 
+## ✅ RESULTADO (27-sep): taste lote 2 — /ver-como a zinc y veredicto audit de marketing (PR #248)
+
+Fusionada en `main` (`31d18da`), quality/gitleaks/build/Smoke E2E de la PR en verde (quality 1m45s,
+build 2m49s, Smoke E2E 4m59s). La petición fue «/ver-como y pantallas de marketing": audit-first de
+las 8 pantallas de `marketing/**` (~5.100 líneas) + `/ver-como/entrar` + banner/shim de ver-como.
+
+- **Veredicto «preservar» en marketing (decisión documentada, no omisión):** el esmeralda que
+  aparece es la convención de la casa para datos positivos/dinero (dashboard, finanzas y métricas lo
+  usan igual) y rotación deliberada de color en data-viz; los `uppercase tracking` son labels de
+  formulario y cabeceras de tabla funcionales, no eyebrows decorativos; cero emojis; las flechas de
+  CTA son el idioma de la casa (misma gramática que la landing). Reescribirlo rompería el vocabulario
+  visual de la app (redesign-preserve, §11).
+- **Banner «Ver como»:** ámbar como señal coherente de sesión de suplantación (color de estado, no
+  acento de página) — preservado.
+- **Fix real: `/ver-como/entrar`** — era la ÚNICA página de la app en la familia `neutral-*` (§4.2:
+  una paleta de grises); alineada a `zinc-*` y con anillo de foco visible en el botón Volver. La
+  página usa botón nativo (fuera del shell de shadcn), por eso le faltaba.
+- **`global-error.tsx` auditado:** limpio (zinc-950, un acento, foco visible, copy español).
+- **Test:** `tests/taste-public-pages.test.mjs` ampliado a 5 invariantes (nuevo: ver-como en zinc,
+  foco visible y cero `neutral-` en `app/`).
+- **Verificado:** suite focal 5/5 · quality local completo (979 unit / 0 fail / 3 skips
+  preexistentes, 740 métricas) · CI de la PR verde. **Nota operativa:** el status de Vercel de la PR
+  se quedó congelado en "pending" ~20 min (sin updated_at); se fusionó con los 4 jobs de CI reales
+  en verde y el mismo árbol construido por el job Build (2m49s) — status de la integración, no del
+  código. **No verificado:** review visual con navegador (sandbox sin sesión).
+
 ## ✅ RESULTADO (27-sep): pase de la skill taste a las superficies públicas (PR #247)
 
 Fusionada en `main` (`8cc6966`), CI de la PR en verde (quality 1m48s, gitleaks 6s, build 2m57s,
@@ -636,11 +662,10 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Rama                         | Toca                                                                                            | Desde  |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------- | ----------------------------------------------------------------------------------------------- | ------ |
-| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI                                                         | (por reclamar)               | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
-| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                                                                              | (fusionadas)                 | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
-| Freebuff (Buffy)  | **Lote 2 del pase taste** («/ver-como y pantallas de marketing»): audit-first de las 8 pantallas de `marketing/**` + `/ver-como/entrar` + banner/shim. Veredicto documentado: en marketing el esmeralda es convención de la casa (positivo/dinero, igual que dashboard y finanzas) y los labels uppercase son funcionales — NO se reescriben; el fix real es alinear `/ver-como/entrar` a la familia zinc (única página en `neutral-*` de toda la app) | `feat/taste-lote-2-ver-como` | `app/ver-como/entrar/page.tsx`, `tests/taste-public-pages.test.mjs`, `docs/ACTIVE_HANDOFF.md`   | 27-sep |
+| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama           | Toca                                                                                            | Desde  |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
+| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
+| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
