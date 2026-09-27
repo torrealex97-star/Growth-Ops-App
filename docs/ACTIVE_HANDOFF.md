@@ -80,6 +80,459 @@ devolverán undefined. Completarlas en Vercel es la Fase 1.1 del encargo de opti
 
 ## Relevo 25-sep — hebra Freebuff 194f9eda (preview 3003)
 
+## ✅ RESULTADO (27-sep): taste lote 2 — /ver-como a zinc y veredicto audit de marketing (PR #248)
+
+Fusionada en `main` (`31d18da`), quality/gitleaks/build/Smoke E2E de la PR en verde (quality 1m45s,
+build 2m49s, Smoke E2E 4m59s). La petición fue «/ver-como y pantallas de marketing": audit-first de
+las 8 pantallas de `marketing/**` (~5.100 líneas) + `/ver-como/entrar` + banner/shim de ver-como.
+
+- **Veredicto «preservar» en marketing (decisión documentada, no omisión):** el esmeralda que
+  aparece es la convención de la casa para datos positivos/dinero (dashboard, finanzas y métricas lo
+  usan igual) y rotación deliberada de color en data-viz; los `uppercase tracking` son labels de
+  formulario y cabeceras de tabla funcionales, no eyebrows decorativos; cero emojis; las flechas de
+  CTA son el idioma de la casa (misma gramática que la landing). Reescribirlo rompería el vocabulario
+  visual de la app (redesign-preserve, §11).
+- **Banner «Ver como»:** ámbar como señal coherente de sesión de suplantación (color de estado, no
+  acento de página) — preservado.
+- **Fix real: `/ver-como/entrar`** — era la ÚNICA página de la app en la familia `neutral-*` (§4.2:
+  una paleta de grises); alineada a `zinc-*` y con anillo de foco visible en el botón Volver. La
+  página usa botón nativo (fuera del shell de shadcn), por eso le faltaba.
+- **`global-error.tsx` auditado:** limpio (zinc-950, un acento, foco visible, copy español).
+- **Test:** `tests/taste-public-pages.test.mjs` ampliado a 5 invariantes (nuevo: ver-como en zinc,
+  foco visible y cero `neutral-` en `app/`).
+- **Verificado:** suite focal 5/5 · quality local completo (979 unit / 0 fail / 3 skips
+  preexistentes, 740 métricas) · CI de la PR verde. **Nota operativa:** el status de Vercel de la PR
+  se quedó congelado en "pending" ~20 min (sin updated_at); se fusionó con los 4 jobs de CI reales
+  en verde y el mismo árbol construido por el job Build (2m49s) — status de la integración, no del
+  código. **No verificado:** review visual con navegador (sandbox sin sesión).
+
+## ✅ RESULTADO (27-sep): pase de la skill taste a las superficies públicas (PR #247)
+
+Fusionada en `main` (`8cc6966`), CI de la PR en verde (quality 1m48s, gitleaks 6s, build 2m57s,
+Smoke E2E 4m43s, Vercel) y rama borrada. Petición de Alex: «todo ajustado con /taste?» — aplicación
+explícita de la skill `design-taste-frontend` (#241) con Design Read y audit-first (§0/§11):
+
+- **Audit primero:** la landing `/` ya es intencional (terminal cinematográfico, 0 eyebrows, un
+  acento por tarjeta, foco visible, reduced-motion) y NO se tocó. Los dashboards de datos siguen
+  fuera de la skill (§12) y los 7 ficheros de hex de REQ-UX-02 quedan en su fila (Claude Code).
+- **Login:** el monograma era una `S` fija — la inicial de OTRA marca — en el login de todas las
+  subcuentas; ahora se deriva de `resolveTenantBranding` (inicial real, aria-hidden).
+- **`/firmar`:** la página interactiva era zinc-900 pero el checkbox de consentimiento usaba
+  `accent-emerald-600` (dos sistemas de acento en una página); ahora `accent-zinc-900`, el
+  esmeralda queda solo en el estado firmado. El check de texto pasa a `CheckCircle2` (lucide).
+- **`/firmar-alumno`:** emoji de celebración (§3.D) → `CheckCircle2`, misma gramática de éxito que
+  registro de colaborador y recover; copy «¡Ya eres un Winner!»/«la Academia» (vocabulario de una
+  subcuenta concreta) → neutro.
+- **Foco de teclado:** verificado en las 5 pantallas — shadcn `Input`/`Button` ya traen
+  `focus-visible:ring-brand-500`; sin cambios necesarios.
+- **Test:** `tests/taste-public-pages.test.mjs` (4 invariantes estáticos, patrón webhook-ghl).
+- **Verificado:** suite focal 4/4 · quality local completo (978 unit / 0 fail / 3 skips
+  preexistentes, 740 métricas) · CI de la PR verde · rama borrada. **No verificado:** review visual
+  con navegador (sandbox sin sesión).
+- **Pendiente de taste para un próximo lote:** `/ver-como`, pantallas de marketing y el resto del
+  inventario R4 de Claude Code (tokens/tipografía/modales), que exige navegador.
+
+## ✅ RESULTADO (27-sep): Paridad VSL II — carga, customización, thumbnails y métricas (PR #246)
+
+Fusionada en `main` (`405821f`), CI en verde tras re-disparo (quality 1m32s, build 2m42s, Smoke E2E
+5m18s; el primer run salió CANCELADO por la cola e2e-tenant-qa, no es fallo). Segunda pasada de la
+petición de Alex — lo más importante de Wistia/PandaVideo/Vidalytics, todo SIN migración:
+
+- **Velocidad de carga**: HLS fast-start (`startLevel 0`, ABR conservador) para el primer frame ya,
+  y preload selectivo (auto solo con autoplay). Se suma al preconnect/preload del embed existente.
+- **Customización**: botón play central y pantalla completa configurables por vídeo (por defecto
+  visibles). Con #241: colores, barra, autoplay, lockSeek, fakeProgress, loop, prueba social,
+  exit hook y CTA programado.
+- **Thumbnails dinámicos**: `derivadosDeSource()` (en `lib/vsl/types.ts`, módulo puro, porque
+  `bunny.ts` arrastra `node:crypto` y lo importa el dashboard en cliente) deriva thumbnail.jpg,
+  preview.webp animado y storyboard.vtt de la URL de Bunny sin API ni migración; las tarjetas del
+  dashboard muestran miniatura + preview animado al hover (lazy).
+- **Métricas conectadas**: nuevo `/vsl/resumen` (KPIs agregados de la subcuenta, mismos criterios
+  que las métricas por vídeo, `requirePantalla`, filtro tenant en todas las subconsultas) pintado
+  como fila superior de KPIs del dashboard de VSL.
+- **Verificado:** suite focal 11/11 (el test importa la función pura real vía alias-loader) ·
+  quality completo (971 unit / 0 fail / 3 skips, 740 métricas) · CI verde · rama borrada. **No
+  verificado:** review visual con navegador (sandbox sin sesión).
+- **Anotado:** scrub con thumbnails en el player (storyboard ya derivado) y `cta_clicks` requieren
+  migración/decisión; pendientes del próximo lote.
+
+## ⚠️ CONCURRENCIA (27-sep, tarde): Codebuff corriendo la skill "taste" — no tocar UI sin comprobar antes
+
+Alex tiene a **Codebuff ejecutando la skill `taste`** en paralelo a esta sesión. Esa skill es de
+diseño/UX visual — el mismo terreno que el bloque de "R4 pendiente" de más abajo. **Antes de tocar
+cualquier fichero de `app/**/page.tsx` o `components/ui/*` por temas de tokens de color, tipografía
+o modales, comprueba primero**:
+
+1. `git log --all --oneline -20` y `git branch -r` — si ya existe una rama de Codebuff sobre estos
+   mismos ficheros, no la pises: extrae lo útil, no la sobrescribas (regla de siempre: DIFF →
+   UNDERSTAND → CLASSIFY → PORT, nunca merge a ciegas).
+2. Esta sección del tablero (más abajo) — si Codebuff ha reclamado fila, respétala.
+3. Si no hay rastro de Codebuff en git pero Alex dice que sigue corriendo, es probable que su
+   resultado llegue como PR o rama nueva DESPUÉS de que leas esto: vuelve a mirar `git branch -r`
+   justo antes de empezar a escribir código, no solo al principio de la sesión.
+
+## 📋 RELEVO (27-sep, tarde): 12 ramas de Claude Code sin PR + inventario detallado de UX R4
+
+**Contexto:** sesión completa de Claude Code (torre.alex97) trabajando sobre el informe de auditoría
+FASE A (26-sep) + puesta al día de Dependabot + arranque de UX R4. Nada de esto se ha mergeado
+todavía (salvo lo que ya diga "✅ RESULTADO" más abajo) — son 12 ramas remotas, cada una con su
+propio quality gate local en verde, esperando revisión/PR. Alex prefirió revisar antes de abrir PRs.
+
+**Ramas pendientes de PR** (todas verificadas: format+lint+typecheck+tests+build en verde en su día;
+re-verificar contra `main` actual antes de abrir PR, puede haber avanzado):
+
+**Hallazgos P1 del informe FASE A (dinero/seguridad), cierran el hilo abierto en la sección de
+arriba de PR-R2.2b:**
+
+- `fix/disputed-no-es-cash` — `disputed` dejaba de tratarse como cash confirmado en
+  `lib/sales/plan-cuotas.ts`, `payments/mark` y la ficha de venta (`ventas/registro/[id]`, donde
+  además inflaba el importe prellenado de una devolución). Docs/MONEY.md D5.
+- `fix/collections-patch-sync-cuota` — `PATCH` de `collections/[id]` con status `reversed`/`disputed`
+  no llamaba a `syncInstallmentStatus` (solo lo hacía `DELETE`): la cuota quedaba `collected` para
+  siempre, bloqueada para recobrarse.
+- `fix/collections-approve-review-recuperable` — `approve-review` limpiaba el flag de revisión
+  ANTES de garantizar la comisión; si `generateCommissionsForCollection` fallaba después, el cobro
+  quedaba aprobado sin comisión y sin poder reintentar (el propio guard respondía 400). Ahora lee la
+  venta primero, verifica errores, y revierte el flag si la generación falla.
+- `fix/ai-tools-lectura-fallida-no-es-cero` — `getSales`/`getBusinessOverview`/`getFunnel` (tools del
+  agente IA) y `detectAnomalies` presentaban un fallo de lectura como "0 ventas"/"ROAS cayó". Ahora
+  devuelven `error` explícito y `detectAnomalies` se salta la comparación en vez de inventar una
+  anomalía sobre un cero fabricado.
+
+**Otros, fuera del informe FASE A pero de la misma sesión:**
+
+- `fix/ai-agent-historial-orden` — el historial del agente mandaba los MAX_HISTORY mensajes más
+  ANTIGUOS de la conversación (bug de `order(ascending:true) + limit`), no los recientes.
+- `feat/port-pr225-ads-filter-nuevo-recurrente` — port manual (no rebase) de 2 de las 3 piezas de tu
+  PR #225 (`feat/money-25sep`, todavía abierta, tuya): filtro de cuentas ads en `consultarMetricas`
+  (agente/brief) + nuevo-vs-recurrente canónico cableado en comisiones futuras. **Queda 1/2**: el
+  gráfico dual facturación-vs-cash de unit-economics (más abajo, sección propia).
+- `docs/a3-alertas-deprioritizadas` — solo documentación: registra que las 5 alertas A3 (impago,
+  vencimiento, lead sin contactar, no-show, onboarding/engagement) están DEPRIORIZADAS por decisión
+  de Alex (no bloqueadas por canal), con el criterio para cuando se retomen (detección separada del
+  envío). Sin riesgo, se puede mergear sola en cualquier momento.
+
+**Dependabot majors — investigados de verdad (peer deps + build real), no aceptados a ciegas. Las 5
+PRs de Dependabot (#227-230, #235) deberían cerrarse como CLOSED/superseded una vez esto se mergee:**
+
+- `chore/recharts-3-major` — recharts 2.12.7→3.10.1. Sin conflicto de peer deps. Único cambio real:
+  tipo de `labelFormatter` en `app/[tenant]/instagram/page.tsx` (`ReactNode` en vez de
+  `string | null`). Build limpio en los 9 ficheros que usan recharts.
+- `chore/eslint-9-config-next-16` — eslint 8→**9** (NO 10) + `eslint-config-next` 15→16, migrado a
+  flat config (`eslint.config.mjs`, sustituye `.eslintrc.json`). **ESLint 10 crashea de verdad**:
+  `eslint-plugin-react@7.37.5` (dependencia de `eslint-config-next@16`) llama a una API de contexto
+  de regla que ESLint 10 quitó (`getFilename is not a function`) — verificado ejecutando `next lint`
+  real, no en documentación. ESLint 9 resuelve limpio. Las 4 reglas nuevas de
+  "React Compiler readiness" de `eslint-plugin-react-hooks@7` (`set-state-in-effect`, `purity`,
+  `immutability`, `incompatible-library`) se desactivan EXPLÍCITAMENTE en el config con el motivo
+  escrito: penalizan `useEffect(() => fetchX(), [...])`, patrón válido de React 18 en 109 sitios de
+  esta app — adoptarlas es decisión de arquitectura para cuando se migre a React 19, no algo que
+  deba colar en un bump de linter. **Si algún día se migra a React 19**: revisar si esas 4 reglas
+  deben reactivarse antes de reescribir esos 109 sitios.
+- `chore/tailwind-4-major` — tailwindcss 3.4.1→4.3.3. `postcss.config.js` → `@tailwindcss/postcss`
+  (autoprefixer desinstalado, ya lo hace Lightning CSS). `globals.css`: `@tailwind base/components/
+utilities` → `@import 'tailwindcss'` + `@config '../tailwind.config.ts'`. Un error real de tipos:
+  `darkMode: ['class']` (sintaxis v3) no tipa en v4 (`DarkModeStrategy` exige `'class'` a secas o el
+  par `['class', selector]`) — cambiado a `darkMode: 'class'`, misma semántica (la app usa
+  `classList.toggle('dark', ...)`). **Verificado en el CSS COMPILADO** (no solo que el build no
+  reviente — el primer intento con `| tail` ocultó un fallo real por la trampa del exit-code de
+  `tail`, ojo con eso si se repite el build en background): el sistema de color de marca por tenant
+  (`hsl(var(--brand-NNN) / <alpha-value>)`, 114 líneas de tokens) resuelve igual, incluidos los
+  modificadores de opacidad vía el `color-mix()` nuevo de v4; `tailwindcss-animate` (usado por
+  dialog/alert-dialog/sheet/popover/select, TODA la capa de overlays) sigue generando
+  `animate-in/out`, `fade-in-0`, `zoom-in-95`, `slide-in-from-*`.
+- **Los tres de arriba comparten la misma advertencia**: verificado el artefacto real (CSS
+  compilado / build / lint ejecutado), no solo que compile — pero **sigue pendiente un vistazo
+  VISUAL en preview desplegado** antes de mergear a main. Esta sesión no tuvo navegador. Mínimo:
+  dashboard, finanzas, comisiones, y abrir un modal/dropdown cualquiera (Dialog/Select/Popover) para
+  confirmar que la animación de entrada/salida se ve.
+
+**UX R4 — arrancado, 1 de 4 hecho:**
+
+- `chore/ux04-formato-moneda-fuente-unica` — HECHO. Barrido completo de la app: solo había un
+  duplicado real de `formatCurrency`/`Intl.NumberFormat` inline (`ColaboradorDashboard.tsx`), ahora
+  reusa `formatNumber` de `@/lib/utils`. Los otros 2 sitios con `style: 'currency'` fuera de
+  `lib/utils.ts` (`components/metrics/KpiCard.tsx`, `settings/integraciones/page.tsx`) YA reusaban
+  correctamente el helper — no tocar, no son duplicados.
+
+### UX R4 — lo que queda, inventariado con precisión para no redescubrirlo
+
+**REQ-UX-02 (paleta duplicada → tokens) — 7 ficheros con hex hardcodeado en vez de los tokens de
+marca (`bg-brand-*`, `hsl(var(--...))`), grep exacto para reproducir:**
+`grep -rEo "#[0-9a-fA-F]{6}\b" --include="*.tsx" app/ components/ | grep -v "components/ui/"`
+→ `components/os/Sidebar.tsx` (8), `components/settings/EmailTemplatesPanel.tsx` (3),
+`components/vsl/VslDashboard.tsx` (2), `app/[tenant]/layout.tsx` (2),
+`components/os/MetaAdsDashboard.tsx` (1), `app/[tenant]/settings/integraciones/page.tsx` (1),
+`app/[tenant]/instagram/page.tsx` (1). Antes de tocar cada uno: comprobar si el hex es intencional
+(p. ej. un color de marca de un proveedor externo como Instagram/Meta que no debe seguir el sistema
+de tokens propio) o si debería ser un token — no convertir a ciegas.
+
+**REQ-UX-03 (escala tipográfica, falta `text-2xs`) — mucho más grande de lo que sugería el registro:
+80 ficheros, cientos de usos de `text-[10px]`/`text-[11px]` en vez de un token. Grep exacto:**
+`grep -rc "text-\[1[0-1]px\]" --include="*.tsx" app/ components/ | grep -v ":0$"` (top 10 por
+volumen: `setting-ai/page.tsx` 22, `marketing/contenido/page.tsx` 22, `ContactsAllView.tsx` 11,
+`recursos/testimonios/page.tsx` 11, `instagram/reels/page.tsx` 11...). Plan sugerido, NO ejecutado:
+(1) añadir `text-2xs` (probablemente `0.6875rem`/`11px`, a decidir con Alex si hay dos tamaños o
+solo uno) a `tailwind.config.ts` → `theme.extend.fontSize`; (2) sustituir mecánicamente
+`text-[10px]`/`text-[11px]` por el token nuevo, fichero a fichero, con verificación visual — es
+demasiado volumen para un solo PR, dividir en varios.
+
+**REQ-UX-05 (migrar 6+ modales caseros a `components/ui/dialog.tsx`) — 14 candidatos encontrados
+(el registro decía "6+", hay más). Grep exacto:**
+`grep -rl "fixed inset-0" --include="*.tsx" app/ components/ | grep -v "components/ui/" | xargs grep -L "from '@/components/ui/dialog'\|from '@/components/ui/sheet'\|from '@/components/ui/alert-dialog'"`
+→ `tasks/page.tsx`, `recursos/biblioteca/page.tsx`, `settings/subcuentas/page.tsx`,
+`setting-ai/page.tsx`, `marketing/contenido/page.tsx`, `marketing/adquisicion/campanas/page.tsx`,
+`instagram/page.tsx`, `instagram/competencia/page.tsx`, `csm-events/page.tsx`, `contratos/page.tsx`,
+`finanzas/gastos-facturas/gastos/page.tsx`, `drops/page.tsx`, `components/os/MetaFunnelAssigner.tsx`,
+`components/os/ScriptQueue.tsx`. **`components/os/Sidebar.tsx` salió en el grep pero es
+probablemente un falso positivo** (drawer de navegación móvil, no un modal) — triar antes de tocar.
+Cada uno: confirmar que es de verdad un overlay modal (backdrop + cierre) antes de migrar, y probar
+visualmente que el foco/cierre con Esc/click-fuera sigue funcionando tras migrar a Dialog (Radix ya
+lo da gratis, pero hay que confirmarlo).
+
+**Por qué esta sesión no llegó más lejos en R4**: REQ-UX-02/03/05 exigen criterio visual (qué es
+intencional vs qué debería ser un token, cómo se ve el resultado) que no se puede verificar sin
+navegador — esta sesión no tuvo uno. El siguiente agente con `browser-testing-with-devtools` o un
+preview desplegado puede ejecutar el plan de arriba con mucha más confianza que intentarlo a ciegas.
+
+**Nota (post-merge de esta misma actualización):** el PR #241 de abajo (skill taste + paridad VSL)
+ya se fusionó MIENTRAS se escribía este relevo — confirma que el aviso de concurrencia de arriba
+era necesario, no teórico. Comprobar `git branch -r` de nuevo antes de reclamar cualquier fichero de
+UI: puede haber más trabajo de Codebuff en curso que este documento todavía no registre.
+
+---
+
+## ✅ RESULTADO (27-sep): skill taste instalada + paridad VSL (PR #241)
+
+Fusionada en `main` (`fef2673`), CI en verde (quality 1m49s con dead-code, gitleaks 7s, build 2m14s,
+Smoke E2E 3m39s). Petición de Alex: instalar la skill taste para el diseño y completar las
+funcionalidades de Vidalytics/PandaVideo/Wistia que "se avanzaron" y no están (el trabajo "VSL V1/V2"
+de una hebra perdida nunca llegó a main — confirmado por el registro de peticiones).
+
+- **Skill taste**: `.codebuff/skills/design-taste-frontend/SKILL.md` (taste-skill v2 de
+  Leonxlnx/taste-skill, MIT) + puntero de uso obligatorio en `AGENTS.md` (design read, dials,
+  bans anti-slop, pre-flight check; respeta #2563EB y copy en español; no reescribe dashboards).
+- **CTA programado con auto-pausa** en `VslPlayer` (el clásico de Vidalytics): aparece al cruzar
+  un % configurable, pausa el vídeo opcionalmente, cerrable (ctaOnce), URL saneada (solo relativa
+  o http(s)), evento 'cta' en el latido, accesible (role/aria/foco/contraste).
+- **Hitos de visión 25/50/75/95/100** en métricas (paridad reporting Vidalytics/Wistia),
+  derivados de `max_position` de `vsl_sessions` — SIN migración: la config nueva es JSONB
+  fusionada por `mergeConfig` y los vídeos existentes quedan con CTA desactivado.
+- **Dashboard**: tarjeta "Hitos de visión" + editor del CTA (texto/URL/%/pausa/cerrable).
+- **% VSL directo del reproductor (WISHLIST 4/REQ-WISH-04): ya existía** — `syncContactWatchPct`
+  copia el % exacto a `contacts.vsl_watch_pct` en cada latido; lo que faltaba era el reporting de
+  hitos, añadido. El webhook `vsl.progress` de la landing sigue como vía complementaria.
+- **Verificado:** suite focal 6/6 (`tests/vsl-cta-paridad.test.mjs`) · quality local completo
+  (966 unit / 0 fail / 3 skips, 740 métricas) · CI verde · rama borrada. **No verificado:** review
+  visual del overlay/editor con navegador (sandbox sin sesión).
+- **Anotado (requiere migración):** `vsl_sessions.cta_clicks` para contar clicks del CTA, con el
+  lote de migraciones pendientes (misma lección de `20260922100000`).
+
+## ✅ RESULTADO (27-sep): PR-R2.2b — allowlist de campos en `sales/complete-reservation` (PR #240)
+
+Fusionada en `main` (`c8d70b2`), CI de la PR en verde (quality 1m30s con dead-code, gitleaks 8s,
+build 2m47s, Smoke E2E 5m8s). Hallazgo P1 #1 del informe FASE A del 26-sep:
+
+- **Allowlist del `patch`** (commit de Claude adoptado, verificado campo a campo contra la UI):
+  exactamente los 24 campos de `ventas/registro/nueva`; campo fuera de la lista → 400 antes de
+  tocar la base. Cerraba la escritura arbitraria de columnas de `sales` por service role desde
+  roles no directivos (manager/closer/setter/cobros).
+- **Extensión de esta unidad:** el insert del calendario de cuotas también recibía spread del
+  cuerpo del cliente; ahora filas copiadas campo a campo contra `ALLOWED_INSTALLMENT_FIELDS`,
+  400 ante campo no previsto y `sale_id`/`tenant_id` sellados por servidor (p. ej.
+  `is_monitoring=true` escondía cuotas del motor de morosidad).
+- **Delete de cuotas verificado** antes del insert (un fallo duplicaba el calendario) — parte
+  del commit adoptado.
+- **Test:** `tests/sales-complete-reservation-allowlist.test.mjs` (6 invariantes estáticos).
+- **Verificado:** suite focal 6/6 · quality local completo (960 unit pass / 0 fail / 3 skips
+  preexistentes, 740 métricas) · CI verde · rama borrada.
+- **Sigue del informe FASE A (unidad siguiente):** `approve-review` (limpia el flag antes de
+  garantizar la comisión y el retry responde 400), PATCH `reversed` sin devolver la cuota a
+  pendiente, `disputed` tratado como cobrado (contradice D5 de MONEY.md).
+
+## ✅ RESULTADO (27-sep): PR-R0.1 y PR-R0.2 del RECOVERY_ROADMAP fusionadas en main
+
+- **PR-R0.1 — PR #237** (`579a379`): port de `docs/BASELINE_QUALITY_2026-09-26.md` desde la rama
+  local `6160dc3` (único contenido no fusionado según la auditoría). Byte-idéntico salvo la
+  realineación de la tabla por Prettier (texto verificado palabra por palabra). Docs-only, CI no
+  corre por paths-ignore. La rama local NO se borra: conserva WIP ajeno sin commitear.
+- **PR-R0.2 — PR #238** (`94e2a4d`): crons `monthly`/`reminders` sin escrituras silenciosas. En
+  `monthly`, las lecturas de `tenant_members`/`users`/comisiones/plantillas se comían el error
+  como "lista vacía" (sueldos del mes ausentes con `ok`); ahora verifican `{ error }`, el recorte
+  de paginado (`truncated`) tumba el run y una subcuenta que falla responde 500 al trigger (rerun
+  idempotente por `(auto_source, period)`). En `reminders`, la lectura de ventas fuera de ventana
+  y la aprobación de comisiones verifican, el flag de limpieza de Calendly no se baja
+  fire-and-forget y un fallo de subcuenta responde 500. Presupuesto 45 s repartidos entre
+  subcuentas (lección 504 de calendly-ghl); el corte se declara (`cortado`) y no cuenta como
+  fallo. Test estático nuevo: `tests/cron-monthly-reminders.test.mjs`.
+- **Verificado:** suite focal 29/29 · quality local completo (946 unit pass / 0 fail / 3 skips
+  preexistentes sin credenciales, 740 métricas) · CI de la PR verde (quality 1m39s con dead-code,
+  gitleaks 8s, build 2m22s, Smoke E2E 5m9s, Vercel) · ramas borradas en remoto y local.
+- **Siguiente unidad del patrón:** barrido del resto (recuento pendiente del próximo barrido); la
+  R0.3 (drift ledger) sigue BLOCKED_USER sin credenciales Supabase.
+
+## ✅ RESULTADO (27-sep): PR-R2.2 — borrado compensable de ventas y comisiones futuras verificadas (PR #239)
+
+Fusionada en `main` (`cc2c021`), CI de la PR en verde (quality 1m25s con dead-code, gitleaks 6s,
+build 2m54s, Smoke E2E 5m7s, Vercel), rama borrada. Criterio #231/#236/#238 aplicado a las dos
+rutas del foco P2 del 26-sep:
+
+- **`sales/delete`:** el snapshot de auditoría (única vía de reconstrucción tras borrar) se
+  construía de 6 lecturas sin comprobar — un fallo daba un snapshot incompleto y un borrado
+  irrecuperable; ahora verifican y un snapshot roto no llega a borrar. Los 5 desenlaces se
+  comprueban uno a uno. El borrado del dinero (comisiones → devoluciones → cobros → venta)
+  COMPENSA: si un paso falla, se restauran las filas completas del snapshot en orden inverso
+  (respetando la FK `commissions.collection_id`); si la compensación también falla, el 500 ordena
+  NO repetir el borrado y apunta al snapshot en `audit_logs`.
+- **`commissions/future`:** las 7 lecturas se tragaban el error como "lista vacía" — fallback del
+  % a 5/10, veto `pays_commissions` (MONEY D9) saltado y previsión FIFO falsa; ahora responden
+  500 con motivo. Sin cambios de cálculo (`comisiones-futuras-desglose.test.mjs` en verde).
+- **Test estático nuevo:** `tests/sales-delete-atomico.test.mjs` (snapshot íntegro, orden inverso
+  de restauración con filas completas, mensaje anti-reintento ciego, guards de las 7 lecturas).
+- **Verificado:** suite focal 24/24 · quality local completo (954 unit pass / 0 fail / 3 skips
+  preexistentes, 740 métricas) · CI verde · rama borrada.
+- **Anotado como unidad propia (no incluido):** `repNetCash`/`loadTramoContext` del motor de
+  comisiones tragan errores por dentro; `resolverScopeColaborador` es fail-open ante fallo de BD
+  (contradice el fail-closed declarado en `scope.ts`), 9 llamadores.
+
+## PROJECT RECONCILIATION — auditoría total 27-sep-2026 (Freebuff/Buffy)
+
+Auditoría de reconciliación completa (236 PRs, todas las fuentes de petición históricas, ramas, CI y
+código). **Entregables**: `PROJECT_RECONCILIATION.md`, `FEATURE_REQUEST_REGISTER.md`,
+`BRANCH_RECONCILIATION.md` y `RECOVERY_ROADMAP.md` en la raíz del repo. Resumen de estado:
+
+### VERIFIED COMPLETE
+
+Multi-tenancy/RLS · money path (ventas/reservas/cobros/Stripe/comisiones/socios) · F1+F2 (event core +
+conectores) · webhook GHL endurecido · Calendly · funnels · Fathom + cola · grabaciones · GA4 ·
+facturas IA · contratos · colaboradores · RAG/skills · aprovisionamiento · Data Health · Smoke E2E CI.
+
+### PARTIAL
+
+Escrituras silenciosas (crons #238 y `sales/delete`+`commissions/future` #239 cerrados el 27-sep;
+queda el barrido del resto + helpers compartidos anotados) · F3 resto de fases · rename
+Afiliados→Colaboradores · filtros globales (pnl/finanzas/cohorts) · deuda UX (tokens, tipografía,
+formatos, modales) · Sequra monitorización · clasificación canónica de llamadas.
+
+### BROKEN
+
+Nada bloqueante en main (CI success 27-sep). Crons `ai-insights`/`stripe-payments` fallan en schedule
+(preexistente, ajeno). `sequra-morosos` 500 por `SEQURA_MERCHANT_REFERENCE` (USER).
+
+### IMPLEMENTED NOT MERGED
+
+PR #225 (`feat/money-25sep`, 9 commits, 34 ficheros — del propio Alex): base 14 commits atrás con
+solapes (#207–#236). NO fusionar a ciegas: rebase + resolución + quality (PR-R2.1). Doc único sin
+fusionar: `docs/BASELINE_QUALITY_2026-09-26.md` (rama local) → SAFE TO PORT (PR-R0.1).
+
+### LOST / REGRESSED
+
+Nada perdido en ramas remotas (no existe ninguna aparte de main). Los 40 PRs CLOSED sin merge:
+Dependabot superado + `codex/qa-fixes` #4 (superseded, contenido llegado por otras vías) + #210 duplicado.
+
+### NOT IMPLEMENTED
+
+Rate limiting login · restore drill/PITR · alertas A3 (necesitan canal) · tipado Database Supabase ·
+crear usuarios desde Subcuentas · auditoría visual completa (167 reglas).
+
+### USER ACTION REQUIRED
+
+1. Credenciales Supabase read-only en el entorno (desbloquea drift-ledger + 3 tests) · 2) decisión sobre
+   PR #225 · 3) rotaciones (Anthropic/GROQ/Management/GHL secret) · 4) SEQURA_MERCHANT_REFERENCE en Vercel ·
+2. pixel + UTMs en la web real · 6) reconexiones de proveedores y workflows GHL · 7) Railway worker ·
+3. retención legal (F6) · 9) majors Dependabot. Detalle: `RECOVERY_ROADMAP.md`.
+
+### NEXT PRS IN ORDER
+
+PR-R0.1 (port baseline doc) → PR-R0.2 (crons monthly/reminders fail-ruidoso) → PR-R0.3 (drift ledger,
+BLOCKED_USER credenciales) → PR-R2.1 (port #225 con Alex) → PR-R2.2/2.3 → R3 (datos) → R4 (UX).
+
+### CONCURRENCY NOTES
+
+⚠️ **27-sep (Buffy): 6 ramas `claude/*` remotas son linajes HUÉRFANOS** (`git merge-base origin/main <rama>`
+vacío: `claude/{comisiones-reservas-fix, app-continuation-lpbupf, socios-reparto-beneficio,
+ltgp-cac-aproximado, objetivos-prevision-f65, growth-context-coste-entrega}`). Sus puntas describen
+trabajo que YA ESTÁ en main vía #201/#208/#211–#213 (anterior al repunto del 19-sep). **NO fusionar
+NI rebasar** (regla «sin merge-base no hay merge», caso #210); verificado contenido a contenido.
+Solo `claude/socios-flecos-finales` tiene base legítima (`5114973`) — pero su hermana
+`socios-reparto-beneficio` (mismo tema) ya llegó a main por #213: tratarla como superseded salvo
+verificación inversa. El clon del worktree tiene refspec de rama única (`origin/main`): para
+inspeccionar ramas remotas, fetch con refspec explícito.
+
+Checkout raíz (`fix/money-path-silent-writes`) conserva WIP ajeno sin commitear (informe FASE A del
+26-sep en `docs/ACTIVE_HANDOFF.md`, +176 líneas: sus hallazgos de crons/sales-delete/commissions-
+future/Correo-Drops ya están resueltos por #238/#239/#233 — cerrarlos en el doc antes de publicarlo;
+stash@{0} del checkout raíz es copia redundante del mismo diff): NO tocado, NO borrado.
+Rama local conservada por contener ese WIP (borrar la ref no borra el working tree). `gh run list
+--commit` usado para diagnóstico de CI (un run cancelled no es fallo). Sin migraciones, sin deletes,
+sin merges de ramas antiguas durante la auditoría.
+
+## ✅ RESULTADO (27-sep): webhook GHL sin escrituras silenciosas — PR #236 fusionada en main
+
+La unidad «Escrituras silenciosas — webhook GHL» está FUSIONADA: PR #236 (merge `a595298`), CI de la
+PR en verde (quality 1m54s con dead-code incluido, gitleaks, build 2m47s, Smoke E2E 4m18s, Vercel) y
+rama borrada en remoto y local. El bloqueo de credencial GitHub de la tarde del 26-sep se resolvió
+solo: la App volvió a mintear credenciales y la rama se publicó sin intervención manual.
+
+- **Qué entró:** update de `appointments`, `lead_status` (ambos caminos), insert/update de
+  `contact_attributions`, cualificación y `audit_logs` de citas del webhook GHL verifican ahora el
+  `{ error }` y responden 500 para que GHL reintente la entrega idempotente; `last_seen_at` y
+  `set_source` se degradan a warn a propósito (reintentar no los arregla). Tests estáticos nuevos
+  en `tests/webhook-ghl.test.mjs` fijan el criterio: ninguna escritura de estado de negocio
+  fire-and-forget.
+- **Verificado:** tests dirigidos de la ruta y su capa raw 131/131; suite completa 937 pass (3 skip
+  sin credenciales Supabase, preexistente) + 740 métricas; CI de la PR en verde.
+- **Siguiente unidad del patrón (~76 escrituras restantes):** crons `monthly`/`reminders` (confluyen
+  con los P1 del relevo del 26-sep), después `commissions/future` y `sales/delete`.
+
+## Revisión integral: bugs de dinero (fase 1) — 2026-09-26 (Freebuff/Buffy)
+
+**PUBLICADO: PR #231 (`fix/money-path-silent-writes`, commit `fcb6457`) abierta contra `main` con CI
+en verde (quality 1m47s, gitleaks, build 2m18s, Smoke E2E 4m54s, Vercel). Fila de tablero cerrada al
+publicar; el barrido de los ~88 escritos restantes queda como siguiente relevo.**
+
+**Fila de tablero (CERRADA — publicada en #231):** Freebuff/Buffy — revisión integral de bugs y
+seguridad; carril producto (cobros/comisiones/gastos). Ficheros: `app/api/[tenant]/
+evergreen/collections/[id]/route.ts`, `app/api/[tenant]/evergreen/payments/mark/route.ts`,
+`app/api/[tenant]/evergreen/afiliados/registro/route.ts`.
+
+**Hallazgo estructural confirmado (el backlog lo avisaba, sin fila):** los inserts/updates de
+supabase-js que no comprueban `{ error }` siguen siendo el patrón dominante — contados ~92 escrituras
+`await` sin comprobar en `app/api`+`lib`. Los más caros ya corregidos (todo de dinero):
+
+1. **DELETE de cobro (`collections/[id]`)**: el borrado de comisiones y del cobro se hacía con `await`
+   plano. Un fallo silencioso dejaba **comisiones huérfanas apuntando a un cobro ya borrado** — el
+   invariante exacto que S0-5 cerró. Ahora: se comprueba el error del delete de comisiones, se
+   verifica con `.select('id')` que el cobro realmente se borró, y el `audit_logs` de update/delete
+   ya no es fire-and-forget (un cambio de dinero sin rastro de auditoría devuelve 500 con motivo).
+2. **`payments/mark`**: las tres escrituras de `sale_expected_installments` (paid/monitoring/delinquent/
+   unflag) iban sin comprobar; "marcar pagada" devolvía `ok` aunque la cuota no quedara cobrada.
+   Ahora cada escritura se verifica y devuelve 500 con el motivo.
+3. **`afiliados/registro` (alta pública)**: el upsert de `users` tras invitar al usuario en Auth iba
+   sin comprobar; un fallo dejaba **cuenta huérfana en Auth con correo enviado y sin perfil, ni código
+   de tracking, ni forma de cobrar comisiones**. Ahora revierte con `deleteUser` (mismo patrón que la
+   ruta de invitación) y avisa.
+
+**Verificado local:** typecheck OK · format:check OK · 928/928 unit (3 skips de credenciales, como
+en el baseline) · 740/740 métricas · 21/21 y 46/46 en suites focales de aislamiento/comisiones/
+webhook GHL. E2E Playwright no ejecutable en este sandbox (sin `E2E_PASSWORD`); corre en CI.
+
+**Seguridad (spot-check, inspeccionado no probado en vivo):** webhooks GHL/contract/onboarding
+comparan secreto con `timingSafeEqual` (`lib/webhooks/verifySecret.ts`); Stripe verifica firma sobre
+el body crudo; Resend svix fail-closed; `ver-como` exige OTP + coincidencia de sesión y audita. Sin
+nuevo hallazgo P0. El invariante de esquema vivo (`esquema-tenant-invariante.test.mjs`) corre en CI;
+aquí se salta sin credenciales.
+
+**Desfase confirmado (no corregido, fila de Claude Code):** `lib/types/database-generated.ts` NO
+contiene las 9 columnas de `20260922100000` (invoice__, paid_at, paid_from_account,
+payment_reference, counterparty__). La pantalla de gastos usa tipos a mano en la propia página, por
+eso typecheck no lo caza: es otra señal de que **la migración sigue sin aplicar en producción**.
+
+**Queda (priorizado):** (1) el barrido de los ~88 escritos sin comprobar restantes, empezando por
+webhook GHL (`contact_attributions`, updates de citas) y crons; (2) smoke con navegador cuando haya
+preview/credenciales E2E; (3) regenerar tipos tras aplicar la migración pendiente; (4) pulido UX/UI
+global (F3/Taste) — explícitamente DESPUÉS de estabilizar.
+
 ## MONEY.md v1 en main + relevo de la PR #210 — 2026-09-25 (Freebuff/Buffy)
 
 **Estado real del vocabulario financiero (F3):** `MONEY.md` v1 está en `main` desde #209 (`43f78e5`):
@@ -342,7 +795,6 @@ fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo 
 
 | Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama           | Toca                                                                                            | Desde  |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
-| Freebuff (Buffy)  | **MONEY.md v1**: vocabulario financiero de F3 (booked/billed/collected/recognized, bruto vs atribuible, FX, IVA, fees, disputas, comisiones, cuotas, financiación, cash manual) bajo delegación de Alex; decisiones D1–D7 + abiertas A1–A6                                                                                                                                                     | docs/money-v1  | `docs/MONEY.md` (nuevo), `docs/ACTIVE_HANDOFF.md` (tablero)                                     | 25-sep |
 | Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
 | Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
 
@@ -621,3 +1073,19 @@ Tres más del 25-sep (codificadas también en `AGENTS.md`, con el caso que las o
 - **La fila del tablero es un contrato de relevo**: el trabajo sin commitear de esta hebra (fix E2E
   - cron) fue recogido, commitado y publicado por otro agente siguiendo la fila — así funciona el
     tablero cuando funciona; si un trabajo no debe continuarse, no se deja sin commitear.
+
+### Correcciones de auditoría: Correo, Drops, Documentos y Apify — 2026-09-26
+
+**Estado FINAL (26-sep): entregado y fusionado en `main` vía PR #233 (merge `ae98914`); CI del merge SUCCESS (run 36256579445) y `npm run quality` re-verificado PASS sobre `main` fusionada; rama borrada en remoto y local.** No se ejecutaron migraciones ni se consultó/escribió producción.
+
+- **Correo:** las rutas de configuración, plantillas, historial, detalle y envío de prueba exigen rol funcional de gestión (`admin`, `director`, `manager`) ya acotado al tenant por `requireTenant`, o `super_admin` de plataforma. El control del frontend no es el permiso.
+- **Drops:** las consultas/actualizaciones/alta llevan `tenant_id` explícito desde el contexto; contactos y nombres de responsables se cargan limitados a la subcuenta. La UI también informa fallos de lectura y revierte el cambio optimista si falla el update.
+- **Documentos:** el handler comprueba venta y contacto dentro del tenant y rechaza discrepancia con el `contact_id` canónico de la venta antes de subir; Storage y fila de verificación derivan de ese ID canónico. Se valida tipo/nombre/base64 y límite de 10 MiB antes de reservar el buffer.
+- **Apify:** errores de lectura/upsert/finalización ya no se convierten en `completed`; webhook devuelve 500 ante fallos para solicitar retry. La persistencia normalizada usa upserts y payload raw se consulta antes de insertar. Se añadió claim CAS con lease de cinco minutos para que webhooks concurrentes no procesen dos veces y un fallo deje el job reintentable. **Prueba del escenario con fallo/reintento aún por ejecutar.**
+- **Prefijos de migración:** se mantienen los pares `20260919230000` y `20260921100000`; su duplicidad de nombre local no demuestra conflicto del ledger vivo. No se renombró ni aplicó DDL; verificar el ledger de Supabase de forma read-only/QA sigue pendiente.
+
+**Validación local final (26-sep):** `npm run quality` completo PASS (exit 0) sobre los 13 ficheros modificados: `format:check` PASS, lint PASS con cinco avisos preexistentes (`<img>` en páginas instagram y dependencia de hook en ContactsAllView), typecheck integral `tsc --noEmit` PASS (653 fuentes TS/TSX, sin errores), `npm test` PASS (933 pass, 3 saltados por falta de credenciales Supabase) y `npm run test:metrics` PASS (740). `git diff --check` PASS. Tests focalizados de documentos/email/Apify: 38/38 PASS en ejecución previa al formateo final. La configuración temporal `tsconfig.audit.json` se borró tras su prueba y no está versionada.
+
+**Bloqueo de memoria RESUELTO — causa raíz identificada (26-sep):** tsc no moría por el preview gestionado sino por un `next-server` huérfano de una gestión anterior escuchando en `:3000` (~1,7 GiB RSS, 8 h en pie); `freebuff-preview restart` recicló el preview nuevo (`:3001`, verificado sirviendo) pero no limpió el huérfano. Se terminó ÚNICAMENTE el árbol huérfano de `:3000` (SIGTERM y SIGKILL al PID confirmado como huérfano, no al preview). Además, el pico de tsc supera 2,2 GB de heap incluso con ~2,4 GB disponibles, así que se activaron 2 GB de swap dentro del contenedor (`fallocate -l 2G /swapfile; mkswap; swapon /swapfile`) y el typecheck se lanzó con `NODE_OPTIONS='--max-old-space-size=3584'`: pasó integralmente. No se cambió `tsconfig.json` ni se excluyó ruta alguna. La rama tiene base común directa con `origin/main` (`b87ab41`).
+
+**Cierre de la unidad (26-sep):** commit del fix `b6f85d2` + relevo `7a24627`, push, PR #233, CI de PR verde (run 36255945786) y run cancelado posterior por `cancel-in-progress` (no es fallo), merge `ae98914`, CI de `main` SUCCESS (run 36256579445), `npm run quality` PASS sobre `main` fusionada, rama remota y local eliminadas, fila del tablero retirada. De los pendientes de producto, el escenario Apify con fallo/reintento quedó CERRADO el 26-sep vía PR #234 (merge `1cb7659`): congelado en `tests/apify-retry-scenario.test.mjs`, que ejecuta `processRunResults` real con un mini-DB en memoria (CAS genuino, upserts idempotentes) y `fetch` interceptado — sin red ni credenciales; CI de PR run 36263193522 success y quality PASS sobre `main` fusionada. Reserva honesta: en el run del merge sobre `main` (36263667257) quality/build/secretos pasaron y el job Smoke E2E salió CANCELADO por la cola de concurrencia `e2e-tenant-qa` ("higher priority waiting request"), no por fallo; el E2E del mismo árbol pasó en el run de la PR. La credencial gestionada de GitHub no permite `gh run rerun` ("not accessible by integration"): quien fusione a continuación o Alex debe relanzar ese job (Re-run failed jobs) o validar el E2E con el próximo push de código a `main`. Sigue pendiente además la verificación read-only del ledger de migraciones de Supabase (requiere credenciales). Nota de entorno para próximos agentes: el typecheck integral necesita >2,2 GB de heap; si el sandbox arranca sin swap, recrearlo con `fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile` y lanzar con `NODE_OPTIONS='--max-old-space-size=3584'` (verificado en esta sesión; no debilitar cobertura).

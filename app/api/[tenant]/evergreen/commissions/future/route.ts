@@ -25,17 +25,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
     const role = t.role ?? ''
     const canSeeAll = ['admin', 'director', 'manager'].includes(role)
 
-    const { data: rulesData } = await sb
+    const { data: rulesData, error: rulesErr } = await sb
       .from('commission_rules')
       .select('*')
       .eq('is_active', true)
       .eq('tenant_id', t.tenantId)
+    if (rulesErr) throw new Error(`No se pudieron leer las reglas de comisión: ${rulesErr.message}`)
     const rules = (rulesData ?? []) as CommissionRule[]
 
     const HOY = new Date().toISOString().split('T')[0]
 
     // Cuotas aún no cobradas (pendientes/vencidas), sin monitorización, de ventas activas
-    const { data: insts } = await sb
+    const { data: insts, error: instsErr } = await sb
       .from('sale_expected_installments')
       .select(
         'id, due_date, expected_commissionable_amount, sales!inner(id, setter_id, closer_id, affiliate_id, affiliate_commission_percent, status, tenant_id, contacts(full_name))'
@@ -44,28 +45,31 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       .eq('is_monitoring', false)
       .eq('sales.status', 'active')
       .eq('sales.tenant_id', t.tenantId)
+    if (instsErr) throw new Error(`No se pudieron leer las cuotas pendientes: ${instsErr.message}`)
 
     // PREVISIÓN DERIVADA: la mayoría de ventas históricas no tiene calendario materializado
     // (sale_expected_installments vacío), pero SÍ cuotas mensuales reales por pagar. Se deriva
     // del plan de la venta (installments_count) cubierto FIFO por sus cobros reales — el mismo
     // criterio canónico de lib/sales/plan-cuotas.ts (planCuotasDeVenta, rama previsión).
     const ventasConCalendario = new Set((insts ?? []).map((r) => (r as unknown as { sales: { id: string } }).sales.id))
-    const { data: ventasSinCalendario } = await sb
+    const { data: ventasSinCalendario, error: ventasErr } = await sb
       .from('sales')
       .select(
         'id, sale_date, gross_amount, installments_count, installments_start_date, setter_id, closer_id, affiliate_id, affiliate_commission_percent, contacts(full_name)'
       )
       .eq('status', 'active')
       .eq('tenant_id', t.tenantId)
+    if (ventasErr) throw new Error(`No se pudieron leer las ventas sin calendario de cuotas: ${ventasErr.message}`)
     const idsSinCal = (ventasSinCalendario ?? []).filter((v) => !ventasConCalendario.has(v.id)).map((v) => v.id)
-    const { data: cobrosSinCal } = idsSinCal.length
+    const { data: cobrosSinCal, error: cobrosErr } = idsSinCal.length
       ? await sb
           .from('collections')
           .select('sale_id, gross_amount, collected_at, status')
           .in('sale_id', idsSinCal)
           .eq('status', 'collected')
           .eq('tenant_id', t.tenantId)
-      : { data: [] }
+      : { data: [], error: null }
+    if (cobrosErr) throw new Error(`No se pudieron leer los cobros de las ventas sin calendario: ${cobrosErr.message}`)
     const cobrosPorVenta = new Map<string, { bruto: number; fecha: string }[]>()
     for (const c of (cobrosSinCal ?? []) as {
       sale_id: string
@@ -77,9 +81,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       cobrosPorVenta.set(c.sale_id, lista)
     }
     // Plan de pago de esas ventas (método 'reserva' = 1 sola cuota, igual que planCuotasDeVenta).
-    const { data: planesSinCal } = idsSinCal.length
+    const { data: planesSinCal, error: planesErr } = idsSinCal.length
       ? await sb.from('payment_plans').select('sale_id, number_of_payments, method').in('sale_id', idsSinCal)
-      : { data: [] }
+      : { data: [], error: null }
+    if (planesErr)
+      throw new Error(`No se pudieron leer los planes de pago de las ventas sin calendario: ${planesErr.message}`)
     const planDe = new Map<string, { number_of_payments: number | null; method: string | null }>()
     for (const p of (planesSinCal ?? []) as {
       sale_id: string
@@ -92,7 +98,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
     // Cuotas de un plan personalizado YA cobradas pero en revisión manual de cobros: siguen sin
     // comisión real hasta que el equipo las apruebe, así que se proyectan aquí igual que las
     // pendientes (ver /api/${tenant}/evergreen/collections/approve-review para la aprobación).
-    const { data: reviewColls } = await sb
+    const { data: reviewColls, error: reviewErr } = await sb
       .from('collections')
       .select(
         'id, collected_at, commissionable_amount, sales!inner(id, setter_id, closer_id, affiliate_id, affiliate_commission_percent, status, tenant_id, contacts(full_name))'
@@ -101,6 +107,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       .eq('status', 'collected')
       .eq('sales.status', 'active')
       .eq('sales.tenant_id', t.tenantId)
+    if (reviewErr) throw new Error(`No se pudieron leer los cobros en revisión de comisión: ${reviewErr.message}`)
 
     // Fechas de los cobros ya RECOGIDOS por venta: clasifican cada cuota futura como
     // 'nuevo' (será el primer cobro de una venta que aún no cobró) o 'recurrente' (cuota
@@ -129,7 +136,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
     }
 
     // Nombres de usuarios
-    const { data: users } = await sb.from('users').select('id, full_name, pays_commissions')
+    const { data: users, error: usersErr } = await sb.from('users').select('id, full_name, pays_commissions')
+    if (usersErr)
+      throw new Error(`No se pudieron leer los usuarios (veto pays_commissions de MONEY D9): ${usersErr.message}`)
     const nameOf = new Map((users ?? []).map((u: { id: string; full_name: string }) => [u.id, u.full_name]))
 
     // Tramo/nivel actual por rep (para reglas de comisión enlazadas a un tramo), igual que en generate.ts
@@ -349,7 +358,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       for (let i = 0; i < n; i++) {
         if (!(restantes[i] > 0.005)) continue
         // Vencida sin cobrar = impago real (estado 'overdue'): la proyección la incluye para
-        // el KPI de impagos, pero nunca cuenta como comisión futura del mes en curso.        // Vencida sin cobrar = impago real (estado 'overdue'): la proyección la incluye para
         // el KPI de impagos, pero nunca cuenta como comisión futura del mes en curso.
         const vencida = fechas[i] < HOY
         await addRowsFor(

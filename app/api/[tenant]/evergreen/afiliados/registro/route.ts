@@ -138,7 +138,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // 6) Código: affiliate_code == tracking_code para que enlace (utm_content) y atribución casen
     const code = await generateUniqueTrackingCode(supabase)
 
-    await supabase.from('users').upsert(
+    // supabase-js NO lanza en fallo: sin esta comprobación, un upsert fallido dejaría la
+    // identidad de Auth creada (correo enviado) SIN perfil, SIN código de tracking y sin que
+    // nadie se enterara — un colaborador fantasma que nunca recibiría comisiones.
+    const { error: profileErr } = await supabase.from('users').upsert(
       {
         id: invited.user.id,
         email,
@@ -152,6 +155,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       },
       { onConflict: 'id' }
     )
+    if (profileErr) {
+      // La identidad acaba de crearse y el correo puede no haberse enviado aún: se revierte
+      // para no dejar una cuenta huérfana (mismo patrón que la ruta de invitación).
+      await supabase.auth.admin.deleteUser(invited.user.id)
+      return NextResponse.json(
+        { error: 'No se pudo crear el perfil del colaborador: ' + profileErr.message },
+        { status: 500 }
+      )
+    }
 
     // 7) Perfil de afiliado (datos extra del formulario)
     const extra: Record<string, unknown> = {}
