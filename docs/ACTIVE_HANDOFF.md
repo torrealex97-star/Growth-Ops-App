@@ -1,5 +1,22 @@
 # Relevo activo
 
+## ✅ E2E smoke del contrato Radix de los modales migrados (PR #258, mergeada)
+
+**MERGEADA** (squash `e07f8f0` en `main`, 27-sep noche). CI verde en el SHA final `9e35b46`
+(run 36348650627: Quality, gitleaks, Build y Smoke E2E 5m16s ✓). Rama `feat/r4-e2e-modales`
+eliminada y fila del tablero retirada.
+
+- `tests/e2e/modales-dialog.spec.mjs` (solo lectura): «Nueva agenda» y «Nuevo gasto» abren su
+  modal, afirman `getByRole('dialog', { name })` visible y que Esc lo cierra.
+- **Lección para specs de modales:** Radix `@radix-ui/react-dialog` 1.1.23 NO emite `aria-modal`
+  (verificado en su dist: emite `role="dialog"`, `aria-labelledby`, `aria-describedby` y
+  `data-state`; el aislamiento de foco lo hace `hideOthers`, no el atributo). Un assert de
+  `aria-modal` falla siempre — el contrato correcto es dialog accesible por nombre + Esc.
+- Los "failures" intermedios de CI eran cancelaciones del concurrency group global
+  `e2e-tenant-qa` (merges paralelos), no fallos del spec: el único run que cuenta es el del
+  último SHA de la rama.
+
+
 ## ✅ RESULTADO (27-sep, noche): cierre de las 12 ramas de Claude Code — 2 obsoletas descartadas, resto en cola (Claude Code)
 
 Instrucción de Alex: "todo lo que ya esté listo mejor mergearlo... sino tendremos cientos de ramas".
@@ -1047,7 +1064,6 @@ fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo 
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------- | ------ |
 | Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar)        | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
 | Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)          | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
-| Freebuff (Buffy)  | **E2E smoke de los modales de la casa** — spec Playwright de solo lectura que ejercita el contrato Radix (role=dialog, aria-modal, Esc) sobre dos modales migrados (agendas + gastos)                                                                                                                                                                                                          | `feat/r4-e2e-modales` | `tests/e2e/modales-dialog.spec.mjs`                                                             | 27-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
