@@ -5,11 +5,11 @@ UX → features nuevas. Cada paso = una PR pequeña con su status en el tablero 
 
 ## PHASE R0 — Critical recovery (seguridad, dinero, datos)
 
-| PR      | Qué                                                                                                           | Fuente                         | Riesgo si no se hace                                  | Est.                          |
-| ------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------ | ----------------------------------------------------- | ----------------------------- |
-| PR-R0.1 | Port del doc `BASELINE_QUALITY_2026-09-26.md` (único contenido no fusionado de la rama local)                 | rama local 6160dc3             | El baseline de calidad queda fuera de main            | XS                            |
-| PR-R0.2 | Crons `monthly`/`reminders`: verificar `{ error }` en todas sus escrituras + dead-budget alineado (P1 26-sep) | PENDIENTES 🔒 + handoff 26-sep | Silenciosos en pagos/morosos/aprobación de comisiones | M                             |
-| PR-R0.3 | Inventario drift esquema↔migraciones (ledger vs DDL real) — requiere credenciales Supabase read-only          | PENDIENTES 🔒                  | DDL fuera de git indetectable (flagged_delinquent)    | M — BLOCKED_USER credenciales |
+| PR      | Qué                                                                                                                           | Fuente                         | Riesgo si no se hace                                  | Est.                          |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | ----------------------------------------------------- | ----------------------------- |
+| PR-R0.1 | ✅ **HECHA (27-sep, PR #237):** port del doc `BASELINE_QUALITY_2026-09-26.md` (único contenido no fusionado de la rama local) | rama local 6160dc3             | El baseline de calidad queda fuera de main            | XS                            |
+| PR-R0.2 | ✅ **HECHA (27-sep, PR #238):** crons `monthly`/`reminders` sin escrituras silenciosas + presupuesto de tiempo                | PENDIENTES 🔒 + handoff 26-sep | Silenciosos en pagos/morosos/aprobación de comisiones | M                             |
+| PR-R0.3 | Inventario drift esquema↔migraciones (ledger vs DDL real) — requiere credenciales Supabase read-only                          | PENDIENTES 🔒                  | DDL fuera de git indetectable (flagged_delinquent)    | M — BLOCKED_USER credenciales |
 
 ## PHASE R1 — Restore lost working features
 

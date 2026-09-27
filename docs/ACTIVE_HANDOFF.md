@@ -1,5 +1,26 @@
 # Relevo activo
 
+## ✅ RESULTADO (27-sep): PR-R0.1 y PR-R0.2 del RECOVERY_ROADMAP fusionadas en main
+
+- **PR-R0.1 — PR #237** (`579a379`): port de `docs/BASELINE_QUALITY_2026-09-26.md` desde la rama
+  local `6160dc3` (único contenido no fusionado según la auditoría). Byte-idéntico salvo la
+  realineación de la tabla por Prettier (texto verificado palabra por palabra). Docs-only, CI no
+  corre por paths-ignore. La rama local NO se borra: conserva WIP ajeno sin commitear.
+- **PR-R0.2 — PR #238** (`94e2a4d`): crons `monthly`/`reminders` sin escrituras silenciosas. En
+  `monthly`, las lecturas de `tenant_members`/`users`/comisiones/plantillas se comían el error
+  como "lista vacía" (sueldos del mes ausentes con `ok`); ahora verifican `{ error }`, el recorte
+  de paginado (`truncated`) tumba el run y una subcuenta que falla responde 500 al trigger (rerun
+  idempotente por `(auto_source, period)`). En `reminders`, la lectura de ventas fuera de ventana
+  y la aprobación de comisiones verifican, el flag de limpieza de Calendly no se baja
+  fire-and-forget y un fallo de subcuenta responde 500. Presupuesto 45 s repartidos entre
+  subcuentas (lección 504 de calendly-ghl); el corte se declara (`cortado`) y no cuenta como
+  fallo. Test estático nuevo: `tests/cron-monthly-reminders.test.mjs`.
+- **Verificado:** suite focal 29/29 · quality local completo (946 unit pass / 0 fail / 3 skips
+  preexistentes sin credenciales, 740 métricas) · CI de la PR verde (quality 1m39s con dead-code,
+  gitleaks 8s, build 2m22s, Smoke E2E 5m9s, Vercel) · ramas borradas en remoto y local.
+- **Siguiente unidad del patrón:** `commissions/future` y `sales/delete` (PR-R2.2); la R0.3
+  (drift ledger) sigue BLOCKED_USER sin credenciales Supabase.
+
 ## PROJECT RECONCILIATION — auditoría total 27-sep-2026 (Freebuff/Buffy)
 
 Auditoría de reconciliación completa (236 PRs, todas las fuentes de petición históricas, ramas, CI y
@@ -14,7 +35,8 @@ facturas IA · contratos · colaboradores · RAG/skills · aprovisionamiento · 
 
 ### PARTIAL
 
-Escrituras silenciosas (~76 restantes; crons monthly/reminders primero) · F3 resto de fases · rename
+Escrituras silenciosas (crons monthly/reminders cerrados el 27-sep, #238; queda `commissions/future` y
+`sales/delete`) · F3 resto de fases · rename
 Afiliados→Colaboradores · filtros globales (pnl/finanzas/cohorts) · deuda UX (tokens, tipografía,
 formatos, modales) · Sequra monitorización · clasificación canónica de llamadas.
 
