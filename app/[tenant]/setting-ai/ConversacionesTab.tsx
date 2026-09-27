@@ -2,6 +2,7 @@
 import { useTenant } from '@/lib/tenant-context'
 import { useEffect, useState } from 'react'
 import { Sparkles, ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
+import { formatNumber, formatPercent } from '@/lib/utils'
 
 type ConvMsg = { from: 'agente' | 'lead'; text?: string; created_time?: string }
 type IgConversation = {
@@ -19,6 +20,16 @@ type Analysis = {
   fortalezas?: string[]
   fallos?: { cita: string; problema: string }[]
   recomendaciones?: string[]
+}
+type ResumenMetricas = {
+  totalConversaciones: number
+  conContactoVinculado: number
+  conAgendaVerificada: number
+  conVentaVerificada: number
+  sinContactoVinculado: number
+  sinContactoConEnlaceAgenda: number
+  tasaVinculacion: number
+  tasaAgendaSobreVinculados: number
 }
 
 const PLATFORMS = [
@@ -46,6 +57,8 @@ export default function ConversacionesTab() {
   const [analyzing, setAnalyzing] = useState<string | null>(null)
   const [analyses, setAnalyses] = useState<Record<string, Analysis>>({})
   const [analyzeError, setAnalyzeError] = useState<Record<string, string>>({})
+  const [metrics, setMetrics] = useState<ResumenMetricas | null>(null)
+  const [metricsMotivo, setMetricsMotivo] = useState('')
 
   useEffect(() => {
     if (platform !== 'instagram') {
@@ -93,6 +106,29 @@ export default function ConversacionesTab() {
     }
   }, [platform, tenant])
 
+  // Resumen cross-plataforma (siempre Instagram: es la única con datos reales hoy). Independiente
+  // del tab activo — se ve aunque estés mirando el placeholder de Facebook/TikTok, que es
+  // justamente el punto: comparar qué plataforma trae más leads/agendas de un vistazo.
+  useEffect(() => {
+    let cancel = false
+    fetch(`/api/${tenant}/evergreen/setting-ai/conversations/metrics?platform=instagram`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancel) return
+        if (j.configured && j.resumen) setMetrics(j.resumen as ResumenMetricas)
+        else setMetricsMotivo(j.motivo || j.error || '')
+      })
+      .catch(() => {
+        if (!cancel) setMetricsMotivo('No se pudieron calcular las métricas.')
+      })
+    return () => {
+      cancel = true
+    }
+    // Recalcula cuando la lista de conversaciones se refresca (el snapshot que lee este endpoint
+    // puede haber cambiado tras la descarga).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenant, conversations.length])
+
   async function analyze(c: IgConversation) {
     setAnalyzing(c.id)
     setAnalyzeError((e) => ({ ...e, [c.id]: '' }))
@@ -134,6 +170,8 @@ export default function ConversacionesTab() {
           ))}
         </div>
       </div>
+
+      <ResumenCrossPlataforma metrics={metrics} motivo={metricsMotivo} />
 
       <div className="flex-1 overflow-y-auto py-4">
         {platform !== 'instagram' ? (
@@ -216,6 +254,64 @@ export default function ConversacionesTab() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// Comparativa cross-plataforma: qué canal de mensajería genera más leads/agendas reales. Solo
+// Instagram tiene datos hoy — Facebook y TikTok se pintan como "próximamente" en la MISMA fila para
+// que la comparación esté lista en cuanto se conecten, en vez de tener que buscarla en otro sitio.
+function ResumenCrossPlataforma({ metrics, motivo }: { metrics: ResumenMetricas | null; motivo: string }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 py-3 border-b border-border">
+      <TarjetaPlataforma label="Instagram" metrics={metrics} motivo={motivo} />
+      <TarjetaPlataforma label="Facebook" proximamente />
+      <TarjetaPlataforma label="TikTok" proximamente />
+    </div>
+  )
+}
+
+function TarjetaPlataforma({
+  label,
+  metrics,
+  motivo,
+  proximamente,
+}: {
+  label: string
+  metrics?: ResumenMetricas | null
+  motivo?: string
+  proximamente?: boolean
+}) {
+  return (
+    <div className="border border-border rounded-xl p-3 bg-muted/30">
+      <p className="text-2xs font-semibold text-foreground mb-1.5">{label}</p>
+      {proximamente ? (
+        <p className="text-3xs text-muted-foreground">Próximamente — sin integración de mensajería todavía.</p>
+      ) : metrics ? (
+        <div className="flex flex-col gap-1">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-lg font-bold text-foreground">{formatNumber(metrics.totalConversaciones)}</span>
+            <span className="text-3xs text-muted-foreground">conversaciones</span>
+          </div>
+          <p className="text-3xs text-muted-foreground">
+            <b className="text-foreground">{formatNumber(metrics.conAgendaVerificada)}</b> con agenda verificada en CRM
+            ({formatPercent(metrics.tasaAgendaSobreVinculados * 100, 0)} de los vinculados) ·{' '}
+            <b className="text-foreground">{formatNumber(metrics.conVentaVerificada)}</b> con venta
+          </p>
+          <p className="text-3xs text-muted-foreground">
+            {formatNumber(metrics.conContactoVinculado)} de {formatNumber(metrics.totalConversaciones)} vinculadas a un
+            contacto real ({formatPercent(metrics.tasaVinculacion * 100, 0)}) ·{' '}
+            {formatNumber(metrics.sinContactoVinculado)} sin vincular{' '}
+            {metrics.sinContactoConEnlaceAgenda > 0 && (
+              <span title="Se envió un enlace de agenda en el texto, pero no hay contacto vinculado para confirmar que se completó">
+                ({formatNumber(metrics.sinContactoConEnlaceAgenda)} con enlace de agenda enviado, sin confirmar)
+              </span>
+            )}
+          </p>
+        </div>
+      ) : (
+        <p className="text-3xs text-muted-foreground">{motivo || 'Cargando…'}</p>
+      )}
     </div>
   )
 }
