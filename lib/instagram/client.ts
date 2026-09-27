@@ -90,10 +90,10 @@ function q(cfg: IgConfig, extra = ''): string {
 // `graphGetAll` pagina llamando a esta función en bucle, un solo hueco cuelga la sync entera.
 const IG_TIMEOUT_MS = 15_000
 
-async function graphGet(url: string): Promise<any> {
+async function graphGet(url: string, timeoutMs = IG_TIMEOUT_MS): Promise<any> {
   let res: Response
   try {
-    res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(IG_TIMEOUT_MS) })
+    res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(timeoutMs) })
   } catch (err) {
     if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
       throw new InstagramApiError('La API de Instagram tardó demasiado en responder (timeout)', 'timeout')
@@ -132,12 +132,12 @@ function leerAnidado(valor: unknown, clave: string): string | undefined {
   return texto((valor as Record<string, unknown>)[clave])
 }
 
-async function graphGetAll(firstUrl: string, maxPages = 50): Promise<FilaGraph[]> {
+async function graphGetAll(firstUrl: string, maxPages = 50, timeoutMs = IG_TIMEOUT_MS): Promise<FilaGraph[]> {
   const out: FilaGraph[] = []
   let url: string | null = firstUrl
   let guard = 0
   while (url && guard < maxPages) {
-    const json = (await graphGet(url)) as { data?: unknown; paging?: { next?: string | null } }
+    const json = (await graphGet(url, timeoutMs)) as { data?: unknown; paging?: { next?: string | null } }
     if (Array.isArray(json?.data)) out.push(...(json.data as FilaGraph[]))
     url = json?.paging?.next || null
     guard++
@@ -603,9 +603,15 @@ export async function fetchIgConversationsWithMessages(
   // El endpoint de conversaciones de Meta es más pesado que el resto de la Graph API: en
   // algunas páginas responde error #1 ("reduce data") o supera el timeout. Un reintento
   // con página más pequeña lo salva la mayoría de las veces sin tocar al usuario.
+  // El primer intento usa un timeout MÁS CORTO que el genérico (IG_TIMEOUT_MS=15s): si se
+  // deja el genérico, un timeout real en el primer intento agota el presupuesto entero
+  // (12s) antes de que este catch se ejecute, y el reintento con página pequeña de abajo
+  // nunca llega a lanzarse — justo el bug reportado ("listar conversaciones: timeout" sin
+  // que el reintento se intentara nunca).
+  const TIMEOUT_INTENTO_INICIAL_MS = 7_000
   let rows: FilaGraph[]
   try {
-    rows = await graphGetAll(urlListado(limit), Math.ceil(limit / 50) + 1)
+    rows = await graphGetAll(urlListado(limit), Math.ceil(limit / 50) + 1, TIMEOUT_INTENTO_INICIAL_MS)
   } catch (e) {
     if (agotado() || !(e instanceof InstagramApiError)) throw e
     rows = await graphGetAll(urlListado(Math.min(limit, 10)), Math.ceil(limit / 50) + 1)
