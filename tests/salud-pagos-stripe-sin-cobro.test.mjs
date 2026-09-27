@@ -23,6 +23,7 @@ const vacio = {
   campanas: [],
   agendas: [],
   llamadas: [],
+  campanasFueraDeSeleccion: [],
   ultimaSyncPorFuente: {},
 }
 

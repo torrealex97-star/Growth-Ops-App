@@ -534,6 +534,7 @@ export default function ExpensesPage() {
       }
 
       const { error } = await supabase.from('expenses').insert({
+        tenant_id: tenantId,
         concept: extracted.concept || file.name,
         category: (extracted.category as Expense['category']) || 'otros',
         subcategory: extracted.counterparty || null,
@@ -657,6 +658,7 @@ export default function ExpensesPage() {
     }
 
     const { error } = await supabase.from('expenses').insert({
+      tenant_id: tenantId,
       concept: ne.concept.trim(),
       category: ne.category,
       subcategory: ne.subcategory.trim() || null,

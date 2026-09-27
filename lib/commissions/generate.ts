@@ -158,6 +158,21 @@ async function usuariosSinComision(sb: SupabaseClient, userIds: (string | null |
 }
 
 /**
+ * Personas EXENTAS de comisión de esta subcuenta (users.pays_commissions=false).
+ * Es la decisión "quién comisiona y quién no" — p.ej. un socio que cierra ventas
+ * pero cuyo beneficio no va por el ledger. Un fallo de lectura NO bloquea el cobro:
+ * degrada a "nadie exento" (comportamiento previo a la exención) y se registra.
+ */
+export async function usuariosExentosDeComision(sb: SupabaseClient, tenantId: string): Promise<Set<string>> {
+  const { data, error } = await sb.from('users').select('id').eq('tenant_id', tenantId).eq('pays_commissions', false)
+  if (error) {
+    console.error('[commissions/generate] exentos de comisión no legibles:', error.message)
+    return new Set()
+  }
+  return new Set(((data ?? []) as { id: string }[]).map((r) => r.id))
+}
+
+/**
  * Fee de pasarela por cobro (collection_id → fee) para la BASE NETA de comisión.
  *
  * Prioridad (función SQL commission_base_for_collection, migración 20260919100000):

@@ -2,7 +2,8 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { pickCommissionRule } from '@/lib/commissions/calculator'
-import { repNetCash } from '@/lib/commissions/generate'
+import { repNetCash, usuariosExentosDeComision } from '@/lib/commissions/generate'
+import { tipoDeCuotaFutura } from '@/lib/finance/nuevo-vs-recurrente'
 import { tramoIdByReps } from '@/lib/commissions/tramos'
 import { resolverScopeColaborador } from '@/lib/collaborators/scope'
 import type { CommissionRule } from '@/lib/types/database'
@@ -108,19 +109,37 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       .eq('sales.tenant_id', t.tenantId)
     if (reviewErr) throw new Error(`No se pudieron leer los cobros en revisión de comisión: ${reviewErr.message}`)
 
+    // Fechas de los cobros ya RECOGIDOS por venta: clasifican cada cuota futura como
+    // 'nuevo' (será el primer cobro de una venta que aún no cobró) o 'recurrente' (cuota
+    // del plan de una venta que ya cobró: el MRR) con la definición canónica de
+    // lib/finance/nuevo-vs-recurrente. Una sola lectura para calendario, revisión y previsión.
+    const saleIdsParaClasificar = [
+      ...(insts ?? []).map((raw) => (raw as unknown as { sales: { id: string } }).sales.id),
+      ...(reviewColls ?? []).map((raw) => (raw as unknown as { sales: { id: string } }).sales.id),
+      ...(ventasSinCalendario ?? []).map((v) => v.id),
+    ]
+    const idsUnicosParaClasificar = [...new Set(saleIdsParaClasificar)]
+    const { data: cobrosClasificacion } = idsUnicosParaClasificar.length
+      ? await sb
+          .from('collections')
+          .select('sale_id, collected_at')
+          .in('sale_id', idsUnicosParaClasificar)
+          .eq('status', 'collected')
+          .eq('tenant_id', t.tenantId)
+      : { data: [] }
+    const cobrosDeVenta = new Map<string, string[]>()
+    for (const c of (cobrosClasificacion ?? []) as { sale_id: string; collected_at: string | null }[]) {
+      if (!c.collected_at) continue
+      const lista = cobrosDeVenta.get(c.sale_id) ?? []
+      lista.push(c.collected_at)
+      cobrosDeVenta.set(c.sale_id, lista)
+    }
+
     // Nombres de usuarios
     const { data: users, error: usersErr } = await sb.from('users').select('id, full_name, pays_commissions')
     if (usersErr)
       throw new Error(`No se pudieron leer los usuarios (veto pays_commissions de MONEY D9): ${usersErr.message}`)
     const nameOf = new Map((users ?? []).map((u: { id: string; full_name: string }) => [u.id, u.full_name]))
-    // Quien tenga `pays_commissions = false` (p.ej. un socio) no debe ver comisión futura de
-    // ningún cobro pendiente — mismo veto que ya aplica lib/commissions/calculator.ts a la
-    // comisión real (docs/MONEY.md D9).
-    const noComisionan = new Set(
-      (users ?? [])
-        .filter((u: { id: string; pays_commissions?: boolean | null }) => u.pays_commissions === false)
-        .map((u: { id: string }) => u.id)
-    )
 
     // Tramo/nivel actual por rep (para reglas de comisión enlazadas a un tramo), igual que en generate.ts
     const repIdsForTramo = [
@@ -156,6 +175,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       rateCache.set(key, percent)
       return percent
     }
+    // Exentos de comisión de la subcuenta: ninguna proyección para ellos (misma regla que el motor).
+    const exentos = await usuariosExentosDeComision(sb, t.tenantId)
 
     type Row = {
       installmentId: string
@@ -171,6 +192,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       source: 'installment' | 'review'
       estado: 'pending' | 'overdue' | 'review'
       collectionId?: string
+      /** NUEVO = será el primer cobro de una venta que aún no cobró; RECURRENTE = cuota
+       * del plan de una venta que ya cobró (MRR). Definición canónica compartida con el
+       * cash recogido: lib/finance/nuevo-vs-recurrente. */
+      tipo: 'nuevo' | 'recurrente'
+      /** Exento (users.pays_commissions=false): la fila se lista con importe 0 para que nadie
+       * espere esta comisión — no suma en totales ni se convertirá en fila del motor. */
+      exento?: boolean
     }
     const rows: Row[] = []
 
@@ -190,6 +218,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       instId: string,
       source: 'installment' | 'review',
       estado: 'pending' | 'overdue' | 'review',
+      tipo: 'nuevo' | 'recurrente',
       collectionId?: string
     ) => {
       if (base <= 0) return
@@ -206,11 +235,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
         // El colaborador no proyecta lanes setter/closer (ni siquiera las de "sus" ventas):
         // esas proyecciones pertenecen a otros miembros y expondrían sus importes.
         if (esColaborador && (pType === 'setter' || pType === 'closer')) return
-        // Quien tenga `pays_commissions = false` (p.ej. un socio) no debe ver comisión futura:
-        // nunca va a comisionar ese cobro cuando entre (docs/MONEY.md D9).
-        if (noComisionan.has(repId)) return
+        // EXENTOS (users.pays_commissions=false, p.ej. socios): la fila se lista con importe 0 y
+        // el flag `exento` para que el panel avise — nadie debe esperar una comisión que el
+        // motor nunca generará. Sin importe, no contamina KPIs ni la proyección mensual.
+        const esExento = exentos.has(repId)
         const percent = pType === 'affiliate' ? Number(fixedPercent ?? 0) : await getRate(repId, pType)
-        if (!percent) return
+        if (!percent && !esExento) return
         rows.push({
           installmentId: instId,
           saleId: sale.id,
@@ -221,10 +251,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
           participantType: pType,
           base,
           percent,
-          amount: Math.round(base * percent) / 100,
+          amount: esExento ? 0 : Math.round(base * percent) / 100,
           source,
           estado,
           collectionId,
+          tipo,
+          ...(esExento ? { exento: true } : {}),
         })
       }
 
@@ -250,14 +282,27 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
         'installment',
         // Vencida sin cobrar = impago real, aunque el cron aún no la haya pasado a overdue
         // (mismo criterio que planCuotasDeVenta: la vista nunca pinta cobrado lo vencido).
-        inst.status === 'overdue' || inst.due_date < HOY ? 'overdue' : 'pending'
+        inst.status === 'overdue' || inst.due_date < HOY ? 'overdue' : 'pending',
+        tipoDeCuotaFutura(inst.due_date, cobrosDeVenta.get(inst.sales.id) ?? [])
       )
     }
 
     type ReviewRow = { id: string; collected_at: string; commissionable_amount: number | string; sales: SaleRel }
     for (const raw of reviewColls ?? []) {
       const c = raw as unknown as ReviewRow
-      await addRowsFor(c.sales, Number(c.commissionable_amount || 0), c.collected_at, c.id, 'review', 'review', c.id)
+      // El cobro en revisión ya está recogido: de la lista de su venta se excluye a sí mismo
+      // para que la comparación decida si ÉL es el primer cobro (nuevo) o hay anteriores.
+      const previosSinEl = (cobrosDeVenta.get(c.sales.id) ?? []).filter((f) => f !== c.collected_at)
+      await addRowsFor(
+        c.sales,
+        Number(c.commissionable_amount || 0),
+        c.collected_at,
+        c.id,
+        'review',
+        'review',
+        tipoDeCuotaFutura(c.collected_at, previosSinEl),
+        c.id
+      )
     }
 
     // Cuotas derivadas (previsión) de las ventas sin calendario materializado: mismas firmas
@@ -324,13 +369,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
           fechas[i],
           `${v.id}#${i + 1}`,
           'installment',
-          vencida ? 'overdue' : 'pending'
+          vencida ? 'overdue' : 'pending',
+          tipoDeCuotaFutura(fechas[i], cobrosDeVenta.get(v.id) ?? [])
         )
       }
     }
 
     const total = rows.reduce((s, r) => s + r.amount, 0)
-    return NextResponse.json({ ok: true, rows, total })
+    // DESGLOSE nuevo vs recurrente de la proyección (mismos importes que suman las filas):
+    // primeras cuotas de ventas nuevas frente a cuotas del plan de ventas que ya cobraron.
+    const desgloseNuevoVsRecurrente = { nuevo: 0, recurrente: 0 }
+    for (const r of rows) desgloseNuevoVsRecurrente[r.tipo] += r.amount
+    return NextResponse.json({ ok: true, rows, total, desgloseNuevoVsRecurrente })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 })
   }
