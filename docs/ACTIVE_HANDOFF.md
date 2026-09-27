@@ -29,6 +29,42 @@ sus `formatDateTime`; en Sidebar prevaleció la conversión zinc del lote sobre 
   en los lotes 1-2. **Nota CI:** el run de la PR fue cancelado externamente (~14:41, sin push propio; la
   concurrency group es por ref) — se re-lanza con el push de este commit de documentación.
 
+## 🔎 CONSOLIDADO (27-sep, tarde): revisión total del proyecto y del handoff (Freebuff/Buffy)
+
+Auditoría de coordinación sin cambios de código: `origin/main`, ramas remotas, PRs abiertas, crons,
+worktrees y tablero, cruzados con el relevo de Claude Code de más abajo.
+
+- **Estado de `main`:** `4a4ea62` (#251, webhook Calendly/pixel) con CI success por SHA. Fusionados y
+  verificados hoy: #244, #245, #249, #251 y los tres lotes de taste (#247/#248/#250).
+- **PRs abiertas a cierre:** #225 (`feat/money-25sep`, del usuario, con decisión pendiente propia) y 5
+  de Dependabot (#227-230, #235). Según el relevo de Claude Code, los majors ya están investigados en
+  las chores `recharts-3`, `eslint-9-config-next-16` y `tailwind-4` (artefacto real verificado, falta
+  vistazo visual en preview); #229 (ESLint 10) crashea de verdad con `eslint-config-next@16` — cerrar
+  las de Dependabot como superseded al mergear las chores.
+- **Las 12 ramas de Claude Code siguen sin PR.** 4 de sus piezas ya entraron en `main` por otra vía:
+  `PATCH reversed/disputed` (#244), `approve-review recuperable` (#245) y 2/3 del port de #225 dentro
+  de #249 (filtro de cuentas ads + nuevo-vs-recurrente canónico). Quedan íntegras por contenido
+  (verificado contra el código de `main`): `fix/disputed-no-es-cash` (sin tratamiento de `disputed` en
+  `lib/sales/plan-cuotas.ts`), `fix/ai-agent-historial-orden` (`ascending: true` sigue en
+  `lib/ai/agent/tools.ts`), `fix/ai-tools-lectura-fallida-no-es-cero`, `fix/collections-patch-sync-cuota`,
+  `docs/a3-alertas-deprioritizadas` y las 3 chores de majors. **La rama
+  `docs/relevo-sesion-27sep-r4-y-ramas-pendientes` (`6b09094`) es REDUNDANTE: su contenido completo ya
+  está en `main` (secciones «CONCURRENCIA» y «RELEVO») y le falta el lote 3 — no fusionarla, procede
+  cerrarla.** Su inventario de UX R4 (REQ-UX-02/03/05) quedó resuelto por #250: leer ese bloque antes
+  de re-ejecutar su plan.
+- **Checkout raíz (`fix/money-path-silent-writes`, carril de Claude Code):** 2 commits locales sin push
+  (`6160dc3` baseline de gates + `9453e67` formato del relevo) y WIP sin commitear en este mismo
+  handoff (+176 líneas del informe FASE A). Intacto a propósito — pendiente de su agente: commitear y
+  pushear o descartar.
+- **Crons GHA:** `stripe-payments` success; `sequra-morosos` FAILURE recurrente (último 14:38Z) por
+  `{"error":"Falta configurar SEQURA_MERCHANT_REFERENCE"}` — mismo bloqueo de usuario ya registrado en
+  USER ACTION REQUIRED. El resto de crons sin cambios.
+- **Carril producto (Freebuff):** lote 3 cerró REQ-UX-02/03 y REQ-UX-05 parcial (8 modales restantes,
+  lista en el bloque ✅ del lote 3) + revisión visual de dashboards autenticados pendiente de sesión
+  real (bloqueo de credenciales de los lotes 1-3).
+- **Tablero:** las 2 filas activas refieren lo mismo (migración `20260922100000` en producción,
+  encargo P1 a Claude Code del 25-sep) — siguen vigentes hasta que se aplique.
+
 ## Sentry activo + crons reanimados + rotación de secretos — 27-sep (Freebuff/Buffy)
 
 **Sentry (javascript-nextjs, org scalix-52):** DSN obtenido vía MCP (`find_dsns`) y subido como
