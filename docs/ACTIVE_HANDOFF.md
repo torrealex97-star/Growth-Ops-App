@@ -95,10 +95,17 @@ pull` escribe para variables _sensitive_ — quedaron guardadas literalmente y t
 **Paridad Fase 1.1 aplicada (Vercel, Production+Preview salvo que se diga):** restaurado `preview`
 en las 8 envs del incidente (lo habían perdido); creadas `NEXT_PUBLIC_SITE_URL=https://
 app.scalixsystems.com` (antes los emails/embeds caían a `http://localhost:3000`) y
-`CONFIG_ENC_KEY` nueva (production). **Ojo: 14 credenciales cifradas en `integration_settings`
-(`enc:v1:`) son indescifrables sin la clave vieja** (desde el 26-sep no había ninguna
-`CONFIG_ENC_KEY`): Meta, Stripe, Calendly, GHL, YouTube, Apify, Fathom… → regrabarlas desde
-Integraciones cuando toque (fail-closed: devuelven error controlado, no caen nada). Sin valores
+`CONFIG_ENC_KEY` nueva (production). **Credenciales cifradas en `integration_settings` (`enc:v1:`) indescifrables sin la clave vieja**
+(desde el 26-sep no había ninguna `CONFIG_ENC_KEY`). **Ya regrabadas (27-sep tarde) y verificadas
+en vivo:** `META_ACCESS_TOKEN` → dispatch de `cron-meta-daily` con HTTP 200, run `ok` en
+`integration_sync_runs` y 166 días sincronizados sin fallos (las subcuentas sin token se omiten
+honestamente); también `APIFY_API_TOKEN` e `INSTAGRAM_ACCESS_TOKEN`. **Pendientes de regrabar
+(12):** `STRIPE_SECRET_KEY` (la crítica: espejo de pagos), `GHL_API_TOKEN`, `GHL_WEBHOOK_SECRET`,
+`CALENDLY_API_TOKEN`, `CALENDLY_WEBHOOK_SECRET`, `META_APP_SECRET`, `RESEND_API_KEY`,
+`YOUTUBE_CLIENT_SECRET`, `DEEPSEEK_API_KEY`, `GROQ_API_KEY`, `FATHOM_API_KEY`,
+`BUNNY_STREAM_API_KEY` — desde Integraciones con el valor del gestor de contraseñas (la única
+copia restante murió con los envs del 26-sep). Fail-closed mientras tanto: error controlado, no
+ceros silenciosos. Sin valores
 reales disponibles (no subir máscaras): `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `POSTGRES_*`,
 `SUPABASE_URL`/`SUPABASE_SECRET_KEY`, `SEQURA_MERCHANT_REFERENCE`, `SENTRY_AUTH_TOKEN` —
 pedirlas a Alex / dashboard Supabase.
