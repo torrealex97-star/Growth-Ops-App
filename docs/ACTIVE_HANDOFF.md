@@ -1,5 +1,63 @@
 # Relevo activo
 
+## PROJECT RECONCILIATION — auditoría total 27-sep-2026 (Freebuff/Buffy)
+
+Auditoría de reconciliación completa (236 PRs, todas las fuentes de petición históricas, ramas, CI y
+código). **Entregables**: `PROJECT_RECONCILIATION.md`, `FEATURE_REQUEST_REGISTER.md`,
+`BRANCH_RECONCILIATION.md` y `RECOVERY_ROADMAP.md` en la raíz del repo. Resumen de estado:
+
+### VERIFIED COMPLETE
+
+Multi-tenancy/RLS · money path (ventas/reservas/cobros/Stripe/comisiones/socios) · F1+F2 (event core +
+conectores) · webhook GHL endurecido · Calendly · funnels · Fathom + cola · grabaciones · GA4 ·
+facturas IA · contratos · colaboradores · RAG/skills · aprovisionamiento · Data Health · Smoke E2E CI.
+
+### PARTIAL
+
+Escrituras silenciosas (~76 restantes; crons monthly/reminders primero) · F3 resto de fases · rename
+Afiliados→Colaboradores · filtros globales (pnl/finanzas/cohorts) · deuda UX (tokens, tipografía,
+formatos, modales) · Sequra monitorización · clasificación canónica de llamadas.
+
+### BROKEN
+
+Nada bloqueante en main (CI success 27-sep). Crons `ai-insights`/`stripe-payments` fallan en schedule
+(preexistente, ajeno). `sequra-morosos` 500 por `SEQURA_MERCHANT_REFERENCE` (USER).
+
+### IMPLEMENTED NOT MERGED
+
+PR #225 (`feat/money-25sep`, 9 commits, 34 ficheros — del propio Alex): base 14 commits atrás con
+solapes (#207–#236). NO fusionar a ciegas: rebase + resolución + quality (PR-R2.1). Doc único sin
+fusionar: `docs/BASELINE_QUALITY_2026-09-26.md` (rama local) → SAFE TO PORT (PR-R0.1).
+
+### LOST / REGRESSED
+
+Nada perdido en ramas remotas (no existe ninguna aparte de main). Los 40 PRs CLOSED sin merge:
+Dependabot superado + `codex/qa-fixes` #4 (superseded, contenido llegado por otras vías) + #210 duplicado.
+
+### NOT IMPLEMENTED
+
+Rate limiting login · restore drill/PITR · alertas A3 (necesitan canal) · tipado Database Supabase ·
+crear usuarios desde Subcuentas · auditoría visual completa (167 reglas).
+
+### USER ACTION REQUIRED
+
+1. Credenciales Supabase read-only en el entorno (desbloquea drift-ledger + 3 tests) · 2) decisión sobre
+   PR #225 · 3) rotaciones (Anthropic/GROQ/Management/GHL secret) · 4) SEQURA_MERCHANT_REFERENCE en Vercel ·
+2. pixel + UTMs en la web real · 6) reconexiones de proveedores y workflows GHL · 7) Railway worker ·
+3. retención legal (F6) · 9) majors Dependabot. Detalle: `RECOVERY_ROADMAP.md`.
+
+### NEXT PRS IN ORDER
+
+PR-R0.1 (port baseline doc) → PR-R0.2 (crons monthly/reminders fail-ruidoso) → PR-R0.3 (drift ledger,
+BLOCKED_USER credenciales) → PR-R2.1 (port #225 con Alex) → PR-R2.2/2.3 → R3 (datos) → R4 (UX).
+
+### CONCURRENCY NOTES
+
+Checkout raíz (`fix/money-path-silent-writes`) conserva WIP ajeno sin commitear: NO tocado, NO borrado.
+Rama local conservada por contener ese WIP (borrar la ref no borra el working tree). `gh run list
+--commit` usado para diagnóstico de CI (un run cancelled no es fallo). Sin migraciones, sin deletes,
+sin merges de ramas antiguas durante la auditoría.
+
 ## ✅ RESULTADO (27-sep): webhook GHL sin escrituras silenciosas — PR #236 fusionada en main
 
 La unidad «Escrituras silenciosas — webhook GHL» está FUSIONADA: PR #236 (merge `a595298`), CI de la
