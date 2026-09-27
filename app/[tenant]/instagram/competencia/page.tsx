@@ -470,7 +470,7 @@ export default function CompetenciaPage() {
               {adding ? 'Analizando…' : 'Analizar'}
             </button>
           </div>
-          <p className="text-[11px] text-muted-foreground mt-2">
+          <p className="text-2xs text-muted-foreground mt-2">
             Se ordena por likes + comentarios (la API no da views de terceros).
           </p>
         </div>
@@ -500,7 +500,7 @@ export default function CompetenciaPage() {
               {addingReel ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
             </button>
           </div>
-          <p className="text-[11px] text-muted-foreground mt-2">
+          <p className="text-2xs text-muted-foreground mt-2">
             Si el enlace no lleva el usuario, ponlo en @usuario. Debe ser un reel reciente y público.
           </p>
         </div>
@@ -616,7 +616,7 @@ export default function CompetenciaPage() {
                 {/* Marca "Ya en Ideas" */}
                 {inIdeas && (
                   <span
-                    className="absolute top-2 right-2 z-10 flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                    className="absolute top-2 right-2 z-10 flex items-center gap-1 text-3xs px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
                     title="Ya generaste un guión de este reel"
                   >
                     <Check className="w-3 h-3" /> En Ideas
@@ -782,7 +782,7 @@ export default function CompetenciaPage() {
                   placeholder="Describe tu negocio, avatares y funnel…"
                   className="w-full bg-muted border border-border rounded-lg p-3 text-sm text-foreground focus:outline-none focus:border-pink-500"
                 />
-                <div className="mt-2 text-[11px] text-muted-foreground space-y-0.5 max-h-32 overflow-y-auto">
+                <div className="mt-2 text-2xs text-muted-foreground space-y-0.5 max-h-32 overflow-y-auto">
                   {CTAS.map((c) => (
                     <div key={c.code}>
                       <span className="text-pink-400 font-medium">{c.code}</span> — {c.description}
@@ -896,7 +896,7 @@ export default function CompetenciaPage() {
                     className="w-full mt-1 bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground focus:outline-none focus:border-pink-500"
                   />
                 </div>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   Mantendrá el hook y la primera parte del original, y a partir de ahí lo reconduce a tu negocio
                   cerrando con el CTA.
                   {gen.testimonio && ' Meterá el caso de éxito como prueba social en el puente, con sus cifras reales.'}

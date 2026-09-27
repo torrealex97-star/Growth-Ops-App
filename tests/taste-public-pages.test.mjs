@@ -5,7 +5,7 @@
 // solo tenant. Esto fija el criterio como tests estáticos (mismo patrón que webhook-ghl.test.mjs):
 // si alguien reintroduce el drift, la suite avisa.
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import test from 'node:test'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -66,4 +66,64 @@ test('ver-como/entrar usa la familia zinc de la casa, no neutral', () => {
   assert.ok(src.includes('bg-zinc-950'), 'el fondo de la página puente usa zinc-950 como global-error')
   assert.ok(!src.includes('neutral-'), 'ninguna superficie pública usa la familia neutral (§4.2: una paleta de grises)')
   assert.ok(src.includes('focus-visible:ring'), 'el botón Volver tiene foco de teclado visible')
+})
+
+// LOTE 3 (27-sep) — deuda UX R4: REQ-UX-02 (familia zinc en el shell), REQ-UX-03 (tokens
+// tipográficos en config, no arbitrarios sueltos) y REQ-UX-05 (modales con el Dialog de la casa).
+const SIDEBAR = join(aqui, '..', 'components', 'os', 'Sidebar.tsx')
+const TENANT_LAYOUT = join(aqui, '..', 'app', '[tenant]', 'layout.tsx')
+const TAILWIND = join(aqui, '..', 'tailwind.config.ts')
+const MODALES_LOTE3 = [
+  'app/[tenant]/tasks/page.tsx',
+  'app/[tenant]/csm-events/page.tsx',
+  'app/[tenant]/contratos/page.tsx',
+  'app/[tenant]/drops/page.tsx',
+  'app/[tenant]/recursos/biblioteca/page.tsx',
+].map((r) => join(aqui, '..', r))
+
+// Recolecta los .tsx bajo un directorio (para invariante global de la base de código).
+const walkTsx = (dir, acc = []) => {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name)
+    if (e.isDirectory()) walkTsx(p, acc)
+    else if (e.name.endsWith('.tsx')) acc.push(p)
+  }
+  return acc
+}
+
+test('el shell (sidebar + layout) vive en zinc, sin hexes ni SVG dibujados a mano (REQ-UX-02)', () => {
+  const sidebar = read(SIDEBAR)
+  assert.ok(
+    !/#[0-9a-fA-F]{3,8}\b/.test(sidebar),
+    'el shell no debe usar hexes: zinc cubre la paleta (los hexes quedan para HTML de email y data-viz)'
+  )
+  const layout = read(TENANT_LAYOUT)
+  assert.ok(layout.includes('AlertTriangle'), 'el aviso de suplantación usa el icono AlertTriangle de lucide')
+  assert.ok(layout.includes('text-red-400'), 'el icono conserva el rojo de estado que tenía el SVG a mano')
+  assert.ok(!layout.includes('<svg'), 'no quedan SVG dibujados a mano en el layout del shell')
+})
+
+test('los tamaños pequeños usan los tokens text-3xs/text-2xs, no arbitrarios (REQ-UX-03)', () => {
+  const cfg = read(TAILWIND)
+  assert.ok(cfg.includes("'3xs': '10px'"), 'el token text-3xs (10px) debe existir en theme.extend.fontSize')
+  assert.ok(cfg.includes("'2xs': '11px'"), 'el token text-2xs (11px) debe existir en theme.extend.fontSize')
+  const raiz = join(aqui, '..')
+  const conArbitrario = [join(raiz, 'app'), join(raiz, 'components')]
+    .flatMap((dir) => (existsSync(dir) ? walkTsx(dir) : []))
+    .filter((f) => /text-\[1[01]px\]/.test(read(f)))
+  assert.ok(
+    conArbitrario.length === 0,
+    `no debe quedar text-[10px]/text-[11px] fuera del token (en: ${conArbitrario.slice(0, 3).join(', ')})`
+  )
+})
+
+test('los modales migrados al Dialog de la casa no vuelven a overlays caseros (REQ-UX-05)', () => {
+  for (const f of MODALES_LOTE3) {
+    const src = read(f)
+    assert.ok(
+      !src.includes('fixed inset-0'),
+      `${f}: los modales de la casa van sobre components/ui/dialog (Radix: foco, Esc, click-fuera gratis)`
+    )
+    assert.ok(src.includes("from '@/components/ui/dialog'"), `${f}: debe usar el Dialog de la casa`)
+  }
 })

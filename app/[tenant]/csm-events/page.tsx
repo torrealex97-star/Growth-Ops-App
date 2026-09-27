@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeUserNamesQuery } from '@/lib/users'
-import { CalendarCheck, Plus, X } from 'lucide-react'
+import { CalendarCheck, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useSesion } from '@/lib/tenant-context'
 
 const STATUSES = [
@@ -277,7 +278,7 @@ export default function CsmEventsPage() {
           <div className="bg-card/50 border border-border rounded-lg p-4">
             <p className="text-xs text-muted-foreground">%Cancel(E)</p>
             <p className="text-2xl font-bold text-foreground mt-1">{funnelKpis.pctCancelTotal.toFixed(0)}%</p>
-            <p className="text-[10px] text-muted-foreground mt-1">
+            <p className="text-3xs text-muted-foreground mt-1">
               Admin {funnelKpis.pctCancelAdmin.toFixed(0)}% · Alumno {funnelKpis.pctCancelAlumno.toFixed(0)}%
             </p>
           </div>
@@ -326,7 +327,7 @@ export default function CsmEventsPage() {
                     <div key={e.id} className="bg-card border border-border rounded-lg p-3 space-y-2">
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-sm text-foreground leading-snug">{e.contacts?.full_name || '—'}</p>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                        <span className="text-3xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
                           {TYPES.find((t) => t.value === e.type)?.label}
                         </span>
                       </div>
@@ -359,20 +360,11 @@ export default function CsmEventsPage() {
       )}
 
       {showNew && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setShowNew(false)}
-        >
-          <div
-            className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-foreground font-semibold">Nuevo evento CSM</h3>
-              <button onClick={() => setShowNew(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+        <Dialog open={showNew} onOpenChange={setShowNew}>
+          <DialogContent className="w-full max-w-md gap-3">
+            <DialogHeader>
+              <DialogTitle>Nuevo evento CSM</DialogTitle>
+            </DialogHeader>
             <select
               value={ne.contact_id}
               onChange={(e) => setNe({ ...ne, contact_id: e.target.value })}
@@ -423,8 +415,8 @@ export default function CsmEventsPage() {
                 Crear
               </button>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

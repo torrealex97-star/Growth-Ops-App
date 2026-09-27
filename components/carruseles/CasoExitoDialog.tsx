@@ -127,7 +127,7 @@ export function CasoExitoDialog({ open, onOpenChange }: Props) {
               >
                 {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImagePlus className="h-5 w-5" />}
                 <span className="text-sm">{uploading ? 'Subiendo…' : 'Subir foto'}</span>
-                <span className="text-[11px]">
+                <span className="text-2xs">
                   Sale en la primera slide. Vale horizontal: se encaja sin recortar caras.
                 </span>
               </button>
@@ -148,7 +148,7 @@ export function CasoExitoDialog({ open, onOpenChange }: Props) {
           <div>
             <div className="flex items-center justify-between">
               <label className="text-xs font-medium text-muted-foreground">Explicación del caso</label>
-              <span className="text-[11px] text-muted-foreground">
+              <span className="text-2xs text-muted-foreground">
                 {story.trim().length < MIN_STORY
                   ? `${story.trim().length}/${MIN_STORY} mínimo`
                   : `${story.trim().length} caracteres`}
@@ -162,7 +162,7 @@ export function CasoExitoDialog({ open, onOpenChange }: Props) {
               disabled={generating}
               className="mt-1 text-sm"
             />
-            <p className="text-[11px] text-muted-foreground mt-1.5">
+            <p className="text-2xs text-muted-foreground mt-1.5">
               Cuanto más detalle des del antes, el después y las cifras reales, mejor sale. No se inventan cifras: si el
               caso no tiene facturación todavía, se enfoca como testimonio de proceso.
             </p>

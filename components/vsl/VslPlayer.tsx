@@ -642,7 +642,7 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
       {sp && (cfg.socialProof === 'fake' || cfg.socialProof === 'real') && (
         <div className="pointer-events-none absolute left-2.5 top-2.5 z-20 flex flex-col gap-1">
           {sp.watching > 0 && (
-            <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
+            <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1 text-2xs font-medium text-white backdrop-blur-sm">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
@@ -651,7 +651,7 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
             </span>
           )}
           {sp.watched > 0 && (
-            <span className="inline-flex w-fit items-center rounded-full bg-black/45 px-2.5 py-1 text-[10px] text-white/85 backdrop-blur-sm">
+            <span className="inline-flex w-fit items-center rounded-full bg-black/45 px-2.5 py-1 text-3xs text-white/85 backdrop-blur-sm">
               {fmtNum(sp.watched)} ya lo han visto
             </span>
           )}

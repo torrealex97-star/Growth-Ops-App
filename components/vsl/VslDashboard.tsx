@@ -329,7 +329,7 @@ export function VslDashboard() {
                 {metrics.milestones.map((m) => (
                   <div key={m.pct} className="rounded-lg bg-black/30 px-3 py-2 text-center">
                     <p className="text-lg font-semibold tabular-nums text-foreground">{m.rate}%</p>
-                    <p className="text-[11px] text-muted-foreground">llegan al {m.pct}%</p>
+                    <p className="text-2xs text-muted-foreground">llegan al {m.pct}%</p>
                   </div>
                 ))}
               </div>
@@ -422,7 +422,7 @@ export function VslDashboard() {
                       {metrics.leads.map((l, i) => (
                         <tr key={i} className="border-t border-white/5">
                           <td className="py-2">
-                            <div className="text-[#e2e8f0]">{l.email}</div>
+                            <div className="text-zinc-200">{l.email}</div>
                             {l.name && <div className="text-xs text-muted-foreground">{l.name}</div>}
                           </td>
                           <td className="py-2">

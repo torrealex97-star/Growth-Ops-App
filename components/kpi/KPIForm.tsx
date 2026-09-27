@@ -54,7 +54,7 @@ export function KPIForm({
             {field.field_label}
             {field.is_required && !isAuto(field.field_key) && <span className="text-red-400 ml-1">*</span>}
             {isAuto(field.field_key) && (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-brand-500/20 text-brand-300 border border-brand-500/30">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-medium bg-brand-500/20 text-brand-300 border border-brand-500/30">
                 <Sparkles className="w-2.5 h-2.5" /> Automático
               </span>
             )}
@@ -65,7 +65,7 @@ export function KPIForm({
           {isAuto(field.field_key) ? (
             <div className="flex items-center justify-between rounded-md border border-border bg-muted/50 px-3 py-2">
               <span className="text-sm text-foreground font-medium">{autoValues[field.field_key] ?? 0}</span>
-              <span className="text-[11px] text-muted-foreground">calculado desde la app</span>
+              <span className="text-2xs text-muted-foreground">calculado desde la app</span>
             </div>
           ) : (
             <>

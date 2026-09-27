@@ -83,7 +83,7 @@ export function FunnelCanonicoPanel({ funnel }: { funnel: FunnelGlobal }) {
             <div className="flex items-baseline justify-between">
               <span className="text-sm text-muted-foreground">
                 → {e.to}{' '}
-                <span className="text-[10px]">
+                <span className="text-3xs">
                   {e.from} → {e.to} %
                 </span>
               </span>

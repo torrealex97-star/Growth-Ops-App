@@ -157,11 +157,11 @@ function ConectorCard({ conector }: { conector: SaludConector }) {
         <div className="mt-3 rounded-md border border-red-500/30 bg-red-500/10 p-2">
           {/* De QUÉ pasada viene: casi nunca es la de arriba (Meta tiene tres jobs), y sin decirlo
               la tarjeta se contradecía sola — "31 s" encima de "no se sabe cuánto duró". */}
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             Incidencia en {conector.incidencia.job} · {new Date(conector.incidencia.cuando).toLocaleString('es-ES')}
           </p>
           <p className="mt-1 text-xs text-red-300">{conector.incidencia.mensaje}</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">
+          <p className="mt-1 text-2xs text-muted-foreground">
             {conector.incidencia.seReintentaSolo
               ? 'Es un fallo de transporte: la próxima pasada puede arreglarlo sola.'
               : 'No se arregla solo: hay que tocar la configuración o la fuente.'}
@@ -169,7 +169,7 @@ function ConectorCard({ conector }: { conector: SaludConector }) {
         </div>
       )}
 
-      <p className="mt-3 text-[11px] text-muted-foreground">{conector.cursor.motivo}</p>
+      <p className="mt-3 text-2xs text-muted-foreground">{conector.cursor.motivo}</p>
     </div>
   )
 }

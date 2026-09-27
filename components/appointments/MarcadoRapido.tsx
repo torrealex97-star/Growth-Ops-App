@@ -206,7 +206,7 @@ export function MarcadoRapido({ tenant, cita, onMarcado }: Props) {
           />
           {cargando('oferta') && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
           {/* Cualificada ES haber recibido la oferta. Se dice aquí para que nadie busque otro campo. */}
-          <span className="text-[11px] text-muted-foreground">Marcarla cuenta la llamada como cualificada</span>
+          <span className="text-2xs text-muted-foreground">Marcarla cuenta la llamada como cualificada</span>
         </div>
       )}
 

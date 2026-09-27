@@ -1750,7 +1750,7 @@ export default function AppointmentsPage() {
                             } ${CATEGORY_BLOCK_CLASSES[category]} ${isCancelled ? 'z-10' : 'z-20'} ${appt.needs_followup ? 'ring-2 ring-indigo-400/70' : ''}`}
                           >
                             {tier !== 'full' ? (
-                              <p className="text-[11px] leading-none text-foreground truncate flex items-center gap-1">
+                              <p className="text-2xs leading-none text-foreground truncate flex items-center gap-1">
                                 {category === 'compra' && (
                                   <Banknote className="w-3 h-3 text-green-400 shrink-0" aria-label="Venta" />
                                 )}
@@ -1767,7 +1767,7 @@ export default function AppointmentsPage() {
                               </p>
                             ) : null}
                             {tier !== 'xs' ? (
-                              <p className="text-[10px] text-brand-300 truncate flex items-center gap-1">
+                              <p className="text-3xs text-brand-300 truncate flex items-center gap-1">
                                 <span
                                   className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${closerColorClass(appt.closer_id)}`}
                                 />
@@ -1777,22 +1777,22 @@ export default function AppointmentsPage() {
                             {tier === 'full' ? (
                               <>
                                 {appt.setter?.full_name && (
-                                  <p className="text-[10px] text-muted-foreground truncate">{appt.setter.full_name}</p>
+                                  <p className="text-3xs text-muted-foreground truncate">{appt.setter.full_name}</p>
                                 )}
                                 <div className="flex items-center gap-1 flex-wrap mt-1">
                                   <Badge
-                                    className={`border text-[10px] gap-1 whitespace-nowrap ${CATEGORY_BADGE_CLASSES[category]}`}
+                                    className={`border text-3xs gap-1 whitespace-nowrap ${CATEGORY_BADGE_CLASSES[category]}`}
                                   >
                                     {category === 'compra' && <Banknote className="w-3 h-3" />}
                                     {CATEGORY_LABELS[category]}
                                   </Badge>
                                   {appt.needs_followup ? (
-                                    <Badge className="border text-[10px] bg-indigo-500/20 text-indigo-300 border-indigo-500/30 whitespace-nowrap">
+                                    <Badge className="border text-3xs bg-indigo-500/20 text-indigo-300 border-indigo-500/30 whitespace-nowrap">
                                       Seguimiento
                                     </Badge>
                                   ) : null}
                                   {appt.duration_minutes ? (
-                                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                    <span className="text-3xs text-muted-foreground whitespace-nowrap">
                                       {appt.duration_minutes} min
                                     </span>
                                   ) : null}

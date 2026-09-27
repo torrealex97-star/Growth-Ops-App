@@ -117,7 +117,7 @@ export default function ConversacionesTab() {
       <div className="flex items-center gap-3 flex-wrap pb-3 border-b border-border">
         <div>
           <h1 className="text-base font-bold text-foreground leading-tight">Conversaciones</h1>
-          <p className="text-[11px] text-muted-foreground leading-tight">
+          <p className="text-2xs text-muted-foreground leading-tight">
             Extrae y analiza con IA las conversaciones reales de redes sociales.
           </p>
         </div>
@@ -150,8 +150,8 @@ export default function ConversacionesTab() {
             {motivo && <p className="mb-2 text-foreground">{motivo}</p>}
             <p>
               Configura el token en <b>Configuración → Integraciones</b> (necesita el permiso{' '}
-              <code className="text-[11px] bg-muted px-1 py-0.5 rounded">instagram_manage_messages</code>) para poder
-              ver y analizar aquí las conversaciones reales.
+              <code className="text-2xs bg-muted px-1 py-0.5 rounded">instagram_manage_messages</code>) para poder ver y
+              analizar aquí las conversaciones reales.
             </p>
           </div>
         ) : conversations.length === 0 ? (
@@ -171,11 +171,11 @@ export default function ConversacionesTab() {
                   )}
                   <span className="font-medium text-sm flex-1 truncate">{c.participant || 'Lead sin nombre'}</span>
                   {c.unread_count > 0 && (
-                    <span className="text-[10px] bg-brand-600 text-white rounded-full px-1.5 py-0.5">
+                    <span className="text-3xs bg-brand-600 text-white rounded-full px-1.5 py-0.5">
                       {c.unread_count} sin leer
                     </span>
                   )}
-                  <span className="text-[11px] text-muted-foreground">{c.message_count} msgs</span>
+                  <span className="text-2xs text-muted-foreground">{c.message_count} msgs</span>
                 </button>
                 {openId === c.id && (
                   <div className="border-t border-border p-3 bg-background">

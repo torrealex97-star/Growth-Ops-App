@@ -42,13 +42,13 @@ export function ReferenceImages({ projectId, images, onChange }: Props) {
   return (
     <div className="px-4 py-2.5 border-b border-border">
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="text-3xs font-semibold uppercase tracking-wider text-muted-foreground">
           Referencias visuales
         </span>
         <button
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
-          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
+          className="flex items-center gap-1 text-3xs text-muted-foreground hover:text-foreground"
         >
           {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImagePlus className="h-3 w-3" />}
           Añadir
