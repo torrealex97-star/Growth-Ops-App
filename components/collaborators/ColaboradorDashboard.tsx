@@ -28,6 +28,7 @@ import {
   type PeriodPreset,
 } from '@/lib/filters/period'
 import { isActiveSale, monthLabel } from '@/lib/analytics'
+import { formatNumber } from '@/lib/utils'
 import { isAttended, isNoShow } from '@/lib/appointments/status'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { contactIdsDeScope, type ScopeColaborador } from '@/lib/collaborators/scope'
@@ -73,8 +74,9 @@ type Actividad = {
 }
 
 const num = (x: number | string | null | undefined) => Number(x ?? 0)
-const eur = (n: number) =>
-  new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
+// Fuente única de formato (CLAUDE.md: nada de toLocaleString/Intl.NumberFormat inline) —
+// misma composición que components/metrics/KpiCard.tsx para moneda sin decimales.
+const eur = (n: number) => formatNumber(n, { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 
 const TIPO_STYLE: Record<Actividad['tipo'], string> = {
   contacto: 'bg-sky-500/10 text-sky-400',
