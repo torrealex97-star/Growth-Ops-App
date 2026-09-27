@@ -1,5 +1,27 @@
 # Relevo activo
 
+## ✅ RESULTADO (27-sep): PR-R2.2b — allowlist de campos en `sales/complete-reservation` (PR #240)
+
+Fusionada en `main` (`c8d70b2`), CI de la PR en verde (quality 1m30s con dead-code, gitleaks 8s,
+build 2m47s, Smoke E2E 5m8s). Hallazgo P1 #1 del informe FASE A del 26-sep:
+
+- **Allowlist del `patch`** (commit de Claude adoptado, verificado campo a campo contra la UI):
+  exactamente los 24 campos de `ventas/registro/nueva`; campo fuera de la lista → 400 antes de
+  tocar la base. Cerraba la escritura arbitraria de columnas de `sales` por service role desde
+  roles no directivos (manager/closer/setter/cobros).
+- **Extensión de esta unidad:** el insert del calendario de cuotas también recibía spread del
+  cuerpo del cliente; ahora filas copiadas campo a campo contra `ALLOWED_INSTALLMENT_FIELDS`,
+  400 ante campo no previsto y `sale_id`/`tenant_id` sellados por servidor (p. ej.
+  `is_monitoring=true` escondía cuotas del motor de morosidad).
+- **Delete de cuotas verificado** antes del insert (un fallo duplicaba el calendario) — parte
+  del commit adoptado.
+- **Test:** `tests/sales-complete-reservation-allowlist.test.mjs` (6 invariantes estáticos).
+- **Verificado:** suite focal 6/6 · quality local completo (960 unit pass / 0 fail / 3 skips
+  preexistentes, 740 métricas) · CI verde · rama borrada.
+- **Sigue del informe FASE A (unidad siguiente):** `approve-review` (limpia el flag antes de
+  garantizar la comisión y el retry responde 400), PATCH `reversed` sin devolver la cuota a
+  pendiente, `disputed` tratado como cobrado (contradice D5 de MONEY.md).
+
 ## ✅ RESULTADO (27-sep): PR-R0.1 y PR-R0.2 del RECOVERY_ROADMAP fusionadas en main
 
 - **PR-R0.1 — PR #237** (`579a379`): port de `docs/BASELINE_QUALITY_2026-09-26.md` desde la rama
@@ -392,11 +414,10 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama                               | Toca                                                                                                                                    | Desde  |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar)                     | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts`                                         | 25-sep |
-| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)                       | solo `expenses` vía migración pendiente; nada en código                                                                                 | 23-sep |
-| Freebuff (Buffy)  | **PR-R2.2b — allowlist de campos en `sales/complete-reservation`** (hallazgo P1 FASE A del 26-sep): `patch` sin lista de campos permitidos con service role y delete de cuotas sin comprobar (implementación de Claude adoptada en esta rama + extensión de allowlist por fila del calendario de cuotas)                                                                                       | fix/complete-reservation-allowlist | `app/api/[tenant]/evergreen/sales/complete-reservation/route.ts`, `tests/sales-complete-reservation-allowlist.test.mjs`, este documento | 27-sep |
+| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama           | Toca                                                                                            | Desde  |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
+| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
+| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
