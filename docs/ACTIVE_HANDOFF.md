@@ -1,5 +1,31 @@
 # Relevo activo
 
+## ✅ RESULTADO (27-sep): skill taste instalada + paridad VSL (PR #241)
+
+Fusionada en `main` (`fef2673`), CI en verde (quality 1m49s con dead-code, gitleaks 7s, build 2m14s,
+Smoke E2E 3m39s). Petición de Alex: instalar la skill taste para el diseño y completar las
+funcionalidades de Vidalytics/PandaVideo/Wistia que "se avanzaron" y no están (el trabajo "VSL V1/V2"
+de una hebra perdida nunca llegó a main — confirmado por el registro de peticiones).
+
+- **Skill taste**: `.codebuff/skills/design-taste-frontend/SKILL.md` (taste-skill v2 de
+  Leonxlnx/taste-skill, MIT) + puntero de uso obligatorio en `AGENTS.md` (design read, dials,
+  bans anti-slop, pre-flight check; respeta #2563EB y copy en español; no reescribe dashboards).
+- **CTA programado con auto-pausa** en `VslPlayer` (el clásico de Vidalytics): aparece al cruzar
+  un % configurable, pausa el vídeo opcionalmente, cerrable (ctaOnce), URL saneada (solo relativa
+  o http(s)), evento 'cta' en el latido, accesible (role/aria/foco/contraste).
+- **Hitos de visión 25/50/75/95/100** en métricas (paridad reporting Vidalytics/Wistia),
+  derivados de `max_position` de `vsl_sessions` — SIN migración: la config nueva es JSONB
+  fusionada por `mergeConfig` y los vídeos existentes quedan con CTA desactivado.
+- **Dashboard**: tarjeta "Hitos de visión" + editor del CTA (texto/URL/%/pausa/cerrable).
+- **% VSL directo del reproductor (WISHLIST 4/REQ-WISH-04): ya existía** — `syncContactWatchPct`
+  copia el % exacto a `contacts.vsl_watch_pct` en cada latido; lo que faltaba era el reporting de
+  hitos, añadido. El webhook `vsl.progress` de la landing sigue como vía complementaria.
+- **Verificado:** suite focal 6/6 (`tests/vsl-cta-paridad.test.mjs`) · quality local completo
+  (966 unit / 0 fail / 3 skips, 740 métricas) · CI verde · rama borrada. **No verificado:** review
+  visual del overlay/editor con navegador (sandbox sin sesión).
+- **Anotado (requiere migración):** `vsl_sessions.cta_clicks` para contar clicks del CTA, con el
+  lote de migraciones pendientes (misma lección de `20260922100000`).
+
 ## ✅ RESULTADO (27-sep): PR-R2.2b — allowlist de campos en `sales/complete-reservation` (PR #240)
 
 Fusionada en `main` (`c8d70b2`), CI de la PR en verde (quality 1m30s con dead-code, gitleaks 8s,
@@ -414,11 +440,10 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama                         | Toca                                                                                                                                                                                                                                                                      | Desde  |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar)               | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts`                                                                                                                                                                           | 25-sep |
-| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)                 | solo `expenses` vía migración pendiente; nada en código                                                                                                                                                                                                                   | 23-sep |
-| Freebuff (Buffy)  | **Skill taste + paridad VSL** (petición de Alex 27-sep): instala `.codebuff/skills/design-taste-frontend/SKILL.md` (anti-slop) con puntero en AGENTS.md; añade al reproductor VSL el CTA programado con auto-pausa (paridad Vidalytics) y a métricas los hitos de visión 25/50/75/95/100 (paridad reporting Vidalytics/Wistia), sin migración (config JSONB + max_position)                    | feat/skill-taste-vsl-paridad | `.codebuff/skills/design-taste-frontend/SKILL.md`, `AGENTS.md`, `components/vsl/VslPlayer.tsx`, `components/vsl/VslDashboard.tsx`, `lib/vsl/types.ts`, `app/api/[tenant]/evergreen/vsl/metrics/[slug]/route.ts`, `tests/vsl-cta-paridad.test.mjs` (nuevo), este documento | 27-sep |
+| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama           | Toca                                                                                            | Desde  |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
+| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
+| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
