@@ -24,7 +24,10 @@ test('detectarEnlaceAgendaEnTexto: detecta enlaces típicos de Calendly/Cal.com/
     detectarEnlaceAgendaEnTexto(conv('1', 'x', [{ from: 'agente', text: 'Aquí tienes: calendly.com/winners/intro' }])),
     true
   )
-  assert.equal(detectarEnlaceAgendaEnTexto(conv('2', 'x', [{ from: 'agente', text: 'Resérvalo en cal.com/ia-winners' }])), true)
+  assert.equal(
+    detectarEnlaceAgendaEnTexto(conv('2', 'x', [{ from: 'agente', text: 'Resérvalo en cal.com/ia-winners' }])),
+    true
+  )
   assert.equal(
     detectarEnlaceAgendaEnTexto(conv('3', 'x', [{ from: 'lead', text: 'Hola, quiero más info sobre la IA' }])),
     false
@@ -67,7 +70,12 @@ test('calcularMetricas: solo cuenta agenda/venta cuando hay contacto vinculado c
   const contactIdsConAgenda = new Set(['contact-1']) // maria SÍ tiene cita real
   const contactIdsConVenta = new Set([]) // nadie compró todavía
 
-  const { resumen, porConversacion } = calcularMetricas(conversations, contactos, contactIdsConAgenda, contactIdsConVenta)
+  const { resumen, porConversacion } = calcularMetricas(
+    conversations,
+    contactos,
+    contactIdsConAgenda,
+    contactIdsConVenta
+  )
 
   assert.equal(resumen.totalConversaciones, 3)
   assert.equal(resumen.conContactoVinculado, 2)
