@@ -53,12 +53,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (!conv) return NextResponse.json({ error: 'Conversación no encontrada' }, { status: 404 })
   }
 
-  const { data: priorMessages } = await sb
+  // `order + limit` con ascending=true trae los MAX_HISTORY mensajes MÁS ANTIGUOS de la
+  // conversación, no los recientes — en una conversación larga el modelo perdía el contexto
+  // justo del turno que el usuario acaba de escribir. Se pide en orden DESCENDENTE (los últimos
+  // N) y se revierte en memoria para mandarlos al modelo en orden cronológico.
+  const { data: priorMessagesDesc } = await sb
     .from('ai_messages')
     .select('role,content')
     .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(MAX_HISTORY)
+  const priorMessages = priorMessagesDesc ? [...priorMessagesDesc].reverse() : priorMessagesDesc
 
   const { error: userMsgErr } = await sb
     .from('ai_messages')
