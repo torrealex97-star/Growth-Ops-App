@@ -18,8 +18,32 @@
 - **Verificado:** suite focal 29/29 · quality local completo (946 unit pass / 0 fail / 3 skips
   preexistentes sin credenciales, 740 métricas) · CI de la PR verde (quality 1m39s con dead-code,
   gitleaks 8s, build 2m22s, Smoke E2E 5m9s, Vercel) · ramas borradas en remoto y local.
-- **Siguiente unidad del patrón:** `commissions/future` y `sales/delete` (PR-R2.2); la R0.3
-  (drift ledger) sigue BLOCKED_USER sin credenciales Supabase.
+- **Siguiente unidad del patrón:** barrido del resto (recuento pendiente del próximo barrido); la
+  R0.3 (drift ledger) sigue BLOCKED_USER sin credenciales Supabase.
+
+## ✅ RESULTADO (27-sep): PR-R2.2 — borrado compensable de ventas y comisiones futuras verificadas (PR #239)
+
+Fusionada en `main` (`cc2c021`), CI de la PR en verde (quality 1m25s con dead-code, gitleaks 6s,
+build 2m54s, Smoke E2E 5m7s, Vercel), rama borrada. Criterio #231/#236/#238 aplicado a las dos
+rutas del foco P2 del 26-sep:
+
+- **`sales/delete`:** el snapshot de auditoría (única vía de reconstrucción tras borrar) se
+  construía de 6 lecturas sin comprobar — un fallo daba un snapshot incompleto y un borrado
+  irrecuperable; ahora verifican y un snapshot roto no llega a borrar. Los 5 desenlaces se
+  comprueban uno a uno. El borrado del dinero (comisiones → devoluciones → cobros → venta)
+  COMPENSA: si un paso falla, se restauran las filas completas del snapshot en orden inverso
+  (respetando la FK `commissions.collection_id`); si la compensación también falla, el 500 ordena
+  NO repetir el borrado y apunta al snapshot en `audit_logs`.
+- **`commissions/future`:** las 7 lecturas se tragaban el error como "lista vacía" — fallback del
+  % a 5/10, veto `pays_commissions` (MONEY D9) saltado y previsión FIFO falsa; ahora responden
+  500 con motivo. Sin cambios de cálculo (`comisiones-futuras-desglose.test.mjs` en verde).
+- **Test estático nuevo:** `tests/sales-delete-atomico.test.mjs` (snapshot íntegro, orden inverso
+  de restauración con filas completas, mensaje anti-reintento ciego, guards de las 7 lecturas).
+- **Verificado:** suite focal 24/24 · quality local completo (954 unit pass / 0 fail / 3 skips
+  preexistentes, 740 métricas) · CI verde · rama borrada.
+- **Anotado como unidad propia (no incluido):** `repNetCash`/`loadTramoContext` del motor de
+  comisiones tragan errores por dentro; `resolverScopeColaborador` es fail-open ante fallo de BD
+  (contradice el fail-closed declarado en `scope.ts`), 9 llamadores.
 
 ## PROJECT RECONCILIATION — auditoría total 27-sep-2026 (Freebuff/Buffy)
 
@@ -35,8 +59,8 @@ facturas IA · contratos · colaboradores · RAG/skills · aprovisionamiento · 
 
 ### PARTIAL
 
-Escrituras silenciosas (crons monthly/reminders cerrados el 27-sep, #238; queda `commissions/future` y
-`sales/delete`) · F3 resto de fases · rename
+Escrituras silenciosas (crons #238 y `sales/delete`+`commissions/future` #239 cerrados el 27-sep;
+queda el barrido del resto + helpers compartidos anotados) · F3 resto de fases · rename
 Afiliados→Colaboradores · filtros globales (pnl/finanzas/cohorts) · deuda UX (tokens, tipografía,
 formatos, modales) · Sequra monitorización · clasificación canónica de llamadas.
 
@@ -355,12 +379,10 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama                                     | Toca                                                                                                                                                                                         | Desde  |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar)                           | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts`                                                                                              | 25-sep |
-| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)                             | solo `expenses` vía migración pendiente; nada en código                                                                                                                                      | 23-sep |
-| Freebuff (Buffy)  | **PR-R0.2 — escrituras silenciosas en crons** (RECOVERY_ROADMAP): guards de `{ error }` y presupuesto de tiempo en `cron/monthly` y `cron/reminders` (confluye con los hallazgos P1 del relevo del 26-sep). Complementa #231/#236; NO toca `commissions/future` ni `sales/delete` (siguiente relevo del patrón)                                                                                | fix/cron-monthly-reminders-silent-writes | `app/api/[tenant]/evergreen/cron/monthly/route.ts`, `app/api/[tenant]/evergreen/cron/reminders/route.ts`, `tests/cron-monthly-reminders.test.mjs` (nuevo), `PENDIENTES.md`, este documento   | 27-sep |
-| Freebuff (Buffy)  | **PR-R2.2 — verificación de errores y borrado compensable** (RECOVERY_ROADMAP): guards de lectura/escritura en `commissions/future` (fallback 5/10 % y veto D9 silenciosos) y `sales/delete` (snapshot de auditoría verificado, desenlaces verificados, borrado de dinero compensable fila a fila antes de tocar la venta)                                                                     | fix/commissions-future-sales-delete      | `app/api/[tenant]/evergreen/commissions/future/route.ts`, `app/api/[tenant]/evergreen/sales/delete/route.ts`, `tests/sales-delete-atomico.test.mjs` (nuevo), `PENDIENTES.md`, este documento | 27-sep |
+| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama           | Toca                                                                                            | Desde  |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
+| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
+| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
 

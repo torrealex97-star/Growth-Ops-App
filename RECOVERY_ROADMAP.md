@@ -21,7 +21,7 @@ el único ítem era el doc baseline (R0.1). Si aparece trabajo nuevo no fusionad
 | PR      | Qué                                                                                                                                                                          | Dependencias                               |
 | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
 | PR-R2.1 | Fusionar contenido de **PR #225** (cuentas ads + nuevo vs recurrente + dual chart): rebase sobre main, resolver solapes con #207–#236, quality, PR propia — decisión de Alex | USER: confirmar que quiere el port (su PR) |
-| PR-R2.2 | `commissions/future` y `sales/delete`: verificación de errores y borrado atómico/compensable (P2 26-sep)                                                                     | —                                          |
+| PR-R2.2 | ✅ **HECHA (27-sep, PR #239):** `commissions/future` verificada + `sales/delete` con borrado compensable (P2 26-sep)                                                         | —                                          |
 | PR-R2.3 | Sequra: cerrar contabilidad de cuotas monitorizadas (no doble-contar cash) end-to-end                                                                                        | R0.2                                       |
 
 ## PHASE R3 — Data / metrics correctness
