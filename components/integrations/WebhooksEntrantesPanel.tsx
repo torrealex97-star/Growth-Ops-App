@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Radio, Copy, CheckCircle2, XCircle, KeyRound, ShieldAlert, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import type { WebhookEntranteEstado, EstadoSecretInfo } from '@/lib/webhooks/entrantes'
+import { formatDateTime } from '@/lib/utils'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BLOQUE «WEBHOOKS ENTRANTES» — la mitad receptora de las integraciones
@@ -91,7 +92,7 @@ function FilaWebhook({ w, tenant }: { w: WebhookEntranteEstado; tenant: string }
           <Radio className="h-3 w-3" aria-hidden />
           Último evento:{' '}
           {w.ultimoEvento ? (
-            <span className="text-foreground">{ultima ?? new Date(w.ultimoEvento.fecha).toLocaleString('es-ES')}</span>
+            <span className="text-foreground">{ultima ?? formatDateTime(w.ultimoEvento.fecha)}</span>
           ) : (
             <span className="text-foreground">— (nunca ha llegado ninguno)</span>
           )}
@@ -103,9 +104,8 @@ function FilaWebhook({ w, tenant }: { w: WebhookEntranteEstado; tenant: string }
       {w.ultimoRechazo ? (
         <p className="mt-1 flex items-start gap-1.5 text-xs text-amber-400">
           <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          Último rechazo de firma:{' '}
-          {haceCuanto(w.ultimoRechazo.fecha) ?? new Date(w.ultimoRechazo.fecha).toLocaleString('es-ES')} — revisa el
-          signing secret en el proveedor.
+          Último rechazo de firma: {haceCuanto(w.ultimoRechazo.fecha) ?? formatDateTime(w.ultimoRechazo.fecha)} — revisa
+          el signing secret en el proveedor.
         </p>
       ) : null}
       {w.aviso ? (

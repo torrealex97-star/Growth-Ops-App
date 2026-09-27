@@ -47,3 +47,6 @@ repomix-output.*
 # Playwright E2E
 test-results/
 playwright-report/
+
+# Temporal de agentes: sondas, backups y scripts desechables (puede contener datos de tenant)
+.claude/tmp/

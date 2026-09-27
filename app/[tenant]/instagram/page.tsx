@@ -26,7 +26,7 @@ import {
   Clock,
 } from 'lucide-react'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar } from 'recharts'
-import { formatNumber } from '@/lib/utils'
+import { formatNumber, formatDateTime } from '@/lib/utils'
 
 type Media = {
   id: string
@@ -347,7 +347,7 @@ export default function InstagramPage() {
               </p>
               {lastSync?.started_at && (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Último intento: {new Date(lastSync.started_at).toLocaleString('es-ES')}
+                  Último intento: {formatDateTime(lastSync.started_at)}
                 </p>
               )}
             </div>
@@ -926,7 +926,7 @@ export default function InstagramPage() {
                 }}
                 labelFormatter={fecha}
               />
-              <Bar dataKey="new_follows" name="Nuevos seguidores" fill="#10b981" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="new_follows" name="Nuevos seguidores" fill="hsl(var(--brand-500))" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ChartCard>
           {convos.length === 0 && (

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, ExternalLink, Inbox, Loader2, Mic } from 'lucide-react'
 import { useTenant } from '@/lib/tenant-context'
+import { formatDateTime } from '@/lib/utils'
 
 type Candidate = {
   id: string
@@ -44,13 +45,9 @@ const TABS = [
 ] as const
 
 // Fecha y hora en un solo formato en toda la pantalla: comparar horas es justo lo que hace la
-// persona al decidir, así que los minutos son imprescindibles.
-function dateTime(iso: string | null | undefined) {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })
-}
+// persona al decidir, así que los minutos son imprescindibles. Delegado en el helper canónico
+// (@/lib/utils.formatDateTime, que ya trae su propio guard de fecha inválida).
+const dateTime = formatDateTime
 
 function minutesFrom(a: string | null | undefined, b: string | null | undefined): string | null {
   if (!a || !b) return null

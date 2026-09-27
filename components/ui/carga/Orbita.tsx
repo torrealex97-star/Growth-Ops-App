@@ -46,7 +46,10 @@ export function Orbita({ tamano = 44 }: { tamano?: number }) {
       </svg>
       <style jsx>{`
         .goa-orbita {
-          color: var(--brand-600, #6366f1);
+          /* --brand-600 siempre está definida en :root (app/globals.css) antes de que este
+             componente monte, sea cual sea el tenant — el fallback aquí era un color que nunca
+             coincidía con ningún tenant real y nunca se llegaba a usar. */
+          color: var(--brand-600);
           transform-origin: center;
         }
         .goa-orbita-gira,
