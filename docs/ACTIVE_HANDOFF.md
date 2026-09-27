@@ -1,25 +1,22 @@
 # Relevo activo
 
-## 🔴 BLOQUEO DE ENTORNO (26-sep): sin credencial GitHub → PR de `fix/ghl-webhook-silent-writes` pendiente de publicar
+## ✅ RESULTADO (27-sep): webhook GHL sin escrituras silenciosas — PR #236 fusionada en main
 
-Desde las ~17:40 UTC, los 10 intentos consecutivos de `git fetch`/`git push` (17:40–18:15 UTC) fallan
-con «Could not get GitHub access for torrealex97-star/Growth-Ops-App right now»: la App de GitHub de
-Freebuff no puede mintear la credencial del repo. No es git ni el trabajo local: está commiteado.
+La unidad «Escrituras silenciosas — webhook GHL» está FUSIONADA: PR #236 (merge `a595298`), CI de la
+PR en verde (quality 1m54s con dead-code incluido, gitleaks, build 2m47s, Smoke E2E 4m18s, Vercel) y
+rama borrada en remoto y local. El bloqueo de credencial GitHub de la tarde del 26-sep se resolvió
+solo: la App volvió a mintear credenciales y la rama se publicó sin intervención manual.
 
-- **Estado:** rama `fix/ghl-webhook-silent-writes`, commit `02573ab` en
-  `.worktrees/audit-integrity` (limpio, sobre `main` = `2b696d8`). Cambios: webhook GHL sin
-  escrituras silenciosas + tests estáticos nuevos + tablero + PENDIENTES (~76 restantes).
-- **Validado en local:** tests del webhook y suites relacionadas 80/80; suite completa 937 pass
-  (3 skip sin credenciales Supabase) + 740 métricas; typecheck, lint (warnings preexistentes) y
-  `format:check` en verde. `dead-code`: no disponible en local (knip muere por memoria del
-  sandbox, limitation conocida); el CI lo correrá en la PR.
-- **Siguiente acción exacta (el primero que pueda):** `git push -u origin
-fix/ghl-webhook-silent-writes` desde `.worktrees/audit-integrity`, abrir PR a `main`, CI verde
-  (correr `npm run quality` con `NODE_OPTIONS='--max-old-space-size=3584'` si hay dudas) y
-  fusionar. Al fusionar, borrar la fila del tablero de la unidad y actualizar este bloque.
-- **Si el fallo persiste más de unas horas:** reconectar la App de GitHub de Freebuff en el repo
-  (Settings → Integraciones de Freebuff) o que otro agente con credencial propia publiquen la
-  rama — el commit es autosuficiente.
+- **Qué entró:** update de `appointments`, `lead_status` (ambos caminos), insert/update de
+  `contact_attributions`, cualificación y `audit_logs` de citas del webhook GHL verifican ahora el
+  `{ error }` y responden 500 para que GHL reintente la entrega idempotente; `last_seen_at` y
+  `set_source` se degradan a warn a propósito (reintentar no los arregla). Tests estáticos nuevos
+  en `tests/webhook-ghl.test.mjs` fijan el criterio: ninguna escritura de estado de negocio
+  fire-and-forget.
+- **Verificado:** tests dirigidos de la ruta y su capa raw 131/131; suite completa 937 pass (3 skip
+  sin credenciales Supabase, preexistente) + 740 métricas; CI de la PR en verde.
+- **Siguiente unidad del patrón (~76 escrituras restantes):** crons `monthly`/`reminders` (confluyen
+  con los P1 del relevo del 26-sep), después `commissions/future` y `sales/delete`.
 
 ## Revisión integral: bugs de dinero (fase 1) — 2026-09-26 (Freebuff/Buffy)
 
@@ -278,10 +275,10 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente | Qué | Rama | Toca | Desde |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ || Freebuff (Buffy) | **Escrituras silenciosas (pendiente ~88 del backlog)** — primera unidad: webhook GHL. Updates de `appointments`/`contacts`, insert de `contact_attributions` y `audit_logs` de citas devuelven hoy `{ error }` ignorado y ACK `ok`, con lo que GHL no reintenta y el estado de la cita diverge en silencio. Unidades siguientes (mismo patrón): crons `monthly`/`reminders`, `commissions/future` y `sales/delete` (selección/orden en la fila de fusionado) | fix/ghl-webhook-silent-writes | `app/api/[tenant]/evergreen/webhooks/ghl/route.ts`, `tests/webhook-ghl.test.mjs`, `docs/ACTIVE_HANDOFF.md` (tablero + relevo), `PENDIENTES.md` (recuento del patrón) | 26-sep |
-| Claude Code | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
-| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)** | (fusionadas) | solo `expenses` vía migración pendiente; nada en código | 23-sep |
+| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama           | Toca                                                                                            | Desde  |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
+| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
+| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
