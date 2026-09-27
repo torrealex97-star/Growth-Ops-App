@@ -1,5 +1,31 @@
 # Relevo activo
 
+## ✅ RESULTADO (27-sep): pase de la skill taste a las superficies públicas (PR #247)
+
+Fusionada en `main` (`8cc6966`), CI de la PR en verde (quality 1m48s, gitleaks 6s, build 2m57s,
+Smoke E2E 4m43s, Vercel) y rama borrada. Petición de Alex: «todo ajustado con /taste?» — aplicación
+explícita de la skill `design-taste-frontend` (#241) con Design Read y audit-first (§0/§11):
+
+- **Audit primero:** la landing `/` ya es intencional (terminal cinematográfico, 0 eyebrows, un
+  acento por tarjeta, foco visible, reduced-motion) y NO se tocó. Los dashboards de datos siguen
+  fuera de la skill (§12) y los 7 ficheros de hex de REQ-UX-02 quedan en su fila (Claude Code).
+- **Login:** el monograma era una `S` fija — la inicial de OTRA marca — en el login de todas las
+  subcuentas; ahora se deriva de `resolveTenantBranding` (inicial real, aria-hidden).
+- **`/firmar`:** la página interactiva era zinc-900 pero el checkbox de consentimiento usaba
+  `accent-emerald-600` (dos sistemas de acento en una página); ahora `accent-zinc-900`, el
+  esmeralda queda solo en el estado firmado. El check de texto pasa a `CheckCircle2` (lucide).
+- **`/firmar-alumno`:** emoji de celebración (§3.D) → `CheckCircle2`, misma gramática de éxito que
+  registro de colaborador y recover; copy «¡Ya eres un Winner!»/«la Academia» (vocabulario de una
+  subcuenta concreta) → neutro.
+- **Foco de teclado:** verificado en las 5 pantallas — shadcn `Input`/`Button` ya traen
+  `focus-visible:ring-brand-500`; sin cambios necesarios.
+- **Test:** `tests/taste-public-pages.test.mjs` (4 invariantes estáticos, patrón webhook-ghl).
+- **Verificado:** suite focal 4/4 · quality local completo (978 unit / 0 fail / 3 skips
+  preexistentes, 740 métricas) · CI de la PR verde · rama borrada. **No verificado:** review visual
+  con navegador (sandbox sin sesión).
+- **Pendiente de taste para un próximo lote:** `/ver-como`, pantallas de marketing y el resto del
+  inventario R4 de Claude Code (tokens/tipografía/modales), que exige navegador.
+
 ## ✅ RESULTADO (27-sep): Paridad VSL II — carga, customización, thumbnails y métricas (PR #246)
 
 Fusionada en `main` (`405821f`), CI en verde tras re-disparo (quality 1m32s, build 2m42s, Smoke E2E
@@ -614,8 +640,6 @@ fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo 
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
 | Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
 | Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
-
-| Freebuff (Buffy) | **Pase de la skill taste a las superficies públicas** (petición «todo ajustado con /taste?»): login (monograma con la inicial real del branding, no la `S` de otra marca), `/firmar` (acento esmeralda → azul de marca, body del contrato fuera de mono), `/firmar-alumno` (emoji de celebración → icono de librería, copys con vocabulario de un solo tenant → neutros) y foco de teclado visible en los formularios de auth. NO toca dashboards de datos (§12 de la skill) ni los 7 ficheros de hex de REQ-UX-02 (fila de Claude Code) | `feat/taste-public-pages` | `app/[tenant]/login/page.tsx`, `app/firmar/[token]/page.tsx`, `app/firmar-alumno/[token]/page.tsx`, `app/[tenant]/recover/page.tsx`, `app/[tenant]/afiliados/registro/page.tsx`, `tests/taste-public-pages.test.mjs` | 27-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
