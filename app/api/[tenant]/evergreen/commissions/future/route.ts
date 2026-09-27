@@ -141,7 +141,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
     let esColaborador = false
     if (!canSeeAll) {
       const scope = await resolverScopeColaborador(sb, t.userId, t.tenantId)
-      esColaborador = scope.tipo === 'collaborator'
+      // FAIL CLOSED: si la resolución del scope falla (scope.tipo === 'error'), se oculta el lane
+      // setter/closer igual que a un colaborador confirmado — solo 'none' (resuelto sin error) abre
+      // esas lanes.
+      esColaborador = scope.tipo !== 'none'
     }
     const rateCache = new Map<string, number>() // `${rep}|${role}` -> percent
     const getRate = async (repId: string, r: 'setter' | 'closer') => {
