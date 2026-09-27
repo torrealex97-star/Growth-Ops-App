@@ -112,7 +112,7 @@ export function CalendarPopover({
         </div>
         <div className="grid grid-cols-7 gap-1 mb-1">
           {WEEKDAY_LABELS.map((w) => (
-            <div key={w} className="text-center text-[10px] text-muted-foreground font-medium py-1">
+            <div key={w} className="text-center text-3xs text-muted-foreground font-medium py-1">
               {w}
             </div>
           ))}
@@ -226,7 +226,7 @@ export function DateRangeCalendarPopover({
         </p>
         <div className="grid grid-cols-7">
           {WEEKDAY_LABELS.map((weekday) => (
-            <div key={weekday} className="py-1 text-center text-[10px] font-medium text-muted-foreground">
+            <div key={weekday} className="py-1 text-center text-3xs font-medium text-muted-foreground">
               {weekday}
             </div>
           ))}

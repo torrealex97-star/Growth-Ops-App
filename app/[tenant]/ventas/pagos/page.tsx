@@ -577,7 +577,7 @@ export default function PaymentsPipelinePage() {
                               {a.sale.closer?.full_name && (
                                 <div className="flex items-center gap-1 mt-1">
                                   <UserIcon className="w-3 h-3 text-muted-foreground" />
-                                  <span className="text-[11px] text-muted-foreground truncate">
+                                  <span className="text-2xs text-muted-foreground truncate">
                                     {a.sale.closer.full_name}
                                   </span>
                                 </div>
@@ -590,24 +590,24 @@ export default function PaymentsPipelinePage() {
                                     style={{ width: `${pct}%` }}
                                   />
                                 </div>
-                                <p className="text-[11px] text-muted-foreground mt-1">{pct}%</p>
+                                <p className="text-2xs text-muted-foreground mt-1">{pct}%</p>
                               </div>
 
-                              <div className="mt-2 flex items-center justify-between text-[11px]">
+                              <div className="mt-2 flex items-center justify-between text-2xs">
                                 <span className="text-muted-foreground">
                                   Cobrado{' '}
                                   <span className="text-foreground font-medium">{formatCurrency(a.cashCollected)}</span>{' '}
                                   / {formatCurrency(a.sale.gross_amount)}
                                 </span>
                               </div>
-                              <p className="text-[11px] text-muted-foreground mt-0.5">
+                              <p className="text-2xs text-muted-foreground mt-0.5">
                                 Pendiente{' '}
                                 <span className="text-foreground font-medium">{formatCurrency(a.pendingAmount)}</span>
                               </p>
 
                               {a.nextDueDate && (
                                 <p
-                                  className={`text-[11px] mt-1.5 flex items-center gap-1 ${a.hasOverdue ? 'text-red-400' : 'text-muted-foreground'}`}
+                                  className={`text-2xs mt-1.5 flex items-center gap-1 ${a.hasOverdue ? 'text-red-400' : 'text-muted-foreground'}`}
                                 >
                                   <Clock className="w-3 h-3" />
                                   Próximo venc.: {formatDate(a.nextDueDate)}
@@ -615,7 +615,7 @@ export default function PaymentsPipelinePage() {
                               )}
 
                               {lastNoteBySale.has(a.sale.id) && (
-                                <p className="text-[11px] mt-1.5 flex items-start gap-1 text-muted-foreground border-t border-border/60 pt-1.5">
+                                <p className="text-2xs mt-1.5 flex items-start gap-1 text-muted-foreground border-t border-border/60 pt-1.5">
                                   <MessageSquare className="w-3 h-3 shrink-0 mt-0.5" />
                                   <span className="truncate">{lastNoteBySale.get(a.sale.id)!.note}</span>
                                 </p>

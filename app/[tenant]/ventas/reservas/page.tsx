@@ -501,7 +501,7 @@ export default function ReservasPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 Se preseleccionará el plan de reserva del producto; el importe y el contacto se ajustan en el siguiente
                 paso.
               </p>
@@ -533,7 +533,7 @@ export default function ReservasPage() {
                 </div>
               )}
               {newContactId && (
-                <p className="text-[11px] text-emerald-400">Contacto seleccionado ✓ (puedes cambiarlo arriba)</p>
+                <p className="text-2xs text-emerald-400">Contacto seleccionado ✓ (puedes cambiarlo arriba)</p>
               )}
             </div>
           </div>

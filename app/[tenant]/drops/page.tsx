@@ -6,6 +6,7 @@ import { UserMinus, Plus, X, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -461,20 +462,11 @@ export default function DropsPage() {
       )}
 
       {showNew && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setShowNew(false)}
-        >
-          <div
-            className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-foreground font-semibold">Nueva cancelación</h3>
-              <button onClick={() => setShowNew(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+        <Dialog open={showNew} onOpenChange={setShowNew}>
+          <DialogContent className="w-full max-w-md gap-3">
+            <DialogHeader>
+              <DialogTitle>Nueva cancelación</DialogTitle>
+            </DialogHeader>
             <select
               value={nd.contact_id}
               onChange={(e) => setNd({ ...nd, contact_id: e.target.value })}
@@ -547,8 +539,8 @@ export default function DropsPage() {
                 Crear
               </button>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

@@ -99,7 +99,7 @@ function FilaWebhook({ w, tenant }: { w: WebhookEntranteEstado; tenant: string }
         </span>
       </div>
       {w.ultimoEvento ? (
-        <p className="text-muted-foreground/70 mt-1 text-[11px]">Evidencia: {w.ultimoEvento.evidencia}</p>
+        <p className="text-muted-foreground/70 mt-1 text-2xs">Evidencia: {w.ultimoEvento.evidencia}</p>
       ) : null}
       {w.ultimoRechazo ? (
         <p className="mt-1 flex items-start gap-1.5 text-xs text-amber-400">

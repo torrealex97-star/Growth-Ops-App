@@ -216,7 +216,7 @@ export function TrackingSitesPanel() {
                   :
                 </p>
                 <div className="flex items-stretch gap-2">
-                  <code className="flex-1 text-[11px] bg-muted/60 border border-border rounded-md px-3 py-2 overflow-x-auto whitespace-nowrap text-muted-foreground">
+                  <code className="flex-1 text-2xs bg-muted/60 border border-border rounded-md px-3 py-2 overflow-x-auto whitespace-nowrap text-muted-foreground">
                     {snippetFor(site)}
                   </code>
                   <button

@@ -1,5 +1,34 @@
 # Relevo activo
 
+## ✅ RESULTADO (27-sep): taste lote 3 — deuda UX R4 (REQ-UX-02/03/05) + revisión visual (PR #250)
+
+Rama `feat/r4-ux-lote-3` (commits `be8e8a8` + merge `f81e410` sobre `origin/main` `2d8e18c`). Quality Gate local
+del árbol fusionado en verde: format:check, lint, typecheck, `npm test` (1015/0), `test:metrics` (752/0) y build.
+La integración con `origin/main` resolvió el solape con el PR upstream #249 («unificación de formato/color»),
+que tocaba 14 de los mismos ficheros: se combinaron ambas intenciones (mis tokens zinc/`text-3xs`+`text-2xs` y
+sus `formatDateTime`; en Sidebar prevaleció la conversión zinc del lote sobre la equivalente a tokens semánticos).
+
+- **REQ-UX-02:** Sidebar sin hexes → zinc con paridad exacta (7 conversiones); layout del shell con
+  `AlertTriangle` (lucide) en lugar de 2 SVG dibujados a mano; `VslDashboard` `text-[#e2e8f0]` → `text-zinc-200`.
+  Intencionales preservados y documentados: hexes del HTML de email, `#0866FF` (marca Meta), fills de
+  data-viz recharts, `#22c55e`/BLUE de VslDashboard y fallback de color de proveedor de integraciones.
+- **REQ-UX-03:** tokens `text-3xs` (10px) y `text-2xs` (11px) en `tailwind.config.ts` con paridad exacta
+  (solo font-size); barrido mecánico de `text-[10px]`/`text-[11px]`: 256 sustituciones en 81 ficheros, 0 restantes.
+- **REQ-UX-05:** triage de los 14 overlays caseros — todos son modales reales (falso positivo descartado:
+  click-catcher de columnas en `marketing/contenido`). Migrados a `components/ui/dialog` (Radix): 6 modales
+  en `tasks` (2), `csm-events`, `contratos`, `drops`, `biblioteca`. El resto queda en backlog R4 por volumen.
+- **Revisión visual:** el preview gestionado se re-apuntó temporalmente al build de producción del worktree
+  (restaurado después a su config original). Verificado por SSR/HTTP sobre home, `/ver-como/entrar`,
+  `/firmar/*`, login y gates de dashboard: 200s, cero `neutral-*`, cero hexes en clase, cero
+  `text-[1[01]px]`; tokens compilados comprobados en el CSS del build (`.text-3xs{font-size:10px}`,
+  `.text-2xs{font-size:11px}`), zinc del shell incluido. Playwright headless fue imposible en sandbox
+  (Chromium sin librerías de sistema; no se instalan paquetes fuera del proyecto sin permiso).
+- **Test:** `tests/taste-public-pages.test.mjs` ampliado a 8 invariantes (shell zinc sin hexes ni SVG a
+  mano, tokens en config con barrido global, modales migrados sin overlays caseros).
+- **No verificado:** navegación de dashboards autenticados (sandbox sin credenciales de sesión), igual que
+  en los lotes 1-2. **Nota CI:** el run de la PR fue cancelado externamente (~14:41, sin push propio; la
+  concurrency group es por ref) — se re-lanza con el push de este commit de documentación.
+
 ## Sentry activo + crons reanimados + rotación de secretos — 27-sep (Freebuff/Buffy)
 
 **Sentry (javascript-nextjs, org scalix-52):** DSN obtenido vía MCP (`find_dsns`) y subido como
@@ -11,17 +40,18 @@ enviado errores reales — el usuario dio la verificación end-to-end por sufici
 solo si Alex lo añade (dryRun mientras tanto, ver next.config.js).
 
 **Causa raíz del fallo de los crons desde el 26-sep (2 incidentes encadenados, ambos resueltos):**
+
 1. Los 9 workflows de cron llamaban a `https://growth-ops-weld.vercel.app` — host borrado en la
    limpieza de Storage del 26-sep (404 desde entonces; solo quedan `growthops-preview-3003` y
    `go-prod` en el equipo). Fix: variable de repo **`CRON_APP_URL=https://app.scalixsystems.com`**
    (los workflows ya traían el override `vars.CRON_APP_URL || default`).
 2. **Error propio del relevo del 26-sep, corregido:** al restaurar envs desde el `.env.local` del
    clon, `CRON_SECRET` y `TRACKING_INGEST_KEY` eran la máscara `[ SENSITIVE ] ` que `vercel env
-   pull` escribe para variables *sensitive* — quedaron guardadas literalmente y todo cron daba 401
+pull` escribe para variables _sensitive_ — quedaron guardadas literalmente y todo cron daba 401
    (canario: workflow sequra-morosos → HTTP 401). Lección anotada en el código (`lib/vsl/db.ts`
    comprueba `=== '[SENSITIVE]'` exactamente por esto): **nunca poblar envs de Vercel desde un
    `.env.local` descargado con el CLI**. Rotación: nuevo valor en Vercel (delete+post: las envs
-   *sensitive* no aceptan PATCH de tipo) y **el mismo valor en `gh secret set CRON_SECRET`**.
+   _sensitive_ no aceptan PATCH de tipo) y **el mismo valor en `gh secret set CRON_SECRET`**.
    `TRACKING_INGEST_KEY` rota también en Vercel (nada externo lo consumía: la ingesta legacy
    acepta la clave de la config en BD).
 
@@ -793,10 +823,11 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama           | Toca                                                                                            | Desde  |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
-| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
-| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
+| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Rama                | Toca                                                                                                                                                                                                                                                                                             | Desde  |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ |
+| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI                                                                                                                                                                                                                                             | (por reclamar)      | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts`                                                                                                                                                                                                  | 25-sep |
+| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                                                                                                                                                                                                                                                                  | (fusionadas)        | solo `expenses` vía migración pendiente; nada en código                                                                                                                                                                                                                                          | 23-sep |
+| Freebuff (Buffy)  | **Lote 3 de taste: deuda UX R4 + revisión visual — CIERRE**: REQ-UX-02 resuelto (Sidebar a zinc, layout con `AlertTriangle`, `VslDashboard` a `text-zinc-200`; hexes intencionales documentados), REQ-UX-03 resuelto (tokens `text-3xs`/`text-2xs` con paridad exacta + barrido de 256 sustituciones en 81 ficheros), REQ-UX-05 triage completo (los 14 son modales reales; 6 modales en 5 ficheros migrados a `components/ui/dialog`, el resto queda en backlog R4 por volumen) y revisión visual por preview sobre el árbol del worktree (CSS compilado verifica tokens y zinc; sin sesión real no se navegaron dashboards autenticados) | `feat/r4-ux-lote-3` | `components/os/Sidebar.tsx`, `app/[tenant]/layout.tsx`, `components/vsl/VslDashboard.tsx`, `tailwind.config.ts`, barrido `text-[10px]/[11px]` en app+components, modales en `tasks`/`csm-events`/`contratos`/`drops`/`biblioteca`, `tests/taste-public-pages.test.mjs`, `docs/ACTIVE_HANDOFF.md` | 27-sep |
 
 ## Reglas de trabajo (2026-09-21)
 

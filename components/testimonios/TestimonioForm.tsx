@@ -199,7 +199,7 @@ export function TestimonioForm({ values, onChange, disabled }: Props) {
           disabled={disabled}
           className={cn(!urlOk && 'border-destructive')}
         />
-        {!urlOk && <p className="text-[11px] text-destructive mt-1">Ese enlace no parece un vídeo de YouTube.</p>}
+        {!urlOk && <p className="text-2xs text-destructive mt-1">Ese enlace no parece un vídeo de YouTube.</p>}
       </div>
 
       <div>

@@ -148,7 +148,7 @@ export function ChatPanel({ projectId, referenceImages, onStreamStart, onRefresh
         {messages.length > 0 && (
           <button
             onClick={clearChat}
-            className="text-[10px] text-muted-foreground hover:text-destructive transition-colors px-1.5 py-0.5"
+            className="text-3xs text-muted-foreground hover:text-destructive transition-colors px-1.5 py-0.5"
           >
             Limpiar
           </button>

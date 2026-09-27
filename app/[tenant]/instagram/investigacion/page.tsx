@@ -359,7 +359,7 @@ export default function InvestigacionPage() {
                     <div className="text-zinc-400">shares</div>
                   </div>
                 </div>
-                <div className="mt-2 text-[10px] text-zinc-400">{SOURCE_LABEL.external}</div>
+                <div className="mt-2 text-3xs text-zinc-400">{SOURCE_LABEL.external}</div>
               </a>
             ))}
           </div>

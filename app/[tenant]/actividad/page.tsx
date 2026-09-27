@@ -216,7 +216,7 @@ export default function ActividadPage() {
                 </span>
                 <div className="bg-card border border-border rounded-lg px-4 py-2.5">
                   <div className="flex items-center justify-between gap-3">
-                    <span className={`text-[10px] uppercase tracking-wider font-semibold ${color}`}>{label}</span>
+                    <span className={`text-3xs uppercase tracking-wider font-semibold ${color}`}>{label}</span>
                     <span className="text-xs text-muted-foreground">{formatDateTime(dt)}</span>
                   </div>
                   <p className="text-sm text-foreground mt-0.5">

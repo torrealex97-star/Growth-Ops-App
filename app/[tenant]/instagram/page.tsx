@@ -1184,7 +1184,7 @@ function Stat({ icon, v }: { icon: React.ReactNode; v: string }) {
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="text-2xs text-muted-foreground">{label}</p>
       <p className="text-foreground font-semibold">{value}</p>
     </div>
   )

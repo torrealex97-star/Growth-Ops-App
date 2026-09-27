@@ -119,7 +119,7 @@ export default function FirmarPage() {
             <div>
               <span className="text-lg font-bold text-zinc-900">{data.company.name}</span>
               {(data.company.cif || data.company.address) && (
-                <p className="text-[11px] text-zinc-400">
+                <p className="text-2xs text-zinc-400">
                   {[data.company.cif && `CIF ${data.company.cif}`, data.company.address].filter(Boolean).join(' · ')}
                 </p>
               )}

@@ -67,7 +67,7 @@ function MetricCard({ label, value, sublabel }: { label: string; value: string; 
     <div className="dashboard-card p-4">
       <p className="text-xs text-muted-foreground mb-1">{label}</p>
       <p className="font-display text-xl font-semibold text-foreground tabular-nums">{value}</p>
-      {sublabel && <p className="text-[11px] text-muted-foreground mt-0.5">{sublabel}</p>}
+      {sublabel && <p className="text-2xs text-muted-foreground mt-0.5">{sublabel}</p>}
     </div>
   )
 }
@@ -504,7 +504,7 @@ export default function FinanzasPage() {
                   <div className="mt-2 flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">margen {pct(cur.margin)}</span>
                   </div>
-                  <p className="text-[11px] text-muted-foreground mt-1">
+                  <p className="text-2xs text-muted-foreground mt-1">
                     Mismo cálculo que I&amp;G (Dirección › Métricas): Net Revenue − COGS − OpEx
                   </p>
                 </div>

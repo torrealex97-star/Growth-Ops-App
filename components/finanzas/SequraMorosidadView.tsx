@@ -247,7 +247,7 @@ export function SequraMorosidadView() {
                             value={row.status}
                             disabled={isBusy}
                             onChange={(e) => updateRow(row.id, { status: e.target.value as StatusKey })}
-                            className={`text-[10px] font-semibold px-2 py-1 rounded border disabled:opacity-50 ${STATUS_BADGE[row.status]}`}
+                            className={`text-3xs font-semibold px-2 py-1 rounded border disabled:opacity-50 ${STATUS_BADGE[row.status]}`}
                           >
                             {TABS.filter((t) => t.key !== 'todas').map((t) => (
                               <option key={t.key} value={t.key} className="bg-card text-foreground">

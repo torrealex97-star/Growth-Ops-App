@@ -123,7 +123,7 @@ export function FinanceBreakdown({
         })}
       </ul>
       {restantes.length > 0 && (
-        <p className="mt-2 text-[11px] text-muted-foreground">
+        <p className="mt-2 text-2xs text-muted-foreground">
           El anillo muestra el top {Math.min(ringSlices.length, MAX_RING_SLICES - 1)} y agrupa el resto como “Otros”; el
           desglose completo está en la lista.
         </p>

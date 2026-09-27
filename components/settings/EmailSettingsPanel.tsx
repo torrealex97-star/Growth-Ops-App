@@ -238,7 +238,7 @@ export function EmailHistoryPanel() {
                 <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{formatDateTime(m.created_at)}</td>
                 <td className="px-4 py-3">
                   {m.to_email}
-                  {m.is_test && <span className="ml-2 text-[10px] uppercase text-amber-400">prueba</span>}
+                  {m.is_test && <span className="ml-2 text-3xs uppercase text-amber-400">prueba</span>}
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">{LABELS[m.template_key] ?? m.template_key}</td>
                 <td className="px-4 py-3 max-w-72 truncate">{m.subject}</td>

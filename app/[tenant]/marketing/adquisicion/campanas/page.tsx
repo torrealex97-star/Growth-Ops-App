@@ -839,20 +839,20 @@ export default function CampaignsPage() {
                             <div className="flex items-center gap-2">
                               <span>{c.name}</span>
                               {isMeta && (
-                                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                <span className="inline-flex items-center gap-1 text-3xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
                                   <Zap className="w-2.5 h-2.5" /> Meta auto
                                 </span>
                               )}
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                            <span className="text-2xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                               {channelLabel(c.channel)}
                             </span>
                           </td>
                           {accounts.length > 1 && (
                             <td className="px-4 py-3">
-                              <span className="text-[11px] text-muted-foreground">
+                              <span className="text-2xs text-muted-foreground">
                                 {c.account_name || c.account_id || '—'}
                               </span>
                             </td>
@@ -911,11 +911,11 @@ export default function CampaignsPage() {
                           </td>
                           <td className="px-4 py-3 text-center">
                             {isAccounted ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                              <span className="inline-flex items-center gap-1 text-2xs px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                                 <CheckCircle2 className="w-3 h-3" /> Contabilizado ({period})
                               </span>
                             ) : (
-                              <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                              <span className="text-2xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
                                 Pendiente
                               </span>
                             )}
