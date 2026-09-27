@@ -93,6 +93,10 @@ const nf = (n: number | null | undefined) => formatNumber(Math.round(n || 0))
 const fecha = (s: string | null) =>
   s ? new Date(s).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : '—'
 
+// recharts 3 tipa labelFormatter con `label: ReactNode` (antes era `string | null`, igual que
+// tickFormatter). El eje de fecha siempre manda un string aquí; cualquier otra cosa cae al guion.
+const fechaLabel = (label: unknown) => fecha(typeof label === 'string' ? label : null)
+
 export default function InstagramPage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
@@ -737,7 +741,7 @@ export default function InstagramPage() {
                   border: '1px solid hsl(var(--border))',
                   borderRadius: 8,
                 }}
-                labelFormatter={fecha}
+                labelFormatter={fechaLabel}
               />
               <Line
                 type="monotone"
@@ -765,7 +769,7 @@ export default function InstagramPage() {
                   border: '1px solid hsl(var(--border))',
                   borderRadius: 8,
                 }}
-                labelFormatter={fecha}
+                labelFormatter={fechaLabel}
               />
               <Line
                 type="monotone"
@@ -895,7 +899,7 @@ export default function InstagramPage() {
                     border: '1px solid hsl(var(--border))',
                     borderRadius: 8,
                   }}
-                  labelFormatter={fecha}
+                  labelFormatter={fechaLabel}
                 />
                 <Line
                   type="monotone"
@@ -924,7 +928,7 @@ export default function InstagramPage() {
                   border: '1px solid hsl(var(--border))',
                   borderRadius: 8,
                 }}
-                labelFormatter={fecha}
+                labelFormatter={fechaLabel}
               />
               <Bar dataKey="new_follows" name="Nuevos seguidores" fill="#10b981" radius={[4, 4, 0, 0]} />
             </BarChart>
