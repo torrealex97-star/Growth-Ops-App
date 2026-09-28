@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { metodoDePlan } from '@/lib/metrics/agregados'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
@@ -13,7 +14,15 @@ import { DailyQuoteWidget } from '@/components/os/DailyQuoteWidget'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { FunnelStrip } from '@/components/os/FunnelStrip'
 import { MarketingEfficiencyCard } from '@/components/os/MarketingEfficiencyCard'
-import { DEFAULT_PERIOD, getPeriodRange, inPeriod, toDateInputValue, type PeriodPreset } from '@/lib/filters/period'
+import {
+  DEFAULT_PERIOD,
+  PERIOD_LABELS,
+  getPeriodRange,
+  getPreviousPeriodRange,
+  inPeriod,
+  toDateInputValue,
+  type PeriodPreset,
+} from '@/lib/filters/period'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import ColaboradorDashboard from '@/components/collaborators/ColaboradorDashboard'
 import { clasificarCobrosPorMes } from '@/lib/finance/nuevo-vs-recurrente'
@@ -32,16 +41,12 @@ import {
   Trash2,
 } from 'lucide-react'
 import {
-  lastNMonths,
-  prevMonth,
   monthLabel,
-  monthlyKpis,
+  periodKpis,
+  financialTrend,
   pctDelta,
-  revenueByMonth,
   teamRanking,
   attributionBySource,
-  ymOf,
-  num,
   targetCurrentValue,
   cuentaComoVenta,
   funnelBySource,
@@ -264,7 +269,7 @@ function DashboardEquipo() {
           // reservation_completed_at + payment_plans(method): sin ellos una reserva abierta es
           // indistinguible de una venta y vuelve a contarse como facturación (MONEY D8, F03).
           .select(
-            'id, gross_amount, status, sale_date, closer_id, setter_id, affiliate_id, contact_id, reservation_completed_at, payment_plans(method)'
+            'id, gross_amount, status, sale_date, closer_id, setter_id, affiliate_id, contact_id, product_id, reservation_completed_at, payment_plans(method)'
           )
           .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
@@ -372,6 +377,7 @@ function DashboardEquipo() {
 
   // --- Rango del filtro unificado de periodo ---
   const range = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
+  const previousRange = useMemo(() => getPreviousPeriodRange(range), [range])
 
   // El mes de las tarjetas KPI (este mes vs anterior) sigue al periodo elegido.
   useEffect(() => {
@@ -442,13 +448,14 @@ function DashboardEquipo() {
     return sales.filter((s) => saleMatches(s) && inPeriod(s.sale_date, range))
   }, [sales, saleMatches, range])
 
+  const scopedSaleIds = useMemo(() => new Set(sales.filter(saleMatches).map((sale) => sale.id)), [sales, saleMatches])
   const filteredSaleIds = useMemo(() => new Set(filteredSales.map((s) => s.id)), [filteredSales])
 
   const filteredCollections = useMemo(() => {
     // Sin atajo para 'all': inPeriod ya trata el rango abierto (from/to null) como "todo", y así
     // TODA métrica pasa por el mismo camino — una colección huérfana (venta borrada) no se cuela.
-    return collections.filter((c) => filteredSaleIds.has(c.sale_id) && inPeriod(c.collected_at, range))
-  }, [collections, filteredSaleIds, range])
+    return collections.filter((c) => scopedSaleIds.has(c.sale_id) && inPeriod(c.collected_at, range))
+  }, [collections, scopedSaleIds, range])
 
   const filteredAppointments = useMemo(() => {
     // Una cancelación NO es una agenda del embudo: la cita no ocurrirá. (Unificado con
@@ -459,27 +466,22 @@ function DashboardEquipo() {
     )
   }, [appointments, apptMatches, range])
 
-  const cur = useMemo(
-    () => monthlyKpis(filteredSales, filteredCollections, ym),
-    [filteredSales, filteredCollections, ym]
+  const cur = useMemo(() => periodKpis(filteredSales, filteredCollections), [filteredSales, filteredCollections])
+  const previousSales = useMemo(
+    () => sales.filter((sale) => saleMatches(sale) && inPeriod(sale.sale_date, previousRange)),
+    [sales, saleMatches, previousRange]
   )
-  const prev = useMemo(
-    () => monthlyKpis(filteredSales, filteredCollections, prevMonth(ym)),
-    [filteredSales, filteredCollections, ym]
+  const previousCollections = useMemo(
+    () => collections.filter((row) => scopedSaleIds.has(row.sale_id) && inPeriod(row.collected_at, previousRange)),
+    [collections, scopedSaleIds, previousRange]
   )
-  const series = useMemo(() => revenueByMonth(filteredSales, lastNMonths(6, ym)), [filteredSales, ym])
-  // CASH COBRADO por mes (misma ventana que la facturación): alimenta la línea verde del
-  // chart dual para que la distancia entre "vendido" y "cobrado" se vea de un vistazo.
-  const cashSeries = useMemo(
-    () =>
-      lastNMonths(6, ym).map((m) => ({
-        date: monthLabel(m),
-        cash: filteredCollections
-          .filter((c) => c.status === 'collected' && ymOf(c.collected_at) === m)
-          .reduce((acc, c) => acc + num(c.gross_amount), 0),
-      })),
-    [filteredCollections, ym]
+  const prev = useMemo(() => periodKpis(previousSales, previousCollections), [previousSales, previousCollections])
+  const trend = useMemo(
+    () => financialTrend(filteredSales, filteredCollections, range),
+    [filteredSales, filteredCollections, range]
   )
+  const series = useMemo(() => trend.points.map(({ date, amount }) => ({ date, amount })), [trend])
+  const cashSeries = useMemo(() => trend.points.map(({ date, cash }) => ({ date, cash })), [trend])
   // NUEVO vs RECURRENTE (definición canónica de lib/finance/nuevo-vs-recurrente):
   // cuánto del cash del mes es primer cobro de ventas nuevas y cuánto son cuotas de
   // ventas de meses pasados (el MRR que sostiene el negocio).
@@ -584,6 +586,23 @@ function DashboardEquipo() {
       .reduce((s, f) => s + Number(f.amount), 0)
     return { ganada, futura }
   }, [commissions, futureCommissions, filteredSaleIds, member])
+  const selectedMemberName = useMemo(
+    () => (member === 'all' ? null : (users.find((user) => user.id === member)?.full_name ?? 'Persona seleccionada')),
+    [member, users]
+  )
+  const leadershipView = myRoleKey ? isLeadership(myRoleKey) : false
+  const showCommissionSummary = !leadershipView || member !== 'all'
+  const productsInPeriod = useMemo(
+    () =>
+      new Set(
+        filteredSales
+          .filter(cuentaComoVenta)
+          .map((sale) => sale.product_id)
+          .filter(Boolean)
+      ).size,
+    [filteredSales]
+  )
+  const showAverageTicket = productsInPeriod > 1
 
   // COMISIONES FUTURAS POR MES (claridad del colaborador): cada fila de la proyección lleva la
   // fecha de vencimiento de la cuota — agrupo por ese mes para responder "cuánto me caerá cada
@@ -824,30 +843,34 @@ function DashboardEquipo() {
         )}
       </div>
 
-      <div className={`grid grid-cols-1 ${adSpendAllowed ? 'xl:grid-cols-[2fr_1fr]' : ''} gap-4 items-start`}>
+      <div
+        className={`grid grid-cols-1 ${adSpendAllowed && showCommissionSummary ? 'xl:grid-cols-[2fr_1fr]' : ''} gap-4 items-start`}
+      >
         {adSpendAllowed && <FunnelStrip totals={funnelTotals} loading={loading} />}
-        <div className={`grid grid-cols-1 sm:grid-cols-2 ${adSpendAllowed ? 'xl:grid-cols-1' : ''} gap-4`}>
-          <KPICard
-            title="Comisión ganada"
-            value={loading ? '—' : fmt(commissionKpis.ganada)}
-            icon={Coins}
-            loading={loading}
-            description="cash collected · sin liquidar"
-          />
-          <KPICard
-            title="Comisión futura"
-            value={loading ? '—' : fmt(commissionKpis.futura)}
-            icon={Percent}
-            loading={loading}
-            description="esperada · cuotas por cobrar"
-          />
-        </div>
+        {showCommissionSummary && (
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${adSpendAllowed ? 'xl:grid-cols-1' : ''} gap-4`}>
+            <KPICard
+              title="Comisión ganada"
+              value={loading ? '—' : fmt(commissionKpis.ganada)}
+              icon={Coins}
+              loading={loading}
+              description={`${selectedMemberName ? `${selectedMemberName} · ` : ''}cash collected · sin liquidar`}
+            />
+            <KPICard
+              title="Comisión futura"
+              value={loading ? '—' : fmt(commissionKpis.futura)}
+              icon={Percent}
+              loading={loading}
+              description={`${selectedMemberName ? `${selectedMemberName} · ` : ''}esperada · cuotas por cobrar`}
+            />
+          </div>
+        )}
       </div>
 
       {/* Desglose mes a mes de las comisiones futuras: qué ya está cobrado (cash recogido,
           comisión real) y qué depende de que los referidos paguen. Igual para closer, setter y
           afiliado — cada quien ve sus filas respetando los filtros de persona. */}
-      {!loading && futurePorMes.length > 0 && (
+      {showCommissionSummary && !loading && futurePorMes.length > 0 && (
         <div className="dashboard-card p-5">
           <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
             <h3 className="text-sm font-semibold text-foreground">Comisiones a futuro, mes a mes</h3>
@@ -881,7 +904,9 @@ function DashboardEquipo() {
       )}
 
       <div>
-        <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Facturación de {monthLabel(ym)}</h2>
+        <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
+          Resumen financiero · {PERIOD_LABELS[periodPreset]}
+        </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard
             title="Facturación bruta"
@@ -913,12 +938,18 @@ function DashboardEquipo() {
             {...delta(cur.count, prev.count)}
           />
           <KPICard
-            title="Ticket medio"
-            value={loading ? '—' : fmt(cur.avgTicket)}
+            title={showAverageTicket ? 'Ticket medio por cliente' : 'Cash collected medio'}
+            value={loading ? '—' : fmt(showAverageTicket ? cur.avgTicket : cur.avgCash)}
             icon={Receipt}
             loading={loading}
-            compareLabel="vs mes anterior · por venta"
-            {...delta(cur.avgTicket, prev.avgTicket)}
+            description={
+              showAverageTicket ? `${productsInPeriod} productos vendidos` : 'por venta con cobro en el periodo'
+            }
+            compareLabel="vs periodo anterior"
+            {...delta(
+              showAverageTicket ? cur.avgTicket : cur.avgCash,
+              showAverageTicket ? prev.avgTicket : prev.avgCash
+            )}
           />
         </div>
       </div>
@@ -929,7 +960,7 @@ function DashboardEquipo() {
           <SalesChart
             data={series}
             cashData={cashSeries}
-            title="Facturación vs cash cobrado — últimos 6 meses"
+            title={`Facturación vs cash cobrado · ${PERIOD_LABELS[periodPreset]} · por ${trend.granularity}`}
             className="h-full"
           />
         </div>
@@ -939,9 +970,17 @@ function DashboardEquipo() {
             <h3 className="text-sm font-semibold text-foreground">Objetivos de empresa</h3>
           </div>
           {targets.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6 text-center mt-auto mb-auto">
-              No hay objetivos de empresa activos.
-            </p>
+            <div className="py-6 text-center mt-auto mb-auto">
+              <p className="text-sm text-muted-foreground">No hay objetivos de empresa activos.</p>
+              {leadershipView && (
+                <Link
+                  href={`/${tenant}/kpi/templates?tab=objetivos`}
+                  className="mt-3 inline-flex rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                >
+                  Añadir objetivos
+                </Link>
+              )}
+            </div>
           ) : (
             <div className="space-y-4">
               {targets.slice(0, 4).map((t) => {

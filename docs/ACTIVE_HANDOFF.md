@@ -1,8 +1,8 @@
 # Relevo activo
 
-## CODEX — consistencia de dashboards (28-sep, pendiente de retomar)
+## CODEX — consistencia y rediseño de dashboards (28-sep, en curso)
 
-Rama `codex/dashboard-consistency`, base `16d484c`. Reclama unit-economics, resumen financiero, componentes KPI/funnel y acceso VSL con sus pruebas. Alcance: error VSL, periodo/población de embudos, trazabilidad de cash y señales KPI neutrales. No modifica datos financieros ni migraciones. Checkout aislado; WIP de navegación ajeno preservado.
+Rama `codex/dashboard-consistency`, base inicial `16d484c`; integrado main `d07bb45`. Rediseño visual aprobado por el usuario: resumen de negocio y bloques Marketing, Operación comercial, Ventas, Finanzas y Clientes; selectores de métricas y datos reales, sin cifras de maqueta. Reclama también components/os/DepartmentDashboard.tsx. Reclama unit-economics, resumen financiero, componentes KPI/funnel y acceso VSL con sus pruebas. Alcance: error VSL, periodo/población de embudos, trazabilidad de cash y señales KPI neutrales. No modifica datos financieros ni migraciones. Checkout aislado; WIP de navegación ajeno preservado.
 
 Implementado: ambos embudos leen el mismo agregado del periodo; asistencia por estado confirmado y reservas excluidas mediante cuentaComoVenta. Sin conversiones de cohorte inferidas de totales independientes. LTV:CAC descriptivo, variaciones de gasto neutrales. Resumen separa cobros registrados brutos de consolidado Stripe/interno y expone diferencia sin tocar P&L ni crear cobros. Tests de periodo, reservas, asistencia y aislamiento de consultas.
 
@@ -18,6 +18,13 @@ Trabajo preservado en PR #278 y rama `codex/dashboard-consistency`; sin fusionar
 - **VSL:** configuración restaurada y conexión SQL probada; pantalla y endpoints de producción todavía NO verificados. No volver a pedir la credencial ni guardarla en archivos. Primero comprobar si el despliegue Git posterior a la restauración ya terminó.
 - **Al retomar:** leer main y reclamaciones nuevas; comprobar el SHA del despliegue activo y la cola de Vercel; validar VSL con sesión existente (sin «Ver como»); revisar el fallo/reintento E2E de contratos; actualizar la rama desde main sin sobrescribir trabajo ajeno; integrar solo tras checks relevantes y verificar Unit Economics y resumen financiero.
 - **Criterio de cierre:** VSL carga sin error de conexión, PR integrada con checks aprobados, métricas del periodo coherentes y distinción de fuentes de cash visible en producción. Mantener el orden diagnóstico de KPI del usuario: definición, fuente, completitud, periodo, maturity, asignación, cálculo y finalmente benchmark.
+
+## 📋 Documento de decisiones para Alex: `docs/DECISIONES-PENDIENTES-ALEX.md` (28-sep tarde)
+
+Las 3 decisiones que bloquean el resto de la auditoría FASE A (A5 clawback/refunds acumulados,
+doble firma concurrente, onboarding de alumno sin outbox) con estado real verificado hoy, opciones
+A/B/C, recomendación y coste estimado. Esperando la respuesta de Alex en formato
+«A5: X · Firma: X · Onboarding: X».
 
 ## ✅ Último P1 de crons cerrado: presupuesto real del sync de pagos Stripe (PR #277, 28-sep tarde)
 

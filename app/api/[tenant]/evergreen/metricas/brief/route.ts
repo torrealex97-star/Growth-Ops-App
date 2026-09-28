@@ -250,6 +250,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     // Las mediciones en crudo, para el "ver cálculo" de cada tarjeta: sin esto, la nota de salud vuelve
     // a ser un número que nadie puede discutir.
     mediciones: consulta.agregados,
+    // Las dos series nacen de las mismas filas y el mismo periodo que las tarjetas. El cliente solo
+    // cambia la presentación; no vuelve a consultar ni recalcula dinero.
+    serieFacturacion: consulta.serieFacturacion,
+    serieCash: consulta.serieCash,
     diagnostico,
     salud,
     procedencia: {
