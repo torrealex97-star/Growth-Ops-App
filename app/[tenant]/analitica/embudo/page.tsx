@@ -1,21 +1,25 @@
 'use client'
 
+import { fetchAllRows } from '@/lib/supabase/paginate'
+
 import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
 import { QualificationInsights } from '@/components/os/QualificationInsights'
 
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { BarChart3, PhoneCall, Wallet, Trophy, Undo2, Gauge, ClipboardList, ListChecks } from 'lucide-react'
-import { lastNMonths, monthLabel } from '@/lib/analytics'
+import { cuentaComoVenta } from '@/lib/analytics'
 import { formatCurrency, formatPercent } from '@/lib/utils'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { TrendChart } from '@/components/os/TrendChart'
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { originLabel } from '@/lib/ads/funnel'
 import { isAttended } from '@/lib/appointments/status'
-import { resolverOferta } from '@/lib/metrics/oferta'
 import { countryISOForPhone, regionForISO } from '@/lib/phone'
-import { useSesion, useTenant } from '@/lib/tenant-context'
+import { metodoDePlan } from '@/lib/metrics/agregados'
+import { canonicalizeAppointments } from '@/lib/canonical/dedup'
+import { buildPeriodFunnel } from '@/lib/metrics/period-funnel'
+import { useSesion, useTenantId, useTenant } from '@/lib/tenant-context'
 import { AnotacionesInspector } from '@/components/metrics/AnotacionesInspector'
 import type { TrendAnnotation } from '@/components/os/TrendChart'
 import type { Annotation } from '@/app/api/[tenant]/evergreen/anotaciones/route'
@@ -44,9 +48,14 @@ type MetricsSaleRow = {
   closer_id: string | null
   setter_id: string | null
   appointment_id: string | null
+  contact_id: string | null
+  payment_plan_method?: string | null
+  reservation_completed_at: string | null
 }
 
 type MetricsCollectionRow = {
+  sale_id: string
+  status: string
   gross_amount: number
   commissionable_amount: number
   collected_at: string
@@ -58,16 +67,6 @@ type PersonRow = {
   roles?: { key?: string } | null
 }
 
-function nowYm() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-
-function ymOf(dateStr: string | null | undefined): string {
-  if (!dateStr) return ''
-  return dateStr.slice(0, 7)
-}
-
 function num(x: number | string | null | undefined) {
   return Number(x ?? 0)
 }
@@ -75,11 +74,6 @@ function num(x: number | string | null | undefined) {
 function pct(curr: number, base: number): string {
   if (!base) return '—'
   return formatPercent((curr / base) * 100, 1)
-}
-
-function pctVal(curr: number, base: number): number | null {
-  if (!base) return null
-  return (curr / base) * 100
 }
 
 const ACTIVE_APPT_STATUSES = ['scheduled', 'confirmed', 'show', 'completed', 'rescheduled']
@@ -114,6 +108,9 @@ function KPICard({
 
 export default function VentasMetricasPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
+  const [loadError, setLoadError] = useState(false)
+  const [retry, setRetry] = useState(0)
   const sesion = useSesion()
   const [loading, setLoading] = useState(true)
   const [annotations, setAnnotations] = useState<Annotation[]>([])
@@ -121,7 +118,6 @@ export default function VentasMetricasPage() {
   const [sales, setSales] = useState<MetricsSaleRow[]>([])
   const [collections, setCollections] = useState<MetricsCollectionRow[]>([])
   const [people, setPeople] = useState<PersonRow[]>([])
-  const [ym, setYm] = useState(nowYm())
   const [personId, setPersonId] = useState<string>('all')
   const [myRole, setMyRole] = useState<string | null>(null)
   const [regionByContact, setRegionByContact] = useState<Map<string, string>>(new Map())
@@ -134,32 +130,79 @@ export default function VentasMetricasPage() {
   useEffect(() => {
     let mounted = true
     async function load() {
+      setLoading(true)
+      setLoadError(false)
       const supabase = createClient()
       const [apptRes, salesRes, collRes, usersRes, contactsRes] = await Promise.all([
-        supabase
-          .from('appointments')
-          .select(
-            'id, status, event_type, offered, result, pipe_value, appointment_datetime, setter_id, closer_id, needs_followup, utm_source, utm_term, contact_id'
-          ),
-        supabase.from('sales').select('id, gross_amount, status, sale_date, closer_id, setter_id, appointment_id'),
-        supabase.from('collections').select('gross_amount, commissionable_amount, collected_at'),
-        supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
-        supabase.from('contacts').select('id, phone'),
+        fetchAllRows(() =>
+          supabase
+            .from('appointments')
+            .select(
+              'id, status, event_type, offered, result, pipe_value, appointment_datetime, setter_id, closer_id, needs_followup, utm_source, utm_term, contact_id',
+              { count: 'exact' }
+            )
+            .eq('tenant_id', tenantId)
+            .order('id')
+        ),
+        fetchAllRows(() =>
+          supabase
+            .from('sales')
+            .select(
+              'id, gross_amount, status, sale_date, closer_id, setter_id, appointment_id, contact_id, reservation_completed_at, payment_plans(method)',
+              { count: 'exact' }
+            )
+            .eq('tenant_id', tenantId)
+            .order('id')
+        ),
+        fetchAllRows(() =>
+          supabase
+            .from('collections')
+            .select('sale_id, status, gross_amount, commissionable_amount, collected_at', { count: 'exact' })
+            .eq('tenant_id', tenantId)
+            .order('id')
+        ),
+        fetchAllRows(() =>
+          supabase
+            .from('users')
+            .select('id, full_name, roles(key), tenant_members!inner(tenant_id)', { count: 'exact' })
+            .eq('tenant_members.tenant_id', tenantId)
+            .eq('is_active', true)
+            .order('id')
+        ),
+        fetchAllRows(() =>
+          supabase.from('contacts').select('id, phone', { count: 'exact' }).eq('tenant_id', tenantId).order('id')
+        ),
       ])
       if (!mounted) return
-      setAppointments((apptRes.data as MetricsAppointmentRow[] | null) || [])
-      setSales((salesRes.data as MetricsSaleRow[] | null) || [])
-      setCollections((collRes.data as MetricsCollectionRow[] | null) || [])
+      if ([apptRes, salesRes, collRes, usersRes, contactsRes].some((r) => r.error || r.truncated)) {
+        setLoadError(true)
+        setLoading(false)
+        return
+      }
+      const rawAppointments = (apptRes.rows ?? []) as MetricsAppointmentRow[]
+      const byId = new Map(rawAppointments.map((a) => [a.id, a]))
+      setAppointments(
+        canonicalizeAppointments(
+          rawAppointments.map((a) => ({
+            ...a,
+            scheduled_at: a.appointment_datetime,
+            calendly_event_id: null,
+            calendar_event_id: null,
+          }))
+        ).appointments.map((a) => byId.get(a.appointmentId)!)
+      )
+      setSales((salesRes.rows ?? []).map((s) => ({ ...s, payment_plan_method: metodoDePlan(s) })))
+      setCollections((collRes.rows as MetricsCollectionRow[] | null) || [])
       // Solo roles que realmente aparecen como closer_id/setter_id en agendas/ventas:
       // el selector mezclaba a TODO el equipo (csm, editor, manager...) con los cierres/agendas
       // reales, lo que ensuciaba el desglose por persona (bug: "en closer solo debe estar los
       // registrados como closer no más nadie").
       const SALES_ROLES = new Set(['closer', 'setter', 'cold_caller', 'admin'])
-      setPeople(((usersRes.data as PersonRow[] | null) || []).filter((p) => SALES_ROLES.has(p.roles?.key ?? '')))
+      setPeople(((usersRes.rows as PersonRow[] | null) || []).filter((p) => SALES_ROLES.has(p.roles?.key ?? '')))
       // Región por contacto (LATAM/USA-Canadá/España/Europa) a partir del prefijo del teléfono,
       // para el desglose "agendas por región" que solo ve el director.
       const rMap = new Map<string, string>()
-      for (const c of (contactsRes.data as { id: string; phone: string | null }[] | null) || []) {
+      for (const c of (contactsRes.rows as { id: string; phone: string | null }[] | null) || []) {
         rMap.set(c.id, regionForISO(countryISOForPhone(c.phone)))
       }
       setRegionByContact(rMap)
@@ -170,9 +213,7 @@ export default function VentasMetricasPage() {
     return () => {
       mounted = false
     }
-  }, [sesion])
-
-  const monthOptions = useMemo(() => lastNMonths(12, nowYm()).reverse(), [])
+  }, [sesion, tenantId, retry])
 
   const range = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
   const desdeISO = range.from ? range.from.toISOString().slice(0, 10) : null
@@ -218,22 +259,20 @@ export default function VentasMetricasPage() {
   // siempre se calcula sobre la fecha actual, ver getPeriodRange), la intersección quedaba
   // vacía en silencio, sin avisar. Con un preset de periodo activo, este manda solo; el
   // selector de Mes solo actúa cuando el periodo está en "Todo".
-  const usingPeriodPreset = periodPreset !== 'all'
   const monthAppointments = useMemo(
-    () =>
-      personAppointments.filter(
-        (a) => (usingPeriodPreset || ymOf(a.appointment_datetime) === ym) && inPeriod(a.appointment_datetime, range)
-      ),
-    [personAppointments, ym, range, usingPeriodPreset]
+    () => personAppointments.filter((a) => inPeriod(a.appointment_datetime, range)),
+    [personAppointments, range]
   )
-  const monthSales = useMemo(
-    () => personSales.filter((s) => (usingPeriodPreset || ymOf(s.sale_date) === ym) && inPeriod(s.sale_date, range)),
-    [personSales, ym, range, usingPeriodPreset]
-  )
+  const monthSales = useMemo(() => personSales.filter((s) => inPeriod(s.sale_date, range)), [personSales, range])
   const monthCollections = useMemo(
     () =>
-      collections.filter((c) => (usingPeriodPreset || ymOf(c.collected_at) === ym) && inPeriod(c.collected_at, range)),
-    [collections, ym, range, usingPeriodPreset]
+      collections.filter(
+        (c) =>
+          c.status === 'collected' &&
+          (personId === 'all' || personSales.some((s) => s.id === c.sale_id)) &&
+          inPeriod(c.collected_at, range)
+      ),
+    [collections, personId, personSales, range]
   )
 
   const eventTypeCoverage = useMemo(() => {
@@ -243,23 +282,23 @@ export default function VentasMetricasPage() {
   }, [monthAppointments])
 
   const metrics = useMemo(() => {
-    const salesCalls = monthAppointments.filter((a) => a.event_type === 'sales_call' || a.event_type === null)
+    const salesCalls = monthAppointments
+    const period = buildPeriodFunnel([], salesCalls, monthSales, false, range)
 
     const activeAppts = monthAppointments.filter((a) => ACTIVE_APPT_STATUSES.includes(a.status))
     const pipeValue = activeAppts.reduce((acc, a) => acc + num(a.pipe_value), 0)
 
-    const bookedSalesCalls = salesCalls.length
-    const liveSalesCalls = salesCalls.filter((a) => isAttended(a.status)).length
+    const bookedSalesCalls = period.agendas
+    const liveSalesCalls = period.asistencias
     const cancelledSalesCalls = salesCalls.filter((a) => CANCELLED_APPT_STATUSES.includes(a.status)).length
 
     // Ofertas con el resolver canónico del negocio (declarado > derivado > asumido): la cláusula
     // muerta result='offer_made' solo sumaba 0 — el vocabulario cerrado de `result` la eliminó.
-    const offers = monthAppointments.filter((a) => resolverOferta(a).valor === true).length
+    const offers = period.offersDeclaradas
     const deposits = monthAppointments.filter((a) => a.result === 'deposit').length
 
-    const closedSales = monthSales.filter((s) => s.status === 'active' || s.status === 'partial_refund')
-    const closedByResult = monthAppointments.filter((a) => a.result === 'closed').length
-    const closes = closedSales.length > 0 ? closedSales.length : closedByResult
+    const closedSales = monthSales.filter(cuentaComoVenta)
+    const closes = closedSales.length
     const closedValue = closedSales.reduce((acc, s) => acc + num(s.gross_amount), 0)
 
     // Renombrado a "Cobros comisionables" en la UI (Fase 5): esto NO es lo mismo que "Net Revenue"
@@ -269,13 +308,10 @@ export default function VentasMetricasPage() {
     // pantallas llamando "Net Revenue" a números distintos era exactamente la confusión que esta
     // fase corrige — se mantiene el cálculo (es un dato de calidad de lead válido), se corrige el
     // nombre. Ver docs/METRICS.md.
-    const netRevenue = monthCollections.reduce((acc, c) => acc + num(c.commissionable_amount || c.gross_amount), 0)
+    const netRevenue = monthCollections.reduce((acc, c) => acc + num(c.commissionable_amount ?? c.gross_amount), 0)
 
     const refunds = personSales.filter(
-      (s) =>
-        (usingPeriodPreset || ymOf(s.sale_date) === ym) &&
-        inPeriod(s.sale_date, range) &&
-        REFUND_SALE_STATUSES.includes(s.status)
+      (s) => inPeriod(s.sale_date, range) && REFUND_SALE_STATUSES.includes(s.status)
     ).length
 
     const programadas = monthAppointments.filter((a) => PROGRAMADA_APPT_STATUSES.includes(a.status)).length
@@ -295,7 +331,7 @@ export default function VentasMetricasPage() {
       programadas,
       seguimientos,
     }
-  }, [monthAppointments, monthSales, monthCollections, personSales, ym, range, usingPeriodPreset])
+  }, [monthAppointments, monthSales, monthCollections, personSales, range])
 
   // Ventas por fuente (Facebook/Meta, Setting IA, orgánico...) — cruzando la venta con la agenda
   // que la originó (sales.appointment_id -> appointments.utm_source/utm_term), mismo criterio que
@@ -308,7 +344,7 @@ export default function VentasMetricasPage() {
 
   const salesBySource = useMemo(() => {
     const rows = new Map<string, { count: number; revenue: number }>()
-    for (const s of monthSales) {
+    for (const s of monthSales.filter(cuentaComoVenta)) {
       const appt = s.appointment_id ? apptById.get(s.appointment_id) : null
       const label = originLabel(appt?.utm_source ?? null, appt?.utm_term ?? null)
       const prev = rows.get(label) || { count: 0, revenue: 0 }
@@ -324,16 +360,10 @@ export default function VentasMetricasPage() {
   // Filtrado solo por periodo (sin restringir a una persona), para poder comparar a todo el
   // equipo a la vez en la tabla de abajo.
   const periodAppointments = useMemo(
-    () =>
-      appointments.filter(
-        (a) => (usingPeriodPreset || ymOf(a.appointment_datetime) === ym) && inPeriod(a.appointment_datetime, range)
-      ),
-    [appointments, ym, range, usingPeriodPreset]
+    () => appointments.filter((a) => inPeriod(a.appointment_datetime, range)),
+    [appointments, range]
   )
-  const periodSales = useMemo(
-    () => sales.filter((s) => (usingPeriodPreset || ymOf(s.sale_date) === ym) && inPeriod(s.sale_date, range)),
-    [sales, ym, range, usingPeriodPreset]
-  )
+  const periodSales = useMemo(() => sales.filter((s) => inPeriod(s.sale_date, range)), [sales, range])
 
   // Comparativa de equipo: métricas clave de cada persona en el mismo periodo, una al lado de
   // otra, para comparar rendimiento (en vez de tener que cambiar el selector uno a uno).
@@ -341,11 +371,13 @@ export default function VentasMetricasPage() {
     return people
       .map((p) => {
         const appts = periodAppointments.filter((a) => a.setter_id === p.id || a.closer_id === p.id)
-        const salesCalls = appts.filter((a) => a.event_type === 'sales_call' || a.event_type === null)
+        const salesCalls = appts
         const bookedSC = salesCalls.length
-        const liveSC = salesCalls.filter((a) => isAttended(a.status)).length
+        const liveSC = salesCalls.filter(
+          (a) => isAttended(a.status) && Date.parse(a.appointment_datetime) <= Date.now()
+        ).length
         const pSales = periodSales.filter((s) => s.closer_id === p.id || s.setter_id === p.id)
-        const activeSales = pSales.filter((s) => s.status === 'active' || s.status === 'partial_refund')
+        const activeSales = pSales.filter(cuentaComoVenta)
         return {
           id: p.id,
           name: p.full_name,
@@ -353,7 +385,7 @@ export default function VentasMetricasPage() {
           liveSC,
           showRate: pct(liveSC, bookedSC),
           closes: activeSales.length,
-          closeRate: pct(activeSales.length, liveSC),
+          closeRate: '—',
           revenue: activeSales.reduce((acc, s) => acc + num(s.gross_amount), 0),
         }
       })
@@ -379,10 +411,11 @@ export default function VentasMetricasPage() {
   // Series sobre la MISMA ventana y filtros que el resto de la página (persona + periodo, con el
   // selector de mes solo cuando el periodo está en "Todo"). TrendChart pinta la variación contra
   // el periodo anterior de igual duración y los huecos como huecos.
+  const [trendMetric, setTrendMetric] = useState<'agendas' | 'asistencias' | 'cierres' | 'facturacion'>('agendas')
   const [granularidad, setGranularidad] = useState<'dia' | 'semana' | 'mes'>('dia')
   const seriesVentas = useMemo(() => {
     // Mismo criterio de cierre que metrics.closes arriba: ventas activas o con devolución parcial.
-    const esCierre = (status: string) => status === 'active' || status === 'partial_refund'
+
     const fin = range.to ?? new Date()
     const t1 = fin.getTime()
     const t0 = range.from ? new Date(range.from).getTime() : t1 - 90 * 86400000
@@ -397,12 +430,13 @@ export default function VentasMetricasPage() {
       porDia.set(key, acc)
     }
     for (const a of personAppointments) {
-      if (!a.appointment_datetime || CANCELLED_APPT_STATUSES.includes(a.status)) continue
+      if (!a.appointment_datetime || !monthAppointments.includes(a)) continue
       bump(a.appointment_datetime, 'agendas')
-      if (isAttended(a.status)) bump(a.appointment_datetime, 'asistencias')
+      if (isAttended(a.status) && Date.parse(a.appointment_datetime) <= Date.now())
+        bump(a.appointment_datetime, 'asistencias')
     }
     for (const s of personSales) {
-      if (!esCierre(s.status) || !s.sale_date) continue
+      if (!cuentaComoVenta(s) || !s.sale_date || !monthSales.includes(s)) continue
       bump(s.sale_date, 'cierres')
       bump(s.sale_date, 'facturacion', num(s.gross_amount))
     }
@@ -434,7 +468,7 @@ export default function VentasMetricasPage() {
       cierres: serie('cierres'),
       facturacion: serie('facturacion'),
     }
-  }, [personAppointments, personSales, range, granularidad])
+  }, [personAppointments, personSales, monthAppointments, monthSales, range, granularidad])
   const etiquetaGranularidad = granularidad === 'dia' ? 'día' : granularidad === 'semana' ? 'semana' : 'mes'
 
   // GATE DE TRACKING: una métrica que nunca se ha registrado no se muestra — ni card ni gráfico.
@@ -472,35 +506,8 @@ export default function VentasMetricasPage() {
             <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">Métricas de ventas</h1>
           </div>
           <p className="text-muted-foreground text-sm mt-1">
-            Embudo de llamadas de ventas/admisión, con tasas de conversión y ratios de valor
+            Actividad comercial del periodo. Mismas ventas activas y agendas consolidadas que el resumen del negocio.
           </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <select
-            value={personId}
-            onChange={(e) => setPersonId(e.target.value)}
-            className="bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground"
-          >
-            <option value="all">Toda la empresa</option>
-            {people.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.full_name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={ym}
-            onChange={(e) => setYm(e.target.value)}
-            disabled={usingPeriodPreset}
-            title={usingPeriodPreset ? 'Desactivado: manda el filtro de Periodo de abajo' : undefined}
-            className="bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground disabled:opacity-50"
-          >
-            {monthOptions.map((m) => (
-              <option key={m} value={m}>
-                {monthLabel(m)}
-              </option>
-            ))}
-          </select>
         </div>
       </div>
 
@@ -532,6 +539,13 @@ export default function VentasMetricasPage() {
           </div>
           <div className="h-64 animate-pulse bg-card rounded-lg" />
         </div>
+      ) : loadError ? (
+        <div role="alert" className="dashboard-card p-6">
+          No se pudo cargar la fuente completa. No se muestran totales parciales.
+          <button className="ml-3 underline" onClick={() => setRetry((n) => n + 1)}>
+            Reintentar
+          </button>
+        </div>
       ) : !hasData ? (
         <div className="dashboard-card p-10 text-center text-muted-foreground">Sin datos todavía.</div>
       ) : (
@@ -539,8 +553,8 @@ export default function VentasMetricasPage() {
           {eventTypeCoverage < 50 && (
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 text-xs text-amber-300">
               Marca el tipo de llamada en las agendas para mejorar la atribución. Actualmente solo el{' '}
-              {formatPercent(eventTypeCoverage, 0)} de las citas del mes tienen event_type definido (las citas sin tipo
-              se cuentan como llamadas de ventas).
+              {formatPercent(eventTypeCoverage, 0)} de las citas del periodo tienen tipo de llamada definido. Se muestra
+              toda la actividad comercial; no se infiere cualificación.
             </div>
           )}
 
@@ -552,14 +566,14 @@ export default function VentasMetricasPage() {
                   Embudo comercial
                 </p>
                 <h2 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground">
-                  Llamadas de ventas
+                  Actividad comercial
                 </h2>
               </div>
               <dl className="grid grid-cols-2 gap-x-8 gap-y-3 sm:grid-cols-4">
                 <div>
-                  <dt className="text-2xs text-muted-foreground">Agendadas → cierre</dt>
+                  <dt className="text-2xs text-muted-foreground">Ventas nuevas</dt>
                   <dd className="mt-1 font-display text-lg font-semibold tabular-nums text-foreground">
-                    {pct(metrics.closes, metrics.bookedSalesCalls)}
+                    {metrics.closes}
                   </dd>
                 </div>
                 <div>
@@ -588,19 +602,21 @@ export default function VentasMetricasPage() {
             </div>
             <div className="p-4 sm:p-5">
               <ConnectedFunnel
+                activityOnly
+                compact
                 stages={[
                   { label: 'Agendadas', value: metrics.bookedSalesCalls, conversion: null },
                   {
                     label: 'Llamadas atendidas',
                     value: metrics.liveSalesCalls,
-                    conversion: pctVal(metrics.liveSalesCalls, metrics.bookedSalesCalls),
+                    conversion: null,
                   },
                   {
                     label: 'Oferta',
                     value: metrics.offers,
-                    conversion: pctVal(metrics.offers, metrics.liveSalesCalls),
+                    conversion: null,
                   },
-                  { label: 'Cierre', value: metrics.closes, conversion: pctVal(metrics.closes, metrics.offers) },
+                  { label: 'Cierre', value: metrics.closes, conversion: null },
                 ]}
               />
             </div>
@@ -622,8 +638,7 @@ export default function VentasMetricasPage() {
                       : etiquetaGranularidad === 'semana'
                         ? 'semanal'
                         : 'mensual'}{' '}
-                    de agendas, asistencias y cierres en el periodo. El % de cada card es la variación frente al{' '}
-                    {etiquetaGranularidad === 'mes' ? 'mes' : 'periodo'} anterior de igual duración.
+                    de agendas, asistencias y cierres en el periodo. Los totales corresponden al periodo seleccionado.
                   </p>
                 </div>
                 <div
@@ -654,37 +669,31 @@ export default function VentasMetricasPage() {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                {hayEvolucion.agendas && (
-                  <TrendChart
-                    title={`Agendas por ${etiquetaGranularidad}`}
-                    data={seriesVentas.agendas}
-                    annotations={marcasEvolucion}
-                  />
-                )}
-                {hayEvolucion.asistencias && (
-                  <TrendChart
-                    title={`Asistencias por ${etiquetaGranularidad}`}
-                    data={seriesVentas.asistencias}
-                    annotations={marcasEvolucion}
-                  />
-                )}
-                {hayEvolucion.cierres && (
-                  <TrendChart
-                    title={`Cierres por ${etiquetaGranularidad}`}
-                    data={seriesVentas.cierres}
-                    annotations={marcasEvolucion}
-                  />
-                )}
-                {hayEvolucion.facturacion && (
-                  <TrendChart
-                    title={`Facturación cerrada por ${etiquetaGranularidad}`}
-                    data={seriesVentas.facturacion}
-                    format={formatCurrency}
-                    annotations={marcasEvolucion}
-                  />
-                )}
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Métrica de evolución comercial">
+                {(
+                  [
+                    ['agendas', 'Agendas'],
+                    ['asistencias', 'Asistencias'],
+                    ['cierres', 'Ventas nuevas'],
+                    ['facturacion', 'Facturación'],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    aria-pressed={trendMetric === id}
+                    onClick={() => setTrendMetric(id)}
+                    className={`min-h-9 rounded-full px-3 text-sm ${trendMetric === id ? 'bg-brand-500 text-white' : 'bg-muted text-muted-foreground'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
+              <TrendChart
+                title={`${{ agendas: 'Agendas', asistencias: 'Asistencias', cierres: 'Ventas nuevas', facturacion: 'Facturación' }[trendMetric]} por ${etiquetaGranularidad}`}
+                data={seriesVentas[trendMetric]}
+                format={trendMetric === 'facturacion' ? formatCurrency : undefined}
+                annotations={marcasEvolucion}
+              />
               {desdeISO && hastaISO && (
                 <AnotacionesInspector
                   desde={desdeISO}
@@ -699,7 +708,7 @@ export default function VentasMetricasPage() {
           {/* Volúmenes */}
           <div>
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
-              Volúmenes — {monthLabel(ym)}
+              Volúmenes — periodo seleccionado
             </h2>
             <div className="grid grid-cols-1 overflow-hidden rounded-xl border border-border bg-card/30 sm:grid-cols-2 lg:grid-cols-4">
               {tracking.pipe && (
@@ -711,7 +720,7 @@ export default function VentasMetricasPage() {
                 />
               )}
               <KPICard
-                title="Agendadas"
+                title="Pendientes de resolver"
                 value={String(metrics.programadas)}
                 icon={ClipboardList}
                 description="citas agendadas sin resolver"
@@ -754,21 +763,21 @@ export default function VentasMetricasPage() {
               />
               <KPICard
                 title="% oferta → cierre"
-                value={pct(metrics.closes, metrics.offers)}
+                value="—"
                 icon={Trophy}
-                description="Cierres / ofertas"
+                description="Requiere ventas enlazadas a las ofertas de la misma cohorte"
               />
               <KPICard
                 title="% atendidas → cierre"
-                value={pct(metrics.closes, metrics.liveSalesCalls)}
+                value="—"
                 icon={Trophy}
-                description="Cierres / llamadas atendidas"
+                description="Requiere ventas enlazadas a las asistencias de la misma cohorte"
               />
               <KPICard
                 title="% agendadas → cierre"
-                value={pct(metrics.closes, metrics.bookedSalesCalls)}
+                value="—"
                 icon={Trophy}
-                description="Cierres / llamadas agendadas"
+                description="Los hechos del periodo no representan una cohorte de conversión"
               />
               <KPICard
                 title="% del pipeline cerrado"
@@ -782,7 +791,7 @@ export default function VentasMetricasPage() {
           {/* Ventas por fuente */}
           <div>
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
-              Ventas por fuente — {monthLabel(ym)}
+              Ventas por fuente — periodo seleccionado
             </h2>
             {salesBySource.length === 0 ? (
               <div className="dashboard-card p-6 text-center text-sm text-muted-foreground">
@@ -824,7 +833,7 @@ export default function VentasMetricasPage() {
           {teamComparison.length > 0 && (
             <div>
               <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
-                Comparativa de equipo — {usingPeriodPreset ? 'periodo seleccionado' : monthLabel(ym)}
+                Comparativa de equipo — periodo seleccionado
               </h2>
               <div className="dashboard-card overflow-x-auto">
                 <table className="w-full text-sm">
@@ -861,7 +870,7 @@ export default function VentasMetricasPage() {
           {myRole === 'director' && regionBreakdown.length > 0 && (
             <div>
               <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
-                Agendas por región — {monthLabel(ym)}{' '}
+                Agendas por región — periodo seleccionado{' '}
                 <span className="normal-case text-muted-foreground/70">(solo visible para ti)</span>
               </h2>
               <div className="grid grid-cols-1 overflow-hidden rounded-xl border border-border bg-card/30 sm:grid-cols-2 lg:grid-cols-5">

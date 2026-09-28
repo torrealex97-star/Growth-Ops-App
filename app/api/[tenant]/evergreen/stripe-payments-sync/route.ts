@@ -52,7 +52,13 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ te
         failures: r.truncated
           ? ['Stripe tenía más pagos por leer de los que caben en una ejecución: pulsa de nuevo para continuar.']
           : [],
-        detail: { pagos: r.written, devueltos: r.refunded, paginas: r.pages, truncado: r.truncated },
+        detail: {
+          pagos: r.written,
+          devueltos: r.refunded,
+          paginas: r.pages,
+          truncado: r.truncated,
+          fees_pendientes: r.feesPendientes,
+        },
       })
     )
     return NextResponse.json({ ok: true, ...result })

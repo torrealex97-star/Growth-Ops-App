@@ -18,6 +18,7 @@ import type { AppointmentStatus, User } from '@/lib/types/database'
 import type { Alerta } from '@/lib/metrics/alertas'
 import { esFalloVisible, pedir } from '@/lib/ui/pedir'
 import { toast } from 'sonner'
+import { PaymentInbox } from '@/components/sales/PaymentInbox'
 
 interface HeaderProps {
   user: User & { roles: { key: string; name: string } }
@@ -36,6 +37,7 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
   const tenant = useTenant()
   const tenantId = useTenantId()
   const router = useRouter()
+  const [paymentCount, setPaymentCount] = useState(0)
   const [missing, setMissing] = useState<MissingLinkAppt[]>([])
   const [pendingAttendance, setPendingAttendance] = useState<PendingAttendance[]>([])
   const [updatingAttendance, setUpdatingAttendance] = useState<string | null>(null)
@@ -46,6 +48,37 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
   const [metricAlertsLoading, setMetricAlertsLoading] = useState(false)
   const [metricAlertsError, setMetricAlertsError] = useState<string | null>(null)
   const [metricAlertsRetry, setMetricAlertsRetry] = useState(0)
+
+  // Receipts become visible tasks before the notification popover is opened.
+  useEffect(() => {
+    setPaymentCount(0)
+    if (!isSuperAdmin && !['admin', 'director', 'closer'].includes(role)) return
+    const controller = new AbortController()
+    const refreshPayments = async () => {
+      try {
+        const response = await fetch(`/api/${tenant}/evergreen/sales/payment-inbox`, {
+          signal: controller.signal,
+          cache: 'no-store',
+        })
+        if (!response.ok) return
+        const body = await response.json()
+        if (!controller.signal.aborted) setPaymentCount(body.total)
+      } catch {
+        /* The opened inbox displays read failures and a retry action. */
+      }
+    }
+    void refreshPayments()
+    const onFocus = () => {
+      void refreshPayments()
+    }
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('growthops:payment-inbox-changed', onFocus)
+    return () => {
+      controller.abort()
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('growthops:payment-inbox-changed', onFocus)
+    }
+  }, [tenant, role, isSuperAdmin])
 
   // Alerta de obligación: agendas ASISTIDAS (show) SIN enlace de llamada (recording_url). El closer
   // debe añadirlo. Liderazgo ve todas; el resto solo las suyas (además la RLS por scope las acota).
@@ -161,7 +194,7 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
     setMetricAlertsError(null)
   }, [tenant])
 
-  const count = missing.length + pendingAttendance.length + metricAlerts.length
+  const count = missing.length + pendingAttendance.length + metricAlerts.length + paymentCount
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center border-b border-border bg-background/95 backdrop-blur-xl px-4 lg:px-7">
@@ -229,8 +262,9 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
             <div className="px-4 py-3 border-b border-border">
               <p className="text-sm font-semibold text-foreground">Notificaciones</p>
             </div>
+            <PaymentInbox compact onCount={setPaymentCount} />
             {count === 0 && metricAlertsLoaded ? (
-              <p className="px-4 py-6 text-sm text-muted-foreground text-center">Todo al día. Sin pendientes.</p>
+              <p className="px-4 py-6 text-sm text-muted-foreground text-center">Sin otras tareas pendientes.</p>
             ) : (
               <div className="max-h-80 overflow-y-auto divide-y divide-border">
                 {metricAlertsLoading && (

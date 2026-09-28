@@ -108,7 +108,7 @@ test('GOLDEN close_rate_llamadas: 24 shows y 6 ventas con cita = 25', () => {
   assert.deepEqual(publicada.lineage.fuentes, ['appointments', 'sales'])
 })
 
-test('GOLDEN CAC: 10.000 de gasto y 8 ventas = 1250, con muestra mínima respetada', () => {
+test('GOLDEN CAC: 10.000 de gasto y 8 clientes = 1250, con muestra mínima respetada', () => {
   const campanas = Array.from({ length: 30 }, (_, i) => ({
     date: `2026-09-${String(i + 1).padStart(2, '0')}`,
     spend: 333.33,
@@ -117,6 +117,7 @@ test('GOLDEN CAC: 10.000 de gasto y 8 ventas = 1250, con muestra mínima respeta
     leads: 1,
   }))
   const ventas = Array.from({ length: 8 }, (_, i) => ({
+    contact_id: `contact_${i}`,
     sale_date: `2026-09-1${i}`,
     gross_amount: 1997,
     status: 'active',
@@ -124,7 +125,7 @@ test('GOLDEN CAC: 10.000 de gasto y 8 ventas = 1250, con muestra mínima respeta
   const m = con({ campanas, ventas })
   const publicada = evalua('cac', m.cac)
   assert.equal(publicada.value, 1249.99) // 9999.9 / 8 — el redondeo r2 del motor, congelado
-  assert.equal(publicada.dataConfidence, null, '8 ventas alcanzan la muestra mínima declarada')
+  assert.equal(publicada.dataConfidence, null, '8 clientes alcanzan la muestra mínima declarada')
 })
 
 test('GOLDEN cash_roas: 30 días de gasto, 6 cobros = cash/gasto exacto', () => {

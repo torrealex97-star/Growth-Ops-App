@@ -287,7 +287,8 @@ const reach: MetricDef = {
   key: 'reach',
   label: 'Reach',
   fmt: 'int',
-  tooltip: 'Personas únicas alcanzadas. Directo de Meta (reach).',
+  tooltip:
+    'Personas únicas alcanzadas. Solo disponible para una observación de Meta; el alcance diario o por campaña no se suma para calcular personas únicas del periodo.',
   get: () => null,
 }
 

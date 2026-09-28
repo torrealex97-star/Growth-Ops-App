@@ -84,12 +84,12 @@ test('avanceDelPeriodo marca cerrado cuando hoy ya pasó el final', () => {
 // lib/metrics/series-negocio.ts — el mismo criterio de "qué venta/cobro cuenta" que agregados.ts
 // =============================================================================================
 
-test('serieFacturacionAcumulada solo cuenta ventas activas/completadas, acumuladas por día', () => {
+test('serieFacturacionAcumulada solo cuenta ventas activas/con devolución parcial, acumuladas por día', () => {
   const serie = serieFacturacionAcumulada(
     [
       { sale_date: '2026-03-01', gross_amount: 1000, status: 'active' },
       { sale_date: '2026-03-02', gross_amount: 500, status: 'refunded' }, // no cuenta
-      { sale_date: '2026-03-03', gross_amount: 2000, status: 'completada' },
+      { sale_date: '2026-03-03', gross_amount: 2000, status: 'partial_refund' },
     ],
     p('2026-03-01', '2026-03-03')
   )

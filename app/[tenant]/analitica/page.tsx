@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Gauge } from 'lucide-react'
 import { PanelGrowth } from '@/components/metrics/PanelGrowth'
+import { getPeriodRange, toDateInputValue, PERIOD_LABELS, type PeriodPreset } from '@/lib/filters/period'
 
 // ÍNDICE DE ANALÍTICA. Antes esta página solo redirigía al embudo: existía en la navegación y no decía
 // nada. Ahora es la vista de arriba —la restricción actual, la salud del negocio y qué pide atención—, y
@@ -10,31 +11,14 @@ import { PanelGrowth } from '@/components/metrics/PanelGrowth'
 //
 // NO SE HA CREADO UN DASHBOARD PARALELO a propósito: se llena un hueco que ya estaba en el menú.
 
-/** Rangos de los filtros. Los mismos en todas las pantallas de métricas, para no aprender dos idiomas. */
-const RANGOS = [
-  { id: 'hoy', label: 'Hoy', dias: 0 },
-  { id: '3d', label: '3 días', dias: 3 },
-  { id: '7d', label: '7 días', dias: 7 },
-  { id: 'mes', label: 'Este mes', dias: null },
-  { id: '90d', label: 'Trimestre', dias: 90 },
-  { id: 'ano', label: 'Año', dias: 365 },
-] as const
-
-function rangoAFechas(id: string): { desde: string; hasta: string } {
-  const hoy = new Date()
-  const hasta = hoy.toISOString().slice(0, 10)
-  if (id === 'mes') {
-    const primero = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), 1))
-    return { desde: primero.toISOString().slice(0, 10), hasta }
-  }
-  const dias = RANGOS.find((r) => r.id === id)?.dias ?? 0
-  const desde = new Date(hoy.getTime() - (dias ?? 0) * 86_400_000)
-  return { desde: desde.toISOString().slice(0, 10), hasta }
-}
+// Usa los mismos límites naturales/móviles que Negocio y el resto de dashboards.
+const RANGOS: PeriodPreset[] = ['today', '3d', '7d', 'month', 'quarter', 'year']
 
 export default function AnaliticaIndexPage() {
-  const [rango, setRango] = useState<string>('mes')
-  const { desde, hasta } = rangoAFechas(rango)
+  const [rango, setRango] = useState<PeriodPreset>('month')
+  const range = getPeriodRange(rango, '', '')
+  const desde = toDateInputValue(range.from!)
+  const hasta = toDateInputValue(range.to!)
 
   return (
     <div className="dashboard-surface space-y-5">
@@ -44,7 +28,7 @@ export default function AnaliticaIndexPage() {
           <div>
             <h1 className="font-display text-2xl font-semibold tracking-tight">Analítica</h1>
             <p className="text-sm text-muted-foreground">
-              Qué está limitando el crecimiento ahora mismo, y qué hacer con ello.
+              Métricas medidas, calidad de los datos e hipótesis que requieren revisión.
             </p>
           </div>
         </div>
@@ -52,22 +36,25 @@ export default function AnaliticaIndexPage() {
         <div className="flex flex-wrap gap-1" role="group" aria-label="Periodo">
           {RANGOS.map((r) => (
             <button
-              key={r.id}
+              key={r}
               type="button"
-              onClick={() => setRango(r.id)}
-              aria-pressed={rango === r.id}
+              onClick={() => setRango(r)}
+              aria-pressed={rango === r}
               className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                rango === r.id
+                rango === r
                   ? 'bg-brand-600 text-white'
                   : 'border border-border text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
             >
-              {r.label}
+              {PERIOD_LABELS[r]}
             </button>
           ))}
         </div>
       </div>
 
+      <p className="text-xs text-muted-foreground">
+        Periodo: {desde} — {hasta}
+      </p>
       <PanelGrowth desde={desde} hasta={hasta} />
     </div>
   )
