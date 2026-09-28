@@ -2,7 +2,7 @@
 
 ## CODEX — continuación de auditoría, 28-sep
 
-Rama `codex/metrics-audit-continuation`, desde main tras merge #278. Reclama también dashboard principal e índice de Analítica (periodos compartidos), FunnelStrip, AttributionTable, aviso de cobertura del brief, resumen de registro de ventas (reservas y origen) y MarketingEfficiencyCard (recuentos y semántica); consulta/diagnóstico/registros de métricas, `lib/analytics.ts` (fuente registrada frente a ingesta), PanelGrowth, Atribución/Cobertura, Colaboradores y aclaraciones de Finanzas/Instagram; pruebas y esta documentación. No hay migraciones ni escrituras de negocio. #278 fusionado, CI completo aprobado y despliegue confirmado en el embudo de producción.
+PR de entrega: [#282](https://github.com/torrealex97-star/Growth-Ops-App/pull/282), rama `codex/metrics-audit-continuation`, desde main tras merge #278. Implementación terminada; consultar el PR para el estado de CI/fusión/despliegue. Esta sección documenta el lote y no reserva archivos para trabajo futuro. Ámbito: consulta/diagnóstico/registros de métricas, dashboard principal e índice de Analítica, fuentes/atribución/Colaboradores, resumen de registro de ventas y aclaraciones de Finanzas/Instagram. No hay migraciones ni escrituras de negocio. #278 fusionado, CI completo aprobado y despliegue confirmado en el embudo de producción.
 
 Implementado en esta continuación:
 
@@ -21,7 +21,7 @@ Verificado con sesión local: Atribución y Negocio coinciden en leads/agendas/v
 
 Quality (formato/lint/tipos/unitarias) y suite de métricas final PASS: 1.136 unitarias, 3 omitidas y 783 métricas. Build final PASS, incluida previsión. Validación visual final: la previsión usa solo días observados y termina en el cierre del periodo. Dead-code informativo ejecutado. Sin datos de tenants en fixtures/docs.
 
-Pendientes reales para cierre: CI/preview del nuevo PR, responsive (intento de viewport de herramienta no confirmó tamaño efectivo, no contarlo como validación móvil). Datos que no deben inventarse: Cash ROAS atribuible, conversiones de cohorte madura, planes de deuda completos, clientes/retención y desglose por closer del resumen. La cobertura no autoriza modificar registros para forzar igualdad. Dashboard, periodos y registro confirmados en el build final: recuentos coherentes y reservas excluidas del resumen. Cobros inspeccionado: tabla del libro interno, sin total consolidado; pendiente aclarar el subtítulo «todos los pagos» y cobertura de lectura. Conciliación inspeccionada: tabla vacía de resultados de cotejo, no demuestra que todos los cobros estén conciliados; no se pulsó Cotejar ni se importaron datos.
+Entrega condicionada a CI/preview de #282. Responsive pendiente (intento de viewport de herramienta no confirmó tamaño efectivo, no contarlo como validación móvil). Datos que no deben inventarse: Cash ROAS atribuible, conversiones de cohorte madura, planes de deuda completos, clientes/retención y desglose por closer del resumen. La cobertura no autoriza modificar registros para forzar igualdad. Dashboard, periodos y registro confirmados en el build final: recuentos coherentes y reservas excluidas del resumen. Cobros inspeccionado: tabla del libro interno, sin total consolidado; pendiente aclarar el subtítulo «todos los pagos» y cobertura de lectura. Conciliación inspeccionada: tabla vacía de resultados de cotejo, no demuestra que todos los cobros estén conciliados; no se pulsó Cotejar ni se importaron datos.
 
 ### Siguiente lote, por prioridad
 
