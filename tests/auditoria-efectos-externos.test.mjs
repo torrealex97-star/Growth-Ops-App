@@ -35,10 +35,10 @@ test('backfill YouTube: claim atómico pending→uploading ANTES de publicar', (
 test('backfill YouTube: el espejo post-upload nunca provoca otra subida', () => {
   const src = read('lib/youtube/backfill.ts')
   // El update a 'uploaded' verifica su error (reconciliación manual, NO re-selección).
-  assert.ok(src.includes('const { error: updErr } = await sb'), 'el update post-upload captura su error')
-  assert.ok(src.includes('publicado pero sin espejo'), 'el fallo del espejo queda registrado y auditado')
+  assert.ok(src.includes('const { error: markUploadedErr } = await sb'), 'el update post-upload captura su error')
+  assert.ok(src.includes('DUPLICADO'), 'el fallo del espejo queda registrado y auditado')
   // El catch marca 'failed' comprobando también su resultado (ya no es fire-and-forget).
-  assert.ok(src.includes('sin marcar failed'), 'el update de failed también verifica su error')
+  assert.ok(src.includes("no se pudo marcar 'failed'"), 'el update de failed también verifica su error')
 })
 
 test('cron Reels: presupuesto dentro del runtime de Vercel', () => {
