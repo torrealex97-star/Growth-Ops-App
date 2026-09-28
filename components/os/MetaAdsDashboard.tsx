@@ -43,11 +43,11 @@ function MetricHint({ text, calculated }: { text: string; calculated?: boolean }
 // Badge de origen (§41): pequeño, discreto, con tooltip.
 export function MetaSourceBadge() {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-0.5 text-3xs font-medium uppercase tracking-wider text-muted-foreground">
       <span className="h-1.5 w-1.5 rounded-full bg-[#0866FF]" aria-hidden />
       <span className="group/badge relative cursor-help">
         META
-        <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 w-52 -translate-x-1/2 rounded-lg border border-border bg-popover p-2 text-[11px] normal-case tracking-normal opacity-0 shadow-lg transition-opacity group-hover/badge:opacity-100">
+        <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 w-52 -translate-x-1/2 rounded-lg border border-border bg-popover p-2 text-2xs normal-case tracking-normal opacity-0 shadow-lg transition-opacity group-hover/badge:opacity-100">
           Fuente: Meta Marketing API. Métricas de Meta o calculadas solo con datos de Meta.
         </span>
       </span>
@@ -329,7 +329,7 @@ export function PerformanceByFunnel({ rows }: { rows: FunnelRowByFunnel[] }) {
               <td className="px-4 py-2.5 text-right tabular-nums text-foreground">{fmtEur(r.spend)}</td>
               <td className="px-4 py-2.5 text-right tabular-nums text-foreground">
                 {fmtInt(r.primary)}
-                <span className="ml-1.5 text-[10px] text-muted-foreground">{r.primaryLabel}</span>
+                <span className="ml-1.5 text-3xs text-muted-foreground">{r.primaryLabel}</span>
               </td>
               <td className="px-4 py-2.5 text-right tabular-nums text-foreground">{fmtEur(r.costPrimary)}</td>
               <td className="px-4 py-2.5 text-right tabular-nums text-foreground">{fmtInt(r.purchases)}</td>

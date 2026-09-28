@@ -19,7 +19,7 @@ export function AttributionTable({ rows }: { rows: AttribRow[] }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
+              <tr className="text-2xs uppercase tracking-wider text-muted-foreground border-b border-border">
                 <th className="text-left font-medium py-2">Fuente / Anuncio</th>
                 <th className="text-right font-medium py-2">Leads</th>
                 <th className="text-right font-medium py-2">Ventas</th>

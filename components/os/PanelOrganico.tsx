@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useTenant } from '@/lib/tenant-context'
+import { formatNumber } from '@/lib/utils'
 
 type PlataformaOficial = {
   platform: string
@@ -35,7 +36,7 @@ type Estado = {
   plataformas: PlataformaOficial[]
 }
 
-const nf = new Intl.NumberFormat('es-ES')
+const nf = (n: number) => formatNumber(n)
 
 function fechaRel(iso?: string | null): string {
   if (!iso) return '—'
@@ -143,37 +144,37 @@ export function PanelOrganico() {
             <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
               <div>
                 <div className="text-lg font-semibold">
-                  {instagram.followers != null ? nf.format(instagram.followers) : '—'}
+                  {instagram.followers != null ? nf(instagram.followers) : '—'}
                 </div>
                 <div className="text-xs text-muted-foreground">Seguidores</div>
               </div>
               <div>
-                <div className="text-lg font-semibold">{nf.format(instagram.postsPeriodo)}</div>
+                <div className="text-lg font-semibold">{nf(instagram.postsPeriodo)}</div>
                 <div className="text-xs text-muted-foreground">Publicaciones del periodo</div>
               </div>
               <div>
-                <div className="text-lg font-semibold">{nf.format(instagram.likesPeriodo)}</div>
+                <div className="text-lg font-semibold">{nf(instagram.likesPeriodo)}</div>
                 <div className="text-xs text-muted-foreground">Me gusta</div>
               </div>
               <div>
-                <div className="text-lg font-semibold">{nf.format(instagram.commentsPeriodo)}</div>
+                <div className="text-lg font-semibold">{nf(instagram.commentsPeriodo)}</div>
                 <div className="text-xs text-muted-foreground">Comentarios</div>
               </div>
               {instagram.reachPeriodo != null && (
                 <div>
-                  <div className="text-lg font-semibold">{nf.format(instagram.reachPeriodo)}</div>
+                  <div className="text-lg font-semibold">{nf(instagram.reachPeriodo)}</div>
                   <div className="text-xs text-muted-foreground">Alcance (oficial)</div>
                 </div>
               )}
               {instagram.sharesPeriodo != null && (
                 <div>
-                  <div className="text-lg font-semibold">{nf.format(instagram.sharesPeriodo)}</div>
+                  <div className="text-lg font-semibold">{nf(instagram.sharesPeriodo)}</div>
                   <div className="text-xs text-muted-foreground">Compartidos</div>
                 </div>
               )}
               {instagram.savedPeriodo != null && (
                 <div>
-                  <div className="text-lg font-semibold">{nf.format(instagram.savedPeriodo)}</div>
+                  <div className="text-lg font-semibold">{nf(instagram.savedPeriodo)}</div>
                   <div className="text-xs text-muted-foreground">Guardados</div>
                 </div>
               )}
@@ -212,8 +213,8 @@ export function PanelOrganico() {
                       {c.url || '(sin enlace)'}
                     </a>
                     <span className="shrink-0 text-xs text-muted-foreground">
-                      {c.views ? `${nf.format(c.views)} views · ` : ''}
-                      {nf.format(c.likes ?? 0)} likes
+                      {c.views ? `${nf(c.views)} views · ` : ''}
+                      {nf(c.likes ?? 0)} likes
                     </span>
                   </li>
                 ))}

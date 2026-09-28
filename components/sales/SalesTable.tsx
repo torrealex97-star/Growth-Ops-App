@@ -105,7 +105,7 @@ export function SalesTable({ sales, sorting = [], onSortingChange, isAdmin = fal
                 </button>
                 {(row.original as { attribution_conflict?: boolean }).attribution_conflict && (
                   <span
-                    className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/40"
+                    className="px-1.5 py-0.5 rounded text-3xs font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/40"
                     title="Conflicto de atribución: revisar quién se lleva la comisión"
                   >
                     ⚠ atrib.

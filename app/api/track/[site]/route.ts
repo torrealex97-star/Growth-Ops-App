@@ -192,11 +192,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (existingVisitor) {
     visitorId = existingVisitor.id
   } else {
-    const { data: newVisitor } = await sb
+    const { data: newVisitor, error: visitorErr } = await sb
       .from('analytics_visitors')
       .insert({ tenant_id: tenantId, anonymous_id: anonymousId })
       .select('id')
       .single()
+    if (visitorErr) console.error('[track] no se pudo crear analytics_visitors:', visitorErr.message)
     visitorId = newVisitor?.id ?? null
   }
   if (!visitorId) {
@@ -220,7 +221,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (existingSession) {
       sessionId = existingSession.id
     } else {
-      const { data: newSession } = await sb
+      const { data: newSession, error: sessionErr } = await sb
         .from('analytics_sessions')
         .insert({
           tenant_id: tenantId,
@@ -240,6 +241,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         })
         .select('id')
         .single()
+      if (sessionErr) console.error('[track] no se pudo crear analytics_sessions:', sessionErr.message)
       sessionId = newSession?.id ?? null
     }
   }
@@ -257,7 +259,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .maybeSingle()
     touchpointId = existingTouchpoint?.id ?? null
     if (!touchpointId) {
-      const { data: newTouchpoint } = await sb
+      const { data: newTouchpoint, error: touchpointErr } = await sb
         .from('analytics_touchpoints')
         .insert({
           tenant_id: tenantId,
@@ -277,6 +279,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         })
         .select('id')
         .single()
+      if (touchpointErr) console.error('[track] no se pudo crear analytics_touchpoints:', touchpointErr.message)
       touchpointId = newTouchpoint?.id ?? null
     }
   }

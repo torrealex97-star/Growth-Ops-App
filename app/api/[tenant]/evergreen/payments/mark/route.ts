@@ -38,18 +38,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       // duplicados: la misma cuota generaba 2 collections + 2 comisiones idénticas).
       const { data: existingColl } = await sb
         .from('collections')
-        .select('id')
+        .select('id, status')
         .eq('expected_installment_id', installmentId)
         .eq('tenant_id', t.tenantId)
         .neq('status', 'reversed')
         .limit(1)
-      if (inst.status === 'collected' || (existingColl && existingColl.length > 0)) {
+      const cobroExistente = existingColl?.[0] ?? null
+      // 'disputed' no es cash confirmado (docs/MONEY.md D5, igual que lib/canonical/cash.ts:
+      // esCobrado = status === 'collected'). No se duplica el cobro, pero TAMPOCO se marca la
+      // cuota como cobrada mientras el dinero está en el aire — antes se pintaba en verde.
+      if (cobroExistente?.status === 'disputed') {
+        return NextResponse.json({
+          ok: true,
+          status: inst.status,
+          already: true,
+          disputed: true,
+          commissionsGenerated: 0,
+        })
+      }
+      if (inst.status === 'collected' || cobroExistente?.status === 'collected') {
         // Asegura que la cuota queda marcada como cobrada, pero sin duplicar el cobro.
         if (inst.status !== 'collected') {
-          await sb
+          const { error: syncErr } = await sb
             .from('sale_expected_installments')
             .update({ status: 'collected', flagged_delinquent: false })
             .eq('id', installmentId)
+          if (syncErr) {
+            return NextResponse.json(
+              { error: 'El cobro ya existe pero la cuota no se pudo sincronizar', detail: syncErr.message },
+              { status: 500 }
+            )
+          }
         }
         return NextResponse.json({ ok: true, status: 'collected', already: true, commissionsGenerated: 0 })
       }
@@ -115,10 +134,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         // cobrada por la otra, así que respondemos igual que la rama de idempotencia de arriba
         // en vez de devolver un 500 que confundiría a quien reintentó por buena fe.
         if (collErr.code === '23505') {
-          await sb
+          const { error: syncErr } = await sb
             .from('sale_expected_installments')
             .update({ status: 'collected', flagged_delinquent: false })
             .eq('id', installmentId)
+          if (syncErr) {
+            return NextResponse.json(
+              { error: 'El cobro ya existe pero la cuota no se pudo sincronizar', detail: syncErr.message },
+              { status: 500 }
+            )
+          }
           return NextResponse.json({ ok: true, status: 'collected', already: true, commissionsGenerated: 0 })
         }
         return NextResponse.json({ error: 'Error al registrar el cobro', detail: collErr.message }, { status: 500 })

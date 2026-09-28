@@ -1190,7 +1190,7 @@ export default function NewSalePage() {
                   <div className="bg-muted/60 rounded p-2">
                     <p className="text-muted-foreground text-xs">Cash Collected estimado</p>
                     <p className="text-emerald-400 font-medium">{formatCurrency(commissionableAmount)}</p>
-                    <p className="text-muted-foreground text-[11px]">
+                    <p className="text-muted-foreground text-2xs">
                       {Math.round(selectedPlan.cash_collection_ratio * 100)}% del total
                     </p>
                   </div>

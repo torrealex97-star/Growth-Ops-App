@@ -96,7 +96,7 @@ export function BrandDialog({ open, onOpenChange }: Props) {
                       onChange={(e) => setBrand({ ...brand, colors: { ...brand.colors, [c.key]: e.target.value } })}
                       className="h-9 w-full rounded border border-border bg-transparent cursor-pointer"
                     />
-                    <span className="text-[10px] text-muted-foreground">{c.label}</span>
+                    <span className="text-3xs text-muted-foreground">{c.label}</span>
                   </div>
                 ))}
               </div>
@@ -120,7 +120,7 @@ export function BrandDialog({ open, onOpenChange }: Props) {
                 />
               </div>
             </div>
-            <p className="text-[10px] text-muted-foreground -mt-2">
+            <p className="text-3xs text-muted-foreground -mt-2">
               Usa nombres de Google Fonts (ej: Playfair Display, Montserrat).
             </p>
 
