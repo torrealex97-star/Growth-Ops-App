@@ -61,6 +61,17 @@ Una unidad de trabajo = una rama corta = un PR. Cada agente tiene como mucho **u
 - **Ante la duda, no decidas: encola.** Si no se puede saber a qué registro pertenece un dato externo, va a una cola de revisión humana. Escribirlo "en todos los candidatos por si acaso" corrompe datos y encima parece idempotente. Ver `lib/fathom/match.ts`.
 - **No inventes datos financieros ni vocabularios.** Si `sales` exige un producto que el pago externo no indica, el resultado es un informe con la decisión pendiente, no un importe elegido a dedo. Y si `canonical_events.event_name` es texto libre, el mapeo lo elige el usuario. Ver `lib/finance/stripeBackfill.ts`.
 
+## Reglas de código aprendidas a golpes (26–28-sep, auditoría FASE A)
+
+- **Fechas "solo día" van SIEMPRE por los helpers UTC de `lib/sales/plan-cuotas.ts`** (`parseFechaDia`, `aFechaDia`, `addDaysUTC`, `addMonthsUTC` — con clamp de fin de mes). Nunca `new Date()` local + `toISOString()` ni `setMonth()`: el runtime es UTC y un vencimiento de fin de mes salta de mes con un error que no se ve en local.
+- **supabase-js no lanza: comprueba `{ error }` en TODAS las queries, también en lecturas y counts.** Un count fallido antes de escribir permitió reenviar `venta.registrada` (#269); un `.single()` fallido no deja rastro. Para filtrar resultados de `Promise.all` tipados como unión, `arr.filter((r) => !r.error)` NO compila: comprueba por fuera `if (x.error && 'venta' in x)`.
+- **Efecto externo irreversible ⇒ claim atómico ANTES de ejecutarlo** (backfill de YouTube, #270): `UPDATE … SET status='uploading' WHERE id=… AND status='pending'` y sigue solo si la fila es tuya; verifica también el UPDATE posterior al efecto. Sin claim, dos runs solapados publican dos veces.
+- **El presupuesto interno de un cron debe ser mucho menor que su `maxDuration` de Vercel** (Reels: 45 s con `maxDuration` 60; cold start, middleware y candados ya se comen el margen — lección gemela de `calendly-ghl` del 25-sep). Persiste ESQUELETOS antes del bucle para que un corte a mitad no pierda nada y el run siguiente continúe (upsert idempotente).
+- **Consume los booleanos que devuelven los helpers de escritura.** El alta de venta ignoraba el `false` de `recordCollection` y registraba ventas con cobro fallido y acceso concedido (#269).
+- **Un error de carga no es un estado vacío** (variante UI de "un hueco no es un cero", #272): home, P&L, cohortes, proyección y gestoría muestran "fuente ilegible + reintentar", nunca sumas parciales ni "cero subcuentas".
+- **Resets y sincronizaciones de formularios comparan VALORES, no identidad de objeto** (ContactForm, #272): los consumidores pasan `defaultValues` inline y un reset por identidad borra lo tecleado.
+- **Clases Tailwind solo de la escala ya usada en el repo** (barrido del 27-sep): `h-4.5` compila y no existe. **Y los tests `.mjs` son JavaScript**: sin `as const`, sin sintaxis TS.
+
 ## Reglas de CI y de sesiones paralelas (19-sep, no repetir)
 
 - **Un run "cancelled" no es un fallo.** El CI lleva `cancel-in-progress: true`: cada push cancela el run del anterior. El único run que valida `main` es el del último commit — diagnostica SIEMPRE con `gh run list --commit <sha>` (o el último SHA de `origin/main`), nunca por el color de la lista general. Ya se confundió una lista de cancelados con "el push dio error".

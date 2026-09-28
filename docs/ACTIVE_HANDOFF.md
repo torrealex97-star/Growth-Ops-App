@@ -1,5 +1,30 @@
 # Relevo activo
 
+## ✅ Documentación de lecciones y deudas actualizada (28-sep tarde, Freebuff/Buffy — petición de Alex)
+
+Cierre de la petición «actualiza todos los md con las lecciones y deudas». **Solo docs/markdown;
+sin código.** Qué cambió:
+
+- **`AGENTS.md`** — nueva sección «Reglas de código aprendidas a golpes (26–28-sep, auditoría
+  FASE A)»: helpers UTC de fechas solo-día (`plan-cuotas.ts`), `{ error }` de supabase-js SIEMPRE
+  (incluido el gotcha TS de filtrar unión types), claim atómico antes de efectos externos
+  irreversibles, presupuesto de cron ≪ `maxDuration` + esqueletos antes del bucle, consumir los
+  booleanos de helpers de escritura, error de carga ≠ estado vacío en UI, resets de formularios
+  comparando valores, clases Tailwind solo de la escala existente y tests `.mjs` sin sintaxis TS.
+- **`PENDIENTES.md`** — 🧱 Deuda técnica con 7 entradas nuevas: `tests/canonical/` fuera de los
+  globs de CI (tarea de 5 min), firmas concurrentes sin CAS (requiere decisión del responsable de
+  contratos), onboarding de alumno sin outbox (carril F1), webhook GHL no-objeto (carril F1),
+  refunds acumulados + clawback (A5 de Alex), semántica refunds `pending`/`rejected` en cash
+  canónico. «Hecho recientemente» con el cierre de la FASE A (26–28-sep).
+- **`CAPABILITIES.md`** — postdata 28-sep: la tabla NO se re-mide; lista lo resuelto con evidencia
+  (10 hallazgos, PRs #236–#273) y los abiertos con su bloqueo real.
+- **`CHANGELOG.md`** — entradas 26–28-sep: #269, #270, #271, #272, #273, reglas de AGENTS.md y
+  escalado de dependencias del carril Claude Code (#261/#262/#263).
+
+Validación: markdown puro — `prettier --check` en verde; el CI no corre en docs (`paths-ignore`).
+Abiertos para Alex (decisión, no trabajo de agentes): A5 clawback/refunds, semántica de doble
+firma, y los dos del carril F1 (onboarding outbox, webhook no-objeto) pendientes de coordinación.
+
 ## ✅ Bugs sin decisión de Alex cerrados: SeQura fail-closed + cash canónico verificado (PR #273, mergeada 28-sep tarde)
 
 **MERGEADA** (squash `8586ebb` en `main`). CI verde completo (Quality 2m15s, gitleaks, Build 3m5s,
@@ -1177,10 +1202,10 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama                            | Toca                                                                                                                              | Desde  |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar)                  | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts`                                   | 25-sep |
-| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)                    | solo `expenses` vía migración pendiente; nada en código                                                                           | 23-sep |
+| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama           | Toca                                                                                            | Desde  |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
+| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
+| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
