@@ -938,7 +938,7 @@ function DashboardEquipo() {
             {...delta(cur.count, prev.count)}
           />
           <KPICard
-            title={showAverageTicket ? 'Ticket medio por venta' : 'Cash collected medio'}
+            title={showAverageTicket ? 'Ticket medio por cliente' : 'Cash collected medio'}
             value={loading ? '—' : fmt(showAverageTicket ? cur.avgTicket : cur.avgCash)}
             icon={Receipt}
             loading={loading}

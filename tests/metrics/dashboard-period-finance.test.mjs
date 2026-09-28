@@ -36,6 +36,18 @@ test('los KPIs del periodo separan booked y collected por la fecha de cada hecho
   assert.equal(kpis.avgCash, 350)
 })
 
+test('el ticket medio agrupa varias ventas del mismo cliente', () => {
+  const kpis = periodKpis(
+    [
+      { ...sales[1], id: 'sale-a', contact_id: 'contact-1', gross_amount: 1200 },
+      { ...sales[1], id: 'sale-b', contact_id: 'contact-1', gross_amount: 800 },
+      { ...sales[1], id: 'sale-c', contact_id: 'contact-2', gross_amount: 1000 },
+    ],
+    []
+  )
+  assert.equal(kpis.avgTicket, 1500)
+})
+
 test('la tendencia usa exactamente el rango activo y conserva días sin movimientos', () => {
   const result = financialTrend(sales, collections, range)
   assert.equal(result.granularity, 'día')

@@ -145,11 +145,14 @@ export function periodKpis(sales: SaleRow[], collections: CollectionRow[]) {
   const collected = collections.filter(isCollected)
   const cash = collected.reduce((acc, collection) => acc + num(collection.gross_amount), 0)
   const salesWithCash = new Set(collected.map((collection) => collection.sale_id)).size
+  const customers = new Set(
+    activeSales.map((sale) => (sale.contact_id ? `contact:${sale.contact_id}` : `sale:${sale.id}`))
+  ).size
   return {
     gross,
     count,
     cash,
-    avgTicket: count ? gross / count : 0,
+    avgTicket: customers ? gross / customers : 0,
     avgCash: salesWithCash ? cash / salesWithCash : 0,
   }
 }
