@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { resolverScopeColaborador, contactIdsDeScope } from '@/lib/collaborators/scope'
+import { PaymentInbox } from '@/components/sales/PaymentInbox'
 import { SalesTable } from '@/components/sales/SalesTable'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -306,6 +307,8 @@ export default function SalesPage() {
           </Button>
         </div>
       </div>
+
+      <PaymentInbox />
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">

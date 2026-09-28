@@ -1,5 +1,23 @@
 # Relevo activo
 
+## Codex — cobros pendientes en Ventas y campana, 28-sep
+
+Rama `codex/finance-breakdown-donuts` / PR #284, ampliada por petición del usuario. Bandeja de cobros Stripe sincronizados sin referencia interna en Ventas y en notificaciones; closers solo contactos asignados, admin/director pendientes globales del tenant. Lecturas paginadas, identidades ambiguas no asignadas por intuición. Registro humano de venta nueva (producto, plan, total pactado y cuotas restantes) o cobro de venta existente. Importe, moneda, estado y fee se verifican contra Stripe antes de escribir. Reserva existente conserva su estado: completar el producto/plan desde el detalle de venta. Fuentes manuales conservan el registro habitual; no se añadió un conector automático inexistente para seQura/transferencias.
+
+Migración `20260928191947_resolve_payment_inbox.sql` APLICADA mediante Supabase y registrada con esa versión. Función SECURITY INVOKER solo service_role; EXECUTE de anon/authenticated denegado comprobado en BD. No se modificaron ventas/cobros reales. Transacción y candado por pago evitan ventas parciales/doble clic; referencia pi/ch reconocida. Cobro manual similar sin referencia bloquea y exige conciliación. Comisiones usan atribución/generación existentes; fallo queda marcado para revisión.
+
+Validaciones: quality PASS (1.141 unitarias, 3 omitidas; 783 métricas), build PASS, dead-code informativo. `tests/integration/payment-inbox-postgres.mjs` ejecutado contra PGlite aislado: alta, reintento, cuota existente, rollback de plan inválido/cobro manual y permisos. Para repetir, instalar PGlite fuera del repo y pasar `PGLITE_TEST_MODULE` a su módulo ESM. Sin dependencia nueva de producción. Advisor de seguridad no menciona la función nueva.
+
+Verificado local con build optimizado: lista, contador y campana con enlace a Ventas; formulario inline, opciones de venta nueva/cuota y estado sin ventas existentes. El modal inicial bloqueó el renderizador del navegador integrado; sustituido por edición inline, comprobada visualmente sin bloqueo. No se pulsó Guardar sobre pagos reales. CI/deploy del nuevo commit pendientes; NO afirmar publicado. El E2E de la revisión anterior del PR fue CANCELADO por concurrencia (no fallo de código).
+
+Servidor local optimizado 127.0.0.1:3100, configuración existente únicamente en memoria. Siguiente: esperar CI del nuevo commit antes de fusionar y verificar despliegue. Seguir preguntando por otras fuentes automáticas si el usuario confirma alguna; hoy solo Stripe aporta pagos no registrados en el espejo.
+
+## Codex — gráficos circulares de Finanzas (28-sep)
+
+Rama `codex/finance-breakdown-donuts`. Los tres desgloses de Negocio (cobros por mes de venta, gastos y comisiones por función) reutilizan `FinanceBreakdown`, igual que Finanzas. Fuentes y cálculos intactos. Se conserva la leyenda completa, incluidos ceros, y el estado de ajustes negativos. Corregido el aviso de agrupación: ya no aparece cuando solo se excluyen ceros del anillo.
+
+Quality completo PASS y los tres anillos verificados visualmente en localhost:3100. Servidor local ahora en modo dev, configuración existente solo en memoria. Pendiente CI del PR y despliegue; no afirmar publicado hasta comprobarlos. Archivos: `components/os/BusinessFinance.tsx`, `components/finanzas/FinanceCharts.tsx`. Sin datos privados ni cambios de base de datos.
+
 ## CODEX — continuación de auditoría, 28-sep
 
 PR de entrega: [#282](https://github.com/torrealex97-star/Growth-Ops-App/pull/282), rama `codex/metrics-audit-continuation`, desde main tras merge #278. Implementación terminada; consultar el PR para el estado de CI/fusión/despliegue. Esta sección documenta el lote y no reserva archivos para trabajo futuro. Ámbito: consulta/diagnóstico/registros de métricas, dashboard principal e índice de Analítica, fuentes/atribución/Colaboradores, resumen de registro de ventas y aclaraciones de Finanzas/Instagram. No hay migraciones ni escrituras de negocio. #278 fusionado, CI completo aprobado y despliegue confirmado en el embudo de producción.
