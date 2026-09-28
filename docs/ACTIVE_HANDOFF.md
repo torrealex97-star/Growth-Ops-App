@@ -29,7 +29,7 @@ Checkout local `/tmp/growthops-dashboard-consistency`, puerto 3100. Runtime Node
 
 Mismo tenant, periodo, zona horaria, población y fuente deben dar mismo KPI en todas las vistas. Fuentes fallidas/truncadas son desconocidas, no cero. No comparar poblaciones distintas como conversiones. Diagnóstico obligatorio: definición → fuente → completitud → periodo → madurez → asignación → cálculo → benchmark. No publicar cifras reales ni nombres de clientes en este repositorio público. Usar fixtures sintéticos.
 
-Validación local del lote final: quality PASS (1.135 unitarias, 3 omitidas y 778 métricas); dead-code informativo ejecutado. Build local final PASS. CI del SHA subido debe confirmarse en el PR antes de fusionar. Smoke anterior fallaba por selector antiguo, no por autenticación: actualizado, pendiente resultado del nuevo CI. No declarar la auditoría completa.
+Validación local del lote final: quality PASS (1.135 unitarias, 3 omitidas y 778 métricas); dead-code informativo ejecutado. Build local PASS antes del último ajuste de paginación del embudo. Verificación autenticada detectó lectura truncada; se sustituyó por fetchAllRows con orden estable. Quality repetida PASS después del ajuste. El build/Smoke definitivo debe pasar en CI. CI del SHA subido debe confirmarse en el PR antes de fusionar. Smoke anterior fallaba por selector antiguo, no por autenticación: actualizado, pendiente resultado del nuevo CI. No declarar la auditoría completa.
 
 ## ✅ Producción desbloqueada: builds de Vercel vuelven a desplegar + logo IA Winners 404 (PR #280, 28-sep tarde)
 

@@ -1,5 +1,7 @@
 'use client'
 
+import { fetchAllRows } from '@/lib/supabase/paginate'
+
 import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
 import { QualificationInsights } from '@/components/os/QualificationInsights'
 
@@ -132,46 +134,52 @@ export default function VentasMetricasPage() {
       setLoadError(false)
       const supabase = createClient()
       const [apptRes, salesRes, collRes, usersRes, contactsRes] = await Promise.all([
-        supabase
-          .from('appointments')
-          .select(
-            'id, status, event_type, offered, result, pipe_value, appointment_datetime, setter_id, closer_id, needs_followup, utm_source, utm_term, contact_id',
-            { count: 'exact' }
-          )
-          .eq('tenant_id', tenantId)
-          .range(0, 49999),
-        supabase
-          .from('sales')
-          .select(
-            'id, gross_amount, status, sale_date, closer_id, setter_id, appointment_id, contact_id, reservation_completed_at, payment_plans(method)',
-            { count: 'exact' }
-          )
-          .eq('tenant_id', tenantId)
-          .range(0, 49999),
-        supabase
-          .from('collections')
-          .select('sale_id, status, gross_amount, commissionable_amount, collected_at', { count: 'exact' })
-          .eq('tenant_id', tenantId)
-          .range(0, 49999),
-        supabase
-          .from('users')
-          .select('id, full_name, roles(key)', { count: 'exact' })
-          .eq('tenant_id', tenantId)
-          .eq('is_active', true)
-          .range(0, 49999),
-        supabase.from('contacts').select('id, phone', { count: 'exact' }).eq('tenant_id', tenantId).range(0, 49999),
+        fetchAllRows(() =>
+          supabase
+            .from('appointments')
+            .select(
+              'id, status, event_type, offered, result, pipe_value, appointment_datetime, setter_id, closer_id, needs_followup, utm_source, utm_term, contact_id',
+              { count: 'exact' }
+            )
+            .eq('tenant_id', tenantId)
+            .order('id')
+        ),
+        fetchAllRows(() =>
+          supabase
+            .from('sales')
+            .select(
+              'id, gross_amount, status, sale_date, closer_id, setter_id, appointment_id, contact_id, reservation_completed_at, payment_plans(method)',
+              { count: 'exact' }
+            )
+            .eq('tenant_id', tenantId)
+            .order('id')
+        ),
+        fetchAllRows(() =>
+          supabase
+            .from('collections')
+            .select('sale_id, status, gross_amount, commissionable_amount, collected_at', { count: 'exact' })
+            .eq('tenant_id', tenantId)
+            .order('id')
+        ),
+        fetchAllRows(() =>
+          supabase
+            .from('users')
+            .select('id, full_name, roles(key)', { count: 'exact' })
+            .eq('tenant_id', tenantId)
+            .eq('is_active', true)
+            .order('id')
+        ),
+        fetchAllRows(() =>
+          supabase.from('contacts').select('id, phone', { count: 'exact' }).eq('tenant_id', tenantId).order('id')
+        ),
       ])
       if (!mounted) return
-      if (
-        [apptRes, salesRes, collRes, usersRes, contactsRes].some(
-          (r) => r.error || (r.count ?? 0) > (r.data?.length ?? 0)
-        )
-      ) {
+      if ([apptRes, salesRes, collRes, usersRes, contactsRes].some((r) => r.error || r.truncated)) {
         setLoadError(true)
         setLoading(false)
         return
       }
-      const rawAppointments = (apptRes.data ?? []) as MetricsAppointmentRow[]
+      const rawAppointments = (apptRes.rows ?? []) as MetricsAppointmentRow[]
       const byId = new Map(rawAppointments.map((a) => [a.id, a]))
       setAppointments(
         canonicalizeAppointments(
@@ -183,18 +191,18 @@ export default function VentasMetricasPage() {
           }))
         ).appointments.map((a) => byId.get(a.appointmentId)!)
       )
-      setSales((salesRes.data ?? []).map((s) => ({ ...s, payment_plan_method: metodoDePlan(s) })))
-      setCollections((collRes.data as MetricsCollectionRow[] | null) || [])
+      setSales((salesRes.rows ?? []).map((s) => ({ ...s, payment_plan_method: metodoDePlan(s) })))
+      setCollections((collRes.rows as MetricsCollectionRow[] | null) || [])
       // Solo roles que realmente aparecen como closer_id/setter_id en agendas/ventas:
       // el selector mezclaba a TODO el equipo (csm, editor, manager...) con los cierres/agendas
       // reales, lo que ensuciaba el desglose por persona (bug: "en closer solo debe estar los
       // registrados como closer no más nadie").
       const SALES_ROLES = new Set(['closer', 'setter', 'cold_caller', 'admin'])
-      setPeople(((usersRes.data as PersonRow[] | null) || []).filter((p) => SALES_ROLES.has(p.roles?.key ?? '')))
+      setPeople(((usersRes.rows as PersonRow[] | null) || []).filter((p) => SALES_ROLES.has(p.roles?.key ?? '')))
       // Región por contacto (LATAM/USA-Canadá/España/Europa) a partir del prefijo del teléfono,
       // para el desglose "agendas por región" que solo ve el director.
       const rMap = new Map<string, string>()
-      for (const c of (contactsRes.data as { id: string; phone: string | null }[] | null) || []) {
+      for (const c of (contactsRes.rows as { id: string; phone: string | null }[] | null) || []) {
         rMap.set(c.id, regionForISO(countryISOForPhone(c.phone)))
       }
       setRegionByContact(rMap)
