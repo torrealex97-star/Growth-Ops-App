@@ -20,6 +20,7 @@ import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
 import { getCustomDateRange, inPeriod } from '@/lib/filters/period'
+import { appointmentLeadScore, leadScoreBand, LEAD_SCORE_CLASSES } from '@/lib/appointments/lead-score'
 
 // Etapas del pipeline interno de seguimiento (independiente de `status` y del `pipeline_stage`
 // de las integraciones externas — ver migration-v58-followup-pipeline.sql).
@@ -114,6 +115,8 @@ export default function SeguimientoPage() {
   const [savingStageId, setSavingStageId] = useState<string | null>(null)
   const [notesDraft, setNotesDraft] = useState<Record<string, string>>({})
   const [savingNotesId, setSavingNotesId] = useState<string | null>(null)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [dropStage, setDropStage] = useState<KanbanStage | null>(null)
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -275,6 +278,14 @@ export default function SeguimientoPage() {
     } finally {
       setSavingStageId(null)
     }
+  }
+
+  const moveToStage = (appointmentId: string, stage: KanbanStage) => {
+    const appointment = appointments.find((item) => item.id === appointmentId)
+    if (!appointment || savingStageId === appointmentId) return
+    const nextStage = stage === 'sin_clasificar' ? null : stage
+    if ((appointment.followup_stage ?? null) === nextStage) return
+    void handleFollowupStageChange(appointmentId, nextStage)
   }
 
   const handleSaveNotes = async (appointmentId: string) => {
@@ -491,7 +502,26 @@ export default function SeguimientoPage() {
             const stageAppts = byStage[stage]
             const label = stage === 'sin_clasificar' ? 'Sin clasificar' : FOLLOWUP_STAGE_LABELS[stage]
             return (
-              <div key={stage} className="rounded-lg border border-border bg-card/40 flex flex-col">
+              <div
+                key={stage}
+                onDragOver={(event) => {
+                  if (!draggingId) return
+                  event.preventDefault()
+                  setDropStage(stage)
+                }}
+                onDragLeave={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropStage(null)
+                }}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  if (draggingId) moveToStage(draggingId, stage)
+                  setDraggingId(null)
+                  setDropStage(null)
+                }}
+                className={`rounded-lg border bg-card/40 flex flex-col transition-[border-color,background-color] ${
+                  dropStage === stage ? 'border-brand-500 bg-brand-500/5' : 'border-border'
+                }`}
+              >
                 <div className="px-3 py-2.5 border-b border-border/60 flex items-center justify-between">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className={`w-2 h-2 rounded-full shrink-0 ${FOLLOWUP_STAGE_DOT[stage]}`} />
@@ -505,37 +535,65 @@ export default function SeguimientoPage() {
                   {stageAppts.length === 0 ? (
                     <p className="text-xs text-muted-foreground text-center py-6">Sin agendas en esta etapa</p>
                   ) : (
-                    stageAppts.map((a) => (
-                      <button
-                        type="button"
-                        key={a.id}
-                        onClick={() => {
-                          setSelectedAppointment(a)
-                          setSheetOpen(true)
-                        }}
-                        className="w-full text-left rounded-lg border border-border bg-card p-3 hover:border-brand-500/50 transition-colors"
-                      >
-                        <p className="text-sm font-medium text-foreground truncate">
-                          {a.contacts?.full_name || 'Sin nombre'}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">{a.contacts?.phone || '—'}</p>
-                        <p className="text-2xs text-muted-foreground mt-1.5">
-                          {STATUS_LABELS_LOCAL[a.status] || a.status}
-                        </p>
-                        {(a.closer?.full_name || a.setter?.full_name) && (
-                          <div className="flex items-center gap-1 mt-1">
-                            <UserIcon className="w-3 h-3 text-muted-foreground shrink-0" />
-                            <span className="text-2xs text-muted-foreground truncate">
-                              {a.closer?.full_name || a.setter?.full_name}
-                            </span>
+                    stageAppts.map((a) => {
+                      const leadScore = appointmentLeadScore({
+                        ai_lead_score: a.ai_lead_score,
+                        qualification: a.qualification as Qualification | null,
+                      })
+                      return (
+                        <button
+                          type="button"
+                          key={a.id}
+                          draggable={savingStageId !== a.id}
+                          onDragStart={(event) => {
+                            setDraggingId(a.id)
+                            event.dataTransfer.effectAllowed = 'move'
+                            event.dataTransfer.setData('text/plain', a.id)
+                          }}
+                          onDragEnd={() => {
+                            setDraggingId(null)
+                            setDropStage(null)
+                          }}
+                          onClick={() => {
+                            setSelectedAppointment(a)
+                            setSheetOpen(true)
+                          }}
+                          className={`w-full text-left rounded-lg border border-border bg-card p-3 hover:border-brand-500/50 transition-[border-color,opacity] cursor-grab active:cursor-grabbing ${
+                            draggingId === a.id ? 'opacity-40' : ''
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <p className="min-w-0 flex-1 text-sm font-medium text-foreground truncate">
+                              {a.contacts?.full_name || 'Sin nombre'}
+                            </p>
+                            {leadScore !== null && (
+                              <span
+                                className={`shrink-0 rounded border px-1.5 py-0.5 text-2xs font-semibold tabular-nums ${LEAD_SCORE_CLASSES[leadScoreBand(leadScore)]}`}
+                                title="Lead score calculado con formulario o análisis de llamada"
+                              >
+                                {leadScore}
+                              </span>
+                            )}
                           </div>
-                        )}
-                        {a.notes && <p className="text-2xs text-muted-foreground mt-1.5 line-clamp-2">{a.notes}</p>}
-                        <p className="text-2xs text-muted-foreground mt-1.5 flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> {timeAgo(a.last_contacted_at)}
-                        </p>
-                      </button>
-                    ))
+                          <p className="text-xs text-muted-foreground truncate">{a.contacts?.phone || '—'}</p>
+                          <p className="text-2xs text-muted-foreground mt-1.5">
+                            {STATUS_LABELS_LOCAL[a.status] || a.status}
+                          </p>
+                          {(a.closer?.full_name || a.setter?.full_name) && (
+                            <div className="flex items-center gap-1 mt-1">
+                              <UserIcon className="w-3 h-3 text-muted-foreground shrink-0" />
+                              <span className="text-2xs text-muted-foreground truncate">
+                                {a.closer?.full_name || a.setter?.full_name}
+                              </span>
+                            </div>
+                          )}
+                          {a.notes && <p className="text-2xs text-muted-foreground mt-1.5 line-clamp-2">{a.notes}</p>}
+                          <p className="text-2xs text-muted-foreground mt-1.5 flex items-center gap-1">
+                            <Clock className="w-3 h-3" /> {timeAgo(a.last_contacted_at)}
+                          </p>
+                        </button>
+                      )
+                    })
                   )}
                 </div>
               </div>

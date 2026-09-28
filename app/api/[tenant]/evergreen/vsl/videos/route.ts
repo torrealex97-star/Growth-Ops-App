@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server'
 import { sql, mergeConfig, slugify, DEFAULT_CONFIG } from '@/lib/vsl/db'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
 
-// NOTA: este módulo usa el cliente `postgres` directo (POSTGRES_URL), que bypassa RLS igual
-// que el service-role de Supabase, así que el filtro `tenant_id` explícito en cada consulta
-// es la única protección contra fugas cruzadas de tenant.
+// NOTA: las lecturas usan service-role y las escrituras el cliente `postgres` directo; ambos
+// bypassan RLS, así que el filtro `tenant_id` explícito en cada consulta es la única protección
+// contra fugas cruzadas de tenant.
 
 // Lista todos los vídeos VSL del tenant.
 export async function GET(_req: Request, { params }: { params: Promise<{ tenant: string }> }) {
@@ -15,14 +16,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
   if ('error' in auth) return auth.error
 
   try {
-    const rows = await sql`
-      SELECT id, slug, name, source_url, poster_url, duration_seconds, config, created_at, updated_at
-      FROM vsl_videos
-      WHERE tenant_id = ${auth.tenantId} AND deleted_at IS NULL
-      ORDER BY created_at DESC
-    `
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+    const { data: rows, error } = await sb
+      .from('vsl_videos')
+      .select('id, slug, name, source_url, poster_url, duration_seconds, config, created_at, updated_at')
+      .eq('tenant_id', auth.tenantId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+    if (error) throw error
     return NextResponse.json({
-      videos: rows.map((r) => ({ ...r, config: mergeConfig(r.config) })),
+      videos: (rows ?? []).map((r) => ({ ...r, config: mergeConfig(r.config) })),
     })
   } catch (e) {
     console.error('[vsl/videos GET]', e)

@@ -1559,7 +1559,37 @@ Tres más del 25-sep (codificadas también en `AGENTS.md`, con el caso que las o
   texto de relevo (relevado en #216). Fusionarla habría revertido el tablero.
 - **La fila del tablero es un contrato de relevo**: el trabajo sin commitear de esta hebra (fix E2E
   - cron) fue recogido, commitado y publicado por otro agente siguiendo la fila — así funciona el
-    tablero cuando funciona; si un trabajo no debe continuarse, no se deja sin commitear.
+  tablero cuando funciona; si un trabajo no debe continuarse, no se deja sin commitear.
+
+### CRM, contenido y VSL — 2026-09-28
+
+- **Agenda:** conserva la semana actual como apertura por defecto, reduce el ancho mínimo del
+  calendario y mantiene visibles cabeceras/horas al desplazarse. Las citas reutilizan el estado
+  canónico para distinguir agendada, asistió, compró, reserva y no-show, y muestran un lead score
+  explicable calculado desde compromiso, ingresos, inversión, asistencia y consumo de VSL. El
+  score de conversación de IA tiene prioridad cuando existe.
+- **Pipeline:** el Kanban permite mover oportunidades entre etapas mediante arrastre y conserva el
+  selector de tabla como alternativa de teclado/táctil. La mutación sigue pasando por el endpoint
+  existente y revierte el movimiento si falla.
+- **Contratos:** las plantillas admiten importar texto `.txt`/`.md`; el vacío de contratos de
+  producto enlaza directamente a la gestión/importación de plantillas. PDF/DOCX no se convierten a
+  texto automáticamente: requieren extracción segura antes de poder ofrecerse como importación.
+- **Marketing:** el hub `Instagram` se presenta como **Contenido** (corto IG/TikTok y largo
+  YouTube), el antiguo `Contenido` pasa a **Edición**, se incorpora Investigación al menú y su
+  superficie se adapta al tema oscuro/tenant sin rutas incompatibles.
+- **VSL:** las lecturas de vídeos y del resumen ya no dependen de `POSTGRES_URL`; usan Supabase
+  service-role, siempre filtrado por `tenant_id`. Las escrituras existentes siguen usando el
+  cliente Postgres directo.
+- **Validado localmente:** format, lint, typecheck, 70 tests focalizados y 758 tests de métricas
+  PASS; build de producción PASS. El script `npm test` del checkout no puede arrancar con el Node
+  local porque incluye `--experimental-transform-types`; al retirar únicamente ese flag, la suite
+  avanza pero el test Apify requiere sintaxis TS no soportada por el modo strip-only. Esto es un
+  problema del arnés/versión de Node, no un PASS de suite completa.
+- **Mensajería social pendiente, no fingida:** Instagram está cableado y devuelve el error real de
+  Meta `#190` cuando el token caduca. Facebook y TikTok todavía responden como no soportados en
+  `setting-ai/conversations`; completar y TESTEAR ambos exige las credenciales de sus apps, scopes
+  de mensajería aprobados y cuentas de prueba. No se añadieron campos decorativos que aparenten una
+  conexión inexistente.
 
 ### Correcciones de auditoría: Correo, Drops, Documentos y Apify — 2026-09-26
 

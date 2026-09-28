@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { FileText, ChevronDown, ChevronRight, Eye, Download } from 'lucide-react'
+import Link from 'next/link'
+import { FileText, ChevronDown, ChevronRight, Download, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { useTenant } from '@/lib/tenant-context'
@@ -100,6 +101,14 @@ export default function ContratosProductoPage() {
               ? 'Todavía no hay contratos de producto disponibles.'
               : 'Ningún contrato coincide con la búsqueda.'}
           </p>
+          {templates.length === 0 && (
+            <Link
+              href={`/${tenant}/contratos/plantillas`}
+              className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+            >
+              <Upload className="h-4 w-4" /> Gestionar e importar plantillas
+            </Link>
+          )}
         </div>
       ) : (
         <div className="space-y-3">

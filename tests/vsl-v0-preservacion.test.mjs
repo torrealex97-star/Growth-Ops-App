@@ -66,7 +66,7 @@ test('session: una sesión por vídeo+anon, con device/country/UA capturados', (
 // ---------------------------------------------------------------------------
 test('tenant scoping: videos y metrics filtran tenant_id en TODAS sus consultas', () => {
   const videos = lee('app/api/[tenant]/evergreen/vsl/videos/route.ts')
-  assert.match(videos, /WHERE tenant_id = \$\{auth\.tenantId\}/, 'listado filtrado por tenant')
+  assert.match(videos, /\.eq\('tenant_id', auth\.tenantId\)/, 'listado filtrado por tenant')
   assert.match(videos, /AND tenant_id = \$\{auth\.tenantId\}/, 'update/delete filtrados por tenant')
   assert.match(videos, /WHERE slug = \$\{slug\} AND tenant_id/, 'chequeo de slug dentro del tenant')
   const metrics = lee('app/api/[tenant]/evergreen/vsl/metrics/[slug]/route.ts')

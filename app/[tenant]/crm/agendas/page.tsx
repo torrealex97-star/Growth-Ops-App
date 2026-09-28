@@ -66,6 +66,8 @@ import {
   getAppointmentCategory,
   isNoShow,
 } from '@/lib/appointments/status'
+import { appointmentLeadScore, leadScoreBand, LEAD_SCORE_CLASSES } from '@/lib/appointments/lead-score'
+import type { Qualification } from '@/lib/appointments/qualification'
 
 const cls =
   'w-full bg-muted border border-border rounded-lg p-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500'
@@ -1602,14 +1604,14 @@ export default function AppointmentsPage() {
           )}
 
           {/* Grid semanal / diario */}
-          <div className="rounded-lg border border-border overflow-x-auto">
-            <div style={{ minWidth: calMode === 'day' ? 60 + calColumns.length * 220 : 1400 }}>
+          <div className="rounded-lg border border-border overflow-x-auto overscroll-x-contain">
+            <div style={{ minWidth: calMode === 'day' ? 60 + calColumns.length * 220 : 840 }}>
               {/* Cabecera: días (semana) o closers (día) */}
               <div
                 className="grid border-b border-border"
                 style={{ gridTemplateColumns: `60px repeat(${calColumns.length}, 1fr)` }}
               >
-                <div className="p-2" />
+                <div className="sticky left-0 z-40 bg-background p-2" />
                 {calColumns.map((col) => (
                   <div
                     key={col.key}
@@ -1626,7 +1628,7 @@ export default function AppointmentsPage() {
               {/* Cuerpo: columna de horas + columnas (días o closers) con eventos posicionados en absoluto */}
               <div className="grid" style={{ gridTemplateColumns: `60px repeat(${calColumns.length}, 1fr)` }}>
                 {/* Columna de horas */}
-                <div>
+                <div className="sticky left-0 z-40 bg-background">
                   {CALENDAR_HOURS.map((hour) => (
                     <div
                       key={hour}
@@ -1713,6 +1715,10 @@ export default function AppointmentsPage() {
 
                       {dayAppointments.map(({ appt, top, height, colIndex, colCount }) => {
                         const category = getAppointmentCategory(appt.status, hasPurchased(appt))
+                        const leadScore = appointmentLeadScore({
+                          ai_lead_score: appt.ai_lead_score,
+                          qualification: appt.qualification as Qualification | null,
+                        })
                         const isCancelled = category === 'cancelada'
                         const draggable = !isCancelled && canDragAppointment(appt)
                         // Contenido adaptativo a la altura real del bloque: el formato completo ocupa
@@ -1759,9 +1765,17 @@ export default function AppointmentsPage() {
                                   new Date(appt.appointment_datetime)
                                 )}{' '}
                                 {appt.contacts?.full_name || '—'}
+                                {leadScore !== null && (
+                                  <span
+                                    className={`ml-auto rounded border px-1 py-px text-3xs font-semibold tabular-nums ${LEAD_SCORE_CLASSES[leadScoreBand(leadScore)]}`}
+                                    title={`Lead score ${leadScore}/100`}
+                                  >
+                                    {leadScore}
+                                  </span>
+                                )}
                                 {tier === 'xs' && (
                                   <span
-                                    className={`inline-block w-2 h-2 rounded-full shrink-0 ml-auto ${closerColorClass(appt.closer_id)}`}
+                                    className={`inline-block w-2 h-2 rounded-full shrink-0 ${leadScore === null ? 'ml-auto' : ''} ${closerColorClass(appt.closer_id)}`}
                                     title={appt.closer?.full_name || 'Sin closer'}
                                   />
                                 )}
@@ -1787,6 +1801,13 @@ export default function AppointmentsPage() {
                                     {category === 'compra' && <Banknote className="w-3 h-3" />}
                                     {CATEGORY_LABELS[category]}
                                   </Badge>
+                                  {leadScore !== null && (
+                                    <Badge
+                                      className={`border text-3xs tabular-nums ${LEAD_SCORE_CLASSES[leadScoreBand(leadScore)]}`}
+                                    >
+                                      Score {leadScore}
+                                    </Badge>
+                                  )}
                                   {appt.needs_followup ? (
                                     <Badge className="border text-3xs bg-indigo-500/20 text-indigo-300 border-indigo-500/30 whitespace-nowrap">
                                       Seguimiento

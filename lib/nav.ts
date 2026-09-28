@@ -245,7 +245,7 @@ export const NAV_SECTIONS: NavSection[] = [
         ],
       },
       {
-        label: 'Instagram',
+        label: 'Contenido',
         href: '/instagram',
         icon: Camera,
         roles: [...LEAD, 'marketing', 'editor'],
@@ -264,9 +264,10 @@ export const NAV_SECTIONS: NavSection[] = [
             roles: [...LEAD, 'marketing', 'editor'],
           },
           { label: 'Competencia', href: '/instagram/competencia', icon: Radar, roles: [...LEAD, 'marketing'] },
+          { label: 'Investigación', href: '/instagram/investigacion', icon: Lightbulb, roles: [...LEAD, 'marketing'] },
         ],
       },
-      { label: 'Contenido', href: '/marketing/contenido', icon: Clapperboard, roles: [...LEAD, 'marketing', 'editor'] },
+      { label: 'Edición', href: '/marketing/contenido', icon: Clapperboard, roles: [...LEAD, 'marketing', 'editor'] },
       {
         label: 'Colaboradores',
         href: '/marketing/afiliados/afiliados',

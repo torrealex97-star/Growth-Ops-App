@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { FileText, Plus, Edit2, Loader2, Trash2, Sparkles } from 'lucide-react'
+import { FileText, Plus, Edit2, Loader2, Trash2, Sparkles, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ContractTemplate } from '@/lib/types/database'
 import { useTenant, useTenantId } from '@/lib/tenant-context'
@@ -73,6 +73,7 @@ export default function PlantillasPage() {
   const [roleKey, setRoleKey] = useState('')
   const [body, setBody] = useState('')
   const bodyRef = useRef<HTMLTextAreaElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
     const sb = createClient()
@@ -145,6 +146,24 @@ export default function PlantillasPage() {
     }
     setBody(d.body)
     toast.success('Variables insertadas', { description: 'Revisa el resultado antes de guardar.' })
+  }
+
+  const importTextFile = async (file: File | undefined) => {
+    if (!file) return
+    if (!/\.(txt|md)$/i.test(file.name)) {
+      toast.error('Formato no compatible', {
+        description: 'Importa un archivo .txt o .md. Para PDF/DOCX, copia el texto.',
+      })
+      return
+    }
+    const text = await file.text()
+    if (!text.trim()) {
+      toast.error('El archivo está vacío')
+      return
+    }
+    setBody(text)
+    if (!name.trim()) setName(file.name.replace(/\.(txt|md)$/i, '').replace(/[-_]+/g, ' '))
+    toast.success('Contrato importado', { description: 'Revisa el texto y añade las variables antes de guardar.' })
   }
 
   const save = async () => {
@@ -349,19 +368,35 @@ export default function PlantillasPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Cuerpo del contrato</Label>
-                <Button type="button" variant="outline" size="sm" onClick={generateWithAI} disabled={aiLoading}>
-                  {aiLoading ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                      Generando…
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                      Insertar variables con IA
-                    </>
-                  )}
-                </Button>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept=".txt,.md,text/plain,text/markdown"
+                    className="sr-only"
+                    onChange={(event) => {
+                      void importTextFile(event.target.files?.[0])
+                      event.currentTarget.value = ''
+                    }}
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+                    <Upload className="w-3.5 h-3.5 mr-1.5" />
+                    Importar archivo
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={generateWithAI} disabled={aiLoading}>
+                    {aiLoading ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                        Generando…
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                        Insertar variables con IA
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
               <Textarea
                 ref={bodyRef}

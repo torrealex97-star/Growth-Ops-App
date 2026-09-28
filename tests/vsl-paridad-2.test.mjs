@@ -57,8 +57,14 @@ test('thumbnails dinámicos: las tarjetas muestran miniatura y preview animado a
 
 test('métricas conectadas: el resumen agregado existe, exige pantalla y usa los mismos criterios', () => {
   assert.ok(resumen.includes('requirePantalla'), 'autorización por pantalla, no por sesión suelta')
-  assert.ok(resumen.includes('tenant_id = ${tenantId}'), 'filtro de tenant en TODAS las subconsultas')
-  assert.ok(resumen.includes('max_position > 0'), 'play = reproducción real, mismo criterio que métricas')
+  assert.ok(
+    resumen.includes(".eq('tenant_id', tenantId)") || resumen.includes('tenant_id = ${tenantId}'),
+    'filtro de tenant en TODAS las subconsultas'
+  )
+  assert.ok(
+    resumen.includes('Number(session.max_position) > 0') || resumen.includes('max_position > 0'),
+    'play = reproducción real, mismo criterio que métricas'
+  )
   assert.ok(dash.includes('/vsl/resumen') && dash.includes('setResumen'), 'el dashboard lo consume')
   assert.ok(dash.includes('Play rate'), 'los KPIs agregados se pintan')
 })

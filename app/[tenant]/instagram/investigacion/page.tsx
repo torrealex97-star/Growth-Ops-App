@@ -56,11 +56,11 @@ type Post = {
 }
 
 const ESTADO: Record<Job['status'], { label: string; cls: string }> = {
-  pending: { label: 'Pendiente', cls: 'bg-zinc-100 text-zinc-600' },
-  processing: { label: 'Procesando', cls: 'bg-blue-50 text-blue-600' },
-  completed: { label: 'Completado', cls: 'bg-emerald-50 text-emerald-600' },
-  failed: { label: 'Error', cls: 'bg-red-50 text-red-600' },
-  aborted: { label: 'Abortado', cls: 'bg-amber-50 text-amber-600' },
+  pending: { label: 'Pendiente', cls: 'bg-muted text-muted-foreground' },
+  processing: { label: 'Procesando', cls: 'bg-sky-500/15 text-sky-300' },
+  completed: { label: 'Completado', cls: 'bg-emerald-500/15 text-emerald-300' },
+  failed: { label: 'Error', cls: 'bg-red-500/15 text-red-300' },
+  aborted: { label: 'Abortado', cls: 'bg-amber-500/15 text-amber-300' },
 }
 
 export default function InvestigacionPage() {
@@ -142,9 +142,9 @@ export default function InvestigacionPage() {
   return (
     <div className="space-y-6">
       {/* Aviso de separación arquitectónica (§16) */}
-      <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4 text-sm text-blue-900">
+      <div className="rounded-lg border border-brand-500/20 bg-brand-500/10 p-4 text-sm text-foreground">
         <div className="flex items-start gap-2">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" />
           <p>
             <strong>Investigación de terceros</strong>: los datos de esta pestaña proceden de un proveedor externo
             (Apify) sobre contenido <em>público</em> de otras cuentas. Tu cuenta de Instagram no participa en estas
@@ -155,7 +155,7 @@ export default function InvestigacionPage() {
 
       {/* Estado de la integración */}
       {enabled === false && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-200">
           <strong>Apify no configurado.</strong> Conéctalo en{' '}
           <a href={`/${tenant}/settings/integraciones`} className="underline">
             Configuración › Integraciones
@@ -165,18 +165,18 @@ export default function InvestigacionPage() {
       )}
 
       {/* Formulario */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-5">
+      <div className="rounded-lg border border-border bg-card p-5">
         <div className="mb-4 flex items-center gap-2">
-          <Search className="h-4 w-4 text-zinc-500" />
-          <h3 className="text-sm font-semibold text-zinc-900">Nueva investigación</h3>
+          <Search className="h-4 w-4 text-brand-400" />
+          <h3 className="text-sm font-semibold text-foreground">Nueva investigación</h3>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-500">Plataforma</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Plataforma</label>
             <select
               value={platform}
               onChange={(e) => setPlatform(e.target.value as Platform)}
-              className="w-full rounded-lg border border-zinc-300 bg-white text-zinc-900 placeholder:text-zinc-400 px-3 py-2 text-sm"
+              className="w-full rounded-md border border-border bg-muted px-3 py-2 text-sm text-foreground focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             >
               <option value="instagram">Instagram</option>
               <option value="tiktok">TikTok</option>
@@ -184,46 +184,46 @@ export default function InvestigacionPage() {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-500">Qué investigar</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Qué investigar</label>
             <select
               value={jobType}
               onChange={(e) => setJobType(e.target.value as JobType)}
-              className="w-full rounded-lg border border-zinc-300 bg-white text-zinc-900 placeholder:text-zinc-400 px-3 py-2 text-sm"
+              className="w-full rounded-md border border-border bg-muted px-3 py-2 text-sm text-foreground focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             >
               <option value="profile">Perfil (seguidores, bio, últimos posts)</option>
               <option value="reels">Reels / vídeos recientes</option>
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-500">Usuarios (máx. 10)</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Usuarios (máx. 10)</label>
             <input
               value={users}
               onChange={(e) => setUsers(e.target.value)}
               placeholder="@competidor1, @competidor2"
-              className="w-full rounded-lg border border-zinc-300 bg-white text-zinc-900 placeholder:text-zinc-400 px-3 py-2 text-sm"
+              className="w-full rounded-md border border-border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-500">Resultados por perfil</label>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Resultados por perfil</label>
             <input
               type="number"
               min={1}
               max={100}
               value={resultsLimit}
               onChange={(e) => setResultsLimit(Number(e.target.value) || 30)}
-              className="w-full rounded-lg border border-zinc-300 bg-white text-zinc-900 placeholder:text-zinc-400 px-3 py-2 text-sm"
+              className="w-full rounded-md border border-border bg-muted px-3 py-2 text-sm text-foreground focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
           </div>
         </div>
         <div className="mt-4 flex items-center justify-between gap-3">
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-muted-foreground">
             Ejecución asíncrona: puedes seguir usando la app; el resultado aparece aquí al terminar.{' '}
-            <span className="text-zinc-400">Fuente: Apify · datos públicos de terceros.</span>
+            <span>Fuente: Apify · datos públicos de terceros.</span>
           </p>
           <button
             onClick={lanzar}
             disabled={busy || !users.trim()}
-            className="inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="inline-flex min-h-10 items-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-500 disabled:opacity-50"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
             Investigar
@@ -233,33 +233,33 @@ export default function InvestigacionPage() {
 
       {/* Jobs recientes (§15) */}
       {jobsRecientes.length > 0 && (
-        <div className="rounded-xl border border-zinc-200 bg-white p-5">
-          <h3 className="mb-3 text-sm font-semibold text-zinc-900">Investigaciones recientes</h3>
+        <div className="rounded-lg border border-border bg-card p-5">
+          <h3 className="mb-3 text-sm font-semibold text-foreground">Investigaciones recientes</h3>
           <div className="space-y-2">
             {jobsRecientes.map((job) => {
               const e = ESTADO[job.status]
               return (
                 <div
                   key={job.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-zinc-50 px-3 py-2 text-sm"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm"
                 >
                   <div className="flex items-center gap-2">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${e.cls}`}>{e.label}</span>
-                    <span className="text-zinc-700">
+                    <span className="text-foreground">
                       {job.platform} · {job.job_type}
                     </span>
                     {(job.status === 'pending' || job.status === 'processing') && (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-400" />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                     )}
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-zinc-500">
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     {job.status === 'completed' && (
-                      <span className="inline-flex items-center gap-1 text-emerald-600">
+                      <span className="inline-flex items-center gap-1 text-emerald-400">
                         <CheckCircle2 className="h-3.5 w-3.5" />
                         {job.records_processed} contenidos actualizados
                       </span>
                     )}
-                    {job.error_message && <span className="text-red-600">{job.error_message}</span>}
+                    {job.error_message && <span className="text-red-400">{job.error_message}</span>}
                     <span className="inline-flex items-center gap-1">
                       <Clock className="h-3 w-3" />
                       {formatDateTime(job.created_at)}
@@ -274,17 +274,20 @@ export default function InvestigacionPage() {
 
       {/* Perfiles investigados */}
       {profiles.length > 0 && (
-        <div className="rounded-xl border border-zinc-200 bg-white p-5">
+        <div className="rounded-lg border border-border bg-card p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-zinc-900">Perfiles investigados</h3>
-            <button onClick={load} className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-800">
+            <h3 className="text-sm font-semibold text-foreground">Perfiles investigados</h3>
+            <button
+              onClick={load}
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
               <RefreshCw className="h-3.5 w-3.5" /> Actualizar
             </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-200 text-left text-xs text-zinc-500">
+                <tr className="border-b border-border text-left text-xs text-muted-foreground">
                   <th className="py-2 pr-4 font-medium">Usuario</th>
                   <th className="py-2 pr-4 font-medium">Plataforma</th>
                   <th className="py-2 pr-4 text-right font-medium">Seguidores</th>
@@ -295,24 +298,26 @@ export default function InvestigacionPage() {
               </thead>
               <tbody>
                 {profiles.map((p) => (
-                  <tr key={p.id} className="border-b border-zinc-100">
+                  <tr key={p.id} className="border-b border-border/60">
                     <td className="py-2 pr-4">
                       <a
                         href={p.profile_url || '#'}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1 font-medium text-zinc-900 hover:underline"
+                        className="inline-flex items-center gap-1 font-medium text-foreground hover:text-brand-300"
                       >
                         {p.display_name || p.username}
                         {p.verified && <span title="verificado">✓</span>}
-                        <ExternalLink className="h-3 w-3 text-zinc-400" />
+                        <ExternalLink className="h-3 w-3 text-muted-foreground" />
                       </a>
                     </td>
-                    <td className="py-2 pr-4 capitalize text-zinc-600">{p.platform}</td>
+                    <td className="py-2 pr-4 capitalize text-muted-foreground">{p.platform}</td>
                     <td className="py-2 pr-4 text-right tabular-nums">{fmt(p.followers_count)}</td>
                     <td className="py-2 pr-4 text-right tabular-nums">{fmt(p.posts_count)}</td>
-                    <td className="py-2 pr-4 text-zinc-500">{new Date(p.collected_at).toLocaleDateString('es-ES')}</td>
-                    <td className="py-2 text-xs text-zinc-400">{SOURCE_LABEL.external}</td>
+                    <td className="py-2 pr-4 text-muted-foreground">
+                      {new Date(p.collected_at).toLocaleDateString('es-ES')}
+                    </td>
+                    <td className="py-2 text-xs text-muted-foreground">{SOURCE_LABEL.external}</td>
                   </tr>
                 ))}
               </tbody>
@@ -323,8 +328,8 @@ export default function InvestigacionPage() {
 
       {/* Contenido investigado */}
       {posts.length > 0 && (
-        <div className="rounded-xl border border-zinc-200 bg-white p-5">
-          <h3 className="mb-3 text-sm font-semibold text-zinc-900">Contenido investigado</h3>
+        <div className="rounded-lg border border-border bg-card p-5">
+          <h3 className="mb-3 text-sm font-semibold text-foreground">Contenido investigado</h3>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {posts.slice(0, 24).map((p) => (
               <a
@@ -332,34 +337,34 @@ export default function InvestigacionPage() {
                 href={p.post_url || '#'}
                 target="_blank"
                 rel="noreferrer"
-                className="group rounded-xl border border-zinc-200 p-3 transition hover:border-zinc-300 hover:shadow-sm"
+                className="group rounded-lg border border-border bg-background/30 p-3 transition-colors hover:border-brand-500/40"
               >
-                <div className="mb-2 flex items-center justify-between text-xs text-zinc-400">
+                <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
                   <span className="uppercase">
                     {p.platform} · {p.content_type || 'post'}
                   </span>
                   <ExternalLink className="h-3 w-3" />
                 </div>
-                {p.caption && <p className="mb-2 line-clamp-2 text-sm text-zinc-800">{p.caption}</p>}
-                <div className="grid grid-cols-4 gap-1 text-center text-xs text-zinc-600">
+                {p.caption && <p className="mb-2 line-clamp-2 text-sm text-foreground">{p.caption}</p>}
+                <div className="grid grid-cols-4 gap-1 text-center text-xs text-muted-foreground">
                   <div>
                     <div className="font-semibold tabular-nums">{fmt(p.views_count)}</div>
-                    <div className="text-zinc-400">views</div>
+                    <div>views</div>
                   </div>
                   <div>
                     <div className="font-semibold tabular-nums">{fmt(p.likes_count)}</div>
-                    <div className="text-zinc-400">likes</div>
+                    <div>likes</div>
                   </div>
                   <div>
                     <div className="font-semibold tabular-nums">{fmt(p.comments_count)}</div>
-                    <div className="text-zinc-400">comm</div>
+                    <div>comm</div>
                   </div>
                   <div>
                     <div className="font-semibold tabular-nums">{fmt(p.shares_count)}</div>
-                    <div className="text-zinc-400">shares</div>
+                    <div>shares</div>
                   </div>
                 </div>
-                <div className="mt-2 text-3xs text-zinc-400">{SOURCE_LABEL.external}</div>
+                <div className="mt-2 text-3xs text-muted-foreground">{SOURCE_LABEL.external}</div>
               </a>
             ))}
           </div>
@@ -368,7 +373,7 @@ export default function InvestigacionPage() {
 
       {/* Estado vacío honesto */}
       {enabled !== null && enabled !== false && !jobs.length && !profiles.length && !posts.length && (
-        <div className="rounded-xl border border-dashed border-zinc-300 p-10 text-center text-sm text-zinc-500">
+        <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
           Todavía no hay investigaciones. Lanza la primera arriba.
         </div>
       )}
