@@ -77,6 +77,10 @@ export async function repNetCash(sb: SupabaseClient, tenantId: string, repId: st
     .select(`gross_refund_amount, sales!inner(${col})`)
     .eq('tenant_id', tenantId)
     .eq(`sales.${col}`, repId)
+    // SOLO refunds procesados descuentan del cash del rep (misma regla que el cash canónico):
+    // 'pending' no es dinero devuelto y 'rejected' se denegó — contarlos bajaría artificialmente
+    // el cash del rep, recalcularía sus tramos y podría hundir % de comisiones no liquidadas.
+    .eq('status', 'processed')
     .limit(10000)
   if (refsError) throw new Error(`No se pudieron leer las devoluciones de ${repId} (${role}): ${refsError.message}`)
   const refunded = (refs ?? []).reduce(
