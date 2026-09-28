@@ -585,7 +585,11 @@ export default function SaleDetailPage() {
 
   if (!sale) return null
 
-  const totalCollected = collections.reduce((sum, c) => sum + c.gross_amount, 0)
+  // Definición canónica (docs/MONEY.md D5, igual que lib/canonical/cash.ts: esCobrado = status
+  // === 'collected'): un cobro 'reversed' (ya devuelto) o 'disputed' (en el aire, sin resolver)
+  // NO es cash confirmado. Sumar el array entero inflaba "Total cobrado" con dinero ya devuelto
+  // o en disputa — y ese número prellenaba el importe de la devolución más abajo.
+  const totalCollected = collections.filter((c) => c.status === 'collected').reduce((sum, c) => sum + c.gross_amount, 0)
 
   // Cobros duplicados: 2+ cobros (no revertidos) para la misma cuota esperada. Marcamos como
   // "duplicado" todos menos el primero (por fecha) de cada cuota, para que el admin los elimine.
@@ -935,7 +939,7 @@ export default function SaleDetailPage() {
                         <TableCell className="text-foreground text-sm">
                           {formatDate(c.collected_at)}
                           {isDupe && (
-                            <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-300">
+                            <span className="ml-2 text-3xs px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-300">
                               duplicado
                             </span>
                           )}
@@ -1022,7 +1026,7 @@ export default function SaleDetailPage() {
                 <p className="text-xs text-muted-foreground">
                   Por recolectar
                   {loadingPlanCuotas.proximoVencimiento && (
-                    <span className="block text-[10px]">
+                    <span className="block text-3xs">
                       Próx. vencimiento: {formatDate(loadingPlanCuotas.proximoVencimiento)}
                     </span>
                   )}
@@ -1109,7 +1113,7 @@ export default function SaleDetailPage() {
                         {sale?.payment_plans?.method === 'custom' &&
                           inst.installment_number > 1 &&
                           inst.status !== 'collected' && (
-                            <span className="block text-[10px] text-blue-400 mt-0.5">
+                            <span className="block text-3xs text-blue-400 mt-0.5">
                               Al cobrarla: revisión manual (no comisiona sola)
                             </span>
                           )}
@@ -1257,7 +1261,7 @@ export default function SaleDetailPage() {
                                 timeZone: 'UTC',
                               })
                             : '—'}
-                          <span className="block text-[10px] text-muted-foreground">
+                          <span className="block text-3xs text-muted-foreground">
                             generada {formatDate(com.created_at)}
                           </span>
                         </TableCell>

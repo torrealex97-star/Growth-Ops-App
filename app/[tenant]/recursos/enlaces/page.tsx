@@ -850,7 +850,7 @@ export default function EnlacesPage() {
                           <>
                             <FolderOpen className="w-3.5 h-3.5 text-brand-400" />
                             <span className="text-sm text-foreground">{d.name}</span>
-                            <span className="text-[10px] text-muted-foreground">
+                            <span className="text-3xs text-muted-foreground">
                               {resources.filter((r) => r.division_id === d.id).length}
                             </span>
                             <Button

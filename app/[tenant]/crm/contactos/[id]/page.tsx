@@ -1241,18 +1241,18 @@ export default function ContactDetailPage() {
                 </div>
                 <div className="flex gap-4 text-right">
                   <div>
-                    <p className="text-[10px] text-muted-foreground uppercase">Cobrado</p>
+                    <p className="text-3xs text-muted-foreground uppercase">Cobrado</p>
                     <p className="text-sm font-semibold text-emerald-400">{formatCurrency(plan.cobrado)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] text-muted-foreground uppercase">Por recolectar</p>
+                    <p className="text-3xs text-muted-foreground uppercase">Por recolectar</p>
                     <p className="text-sm font-semibold text-foreground">{formatCurrency(plan.porCobrar)}</p>
                     {plan.proximoVencimiento && (
-                      <p className="text-[10px] text-muted-foreground">vence {formatDate(plan.proximoVencimiento)}</p>
+                      <p className="text-3xs text-muted-foreground">vence {formatDate(plan.proximoVencimiento)}</p>
                     )}
                   </div>
                   <div>
-                    <p className="text-[10px] text-muted-foreground uppercase">Impago</p>
+                    <p className="text-3xs text-muted-foreground uppercase">Impago</p>
                     <p
                       className={`text-sm font-semibold ${plan.impagado > 0 ? 'text-red-400' : 'text-muted-foreground'}`}
                     >
@@ -1295,7 +1295,7 @@ export default function ContactDetailPage() {
                                 ? 'Impago'
                                 : 'Por recolectar'}
                           </span>
-                          {q.morosa && <span className="ml-1 text-[10px] text-red-400">(marcada morosa)</span>}
+                          {q.morosa && <span className="ml-1 text-3xs text-red-400">(marcada morosa)</span>}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1303,7 +1303,7 @@ export default function ContactDetailPage() {
                 </Table>
               </div>
               {plan.fuente === 'prevision' && plan.cuotas.length > 0 && (
-                <p className="text-[10px] text-muted-foreground mt-2">
+                <p className="text-3xs text-muted-foreground mt-2">
                   Previsión según plan de pago y cobros registrados (sin calendario de cuotas materializado).
                 </p>
               )}
@@ -1364,7 +1364,7 @@ export default function ContactDetailPage() {
                                   timeZone: 'UTC',
                                 })
                               : '—'}
-                            <span className="block text-[10px]">generada {formatDate(com.created_at)}</span>
+                            <span className="block text-3xs">generada {formatDate(com.created_at)}</span>
                           </TableCell>
                         </TableRow>
                       ))}

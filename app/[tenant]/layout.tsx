@@ -10,7 +10,7 @@ import { TenantProvider } from '@/lib/tenant-context'
 import { resolveTenantBranding, type TenantBranding } from '@/lib/tenant-branding'
 import { performLogout } from '@/lib/auth/logout'
 import type { User } from '@/lib/types/database'
-import { FileSignature, LogOut } from 'lucide-react'
+import { FileSignature, LogOut, AlertTriangle } from 'lucide-react'
 import { ScriptQueueProvider } from '@/components/os/ScriptQueue'
 import VerComoShim from '@/components/os/VerComoShim'
 import { AgentLauncher } from '@/components/ai/AgentLauncher'
@@ -366,13 +366,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
       <div className="dark flex h-screen items-center justify-center bg-background px-4">
         <div className="max-w-sm text-center">
           <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-4">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
-              />
-            </svg>
+            <AlertTriangle className="h-5 w-5 text-red-400" aria-hidden />
           </div>
           <h2 className="text-foreground font-semibold text-lg mb-2">Sin acceso a esta subcuenta</h2>
           <p className="text-muted-foreground text-sm mb-6">
@@ -394,13 +388,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
       <div className="dark flex h-screen items-center justify-center bg-background px-4">
         <div className="max-w-sm text-center">
           <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-4">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
-              />
-            </svg>
+            <AlertTriangle className="h-5 w-5 text-red-400" aria-hidden />
           </div>
           <h2 className="text-foreground font-semibold text-lg mb-2">Sin perfil de usuario</h2>
           <p className="text-muted-foreground text-sm mb-6">

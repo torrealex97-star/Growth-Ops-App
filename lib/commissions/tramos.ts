@@ -21,33 +21,39 @@ async function loadTramoContext(
   sb: SupabaseClient,
   tenantId: string
 ): Promise<{ config: TramoConfig; tramos: TramoRow[] } | null> {
-  try {
-    const { data: rows, error } = await sb
-      .from('sales_tramos')
-      .select('id, threshold, sort_order')
-      .eq('is_active', true)
-      .eq('tenant_id', tenantId)
-    if (error || !rows || rows.length === 0) return null
-    // Acotado por subcuenta, no por `id = 1`: la PK de sales_tramos_config pasó a ser tenant_id
-    // (migración 20260911170000) pero la columna `id` sigue con default 1, así que con dos
-    // subcuentas `.eq('id', 1).maybeSingle()` encontraba DOS filas, devolvía error y se caía a los
-    // valores por defecto — el tramo se calculaba con una configuración que nadie había elegido.
-    const { data: cfg } = await sb
-      .from('sales_tramos_config')
-      .select('metric, period')
-      .eq('tenant_id', tenantId)
-      .maybeSingle()
-    const config: TramoConfig = {
-      metric: (cfg?.metric as TramoConfig['metric']) ?? 'sales',
-      period: (cfg?.period as TramoConfig['period']) ?? 'month',
-    }
-    const tramos: TramoRow[] = rows
-      .map((r) => ({ id: r.id as string, threshold: Number(r.threshold), sort_order: r.sort_order as number }))
-      .sort((a, b) => a.threshold - b.threshold)
-    return { config, tramos }
-  } catch {
-    return null
+  const { data: rows, error } = await sb
+    .from('sales_tramos')
+    .select('id, threshold, sort_order')
+    .eq('is_active', true)
+    .eq('tenant_id', tenantId)
+  if (error) {
+    // 42P01 = undefined_table: legítimo, esta subcuenta no adoptó tramos → cae al modelo por cash
+    // collected. Cualquier OTRO error (permiso, red, columna) se propaga: silenciarlo aquí se leería
+    // como "sin tramos" y recalcularía el % de comisión de todo el equipo con el modelo equivocado.
+    if (error.code === '42P01') return null
+    throw new Error(`No se pudieron leer los tramos de comisión: ${error.message}`)
   }
+  if (!rows || rows.length === 0) return null
+  // Acotado por subcuenta, no por `id = 1`: la PK de sales_tramos_config pasó a ser tenant_id
+  // (migración 20260911170000) pero la columna `id` sigue con default 1, así que con dos
+  // subcuentas `.eq('id', 1).maybeSingle()` encontraba DOS filas, devolvía error y se caía a los
+  // valores por defecto — el tramo se calculaba con una configuración que nadie había elegido.
+  const { data: cfg, error: cfgError } = await sb
+    .from('sales_tramos_config')
+    .select('metric, period')
+    .eq('tenant_id', tenantId)
+    .maybeSingle()
+  // Con tramos ya definidos, la config debería existir: un error real aquí no puede resolverse en
+  // silencio a 'sales'/'month' — sería exactamente el bug de arriba con otro nombre.
+  if (cfgError) throw new Error(`No se pudo leer la configuración de tramos: ${cfgError.message}`)
+  const config: TramoConfig = {
+    metric: (cfg?.metric as TramoConfig['metric']) ?? 'sales',
+    period: (cfg?.period as TramoConfig['period']) ?? 'month',
+  }
+  const tramos: TramoRow[] = rows
+    .map((r) => ({ id: r.id as string, threshold: Number(r.threshold), sort_order: r.sort_order as number }))
+    .sort((a, b) => a.threshold - b.threshold)
+  return { config, tramos }
 }
 
 // Valor actual del rep para medir su tramo: nº de ventas completadas o cash collected, en el periodo
@@ -60,12 +66,15 @@ async function repTramoValue(
 ): Promise<number> {
   const monthOnly = config.period === 'month'
 
-  const { data: salesData } = await sb
+  const { data: salesData, error: salesError } = await sb
     .from('sales')
     .select('id, status, sale_date, reservation_completed_at, payment_plans(method)')
     .eq('tenant_id', tenantId)
     .or(`closer_id.eq.${repId},setter_id.eq.${repId}`)
     .limit(10000)
+  // Un error leído como "0 ventas" hundiría al rep al tramo más bajo en silencio — igual de fail
+  // ruidoso que el resto del motor de comisiones (ver docstring de loadTramoContext).
+  if (salesError) throw new Error(`No se pudieron leer las ventas de ${repId} para su tramo: ${salesError.message}`)
   const sales = (salesData ?? []) as Array<{
     id: string
     status: string | null
@@ -77,13 +86,15 @@ async function repTramoValue(
   if (config.metric === 'cash_collected') {
     const saleIds = sales.map((s) => s.id)
     if (!saleIds.length) return 0
-    const { data: colls } = await sb
+    const { data: colls, error: collsError } = await sb
       .from('collections')
       .select('gross_amount, collected_at, status')
       .eq('tenant_id', tenantId)
       .in('sale_id', saleIds)
       .eq('status', 'collected')
       .limit(10000)
+    if (collsError)
+      throw new Error(`No se pudo leer el cash collected de ${repId} para su tramo: ${collsError.message}`)
     return (colls ?? [])
       .filter((c) => !monthOnly || (c.collected_at || '').slice(0, 7) === nowYm())
       .reduce((s, c) => s + Number(c.gross_amount || 0), 0)

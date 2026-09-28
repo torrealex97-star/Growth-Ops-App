@@ -8,6 +8,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { computeAdFunnel, perCampaign, type AdFunnel } from '@/lib/ads/funnel'
 import { buildContactTimeline, type TimelineEvent } from '@/lib/contact-timeline'
 import { cuentaComoVenta } from '@/lib/analytics'
+import { parseAccountIds } from '@/lib/meta/accounts'
 import { metodoDePlan } from '@/lib/metrics/agregados'
 import { getMetricDefinition as lookupMetricDefinition } from '@/lib/ai/metrics/registry'
 import {
@@ -36,6 +37,23 @@ export type ToolContext = {
 // Periodo en fechas YYYY-MM-DD. Sin "from"/"to" = todo el histórico disponible (acotado por
 // row limits en cada query, nunca "trae toda la tabla").
 export type Period = { from?: string; to?: string }
+
+/**
+ * Cuentas de ads seleccionadas en Integraciones, leídas de la instantánea de config que ya viaja en
+ * el ToolContext (mismo parseo canónico que el resto de la app). La tabla `campaigns` conserva
+ * históricos de cuentas deseleccionadas (el token ve todas las del business): sin este filtro, la
+ * inversión y el CPL que el agente cita mezclan dinero que no es del negocio. Vacío = todas.
+ */
+function cuentasAdsDeContexto(env: Record<string, string | undefined> | undefined): string[] {
+  return parseAccountIds(env?.META_AD_ACCOUNT_ID)
+}
+
+/** Filtra campañas por las cuentas seleccionadas. Una campaña sin cuenta (manual) siempre entra. */
+function campanasDeCuentas<T extends { account_id?: string | null }>(filas: T[], cuentas: string[]): T[] {
+  if (cuentas.length === 0) return filas
+  const permitidas = new Set(cuentas)
+  return filas.filter((f) => !f.account_id || permitidas.has(f.account_id))
+}
 
 const inPeriod = (dateStr: string | null, p: Period): boolean => {
   if (!dateStr) return false
@@ -205,22 +223,26 @@ function conMetodo<T extends { status: string }>(v: T) {
   return { ...v, payment_plan_method: metodoDePlan(v as { payment_plans?: unknown }) }
 }
 
-export async function getBusinessOverview({ tenantId, sb }: ToolContext, period: Period) {
-  const [{ data: campaigns }, { data: sales }, { count: contactCount }] = await Promise.all([
-    sb.from('campaigns').select('*').eq('tenant_id', tenantId).limit(500),
-    sb
-      .from('sales')
-      // Las mismas columnas que mira la pantalla: sin ellas la IA contaría como venta una reserva
-      // que el Dashboard no cuenta, y las dos cifras serían "ventas del periodo" (D8, F03).
-      .select('id,sale_date,gross_amount,status,reservation_completed_at,payment_plans(method)')
-      .eq('tenant_id', tenantId)
-      .gte('sale_date', period.from || '1970-01-01')
-      .lte('sale_date', period.to || '2999-12-31')
-      .limit(2000),
-    sb.from('contacts').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId),
-  ])
+export async function getBusinessOverview({ tenantId, sb, env }: ToolContext, period: Period) {
+  const cuentasAds = cuentasAdsDeContexto(env)
+  const [{ data: campaigns, error: campaignsErr }, { data: sales, error: salesErr }, { count: contactCount }] =
+    await Promise.all([
+      sb.from('campaigns').select('*').eq('tenant_id', tenantId).limit(500),
+      sb
+        .from('sales')
+        // Las mismas columnas que mira la pantalla: sin ellas la IA contaría como venta una reserva
+        // que el Dashboard no cuenta, y las dos cifras serían "ventas del periodo" (D8, F03).
+        .select('id,sale_date,gross_amount,status,reservation_completed_at,payment_plans(method)')
+        .eq('tenant_id', tenantId)
+        .gte('sale_date', period.from || '1970-01-01')
+        .lte('sale_date', period.to || '2999-12-31')
+        .limit(2000),
+      sb.from('contacts').select('id', { count: 'exact', head: true }).eq('tenant_id', tenantId),
+    ])
 
-  const periodCampaigns = ((campaigns as Campaign[]) || []).filter(
+  // Solo campañas de las cuentas elegidas en Integraciones: el gasto de cuentas históricas
+  // deseleccionadas no es del negocio (mismo convenio que la pantalla de Campañas).
+  const periodCampaigns = campanasDeCuentas((campaigns as Campaign[]) || [], cuentasAds).filter(
     (c) => !period.from || !c.start_date || inPeriod(c.start_date, period) || !c.end_date
   )
   const funnel = computeAdFunnel(periodCampaigns)
@@ -232,17 +254,29 @@ export async function getBusinessOverview({ tenantId, sb }: ToolContext, period:
     { label: 'campañas / ads', table: 'campaigns' },
   ])
 
+  // Un fallo de lectura NO es un cero (docs/MONEY.md, principio ya aplicado en
+  // lib/metrics/consulta.ts): si `sales` o `campaigns` no se pudieron leer, "0 ventas" / "0 €"
+  // sería un dato inventado — tanto para quien lee la respuesta del agente como para
+  // detectAnomalies, que compararía contra un cero falso y anunciaría una caída que no existió.
+  const error =
+    salesErr || campaignsErr
+      ? [salesErr && `ventas: ${salesErr.message}`, campaignsErr && `campañas: ${campaignsErr.message}`]
+          .filter(Boolean)
+          .join(' · ')
+      : null
+
   return {
     period,
-    inversion: funnel.inversion,
-    leads: funnel.leads,
-    agendas: funnel.agendas,
-    cpl: funnel.cpl,
-    roas: funnel.roas,
-    ventas: activeSales.length,
-    ingresos: revenue,
+    inversion: campaignsErr ? null : funnel.inversion,
+    leads: campaignsErr ? null : funnel.leads,
+    agendas: campaignsErr ? null : funnel.agendas,
+    cpl: campaignsErr ? null : funnel.cpl,
+    roas: campaignsErr ? null : funnel.roas,
+    ventas: salesErr ? null : activeSales.length,
+    ingresos: salesErr ? null : revenue,
     total_contactos: contactCount ?? null,
-    campanas_activas: periodCampaigns.filter((c) => c.status === 'activa').length,
+    campanas_activas: campaignsErr ? null : periodCampaigns.filter((c) => c.status === 'activa').length,
+    ...(error ? { error } : {}),
     ...(aviso ? { aviso_datos: aviso } : {}),
   }
 }
@@ -252,11 +286,16 @@ export async function getBusinessOverview({ tenantId, sb }: ToolContext, period:
 // lib/ads/funnel.ts), para no calcular métricas "a mano" en el LLM.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getFunnel(
-  { tenantId, sb }: ToolContext,
+  { tenantId, sb, env }: ToolContext,
   period: Period
-): Promise<AdFunnel & { aviso_datos?: string }> {
-  const { data } = await sb.from('campaigns').select('*').eq('tenant_id', tenantId).limit(500)
-  const campaigns = ((data as Campaign[]) || []).filter(
+): Promise<Partial<AdFunnel> & { aviso_datos?: string; error?: string }> {
+  const { data, error: campaignsErr } = await sb.from('campaigns').select('*').eq('tenant_id', tenantId).limit(500)
+  // Un fallo de lectura NO es un cero: si `campaigns` no se pudo leer, ROAS/CAC en null (no en
+  // 0/inventado) — detectAnomalies compara este resultado contra el del periodo anterior y un
+  // 0 falso aquí anunciaría una caída de ROAS que nunca ocurrió.
+  if (campaignsErr) return { error: `campañas: ${campaignsErr.message}` }
+  // Solo cuentas seleccionadas en Integraciones (mismo convenio que la pantalla de Campañas).
+  const campaigns = campanasDeCuentas((data as Campaign[]) || [], cuentasAdsDeContexto(env)).filter(
     (c) => !period.from || !c.start_date || inPeriod(c.start_date, period)
   )
   const funnel = computeAdFunnel(campaigns)
@@ -271,11 +310,13 @@ export async function getFunnel(
 // métricas derivadas ya calculadas — el modelo puede comparar sin inventar fórmulas.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getCampaignPerformance(
-  { tenantId, sb }: ToolContext,
+  { tenantId, sb, env }: ToolContext,
   opts: { period?: Period; nameContains?: string }
 ) {
   const { data } = await sb.from('campaigns').select('*').eq('tenant_id', tenantId).limit(500)
-  let campaigns = (data as Campaign[]) || []
+  // Solo cuentas seleccionadas en Integraciones: el rendimiento por campaña no debe listar
+  // campañas de cuentas que el usuario ya quitó del negocio.
+  let campaigns = campanasDeCuentas((data as Campaign[]) || [], cuentasAdsDeContexto(env))
   if (opts.period)
     campaigns = campaigns.filter((c) => !opts.period!.from || !c.start_date || inPeriod(c.start_date, opts.period!))
   if (opts.nameContains) {
@@ -383,7 +424,7 @@ export async function searchTranscripts({ tenantId, sb }: ToolContext, query: st
 // canónica que docs/METRICS.md: cuentaComoVenta, que además excluye las reservas abiertas).
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getSales({ tenantId, sb }: ToolContext, period: Period, limit = 20) {
-  const { data } = await sb
+  const { data, error } = await sb
     .from('sales')
     .select(
       'id,contact_id,sale_date,gross_amount,status,contacts(full_name),reservation_completed_at,payment_plans(method)'
@@ -393,6 +434,10 @@ export async function getSales({ tenantId, sb }: ToolContext, period: Period, li
     .lte('sale_date', period.to || '2999-12-31')
     .order('sale_date', { ascending: false })
     .limit(500)
+
+  // Un fallo de lectura NO es un cero: "0 ventas · 0 € de ingresos" presentado como dato real es
+  // exactamente lo que docs/MONEY.md prohíbe en la superficie que informa decisiones de negocio.
+  if (error) return { period, error: error.message }
 
   const rows = (data || []) as unknown as Array<{
     id: string
@@ -459,15 +504,24 @@ export async function comparePeriods(ctx: ToolContext, current: Period, previous
 // ─────────────────────────────────────────────────────────────────────────────
 export async function analyzeFunnelChange(ctx: ToolContext, current: Period, previous: Period) {
   const [now, prev] = await Promise.all([getFunnel(ctx, current), getFunnel(ctx, previous)])
+  // Un fallo de lectura en cualquiera de los dos periodos NO es un cero: construir el análisis
+  // de causa raíz sobre datos parciales inventaría en qué etapa "cambió" el funnel.
+  if (now.error || prev.error) {
+    return { current: now, previous: prev, error: now.error || prev.error }
+  }
   const stages: Array<{ stage: string; now: number | null; previous: number | null }> = [
-    { stage: 'CPM', now: now.cpm, previous: prev.cpm },
-    { stage: 'CTR', now: now.ctr, previous: prev.ctr },
-    { stage: '% de carga (visitas/clics)', now: now.pctCarga, previous: prev.pctCarga },
-    { stage: '% de registro (leads/visitas)', now: now.pctRegistro, previous: prev.pctRegistro },
-    { stage: '% conversión VSL (agendas/leads)', now: now.pctConversionVSL, previous: prev.pctConversionVSL },
-    { stage: '% show up (llamadas/agendas)', now: now.pctShowUp, previous: prev.pctShowUp },
-    { stage: '% de cierre (cierres/llamadas)', now: now.pctCierre, previous: prev.pctCierre },
-    { stage: 'ROAS', now: now.roas, previous: prev.roas },
+    { stage: 'CPM', now: now.cpm ?? null, previous: prev.cpm ?? null },
+    { stage: 'CTR', now: now.ctr ?? null, previous: prev.ctr ?? null },
+    { stage: '% de carga (visitas/clics)', now: now.pctCarga ?? null, previous: prev.pctCarga ?? null },
+    { stage: '% de registro (leads/visitas)', now: now.pctRegistro ?? null, previous: prev.pctRegistro ?? null },
+    {
+      stage: '% conversión VSL (agendas/leads)',
+      now: now.pctConversionVSL ?? null,
+      previous: prev.pctConversionVSL ?? null,
+    },
+    { stage: '% show up (llamadas/agendas)', now: now.pctShowUp ?? null, previous: prev.pctShowUp ?? null },
+    { stage: '% de cierre (cierres/llamadas)', now: now.pctCierre ?? null, previous: prev.pctCierre ?? null },
+    { stage: 'ROAS', now: now.roas ?? null, previous: prev.roas ?? null },
   ]
   const withDelta = stages
     .map((s) => ({

@@ -8,7 +8,8 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
-import { Loader2, CheckCircle2, AlertCircle, RotateCcw, ChevronDown, ChevronUp, X, Copy } from 'lucide-react'
+import { Loader2, CheckCircle2, AlertCircle, RotateCcw, ChevronDown, ChevronUp, Copy } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 type ScriptDraft = {
   title: string
@@ -318,20 +319,11 @@ export function ScriptQueueProvider({ children }: { children: React.ReactNode })
 
       {/* Modal de revisión para borradores no guardados automáticamente */}
       {review?.draft && (
-        <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70] p-4"
-          onClick={() => setReviewId(null)}
-        >
-          <div
-            className="bg-card border border-border rounded-xl max-w-2xl w-full max-h-[88vh] overflow-y-auto p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-bold text-foreground">Guión de {review.label}</h3>
-              <button onClick={() => setReviewId(null)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+        <Dialog open onOpenChange={(o) => !o && setReviewId(null)}>
+          <DialogContent className="max-w-2xl max-h-[88vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Guión de {review.label}</DialogTitle>
+            </DialogHeader>
             <div className="space-y-3 text-sm">
               <p className="text-foreground font-semibold text-base">{review.draft.title}</p>
               {review.draft.cta_used && (
@@ -373,8 +365,8 @@ export function ScriptQueueProvider({ children }: { children: React.ReactNode })
                 </button>
               </div>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </QueueCtx.Provider>
   )

@@ -233,7 +233,7 @@ export default function ReelsDelDiaPage() {
                         {d.source_account ? `@${d.source_account}` : 'Cuenta desconocida'}
                       </p>
                       <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${
+                        className={`text-3xs px-2 py-0.5 rounded-full shrink-0 ${
                           d.status === 'aprobado'
                             ? 'bg-emerald-950/50 text-emerald-300'
                             : d.status === 'descartado'
@@ -245,7 +245,7 @@ export default function ReelsDelDiaPage() {
                       </span>
                     </div>
                     {testimonio && (
-                      <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-pink-950/50 text-pink-300 text-[10px] font-medium">
+                      <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-pink-950/50 text-pink-300 text-3xs font-medium">
                         <Award className="w-2.5 h-2.5" /> Lleva testimonio: {testimonio.name}
                       </span>
                     )}
@@ -356,23 +356,23 @@ export default function ReelsDelDiaPage() {
                             <p className="text-xs font-semibold text-foreground">
                               {testimonio.name}
                               {!testimonio.hasRevenue && (
-                                <span className="ml-1.5 text-[10px] font-normal text-amber-300">sin cifras</span>
+                                <span className="ml-1.5 text-3xs font-normal text-amber-300">sin cifras</span>
                               )}
                               {testimonio.kind === 'cliente' && (
-                                <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
+                                <span className="ml-1.5 text-3xs font-normal text-muted-foreground">
                                   cliente, no alumno
                                 </span>
                               )}
                             </p>
                             {testimonio.cifra && testimonio.hasRevenue && (
-                              <p className="text-[11px] text-pink-300 mt-0.5">{testimonio.cifra}</p>
+                              <p className="text-2xs text-pink-300 mt-0.5">{testimonio.cifra}</p>
                             )}
                             {testimonio.hook && (
-                              <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{testimonio.hook}</p>
+                              <p className="text-2xs text-muted-foreground mt-0.5 line-clamp-2">{testimonio.hook}</p>
                             )}
                           </div>
                         </div>
-                        <div className="text-[11px] text-muted-foreground space-y-1 mt-2 leading-relaxed">
+                        <div className="text-2xs text-muted-foreground space-y-1 mt-2 leading-relaxed">
                           {testimonio.puntoA && (
                             <p>
                               <span className="text-foreground/70 font-medium">Antes:</span> {testimonio.puntoA}
@@ -387,7 +387,7 @@ export default function ReelsDelDiaPage() {
                         <div className="flex flex-wrap items-center gap-2 mt-2.5">
                           <Link
                             href={`/${tenant}/recursos/testimonios/${testimonio.id}`}
-                            className="text-[11px] text-pink-300 hover:underline flex items-center gap-1"
+                            className="text-2xs text-pink-300 hover:underline flex items-center gap-1"
                           >
                             <Award className="w-3 h-3" /> Ver ficha
                           </Link>
@@ -396,7 +396,7 @@ export default function ReelsDelDiaPage() {
                               href={testimonio.youtubeUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-[11px] text-sky-400 hover:underline flex items-center gap-1"
+                              className="text-2xs text-sky-400 hover:underline flex items-center gap-1"
                             >
                               <PlayCircle className="w-3 h-3" /> Vídeo original
                             </a>
@@ -406,13 +406,13 @@ export default function ReelsDelDiaPage() {
                               navigator.clipboard.writeText(testimonioPitch(testimonio))
                               toast.success('Testimonio copiado')
                             }}
-                            className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1 ml-auto"
+                            className="text-2xs text-muted-foreground hover:text-foreground flex items-center gap-1 ml-auto"
                           >
                             <Copy className="w-3 h-3" /> Copiar historia
                           </button>
                         </div>
                         {!testimonio.youtubeUrl && (
-                          <p className="text-[10px] text-amber-300/90 mt-2">
+                          <p className="text-3xs text-amber-300/90 mt-2">
                             Este testimonio todavía no tiene el vídeo cargado: pídelo o añádelo desde su ficha.
                           </p>
                         )}

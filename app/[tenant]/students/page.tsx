@@ -177,7 +177,7 @@ function FunnelStat({ label, value, sub, tone }: { label: string; value: number;
     <div className="rounded-lg border border-border bg-muted/30 p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className={`text-2xl font-bold mt-1 ${FUNNEL_TONE[tone] ?? 'text-foreground'}`}>{value}</p>
-      <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>
+      <p className="text-2xs text-muted-foreground mt-0.5">{sub}</p>
     </div>
   )
 }
@@ -187,7 +187,7 @@ function TrackDot({ on, label }: { on: boolean; label: string }) {
   return (
     <span
       title={label}
-      className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border ${
+      className={`inline-flex items-center gap-1 text-3xs px-1.5 py-0.5 rounded border ${
         on ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-muted text-muted-foreground border-border'
       }`}
     >
@@ -572,7 +572,7 @@ export default function StudentsPage() {
       <div className="rounded-lg border border-border overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
+            <tr className="text-2xs uppercase tracking-wider text-muted-foreground border-b border-border">
               <th className="text-left font-medium p-3">Alumno</th>
               <th className="text-left font-medium p-3">Programa</th>
               <th className="text-right font-medium p-3">Importe</th>
@@ -653,7 +653,7 @@ export default function StudentsPage() {
                             </div>
                             {(progress.renewalStatus === 'proxima' || progress.renewalStatus === 'vencido') && (
                               <span
-                                className={`inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded border ${
+                                className={`inline-block mt-1 text-3xs px-1.5 py-0.5 rounded border ${
                                   progress.renewalStatus === 'vencido'
                                     ? 'bg-red-500/20 text-red-400 border-red-500/30'
                                     : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
@@ -747,7 +747,7 @@ export default function StudentsPage() {
                                 className={`${cls} w-full`}
                               />
                               {r.onboarding_scheduled_at && (
-                                <p className="text-[11px] text-amber-400 mt-1">
+                                <p className="text-2xs text-amber-400 mt-1">
                                   Agendó onboarding
                                   {r.onboarding_session_at
                                     ? ` · sesión ${new Date(r.onboarding_session_at).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`

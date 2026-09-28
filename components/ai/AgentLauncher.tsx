@@ -157,7 +157,7 @@ export function AgentLauncher() {
       >
         {open ? <X className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
         {!open && unseenCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+          <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-3xs font-semibold text-white">
             {unseenCount}
           </span>
         )}
@@ -173,7 +173,7 @@ export function AgentLauncher() {
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div>
               <p className="text-sm font-semibold text-foreground">Agente de negocio</p>
-              <p className="text-[11px] text-muted-foreground">Responde con datos reales de tu cuenta</p>
+              <p className="text-2xs text-muted-foreground">Responde con datos reales de tu cuenta</p>
             </div>
             <button
               onClick={() => setOpen(false)}
@@ -234,7 +234,7 @@ export function AgentLauncher() {
                         <span
                           key={j}
                           title={ev.summary}
-                          className="rounded border border-border bg-card px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                          className="rounded border border-border bg-card px-1.5 py-0.5 text-3xs text-muted-foreground"
                         >
                           {TOOL_LABELS[ev.name] || ev.name}
                         </span>

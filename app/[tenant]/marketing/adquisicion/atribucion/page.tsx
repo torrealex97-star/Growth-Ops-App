@@ -520,7 +520,7 @@ export default function AttributionPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                <tr className="text-2xs uppercase tracking-wider text-muted-foreground border-b border-border">
                   <th className="text-left font-medium py-2">Fuente / Anuncio</th>
                   <th className="text-right font-medium py-2">Leads</th>
                   <th className="text-right font-medium py-2">Agendas</th>
@@ -665,7 +665,7 @@ export default function AttributionPage() {
           <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-card">
-                <tr className="text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                <tr className="text-2xs uppercase tracking-wider text-muted-foreground border-b border-border">
                   <th className="text-left font-medium py-2">Contacto</th>
                   <th className="text-left font-medium py-2">First Source</th>
                   <th className="text-left font-medium py-2">First Campaign</th>
@@ -733,7 +733,7 @@ export default function AttributionPage() {
           <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-card z-10">
-                <tr className="text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                <tr className="text-2xs uppercase tracking-wider text-muted-foreground border-b border-border">
                   <th className="text-left font-medium py-2 pr-3">Contacto</th>
                   <th className="text-left font-medium py-2 pr-3">Fuente</th>
                   {QUALIFICATION_KEYS.map((k) => (

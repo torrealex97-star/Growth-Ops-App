@@ -16,6 +16,7 @@ import { MarketingEfficiencyCard } from '@/components/os/MarketingEfficiencyCard
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, toDateInputValue, type PeriodPreset } from '@/lib/filters/period'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import ColaboradorDashboard from '@/components/collaborators/ColaboradorDashboard'
+import { clasificarCobrosPorMes } from '@/lib/finance/nuevo-vs-recurrente'
 import { resolverScopeColaborador, type ScopeColaborador } from '@/lib/collaborators/scope'
 import { useTenantId } from '@/lib/tenant-context'
 import {
@@ -39,6 +40,8 @@ import {
   revenueByMonth,
   teamRanking,
   attributionBySource,
+  ymOf,
+  num,
   targetCurrentValue,
   cuentaComoVenta,
   funnelBySource,
@@ -465,6 +468,22 @@ function DashboardEquipo() {
     [filteredSales, filteredCollections, ym]
   )
   const series = useMemo(() => revenueByMonth(filteredSales, lastNMonths(6, ym)), [filteredSales, ym])
+  // CASH COBRADO por mes (misma ventana que la facturación): alimenta la línea verde del
+  // chart dual para que la distancia entre "vendido" y "cobrado" se vea de un vistazo.
+  const cashSeries = useMemo(
+    () =>
+      lastNMonths(6, ym).map((m) => ({
+        date: monthLabel(m),
+        cash: filteredCollections
+          .filter((c) => c.status === 'collected' && ymOf(c.collected_at) === m)
+          .reduce((acc, c) => acc + num(c.gross_amount), 0),
+      })),
+    [filteredCollections, ym]
+  )
+  // NUEVO vs RECURRENTE (definición canónica de lib/finance/nuevo-vs-recurrente):
+  // cuánto del cash del mes es primer cobro de ventas nuevas y cuánto son cuotas de
+  // ventas de meses pasados (el MRR que sostiene el negocio).
+  const nuevoVsRecurrente = useMemo(() => clasificarCobrosPorMes(filteredCollections, ym), [filteredCollections, ym])
   // roleUsers trae el rol real (roles(key)); necesario para no mezclar puestos en el ranking.
   const usersWithRole = useMemo(
     () => roleUsers.map((u) => ({ id: u.id, full_name: u.full_name, role: u.roles?.key ?? null })),
@@ -877,6 +896,11 @@ function DashboardEquipo() {
             value={loading ? '—' : fmt(cur.cash)}
             icon={Wallet}
             loading={loading}
+            description={
+              loading
+                ? 'cobrado real'
+                : `nuevo ${fmt(nuevoVsRecurrente.nuevo.importe)} · recurrente ${fmt(nuevoVsRecurrente.recurrente.importe)}`
+            }
             compareLabel="vs mes anterior · cobrado real"
             {...delta(cur.cash, prev.cash)}
           />
@@ -902,7 +926,12 @@ function DashboardEquipo() {
       {/* Evolución + Objetivos */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
         <div className="lg:col-span-2">
-          <SalesChart data={series} title="Facturación últimos 6 meses" className="h-full" />
+          <SalesChart
+            data={series}
+            cashData={cashSeries}
+            title="Facturación vs cash cobrado — últimos 6 meses"
+            className="h-full"
+          />
         </div>
         <div className="dashboard-card p-5 flex flex-col">
           <div className="flex items-center gap-2 mb-4">

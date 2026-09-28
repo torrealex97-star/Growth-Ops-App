@@ -36,10 +36,11 @@ async function syncInstallmentStatus(sb: ReturnType<typeof serviceClient>, insta
     .neq('status', 'reversed')
     .limit(1)
   const hasCollection = !!(remaining && remaining.length > 0)
-  await sb
+  const { error } = await sb
     .from('sale_expected_installments')
     .update({ status: hasCollection ? 'collected' : 'pending' })
     .eq('id', installmentId)
+  if (error) console.error('[collections/[id]] sale_expected_installments no se pudo sincronizar:', error.message)
 }
 
 // PATCH — edita un cobro (importe, comisionable, fecha, método, elegibilidad) y RECONCILIA las
@@ -58,7 +59,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
     const { data: coll } = await sb
       .from('collections')
       .select(
-        'id, sale_id, gross_amount, commissionable_amount, sales!inner(payment_plans(cash_collection_ratio, fee_percent))'
+        'id, sale_id, expected_installment_id, gross_amount, commissionable_amount, sales!inner(payment_plans(cash_collection_ratio, fee_percent))'
       )
       .eq('id', id)
       .eq('tenant_id', t.tenantId)
@@ -114,6 +115,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
 
     const { error: upErr } = await sb.from('collections').update(update).eq('id', id).eq('tenant_id', t.tenantId)
     if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 })
+
+    // La cuota asociada vuelve a 'pending' si se queda sin cobros vivos (p.ej. este PATCH la pasó
+    // a 'reversed' o 'disputed'); si sigue teniendo uno, queda 'collected'. Antes solo se llamaba
+    // en DELETE: revertir el ÚNICO cobro de una cuota vía PATCH la dejaba 'collected' para
+    // siempre, bloqueada para volver a cobrarse limpiamente.
+    await syncInstallmentStatus(sb, coll.expected_installment_id)
 
     // Reconcilia comisiones (positivas no liquidadas) de la venta con los cobros actuales.
     const recon = await reconcileSaleCommissions(sb, t.tenantId, coll.sale_id)
