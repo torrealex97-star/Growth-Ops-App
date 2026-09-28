@@ -121,7 +121,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       )
     }
 
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       actor_user_id: t.userId,
       entity_type: 'contact',
@@ -129,6 +129,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       action: 'update',
       new_values: patch,
     })
+    if (auditErr) console.error(`[contacts/${id}] edición sin auditoría:`, auditErr.message)
 
     return NextResponse.json({ ok: true, contact: updated })
   } catch (err) {

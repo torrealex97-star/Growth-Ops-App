@@ -173,7 +173,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   if (assistantErr) return NextResponse.json({ error: assistantErr.message }, { status: 500 })
 
   if (toolCallLogs.length > 0) {
-    await sb.from('ai_tool_calls').insert(
+    const { error: toolLogErr } = await sb.from('ai_tool_calls').insert(
       toolCallLogs.map((t) => ({
         tenant_id: auth.tenantId,
         conversation_id: conversationId,
@@ -185,6 +185,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         latency_ms: t.latency_ms,
       }))
     )
+    // Es la evidencia de qué herramientas usó el agente para responder — si falla, la respuesta
+    // ya se dio pero queda sin poder auditarse.
+    if (toolLogErr) console.error('[ai/agent] no se pudo registrar ai_tool_calls:', toolLogErr.message)
   }
 
   return NextResponse.json({ conversationId, message: turn.text, evidence: turn.evidence })

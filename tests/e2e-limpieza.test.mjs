@@ -83,6 +83,7 @@ test('cada tabla del orden es escopable por tenant_id (CREATE, ALTER o bucle mul
 function fakeSb(contenidoPorTabla, errores = {}, opciones = {}) {
   const llamadas = []
   const storageRemoves = []
+  const insertsAuditLogs = []
   const sb = {
     from(tabla) {
       const chain = {
@@ -111,7 +112,10 @@ function fakeSb(contenidoPorTabla, errores = {}, opciones = {}) {
           const filas = tabla === 'contracts' ? (opciones.pathsContratos ?? []).map((p) => ({ signed_pdf_url: p })) : []
           return { eq: () => Promise.resolve({ data: filas, error: null }) }
         },
-        async insert() {
+        async insert(payload) {
+          llamadas.push(`__insert_${tabla}`)
+          if (tabla === 'audit_logs') insertsAuditLogs.push(payload)
+          if (errores[tabla]) return { error: { message: errores[tabla] } }
           return { error: null }
         },
       }
@@ -130,7 +134,7 @@ function fakeSb(contenidoPorTabla, errores = {}, opciones = {}) {
       },
     },
   }
-  return { sb, llamadas, storageRemoves }
+  return { sb, llamadas, storageRemoves, insertsAuditLogs }
 }
 
 test('borra en orden FK y suma el total', async () => {
@@ -158,6 +162,25 @@ test('un fallo en una tabla no aborta la limpieza y marca ok=false', async () =>
   const falloSales = resultados.find((r) => r.tabla === 'sales')
   assert.equal(falloSales.filas, null)
   assert.match(falloSales.error, /foreign key/)
+})
+
+test('el cierre de auditoría incluye entity_id (NOT NULL en audit_logs)', async () => {
+  const { sb, insertsAuditLogs } = fakeSb({ collections: 1, sales: 1 })
+  await limpiarActividadTenant(sb, 'tenant-1')
+  assert.equal(insertsAuditLogs.length, 1)
+  // Bug real (PR #279, Smoke E2E): faltaba entity_id, NOT NULL desde
+  // 20260910090000_initial_growth_ops.sql — el insert fallaba en silencio hasta que se comprobó
+  // el error, y entonces rompía el reset del tenant QA con un mensaje vacío.
+  assert.equal(insertsAuditLogs[0].entity_id, 'tenant-1')
+})
+
+test('si el cierre de auditoría falla, el motivo aparece en resultados (no un mensaje vacío)', async () => {
+  const { sb } = fakeSb({ collections: 1 }, { audit_logs: 'null value in column "entity_id" violates not-null' })
+  const { ok, resultados } = await limpiarActividadTenant(sb, 'tenant-1')
+  assert.equal(ok, false)
+  const filaAudit = resultados.find((r) => r.tabla === 'audit_logs')
+  assert.ok(filaAudit, 'el fallo de audit_logs debe aparecer en resultados, no solo en errores')
+  assert.match(filaAudit.error, /entity_id/)
 })
 
 test('tenant ya limpio → 0 filas, ok=true (idempotente)', async () => {

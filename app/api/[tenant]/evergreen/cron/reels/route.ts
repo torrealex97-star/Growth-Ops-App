@@ -81,7 +81,7 @@ async function runForTenant(
   // si el runtime corta en medio, los que no dieron tiempo a generar ya están registrados
   // y la próxima pasada los regenera. Luego se sobrescriben con el draft real al generarse.
   if ((candidates as CompetitorMediaRow[]).length > 0) {
-    await sb.from('reel_drafts').upsert(
+    const { error: esqueletoErr } = await sb.from('reel_drafts').upsert(
       (candidates as CompetitorMediaRow[]).map((candidate) => ({
         tenant_id: tenantId,
         source_media_id: candidate.id,
@@ -95,6 +95,10 @@ async function runForTenant(
       })),
       { onConflict: 'source_media_id' }
     )
+    // Es justo la red de seguridad para un corte a mitad de invocación: si el esqueleto no se
+    // guarda, esos candidatos se pierden sin que la siguiente pasada sepa que existían.
+    if (esqueletoErr)
+      console.error(`[cron/reels] no se pudieron persistir los esqueletos de ${tenantId}:`, esqueletoErr.message)
   }
 
   for (const candidate of candidates as CompetitorMediaRow[]) {

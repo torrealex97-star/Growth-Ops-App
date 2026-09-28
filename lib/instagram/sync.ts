@@ -63,26 +63,29 @@ export async function runInstagramSync(
   // 1) Perfil + insights de cuenta → snapshot diario (crecimiento)
   const [profile, acc] = await Promise.all([fetchIgProfile(cfg, igUserId), fetchAccountInsights(cfg, igUserId)])
 
-  await sb.from('ig_account_daily').upsert(
-    {
-      tenant_id: tenantId,
-      snapshot_date: today(),
-      followers_count: profile.followers_count,
-      media_count: profile.media_count,
-      reach: acc.reach,
-      profile_views: acc.profile_views,
-      new_follows: acc.new_follows,
-      unfollows: acc.unfollows,
-      reach_followers: acc.reach_followers,
-      reach_non_followers: acc.reach_non_followers,
-      synced_at: at,
-    },
-    // NOTA: el índice único original es solo (snapshot_date), global. Con varias
-    // subcuentas sincronizando Instagram el mismo día colisionarían entre sí.
-    // Ver migración supabase/migrations/20260911160000_fix_cron_unique_constraints.sql
-    // (pendiente de aplicar) que lo sustituye por (tenant_id, snapshot_date).
-    { onConflict: 'tenant_id,snapshot_date', ignoreDuplicates: false }
-  )
+  {
+    const { error: accDailyErr } = await sb.from('ig_account_daily').upsert(
+      {
+        tenant_id: tenantId,
+        snapshot_date: today(),
+        followers_count: profile.followers_count,
+        media_count: profile.media_count,
+        reach: acc.reach,
+        profile_views: acc.profile_views,
+        new_follows: acc.new_follows,
+        unfollows: acc.unfollows,
+        reach_followers: acc.reach_followers,
+        reach_non_followers: acc.reach_non_followers,
+        synced_at: at,
+      },
+      // NOTA: el índice único original es solo (snapshot_date), global. Con varias
+      // subcuentas sincronizando Instagram el mismo día colisionarían entre sí.
+      // Ver migración supabase/migrations/20260911160000_fix_cron_unique_constraints.sql
+      // (pendiente de aplicar) que lo sustituye por (tenant_id, snapshot_date).
+      { onConflict: 'tenant_id,snapshot_date', ignoreDuplicates: false }
+    )
+    if (accDailyErr) failures.push(`No se pudo guardar el snapshot diario de cuenta: ${accDailyErr.message}`)
+  }
 
   // 2) Demografía de la audiencia (país/ciudad/edad/género) → snapshot vigente
   let demographicsRows = 0
@@ -98,7 +101,10 @@ export async function runInstagramSync(
       }))
       // NOTA: mismo caso que ig_account_daily — el índice único original era (dimension, bucket)
       // global; ver la migración pendiente que lo cambia a (tenant_id, dimension, bucket).
-      await sb.from('ig_audience').upsert(rows, { onConflict: 'tenant_id,dimension,bucket', ignoreDuplicates: false })
+      const { error: audienceErr } = await sb
+        .from('ig_audience')
+        .upsert(rows, { onConflict: 'tenant_id,dimension,bucket', ignoreDuplicates: false })
+      if (audienceErr) failures.push(`No se pudo guardar la demografía de audiencia: ${audienceErr.message}`)
       demographicsRows = rows.length
     }
   } catch {
@@ -192,7 +198,7 @@ export async function runInstagramSync(
         if (cfg.enableDmSync)
           try {
             const stats = await fetchConversationStats(cfg, pageId, pat)
-            await sb.from('ig_conversations_daily').upsert(
+            const { error: convErr } = await sb.from('ig_conversations_daily').upsert(
               {
                 tenant_id: tenantId,
                 snapshot_date: today(),
@@ -206,6 +212,7 @@ export async function runInstagramSync(
               // índice único de (snapshot_date) a (tenant_id, snapshot_date).
               { onConflict: 'tenant_id,snapshot_date', ignoreDuplicates: false }
             )
+            if (convErr) failures.push(`No se pudo guardar el snapshot de conversaciones: ${convErr.message}`)
             conversations = stats.total_conversations
           } catch {
             /* conversaciones no disponibles */

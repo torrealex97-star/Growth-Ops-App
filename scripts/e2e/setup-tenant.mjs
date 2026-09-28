@@ -36,7 +36,8 @@ let tenantId
   const { data } = await sb.from('tenants').select('id').eq('slug', SLUG).single()
   if (data) {
     tenantId = data.id
-    await sb.from('tenants').update({ status: 'active' }).eq('id', tenantId)
+    const { error } = await sb.from('tenants').update({ status: 'active' }).eq('id', tenantId)
+    if (error) throw error
   } else {
     const { data: created, error } = await sb
       .from('tenants')
@@ -69,9 +70,10 @@ let userId
     if (error) throw error
     userId = created.user.id
   }
-  await sb
+  const { error: userErr } = await sb
     .from('users')
     .upsert({ id: userId, full_name: 'QA E2E Admin', email: EMAIL, role_id: roleId, is_active: true })
+  if (userErr) throw userErr
   const { error } = await sb
     .from('tenant_members')
     .upsert({ tenant_id: tenantId, user_id: userId, role: 'admin' }, { onConflict: 'tenant_id,user_id' })
@@ -267,13 +269,14 @@ let contratoEquipoId
     if (error) throw error
     colaboradorId = created.user.id
   }
-  await sb.from('users').upsert({
+  const { error: colabUserErr } = await sb.from('users').upsert({
     id: colaboradorId,
     full_name: 'E2E Colaborador',
     email: EMAIL_COLAB,
     role_id: rolCloser?.id ?? roleId,
     is_active: true,
   })
+  if (colabUserErr) throw colabUserErr
   const { error } = await sb
     .from('tenant_members')
     .upsert({ tenant_id: tenantId, user_id: colaboradorId, role: 'member' }, { onConflict: 'tenant_id,user_id' })

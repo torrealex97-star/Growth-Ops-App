@@ -199,17 +199,23 @@ export default function ProductsPage() {
 
   const toggleProductActive = async (p: Product) => {
     const supabase = createClient()
-    await supabase.from('products').update({ is_active: !p.is_active }).eq('id', p.id).eq('tenant_id', tenantId)
+    const { error } = await supabase
+      .from('products')
+      .update({ is_active: !p.is_active })
+      .eq('id', p.id)
+      .eq('tenant_id', tenantId)
+    if (error) toast.error('No se pudo cambiar el estado del producto', { description: error.message })
     fetchData()
   }
 
   const togglePlanActive = async (plan: PaymentPlan) => {
     const supabase = createClient()
-    await supabase
+    const { error } = await supabase
       .from('payment_plans')
       .update({ is_active: !plan.is_active })
       .eq('id', plan.id)
       .eq('tenant_id', tenantId)
+    if (error) toast.error('No se pudo cambiar el estado del plan', { description: error.message })
     fetchData()
   }
 
