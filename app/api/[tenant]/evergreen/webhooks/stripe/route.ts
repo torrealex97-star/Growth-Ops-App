@@ -1,9 +1,15 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getTenantConfigWithFallback } from '@/lib/config'
-import { mueveDinero, normalizarEventoStripe, verificarFirmaStripe } from '@/lib/stripe/webhook'
+import {
+  mueveDinero,
+  normalizarEventoStripe,
+  verificarFirmaStripe,
+  type EventoStripeNormalizado,
+} from '@/lib/stripe/webhook'
 import { hechoDesdeSobre } from '@/lib/eventos/canonico'
 import { derivarStripe } from '@/lib/eventos/stripe'
+import { gateForDraft, suggestForDraft } from '@/lib/finance/stripeSaleDrafts'
 
 export const runtime = 'nodejs'
 export const maxDuration = 10
@@ -169,6 +175,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     console.warn('[stripe-webhook] no se pudo escribir el hecho canónico:', e instanceof Error ? e.message : e)
   }
 
+  // VENTA BORRADOR — sugerencia automática, nunca el ledger. El pago YA está a salvo en raw_events/
+  // canonical_events (arriba); esto solo intenta identificar de quién es y qué vende, para que un
+  // closer/admin apruebe con un clic en vez de tener que buscarlo en el informe de backfill.
+  if (n.clase === 'cobro') {
+    await intentarCrearBorrador(sb, tenantId, n)
+  } else if (n.tipo === 'invoice.payment_succeeded' && n.lineaPriceId) {
+    await registrarPistaDePrecio(sb, tenantId, n)
+  }
+
   return NextResponse.json({
     recibido: true,
     evento: n.eventId,
@@ -179,4 +194,173 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     importe_eur: n.importeEur,
     motivo: n.motivo,
   })
+}
+
+async function resolverContacto(sb: SupabaseClient, tenantId: string, email: string): Promise<string | null> {
+  const { data } = await sb
+    .from('contacts')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .ilike('email', email.trim())
+    .limit(1)
+    .maybeSingle()
+  return (data?.id as string | undefined) ?? null
+}
+
+// Sugiere e inserta una venta borrador para un cobro real. Best-effort a propósito: el pago YA está a
+// salvo en raw_events (el llamador lo garantiza antes de invocar esto), así que un fallo aquí solo
+// significa que el pago sigue viéndose en el informe de backfill de siempre, no que se pierda dinero.
+async function intentarCrearBorrador(sb: SupabaseClient, tenantId: string, n: EventoStripeNormalizado) {
+  try {
+    const paymentReference = n.referenciaPago
+    if (!paymentReference || !n.importeEur || n.importeEur <= 0) return
+
+    const [{ data: cobroExistente }, { data: borradorExistente }] = await Promise.all([
+      sb
+        .from('collections')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('payment_reference', paymentReference)
+        .maybeSingle(),
+      sb
+        .from('sale_drafts')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('payment_reference', paymentReference)
+        .maybeSingle(),
+    ])
+    const contactId = n.email ? await resolverContacto(sb, tenantId, n.email) : null
+
+    const gate = gateForDraft({
+      contactId,
+      paymentReference,
+      knownCollectionReferences: new Set(cobroExistente ? [paymentReference] : []),
+      existingDraftReferences: new Set(borradorExistente ? [paymentReference] : []),
+    })
+    // 'sin_contacto' se queda para el informe de backfill de siempre (ese caso ya lo cubre, y crear
+    // un contacto a partir de un email de facturación mezclaría la base de clientes con ruido).
+    if (gate !== 'crear') return
+
+    const [{ data: ventaActiva }, { data: pista }] = await Promise.all([
+      sb
+        .from('sales')
+        .select('id, product_id, payment_plan_id')
+        .eq('tenant_id', tenantId)
+        .eq('contact_id', contactId as string)
+        .eq('status', 'active')
+        .order('sale_date', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      sb
+        .from('stripe_price_hints')
+        .select('stripe_price_id')
+        .eq('tenant_id', tenantId)
+        .eq('payment_intent_id', paymentReference)
+        .maybeSingle(),
+    ])
+    const stripePriceId = n.lineaPriceId ?? (pista?.stripe_price_id as string | undefined) ?? null
+
+    const [{ data: priceMapRows }, { data: planRows }] = await Promise.all([
+      sb.from('stripe_price_map').select('stripe_price_id, product_id, payment_plan_id').eq('tenant_id', tenantId),
+      sb
+        .from('payment_plans')
+        .select('id, product_id, gross_price, number_of_payments')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true),
+    ])
+
+    const venta = ventaActiva as { id: string; product_id: string; payment_plan_id: string } | null
+    const suggestion = suggestForDraft({
+      amount: n.importeEur,
+      stripePriceId,
+      activeSale: venta ? { id: venta.id, productId: venta.product_id, paymentPlanId: venta.payment_plan_id } : null,
+      priceMap: (priceMapRows ?? []).map((r) => ({
+        stripePriceId: r.stripe_price_id as string,
+        productId: r.product_id as string,
+        paymentPlanId: r.payment_plan_id as string,
+      })),
+      plans: (planRows ?? []).map((r) => ({
+        id: r.id as string,
+        productId: r.product_id as string,
+        grossPrice: r.gross_price as number,
+        numberOfPayments: r.number_of_payments as number,
+      })),
+    })
+
+    const { error: insErr } = await sb.from('sale_drafts').insert({
+      tenant_id: tenantId,
+      payment_reference: paymentReference,
+      amount: n.importeEur,
+      currency: n.moneda ?? 'EUR',
+      contact_id: contactId,
+      email: n.email,
+      occurred_at: n.ocurridoEn,
+      suggested_product_id: suggestion.suggestedProductId,
+      suggested_payment_plan_id: suggestion.suggestedPaymentPlanId,
+      existing_sale_id: suggestion.existingSaleId,
+      reason: suggestion.reason,
+      stripe_price_id: stripePriceId,
+    })
+    // 23505 = otra entrega del mismo webhook ya creó el borrador entre la comprobación y el insert.
+    // El UNIQUE (tenant_id, payment_reference) existe exactamente para esto: no es un fallo.
+    if (insErr && insErr.code !== '23505') {
+      console.warn('[stripe-webhook] no se pudo crear la venta borrador:', insErr.message)
+    }
+  } catch (e) {
+    console.warn('[stripe-webhook] fallo generando la venta borrador:', e instanceof Error ? e.message : e)
+  }
+}
+
+// La factura trae el Price ID (sus líneas van completas en el payload); el PaymentIntent no. Se guarda
+// como pista por si el borrador aún no existe (orden de entrega no garantizado por Stripe), y si ya
+// existe sin sugerencia resuelta, se reintenta con este Price ID recién llegado.
+async function registrarPistaDePrecio(sb: SupabaseClient, tenantId: string, n: EventoStripeNormalizado) {
+  try {
+    const intentId = n.referenciasAlternativas[0]
+    if (!intentId || !n.lineaPriceId) return
+
+    const { error: hintErr } = await sb
+      .from('stripe_price_hints')
+      .upsert(
+        { tenant_id: tenantId, payment_intent_id: intentId, stripe_price_id: n.lineaPriceId },
+        { onConflict: 'tenant_id,payment_intent_id' }
+      )
+    if (hintErr) console.warn('[stripe-webhook] no se pudo guardar la pista de Price ID:', hintErr.message)
+
+    const { data: draft } = await sb
+      .from('sale_drafts')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('payment_reference', intentId)
+      .eq('status', 'pending')
+      .is('stripe_price_id', null)
+      .maybeSingle()
+    if (!draft) return
+
+    const { data: priceMapRows } = await sb
+      .from('stripe_price_map')
+      .select('product_id, payment_plan_id')
+      .eq('tenant_id', tenantId)
+      .eq('stripe_price_id', n.lineaPriceId)
+      .limit(1)
+    const mapeado = (priceMapRows ?? [])[0] as { product_id: string; payment_plan_id: string } | undefined
+
+    const { error: updErr } = await sb
+      .from('sale_drafts')
+      .update({
+        stripe_price_id: n.lineaPriceId,
+        ...(mapeado
+          ? {
+              suggested_product_id: mapeado.product_id,
+              suggested_payment_plan_id: mapeado.payment_plan_id,
+              reason: `Reconocido por el Price ID de Stripe (${n.lineaPriceId}), mapeado en Integraciones (llegó tras crear el borrador).`,
+            }
+          : {}),
+      })
+      .eq('id', (draft as { id: string }).id)
+    if (updErr)
+      console.warn('[stripe-webhook] no se pudo actualizar la venta borrador con el Price ID:', updErr.message)
+  } catch (e) {
+    console.warn('[stripe-webhook] fallo procesando la pista de Price ID:', e instanceof Error ? e.message : e)
+  }
 }

@@ -8,6 +8,7 @@ const TABS: RouteTab[] = [
   { label: 'Registro', href: '/ventas/registro', match: '/ventas/registro' },
   { label: 'Pagos', href: '/ventas/pagos', match: '/ventas/pagos' },
   { label: 'Reservas', href: '/ventas/reservas', match: '/ventas/reservas' },
+  { label: 'Borradores (Stripe)', href: '/ventas/borradores', match: '/ventas/borradores' },
 ]
 
 export default function VentasLayout({ children }: { children: React.ReactNode }) {

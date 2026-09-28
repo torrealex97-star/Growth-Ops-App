@@ -34,6 +34,7 @@ export const ORDEN_BORRADO = [
   'drops',
   'campaign_ads',
   'canonical_events',
+  'sale_drafts',
   'sales',
 ] as const
 

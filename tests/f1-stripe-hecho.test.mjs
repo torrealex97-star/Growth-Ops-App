@@ -97,7 +97,10 @@ test('escribir el hecho no puede tumbar la ingesta de Stripe', () => {
 
 test('la capa de eventos NO escribe dinero', () => {
   // La semántica financiera se queda donde estaba: collections sigue naciendo de una decisión humana.
-  const bloque = ruta.slice(ruta.indexOf('EL HECHO CANÓNICO'))
+  // Acotado a SOLO el bloque de derivación del hecho canónico (hasta el return de la respuesta): más
+  // abajo vive la venta borrador (ver f1-sale-drafts en tests/stripe-sale-drafts-integracion.test.mjs),
+  // que SÍ lee collections (para deduplicar) pero nunca escribe en collections ni en sales.
+  const bloque = ruta.slice(ruta.indexOf('EL HECHO CANÓNICO'), ruta.indexOf('return NextResponse.json({'))
   assert.doesNotMatch(bloque, /from\('collections'\)/)
   assert.doesNotMatch(bloque, /from\('sales'\)/)
 })

@@ -160,6 +160,13 @@ export type EventoStripeNormalizado = {
   ocurridoEn: string
   /** Por qué se ha clasificado así. Va al raw event, para poder auditar una decisión rara. */
   motivo: string
+  /**
+   * Price ID de Stripe de la primera línea, cuando el evento lo trae completo (las facturas
+   * incluyen sus líneas en el propio payload; un PaymentIntent suelto no). Es la señal más fiable
+   * para reconocer QUÉ PRODUCTO es un pago sin adivinar por importe — ver lib/finance/stripeSaleDrafts.ts.
+   * `null` cuando el evento no trae líneas (pago único sin factura de por medio).
+   */
+  lineaPriceId: string | null
 }
 
 type Json = Record<string, unknown>
@@ -169,6 +176,16 @@ const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFi
 
 /** Céntimos a euros. Stripe siempre manda la unidad mínima. */
 const aEuros = (centimos: number | null): number | null => (centimos === null ? null : Math.round(centimos) / 100)
+
+/** Price ID de la primera línea de una factura, cuando el payload trae `lines.data` (las facturas lo
+ * incluyen siempre; otros objetos, no). Solo la primera línea: una factura con varias líneas (extras,
+ * impuestos aparte) no tiene una única respuesta correcta y se deja para que el admin la resuelva. */
+function primeraLineaPriceId(objeto: Json): string | null {
+  const lines = obj(objeto.lines)
+  const primera = Array.isArray(lines?.data) ? obj(lines.data[0]) : null
+  const price = primera ? obj(primera.price) : null
+  return price ? str(price.id) : null
+}
 
 /**
  * Traduce un evento de Stripe a lo que el negocio entiende, decidiendo si su dinero cuenta.
@@ -190,7 +207,14 @@ export function normalizarEventoStripe(evento: unknown): EventoStripeNormalizado
 
   const creado = num(e.created)
   const ocurridoEn = new Date((creado ?? Math.floor(Date.now() / 1000)) * 1000).toISOString()
-  const base = { eventId, tipo, ocurridoEn, moneda: (str(objeto.currency) ?? 'eur').toUpperCase() }
+  const base = {
+    eventId,
+    tipo,
+    ocurridoEn,
+    moneda: (str(objeto.currency) ?? 'eur').toUpperCase(),
+    // Por defecto null: solo invoice.payment_succeeded lo rellena de verdad (ver más abajo).
+    lineaPriceId: null as string | null,
+  }
 
   switch (tipo) {
     // EL EVENTO CANÓNICO DEL DINERO.
@@ -264,6 +288,9 @@ export function normalizarEventoStripe(evento: unknown): EventoStripeNormalizado
         importeEur: aEuros(num(objeto.amount_paid)),
         email: str(objeto.customer_email),
         stripeCustomerId: str(objeto.customer),
+        // Su dinero no cuenta aquí, pero SÍ trae el Price ID de lo vendido (la factura incluye sus
+        // líneas completas) — es la señal que usa la venta borrador para reconocer el producto.
+        lineaPriceId: primeraLineaPriceId(objeto),
         motivo: 'Factura cobrada: el dinero entra por el PaymentIntent de esa factura, no por este evento.',
       }
     }
