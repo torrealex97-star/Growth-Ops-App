@@ -210,7 +210,7 @@ export function diagnosticarCuelloBotella(
   config: ConfigDiagnostico = CONFIG_DIAGNOSTICO_POR_DEFECTO
 ): Diagnostico {
   const sinDatos = metricas
-    .filter((m) => m.valor === null || m.objetivo === null)
+    .filter((m) => m.valor === null)
     .map((m) => ({ key: m.key, nombre: m.nombre, nivel: m.nivel, certeza: 'requiere_investigacion' as const }))
 
   const candidatas: Restriccion[] = []

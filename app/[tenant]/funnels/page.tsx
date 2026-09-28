@@ -77,8 +77,8 @@ export default function FunnelsPage() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Funnels</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Dónde se cae la gente entre el primer contacto y el cierre. Cada etapa dice de qué fuente sale y si ese número
-          es de fiar.
+          Actividad desde la captación hasta el cierre. Los totales del CRM son hechos del periodo, no una cohorte
+          enlazada. Cada etapa dice de qué fuente sale y si ese número es de fiar.
         </p>
       </div>
 
@@ -182,7 +182,7 @@ export default function FunnelsPage() {
                         {s.count.value === null ? '—' : num(s.count.value)}
                       </td>
                       <td className="p-3 text-right font-mono">
-                        {s.blockedBy === 'unidades_incompatibles' ? (
+                        {s.blockedBy === 'unidades_incompatibles' || s.blockedBy === 'poblacion_no_enlazada' ? (
                           <span
                             className="cursor-help text-muted-foreground"
                             title="Esta etapa cuenta personas y la anterior eventos (o al revés). Dividir una por otra daría un porcentaje sin sentido, que puede pasar del 100 %."

@@ -1,24 +1,18 @@
 import { ConnectedFunnel } from './ConnectedFunnel'
 import type { FunnelTotals } from '@/lib/analytics'
-import { formatPercent } from '@/lib/utils'
 
 interface FunnelStripProps {
   totals: FunnelTotals
   loading?: boolean
 }
 
-const STEPS: { key: keyof FunnelTotals; label: string; fromLabel?: string; fromKey?: keyof FunnelTotals }[] = [
+const STEPS: { key: keyof FunnelTotals; label: string }[] = [
   { key: 'leads', label: 'Leads' },
-  { key: 'appointments', label: 'Agendas', fromLabel: 'de leads', fromKey: 'leadToAppt' },
-  { key: 'sales', label: 'Ventas', fromLabel: 'de agendas', fromKey: 'apptToSale' },
+  { key: 'appointments', label: 'Agendas' },
+  { key: 'sales', label: 'Ventas' },
 ]
 
-const pct = (n: number) => formatPercent(n, n < 10 ? 1 : 0)
-
-// Embudo del periodo activo (mismo filtro que el resto del Dashboard) — no confundir con el
-// embudo detallado de Analítica de ventas, que es acumulado histórico y mide otras etapas
-// (llamadas). Aquí solo se representan las 3 etapas que existen con datos fiables: lead
-// (contacto creado en el periodo), agenda y venta activa.
+// Flujos independientes del mismo periodo; no constituyen una cohorte de conversión.
 export function FunnelStrip({ totals, loading }: FunnelStripProps) {
   if (loading) {
     return (
@@ -28,10 +22,10 @@ export function FunnelStrip({ totals, loading }: FunnelStripProps) {
     )
   }
 
-  if (totals.leads === 0) {
+  if (totals.leads === 0 && totals.appointments === 0 && totals.sales === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border bg-card/40 p-5 text-center">
-        <p className="text-sm text-muted-foreground">Sin contactos nuevos en este periodo.</p>
+        <p className="text-sm text-muted-foreground">Sin actividad registrada en este periodo.</p>
       </div>
     )
   }
@@ -39,16 +33,13 @@ export function FunnelStrip({ totals, loading }: FunnelStripProps) {
   return (
     <div className="dashboard-card p-5">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-sm font-medium text-muted-foreground">Embudo del periodo</h3>
-        <span className="text-xs text-muted-foreground">
-          Lead → Venta <span className="font-semibold text-foreground">{pct(totals.leadToSale)}</span>
-        </span>
+        <h3 className="text-sm font-medium text-muted-foreground">Actividad del periodo</h3>
       </div>
       <ConnectedFunnel
+        activityOnly
         stages={STEPS.map((step) => ({
           label: step.label,
           value: totals[step.key],
-          conversion: step.fromKey ? totals[step.fromKey] : null,
         }))}
       />
     </div>

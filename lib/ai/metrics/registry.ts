@@ -1,3 +1,6 @@
+import { SOURCE_REGISTRY } from '@/lib/sources/registry'
+import { buscarMetrica } from '@/lib/metrics/registro'
+
 // Semantic Business Layer: definiciones canónicas de las métricas del negocio, en un solo sitio,
 // para que el agente cite siempre la MISMA definición que el resto de la app (docs/METRICS.md)
 // en vez de reformularla cada vez con sus propias palabras. Esto es documentación consultable
@@ -123,5 +126,27 @@ export function getMetricDefinition(key: string): MetricDefinition | null {
     .trim()
     .toLowerCase()
     .replace(/[\s-]+/g, '_')
+  // Los nombres y las fuentes no se redefinen en el agente (SOURCE_OF_TRUTH.md).
+  const sourceKey =
+    (
+      {
+        revenue: 'revenue_closed',
+        contracted_revenue: 'revenue_closed',
+        show: 'show',
+        booking: 'appointment',
+        sale: 'sale',
+      } as Record<string, string>
+    )[k] ?? k
+  const source = SOURCE_REGISTRY[sourceKey]
+  if (source)
+    return {
+      name: source.label,
+      definition: source.what,
+      formula: source.formula,
+      source: [source.primary, ...source.fallbacks].join(' > '),
+    }
+  const metric = buscarMetrica(k)
+  if (metric)
+    return { name: metric.name, definition: metric.description, formula: metric.formula, source: metric.dataSource }
   return METRIC_REGISTRY[k] || null
 }

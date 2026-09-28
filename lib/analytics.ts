@@ -45,6 +45,8 @@ export type SaleRow = {
   payment_plans?: unknown
 }
 export type CollectionRow = {
+  id?: string
+  payment_reference?: string | null
   sale_id: string
   gross_amount: number | string
   collected_at: string | null
@@ -103,7 +105,8 @@ const dayOf = (d: string | null | undefined) => (d ? String(d).slice(0, 10) : ''
 
 const SOURCE_FALLBACK = 'Directo / Sin atribuir'
 const labelSource = (a?: { source: string | null; utm_source: string | null }) =>
-  a?.source || a?.utm_source || SOURCE_FALLBACK
+  [a?.source, a?.utm_source].find((value) => value && !['ghl', 'ghl_import'].includes(value.trim().toLowerCase())) ||
+  SOURCE_FALLBACK
 
 // --- Meses ---
 export function lastNMonths(n: number, refYm: string): string[] {
@@ -169,7 +172,8 @@ const isoMonth = (value: string | null | undefined) => (value ? String(value).sl
 export function financialTrend(
   sales: SaleRow[],
   collections: CollectionRow[],
-  range: PeriodRange
+  range: PeriodRange,
+  canonicalCashByDay?: Map<string, number>
 ): { points: FinancialTrendPoint[]; granularity: 'día' | 'mes' } {
   const saleDates = sales
     .filter(cuentaComoVenta)
@@ -179,7 +183,7 @@ export function financialTrend(
     .filter(isCollected)
     .map((row) => isoDay(row.collected_at))
     .filter(Boolean)
-  const availableDates = [...saleDates, ...cashDates].sort()
+  const availableDates = [...saleDates, ...(canonicalCashByDay ? [...canonicalCashByDay.keys()] : cashDates)].sort()
   const from = range.from
     ? `${range.from.getFullYear()}-${String(range.from.getMonth() + 1).padStart(2, '0')}-${String(range.from.getDate()).padStart(2, '0')}`
     : availableDates[0]
@@ -202,7 +206,7 @@ export function financialTrend(
     current.amount += num(sale.gross_amount)
     values.set(key, current)
   }
-  for (const collection of collections) {
+  for (const collection of canonicalCashByDay ? [] : collections) {
     if (!isCollected(collection) || !inPeriod(collection.collected_at, range)) continue
     const key = keyOf(collection.collected_at)
     const current = values.get(key) ?? { amount: 0, cash: 0 }
@@ -210,6 +214,13 @@ export function financialTrend(
     values.set(key, current)
   }
 
+  if (canonicalCashByDay)
+    for (const [date, cash] of canonicalCashByDay) {
+      const key = keyOf(date)
+      const current = values.get(key) ?? { amount: 0, cash: 0 }
+      current.cash += cash
+      values.set(key, current)
+    }
   const points: FinancialTrendPoint[] = []
   const cursor = new Date(`${daily ? from : `${from.slice(0, 7)}-01`}T00:00:00Z`)
   const end = new Date(`${daily ? to : `${to.slice(0, 7)}-01`}T00:00:00Z`)

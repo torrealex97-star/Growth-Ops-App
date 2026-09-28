@@ -14,6 +14,7 @@
 // · HUECO ≠ CERO: un día sin dato deja la línea partida en vez de bajar a 0 y fingir una caída.
 //   Recharts corta la línea cuando el valor es `null`, y por eso no se rellenan huecos.
 
+import { summarizeTrend } from '@/lib/metrics/trend-summary'
 import { useMemo } from 'react'
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ArrowDownRight, ArrowRight, ArrowUpRight } from 'lucide-react'
@@ -29,7 +30,7 @@ type Props = {
   data: TrendPoint[]
   /** Formateador del valor (euros, unidades…). */
   format?: (n: number) => string
-  /** Valor del periodo anterior, para la variación. Si no se pasa, se calcula partiendo la serie. */
+  /** Valor del periodo anterior, para la variación. Si falta, no se muestra comparación. */
   previousTotal?: number | null
   /** 'sum' para acumulables (ventas, gasto); 'last' para stocks (nº de alumnas). */
   aggregate?: 'sum' | 'last'
@@ -48,18 +49,8 @@ export function TrendChart({ title, data, format, previousTotal, aggregate = 'su
 
   const { actual, anterior, conDato } = useMemo(() => {
     const conDato = data.filter((d) => d.value != null)
-    const nums = conDato.map((d) => d.value as number)
-    const total = aggregate === 'last' ? (nums.at(-1) ?? 0) : nums.reduce((s, n) => s + n, 0)
-    if (previousTotal != null) return { actual: total, anterior: previousTotal, conDato }
-    // Sin dato explícito del periodo anterior, se parte la serie por la mitad. Es una aproximación y
-    // solo tiene sentido con puntos suficientes: con menos de cuatro no se compara nada.
-    if (conDato.length < 4) return { actual: total, anterior: null, conDato }
-    const mitad = Math.floor(conDato.length / 2)
-    const primera = conDato.slice(0, mitad).map((d) => d.value as number)
-    const previo = aggregate === 'last' ? (primera.at(-1) ?? 0) : primera.reduce((s, n) => s + n, 0)
-    const segunda = conDato.slice(mitad).map((d) => d.value as number)
-    const reciente = aggregate === 'last' ? (segunda.at(-1) ?? 0) : segunda.reduce((s, n) => s + n, 0)
-    return { actual: reciente, anterior: previo, conDato }
+    const summary = summarizeTrend(data, aggregate, previousTotal)
+    return { actual: summary.total ?? 0, anterior: summary.previous, conDato }
   }, [data, previousTotal, aggregate])
 
   // Solo se pintan las que caen dentro del rango de la serie: una fuera de rango no tiene un punto
@@ -74,8 +65,7 @@ export function TrendChart({ title, data, format, previousTotal, aggregate = 'su
   const variacion = anterior != null && anterior !== 0 ? ((actual - anterior) / Math.abs(anterior)) * 100 : null
   const Flecha =
     variacion == null ? ArrowRight : variacion > 0 ? ArrowUpRight : variacion < 0 ? ArrowDownRight : ArrowRight
-  const colorVar =
-    variacion == null || variacion === 0 ? 'text-muted-foreground' : variacion > 0 ? 'text-emerald-400' : 'text-red-400'
+  const colorVar = 'text-muted-foreground'
 
   if (conDato.length === 0) {
     return (
@@ -127,7 +117,7 @@ export function TrendChart({ title, data, format, previousTotal, aggregate = 'su
               tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
               axisLine={false}
               tickLine={false}
-              width={44}
+              width={84}
               // El "0" en el origen es ruido: lo marca la geometría, no el eje.
               tickFormatter={(v) => (v === 0 ? '' : fmt(Number(v)))}
             />
@@ -166,6 +156,7 @@ export function TrendChart({ title, data, format, previousTotal, aggregate = 'su
               activeDot={{ r: 4, strokeWidth: 2 }}
               // connectNulls a false A PROPÓSITO: un día sin dato parte la línea en vez de inventar
               // una interpolación que se lee como si hubiera medición.
+              isAnimationActive={false}
               connectNulls={false}
             />
           </AreaChart>

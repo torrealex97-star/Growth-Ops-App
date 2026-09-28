@@ -17,6 +17,8 @@ import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPres
 import { SearchBox, normalizeText, phoneMatches } from '@/components/ui/search-box'
 import { StripePendientesAviso } from '@/components/os/StripePendientesAviso'
 import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
+import { cuentaComoVenta } from '@/lib/analytics'
+import { metodoDePlan } from '@/lib/metrics/agregados'
 
 const STATUS_LABELS: Record<SaleStatus, string> = {
   active: 'Activa',
@@ -243,6 +245,7 @@ export default function SalesPage() {
   const salesByChannel = useMemo(() => {
     const map = new Map<string, { count: number; revenue: number }>()
     for (const s of filteredSales) {
+      if (!cuentaComoVenta({ ...s, payment_plan_method: metodoDePlan(s) })) continue
       const ch = channelOfSale(s)
       const cur = map.get(ch) ?? { count: 0, revenue: 0 }
       cur.count += 1
@@ -432,11 +435,15 @@ export default function SalesPage() {
           {salesByChannel.length > 0 && (
             <div className="rounded-lg border border-border bg-card/50 p-4">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-medium text-foreground">Ventas por canal</h2>
+                <h2 className="text-sm font-medium text-foreground">Ventas por origen registrado</h2>
                 <span className="text-xs text-muted-foreground">
-                  {filteredSales.length} ventas · origen del contacto
+                  {salesByChannel.reduce((sum, c) => sum + c.count, 0)} ventas · excluye reservas abiertas
                 </span>
               </div>
+              <p className="mb-3 text-xs text-muted-foreground">
+                Origen del contacto; una herramienta de registro no demuestra atribución publicitaria. La tabla conserva
+                todos los registros.
+              </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 {salesByChannel.map((c) => (
                   <div key={c.channel} className="rounded-lg border border-border bg-background/40 p-3">

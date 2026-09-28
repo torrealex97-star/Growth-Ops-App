@@ -68,8 +68,27 @@ test('Analítica reutiliza las series financieras del brief, sin una consulta o 
     'utf8'
   )
   const panel = readFileSync(new URL('../../components/metrics/PanelGrowth.tsx', import.meta.url), 'utf8')
-  assert.match(route, /serieFacturacion: consulta\.serieFacturacion/)
-  assert.match(route, /serieCash: consulta\.serieCash/)
+  assert.match(route, /serieFacturacion: serieFacturacionObservada/)
+  assert.match(route, /serieCash: serieCashObservada/)
+  assert.match(route, /serieFacturacionObservada = consulta\.serieFacturacion\.filter/)
+  assert.match(route, /serieCashObservada = consulta\.serieCash\.filter/)
   assert.match(panel, /<SalesChart/)
   assert.match(panel, /acumulado del periodo/)
+})
+
+test('serie con fuente consolidada no vuelve a sumar los cobros internos', () => {
+  const range = { from: new Date('2026-08-01T00:00:00Z'), to: new Date('2026-08-31T23:59:59Z') }
+  const result = financialTrend(
+    [],
+    [{ sale_id: 's', gross_amount: 100, collected_at: '2026-08-05', status: 'collected' }],
+    range,
+    new Map([
+      ['2026-08-05', 150],
+      ['2026-08-06', 25],
+    ])
+  )
+  assert.equal(
+    result.points.reduce((sum, p) => sum + p.cash, 0),
+    175
+  )
 })

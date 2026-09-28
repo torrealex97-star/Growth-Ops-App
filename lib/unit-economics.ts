@@ -1,4 +1,5 @@
-import { ACTIVE_SALE_STATUSES } from '@/lib/analytics'
+import { cuentaComoVenta } from '@/lib/analytics'
+import { isAttended, isNoShow } from '@/lib/appointments/status'
 
 // Lógica pura de agregación por canal (CAC/LTV) de Unit Economics, extraída del
 // componente de página para poder testearla sin un transform de JSX (ver
@@ -20,6 +21,8 @@ export type SaleRow = {
   status: string
   contact_id: string | null
   sale_date?: string | null
+  payment_plan_method?: string | null
+  reservation_completed_at?: string | null
 }
 export type ContactRow = {
   id: string
@@ -80,7 +83,7 @@ export function buildChannelRows(campaigns: CampaignRow[], sales: SaleRow[], con
   // hacia abajo y hace parecer el canal más eficiente de lo que es).
   const seenPerChannel = new Map<string, Set<string>>()
   for (const s of sales) {
-    if (!ACTIVE_SALE_STATUSES.includes(s.status) || !s.contact_id) continue
+    if (!cuentaComoVenta(s) || !s.contact_id) continue
     const channel = contactChannel.get(s.contact_id)
     if (!channel) continue
     const row = ensure(channel)
@@ -175,9 +178,10 @@ export function buildSalesOverview(
   const canceladas = citas.filter((a) => isCancelled(a.status))
   const vivas = citas.filter((a) => !isCancelled(a.status))
   const yaPasadas = vivas.filter((a) => {
+    if (!isAttended(a.status)) return false
     if (!a.appointment_datetime) return true
     const t = Date.parse(a.appointment_datetime)
-    return Number.isNaN(t) || t <= ahora.getTime()
+    return Number.isFinite(t) && t <= ahora.getTime()
   })
 
   // Las reuniones de Fathom sin cita son llamadas que ocurrieron: están grabadas. NO se pueden
@@ -185,8 +189,9 @@ export function buildSalesOverview(
   // se está mirando el total. Sumarlas en "solo anuncios" sería inventarles una procedencia.
   const llamadasSinCita = filtro === 'todos' ? fathomSinCita.length : 0
   const showsTotales = yaPasadas.length + llamadasSinCita
+  const resueltas = yaPasadas.length + citas.filter((a) => isNoShow(a.status)).length
 
-  const ventasActivas = sales.filter((s) => ACTIVE_SALE_STATUSES.includes(s.status) && pasaFiltro(s.contact_id))
+  const ventasActivas = sales.filter((s) => cuentaComoVenta(s) && pasaFiltro(s.contact_id))
   const facturacion = ventasActivas.reduce((a, s) => a + num(s.gross_amount), 0)
   const pipeValue = vivas.reduce((a, s) => a + num(s.pipe_value), 0)
 
@@ -200,7 +205,7 @@ export function buildSalesOverview(
     pipeValue,
     // La asistencia se mide SOLO sobre lo agendado: meter en el numerador llamadas que nunca se
     // agendaron daría porcentajes por encima del 100 %.
-    tasaAsistencia: citas.length ? (yaPasadas.length / citas.length) * 100 : null,
+    tasaAsistencia: resueltas > 0 ? (yaPasadas.length / resueltas) * 100 : null,
     tasaCierre: showsTotales ? (ventasActivas.length / showsTotales) * 100 : null,
   }
 }
@@ -236,7 +241,7 @@ export function serieDualFacturacionCash(
 ): DualBucket[] {
   const facturacionPorCubo = new Map<string, { importe: number; clientes: Set<string> }>()
   for (const s of sales) {
-    if (!ACTIVE_SALE_STATUSES.includes(s.status) || !s.sale_date) continue
+    if (!cuentaComoVenta(s) || !s.sale_date) continue
     const k = cuboDe(s.sale_date)
     const acc = facturacionPorCubo.get(k) ?? { importe: 0, clientes: new Set<string>() }
     acc.importe += num(s.gross_amount)

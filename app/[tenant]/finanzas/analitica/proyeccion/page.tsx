@@ -195,7 +195,10 @@ export default function ProyeccionPage() {
           {installments.length === 0 && (
             <div className="dashboard-card p-10 text-center">
               <TrendingUp className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-              <p className="text-muted-foreground">No hay cuotas pendientes registradas.</p>
+              <p className="text-muted-foreground">
+                No hay cuotas pendientes registradas. Esto no acredita ausencia de deuda: la proyección depende de que
+                los planes de pago estén completos.
+              </p>
               <p className="text-muted-foreground text-sm mt-1">
                 Las ventas a plazos generan cuotas esperadas que alimentan esta proyección.
               </p>
