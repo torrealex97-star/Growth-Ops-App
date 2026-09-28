@@ -1,10 +1,33 @@
 # Relevo activo
 
+## ✅ Bugs sin decisión de Alex cerrados: SeQura fail-closed + cash canónico verificado (PR #273, mergeada 28-sep tarde)
+
+**MERGEADA** (squash `8586ebb` en `main`). CI verde completo (Quality 2m15s, gitleaks, Build 3m5s,
+Smoke E2E 5m17s). Quality gate local en arnés: unit 1085/1089 (1 fallo = apify-retry-scenario,
+conocido de node 26) y metrics 754/754.
+
+- **SeQura (P2, «un hueco no es un cero»):** `searchAllOrders` asignaba `total=0` ante un listado
+  sin `of N total` legible y `syncDelinquents` marcaba 'recuperado' a TODOS los morosos ausentes.
+  Ahora listado ilegible o página corta vs total anunciado LANZA (`SequraApiError`), el run del
+  cron falla y reintenta (sync idempotente por upsert); la salida vacía válida sigue pasando.
+  `marcarRecuperados` extraída como función pura: lectura fallida no colapsa a `[]` y el update
+  de 'recuperado' fallido propaga (antes `if (!error) recovered++` se lo tragaba).
+- **Cash canónico (P1 parcial):** `canonicalCash` y `serieCanonicaCash` ya filtraban refunds a
+  'processed' pero sin test (la serie ni siquiera tenía cobertura): 5 casos nuevos de regresión
+  lo dejan verificado, paridad con `repNetCash` desde #269.
+- **Deuda detectada:** `tests/canonical/` no encaja en los globs de `npm test` ni `test:metrics`
+  — sus ficheros no se ejecutan en CI. Reubicarlos a `tests/` es tarea pendiente de 5 minutos.
+- **Siguen abiertos SOLO los que requieren decisión de Alex/carriles ajenos:** clawback y refunds
+  acumulados (A5), semántica de doble firma concurrente (responsable de contratos), onboarding de
+  alumno sin outbox (coordinación con carril F1 para el GHL webhook) y el Stripe fees/upsert P1
+  (worst-case medido pendiente).
+
 ## Auditoría estática FASE A (26-sep) — estado al 28-sep (tarde)
 
 **Qué es:** consolidación del informe de auditoría estática del 26-sep (inspección de código, sin
-reproducción HTTP/DB ni acceso a producción). Al 28-sep **9 de los hallazgos abiertos están
-resueltos y fusionados** (PRs #269/#270/#272, CI verde completo en cada una); quedan **8**.
+reproducción HTTP/DB ni acceso a producción). Al 28-sep **10 de los hallazgos abiertos están
+resueltos y fusionados** (PRs #269/#270/#272/#273, CI verde completo en cada una); quedan los que
+requieren decisión de negocio (detalle en la sección de arriba).
 
 ### Resueltos en `main` — informe original + tandas del 28-sep
 
@@ -1157,7 +1180,6 @@ fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo 
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar)                  | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts`                                   | 25-sep |
 | Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)                    | solo `expenses` vía migración pendiente; nada en código                                                                           | 23-sep |
-| Freebuff (Buffy)  | **Bugs abiertos sin decisión de Alex (28-sep tarde):** SeQura fail-closed ante listado ilegible/truncado (`searchAllOrders` daba `total=0` y `syncDelinquents` marcaba recuperados) + verificación del cash canónico contra refunds `pending`/`rejected` (P1 parcial del informe) | `fix/cash-canonico-refunds-sequra` | `lib/sequra/client.ts`, `lib/sequra/syncDelinquents.ts`, `tests/canonical/cash.test.mjs`, tests sequra nuevos | 28-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
