@@ -15,8 +15,9 @@ conocido de node 26) y metrics 754/754.
 - **Cash canónico (P1 parcial):** `canonicalCash` y `serieCanonicaCash` ya filtraban refunds a
   'processed' pero sin test (la serie ni siquiera tenía cobertura): 5 casos nuevos de regresión
   lo dejan verificado, paridad con `repNetCash` desde #269.
-- **Deuda detectada:** `tests/canonical/` no encaja en los globs de `npm test` ni `test:metrics`
-  — sus ficheros no se ejecutan en CI. Reubicarlos a `tests/` es tarea pendiente de 5 minutos.
+- **Deuda cerrada (PR #274, mergeada):** los 3 ficheros de `tests/canonical/` (que no encajaban en
+  los globs de `npm test` ni `test:metrics` — no se ejecutaban en CI desde que se crearon) se
+  reubicaron a `tests/`: la suite pasó de 1089 a 1127 tests y la capa canónica ya es red real.
 - **Siguen abiertos SOLO los que requieren decisión de Alex/carriles ajenos:** clawback y refunds
   acumulados (A5), semántica de doble firma concurrente (responsable de contratos), onboarding de
   alumno sin outbox (coordinación con carril F1 para el GHL webhook) y el Stripe fees/upsert P1
