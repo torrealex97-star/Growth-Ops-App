@@ -71,9 +71,11 @@ Verificación en vivo sobre `https://app.scalixsystems.com`:
 - Home HTTP 200; su HTML solo referencia `hero-poster.webp` y `hero.mp4` (cero refs al PNG).
 - Ahorro real por visitante nuevo, ya en producción: 6,70 MB → 0,82 MB (−88%).
 
-Pendientes que siguen vivos: borrado de `public/brand/iawinners-logo.png` (1,47 MB, 0 referencias,
-espera ok de Alex) y las 12 credenciales de `integration_settings` (esperando que Alex pegue valores;
-Meta ya verificada en vivo).
+**Borrado ejecutado el 28-sep con ok de Alex** (commit `05e05d1`): `public/brand/iawinners-logo.png`
+(1,47 MB, 0 referencias en código, único resto de la marca IA Winners) eliminado del repo; además,
+producción lo servía públicamente en `/brand/iawinners-logo.png` (200, 1.539.785 bytes) — tras el
+despliegue esa URL pasará a 404. Queda vivo: las 12 credenciales de `integration_settings`
+(esperando que Alex pegue valores; Meta ya verificada en vivo).
 
 ## ✅ UX/a11y: clases Tailwind fuera de escala y botones de icono sin nombre (PR #265, mergeada)
 
@@ -283,8 +285,8 @@ Referencias actualizadas en `app/page.tsx` y `app/panel.css`; test del panel ada
 (7/7 verde en arnés; build verde). Descarga por visitante nuevo: 6,70 MB → 0,82 MB (−88%);
 página total a networkidle −26%. Bonus: el re-encode elimina los metadatos C2PA (procedencia IA)
 que pesaban dentro del mp4 original. **Asset muerto detectado: `public/brand/iawinners-logo.png`
-(1,47 MB) no tiene NI UNA referencia en el código — candidato a borrar de repo y disco (pendiente
-de ok de Alex).** Pendiente de decidir (Fase 2, no ejecutada): mover el vídeo a Bunny Stream (ya
+(1,47 MB) no tiene NI UNA referencia en el código — borrado el 28-sep, commit `05e05d1`, con ok de
+Alex (producción lo servía públicamente; su URL pasará a 404 al desplegar).** Pendiente de decidir (Fase 2, no ejecutada): mover el vídeo a Bunny Stream (ya
 conectada) si el tráfico de la landing crece; a escala actual no ahorra dinero (Vercel Hobby
 gratis, 100 GB/mes) y la compresión ya resuelve el problema.
 **→ Verificado en producción el 28-sep** (deployment `dpl_5EodtVe7`, commit `f18e336`): hero.mp4
