@@ -20,7 +20,7 @@
 // primaria), su refund sale con él.
 //
 // Función PURA: recibe filas ya traídas y devuelve el consolidado + diagnóstico.
-// Testeable sin BD (ver tests/canonical/cash.test.mjs).
+// Testeable sin BD (ver tests/cash.test.mjs — junto a la batería de refunds en tests/cash-refunds.test.mjs).
 
 // ── Entradas ────────────────────────────────────────────────────────────────
 

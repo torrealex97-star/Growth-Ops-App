@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { canonicalCash } from '../../lib/canonical/cash.ts'
+import { canonicalCash } from '../lib/canonical/cash.ts'
 
 const col = (id, amount, status = 'collected', ref = null, collected_at = '2026-09-10T10:00:00Z') => ({
   id,
