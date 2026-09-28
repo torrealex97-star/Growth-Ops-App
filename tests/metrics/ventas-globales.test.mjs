@@ -74,8 +74,8 @@ test('las citas pendientes no acreditan asistencia aunque sean pasadas', () => {
 
 test('la pantalla separa lo global de lo atribuido a anuncios', () => {
   const page = readFileSync(new URL('../../app/[tenant]/unit-economics/page.tsx', import.meta.url), 'utf8')
-  assert.match(page, /Ventas y agendas/)
-  assert.match(page, /Todos los orígenes/)
+  assert.match(page, /Operación comercial/)
+  assert.match(page, /todos los orígenes/i)
   assert.match(
     page,
     /buildSalesOverview\(agendasVisibles, ventasVisibles, contacts, filtroEfectivo, new Date\(\), fathomVisible\)/

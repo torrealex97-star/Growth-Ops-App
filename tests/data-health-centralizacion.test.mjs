@@ -36,7 +36,7 @@ test('unit-economics ya no calcula ni presenta el diagnóstico de calidad', () =
     assert.ok(!page.includes(fantasma), `identificador de calidad "${fantasma}" sigue en unit-economics`)
   }
   // El funnel canónico (analítica) sí se queda:
-  assert.match(page, /FunnelCanonicoPanel/)
+  assert.match(page, /FunnelDinamico/)
   assert.match(page, /buildPeriodFunnel/)
   assert.match(leer('lib/metrics/period-funnel.ts'), /canonicalizeLeads/)
 })
