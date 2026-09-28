@@ -3,6 +3,7 @@
 
 import { isAttended, isCancelled, isNoShow } from '@/lib/appointments/status'
 import { esReservaAbierta } from '@/lib/metrics/agregados'
+import { inPeriod, type PeriodRange } from '@/lib/filters/period'
 
 /**
  * FECHA REAL DE UN LEAD — para el filtro de periodo de cualquier métrica de leads.
@@ -31,6 +32,7 @@ export type SaleRow = {
   closer_id: string | null
   setter_id: string | null
   contact_id: string | null
+  product_id?: string | null
   /**
    * Datos de RESERVA. Opcionales porque no todas las pantallas los piden todavía, pero sin ellos
    * una reserva abierta es indistinguible de una venta: quien consulte `sales` para estas
@@ -133,6 +135,94 @@ export function monthlyKpis(sales: SaleRow[], collections: CollectionRow[], ym: 
     .filter((c) => isCollected(c) && ymOf(c.collected_at) === ym)
     .reduce((acc, c) => acc + num(c.gross_amount), 0)
   return { gross, count, cash, avgTicket: count ? gross / count : 0 }
+}
+
+/** KPIs financieros del rango activo. Booked se fecha por venta y collected por cobro (MONEY D1). */
+export function periodKpis(sales: SaleRow[], collections: CollectionRow[]) {
+  const activeSales = sales.filter(cuentaComoVenta)
+  const gross = activeSales.reduce((acc, sale) => acc + num(sale.gross_amount), 0)
+  const count = activeSales.length
+  const collected = collections.filter(isCollected)
+  const cash = collected.reduce((acc, collection) => acc + num(collection.gross_amount), 0)
+  const salesWithCash = new Set(collected.map((collection) => collection.sale_id)).size
+  return {
+    gross,
+    count,
+    cash,
+    avgTicket: count ? gross / count : 0,
+    avgCash: salesWithCash ? cash / salesWithCash : 0,
+  }
+}
+
+export type FinancialTrendPoint = { date: string; amount: number; cash: number }
+
+const isoDay = (value: string | null | undefined) => (value ? String(value).slice(0, 10) : '')
+const isoMonth = (value: string | null | undefined) => (value ? String(value).slice(0, 7) : '')
+
+/**
+ * Serie de facturación y cash del MISMO rango que las tarjetas. Hasta 45 días conserva detalle
+ * diario; para periodos mayores agrupa por mes para mantener una gráfica legible.
+ */
+export function financialTrend(
+  sales: SaleRow[],
+  collections: CollectionRow[],
+  range: PeriodRange
+): { points: FinancialTrendPoint[]; granularity: 'día' | 'mes' } {
+  const saleDates = sales
+    .filter(cuentaComoVenta)
+    .map((sale) => isoDay(sale.sale_date))
+    .filter(Boolean)
+  const cashDates = collections
+    .filter(isCollected)
+    .map((row) => isoDay(row.collected_at))
+    .filter(Boolean)
+  const availableDates = [...saleDates, ...cashDates].sort()
+  const from = range.from
+    ? `${range.from.getFullYear()}-${String(range.from.getMonth() + 1).padStart(2, '0')}-${String(range.from.getDate()).padStart(2, '0')}`
+    : availableDates[0]
+  const requestedTo = range.to
+    ? `${range.to.getFullYear()}-${String(range.to.getMonth() + 1).padStart(2, '0')}-${String(range.to.getDate()).padStart(2, '0')}`
+    : availableDates.at(-1)
+  const today = isoDay(new Date().toISOString())
+  const to = requestedTo && requestedTo > today ? today : requestedTo
+  if (!from || !to || from > to) return { points: [], granularity: 'día' }
+
+  const durationDays = Math.floor((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1
+  const daily = durationDays <= 45
+  const values = new Map<string, { amount: number; cash: number }>()
+  const keyOf = daily ? isoDay : isoMonth
+
+  for (const sale of sales) {
+    if (!cuentaComoVenta(sale) || !inPeriod(sale.sale_date, range)) continue
+    const key = keyOf(sale.sale_date)
+    const current = values.get(key) ?? { amount: 0, cash: 0 }
+    current.amount += num(sale.gross_amount)
+    values.set(key, current)
+  }
+  for (const collection of collections) {
+    if (!isCollected(collection) || !inPeriod(collection.collected_at, range)) continue
+    const key = keyOf(collection.collected_at)
+    const current = values.get(key) ?? { amount: 0, cash: 0 }
+    current.cash += num(collection.gross_amount)
+    values.set(key, current)
+  }
+
+  const points: FinancialTrendPoint[] = []
+  const cursor = new Date(`${daily ? from : `${from.slice(0, 7)}-01`}T00:00:00Z`)
+  const end = new Date(`${daily ? to : `${to.slice(0, 7)}-01`}T00:00:00Z`)
+  while (cursor <= end) {
+    const iso = cursor.toISOString()
+    const key = daily ? iso.slice(0, 10) : iso.slice(0, 7)
+    const value = values.get(key) ?? { amount: 0, cash: 0 }
+    const date = cursor.toLocaleDateString(
+      'es-ES',
+      daily ? { day: '2-digit', month: 'short', timeZone: 'UTC' } : { month: 'short', year: '2-digit', timeZone: 'UTC' }
+    )
+    points.push({ date, ...value })
+    if (daily) cursor.setUTCDate(cursor.getUTCDate() + 1)
+    else cursor.setUTCMonth(cursor.getUTCMonth() + 1)
+  }
+  return { points, granularity: daily ? 'día' : 'mes' }
 }
 
 export function pctDelta(curr: number, prev: number): number | null {

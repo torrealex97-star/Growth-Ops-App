@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { AlertTriangle, Activity, Target } from 'lucide-react'
 import { useTenant } from '@/lib/tenant-context'
 import { esFalloVisible, pedir, type Fallo } from '@/lib/ui/pedir'
@@ -14,6 +15,11 @@ import type { ObjetivoMedido } from '@/lib/metrics/objetivos'
 import type { Prevision } from '@/lib/metrics/prevision'
 import type { LtgpCacAproximado } from '@/lib/metrics/ltgp-aproximado'
 import { PanelObjetivos } from '@/components/metrics/PanelObjetivos'
+
+const SalesChart = dynamic(() => import('@/components/os/SalesChart').then((m) => ({ default: m.SalesChart })), {
+  ssr: false,
+  loading: () => <div className="dashboard-card h-72 animate-pulse" />,
+})
 
 // EL PANEL DE GROWTH: la restricción primero, las tarjetas después.
 //
@@ -31,6 +37,8 @@ type Respuesta = {
   prevision: Prevision | null
   ltgpCacAproximado: LtgpCacAproximado
   mediciones: Record<string, Medicion>
+  serieFacturacion: { fecha: string; valor: number }[]
+  serieCash: { fecha: string; valor: number }[]
   salud: SaludNegocio
   procedencia: {
     filasLeidas: Record<string, number>
@@ -104,6 +112,8 @@ export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }
   const { brief, salud, procedencia, objetivos, prevision, ltgpCacAproximado } = datos
   const medidas = medirTodas(datos.mediciones)
   const cobertura = coberturaDeCategoria(medidas)
+  const serieFacturacion = datos.serieFacturacion.map((punto) => ({ date: punto.fecha, amount: punto.valor }))
+  const serieCash = datos.serieCash.map((punto) => ({ date: punto.fecha, cash: punto.valor }))
 
   return (
     <div className="space-y-6">
@@ -200,6 +210,12 @@ export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }
           )}
         </section>
       </div>
+
+      <SalesChart
+        data={serieFacturacion}
+        cashData={serieCash}
+        title="Facturación vs cash cobrado · acumulado del periodo"
+      />
 
       <PanelObjetivos objetivos={objetivos} prevision={prevision} ltgpCacAproximado={ltgpCacAproximado} />
 
