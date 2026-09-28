@@ -1,5 +1,11 @@
 # Relevo activo
 
+## Codex — gráficos circulares de Finanzas (28-sep)
+
+Rama `codex/finance-breakdown-donuts`. Los tres desgloses de Negocio (cobros por mes de venta, gastos y comisiones por función) reutilizan `FinanceBreakdown`, igual que Finanzas. Fuentes y cálculos intactos. Se conserva la leyenda completa, incluidos ceros, y el estado de ajustes negativos. Corregido el aviso de agrupación: ya no aparece cuando solo se excluyen ceros del anillo.
+
+Quality completo PASS y los tres anillos verificados visualmente en localhost:3100. Servidor local ahora en modo dev, configuración existente solo en memoria. Pendiente CI del PR y despliegue; no afirmar publicado hasta comprobarlos. Archivos: `components/os/BusinessFinance.tsx`, `components/finanzas/FinanceCharts.tsx`. Sin datos privados ni cambios de base de datos.
+
 ## CODEX — continuación de auditoría, 28-sep
 
 PR de entrega: [#282](https://github.com/torrealex97-star/Growth-Ops-App/pull/282), rama `codex/metrics-audit-continuation`, desde main tras merge #278. Implementación terminada; consultar el PR para el estado de CI/fusión/despliegue. Esta sección documenta el lote y no reserva archivos para trabajo futuro. Ámbito: consulta/diagnóstico/registros de métricas, dashboard principal e índice de Analítica, fuentes/atribución/Colaboradores, resumen de registro de ventas y aclaraciones de Finanzas/Instagram. No hay migraciones ni escrituras de negocio. #278 fusionado, CI completo aprobado y despliegue confirmado en el embudo de producción.

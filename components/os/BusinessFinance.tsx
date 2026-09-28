@@ -7,7 +7,8 @@ import { computeMonthlyPnl, FINANCE_QUERY_ROW_CAP, type MonthlyPnl } from '@/lib
 import { metodoDePlan } from '@/lib/metrics/agregados'
 import { clasificarCobrosPorMes } from '@/lib/finance/nuevo-vs-recurrente'
 import { formatCurrency, formatPercent } from '@/lib/utils'
-import { CompactMetric, BreakdownBars } from './DepartmentDashboard'
+import { CompactMetric } from './DepartmentDashboard'
+import { FinanceBreakdown } from '@/components/finanzas/FinanceCharts'
 
 type Summary = {
   commissionsByRole: { label: string; value: number }[]
@@ -197,30 +198,34 @@ export function BusinessFinance({ tenantId, from, to }: { tenantId: string; from
         />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
-        <BreakdownBars
+        <FinanceBreakdown
           title="Cobros del libro interno por mes de venta"
-          format={formatCurrency}
-          rows={[
-            { label: 'Ventas del mismo mes del cobro', value: summary.sameMonth },
-            { label: 'Ventas de meses anteriores', value: summary.previousMonths },
-            { label: 'Sin clasificar', value: summary.unclassified },
+          emptyLabel="Sin importes registrados en el periodo seleccionado."
+          slices={[
+            { label: 'Ventas del mismo mes del cobro', amount: summary.sameMonth },
+            { label: 'Ventas de meses anteriores', amount: summary.previousMonths },
+            { label: 'Sin clasificar', amount: summary.unclassified },
           ]}
         />
-        <BreakdownBars
+        <FinanceBreakdown
           title="Desglose de gastos"
-          format={formatCurrency}
-          rows={[
-            { label: 'Costes directos', value: pnl.cogs },
-            { label: 'Comisiones', value: pnl.comisiones },
-            { label: 'Sueldos', value: pnl.salarios },
-            { label: 'Publicidad', value: pnl.adspend },
-            { label: 'Herramientas', value: pnl.software },
-            { label: 'Pasarela', value: pnl.platformFees },
-            { label: 'Otros', value: pnl.otros },
+          emptyLabel="Sin importes registrados en el periodo seleccionado."
+          slices={[
+            { label: 'Costes directos', amount: pnl.cogs },
+            { label: 'Comisiones', amount: pnl.comisiones },
+            { label: 'Sueldos', amount: pnl.salarios },
+            { label: 'Publicidad', amount: pnl.adspend },
+            { label: 'Herramientas', amount: pnl.software },
+            { label: 'Pasarela', amount: pnl.platformFees },
+            { label: 'Otros', amount: pnl.otros },
           ]}
         />
       </div>
-      <BreakdownBars title="Comisiones por función" format={formatCurrency} rows={summary.commissionsByRole} />
+      <FinanceBreakdown
+        title="Comisiones por función"
+        emptyLabel="Sin importes registrados en el periodo seleccionado."
+        slices={summary.commissionsByRole.map(({ label, value }) => ({ label, amount: value }))}
+      />
       <details className="rounded-xl border border-border/50 p-4 text-xs">
         <summary className="cursor-pointer font-medium">Cómo se compone el resultado</summary>
         <dl className="mt-3 grid grid-cols-2 gap-2">

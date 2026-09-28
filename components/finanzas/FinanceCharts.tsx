@@ -63,7 +63,6 @@ export function FinanceBreakdown({
           { label: 'Otros', amount: ordered.slice(MAX_RING_SLICES - 1).reduce((sum, s) => sum + s.amount, 0) },
         ]
       : ordered
-  const restantes = slices.filter((s) => !ringSlices.some((r) => r.label === s.label))
   return (
     <section className="dashboard-card flex h-full flex-col p-5">
       <h2 className="text-sm font-medium text-foreground">{title}</h2>
@@ -122,7 +121,7 @@ export function FinanceBreakdown({
           )
         })}
       </ul>
-      {restantes.length > 0 && (
+      {ordered.length > MAX_RING_SLICES && !hasNegative && (
         <p className="mt-2 text-2xs text-muted-foreground">
           El anillo muestra el top {Math.min(ringSlices.length, MAX_RING_SLICES - 1)} y agrupa el resto como “Otros”; el
           desglose completo está en la lista.
