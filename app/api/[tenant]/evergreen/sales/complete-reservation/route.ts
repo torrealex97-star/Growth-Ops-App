@@ -152,8 +152,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       new_values: { ...payload, _accion: 'completar_reserva' },
     })
     // Cambio de dinero (gross_amount/plan) SIN rastro: la auditoría es parte del hecho, no un extra.
-    if (auditErr)
-      console.error('[sales/complete-reservation] no se pudo registrar audit_logs:', auditErr.message)
+    if (auditErr) console.error('[sales/complete-reservation] no se pudo registrar audit_logs:', auditErr.message)
 
     // La reserva ya es cliente: el cobro de la reserva (que se dejó sin comisionar a propósito,
     // ver saleNeedsCommissionReview) ahora sí debe comisionar. Se reabre y se reconcilia junto con

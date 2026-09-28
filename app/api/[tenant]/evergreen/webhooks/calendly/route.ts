@@ -502,10 +502,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       // Si esto falla en una reprogramación, la fila se queda con el external_id VIEJO: el
       // próximo webhook no la encuentra y crea una cita duplicada. 500 para que Calendly reintente.
       if (apptUpdateErr) {
-        return NextResponse.json(
-          { error: 'No se pudo actualizar la cita: ' + apptUpdateErr.message },
-          { status: 500 }
-        )
+        return NextResponse.json({ error: 'No se pudo actualizar la cita: ' + apptUpdateErr.message }, { status: 500 })
       }
       const { error: leadStatusErr } = await sb
         .from('contacts')
