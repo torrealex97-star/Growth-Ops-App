@@ -1,5 +1,59 @@
 # Relevo activo
 
+## Auditoría estática FASE A (26-sep) — estado al 28-sep
+
+**Qué es:** consolidación del informe de auditoría estática del 26-sep (sin reproducción HTTP/DB ni
+acceso a producción). Se retiraron los hallazgos ya resueltos en `main`; los que quedan siguen
+siendo **riesgos de código pendientes de reproducir** con mocks/QA. La auditoría permanece abierta.
+
+### Resueltos en `main` desde el informe (verificado contra el código actual)
+
+- `disputed` tratado como cash confirmado en `payments/mark`, `plan-cuotas`, ficha de venta y prellenado de devolución (PR #256, MONEY.md D5).
+- `PATCH collections/[id]` con `reversed`/`disputed` no sincronizaba la cuota (PR #244).
+- `approve-review` limpiaba el flag de revisión antes de garantizar la comisión, sin reintento (PR #245).
+- Tools IA (`getSales`/`getBusinessOverview`/`getFunnel`) y `detectAnomalies` presentaban lecturas fallidas como ceros (PR #259); los detectores de insights saltan la comparación si una lectura falla.
+- El historial del agente mandaba los mensajes más antiguos, no los recientes (PR #260).
+- Crons `monthly` y `reminders`: lecturas/writes fallidos devolvían 200 con omisiones silenciosas (reescritos con `errorDe` + throw; la limpieza de Calendly solo se confirma al cancelarse de verdad).
+- `complete-reservation` aceptaba columnas arbitrarias del cliente (allowlist por PR #240).
+- `contracts/my-status` convertía un error de lectura en `hasSigned: false` y bloqueaba al colaborador (hoy propaga el error).
+- `BusinessContextCard` podía quedar en loader permanente si el fetch rechazaba (hoy `try/catch/finally`).
+
+### Abiertos — dinero y estados
+
+- **P1 — clawback y refunds acumulados.** `refunds/create` valida cada refund contra `totalGross` pero no consulta refunds previos (dos parciales válidos pueden superar lo cobrado) y no tiene idempotency key (un retry tras error inserta otro refund). Además `calculateNegativeCommissionsForRefund` limita cada fila contra SU positiva, no el total acumulado del participante. **Requiere la decisión A5 de Alex** antes de tocar. Tests pendientes: dos parciales acumulados, retry tras fallo, suma de negativas por persona.
+- **P1 — el alta de venta anuncia éxito aunque falle el cobro inicial.** `ventas/registro/nueva` llama `await recordCollection(...)` en 6 puntos sin consumir su booleano: la venta queda creada sin collection ni comisiones, con toast de éxito. Tests: fallo HTTP del cobro por plan (full-pay, reserva completada, SeQura, cuotas).
+- **P1 — los tramos de comisión descuentan refunds no `processed`.** `repNetCash` (`lib/commissions/generate.ts`) suma refunds sin filtrar `status`; el esquema permite `pending`/`rejected` y el cash canónico solo resta `processed`. Impacto condicionado a que existan filas en esos estados. Test: fixture con esos estados.
+- **P2 — borrado de venta no atómico.** `sales/delete` ejecuta desenlaces y borrados en pasos independientes; un fallo intermedio deja la venta a medias (los desenlaces son idempotentes pero no se comprueba el error de cada uno). Test: fallo secuencial + reejecución.
+
+### Abiertos — crons e integraciones
+
+- **P1 — sync de pagos Stripe: fees en serie sin deadline y upsert diferido.** El deadline cubre la paginación, no el bucle de fees (`stripeGet` admite hasta 20 s por llamada) y el upsert (chunks de 200) va después: con historial grande la función puede morir sin escribir la página leída y el reintento empieza de cero. Mitigado a medias (fee NULL con fallback, upsert idempotente). Test: worst-case medido con fixture/mock.
+- **P2 — `collections/record` puede reenviar `venta.registrada`** si falla el count previo (`priorCollections` null → `isFirstCollection=true`). Test: fallo del count + dedupe en el receptor.
+- **P2 — SeQura puede cerrar morosos con un listado ilegible o truncado:** `searchAllOrders` asigna `total=0` si no matchea `of N total` y `syncDelinquents` marca `recuperado` a los ausentes. Tests: salida vacía válida vs truncada, más de 100 pedidos.
+- **P2 — cron Reels: presupuesto de 270 s inalcanzable con `maxDuration=60`** (Vercel corta antes; la persistencia del esqueleto al agotar presupuesto no llega a ejecutarse; generaciones secuenciales). Alinear budget/maxDuration y persistir antes del corte.
+- **P2 — backfill de YouTube puede re-publicar un vídeo:** el UPDATE post-upload ignora `{ error }` y no hay claim atómico `pending`→`uploading` ni idempotency key. Tests: upload OK + UPDATE fallido; dos ejecuciones concurrentes.
+- **P2 — webhook GHL:** writes de cita/atribución sin comprobar `{ error }` (divergencia silenciosa con ACK ok); `JSON.parse` válido pero no-objeto lanza 500 antes de guardar el sobre; fecha externa inválida → 500 sin cerrar el sobre. **Carril F1 (Claude Code):** coordinar; tests con fallos inyectados.
+
+### Abiertos — frontend y UX
+
+- **P2 — el selector raíz confunde fallo de Supabase con cero subcuentas** (`app/page.tsx`, `data ?? []`).
+- **P2 — Setting AI persiste en localStorage sin `try/catch`** (SecurityError/cuota lanza en cada cambio).
+- **P2 — devoluciones y follow-ups quedan en loading permanente si el fetch rechaza** (sin `try/finally`).
+- **P2 — deshacer una edición de contacto no reinicia el formulario** (React Hook Form no consume los cambios de props; otro submit puede reescribir el valor deshecho). Test: editar→deshacer→inspeccionar inputs→guardar.
+- **P2 — informes financieros pintan sumas parciales como totales si falla una lectura:** P&L, cohortes, proyección y gestoría consumen `data ?? []` sin propagar errores (la API de socios tiene catch global pero conviene reverificar que cada fuente lance). Reutilizar el patrón `primerError` del resumen financiero.
+- **P2 — proyección de comisiones futuras:** la ruta ya tiene catch global y throws parciales; revisar que TODAS las fuentes críticas propaguen y que un `noComisionan` vacío por fallo de `users` no proyecte a exentos.
+
+### Abiertos — aislamiento y contratos
+
+- **P2 — `appointments/create` (camino manual) no comprueba que el contacto pertenece al tenant** (FK simple `contact_id`, sin compuesta `(tenant_id, contact_id)`). Test: dos tenants sintéticos.
+- **P1 — dos firmas concurrentes con el mismo token pueden pisar PDF/hash:** el UPDATE final no condiciona por el estado leído (sin CAS), el storage sube con `upsert: true` y, en firma de alumno, el evento a GHL se emite antes del UPDATE. Test: carrera con token sintético + storage/webhook simulados.
+- **P2 — onboarding de alumno sin outbox:** fallo de GHL → contrato firmado, `accesosEnviados: false` y sin reintento (el 409 impide volver a firmar); fallo del UPDATE tras GHL → evento repetible sin dedupe visible. Tests: 4xx/5xx/timeout + idempotencia por `contractId`.
+
+**Cobertura y límites:** la matriz de cobertura completa del informe original quedó en el historial
+de esta rama. Inventario del árbol: 98 páginas, 192 rutas API, 14 crons, 87 migraciones. Sin P0
+identificado; siguen abiertos el barrido de escrituras restantes, el contraste tipos↔esquema vivo,
+la RLS efectiva y el smoke E2E autenticado.
+
 ## Revisión integral: bugs de dinero (fase 1) — 2026-09-26 (Freebuff/Buffy)
 
 **PUBLICADO: PR #231 (`fix/money-path-silent-writes`, commit `fcb6457`) abierta contra `main` con CI
