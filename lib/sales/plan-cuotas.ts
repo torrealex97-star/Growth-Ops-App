@@ -17,6 +17,44 @@
 
 import type { Collection, PaymentPlan, SaleExpectedInstallment } from '@/lib/types/database'
 
+// ── Fechas solo-día (YYYY-MM-DD) ─────────────────────────────────────────────
+// El calendario de cuotas trabaja con FECHAS DE CALENDARIO (sin hora). Anclarlas
+// en UTC y sumar meses con clamp al último día del mes destino evita las dos
+// corruptelas clásicas: la medianoche LOCAL que con toISOString() retrocede un
+// día (p.ej. "1º del mes siguiente" que nace como el último del actual) y el
+// overflow de setMonth (30 ene + 1 mes = 2 mar en vez de 28 feb). Toda fecha
+// solo-día de cuotas/reservas debe pasar por aquí; no usar new Date() + setMonth.
+export function parseFechaDia(fecha: string): Date {
+  return new Date(`${fecha.slice(0, 10)}T00:00:00Z`)
+}
+
+export function aFechaDia(d: Date): string {
+  return d.toISOString().split('T')[0]
+}
+
+/** Suma días a una fecha solo-día. `fecha` es 'YYYY-MM-DD' o Date anclado en UTC. */
+export function addDaysUTC(fecha: string | Date, dias: number): string {
+  const d = typeof fecha === 'string' ? parseFechaDia(fecha) : new Date(fecha.getTime())
+  d.setUTCDate(d.getUTCDate() + dias)
+  return aFechaDia(d)
+}
+
+/**
+ * Suma meses a una fecha solo-día manteniendo el día cuando es posible y
+ * recortándolo al último día del mes destino cuando no existe (30 ene + 1 mes
+ * = 28/29 feb, nunca 2 mar). `fecha` es 'YYYY-MM-DD' o Date anclado en UTC
+ * (p.ej. el resultado de parseFechaDia). Devuelve 'YYYY-MM-DD'.
+ */
+export function addMonthsUTC(fecha: string | Date, meses: number): string {
+  const d = typeof fecha === 'string' ? parseFechaDia(fecha) : new Date(fecha.getTime())
+  const dia = d.getUTCDate()
+  d.setUTCDate(1)
+  d.setUTCMonth(d.getUTCMonth() + meses)
+  const ultimoDia = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()
+  d.setUTCDate(Math.min(dia, ultimoDia))
+  return aFechaDia(d)
+}
+
 export type EstadoCuota = 'collected' | 'pending' | 'overdue'
 
 export type CuotaReal = SaleExpectedInstallment & {
@@ -150,9 +188,8 @@ export function planCuotasDeVenta(
       fechas.push(fechaVenta)
       continue
     }
-    const d = new Date(inicioCuotas + 'T00:00:00Z')
-    d.setUTCMonth(d.getUTCMonth() + (meta.installmentsStartDate ? i - 1 : i))
-    fechas.push(d.toISOString().split('T')[0])
+    const d = parseFechaDia(inicioCuotas)
+    fechas.push(addMonthsUTC(d, meta.installmentsStartDate ? i - 1 : i))
   }
 
   // Reparto: misma cuantía salvo la reserva (su importe es la 1ª cuota y el resto se reparte).

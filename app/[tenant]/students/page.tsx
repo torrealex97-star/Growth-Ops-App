@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { GraduationCap, ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { addMonthsUTC, parseFechaDia } from '@/lib/sales/plan-cuotas'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
@@ -87,7 +88,7 @@ function computeProgress(row: StudentRow): ProgramProgress {
     }
   }
 
-  const startDate = new Date(startStr)
+  const startDate = parseFechaDia(startStr)
   if (isNaN(startDate.getTime())) {
     return {
       startDate: null,
@@ -110,11 +111,14 @@ function computeProgress(row: StudentRow): ProgramProgress {
     return { startDate, currentMonth, totalMonths: null, endDate: null, renewalStatus: 'sin_dato', daysToEnd: null }
   }
 
-  const endDate = new Date(startDate)
-  endDate.setMonth(endDate.getMonth() + totalMonths)
+  // Fin del programa: el día del mes se recorta al último día del mes destino
+  // (30 ene + 12 meses = 28/29 feb, nunca 2 mar) y daysToEnd cuenta DÍAS DE
+  // CALENDARIO (ambas fechas ancladas a medianoche UTC), sin sesgo horario.
+  const endDate = parseFechaDia(addMonthsUTC(startDate, totalMonths))
 
   const msPerDay = 1000 * 60 * 60 * 24
-  const daysToEnd = Math.round((endDate.getTime() - now.getTime()) / msPerDay)
+  const hoyUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  const daysToEnd = Math.round((endDate.getTime() - hoyUTC) / msPerDay)
 
   let renewalStatus: RenewalStatus = 'ok'
   if (daysToEnd <= 0) renewalStatus = 'vencido'
