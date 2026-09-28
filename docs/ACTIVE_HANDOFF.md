@@ -6,9 +6,9 @@ Rama `codex/dashboard-consistency`, base `16d484c`. Reclama unit-economics, resu
 
 Implementado: ambos embudos leen el mismo agregado del periodo; asistencia por estado confirmado y reservas excluidas mediante cuentaComoVenta. Sin conversiones de cohorte inferidas de totales independientes. LTV:CAC descriptivo, variaciones de gasto neutrales. Resumen separa cobros registrados brutos de consolidado Stripe/interno y expone diferencia sin tocar P&L ni crear cobros. Tests de periodo, reservas, asistencia y aislamiento de consultas.
 
-VSL: logs runtime confirman POSTGRES_URL ausente. Recuperación de credencial autorizada por el usuario, pero la conexión directa del respaldo solo resuelve IPv6 y no se pudo validar desde el entorno local; pendiente endpoint oficial del pooler/acceso al Dashboard. No se restauró una credencial sin validar. No se guardaron secretos en archivos temporales.
+VSL: POSTGRES_URL ausente en runtime. Tras autorización y acceso al Dashboard, credencial validada con el pooler oficial (conexión SQL y tablas VSL correctas); restaurada como secreto de producción en Vercel por stdin, sin mostrarla ni guardarla en temporales. Falta activación y comprobación HTTP: despliegues bloqueados en cola tras un build prolongado. Se canceló exclusivamente nuestro redespliegue del código antiguo al aparecer nuevo main; el despliegue Git de main posterior a la restauración debe recoger la variable. No afirmar VSL reparado hasta verificar la pantalla y endpoints.
 
-Validación: quality local PASS (1133 unit, 3 skips; 757 métricas). Build PASS; dead-code informativo ejecutado. Verificación visual del nuevo build pendiente. No afirmar cierre del incidente VSL ni despliegue de este cambio.
+PR #278, commit de código 97094a3. Validación: quality local PASS (1133 unit, 3 skips; 757 métricas); build local y CI PASS, quality CI y secretos PASS. Smoke E2E: 10 PASS, contrato adjunto agota 20 s con carga en curso; reintento del job solicitado, sin modificar pruebas. Preview en cola. Verificación visual pendiente. Nuevo main c28327f revisado: cambios en dashboard principal, sin sobrescribirlos. Siguiente: revisar E2E reintentado, desbloquear/verificar despliegue Git y VSL, luego integrar PR y comprobar pantallas. No fusionada.
 
 
 
