@@ -19,7 +19,9 @@ export function ConnectedFunnel({
   compact?: boolean
   activityOnly?: boolean
 }) {
-  if (loading) return <div className="h-64 animate-pulse rounded-xl bg-muted" />
+  if (loading) return <div className={`${compact ? 'h-36' : 'h-64'} motion-safe:animate-pulse rounded-xl bg-muted`} />
+
+  const connectorHeight = compact ? 144 : 240
 
   const height = (index: number) =>
     (compact ? 120 : 240) - (index / Math.max(stages.length - 1, 1)) * (compact ? 60 : 120)
@@ -42,15 +44,18 @@ export function ConnectedFunnel({
           {stages.map((stage, index) => (
             <Fragment key={stage.label}>
               {index > 0 && (
-                <div className="relative flex h-60 w-16 shrink-0 items-center justify-center">
+                <div
+                  className="relative flex w-16 shrink-0 items-center justify-center"
+                  style={{ height: connectorHeight }}
+                >
                   <svg
                     className="absolute inset-0 h-full w-full"
-                    viewBox="0 0 64 240"
+                    viewBox={`0 0 64 ${connectorHeight}`}
                     preserveAspectRatio="none"
                     aria-hidden="true"
                   >
                     <polygon
-                      points={`0,${(240 - height(index - 1)) / 2} 64,${(240 - height(index)) / 2} 64,${(240 + height(index)) / 2} 0,${(240 + height(index - 1)) / 2}`}
+                      points={`0,${(connectorHeight - height(index - 1)) / 2} 64,${(connectorHeight - height(index)) / 2} 64,${(connectorHeight + height(index)) / 2} 0,${(connectorHeight + height(index - 1)) / 2}`}
                       fill={`color-mix(in srgb, hsl(var(--brand-300)) ${100 - index * 8}%, hsl(var(--brand-500)))`}
                     />
                   </svg>

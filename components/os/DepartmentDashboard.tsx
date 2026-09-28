@@ -188,6 +188,42 @@ export function MetricExplorer({
           </ResponsiveContainer>
         )}
       </div>
+      {!loading && hasData && (
+        <details className="mt-2 text-xs text-muted-foreground">
+          <summary className="cursor-pointer rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">
+            Ver datos de {metric.label}
+          </summary>
+          <div className="mt-2 max-h-60 overflow-auto">
+            <table className="w-full text-left tabular-nums">
+              <caption className="sr-only">
+                {title}: {metric.label} en el periodo seleccionado
+              </caption>
+              <thead>
+                <tr className="border-b border-border">
+                  <th scope="col" className="p-2">
+                    Periodo
+                  </th>
+                  <th scope="col" className="p-2 text-right">
+                    {metric.label}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {metric.data.map((point) => (
+                  <tr key={point.date} className="border-b border-border/40">
+                    <th scope="row" className="p-2 font-normal">
+                      {point.date}
+                    </th>
+                    <td className="p-2 text-right text-foreground">
+                      {point.value === null ? 'Sin dato' : format(point.value)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
       {note && (
         <details className="mt-2 text-xs text-muted-foreground">
           <summary className="cursor-pointer">Sobre estos datos</summary>
