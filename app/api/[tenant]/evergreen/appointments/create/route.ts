@@ -47,6 +47,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Va por service role para saltar la RLS de INSERT (que solo deja a admin/director), igual que
     // el resto de endpoints de agendas. Sin closer/Calendly no exigimos email del contacto.
     if (body.manual) {
+      // AISLAMIENTO: contactId llega del cliente. Sin esta comprobación, un UUID ajeno
+      // (de otra subcuenta) crearía una cita cross-tenant: el insert estampa el tenant
+      // correcto pero enlaza un contacto que NO es de esta subcuenta (la FK solo apunta a
+      // contacts(id), no a (tenant_id, contact_id)). El camino Calendly ya lo validaba.
+      const { data: contactoPropio, error: contactoErr } = await sb
+        .from('contacts')
+        .select('id')
+        .eq('id', contactId)
+        .eq('tenant_id', t.tenantId)
+        .maybeSingle()
+      if (contactoErr) return NextResponse.json({ error: contactoErr.message }, { status: 500 })
+      if (!contactoPropio)
+        return NextResponse.json({ error: 'El contacto no existe en esta subcuenta' }, { status: 404 })
+
       const { data: saved, error: insErr } = await sb
         .from('appointments')
         .insert({
