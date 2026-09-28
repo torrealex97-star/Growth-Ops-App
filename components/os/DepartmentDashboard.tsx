@@ -115,7 +115,13 @@ export function MetricExplorer({
                   tickLine={false}
                   minTickGap={32}
                 />
-                <YAxis tickFormatter={format} width={72} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis
+                  tickFormatter={(value) => format(Number(value))}
+                  width={72}
+                  tick={{ fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
                 <Tooltip
                   labelFormatter={(v) => axisDate(String(v))}
                   formatter={(v) => [format(Number(v)), metric.label]}
@@ -150,7 +156,13 @@ export function MetricExplorer({
                   tickLine={false}
                   minTickGap={32}
                 />
-                <YAxis tickFormatter={format} width={72} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis
+                  tickFormatter={(value) => format(Number(value))}
+                  width={72}
+                  tick={{ fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
                 <Tooltip
                   labelFormatter={(v) => axisDate(String(v))}
                   formatter={(v) => [format(Number(v)), metric.label]}
