@@ -79,3 +79,49 @@ test('un mes sin ventas ni cobros devuelve todo en cero y ratios en null (sin di
   assert.equal(pnl.preTaxMargin, null)
   assert.equal(pnl.roi, null)
 })
+
+test('rango de mes completo conserva exactamente el P&L mensual', () => {
+  const data = { sales, collections, refunds, expenses, commissions }
+  assert.deepEqual(
+    computeMonthlyPnl('', data, { from: '2026-03-01', to: '2026-03-31' }),
+    computeMonthlyPnl('2026-03', data)
+  )
+})
+test('rango diario imputa comisión al cobro aunque se liquide después', () => {
+  const data = { sales, collections, refunds, expenses, commissions: [commissions[0]] }
+  const result = computeMonthlyPnl('', data, { from: '2026-03-06', to: '2026-03-06' })
+  assert.equal(result.grossRevenue, 1000)
+  assert.equal(result.comisiones, 100)
+  assert.equal(result.preTaxProfit, 870)
+})
+test('comisión sin día exacto no genera resultado engañoso en mes parcial', () => {
+  assert.throws(
+    () =>
+      computeMonthlyPnl(
+        '',
+        { sales, collections, refunds, expenses, commissions },
+        { from: '2026-03-05', to: '2026-03-20' }
+      ),
+    /meses completos/
+  )
+})
+
+test('liquidation_month almacenado como día 1 conserva granularidad mensual', () => {
+  assert.throws(
+    () =>
+      computeMonthlyPnl(
+        '',
+        {
+          sales: [],
+          collections: [],
+          refunds: [],
+          expenses: [],
+          commissions: [
+            { commission_amount: 10, direction: 'negative', collection_id: null, liquidation_month: '2026-03-01' },
+          ],
+        },
+        { from: '2026-03-05', to: '2026-03-20' }
+      ),
+    /meses completos/
+  )
+})

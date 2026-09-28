@@ -37,6 +37,7 @@ import { leadDate } from '@/lib/analytics'
 import type { FiltroAtribucion } from '@/lib/metrics/operativo'
 import { buildPeriodFunnel } from '@/lib/metrics/period-funnel'
 import { canonicalCash, serieCanonicaCash, type StripePaymentRow } from '@/lib/canonical/cash'
+import { BusinessFinance } from '@/components/os/BusinessFinance'
 import { PanelOrganico } from '@/components/os/PanelOrganico'
 
 // Objetivo de dashboard (§27): fila mínima de `targets` para comparar contra lo del periodo.
@@ -1456,6 +1457,11 @@ export default function UnitEconomicsPage() {
                 description="Devoluciones descontadas del Cash Collected"
               />
             </div>
+            <BusinessFinance
+              tenantId={tenantId}
+              from={rangoISO(rango.from) ?? '0000-01-01'}
+              to={rangoISO(rango.to) ?? '9999-12-31'}
+            />
             <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
               <MetricExplorer
                 title="Evolución de Cash Collected"
@@ -1482,10 +1488,6 @@ export default function UnitEconomicsPage() {
                 ]}
               />
             </div>
-            <p className="text-xs text-muted-foreground">
-              Gastos, resultado y vencimientos se consultan en Analítica financiera. No se infieren a partir de la
-              diferencia entre ventas y cobros.
-            </p>
           </DepartmentSection>
 
           <DepartmentSection
