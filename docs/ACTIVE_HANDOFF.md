@@ -1,5 +1,22 @@
 # Relevo activo
 
+## ✅ Fechas solo-día del plan de cuotas ancladas a UTC (PR #264, mergeada)
+
+**MERGEADA** (squash `04e3720` en `main`, 28-sep). CI verde completo en la rama
+(run 36389161157: Quality 2m0s, gitleaks, Build 2m42s y Smoke E2E 5m12s ✓). Fila del tablero
+retirada; rama `fix/cuotas-fechas-tz` eliminada.
+
+- **Bug:** las fechas solo-día de cuotas/ventas se construían con `Date` a medianoche LOCAL —
+  el default de «primera cuota del resto» nacía como el último día del mes actual, la fecha de
+  venta se guardaba como ayer en la ventana 00:00-01:59 y `setMonth` desbordaba el día 29-31
+  (30 ene + 1 mes = 2 mar).
+- **Fix:** helpers canónicos `parseFechaDia`/`addMonthsUTC`/`addDaysUTC`/`aFechaDia` en
+  `lib/sales/plan-cuotas.ts` (anclado UTC + clamp al último día del mes destino), aplicados a
+  `buildRestInstallments`, al calendario SeQura de la página de venta y al fin de programa de
+  students. Tests de regresión (`tests/cuotas-fechas-utc.test.mjs`) con guardas estáticas
+  contra el patrón eliminado.
+- **Sin backfill:** los vencimientos ya persistidos no se reescriben.
+
 ## ✅ E2E smoke del contrato Radix de los modales migrados (PR #258, mergeada)
 
 **MERGEADA** (squash `e07f8f0` en `main`, 27-sep noche). CI verde en el SHA final `9e35b46`
@@ -1059,11 +1076,10 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Rama                   | Toca                                                                                                                                                                             | Desde  |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI                                                                                                                                                                                       | (por reclamar)         | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts`                                                                                  | 25-sep |
-| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                                                                                                                                                                                                            | (fusionadas)           | solo `expenses` vía migración pendiente; nada en código                                                                                                                          | 23-sep |
-| Freebuff (Buffy)  | **Fechas solo-día del plan de cuotas ancladas a medianoche local** — el default de «primera cuota» nacía como el último día del mes actual (medianoche local + toISOString), `setMonth` desbordaba el día 29-31 (30 ene + 1 mes = 2 mar) y la fecha de venta se guardaba como ayer en la ventana 00:00-01:59. Fix: helpers canónicos `parseFechaDia`/`addMonthsUTC` (anclado UTC + clamp al último día del mes destino) en `plan-cuotas.ts`, aplicados a `buildRestInstallments`, SeQura en la página de venta y fin de programa de students; tests de regresión + guardas estáticas | `fix/cuotas-fechas-tz` | `lib/sales/plan-cuotas.ts`, `lib/commissions/calculator.ts`, `app/[tenant]/ventas/registro/nueva/page.tsx`, `app/[tenant]/students/page.tsx`, `tests/cuotas-fechas-utc.test.mjs` | 28-sep |
+| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama           | Toca                                                                                            | Desde  |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
+| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
+| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
