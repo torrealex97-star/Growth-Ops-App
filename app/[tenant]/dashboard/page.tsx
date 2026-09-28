@@ -61,7 +61,7 @@ import {
 } from '@/lib/analytics'
 import { agendasPorPersona, ventasPorColaborador } from '@/lib/analytics-agendas'
 import { AgendasPorPersona, type PersonaTab } from '@/components/os/AgendasPorPersona'
-import { isCancelled } from '@/lib/unit-economics'
+import { canonicalizeAppointments, canonicalizeLeads } from '@/lib/canonical/dedup'
 import { formatCurrency } from '@/lib/utils'
 import { FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 import type { SavedDashboardView } from '@/lib/types/database'
@@ -173,12 +173,18 @@ function DashboardEquipo() {
   >([])
   const [users, setUsers] = useState<UserRow[]>([])
   const [roleUsers, setRoleUsers] = useState<RoleUser[]>([])
-  const [contactIds, setContactIds] = useState<string[]>([])
   const [contacts, setContacts] = useState<
-    { id: string; created_at: string | null; first_seen_at: string | null; first_contact_at: string | null }[]
+    {
+      id: string
+      email: string | null
+      phone: string | null
+      created_at: string | null
+      first_seen_at: string | null
+      first_contact_at: string | null
+    }[]
   >([])
   const [attributions, setAttributions] = useState<AttributionRow[]>([])
-  const [appointments, setAppointments] = useState<AppointmentRow[]>([])
+  const [appointments, setAppointments] = useState<(AppointmentRow & { id: string })[]>([])
   const [targets, setTargets] = useState<TargetRow[]>([])
   // Perfiles de colaborador activos de la subcuenta (para el tab Colaboradores de agendas/ventas).
   const [collabProfiles, setCollabProfiles] = useState<{ id: string; name: string }[]>([])
@@ -292,7 +298,7 @@ function DashboardEquipo() {
           .eq('is_active', true),
         supabase
           .from('contacts')
-          .select('id, created_at, first_seen_at, first_contact_at')
+          .select('id, email, phone, created_at, first_seen_at, first_contact_at')
           .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
@@ -302,7 +308,7 @@ function DashboardEquipo() {
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('appointments')
-          .select('appointment_datetime, status, setter_id, closer_id, cold_caller_id, affiliate_id, contact_id')
+          .select('id, appointment_datetime, status, setter_id, closer_id, cold_caller_id, affiliate_id, contact_id')
           .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
@@ -356,17 +362,30 @@ function DashboardEquipo() {
       setStripePayments((stripeRes.data || []) as StripePaymentRow[])
       setUsers(usersRes.data || [])
       setRoleUsers((roleUsersRes.data as RoleUser[] | null) || [])
-      setContactIds((contactsRes.data || []).map((c: { id: string }) => c.id))
       setContacts(
         (contactsRes.data as {
           id: string
+          email: string | null
+          phone: string | null
           created_at: string | null
           first_seen_at: string | null
           first_contact_at: string | null
         }[]) || []
       )
       setAttributions(attrRes.data || [])
-      setAppointments(apptRes.data || [])
+      const appointmentRows = apptRes.data || []
+      const appointmentsById = new Map(appointmentRows.map((a) => [a.id, a]))
+      setAppointments(
+        canonicalizeAppointments(
+          appointmentRows.map((a) => ({
+            ...a,
+            contact_id: a.contact_id ?? null,
+            scheduled_at: a.appointment_datetime,
+            calendly_event_id: null,
+            calendar_event_id: null,
+          }))
+        ).appointments.map((a) => appointmentsById.get(a.appointmentId)!)
+      )
       setTargets(targetsRes.data || [])
       setSavedViews((viewsRes.data as SavedDashboardView[] | null) || [])
       setCommissions(commRes.data || [])
@@ -477,12 +496,8 @@ function DashboardEquipo() {
   }, [collections, scopedSaleIds, range])
 
   const filteredAppointments = useMemo(() => {
-    // Una cancelación NO es una agenda del embudo: la cita no ocurrirá. (Unificado con
-    // buildSalesOverview de unit-economics, que ya excluía canceladas; antes el strip contaba
-    // canceladas y por eso "Agendas" inflaba: 120 en el mes eran 73 vivas + 47 canceladas.)
-    return appointments.filter(
-      (a) => !isCancelled(a.status) && apptMatches(a) && inPeriod(a.appointment_datetime, range)
-    )
+    // Agendas incluye todos los estados; cancelaciones se desglosan aparte, como en Negocio.
+    return appointments.filter((a) => apptMatches(a) && inPeriod(a.appointment_datetime, range))
   }, [appointments, apptMatches, range])
 
   const cashInputs = (targetRange: typeof range) => {
@@ -561,21 +576,22 @@ function DashboardEquipo() {
     () => teamRanking(filteredSales, filteredCollections, usersWithRole, 'setter'),
     [filteredSales, filteredCollections, usersWithRole]
   )
-  const attribution = useMemo(
-    () => attributionBySource(contactIds, attributions, filteredSales),
-    [contactIds, attributions, filteredSales]
+  const canonicalLeads = useMemo(
+    () => canonicalizeLeads(contacts.map((c) => ({ ...c, created_at: leadDate(c) }))).leads,
+    [contacts]
   )
-  // Leads del periodo = contactos CREADOS en el rango activo (a diferencia de la tabla de
-  // Atribución de más abajo, que usa el histórico completo de contactos — son preguntas de
-  // negocio distintas: "¿qué trajo cada fuente en este periodo?" vs "¿qué trajo cada fuente en
-  // toda la vida de la cuenta?"). No se filtra por rol/persona: un lead no pertenece a un closer.
-  const filteredContactIds = useMemo(() => {
-    // Sin atajo para 'all' (inPeriod con rango abierto = todo): un solo camino de filtrado.
-    // Por FECHA REAL del lead (leadDate = first_seen_at → first_contact_at → created_at), no por
-    // created_at: la importación histórica de GHL estampó todos los created_at el mismo día y
-    // "Este mes" contaba los ~1000 leads importados como si fueran de este mes.
-    return contacts.filter((c) => inPeriod(leadDate(c), range)).map((c) => c.id)
-  }, [contacts, range])
+  const filteredContactIds = useMemo(
+    () => canonicalLeads.filter((c) => inPeriod(c.createdAt, range)).map((c) => c.leadId),
+    [canonicalLeads, range]
+  )
+  const attribution = useMemo(() => {
+    const aliases = new Map(canonicalLeads.flatMap((c) => c.members.map((m) => [m.id, c.leadId] as const)))
+    return attributionBySource(
+      filteredContactIds,
+      attributions.map((a) => ({ ...a, contact_id: aliases.get(a.contact_id) ?? a.contact_id })),
+      filteredSales.map((s) => ({ ...s, contact_id: aliases.get(s.contact_id ?? '') ?? s.contact_id }))
+    )
+  }, [canonicalLeads, filteredContactIds, attributions, filteredSales])
 
   const funnelTotals = useMemo(
     () => aggregateFunnel(funnelBySource(filteredContactIds, attributions, filteredSales, filteredAppointments)),

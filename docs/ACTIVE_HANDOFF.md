@@ -1,5 +1,38 @@
 # Relevo activo
 
+## CODEX — continuación de auditoría, 28-sep
+
+PR de entrega: [#282](https://github.com/torrealex97-star/Growth-Ops-App/pull/282), rama `codex/metrics-audit-continuation`, desde main tras merge #278. Implementación terminada; consultar el PR para el estado de CI/fusión/despliegue. Esta sección documenta el lote y no reserva archivos para trabajo futuro. Ámbito: consulta/diagnóstico/registros de métricas, dashboard principal e índice de Analítica, fuentes/atribución/Colaboradores, resumen de registro de ventas y aclaraciones de Finanzas/Instagram. No hay migraciones ni escrituras de negocio. #278 fusionado, CI completo aprobado y despliegue confirmado en el embudo de producción.
+
+Implementado en esta continuación:
+
+- Analítica general reutiliza `canonicalCash` y `serieCanonicaCash`: primaria Stripe y cobros internos sin duplicar, mismo valor/serie que Negocio. Fallos o truncado de fuentes invalidan métricas dependientes y previsiones; COGS incompleto no se vuelve cero.
+- Cash ROAS queda desconocido sin el enlace de pagos a adquisición de pago; no se sustituye por MER. Agendas deduplicadas; tasas de cierre sin cohorte enlazada/madura no se infieren de flujos.
+- El motor deja de llamar «sin medir» a métricas que tienen valor pero no tienen objetivo. Índice de KPIs presentado con cobertura/fiabilidad e hipótesis a verificar; ratio cash/facturación no equivale a deuda.
+- Atribución abandona los totales históricos mezclados con el periodo: todas las lecturas están aisladas por tenant y paginadas; identidades se consolidan preservando las atribuciones de sus duplicados. Citas, ventas, first/last touch y calidad corresponden al ámbito temporal indicado. Reservas excluidas. Se conserva el test de seguridad del RPC existente y se prueba el aislamiento de las nuevas lecturas.
+- `ghl`/`ghl_import` por sí solos no son canales publicitarios; si existe UTM válida se conserva. La cobertura usa Facturación, no Revenue.
+- Colaboradores pagina fuentes de KPI, consolida agendas y evita contar dos veces el mismo contacto. Comisión por creación distinta de liquidación explícita; cobros de ventas del periodo no se llaman facturación.
+- Dashboard principal consolida leads/agendas y cuenta canceladas dentro de agendas, como Negocio. Muestra actividad sin conversiones de cohortes no enlazadas; tabla por fuente con el mismo periodo. Facturación/inversión y CAC global se identifican sin llamarlos ROAS atribuible.
+- Analítica usa los presets compartidos (mes/trimestre/año naturales y ventanas móviles inclusivas), con fechas visibles. La previsión y series observadas terminan en hoy; no usan relleno futuro ni proyectan más allá del periodo. El aviso de atribución diferencia registro histórico de cobertura publicitaria del periodo.
+- Registro de ventas excluye reservas abiertas de su resumen, conservándolas en la tabla operativa; origen registrado no se presenta como prueba de atribución.
+- Resumen financiero identifica el anillo del libro interno. Proyección vacía declara dependencia de planes completos. Instagram distingue alcance acumulado por pieza de personas únicas.
+
+Verificado con sesión local: Atribución y Negocio coinciden en leads/agendas/ventas/facturación; Analítica general y Negocio coinciden en cash consolidado. Colaboradores carga sus ventas/cobros/comisiones; cohortes recientes muestran En maduración sin semáforos de rendimiento. Se detectaron y corrigieron durante esa revisión el falso «sin medir» por falta de objetivo y las importaciones contadas como atribución; ambos ajustes confirmados en navegador. La revisión de periodos detectó además que Analítica cortaba Este mes en hoy, a diferencia del resto de vistas; corregido con el helper compartido.
+
+Quality (formato/lint/tipos/unitarias) y suite de métricas final PASS: 1.136 unitarias, 3 omitidas y 783 métricas. Build final PASS, incluida previsión. Validación visual final: la previsión usa solo días observados y termina en el cierre del periodo. Dead-code informativo ejecutado. Sin datos de tenants en fixtures/docs.
+
+Entrega condicionada a CI/preview de #282. Responsive pendiente (intento de viewport de herramienta no confirmó tamaño efectivo, no contarlo como validación móvil). Datos que no deben inventarse: Cash ROAS atribuible, conversiones de cohorte madura, planes de deuda completos, clientes/retención y desglose por closer del resumen. La cobertura no autoriza modificar registros para forzar igualdad. Dashboard, periodos y registro confirmados en el build final: recuentos coherentes y reservas excluidas del resumen. Cobros inspeccionado: tabla del libro interno, sin total consolidado; pendiente aclarar el subtítulo «todos los pagos» y cobertura de lectura. Conciliación inspeccionada: tabla vacía de resultados de cotejo, no demuestra que todos los cobros estén conciliados; no se pulsó Cotejar ni se importaron datos.
+
+### Siguiente lote, por prioridad
+
+1. **Cobertura de lecturas operativas**: `ventas/registro` aún usa consulta sin paginación para ventas/atribución y listado de usuarios sujeto a RLS sin join tenant_members. Aplicar el patrón paginado y aislamiento ya validado; revisar error de atribución, estado obsoleto tras fallo y tests con más de 1.000 filas. Dashboard principal usa techo con detección; validar el límite real del servidor, no asumir que range amplía PostgREST.
+2. **Show Rate y diagnóstico**: conservar definición canónica sobre citas resueltas y mostrar su muestra/cobertura junto al porcentaje. No equipararlo a asistencias/total agendas de Negocio. Auditar recomendación de escalado y semáforos contra completitud, madurez y asignación antes de benchmarks; no afirmar causalidad.
+3. **Finanzas**: inspeccionar Cobros y Morosidad, cobertura de planes/ingesta y estado vacío de Conciliación. Contrastar consolidado Stripe+interno con libro interno mediante conciliación por pago/venta; no forzar iguales fuentes de distinta cobertura. Diferenciar comisiones por creación/liquidación y gastos, sin modificar registros.
+4. **Adquisición**: fuente de registro distinta de canal; completar verificación de filtros de pago/campaña, formularios y calidad. Cash ROAS necesita enlace verificable pago→venta→canal; no sustituirlo por MER. Revisar todas las series y paginación en pestañas secundarias de Instagram.
+5. **Visual y responsive**: repetir matriz completa con rango idéntico, móvil real confirmado y estados vacíos/fallo; registrar pantalla, fuente y resultado, sin datos privados. Clientes/retención sigue aplazado por el usuario. Desglose de closer requiere fuente enlazada, no filas inventadas.
+
+Servidor local configurado con credencial de servidor existente comprobada contra el proyecto actual, solo en 127.0.0.1:3100; credenciales solo en memoria del proceso, nunca en archivos del worktree ni navegador. Esta configuración permite verificar APIs antes bloqueadas por configuración local. No imprimir variables ni payloads.
+
 ## Relevo prioritario — auditoría transversal de dashboards, 28-sep cierre
 
 El usuario solicita subir y fusionar lo validado y continuar el resto con otro agente. Rama `codex/dashboard-consistency`, PR #278. Leer primero esta sección y `docs/DASHBOARD_VISUAL_AUDIT.md`; los párrafos históricos posteriores no certifican el estado actual. No cambiar datos de negocio ni usar «Ver como».

@@ -124,14 +124,16 @@ export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }
           <div className="min-w-0 space-y-3">
             <div>
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Restricción actual
+                Hipótesis a verificar
               </h2>
               <p className="mt-1 text-base font-medium text-foreground">{brief.restriccion.titular}</p>
             </div>
 
             <dl className="grid gap-3 sm:grid-cols-2">
               <div>
-                <dt className="text-xs uppercase tracking-wide text-muted-foreground">Impacto de arreglarla</dt>
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Impacto estimado si se confirma
+                </dt>
                 {/* Si el motor no pudo estimarlo, se dice. No se pone un número para que la ficha tenga uno. */}
                 <dd className="text-sm text-foreground">{brief.impacto.texto}</dd>
                 {brief.impacto.esEstimacion && (
@@ -160,13 +162,17 @@ export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }
         <section className="dashboard-card p-5">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Salud del negocio</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Índice orientativo de KPIs
+            </h2>
           </div>
-          <p className={`mt-2 text-3xl font-semibold tabular-nums ${COLOR_ETIQUETA[salud.etiqueta]}`}>
+          <p
+            className={`mt-2 text-3xl font-semibold tabular-nums ${salud.fiabilidad === 'baja' ? 'text-muted-foreground' : COLOR_ETIQUETA[salud.etiqueta]}`}
+          >
             {salud.puntuacion === null ? 's/d' : `${salud.puntuacion}`}
             {salud.puntuacion !== null && <span className="text-base text-muted-foreground">/100</span>}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">{salud.titular}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{`Cobertura: ${Math.round(salud.coberturaPeso * 100)}% · Fiabilidad ${salud.fiabilidad}. La comparación con objetivos no confirma por sí sola un problema de negocio.`}</p>
           <ul className="mt-3 space-y-1.5">
             {salud.subscores.map((s) => (
               <li key={s.dimension} className="flex items-baseline justify-between gap-2 text-xs">
@@ -205,7 +211,8 @@ export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }
           )}
           {brief.huecos.length > 0 && (
             <p className="mt-3 text-xs text-muted-foreground/80">
-              Sin medir todavía (es un hueco de medición, no un problema del negocio): {brief.huecos.join(', ')}.
+              Sin medir en el catálogo diagnóstico (hueco de medición, no un problema del negocio; ámbito distinto de
+              las tarjetas): {brief.huecos.join(', ')}.
             </p>
           )}
         </section>

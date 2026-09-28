@@ -154,8 +154,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     alertas.push(
       alertaCalidadDato({
         key: 'atribucion_contactos',
-        que: 'el origen de los contactos',
-        detalle: `${conAtribucion} de ${contactos} contactos tienen origen conocido. Sin eso no hay CAC por canal ni se puede separar lo orgánico de los anuncios.`,
+        que: 'el origen de los contactos · histórico',
+        detalle: `${conAtribucion} de ${contactos} contactos históricos tienen un registro de atribución. Esto no garantiza un canal publicitario válido; la cobertura del periodo se consulta en Marketing → Atribución.`,
         comoArreglar:
           'Añadir parámetros UTM a los enlaces de reserva de los anuncios, o instalar el snippet de tracking en la landing. Mientras no lleguen, no hay nada que atribuir.',
       })
@@ -165,10 +165,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   // OBJETIVOS Y PREVISIÓN. Solo se construye un objetivo cuando growth_context TRAE el valor: sin
   // objetivo configurado no hay "cumplido" ni "por detrás" que decir, y un objetivo inventado convertiría
   // el panel en una comparación contra una cifra que nadie decidió (ver lib/ai/agent/contexto.ts).
-  const avance = avanceDelPeriodo(periodo, new Date().toISOString().slice(0, 10))
+  const hoy = new Date().toISOString().slice(0, 10)
+  const avance = avanceDelPeriodo(periodo, hoy)
+  // El filtro natural incluye días futuros, pero no son observaciones de una previsión.
+  const serieFacturacionObservada = consulta.serieFacturacion.filter((p) => p.fecha <= hoy)
+  const serieCashObservada = consulta.serieCash.filter((p) => p.fecha <= hoy)
   const entradasObjetivos: EntradaObjetivo[] = []
   if (contexto?.objetivoFacturacionMensualEur != null) {
-    const ultimaFacturacion = consulta.serieFacturacion.at(-1)?.valor ?? null
+    const ultimaFacturacion = serieFacturacionObservada.at(-1)?.valor ?? null
     entradasObjetivos.push({
       objetivo: {
         key: 'facturacion_objetivo',
@@ -216,7 +220,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   // cerrado no se prevé, se mide.
   const prevision: Prevision | null =
     !avance.cerrado && avance.diasRestantes > 0
-      ? preverSerie(consulta.serieFacturacion, avance.diasRestantes, {
+      ? preverSerie(serieFacturacionObservada, avance.diasRestantes, {
           siguienteFecha: (ultima, paso) => diaSiguiente(ultima, paso),
           noNegativa: true,
         })
@@ -252,8 +256,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     mediciones: consulta.agregados,
     // Las dos series nacen de las mismas filas y el mismo periodo que las tarjetas. El cliente solo
     // cambia la presentación; no vuelve a consultar ni recalcula dinero.
-    serieFacturacion: consulta.serieFacturacion,
-    serieCash: consulta.serieCash,
+    serieFacturacion: serieFacturacionObservada,
+    serieCash: serieCashObservada,
     diagnostico,
     salud,
     procedencia: {

@@ -449,7 +449,7 @@ export default function FinanzasPage() {
               />
               <div className="md:row-span-2 xl:col-start-3 xl:row-start-1">
                 <FinanceBreakdown
-                  title="Origen de los cobros"
+                  title="Origen de los cobros · libro interno"
                   slices={[
                     { label: 'Primer cobro', amount: paymentsSummary.newGr },
                     { label: 'Cuotas siguientes', amount: paymentsSummary.followupGr },

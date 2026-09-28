@@ -68,8 +68,10 @@ test('Analítica reutiliza las series financieras del brief, sin una consulta o 
     'utf8'
   )
   const panel = readFileSync(new URL('../../components/metrics/PanelGrowth.tsx', import.meta.url), 'utf8')
-  assert.match(route, /serieFacturacion: consulta\.serieFacturacion/)
-  assert.match(route, /serieCash: consulta\.serieCash/)
+  assert.match(route, /serieFacturacion: serieFacturacionObservada/)
+  assert.match(route, /serieCash: serieCashObservada/)
+  assert.match(route, /serieFacturacionObservada = consulta\.serieFacturacion\.filter/)
+  assert.match(route, /serieCashObservada = consulta\.serieCash\.filter/)
   assert.match(panel, /<SalesChart/)
   assert.match(panel, /acumulado del periodo/)
 })

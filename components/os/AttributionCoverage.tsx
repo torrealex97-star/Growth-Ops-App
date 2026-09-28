@@ -17,14 +17,14 @@ export function AttributionCoverage({ coverage }: { coverage: AttributionCoverag
     <div className="dashboard-card p-5">
       <h3 className="font-display text-lg font-semibold">Cobertura de atribución</h3>
       <p className="mt-0.5 text-xs text-muted-foreground">
-        Parte del negocio con origen conocido. Baja cobertura = decisiones de presupuesto a ciegas.
+        Parte del negocio con canal conocido. La fuente de importación no acredita atribución publicitaria.
       </p>
       <div className="mt-3 grid grid-cols-3 gap-3 text-center">
         {(
           [
             ['Leads', coverage.leads],
             ['Ventas', coverage.sales],
-            ['Revenue', coverage.revenue],
+            ['Facturación', coverage.revenue],
           ] as const
         ).map(([label, v]) => (
           <div key={label} className="rounded-lg border border-border bg-muted/30 p-3">
