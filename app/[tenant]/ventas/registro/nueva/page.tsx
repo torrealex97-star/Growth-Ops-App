@@ -14,6 +14,7 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { buildRestInstallments } from '@/lib/commissions/calculator'
 import { addDays } from 'date-fns'
+import { parseFechaDia, aFechaDia, addMonthsUTC } from '@/lib/sales/plan-cuotas'
 import type { Contact, Product, PaymentPlan, User as DbUser, Appointment } from '@/lib/types/database'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 
@@ -84,15 +85,18 @@ export default function NewSalePage() {
   const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null)
 
   // Step 4
-  const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0])
+  const [saleDate, setSaleDate] = useState(() => aFechaDia(new Date()))
   const [notes, setNotes] = useState('')
   const [reservationAmount, setReservationAmount] = useState('0')
   const [reservationId, setReservationId] = useState<string | null>(null)
 
   // Autofinanciado: entrada (pago inicial) + nº de cuotas para el resto + fecha primera cuota
+  // Default: el 1º del mes siguiente EN CALENDARIO. Anclado en UTC para que
+  // toISOString() nunca retroceda un día (medianoche local → último día del
+  // mes actual en husos horarios por delante de UTC).
   const firstOfNextMonth = (() => {
-    const d = new Date()
-    return new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString().split('T')[0]
+    const hoy = new Date()
+    return aFechaDia(new Date(Date.UTC(hoy.getFullYear(), hoy.getMonth() + 1, 1)))
   })()
   const [downPayment, setDownPayment] = useState('0')
   const [restCount, setRestCount] = useState('')
@@ -545,8 +549,8 @@ export default function NewSalePage() {
       return
     }
 
-    const saleDateObj = new Date(saleDate)
-    const refundDeadline = addDays(saleDateObj, 15)
+    const saleDateObj = parseFechaDia(saleDate)
+    const refundDeadline = aFechaDia(addDays(saleDateObj, 15))
     const gross = effectiveGross
     const ratio = effectiveRatio ?? 1
     const commissionable = gross * ratio
@@ -635,7 +639,7 @@ export default function NewSalePage() {
           rows.push({
             sale_id: sid,
             installment_number: 0,
-            due_date: saleDateObj.toISOString().split('T')[0],
+            due_date: aFechaDia(saleDateObj),
             expected_gross_amount: ourCash,
             expected_commissionable_amount: ourCash,
             status: 'pending',
@@ -643,12 +647,10 @@ export default function NewSalePage() {
           })
         }
         for (let i = 1; i <= N; i++) {
-          const d = new Date(saleDateObj)
-          d.setMonth(d.getMonth() + (i - 1))
           rows.push({
             sale_id: sid,
             installment_number: i,
-            due_date: d.toISOString().split('T')[0],
+            due_date: addMonthsUTC(saleDate, i - 1),
             expected_gross_amount: perStudent,
             expected_commissionable_amount: 0,
             status: 'pending',
@@ -664,7 +666,7 @@ export default function NewSalePage() {
           cashCollectionRatio: ratio,
           alreadyPaid,
           restCount: restCountNumber,
-          startDate: new Date(installmentsStartDate || firstOfNextMonth),
+          startDate: installmentsStartDate || firstOfNextMonth,
         })
       }
       return []
@@ -679,7 +681,7 @@ export default function NewSalePage() {
         product_id: selectedProduct.id,
         payment_plan_id: selectedPlan.id,
         sale_date: saleDate, // la facturación cuenta en el mes en que se completa el pago
-        refund_deadline_at: refundDeadline.toISOString().split('T')[0],
+        refund_deadline_at: refundDeadline,
         gross_amount: gross,
         expected_commissionable_amount: commissionable,
         reservation_amount: reservationAmountNumber,
@@ -723,7 +725,7 @@ export default function NewSalePage() {
         product_id: selectedProduct.id,
         payment_plan_id: selectedPlan.id,
         sale_date: saleDate,
-        refund_deadline_at: refundDeadline.toISOString().split('T')[0],
+        refund_deadline_at: refundDeadline,
         gross_amount: gross,
         expected_commissionable_amount: commissionable,
         reservation_amount: reservationAmountNumber,
@@ -1190,7 +1192,7 @@ export default function NewSalePage() {
                   <div className="bg-muted/60 rounded p-2">
                     <p className="text-muted-foreground text-xs">Cash Collected estimado</p>
                     <p className="text-emerald-400 font-medium">{formatCurrency(commissionableAmount)}</p>
-                    <p className="text-muted-foreground text-[11px]">
+                    <p className="text-muted-foreground text-2xs">
                       {Math.round(selectedPlan.cash_collection_ratio * 100)}% del total
                     </p>
                   </div>

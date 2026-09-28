@@ -21,12 +21,12 @@ import {
   Sparkles,
   FileText,
   ExternalLink,
-  X,
   AlertTriangle,
   Clock,
 } from 'lucide-react'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar } from 'recharts'
-import { formatNumber } from '@/lib/utils'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { formatNumber, formatDateTime } from '@/lib/utils'
 
 type Media = {
   id: string
@@ -92,6 +92,10 @@ type Platform = 'all' | 'instagram' | 'facebook' | 'youtube'
 const nf = (n: number | null | undefined) => formatNumber(Math.round(n || 0))
 const fecha = (s: string | null) =>
   s ? new Date(s).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }) : '—'
+
+// recharts 3 tipa labelFormatter con `label: ReactNode` (antes era `string | null`, igual que
+// tickFormatter). El eje de fecha siempre manda un string aquí; cualquier otra cosa cae al guion.
+const fechaLabel = (label: unknown) => fecha(typeof label === 'string' ? label : null)
 
 export default function InstagramPage() {
   const tenant = useTenant()
@@ -347,7 +351,7 @@ export default function InstagramPage() {
               </p>
               {lastSync?.started_at && (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Último intento: {new Date(lastSync.started_at).toLocaleString('es-ES')}
+                  Último intento: {formatDateTime(lastSync.started_at)}
                 </p>
               )}
             </div>
@@ -737,7 +741,7 @@ export default function InstagramPage() {
                   border: '1px solid hsl(var(--border))',
                   borderRadius: 8,
                 }}
-                labelFormatter={fecha}
+                labelFormatter={fechaLabel}
               />
               <Line
                 type="monotone"
@@ -765,7 +769,7 @@ export default function InstagramPage() {
                   border: '1px solid hsl(var(--border))',
                   borderRadius: 8,
                 }}
-                labelFormatter={fecha}
+                labelFormatter={fechaLabel}
               />
               <Line
                 type="monotone"
@@ -895,7 +899,7 @@ export default function InstagramPage() {
                     border: '1px solid hsl(var(--border))',
                     borderRadius: 8,
                   }}
-                  labelFormatter={fecha}
+                  labelFormatter={fechaLabel}
                 />
                 <Line
                   type="monotone"
@@ -924,9 +928,9 @@ export default function InstagramPage() {
                   border: '1px solid hsl(var(--border))',
                   borderRadius: 8,
                 }}
-                labelFormatter={fecha}
+                labelFormatter={fechaLabel}
               />
-              <Bar dataKey="new_follows" name="Nuevos seguidores" fill="#10b981" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="new_follows" name="Nuevos seguidores" fill="hsl(var(--brand-500))" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ChartCard>
           {convos.length === 0 && (
@@ -950,39 +954,29 @@ export default function InstagramPage() {
         (() => {
           const fb = matchFb(detail)
           return (
-            <div
-              className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-              onClick={() => setDetail(null)}
-            >
-              <div
-                className="bg-card border border-border rounded-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-5"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-start justify-between gap-3 mb-4">
+            <Dialog open onOpenChange={(o) => !o && setDetail(null)}>
+              <DialogContent className="max-w-2xl w-full max-h-[85vh] overflow-y-auto gap-0 p-5">
+                <DialogHeader className="flex-row items-start justify-between gap-3 space-y-0">
                   <div className="flex gap-3 min-w-0">
                     {detail.thumbnail_url ? (
                       <img
                         src={detail.thumbnail_url}
                         alt=""
-                        className="w-14 h-18 object-cover rounded-lg bg-muted shrink-0"
+                        className="w-14 h-14 object-cover rounded-lg bg-muted shrink-0"
                       />
                     ) : (
-                      <div className="w-14 h-18 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                      <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center shrink-0">
                         <Play className="w-5 h-5 text-muted-foreground" />
                       </div>
                     )}
                     <div className="min-w-0">
-                      <p className="text-sm text-foreground line-clamp-2">{detail.caption || 'Sin descripción'}</p>
+                      <DialogTitle asChild>
+                        <p className="text-sm text-foreground line-clamp-2">{detail.caption || 'Sin descripción'}</p>
+                      </DialogTitle>
                       <p className="text-xs text-muted-foreground mt-1">{fecha(detail.published_at)}</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setDetail(null)}
-                    className="text-muted-foreground hover:text-foreground shrink-0"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
+                </DialogHeader>
 
                 {/* Instagram */}
                 <div className="rounded-lg border border-pink-900/40 bg-pink-950/10 p-3 mb-3">
@@ -1047,29 +1041,22 @@ export default function InstagramPage() {
                     </p>
                   </div>
                 )}
-              </div>
-            </div>
+              </DialogContent>
+            </Dialog>
           )
         })()}
 
       {/* Modal de guión IA */}
       {scriptModal && (
-        <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-          onClick={() => setScriptModal(null)}
-        >
-          <div
-            className="bg-card border border-border rounded-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-pink-400" /> Guión generado
-              </h3>
-              <button onClick={() => setScriptModal(null)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+        <Dialog open onOpenChange={(o) => !o && setScriptModal(null)}>
+          <DialogContent className="max-w-2xl w-full max-h-[85vh] overflow-y-auto gap-0 p-5">
+            <DialogHeader className="flex-row items-center justify-between space-y-0 mb-3">
+              <DialogTitle asChild>
+                <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-pink-400" /> Guión generado
+                </h3>
+              </DialogTitle>
+            </DialogHeader>
             {scriptModal.loading ? (
               <p className="text-muted-foreground py-8 text-center">Generando guión…</p>
             ) : (
@@ -1116,8 +1103,8 @@ export default function InstagramPage() {
                 </div>
               )
             )}
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )
@@ -1184,7 +1171,7 @@ function Stat({ icon, v }: { icon: React.ReactNode; v: string }) {
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="text-2xs text-muted-foreground">{label}</p>
       <p className="text-foreground font-semibold">{value}</p>
     </div>
   )

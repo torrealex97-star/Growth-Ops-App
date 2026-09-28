@@ -241,7 +241,7 @@ export default function AfiliadosSettingsPage() {
                   onChange={(e) => updateField(i, { label: e.target.value })}
                   className="bg-muted border-border h-8 text-sm"
                 />
-                <p className="text-[10px] text-muted-foreground font-mono">{f.key}</p>
+                <p className="text-3xs text-muted-foreground font-mono">{f.key}</p>
               </div>
               <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer shrink-0">
                 <Checkbox

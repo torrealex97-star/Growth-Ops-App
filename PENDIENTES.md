@@ -1,9 +1,11 @@
 # PENDIENTES — [tenant] OS
 
 > ## Estado de consolidación (2026-09-22)
+>
 > `origin/main` está publicado en `c2c3e6a33a847b9d3220b9783a01106dc87f73c8` mediante la PR #173, que actualizó este handoff y este backlog. Las PR #171 y #172 también están fusionadas; sus checks de código fueron verdes. La PR #173 solo cambió documentación y no generó workflow nuevo por `paths-ignore`; Supabase Preview quedó omitido. El checkout compartido conserva WIP no publicado; no tratarlo como desplegado ni mezclarlo sin PR atómico.
 >
 > ### Acciones que corresponden al usuario
+>
 > - [ ] Ejecutar en QA el dry-run `BEGIN … ROLLBACK` de la revocación de `EXECUTE` de `cleanup_custom_field_values()`: probar limpieza por trigger y rechazo de RPC directa.
 > - [ ] Aplicar migraciones solo mediante el flujo aprobado, registrando la versión en `schema_migrations`; nunca desde un checkout con WIP.
 > - [ ] Rotar credenciales que hayan aparecido en chats o historiales y actualizar únicamente los proveedores/Vercel correspondientes; no copiarlas al repositorio.
@@ -14,6 +16,7 @@
 > - [ ] Resolver decisiones financieras explícitas: tratamiento de cuotas de proveedores de pago, completar reservas y cualquier backfill que requiera elegir producto/plan.
 >
 > ### Trabajo que debe hacer Claude/otro agente desde `origin/main`
+>
 > - [ ] Auditar cada bloque local de Hotmart, inbox social, TikTok, VSL, YouTube OAuth, facturas IA, comisiones batch, contratos adjuntos y colaboradores; publicar solo lo que tenga diff, tests, migraciones y CI verificables.
 > - [ ] Completar el tipado de clientes Supabase y el auditor de columnas fantasma en CI antes de aceptar nuevas queries.
 > - [ ] Revisar drift esquema↔migraciones, RLS y funciones `SECURITY DEFINER` con dry-run funcional.
@@ -59,7 +62,7 @@ Feature completo y desplegado: Config → Datos de empresa, plantillas (pega tex
 
 ## 🔒 Seguridad
 
-- [~] **Inserts de cuotas silenciosos en otro punto** — REVISIÓN 26-sep (Freebuff): el patrón contado a fondo son **~92 escrituras** `await` sin comprobar `{ error }` en `app/api`+`lib`. Corregidos los más caros (DELETE de cobro/comisiones en `collections/[id]`, las 3 escrituras de cuota en `payments/mark`, upsert de `users` con rollback en `afiliados/registro`, audit_logs de cambios de cobro). **Quedan ~88**, el mayor foco el webhook de GHL (updates de citas e inserts de `contact_attributions`) y los crons. Criterio: cualquier escritura de dinero/estado de negocio verifica y falla ruidosamente; audit_logs de dinero nunca fire-and-forget.
+- [~] **Inserts de cuotas silenciosos en otro punto** — REVISIÓN 26-sep (Freebuff): el patrón contado a fondo son **~92 escrituras** `await` sin comprobar `{ error }` en `app/api`+`lib`. Corregidos los más caros (DELETE de cobro/comisiones en `collections/[id]`, las 3 escrituras de cuota en `payments/mark`, upsert de `users` con rollback en `afiliados/registro`, audit_logs de cambios de cobro) y **26-sep: webhook GHL completo** (updates de citas/contacto/lead_status, insert y update de `contact_attributions`, audit_logs de citas y cierre del sobre: ya no responden `ok` con la escritura sin aplicar — `fix/ghl-webhook-silent-writes`). **27-sep: crons `monthly`/`reminders` fail-ruidoso** (PR #238): las lecturas de equipo/plantillas/comisiones y la aprobación de comisiones ya verifican `{ error }`, presupuesto de tiempo y run en rojo si una subcuenta falla — `fix/cron-monthly-reminders-silent-writes`. **27-sep: `sales/delete` compensable y `commissions/future` verificadas** (PR #239): snapshot de auditoría íntegro, borrado del dinero con restauración inversa y las 7 lecturas con guard. **27-sep: `resolverScopeColaborador` fail-closed y motor de comisiones fail-ruidoso** (PR #249): `resolverScopeColaborador` devolvía `{tipo:'none'}` (sin restricción) ante un error de BD — ahora `{tipo:'error'}` degrada a "colaborador sin contactos" en vez de exponer datos de otros reps; `commissions/future` oculta los tramos también en estado de error; `repNetCash`/`loadTramoContext` ya no tragan errores de `collections`/`refunds`/`sales_tramos_config` por dentro. **27-sep: `collections/approve-review` recuperable** (PR #245): la venta se lee antes de mutar el cobro, y si `generateCommissionsForCollection` falla tras limpiar `needs_commission_review`, se revierte el flag en vez de dejar el cobro "aprobado" sin comisión y sin vía de reintento. **27-sep: webhook Calendly + pixel de tracking** (PR #251): el `UPDATE` de estado de cita en cancelación/reprogramación devuelve 500 si falla (Calendly reintenta), y los `audit_logs`/`contacts.update` secundarios ya no se pierden en silencio (logueados). **Queda:** barrido del resto del patrón (recuento exacto pendiente — quedan candidatos en `stripe/route.ts` ya revisados como falso positivo intencional, y otros ficheros de `app/api` sin auditar todavía). Criterio: cualquier escritura de dinero/estado de negocio verifica y fail ruidoso; audit_logs de dinero nunca fire-and-forget; en webhooks, un fallo de estado devuelto como error HTTP hace que GHL/Stripe reintenten la entrega.
 - [ ] **Audit log de DDL aplicado a mano**: la columna `flagged_delinquent` existía en prod sin su migración en el repo — hubo cambios aplicados fuera de git. Inventariar el esquema real vs. migraciones del repo (columnas extra = migraciones perdidas).
 - [ ] **Rotar claves compartidas por chat** (todas están en `.env.local` + Vercel): `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, token Management de Supabase (`sbp_…`).
 - [ ] **Cambiar `GHL_WEBHOOK_SECRET`** por uno más fuerte (ahora `[tenant]`) — actualizar en Vercel y en GHL a la vez.
@@ -68,6 +71,13 @@ Feature completo y desplegado: Config → Datos de empresa, plantillas (pega tex
 
 Crons ya hechos: `cron/monthly` (sueldos + gastos recurrentes) y `cron/reminders` (marca cuotas vencidas).
 Faltan como automatización con aviso real (necesitan canal: WhatsApp/email/Slack):
+
+**Decisión de Alex (27-sep): DEPRIORIZADO, no tocar código todavía.** Para el tramo que llega al
+alumno (WhatsApp de impago, email de renovación...) hay que dejarlo todo listo para conectar el
+día que se decida el canal, pero implementarlo hoy no es prioridad. Cuando se retome: construir la
+detección (lógica pura, sin canal) primero — igual que `cron/reminders` ya marca cuotas vencidas sin
+enviar nada — y separar esa detección del envío real, para que activar el canal sea enchufar un
+adapter, no reescribir la lógica de negocio. No crear tablas ni cron nuevos hasta esa decisión.
 
 - [ ] Alerta de impago (Pago atrasado ≥3 días → aviso admin + WhatsApp alumno)
 - [ ] Alerta de vencimiento de acceso (email renovación + tarea al closer)

@@ -230,7 +230,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       // La venta sin TODOS sus cobros sería facturación descuadrada, y los pagos sin cobro volverían
       // a salir como registrables (la referencia vive en el cobro) → se duplicarían en la siguiente
       // tanda. Se deshace la venta entera —los cobros caen con ella por la FK— y se reporta.
-      await sb.from('sales').delete().eq('tenant_id', session.tenantId).eq('id', saleId)
+      const { error: rollbackErr } = await sb.from('sales').delete().eq('tenant_id', session.tenantId).eq('id', saleId)
+      if (rollbackErr) {
+        console.error('[stripe-backfill/registrar] no se pudo deshacer la venta huérfana', saleId, rollbackErr.message)
+      }
       // 23505 en `collections` = el unique (tenant_id, payment_reference) de
       // 20260914120000 ha parado un DOBLE REGISTRO del mismo pago: otra petición
       // (doble clic, reintento del navegador) ya lo había registrado entre medias. No es un
@@ -256,7 +259,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       resultados.push({ paymentId: f.paymentId, ok: true, saleId, motivo: aviso })
     }
 
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: session.tenantId,
       entity_type: 'sale',
       entity_id: saleId,
@@ -268,6 +271,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         gross_amount: built.sale.gross_amount,
       },
     })
+    if (auditErr) console.error('[stripe-backfill/registrar] audit_logs no se pudo escribir:', auditErr.message)
 
     // COMISIONES DE LA VENTA REGISTRADA — sin esto, su ledger nacía a cero y solo
     // aparecía cuando alguien lanzaba la reparación masiva a mano. La regla financiera

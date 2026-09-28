@@ -830,6 +830,7 @@ export default function EnlacesPage() {
                               variant="ghost"
                               size="icon"
                               className="h-6 w-6 text-emerald-400"
+                              aria-label="Guardar nombre de la división"
                               onClick={() => saveDivisionName(d.id)}
                             >
                               <Check className="w-3.5 h-3.5" />
@@ -838,6 +839,7 @@ export default function EnlacesPage() {
                               variant="ghost"
                               size="icon"
                               className="h-6 w-6 text-muted-foreground"
+                              aria-label="Cancelar edición de la división"
                               onClick={() => {
                                 setEditingDivisionId(null)
                                 setEditingDivisionName('')
@@ -850,13 +852,14 @@ export default function EnlacesPage() {
                           <>
                             <FolderOpen className="w-3.5 h-3.5 text-brand-400" />
                             <span className="text-sm text-foreground">{d.name}</span>
-                            <span className="text-[10px] text-muted-foreground">
+                            <span className="text-3xs text-muted-foreground">
                               {resources.filter((r) => r.division_id === d.id).length}
                             </span>
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                              aria-label="Renombrar división"
                               onClick={() => {
                                 setEditingDivisionId(d.id)
                                 setEditingDivisionName(d.name)
@@ -868,6 +871,7 @@ export default function EnlacesPage() {
                               variant="ghost"
                               size="icon"
                               className="h-6 w-6 text-muted-foreground hover:text-red-400"
+                              aria-label="Eliminar división"
                               onClick={() => deleteDivision(d)}
                             >
                               <Trash2 className="w-3 h-3" />

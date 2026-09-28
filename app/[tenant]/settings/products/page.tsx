@@ -274,6 +274,7 @@ export default function ProductsPage() {
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                    aria-label={`Editar producto ${product.name}`}
                     onClick={(e) => {
                       e.stopPropagation()
                       openEditProduct(product)
@@ -331,6 +332,7 @@ export default function ProductsPage() {
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                              aria-label={`Editar plan ${plan.name}`}
                               onClick={() => openEditPlan(plan)}
                             >
                               <Edit2 className="w-3.5 h-3.5" />

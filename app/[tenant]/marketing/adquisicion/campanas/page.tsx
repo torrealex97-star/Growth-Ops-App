@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Radio, Plus, X, Pencil, Receipt, CheckCircle2, RefreshCw, AlertTriangle, Zap } from 'lucide-react'
+import { Radio, Plus, Pencil, Receipt, CheckCircle2, RefreshCw, AlertTriangle, Zap } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import type { Campaign } from '@/lib/types/database'
@@ -18,6 +18,7 @@ import { MultiSelect } from '@/components/ui/multi-select'
 import { useSesion, useTenant } from '@/lib/tenant-context'
 import { useCuentasMetaActivas } from '@/lib/meta/use-cuentas-activas'
 import { DEFAULT_PERIOD } from '@/lib/filters/period'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 // Valores por defecto de los filtros: cuando uno está en su valor por defecto NO se escribe en la
 // URL, así el enlace limpio sigue siendo limpio.
@@ -839,20 +840,20 @@ export default function CampaignsPage() {
                             <div className="flex items-center gap-2">
                               <span>{c.name}</span>
                               {isMeta && (
-                                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                                <span className="inline-flex items-center gap-1 text-3xs px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
                                   <Zap className="w-2.5 h-2.5" /> Meta auto
                                 </span>
                               )}
                             </div>
                           </td>
                           <td className="px-4 py-3">
-                            <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                            <span className="text-2xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                               {channelLabel(c.channel)}
                             </span>
                           </td>
                           {accounts.length > 1 && (
                             <td className="px-4 py-3">
-                              <span className="text-[11px] text-muted-foreground">
+                              <span className="text-2xs text-muted-foreground">
                                 {c.account_name || c.account_id || '—'}
                               </span>
                             </td>
@@ -911,11 +912,11 @@ export default function CampaignsPage() {
                           </td>
                           <td className="px-4 py-3 text-center">
                             {isAccounted ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                              <span className="inline-flex items-center gap-1 text-2xs px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                                 <CheckCircle2 className="w-3 h-3" /> Contabilizado ({period})
                               </span>
                             ) : (
-                              <span className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                              <span className="text-2xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
                                 Pendiente
                               </span>
                             )}
@@ -964,88 +965,68 @@ export default function CampaignsPage() {
           </>
         ))}
 
-      {showTargets && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setShowTargets(false)}
-        >
-          <div
-            className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-foreground font-semibold">Objetivos de rendimiento</h3>
-              <button onClick={() => setShowTargets(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Se usan para pintar en verde/ámbar/rojo los KPIs del embudo de ads. Deja vacío el que no quieras vigilar.
-            </p>
-            <div>
-              <label className="text-xs text-muted-foreground">ROAS objetivo (mínimo, ej. 3 = 3x)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={targetsForm.target_roas}
-                onChange={(e) => setTargetsForm({ ...targetsForm, target_roas: e.target.value })}
-                placeholder="Sin objetivo"
-                className={cls}
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground">CAC objetivo (máximo, €)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={targetsForm.target_cac}
-                onChange={(e) => setTargetsForm({ ...targetsForm, target_cac: e.target.value })}
-                placeholder="Sin objetivo"
-                className={cls}
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground">CPL objetivo (máximo, €)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={targetsForm.target_cpl}
-                onChange={(e) => setTargetsForm({ ...targetsForm, target_cpl: e.target.value })}
-                placeholder="Sin objetivo"
-                className={cls}
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setShowTargets(false)} className="px-3 py-2 text-sm text-muted-foreground">
-                Cancelar
-              </button>
-              <button
-                onClick={saveTargets}
-                disabled={savingTargets}
-                className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg disabled:opacity-50"
-              >
-                {savingTargets ? 'Guardando…' : 'Guardar'}
-              </button>
-            </div>
+      <Dialog open={showTargets} onOpenChange={(o) => !o && setShowTargets(false)}>
+        <DialogContent className="w-full max-w-md gap-3 p-5">
+          <DialogHeader>
+            <DialogTitle className="text-foreground font-semibold">Objetivos de rendimiento</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            Se usan para pintar en verde/ámbar/rojo los KPIs del embudo de ads. Deja vacío el que no quieras vigilar.
+          </p>
+          <div>
+            <label className="text-xs text-muted-foreground">ROAS objetivo (mínimo, ej. 3 = 3x)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={targetsForm.target_roas}
+              onChange={(e) => setTargetsForm({ ...targetsForm, target_roas: e.target.value })}
+              placeholder="Sin objetivo"
+              className={cls}
+            />
           </div>
-        </div>
-      )}
+          <div>
+            <label className="text-xs text-muted-foreground">CAC objetivo (máximo, €)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={targetsForm.target_cac}
+              onChange={(e) => setTargetsForm({ ...targetsForm, target_cac: e.target.value })}
+              placeholder="Sin objetivo"
+              className={cls}
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">CPL objetivo (máximo, €)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={targetsForm.target_cpl}
+              onChange={(e) => setTargetsForm({ ...targetsForm, target_cpl: e.target.value })}
+              placeholder="Sin objetivo"
+              className={cls}
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={() => setShowTargets(false)} className="px-3 py-2 text-sm text-muted-foreground">
+              Cancelar
+            </button>
+            <button
+              onClick={saveTargets}
+              disabled={savingTargets}
+              className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg disabled:opacity-50"
+            >
+              {savingTargets ? 'Guardando…' : 'Guardar'}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {editing && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setEditing(null)}
-        >
-          <div
-            className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-foreground font-semibold">Actualizar {editing.name}</h3>
-              <button onClick={() => setEditing(null)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+        <Dialog open onOpenChange={(o) => !o && setEditing(null)}>
+          <DialogContent className="w-full max-w-md gap-3 p-5">
+            <DialogHeader>
+              <DialogTitle className="text-foreground font-semibold">Actualizar {editing.name}</DialogTitle>
+            </DialogHeader>
             <div>
               <label className="text-xs text-muted-foreground">Gasto real acumulado (€)</label>
               <input
@@ -1105,147 +1086,136 @@ export default function CampaignsPage() {
                 {savingEdit ? 'Guardando…' : 'Guardar'}
               </button>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
-      {showNew && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setShowNew(false)}
-        >
-          <div
-            className="bg-card border border-border rounded-xl p-5 w-full max-w-lg space-y-3 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-foreground font-semibold">Nueva campaña</h3>
-              <button onClick={() => setShowNew(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-4 h-4" />
-              </button>
+      <Dialog open={showNew} onOpenChange={(o) => !o && setShowNew(false)}>
+        <DialogContent className="w-full max-w-lg gap-3 p-5 max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-foreground font-semibold">Nueva campaña</DialogTitle>
+          </DialogHeader>
+          <input
+            value={nc.name}
+            onChange={(e) => setNc({ ...nc, name: e.target.value })}
+            placeholder="Nombre de la campaña"
+            className={cls}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <select value={nc.channel} onChange={(e) => setNc({ ...nc, channel: e.target.value })} className={cls}>
+              {CHANNELS.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            <select value={nc.type} onChange={(e) => setNc({ ...nc, type: e.target.value })} className={cls}>
+              {TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Fecha inicio</label>
+              <input
+                type="date"
+                value={nc.start_date}
+                onChange={(e) => setNc({ ...nc, start_date: e.target.value })}
+                className={cls}
+              />
             </div>
-            <input
-              value={nc.name}
-              onChange={(e) => setNc({ ...nc, name: e.target.value })}
-              placeholder="Nombre de la campaña"
-              className={cls}
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <select value={nc.channel} onChange={(e) => setNc({ ...nc, channel: e.target.value })} className={cls}>
-                {CHANNELS.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-              <select value={nc.type} onChange={(e) => setNc({ ...nc, type: e.target.value })} className={cls}>
-                {TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-muted-foreground">Fecha inicio</label>
-                <input
-                  type="date"
-                  value={nc.start_date}
-                  onChange={(e) => setNc({ ...nc, start_date: e.target.value })}
-                  className={cls}
-                />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Fecha fin</label>
-                <input
-                  type="date"
-                  value={nc.end_date}
-                  onChange={(e) => setNc({ ...nc, end_date: e.target.value })}
-                  className={cls}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-muted-foreground">Presupuesto (€)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={nc.budget}
-                  onChange={(e) => setNc({ ...nc, budget: e.target.value })}
-                  placeholder="0.00"
-                  className={cls}
-                />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Gasto real (€)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={nc.adspend}
-                  onChange={(e) => setNc({ ...nc, adspend: e.target.value })}
-                  placeholder="0.00"
-                  className={cls}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs text-muted-foreground">Impresiones</label>
-                <input
-                  type="number"
-                  value={nc.impressions}
-                  onChange={(e) => setNc({ ...nc, impressions: e.target.value })}
-                  placeholder="0"
-                  className={cls}
-                />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Clics</label>
-                <input
-                  type="number"
-                  value={nc.clicks}
-                  onChange={(e) => setNc({ ...nc, clicks: e.target.value })}
-                  placeholder="0"
-                  className={cls}
-                />
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Leads</label>
-                <input
-                  type="number"
-                  value={nc.leads_generated}
-                  onChange={(e) => setNc({ ...nc, leads_generated: e.target.value })}
-                  placeholder="0"
-                  className={cls}
-                />
-              </div>
-            </div>
-            <input
-              value={nc.ad_source}
-              onChange={(e) => setNc({ ...nc, ad_source: e.target.value })}
-              placeholder="Fuente del anuncio (ad_source)"
-              className={cls}
-            />
-            <textarea
-              value={nc.notes}
-              onChange={(e) => setNc({ ...nc, notes: e.target.value })}
-              rows={2}
-              placeholder="Notas"
-              className={cls}
-            />
-            <div className="flex justify-end gap-2 pt-1">
-              <button onClick={() => setShowNew(false)} className="px-3 py-2 text-sm text-muted-foreground">
-                Cancelar
-              </button>
-              <button onClick={create} className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg">
-                Crear
-              </button>
+            <div>
+              <label className="text-xs text-muted-foreground">Fecha fin</label>
+              <input
+                type="date"
+                value={nc.end_date}
+                onChange={(e) => setNc({ ...nc, end_date: e.target.value })}
+                className={cls}
+              />
             </div>
           </div>
-        </div>
-      )}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Presupuesto (€)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={nc.budget}
+                onChange={(e) => setNc({ ...nc, budget: e.target.value })}
+                placeholder="0.00"
+                className={cls}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Gasto real (€)</label>
+              <input
+                type="number"
+                step="0.01"
+                value={nc.adspend}
+                onChange={(e) => setNc({ ...nc, adspend: e.target.value })}
+                placeholder="0.00"
+                className={cls}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground">Impresiones</label>
+              <input
+                type="number"
+                value={nc.impressions}
+                onChange={(e) => setNc({ ...nc, impressions: e.target.value })}
+                placeholder="0"
+                className={cls}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Clics</label>
+              <input
+                type="number"
+                value={nc.clicks}
+                onChange={(e) => setNc({ ...nc, clicks: e.target.value })}
+                placeholder="0"
+                className={cls}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Leads</label>
+              <input
+                type="number"
+                value={nc.leads_generated}
+                onChange={(e) => setNc({ ...nc, leads_generated: e.target.value })}
+                placeholder="0"
+                className={cls}
+              />
+            </div>
+          </div>
+          <input
+            value={nc.ad_source}
+            onChange={(e) => setNc({ ...nc, ad_source: e.target.value })}
+            placeholder="Fuente del anuncio (ad_source)"
+            className={cls}
+          />
+          <textarea
+            value={nc.notes}
+            onChange={(e) => setNc({ ...nc, notes: e.target.value })}
+            rows={2}
+            placeholder="Notas"
+            className={cls}
+          />
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={() => setShowNew(false)} className="px-3 py-2 text-sm text-muted-foreground">
+              Cancelar
+            </button>
+            <button onClick={create} className="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg">
+              Crear
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -432,7 +432,7 @@ export default function PipelinePage() {
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
               <TargetIcon className="w-3.5 h-3.5" /> Objetivos
             </h2>
-            <p className="text-[11px] text-muted-foreground -mt-2 mb-3">
+            <p className="text-2xs text-muted-foreground -mt-2 mb-3">
               Los objetivos miden su propia ventana (hoy/semana/mes), independiente del filtro de periodo de esta
               página. El ranking y las velocidades de abajo SÍ usan el filtro.
             </p>

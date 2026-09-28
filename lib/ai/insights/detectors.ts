@@ -44,8 +44,15 @@ function weekKey(d: Date): string {
 const pctChange = (curr: number | null, prev: number | null): number | null =>
   curr === null || prev === null || prev === 0 ? null : ((curr - prev) / prev) * 100
 
-export async function detectAnomalies(tenantId: string, sb: SupabaseClient): Promise<DetectedAnomaly[]> {
-  const ctx: ToolContext = { tenantId, sb }
+export async function detectAnomalies(
+  tenantId: string,
+  sb: SupabaseClient,
+  // Instantánea de config del tenant (getTenantConfigWithFallback): sin ella, las tools de campaigns
+  // no pueden acotar a las cuentas seleccionadas en Integraciones y las anomalías de CAC/ROAS se
+  // calcularían con el gasto de cuentas históricas deseleccionadas.
+  env?: Record<string, string | undefined>
+): Promise<DetectedAnomaly[]> {
+  const ctx: ToolContext = { tenantId, sb, env }
   const { current, previous } = last7DaysWindows()
   const wk = weekKey(new Date())
   const [now, prev] = await Promise.all([getBusinessOverview(ctx, current), getBusinessOverview(ctx, previous)])
@@ -53,8 +60,12 @@ export async function detectAnomalies(tenantId: string, sb: SupabaseClient): Pro
 
   const anomalies: DetectedAnomaly[] = []
 
-  const cacNow = now.ventas > 0 ? now.inversion / now.ventas : null
-  const cacPrev = prev.ventas > 0 ? prev.inversion / prev.ventas : null
+  // Un fallo de lectura en cualquiera de las dos ventanas NO es un cero: comparar contra un cero
+  // fabricado anunciaría un "CAC subió 400%" o "ROAS cayó" que nunca ocurrió — el detector se
+  // salta la comparación entera y espera al siguiente run en vez de mentir con una anomalía falsa.
+  const lecturaFallida = !!(now.error || prev.error)
+  const cacNow = !lecturaFallida && now.ventas != null && now.ventas > 0 ? (now.inversion ?? 0) / now.ventas : null
+  const cacPrev = !lecturaFallida && prev.ventas != null && prev.ventas > 0 ? (prev.inversion ?? 0) / prev.ventas : null
   const cacDelta = pctChange(cacNow, cacPrev)
   if (cacDelta !== null && cacDelta > 25 && (cacNow ?? 0) > 0) {
     anomalies.push({
@@ -69,8 +80,9 @@ export async function detectAnomalies(tenantId: string, sb: SupabaseClient): Pro
     })
   }
 
-  const roasDelta = pctChange(funnelNow.roas, funnelPrev.roas)
-  if (roasDelta !== null && roasDelta < -20 && funnelPrev.roas !== null && funnelPrev.roas > 0) {
+  const funnelLecturaFallida = !!(funnelNow.error || funnelPrev.error)
+  const roasDelta = funnelLecturaFallida ? null : pctChange(funnelNow.roas ?? null, funnelPrev.roas ?? null)
+  if (roasDelta !== null && roasDelta < -20 && funnelPrev.roas !== null && funnelPrev.roas! > 0) {
     anomalies.push({
       type: 'roas_decrease',
       severity: roasDelta < -40 ? 'critical' : 'warning',
@@ -83,8 +95,10 @@ export async function detectAnomalies(tenantId: string, sb: SupabaseClient): Pro
     })
   }
 
-  const showRateDelta = pctChange(funnelNow.pctShowUp, funnelPrev.pctShowUp)
-  if (showRateDelta !== null && showRateDelta < -15 && funnelPrev.pctShowUp !== null && funnelPrev.pctShowUp > 0) {
+  const showRateDelta = funnelLecturaFallida
+    ? null
+    : pctChange(funnelNow.pctShowUp ?? null, funnelPrev.pctShowUp ?? null)
+  if (showRateDelta !== null && showRateDelta < -15 && funnelPrev.pctShowUp !== null && funnelPrev.pctShowUp! > 0) {
     anomalies.push({
       type: 'show_rate_drop',
       severity: showRateDelta < -30 ? 'critical' : 'warning',
@@ -97,8 +111,10 @@ export async function detectAnomalies(tenantId: string, sb: SupabaseClient): Pro
     })
   }
 
-  const closeRateDelta = pctChange(funnelNow.pctCierre, funnelPrev.pctCierre)
-  if (closeRateDelta !== null && closeRateDelta < -15 && funnelPrev.pctCierre !== null && funnelPrev.pctCierre > 0) {
+  const closeRateDelta = funnelLecturaFallida
+    ? null
+    : pctChange(funnelNow.pctCierre ?? null, funnelPrev.pctCierre ?? null)
+  if (closeRateDelta !== null && closeRateDelta < -15 && funnelPrev.pctCierre !== null && funnelPrev.pctCierre! > 0) {
     anomalies.push({
       type: 'close_rate_drop',
       severity: closeRateDelta < -30 ? 'critical' : 'warning',
@@ -111,8 +127,8 @@ export async function detectAnomalies(tenantId: string, sb: SupabaseClient): Pro
     })
   }
 
-  const roasUpDelta = pctChange(funnelNow.roas, funnelPrev.roas)
-  if (roasUpDelta !== null && roasUpDelta > 30 && funnelPrev.roas !== null && funnelPrev.roas > 0) {
+  const roasUpDelta = funnelLecturaFallida ? null : pctChange(funnelNow.roas ?? null, funnelPrev.roas ?? null)
+  if (roasUpDelta !== null && roasUpDelta > 30 && funnelPrev.roas !== null && funnelPrev.roas! > 0) {
     anomalies.push({
       type: 'roas_opportunity',
       severity: 'opportunity',

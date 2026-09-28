@@ -10,7 +10,7 @@
       "dependabot/**": false
     }
   },
-  "ignoreCommand": "if [ \"$VERCEL_ENV\" != \"production\" ] && git diff --quiet HEAD^ HEAD -- . ':!docs/**' ':!*.md'; then exit 0; else exit 1; fi",
+  "ignoreCommand": "if git diff --quiet HEAD^ HEAD -- . ':!docs/**' ':!*.md'; then exit 0; else exit 1; fi",
   "crons": [
     { "path": "/api/_/evergreen/cron/meta-ads", "schedule": "0 2 * * *" },
     { "path": "/api/_/evergreen/cron/reminders", "schedule": "0 7 * * *" }

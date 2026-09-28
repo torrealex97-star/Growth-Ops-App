@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { GraduationCap, ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { addMonthsUTC, parseFechaDia } from '@/lib/sales/plan-cuotas'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
@@ -87,7 +88,7 @@ function computeProgress(row: StudentRow): ProgramProgress {
     }
   }
 
-  const startDate = new Date(startStr)
+  const startDate = parseFechaDia(startStr)
   if (isNaN(startDate.getTime())) {
     return {
       startDate: null,
@@ -110,11 +111,14 @@ function computeProgress(row: StudentRow): ProgramProgress {
     return { startDate, currentMonth, totalMonths: null, endDate: null, renewalStatus: 'sin_dato', daysToEnd: null }
   }
 
-  const endDate = new Date(startDate)
-  endDate.setMonth(endDate.getMonth() + totalMonths)
+  // Fin del programa: el día del mes se recorta al último día del mes destino
+  // (30 ene + 12 meses = 28/29 feb, nunca 2 mar) y daysToEnd cuenta DÍAS DE
+  // CALENDARIO (ambas fechas ancladas a medianoche UTC), sin sesgo horario.
+  const endDate = parseFechaDia(addMonthsUTC(startDate, totalMonths))
 
   const msPerDay = 1000 * 60 * 60 * 24
-  const daysToEnd = Math.round((endDate.getTime() - now.getTime()) / msPerDay)
+  const hoyUTC = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  const daysToEnd = Math.round((endDate.getTime() - hoyUTC) / msPerDay)
 
   let renewalStatus: RenewalStatus = 'ok'
   if (daysToEnd <= 0) renewalStatus = 'vencido'
@@ -177,7 +181,7 @@ function FunnelStat({ label, value, sub, tone }: { label: string; value: number;
     <div className="rounded-lg border border-border bg-muted/30 p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className={`text-2xl font-bold mt-1 ${FUNNEL_TONE[tone] ?? 'text-foreground'}`}>{value}</p>
-      <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>
+      <p className="text-2xs text-muted-foreground mt-0.5">{sub}</p>
     </div>
   )
 }
@@ -187,7 +191,7 @@ function TrackDot({ on, label }: { on: boolean; label: string }) {
   return (
     <span
       title={label}
-      className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border ${
+      className={`inline-flex items-center gap-1 text-3xs px-1.5 py-0.5 rounded border ${
         on ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-muted text-muted-foreground border-border'
       }`}
     >
@@ -572,7 +576,7 @@ export default function StudentsPage() {
       <div className="rounded-lg border border-border overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
+            <tr className="text-2xs uppercase tracking-wider text-muted-foreground border-b border-border">
               <th className="text-left font-medium p-3">Alumno</th>
               <th className="text-left font-medium p-3">Programa</th>
               <th className="text-right font-medium p-3">Importe</th>
@@ -653,7 +657,7 @@ export default function StudentsPage() {
                             </div>
                             {(progress.renewalStatus === 'proxima' || progress.renewalStatus === 'vencido') && (
                               <span
-                                className={`inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded border ${
+                                className={`inline-block mt-1 text-3xs px-1.5 py-0.5 rounded border ${
                                   progress.renewalStatus === 'vencido'
                                     ? 'bg-red-500/20 text-red-400 border-red-500/30'
                                     : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
@@ -747,7 +751,7 @@ export default function StudentsPage() {
                                 className={`${cls} w-full`}
                               />
                               {r.onboarding_scheduled_at && (
-                                <p className="text-[11px] text-amber-400 mt-1">
+                                <p className="text-2xs text-amber-400 mt-1">
                                   Agendó onboarding
                                   {r.onboarding_session_at
                                     ? ` · sesión ${new Date(r.onboarding_session_at).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`

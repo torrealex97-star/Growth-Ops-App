@@ -11,6 +11,7 @@
 //  §23 Logs estructurados sin secretos.
 
 import { randomUUID } from 'crypto'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { adapterFor } from './normalize'
 import {
   RESEARCH_LIMITS,
@@ -23,6 +24,7 @@ import {
 const APIFY_API = 'https://api.apify.com/v2'
 // Timeout de petición HTTP a Apify (no confundir con la duración del run, que es asíncrona).
 const APIFY_TIMEOUT_MS = RESEARCH_LIMITS.requestTimeoutMs
+const APIFY_WEBHOOK_CLAIM_PREFIX = 'apify_webhook_claim:'
 
 export class ApifyError extends Error {
   constructor(
@@ -127,8 +129,14 @@ export const ApifyService = {
         }
       )
       if (!res.ok) throw new ApifyError(`Apify respondió ${res.status} al leer el dataset`, res.status)
-      const batch = (await res.json().catch(() => [])) as unknown
-      const items = Array.isArray(batch) ? (batch as FilaJson[]) : []
+      let batch: unknown
+      try {
+        batch = await res.json()
+      } catch {
+        throw new ApifyError('Apify devolvió JSON inválido al leer el dataset')
+      }
+      if (!Array.isArray(batch)) throw new ApifyError('Apify devolvió un dataset con formato inválido')
+      const items = batch as FilaJson[]
       out.push(...items)
       if (items.length < limit) break
       offset += items.length
@@ -202,7 +210,7 @@ export type CreateResearchResult =
  * submits duplicados del frontend.
  */
 export async function createResearchJob(
-  sb: any, // SupabaseClient con service-role
+  sb: SupabaseClient, // cliente con service-role
   tenantId: string,
   platform: SocialPlatform,
   input: ResearchInput,
@@ -222,11 +230,14 @@ export async function createResearchJob(
   const resultsLimit = Math.min(Math.max(1, input.resultsLimit), RESEARCH_LIMITS.maxResultsPerProfile)
 
   // §24: no más de N jobs en marcha a la vez para este tenant.
-  const { count: enMarcha } = await sb
+  const { count: enMarcha, error: countError } = await sb
     .from('social_research_jobs')
     .select('id', { count: 'exact', head: true })
     .eq('tenant_id', tenantId)
     .in('status', ['pending', 'processing'])
+  if (countError) {
+    return { ok: false, error: 'No se pudo comprobar la concurrencia de investigaciones', code: 'proveedor_error' }
+  }
   if ((enMarcha ?? 0) >= RESEARCH_LIMITS.maxConcurrentJobs) {
     return { ok: false, error: 'Ya hay investigaciones en curso: espera a que terminen', code: 'limites' }
   }
@@ -251,18 +262,28 @@ export async function createResearchJob(
   if (jobErr || !job)
     return { ok: false, error: jobErr?.message || 'No se pudo crear el trabajo', code: 'proveedor_error' }
 
-  try {
-    // §17: al Actor SOLO va el input público (usernames/limit). Nunca tokens ni cookies.
-    const run = await ApifyService.runActor(actorId, adapter.buildInput(normalizedInput, resultsLimit), cfg.token)
-    await sb
+  let run: ApifyRun | null = null
+  const startedAt = new Date().toISOString()
+  const persistRunAssociation = async (actorRun: ApifyRun) => {
+    const { data: savedJob, error: stateError } = await sb
       .from('social_research_jobs')
       .update({
         status: 'processing',
-        provider_run_id: run.id,
-        provider_dataset_id: run.defaultDatasetId || null,
-        started_at: new Date().toISOString(),
+        provider_run_id: actorRun.id,
+        provider_dataset_id: actorRun.defaultDatasetId || null,
+        started_at: startedAt,
       })
       .eq('id', job.id)
+      .select('id')
+      .maybeSingle()
+    return !stateError && !!savedJob
+  }
+
+  try {
+    // §17: al Actor SOLO va el input público (usernames/limit). Nunca tokens ni cookies.
+    run = await ApifyService.runActor(actorId, adapter.buildInput(normalizedInput, resultsLimit), cfg.token)
+    if (!run?.id) throw new Error('Apify devolvió un run sin identificador')
+    if (!(await persistRunAssociation(run))) throw new Error('No se pudo asociar el run de Apify al trabajo')
     console.log(
       JSON.stringify({
         evt: 'social_research.created',
@@ -278,11 +299,25 @@ export async function createResearchJob(
     )
     return { ok: true, jobId: job.id, runId: run.id, datasetId: run.defaultDatasetId }
   } catch (e) {
+    if (run?.id) {
+      if (await persistRunAssociation(run)) {
+        console.warn('Se recuperó la asociación del run de Apify tras un error inicial', { jobId: job.id })
+        return { ok: true, jobId: job.id, runId: run.id, datasetId: run.defaultDatasetId }
+      }
+      const msg = e instanceof Error ? e.message : 'Error asociando el run de Apify'
+      console.error('Run Apify lanzado pero pendiente de asociar al job', { jobId: job.id, runId: run.id })
+      return { ok: false, error: msg, code: 'proveedor_error' }
+    }
     const msg = e instanceof Error ? e.message : 'Error del proveedor'
-    await sb
+    const { error: stateError } = await sb
       .from('social_research_jobs')
-      .update({ status: 'failed', error_message: msg, completed_at: new Date().toISOString() })
+      .update({
+        status: 'failed',
+        error_message: msg,
+        completed_at: new Date().toISOString(),
+      })
       .eq('id', job.id)
+    if (stateError) console.error('No se pudo guardar el fallo del job Apify:', stateError.message)
     return { ok: false, error: msg, code: 'proveedor_error' }
   }
 }
@@ -293,28 +328,72 @@ export async function createResearchJob(
  * y los upsert por external_id hacen que procesar dos veces el mismo webhook no duplique nada.
  */
 export async function processRunResults(
-  sb: any,
+  sb: SupabaseClient,
   cfg: ApifyConfig,
   runId: string,
   opts?: { finalStatus?: 'completed' | 'failed' | 'aborted'; errorMessage?: string }
 ): Promise<{ ok: boolean; jobId?: string; records?: number; error?: string }> {
-  const { data: job } = await sb
+  const { data: job, error: jobError } = await sb
     .from('social_research_jobs')
-    .select('id, tenant_id, platform, job_type, actor_id, input_json, status, provider_dataset_id')
+    .select(
+      'id, tenant_id, platform, job_type, actor_id, input_json, status, provider_dataset_id, started_at, error_message'
+    )
     .eq('provider', 'apify')
     .eq('provider_run_id', runId)
     .maybeSingle()
+  if (jobError) return { ok: false, error: 'No se pudo consultar el trabajo de investigación' }
   if (!job) return { ok: false, error: 'run desconocido' }
   if (job.status === 'completed') return { ok: true, jobId: job.id, records: 0 } // ya procesado
 
   const t0 = Date.now()
   const final = opts?.finalStatus || 'completed'
   if (final !== 'completed') {
-    await sb
+    const { data: updatedJob, error: updateError } = await sb
       .from('social_research_jobs')
       .update({ status: final, error_message: opts?.errorMessage || null, completed_at: new Date().toISOString() })
       .eq('id', job.id)
+      .select('id')
+      .maybeSingle()
+    if (updateError || !updatedJob) {
+      return { ok: false, error: 'No se pudo guardar el estado final del trabajo', jobId: job.id }
+    }
     return { ok: true, jobId: job.id, records: 0 }
+  }
+
+  // started_at marca el inicio del run del actor mientras espera su webhook, así que no sirve por
+  // sí solo como lease del procesador: un actor puede terminar antes de cinco minutos. El marcador
+  // en error_message distingue una lease activa de ese estado normal, sin añadir una columna.
+  const leaseMs = 5 * 60 * 1000
+  const previousStartedAt = job.started_at as string | null
+  const previousError = job.error_message as string | null
+  const previousClaim = previousError?.startsWith(APIFY_WEBHOOK_CLAIM_PREFIX) ? previousError : null
+  if (job.status === 'processing' && previousClaim && previousStartedAt) {
+    const claimAge = Date.now() - Date.parse(previousStartedAt)
+    if (Number.isFinite(claimAge) && claimAge < leaseMs) {
+      return { ok: false, error: 'El trabajo ya está siendo procesado; reintenta el webhook', jobId: job.id }
+    }
+  }
+  if (job.status !== 'processing' && job.status !== 'failed') {
+    return { ok: false, error: 'El trabajo no está disponible para procesarse', jobId: job.id }
+  }
+
+  const processingStartedAt = new Date().toISOString()
+  const claimToken = `${APIFY_WEBHOOK_CLAIM_PREFIX}${randomUUID()}`
+  let claim = sb
+    .from('social_research_jobs')
+    .update({
+      status: 'processing',
+      started_at: processingStartedAt,
+      error_message: claimToken,
+      completed_at: null,
+    })
+    .eq('id', job.id)
+    .eq('status', job.status)
+  claim = previousStartedAt ? claim.eq('started_at', previousStartedAt) : claim.is('started_at', null)
+  claim = previousError ? claim.eq('error_message', previousError) : claim.is('error_message', null)
+  const { data: claimedJob, error: claimError } = await claim.select('id').maybeSingle()
+  if (claimError || !claimedJob) {
+    return { ok: false, error: 'El trabajo fue reclamado por otro webhook; reintenta', jobId: job.id }
   }
 
   try {
@@ -323,19 +402,15 @@ export async function processRunResults(
     if (!datasetId) {
       const run = await ApifyService.getRun(runId, cfg.token)
       datasetId = run.defaultDatasetId
-      if (!datasetId) return { ok: false, error: 'el run no tiene dataset', jobId: job.id }
+      if (!datasetId) throw new Error('El run no tiene dataset')
     }
 
     const items = await ApifyService.fetchDatasetItems(datasetId, cfg.token)
     const adapter = adapterFor(job.platform as SocialPlatform, job.job_type as SocialJobType)
+    if (!adapter) throw new Error('Tipo de investigación no soportado al procesar el dataset')
     const input = (job.input_json || {}) as ResearchInput
     const usernames: string[] = Array.isArray(input.usernames) ? input.usernames : []
-    const normalized = adapter ? adapter.normalize(items, usernames) : { profiles: [], posts: [] }
-
-    // Raw (§11): para debugging; la app nunca lee de aquí.
-    if (items.length) {
-      await sb.from('social_raw_payloads').insert({ tenant_id: job.tenant_id, job_id: job.id, payload: items })
-    }
+    const normalized = adapter.normalize(items, usernames)
 
     // Upsert de perfiles → mapa username→id para atar los posts.
     const profileIds = new Map<string, string>()
@@ -363,7 +438,8 @@ export async function processRunResults(
         .upsert(row, { onConflict: 'tenant_id,platform,username' })
         .select('id, username')
         .single()
-      if (!upErr && up) profileIds.set(String(up.username).toLowerCase(), up.id)
+      if (upErr || !up) throw new Error(`No se pudo guardar el perfil ${p.username}`)
+      profileIds.set(String(up.username).toLowerCase(), up.id)
     }
 
     // Upsert de posts (unique tenant+platform+external_id → webhook doble no duplica).
@@ -393,10 +469,28 @@ export async function processRunResults(
       const { error: upErr } = await sb
         .from('social_posts')
         .upsert(row, { onConflict: 'tenant_id,platform,external_id' })
-      if (!upErr) processed++
+      if (upErr) throw new Error(`No se pudo guardar el post ${p.externalId}`)
+      processed++
     }
 
-    await sb
+    // Raw (§11): persistirlo después de los upserts idempotentes y evitar duplicarlo en retries.
+    if (items.length) {
+      const { data: existingRaw, error: rawReadError } = await sb
+        .from('social_raw_payloads')
+        .select('id')
+        .eq('job_id', job.id)
+        .limit(1)
+        .maybeSingle()
+      if (rawReadError) throw new Error('No se pudo comprobar el payload raw del trabajo')
+      if (!existingRaw) {
+        const { error: rawInsertError } = await sb
+          .from('social_raw_payloads')
+          .insert({ id: job.id, tenant_id: job.tenant_id, job_id: job.id, payload: items })
+        if (rawInsertError) throw new Error('No se pudo guardar el payload raw del trabajo')
+      }
+    }
+
+    const { data: completedJob, error: completionError } = await sb
       .from('social_research_jobs')
       .update({
         status: 'completed',
@@ -405,6 +499,12 @@ export async function processRunResults(
         error_message: null,
       })
       .eq('id', job.id)
+      .eq('status', 'processing')
+      .eq('started_at', processingStartedAt)
+      .eq('error_message', claimToken)
+      .select('id')
+      .maybeSingle()
+    if (completionError || !completedJob) throw new Error('No se pudo confirmar el estado completado del trabajo')
 
     console.log(
       JSON.stringify({
@@ -422,10 +522,14 @@ export async function processRunResults(
     return { ok: true, jobId: job.id, records: processed }
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'error procesando el dataset'
-    await sb
+    const { error: stateError } = await sb
       .from('social_research_jobs')
       .update({ status: 'failed', error_message: msg, completed_at: new Date().toISOString() })
       .eq('id', job.id)
+      .eq('status', 'processing')
+      .eq('started_at', processingStartedAt)
+      .eq('error_message', claimToken)
+    if (stateError) console.error('No se pudo guardar el fallo del job Apify:', stateError.message)
     return { ok: false, error: msg, jobId: job.id }
   }
 }

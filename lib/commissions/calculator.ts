@@ -1,4 +1,5 @@
 import { addMonths, startOfMonth } from 'date-fns'
+import { addMonthsUTC } from '@/lib/sales/plan-cuotas'
 import type {
   Collection,
   Commission,
@@ -21,6 +22,16 @@ export function participantTypeForUser(
 ): ParticipantType {
   if (userId && colaboradoresActivos && colaboradoresActivos.has(userId)) return 'collaborator'
   return 'affiliate'
+}
+
+// EXENTOS DE COMISIÓN (migración 20260923160000, users.pays_commissions=false):
+// socios o roles cuyo beneficio no va por el ledger. La exención es por PERSONA
+// y vale para CUALQUIER rol (un socio puede cerrar como closer): si está en el
+// conjunto, el motor no le genera fila — ni positiva al cobrar ni, por el mismo
+// rasero, en la proyección de comisiones futuras.
+export function esExentoDeComision(userId: string | null | undefined, exentos?: Set<string> | null): boolean {
+  if (!userId || !exentos) return false
+  return exentos.has(userId)
 }
 
 function getLiquidationMonth(collectedAt: Date): string {
@@ -261,13 +272,10 @@ function calculateExpectedInstallments(
   const installmentCommissionable = commissionableAmount / numberOfPayments
 
   for (let i = 1; i <= numberOfPayments; i++) {
-    const dueDate = new Date(saleDate)
-    dueDate.setMonth(dueDate.getMonth() + (i - 1))
-
     installments.push({
       sale_id: saleId,
       installment_number: i,
-      due_date: dueDate.toISOString().split('T')[0],
+      due_date: addMonthsUTC(saleDate, i - 1),
       expected_gross_amount: Math.round(installmentGross * 100) / 100,
       expected_commissionable_amount: Math.round(installmentCommissionable * 100) / 100,
       status: 'pending' as const,
@@ -286,7 +294,7 @@ export function buildRestInstallments(opts: {
   cashCollectionRatio: number // ratio para el importe comisionable de cada cuota
   alreadyPaid: number // reserva + entrada ya cobradas al momento
   restCount: number // nº de cuotas para el resto
-  startDate: Date // fecha de la primera cuota del resto
+  startDate: string | Date // 'YYYY-MM-DD' o Date anclado en UTC: fecha de la primera cuota del resto
 }) {
   const { saleId, totalGross, cashCollectionRatio, alreadyPaid, restCount, startDate } = opts
   const remaining = Math.max(Math.round((totalGross - alreadyPaid) * 100) / 100, 0)
@@ -298,15 +306,13 @@ export function buildRestInstallments(opts: {
   const rows = []
   let allocated = 0
   for (let i = 1; i <= n; i++) {
-    const dueDate = new Date(startDate)
-    dueDate.setMonth(dueDate.getMonth() + (i - 1))
     // La última cuota absorbe el redondeo para que sumen exactamente el resto
     const gross = i === n ? Math.round((remaining - allocated) * 100) / 100 : per
     allocated += per
     rows.push({
       sale_id: saleId,
       installment_number: i,
-      due_date: dueDate.toISOString().split('T')[0],
+      due_date: addMonthsUTC(startDate, i - 1),
       expected_gross_amount: gross,
       expected_commissionable_amount: Math.round(gross * ratio * 100) / 100,
       status: 'pending' as const,
