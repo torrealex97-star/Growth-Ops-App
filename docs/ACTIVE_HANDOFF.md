@@ -1,5 +1,28 @@
 # Relevo activo
 
+## ✅ Producción desbloqueada: builds de Vercel vuelven a desplegar + logo IA Winners 404 (PR #280, 28-sep tarde)
+
+**Diagnóstico (5× `BUILD_EXCEEDED_MAXIMUM_TIME`, 10:37Z-15:16Z):** los builds de Vercel expiraban
+en la fase «Linting and checking validity of types» (el compile de Next acababa en 3,2 min):
+ESLint 9 (#262) + Tailwind 4 (#263) dispararon la carga de tipos que en CI exige 6 GB de heap, y
+la instancia de build de Hobby no llega. **Producción estuvo congelada desde 06:26Z** (f18e336):
+todo el trabajo del día (PRs #271-#277) seguía fuera.
+
+**Fix (`44dcecc`):** `next.config.js` salta typecheck/eslint SOLO en la build de Vercel
+(`process.env.VERCEL`); CI de GitHub sigue siendo el gate de tipos/lint de cada SHA (4 jobs, 6 GB).
+**Resultado verificado en producción:** el deployment de `44dcecc` pasó a READY en **~7 minutos**
+(los builds pre-fix seguían expirando a los ~45-50 min — `d07bb45` murió exactamente igual mientras
+el fix esperaba cola: control experimental involuntario).
+
+Verificación en vivo tras el despliegue: `/brand/iawinners-logo.png` → **404** (borrado desplegado;
+la marca IA Winners ya no queda accesible públicamente), home 200, hero.mp4 825.608 bytes y poster
+WebP 17.598 con etags = MD5 del repo, PNG viejo 404, HTML de la home sin ninguna referencia a
+iawinners. Riesgo asumido declarado: un push directo a main sin PR desplegaría sin typecheck (no
+existe tal workflow hoy; si aparece, retirar el flag).
+
+Nota: **ojo con la sección siguiente** («Dashboard WDC… deployment pendiente») — su pendiente de
+despliegue quedó resuelto por este mismo deployment (`44dcecc` es descendiente de esos commits).
+
 ## ⏳ Dashboard WDC alineado con el filtro temporal — código en `main`, deployment pendiente (28-sep tarde)
 
 **No repetir el desarrollo.** Los cambios están publicados directamente en `main` en los commits
@@ -1281,7 +1304,6 @@ fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo 
 
 | Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama           | Toca                                                                                            | Desde  |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
-| Freebuff (Buffy)  | **Producción congelada: builds de Vercel expiran en el typecheck (5× BUILD_EXCEEDED_MAXIMUM_TIME el 28-sep, 10:37Z-15:16Z; último READY f18e336 06:26Z).** Causa: ESLint 9 #262 + Tailwind 4 #263 dispararon la carga de tipos; la build de Hobby no tiene la memoria del runner de CI (que typecheckea con 6GB). Fix en PR: skip de typecheck/eslint SOLO en la build de Vercel (VERCEL env) — CI de GitHub sigue siendo el gate de cada SHA | `fix/vercel-skip-typecheck` | `next.config.js` + handoff | 28-sep |
 | Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
 | Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
 
