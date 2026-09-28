@@ -80,3 +80,29 @@ test('past scheduled calls are not attendance; no-show is resolved; reserves are
   assert.equal(result.tasaAsistencia, 50)
   assert.equal(result.ventas, 0)
 })
+
+test('estados y porcentajes de asistencia comparten la población deduplicada del embudo', () => {
+  const a = appointment('a', '2026-09-10', 'show')
+  const result = buildPeriodFunnel(
+    [],
+    [
+      a,
+      { ...a, id: 'duplicate' },
+      appointment('b', '2026-09-11', 'cancelled'),
+      appointment('c', '2026-09-12', 'no_show'),
+      appointment('d', '2026-09-13', 'scheduled'),
+    ],
+    [],
+    true,
+    range,
+    now
+  )
+  assert.equal(result.agendas, 4)
+  assert.equal(result.asistencias, 1)
+  assert.equal(result.canceladas, 1)
+  assert.equal(result.noShows, 1)
+  assert.equal(
+    Object.values(result.estados).reduce((sum, n) => sum + n, 0),
+    4
+  )
+})

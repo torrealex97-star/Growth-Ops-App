@@ -1,4 +1,6 @@
 import { cuentaComoVenta, leadDate } from '@/lib/analytics'
+import { isCancelled } from '@/lib/unit-economics'
+import { isNoShow } from '@/lib/appointments/status'
 import { isAttended } from '@/lib/appointments/status'
 import { canonicalizeLeads, canonicalizeAppointments } from '@/lib/canonical/dedup'
 import { inPeriod, type PeriodRange } from '@/lib/filters/period'
@@ -55,6 +57,12 @@ export function buildPeriodFunnel(
   return {
     leads: leads.filter((l) => visible(l.createdAt)).length,
     agendas: booked.length,
+    canceladas: booked.filter((a) => isCancelled(a.status)).length,
+    noShows: booked.filter((a) => isNoShow(a.status)).length,
+    estados: booked.reduce<Record<string, number>>((acc, a) => {
+      acc[a.status] = (acc[a.status] ?? 0) + 1
+      return acc
+    }, {}),
     asistencias: attended.length,
     cierres: active.length,
     facturacion: active.reduce((sum, s) => sum + Number(s.gross_amount ?? 0), 0),

@@ -25,7 +25,7 @@ import {
 } from '@/lib/filters/period'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import ColaboradorDashboard from '@/components/collaborators/ColaboradorDashboard'
-import { clasificarCobrosPorMes } from '@/lib/finance/nuevo-vs-recurrente'
+import { canonicalCash, serieCanonicaCash, type StripePaymentRow } from '@/lib/canonical/cash'
 import { resolverScopeColaborador, type ScopeColaborador } from '@/lib/collaborators/scope'
 import { useTenantId } from '@/lib/tenant-context'
 import {
@@ -155,6 +155,7 @@ function DashboardEquipo() {
   const [userId, setUserId] = useState<string | null>(null)
   const [myRoleKey, setMyRoleKey] = useState<AppRole | ''>('')
   const [sales, setSales] = useState<SaleRow[]>([])
+  const [stripePayments, setStripePayments] = useState<StripePaymentRow[]>([])
   const [collections, setCollections] = useState<CollectionRow[]>([])
   const [commissions, setCommissions] = useState<
     { user_id: string; sale_id: string | null; commission_amount: number | string; direction: string; status: string }[]
@@ -263,6 +264,7 @@ function DashboardEquipo() {
         viewsRes,
         commRes,
         collabRes,
+        stripeRes,
       ] = await Promise.all([
         supabase
           .from('sales')
@@ -275,7 +277,7 @@ function DashboardEquipo() {
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('collections')
-          .select('sale_id, gross_amount, collected_at, status')
+          .select('id, sale_id, gross_amount, collected_at, status, payment_reference')
           .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
@@ -326,15 +328,31 @@ function DashboardEquipo() {
           .select('id, name, status')
           .eq('tenant_id', tenantId)
           .eq('status', 'active'),
+        supabase
+          .from('stripe_payments')
+          .select('payment_id, charge_id, amount, refunded_amount, status, paid_at, customer_email')
+          .eq('tenant_id', tenantId)
+          .range(0, FINANCE_QUERY_ROW_CAP),
       ])
 
       if (!mounted) return
-      const fallo = primerError(salesRes, collRes, usersRes, contactsRes, attrRes, apptRes, targetsRes, commRes)
+      const fallo = primerError(
+        salesRes,
+        collRes,
+        usersRes,
+        contactsRes,
+        attrRes,
+        apptRes,
+        targetsRes,
+        commRes,
+        stripeRes
+      )
       setErrorCarga(fallo ? mensajeDeCarga('los datos del panel', fallo) : null)
       // El embed de payment_plans llega anidado: se aplana aquí para que el predicado de venta
       // (cuentaComoVenta) pueda ver si la fila es una reserva todavía abierta.
       setSales(((salesRes.data || []) as SaleRow[]).map((v) => ({ ...v, payment_plan_method: metodoDePlan(v) })))
       setCollections(collRes.data || [])
+      setStripePayments((stripeRes.data || []) as StripePaymentRow[])
       setUsers(usersRes.data || [])
       setRoleUsers((roleUsersRes.data as RoleUser[] | null) || [])
       setContactIds((contactsRes.data || []).map((c: { id: string }) => c.id))
@@ -466,7 +484,28 @@ function DashboardEquipo() {
     )
   }, [appointments, apptMatches, range])
 
-  const cur = useMemo(() => periodKpis(filteredSales, filteredCollections), [filteredSales, filteredCollections])
+  const cashInputs = (targetRange: typeof range) => {
+    const internal = collections
+      .filter((c) => inPeriod(c.collected_at, targetRange) && (member === 'all' || scopedSaleIds.has(c.sale_id)))
+      .map((c) => ({
+        id: c.id!,
+        payment_reference: c.payment_reference ?? null,
+        gross_amount: Number(c.gross_amount),
+        status: c.status,
+        collected_at: c.collected_at,
+      }))
+    const references = new Set(internal.map((c) => c.payment_reference).filter(Boolean))
+    const stripe = stripePayments.filter(
+      (p) =>
+        inPeriod(p.paid_at, targetRange) &&
+        (member === 'all' || references.has(p.payment_id) || (!!p.charge_id && references.has(p.charge_id)))
+    )
+    return { internal, stripe }
+  }
+  const currentCashInputs = cashInputs(range)
+  const currentCash = canonicalCash(currentCashInputs.stripe, currentCashInputs.internal)
+  const curBase = periodKpis(filteredSales, filteredCollections)
+  const cur = { ...curBase, cash: currentCash.net, avgCash: curBase.count ? currentCash.net / curBase.count : 0 }
   const previousSales = useMemo(
     () => sales.filter((sale) => saleMatches(sale) && inPeriod(sale.sale_date, previousRange)),
     [sales, saleMatches, previousRange]
@@ -475,17 +514,23 @@ function DashboardEquipo() {
     () => collections.filter((row) => scopedSaleIds.has(row.sale_id) && inPeriod(row.collected_at, previousRange)),
     [collections, scopedSaleIds, previousRange]
   )
-  const prev = useMemo(() => periodKpis(previousSales, previousCollections), [previousSales, previousCollections])
-  const trend = useMemo(
-    () => financialTrend(filteredSales, filteredCollections, range),
-    [filteredSales, filteredCollections, range]
+  const previousCashInputs = cashInputs(previousRange)
+  const previousCash = canonicalCash(previousCashInputs.stripe, previousCashInputs.internal)
+  const prevBase = periodKpis(previousSales, previousCollections)
+  const prev = { ...prevBase, cash: previousCash.net, avgCash: prevBase.count ? previousCash.net / prevBase.count : 0 }
+  const trend = financialTrend(
+    filteredSales,
+    filteredCollections,
+    range,
+    new Map(
+      serieCanonicaCash(currentCashInputs.stripe, currentCashInputs.internal, [], 'dia').map((p) => [p.cubo, p.neto])
+    )
   )
-  const series = useMemo(() => trend.points.map(({ date, amount }) => ({ date, amount })), [trend])
-  const cashSeries = useMemo(() => trend.points.map(({ date, cash }) => ({ date, cash })), [trend])
+  const series = trend.points.map(({ date, amount }) => ({ date, amount }))
+  const cashSeries = trend.points.map(({ date, cash }) => ({ date, cash }))
   // NUEVO vs RECURRENTE (definición canónica de lib/finance/nuevo-vs-recurrente):
   // cuánto del cash del mes es primer cobro de ventas nuevas y cuánto son cuotas de
   // ventas de meses pasados (el MRR que sostiene el negocio).
-  const nuevoVsRecurrente = useMemo(() => clasificarCobrosPorMes(filteredCollections, ym), [filteredCollections, ym])
   // roleUsers trae el rol real (roles(key)); necesario para no mezclar puestos en el ranking.
   const usersWithRole = useMemo(
     () => roleUsers.map((u) => ({ id: u.id, full_name: u.full_name, role: u.roles?.key ?? null })),
@@ -924,7 +969,7 @@ function DashboardEquipo() {
             description={
               loading
                 ? 'Libro interno · cobros brutos'
-                : `Libro interno · bruto · nuevo ${fmt(nuevoVsRecurrente.nuevo.importe)} · recurrente ${fmt(nuevoVsRecurrente.recurrente.importe)}`
+                : 'Cobros consolidados de Stripe y otros medios; devoluciones descontadas. Incluye ventas anteriores.'
             }
             compareLabel="vs mes anterior · cobrado real"
             {...delta(cur.cash, prev.cash)}
@@ -939,11 +984,15 @@ function DashboardEquipo() {
           />
           <KPICard
             title={showAverageTicket ? 'Ticket medio por cliente' : 'Cash Collected medio'}
-            value={loading ? '—' : fmt(showAverageTicket ? cur.avgTicket : cur.avgCash)}
+            value={
+              loading || (!showAverageTicket && !cur.count) ? '—' : fmt(showAverageTicket ? cur.avgTicket : cur.avgCash)
+            }
             icon={Receipt}
             loading={loading}
             description={
-              showAverageTicket ? `${productsInPeriod} productos vendidos` : 'por venta con cobro en el periodo'
+              showAverageTicket
+                ? `${productsInPeriod} productos vendidos`
+                : 'Cash Collected / ventas nuevas del periodo; incluye cobros de ventas anteriores'
             }
             compareLabel="vs periodo anterior"
             {...delta(

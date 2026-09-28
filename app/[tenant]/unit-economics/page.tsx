@@ -12,7 +12,6 @@ import {
   AppointmentStatusStrip,
 } from '@/components/os/DepartmentDashboard'
 import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
-import { TargetRow } from '@/components/os/DashboardKPICard'
 import { evaluaTarget, eligeTarget, valorTarget, METRICAS_CON_OBJETIVO } from '@/lib/targets/vs-actual'
 import { PieChart, Target, Users, TrendingUp, Wallet, Filter, MousePointerClick, Megaphone } from 'lucide-react'
 import { cuentaComoVenta } from '@/lib/analytics'
@@ -547,8 +546,14 @@ export default function UnitEconomicsPage() {
   }, [campanasParaTotales, ventasVisibles, cash])
 
   const marketingFunnel = useMemo(
-    () => buildMarketingFunnel(campanasParaTotales, contacts, appointments, ventasVisibles),
-    [campanasParaTotales, contacts, appointments, ventasVisibles]
+    () =>
+      buildMarketingFunnel(
+        campanasParaTotales,
+        contacts,
+        hayPeriodo ? appointments.filter((a) => inPeriod(a.appointment_datetime, rango)) : appointments,
+        ventasVisibles
+      ),
+    [campanasParaTotales, contacts, appointments, ventasVisibles, hayPeriodo, rango]
   )
 
   // REALIDAD OPERACIONAL: totales del CRM en el periodo, SIN exigir atribución. Es lo que el
@@ -585,6 +590,24 @@ export default function UnitEconomicsPage() {
     () => buildSalesOverview(agendasVisibles, ventasVisibles, contacts, filtroEfectivo, new Date(), fathomVisible),
     [agendasVisibles, ventasVisibles, contacts, filtroEfectivo, fathomVisible]
   )
+
+  const actividad = useMemo(() => {
+    const ids = new Set(
+      contacts
+        .filter((c) => filtroEfectivo === 'todos' || (filtroEfectivo === 'ads' ? !!c.campaign_id : !c.campaign_id))
+        .map((c) => c.id)
+    )
+    const matches = (id: string | null) =>
+      filtroEfectivo === 'todos' || (id ? ids.has(id) : filtroEfectivo === 'organico')
+    return buildPeriodFunnel(
+      contacts.filter((c) => ids.has(c.id)),
+      appointments.filter((a) => matches(a.contact_id)),
+      sales.filter((v) => matches(v.contact_id)),
+      hayPeriodo,
+      rango
+    )
+  }, [contacts, appointments, sales, filtroEfectivo, hayPeriodo, rango])
+  const porcentajeAgenda = (n: number) => (actividad.agendas ? formatPercent((n / actividad.agendas) * 100) : '—')
 
   const hasData = campaignsVisibles.length > 0 || sales.length > 0 || appointments.length > 0
   // ¿Hay campañas de anuncios que mirar? Decide si el bloque de atribución se muestra.
@@ -781,13 +804,10 @@ export default function UnitEconomicsPage() {
     canceled: 'Canceladas',
     rescheduled: 'Reagendadas',
   }
-  const appointmentStates = Object.entries(
-    agendasVisibles.reduce<Record<string, number>>((acc, a) => {
-      const label = appointmentLabels[a.status] ?? 'Otro estado'
-      acc[label] = (acc[label] ?? 0) + 1
-      return acc
-    }, {})
-  ).map(([label, value]) => ({ label, value }))
+  const appointmentStates = Object.entries(actividad.estados).map(([status, value]) => ({
+    label: appointmentLabels[status] ?? status,
+    value,
+  }))
   const periodControls = (
     <div role="group" aria-label="Agrupación temporal" className="flex rounded-full bg-muted p-1">
       {(['dia', 'semana', 'mes'] as const).map((g) => (
@@ -896,7 +916,7 @@ export default function UnitEconomicsPage() {
             </div>
           </details>
           <nav aria-label="Departamentos" className="flex flex-wrap gap-2">
-            {['Negocio', 'Marketing', 'Operación', 'Ventas', 'Finanzas', 'Clientes'].map((label, i) => (
+            {['Negocio', 'Marketing', 'Asistencia', 'Ventas', 'Finanzas', 'Clientes'].map((label, i) => (
               <a
                 key={label}
                 href={`#departamento-${i}`}
@@ -923,7 +943,7 @@ export default function UnitEconomicsPage() {
                 description="Cobros confirmados del periodo, sin duplicados y descontando devoluciones"
               />
               <KPICard
-                title="Ventas"
+                title="Ventas nuevas"
                 value={formatNumber(funnelOperativo.cierres)}
                 loading={loading}
                 description="Sin reservas abiertas"
@@ -944,10 +964,10 @@ export default function UnitEconomicsPage() {
                 description="Publicidad del periodo"
               />
               <KPICard
-                title="Clientes con compra"
-                value={formatNumber(totals.totalCustomers)}
+                title="Cash Collected medio"
+                value={funnelOperativo.cierres ? formatCurrency(cash.net / funnelOperativo.cierres) : '—'}
                 loading={loading}
-                description="Contactos únicos con venta"
+                description="Cash Collected del periodo / ventas nuevas del periodo. Incluye cobros de ventas anteriores."
               />
             </div>
             <MetricExplorer
@@ -957,14 +977,13 @@ export default function UnitEconomicsPage() {
               metrics={[
                 {
                   id: 'revenue',
-                  label: 'Facturación',
-                  data: dualFacturacionCash.serie.map((p) => ({ date: p.cubo, value: p.facturacion })),
-                  format: formatCurrency,
-                },
-                {
-                  id: 'cash',
-                  label: 'Cash Collected',
-                  data: dualFacturacionCash.serie.map((p) => ({ date: p.cubo, value: p.cash })),
+                  label: 'Facturación y Cash Collected',
+                  comparisonLabel: 'Cash Collected',
+                  data: dualFacturacionCash.serie.map((p) => ({
+                    date: p.cubo,
+                    value: p.facturacion,
+                    comparison: p.cash,
+                  })),
                   format: formatCurrency,
                 },
                 { id: 'sales', label: 'Ventas', data: seriesEvolucion.cierres },
@@ -1016,38 +1035,12 @@ export default function UnitEconomicsPage() {
                     loading={loading}
                     description="Facturación activa / clientes únicos"
                   />
-                  <div className="dashboard-card p-5">
-                    <div className="flex items-start justify-between mb-4">
-                      <p className="text-sm font-medium text-muted-foreground">Facturación por cliente / CAC</p>
-                      <div className="w-9 h-9 rounded-lg border border-border bg-background flex items-center justify-center">
-                        <Users className="w-4 h-4 text-muted-foreground" />
-                      </div>
-                    </div>
-                    {loading ? (
-                      <div className="space-y-2">
-                        <div className="h-8 w-32 bg-muted animate-pulse rounded" />
-                        <div className="h-4 w-20 bg-muted animate-pulse rounded" />
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-2xl font-bold text-foreground">
-                            {totals.ltvCacRatio !== null
-                              ? `${formatNumber(totals.ltvCacRatio, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}:1`
-                              : '—'}
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-2">
-                          Ratio descriptivo del periodo. No acredita por sí solo la rentabilidad ni el valor de vida del
-                          cliente.
-                        </p>
-                        {(() => {
-                          const t = kpiObjetivos('ltv_cac', totals.ltvCacRatio, 'ratio')
-                          return t ? <TargetRow target={t} /> : null
-                        })()}
-                      </>
-                    )}
-                  </div>
+                  <KPICard
+                    title="Facturación por cliente / CAC"
+                    value={totals.ltvCacRatio === null ? '—' : `${formatNumber(totals.ltvCacRatio)}:1`}
+                    loading={loading}
+                    description="Ratio descriptivo del periodo. No acredita por sí solo la rentabilidad ni el valor de vida del cliente."
+                  />
                 </div>
               </div>
             </details>
@@ -1060,31 +1053,59 @@ export default function UnitEconomicsPage() {
             description="Inversión, demanda y origen de las oportunidades."
             href={`/${tenant}/marketing/adquisicion/campanas`}
           >
+            <div role="group" aria-label="Atribución de Marketing" className="flex gap-2">
+              <button
+                className="rounded-full border px-3 py-2 text-xs"
+                aria-pressed={filtroEfectivo === 'todos'}
+                onClick={() => {
+                  setOrigen('todos')
+                  setAtribucion('todos')
+                }}
+              >
+                Todos los resultados
+              </button>
+              <button
+                className="rounded-full border px-3 py-2 text-xs"
+                aria-pressed={filtroEfectivo === 'ads'}
+                onClick={() => setAtribucion('atribuidos')}
+              >
+                Solo atribuidos
+              </button>
+            </div>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <KPICard title="Inversión publicitaria" value={formatCurrency(totals.totalAdspend)} loading={loading} />
               <KPICard
-                title="Inversión publicitaria"
-                value={formatCurrency(marketingFunnel.adspend)}
+                title="Leads"
+                value={formatNumber(actividad.leads)}
                 loading={loading}
+                description="Leads únicos del CRM, según atribución y periodo seleccionados."
               />
               <KPICard
-                title="Leads de campañas"
-                value={formatNumber(marketingFunnel.leads)}
+                title="Coste por lead"
+                value={actividad.leads ? formatCurrency(totals.totalAdspend / actividad.leads) : '—'}
                 loading={loading}
-                description="Fuente de campañas sincronizadas"
+                description="Inversión / leads del ámbito seleccionado."
               />
+              <KPICard title="Agendas" value={formatNumber(actividad.agendas)} loading={loading} />
               <KPICard
-                title="CPL"
-                value={marketingFunnel.cpl === null ? '—' : formatCurrency(marketingFunnel.cpl)}
+                title="Coste por agenda"
+                value={actividad.agendas ? formatCurrency(totals.totalAdspend / actividad.agendas) : '—'}
                 loading={loading}
-                description="Inversión / leads de campañas"
+                description="Inversión / agendas del ámbito seleccionado."
               />
+              <KPICard title="Ventas nuevas" value={formatNumber(actividad.cierres)} loading={loading} />
               <KPICard
-                title="Agendas atribuidas"
-                value={formatNumber(funnelOperativo.atribuidos.agendas)}
+                title="Coste por venta"
+                value={actividad.cierres ? formatCurrency(totals.totalAdspend / actividad.cierres) : '—'}
                 loading={loading}
-                description="Citas del periodo con campaña asociada"
+                description="Inversión / ventas. CAC usa clientes únicos y se muestra en Economía de adquisición."
               />
             </div>
+            <p className="text-xs text-muted-foreground">
+              {filtroEfectivo === 'todos'
+                ? 'Promedios globales: incluyen resultados sin atribución; no demuestran que todos procedan de anuncios.'
+                : 'Resultados con campaña asociada al contacto.'}
+            </p>
             <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
               <MetricExplorer
                 title="Tendencia de adquisición"
@@ -1139,7 +1160,7 @@ export default function UnitEconomicsPage() {
                         loading={loading}
                       />
                       <KPICard
-                        title="New unique leads"
+                        title="Leads de campañas"
                         value={loading ? '—' : formatNumber(marketingFunnel.leads)}
                         icon={Filter}
                         loading={loading}
@@ -1327,32 +1348,34 @@ export default function UnitEconomicsPage() {
           <DepartmentSection
             id="departamento-2"
             number="02"
-            title="Operación comercial"
+            title="Asistencia"
             description="Del lead a la llamada: volumen y estado de las agendas."
             href={`/${tenant}/crm/agendas`}
           >
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <KPICard
                 title="Agendas"
-                value={formatNumber(ventas.agendas)}
+                value={formatNumber(actividad.agendas)}
                 loading={loading}
-                description="Según el origen seleccionado"
+                description="Total de agendas únicas del ámbito y periodo seleccionados."
               />
               <KPICard
-                title="Asistencias registradas"
-                value={formatNumber(ventas.shows)}
+                title="Cancelaciones"
+                value={`${formatNumber(actividad.canceladas)} · ${porcentajeAgenda(actividad.canceladas)}`}
                 loading={loading}
-                description={
-                  ventas.llamadasSinCita > 0
-                    ? `Incluye ${ventas.llamadasSinCita} grabaciones sin cita asociada`
-                    : 'Asistencia confirmada en CRM'
-                }
+                description="Cancelaciones / total de agendas."
               />
               <KPICard
-                title="Canceladas"
-                value={formatNumber(ventas.canceladas)}
+                title="No shows"
+                value={`${formatNumber(actividad.noShows)} · ${porcentajeAgenda(actividad.noShows)}`}
                 loading={loading}
-                description="Cancelaciones de cita, no de venta"
+                description="No shows registrados / total de agendas. Una cita sin resultado no cuenta como no show."
+              />
+              <KPICard
+                title="Asistencias"
+                value={`${formatNumber(actividad.asistencias)} · ${porcentajeAgenda(actividad.asistencias)}`}
+                loading={loading}
+                description="Asistencias confirmadas / total de agendas. Citas pendientes permanecen en el denominador; no es el Show Rate sobre citas resueltas."
               />
             </div>
             <AppointmentStatusStrip loading={loading} rows={appointmentStates} />
@@ -1394,18 +1417,35 @@ export default function UnitEconomicsPage() {
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 content-start">
                 <KPICard
                   title="Ticket medio"
-                  value={ventas.ventas ? formatCurrency(ventas.facturacion / ventas.ventas) : '—'}
+                  value={
+                    funnelOperativo.cierres
+                      ? formatCurrency(funnelOperativo.facturacion / funnelOperativo.cierres)
+                      : '—'
+                  }
                   loading={loading}
-                  description="Facturación / ventas del origen seleccionado"
+                  description="Facturación / ventas nuevas del periodo; total de empresa, como Negocio."
+                />
+                <KPICard
+                  title="Cash Collected medio"
+                  value={funnelOperativo.cierres ? formatCurrency(cash.net / funnelOperativo.cierres) : '—'}
+                  loading={loading}
+                  description="Cash Collected / ventas nuevas del periodo; total de empresa, incluye cobros de ventas anteriores."
+                />
+                <KPICard
+                  title="Cash Collected"
+                  value={formatCurrency(cash.net)}
+                  loading={loading}
+                  description="Total de empresa: mismo cálculo que Negocio y Finanzas."
                 />
                 <KPICard
                   title="Facturación"
-                  value={formatCurrency(ventas.facturacion)}
+                  value={formatCurrency(funnelOperativo.facturacion)}
                   loading={loading}
-                  description="Según el origen seleccionado"
+                  description="Total de empresa: mismo cálculo que Negocio y Finanzas."
                 />
               </div>
             </div>
+
             <div className="dashboard-card overflow-x-auto rounded-xl p-4">
               <table className="w-full text-left text-xs">
                 <caption className="sr-only">Rendimiento por closer</caption>
@@ -1483,7 +1523,7 @@ export default function UnitEconomicsPage() {
                 format={formatCurrency}
                 rows={[
                   { label: 'Stripe', value: cash.bySource.stripe },
-                  { label: 'Cobros internos sin duplicar', value: cash.bySource.internal },
+                  { label: 'Otros cobros registrados', value: cash.bySource.internal },
                 ]}
               />
             </div>

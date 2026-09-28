@@ -117,3 +117,9 @@ la función/tabla indicada aquí — no reimplementar el cálculo.
    comportamiento esperado de `computeMonthlyPnl` y de la lógica de clientes
    únicos — si cambias una fórmula de esta lista, actualiza también el test y
    este documento en el mismo commit.
+
+## Cash Collected medio — definición solicitada, 28-sep-2026
+
+En Negocio/Ventas de Unit Economics y en el dashboard principal: **Cash Collected del periodo / ventas activas nuevas del periodo**, excluidas las reservas abiertas. Numerador consolidado por `lib/canonical/cash.ts`; denominador por `cuentaComoVenta`, con el mismo ámbito visible. Si no hay ventas, se muestra `—`. Incluye cobros del periodo correspondientes a ventas anteriores: es un promedio del periodo, no cash al cierre de una cohorte ni promedio por cobro. Facturación y Cash Collected no se suman entre sí.
+
+Coste por venta = inversión / ventas; se distingue de CAC (clientes únicos, §6). Los porcentajes del bloque Asistencia indican peso sobre todas las agendas del ámbito seleccionado y no reemplazan el Show Rate sobre citas resueltas.

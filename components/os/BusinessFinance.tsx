@@ -10,6 +10,7 @@ import { formatCurrency, formatPercent } from '@/lib/utils'
 import { CompactMetric, BreakdownBars } from './DepartmentDashboard'
 
 type Summary = {
+  commissionsByRole: { label: string; value: number }[]
   pnl: MonthlyPnl
   sameMonth: number
   previousMonths: number
@@ -56,7 +57,9 @@ export function BusinessFinance({ tenantId, from, to }: { tenantId: string; from
             .range(0, FINANCE_QUERY_ROW_CAP),
           db
             .from('commissions')
-            .select('commission_amount, direction, collection_id, liquidation_month', { count: 'exact' })
+            .select('commission_amount, direction, collection_id, liquidation_month, participant_type', {
+              count: 'exact',
+            })
             .eq('tenant_id', tenantId)
             .range(0, FINANCE_QUERY_ROW_CAP),
         ])
@@ -113,7 +116,24 @@ export function BusinessFinance({ tenantId, from, to }: { tenantId: string; from
           first += split.nuevo.importe
           followup += split.recurrente.importe
         }
+        const roles: Record<string, string> = {
+          closer: 'Closers',
+          setter: 'Setters',
+          collaborator: 'Colaboradores',
+          affiliate: 'Afiliados',
+        }
+        const commissionsByRole = Array.from(
+          new Set(['closer', 'setter', 'collaborator', 'affiliate', ...data.commissions.map((c) => c.participant_type)])
+        ).map((role) => ({
+          label: roles[role] ?? role ?? 'Sin rol',
+          value: computeMonthlyPnl(
+            '',
+            { ...data, commissions: data.commissions.filter((c) => c.participant_type === role) },
+            { from, to }
+          ).comisiones,
+        }))
         setSummary({
+          commissionsByRole,
           pnl,
           sameMonth,
           previousMonths,
@@ -200,6 +220,7 @@ export function BusinessFinance({ tenantId, from, to }: { tenantId: string; from
           ]}
         />
       </div>
+      <BreakdownBars title="Comisiones por función" format={formatCurrency} rows={summary.commissionsByRole} />
       <details className="rounded-xl border border-border/50 p-4 text-xs">
         <summary className="cursor-pointer font-medium">Cómo se compone el resultado</summary>
         <dl className="mt-3 grid grid-cols-2 gap-2">

@@ -48,7 +48,8 @@ export function DepartmentSection({
 type Metric = {
   id: string
   label: string
-  data: { date: string; value: number | null }[]
+  data: { date: string; value: number | null; comparison?: number | null }[]
+  comparisonLabel?: string
   format?: (value: number) => string
 }
 export function MetricExplorer({
@@ -126,7 +127,14 @@ export function MetricExplorer({
                 />
                 <Tooltip
                   labelFormatter={(v) => axisDate(String(v))}
-                  formatter={(v) => [format(Number(v)), metric.label]}
+                  formatter={(v, name) => [
+                    format(Number(v)),
+                    name === 'comparison'
+                      ? metric.comparisonLabel
+                      : metric.comparisonLabel
+                        ? 'Facturación'
+                        : metric.label,
+                  ]}
                   contentStyle={{
                     background: 'hsl(var(--popover))',
                     border: '1px solid hsl(var(--border))',
@@ -167,7 +175,14 @@ export function MetricExplorer({
                 />
                 <Tooltip
                   labelFormatter={(v) => axisDate(String(v))}
-                  formatter={(v) => [format(Number(v)), metric.label]}
+                  formatter={(v, name) => [
+                    format(Number(v)),
+                    name === 'comparison'
+                      ? metric.comparisonLabel
+                      : metric.comparisonLabel
+                        ? 'Facturación'
+                        : metric.label,
+                  ]}
                   contentStyle={{
                     background: 'hsl(var(--popover))',
                     border: '1px solid hsl(var(--border))',
@@ -183,11 +198,27 @@ export function MetricExplorer({
                   connectNulls={false}
                   isAnimationActive={false}
                 />
+                {metric.comparisonLabel && (
+                  <Area
+                    type="monotone"
+                    dataKey="comparison"
+                    stroke="hsl(var(--foreground))"
+                    strokeWidth={2}
+                    fill="transparent"
+                    connectNulls={false}
+                    isAnimationActive={false}
+                  />
+                )}
               </AreaChart>
             )}
           </ResponsiveContainer>
         )}
       </div>
+      {metric.comparisonLabel && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          <span className="text-brand-500">● Facturación</span> · ○ {metric.comparisonLabel} · mismo eje en €
+        </p>
+      )}
       {!loading && hasData && (
         <details className="mt-2 text-xs text-muted-foreground">
           <summary className="cursor-pointer rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500">
@@ -204,8 +235,13 @@ export function MetricExplorer({
                     Periodo
                   </th>
                   <th scope="col" className="p-2 text-right">
-                    {metric.label}
+                    {metric.comparisonLabel ? 'Facturación' : metric.label}
                   </th>
+                  {metric.comparisonLabel && (
+                    <th scope="col" className="p-2 text-right">
+                      {metric.comparisonLabel}
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -217,6 +253,11 @@ export function MetricExplorer({
                     <td className="p-2 text-right text-foreground">
                       {point.value === null ? 'Sin dato' : format(point.value)}
                     </td>
+                    {metric.comparisonLabel && (
+                      <td className="p-2 text-right">
+                        {point.comparison == null ? 'Sin dato' : format(point.comparison)}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -242,6 +283,7 @@ export function BreakdownBars({
 }: {
   title: string
   rows: { label: string; value: number }[]
+  comparisonLabel?: string
   format?: (value: number) => string
   loading?: boolean
 }) {

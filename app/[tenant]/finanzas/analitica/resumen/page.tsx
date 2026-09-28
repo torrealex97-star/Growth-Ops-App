@@ -181,11 +181,9 @@ export default function FinanzasPage() {
       const cashCollected = monthCollections.reduce((a, c) => a + num(c.gross_amount), 0)
       const platformFees = monthCollections.reduce((a, c) => a + num(c.processing_fee), 0)
 
-      const expensesTotal = monthExpenses.reduce((a, e) => a + num(e.amount), 0)
       const positiveCommissions = monthCommissions
         .filter((c) => c.direction !== 'negative')
         .reduce((a, c) => a + num(c.commission_amount), 0)
-      const totalExpenses = expensesTotal + positiveCommissions
 
       const totalRefunds = monthRefunds.reduce((a, r) => a + num(r.gross_refund_amount), 0)
 
@@ -195,25 +193,20 @@ export default function FinanzasPage() {
       const netResult = monthPnl.preTaxProfit
       const margin = monthPnl.preTaxMargin === null ? null : monthPnl.preTaxMargin * 100
 
-      const byCategory = new Map<string, number>()
-      for (const e of monthExpenses) {
-        byCategory.set(e.category, (byCategory.get(e.category) || 0) + num(e.amount))
-      }
-      if (positiveCommissions > 0) {
-        byCategory.set('comisiones', (byCategory.get('comisiones') || 0) + positiveCommissions)
-      }
-      const categories = Array.from(byCategory.entries())
-        .map(([category, amount]) => ({
-          category,
-          label: CATEGORY_LABELS[category] || (category === 'comisiones' ? 'Comisiones' : category),
-          amount,
-        }))
-        .sort((a, b) => b.amount - a.amount)
+      const categories = [
+        { category: 'cogs', label: 'Costes directos', amount: monthPnl.cogs },
+        { category: 'comisiones', label: 'Comisiones', amount: monthPnl.comisiones },
+        { category: 'sueldos', label: 'Sueldos', amount: monthPnl.salarios },
+        { category: 'publicidad', label: 'Publicidad', amount: monthPnl.adspend },
+        { category: 'herramientas', label: 'Herramientas', amount: monthPnl.software },
+        { category: 'pasarela', label: 'Pasarela', amount: monthPnl.platformFees },
+        { category: 'otros', label: 'Otros', amount: monthPnl.otros },
+      ].sort((a, b) => b.amount - a.amount)
 
       return {
         contractedSales,
         cashCollected,
-        totalExpenses,
+        totalExpenses: monthPnl.cogs + monthPnl.totalOpex,
         totalRefunds,
         platformFees,
         netResult,
@@ -425,18 +418,13 @@ export default function FinanzasPage() {
             </h2>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
               <KPICard
-                title="Cobros registrados (brutos)"
-                value={fmt(cur.cashCollected)}
+                title="Cash Collected"
+                value={fmt(consolidatedCash.net)}
                 icon={Wallet}
-                description={
-                  loading
-                    ? 'facturación bruta, sin restar devoluciones'
-                    : `nuevo ${fmt(cobroMes.nuevo.importe)} · recurrente ${fmt(cobroMes.recurrente.importe)}`
-                }
-                {...delta(cur.cashCollected, prev.cashCollected)}
+                description="Cobros consolidados de Stripe y otros medios; devoluciones descontadas. Mismo cálculo que Negocio."
               />
               <KPICard
-                title="Ventas contratadas"
+                title="Facturación"
                 value={fmt(cur.contractedSales)}
                 icon={ShoppingCart}
                 description="vs mes anterior"
@@ -446,7 +434,7 @@ export default function FinanzasPage() {
                 title="Gastos totales"
                 value={fmt(cur.totalExpenses)}
                 icon={Receipt}
-                description="gastos + comisiones"
+                description="Costes directos + gastos operativos, comisiones y pasarela (P&L)"
                 deltaSentiment="neutral"
                 compareLabel="vs mes anterior; variación de gasto"
                 {...delta(cur.totalExpenses, prev.totalExpenses)}
@@ -495,7 +483,7 @@ export default function FinanzasPage() {
                 <dd className="text-lg font-semibold">{fmt(consolidatedCash.refunds)}</dd>
               </div>
               <div>
-                <dt>Cash consolidado neto (Métricas)</dt>
+                <dt>Cash Collected</dt>
                 <dd className="text-lg font-semibold">{fmt(consolidatedCash.net)}</dd>
               </div>
             </dl>
