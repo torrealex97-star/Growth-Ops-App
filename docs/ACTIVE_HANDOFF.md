@@ -11,17 +11,18 @@ sin código.** Qué cambió:
   irreversibles, presupuesto de cron ≪ `maxDuration` + esqueletos antes del bucle, consumir los
   booleanos de helpers de escritura, error de carga ≠ estado vacío en UI, resets de formularios
   comparando valores, clases Tailwind solo de la escala existente y tests `.mjs` sin sintaxis TS.
-- **`PENDIENTES.md`** — 🧱 Deuda técnica con 7 entradas nuevas: `tests/canonical/` fuera de los
-  globs de CI (tarea de 5 min), firmas concurrentes sin CAS (requiere decisión del responsable de
-  contratos), onboarding de alumno sin outbox (carril F1), webhook GHL no-objeto (carril F1),
-  refunds acumulados + clawback (A5 de Alex), semántica refunds `pending`/`rejected` en cash
-  canónico. «Hecho recientemente» con el cierre de la FASE A (26–28-sep).
+- **`PENDIENTES.md`** — 🧱 Deuda técnica con 6 entradas nuevas: firmas concurrentes sin CAS
+  (requiere decisión del responsable de contratos), onboarding de alumno sin outbox (carril F1),
+  webhook GHL no-objeto (carril F1), refunds acumulados + clawback (A5 de Alex), semántica refunds
+  `pending`/`rejected` en cash canónico (la deuda de los globs que la arrastraba la cerró en
+  paralelo la PR #274). «Hecho recientemente» con el cierre de la FASE A (26–28-sep).
 - **`CAPABILITIES.md`** — postdata 28-sep: la tabla NO se re-mide; lista lo resuelto con evidencia
   (10 hallazgos, PRs #236–#273) y los abiertos con su bloqueo real.
 - **`CHANGELOG.md`** — entradas 26–28-sep: #269, #270, #271, #272, #273, reglas de AGENTS.md y
   escalado de dependencias del carril Claude Code (#261/#262/#263).
 
-Validación: markdown puro — `prettier --check` en verde; el CI no corre en docs (`paths-ignore`).
+Validación: markdown puro — `prettier --check` en verde; el `paths-ignore` solo exime los pushes
+a `main`, NO las PRs: esta pasó CI completo (4 jobs en verde).
 Abiertos para Alex (decisión, no trabajo de agentes): A5 clawback/refunds, semántica de doble
 firma, y los dos del carril F1 (onboarding outbox, webhook no-objeto) pendientes de coordinación.
 
