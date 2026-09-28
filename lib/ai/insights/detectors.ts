@@ -60,8 +60,12 @@ export async function detectAnomalies(
 
   const anomalies: DetectedAnomaly[] = []
 
-  const cacNow = now.ventas > 0 ? now.inversion / now.ventas : null
-  const cacPrev = prev.ventas > 0 ? prev.inversion / prev.ventas : null
+  // Un fallo de lectura en cualquiera de las dos ventanas NO es un cero: comparar contra un cero
+  // fabricado anunciaría un "CAC subió 400%" o "ROAS cayó" que nunca ocurrió — el detector se
+  // salta la comparación entera y espera al siguiente run en vez de mentir con una anomalía falsa.
+  const lecturaFallida = !!(now.error || prev.error)
+  const cacNow = !lecturaFallida && now.ventas != null && now.ventas > 0 ? (now.inversion ?? 0) / now.ventas : null
+  const cacPrev = !lecturaFallida && prev.ventas != null && prev.ventas > 0 ? (prev.inversion ?? 0) / prev.ventas : null
   const cacDelta = pctChange(cacNow, cacPrev)
   if (cacDelta !== null && cacDelta > 25 && (cacNow ?? 0) > 0) {
     anomalies.push({
@@ -76,8 +80,9 @@ export async function detectAnomalies(
     })
   }
 
-  const roasDelta = pctChange(funnelNow.roas, funnelPrev.roas)
-  if (roasDelta !== null && roasDelta < -20 && funnelPrev.roas !== null && funnelPrev.roas > 0) {
+  const funnelLecturaFallida = !!(funnelNow.error || funnelPrev.error)
+  const roasDelta = funnelLecturaFallida ? null : pctChange(funnelNow.roas ?? null, funnelPrev.roas ?? null)
+  if (roasDelta !== null && roasDelta < -20 && funnelPrev.roas !== null && funnelPrev.roas! > 0) {
     anomalies.push({
       type: 'roas_decrease',
       severity: roasDelta < -40 ? 'critical' : 'warning',
@@ -90,8 +95,10 @@ export async function detectAnomalies(
     })
   }
 
-  const showRateDelta = pctChange(funnelNow.pctShowUp, funnelPrev.pctShowUp)
-  if (showRateDelta !== null && showRateDelta < -15 && funnelPrev.pctShowUp !== null && funnelPrev.pctShowUp > 0) {
+  const showRateDelta = funnelLecturaFallida
+    ? null
+    : pctChange(funnelNow.pctShowUp ?? null, funnelPrev.pctShowUp ?? null)
+  if (showRateDelta !== null && showRateDelta < -15 && funnelPrev.pctShowUp !== null && funnelPrev.pctShowUp! > 0) {
     anomalies.push({
       type: 'show_rate_drop',
       severity: showRateDelta < -30 ? 'critical' : 'warning',
@@ -104,8 +111,10 @@ export async function detectAnomalies(
     })
   }
 
-  const closeRateDelta = pctChange(funnelNow.pctCierre, funnelPrev.pctCierre)
-  if (closeRateDelta !== null && closeRateDelta < -15 && funnelPrev.pctCierre !== null && funnelPrev.pctCierre > 0) {
+  const closeRateDelta = funnelLecturaFallida
+    ? null
+    : pctChange(funnelNow.pctCierre ?? null, funnelPrev.pctCierre ?? null)
+  if (closeRateDelta !== null && closeRateDelta < -15 && funnelPrev.pctCierre !== null && funnelPrev.pctCierre! > 0) {
     anomalies.push({
       type: 'close_rate_drop',
       severity: closeRateDelta < -30 ? 'critical' : 'warning',
@@ -118,8 +127,8 @@ export async function detectAnomalies(
     })
   }
 
-  const roasUpDelta = pctChange(funnelNow.roas, funnelPrev.roas)
-  if (roasUpDelta !== null && roasUpDelta > 30 && funnelPrev.roas !== null && funnelPrev.roas > 0) {
+  const roasUpDelta = funnelLecturaFallida ? null : pctChange(funnelNow.roas ?? null, funnelPrev.roas ?? null)
+  if (roasUpDelta !== null && roasUpDelta > 30 && funnelPrev.roas !== null && funnelPrev.roas! > 0) {
     anomalies.push({
       type: 'roas_opportunity',
       severity: 'opportunity',
