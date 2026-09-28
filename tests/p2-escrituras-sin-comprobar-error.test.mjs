@@ -16,8 +16,11 @@ test('webhooks/stripe: el evento no reconocido responde 500 (no 200 "registrado:
   const src = leer('app/api/[tenant]/evergreen/webhooks/stripe/route.ts')
   assert.match(src, /const \{ error: rechazoErr \} = await sb\.from\('raw_events'\)\.insert/)
   const idxCheck = src.indexOf('if (rechazoErr) {')
-  const idx500 = src.indexOf("status: 500 }", idxCheck)
-  assert.ok(idxCheck > -1 && idx500 > idxCheck, 'el rechazo por normalizador desconocido comprueba error y responde 500')
+  const idx500 = src.indexOf('status: 500 }', idxCheck)
+  assert.ok(
+    idxCheck > -1 && idx500 > idxCheck,
+    'el rechazo por normalizador desconocido comprueba error y responde 500'
+  )
 })
 
 test('appointments/create: marcar el contacto como agendado comprueba error (no rompe la respuesta)', () => {
@@ -51,7 +54,10 @@ test('data-health/dedupe: fusionar o borrar duplicados es irreversible — la au
 })
 
 test('contacts create/[id]: alta y edición auditan con comprobación de error', () => {
-  for (const ruta of ['app/api/[tenant]/evergreen/contacts/create/route.ts', 'app/api/[tenant]/evergreen/contacts/[id]/route.ts']) {
+  for (const ruta of [
+    'app/api/[tenant]/evergreen/contacts/create/route.ts',
+    'app/api/[tenant]/evergreen/contacts/[id]/route.ts',
+  ]) {
     const src = leer(ruta)
     assert.match(src, /const \{ error: auditErr \} = await sb\.from\('audit_logs'\)\.insert/, ruta)
   }
