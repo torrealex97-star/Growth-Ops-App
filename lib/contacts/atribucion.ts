@@ -173,7 +173,7 @@ export async function registrarToque(
         .eq('id', existente.id)
         .is('collaborator_id', null) // guard: si otra entrega lo llenó mientras tanto, no pisa
       if (errorFill) return { ok: false, error: errorFill.message }
-      await sb.from('audit_logs').insert({
+      const { error: errorAudit } = await sb.from('audit_logs').insert({
         tenant_id: tenantId,
         entity_type: 'contact_attribution',
         entity_id: existente.id,
@@ -181,6 +181,7 @@ export async function registrarToque(
         old_values: { collaborator_id: null },
         new_values: { collaborator_id: colaboradorEntrante, via: 'referral_touch' },
       })
+      if (errorAudit) return { ok: false, error: errorAudit.message }
     }
     return { ok: true, accion: 'actualizada' }
   }

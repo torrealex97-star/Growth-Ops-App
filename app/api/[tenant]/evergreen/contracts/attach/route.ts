@@ -92,7 +92,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         )
     }
 
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       entity_type: 'contract',
       entity_id: contract.id,
@@ -104,6 +104,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         kind: contract.kind,
       },
     })
+    if (auditErr) console.error('[contracts/attach] no se pudo registrar audit_logs:', auditErr.message)
 
     return NextResponse.json({ ok: true, contractId: contract.id, status: 'firmado' })
   } catch (error) {

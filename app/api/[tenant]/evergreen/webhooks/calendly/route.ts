@@ -295,11 +295,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       Array.isArray(effectiveQualification.respuestas) &&
       (effectiveQualification.respuestas as unknown[]).length > 0
     ) {
-      await sb
+      const { error: qualErr } = await sb
         .from('contacts')
         .update({ qualification: effectiveQualification, qualification_updated_at: now })
         .eq('id', contact.id)
         .eq('tenant_id', tenantId)
+      if (qualErr) console.error('[webhooks/calendly] no se pudo volcar la cualificación:', qualErr.message)
     }
 
     // Atribución (UTMs de Calendly)
@@ -325,13 +326,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         .eq('tenant_id', tenantId)
         .eq('is_primary', true)
         .maybeSingle()
-      if (attr)
-        await sb
+      if (attr) {
+        const { error: attrErr } = await sb
           .from('contact_attributions')
           .update({ last_touch_at: now, ...utm, ...lastUtm, source: 'calendly' })
           .eq('id', attr.id)
-      else
-        await sb.from('contact_attributions').insert({
+        if (attrErr) console.error('[webhooks/calendly] no se pudo actualizar contact_attributions:', attrErr.message)
+      } else {
+        const { error: attrErr } = await sb.from('contact_attributions').insert({
           tenant_id: tenantId,
           contact_id: contact.id,
           source: 'calendly',
@@ -342,6 +344,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           last_touch_at: now,
           is_primary: true,
         })
+        if (attrErr) console.error('[webhooks/calendly] no se pudo crear contact_attributions:', attrErr.message)
+      }
     }
 
     // --- VSL: engancha el visionado (incl. anónimo sin optin) y guarda el % visto ---
@@ -485,7 +489,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       // se creaba bajo un calendario distinto (bug: "el crm al reagendar cambia la
       // propiedad del lead", antes no pasaba porque cada reagenda creaba fila nueva).
       const { closer_id: _closerField, setter_id: _setterField, ...apptFieldsNoAssignment } = apptFields
-      await sb
+      const { error: apptUpdateErr } = await sb
         .from('appointments')
         .update({
           ...apptFieldsNoAssignment,
@@ -495,6 +499,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         })
         .eq('id', appt.id)
         .eq('tenant_id', tenantId)
+      // Si esto falla en una reprogramación, la fila se queda con el external_id VIEJO: el
+      // próximo webhook no la encuentra y crea una cita duplicada. 500 para que Calendly reintente.
+      if (apptUpdateErr) {
+        return NextResponse.json({ error: 'No se pudo actualizar la cita: ' + apptUpdateErr.message }, { status: 500 })
+      }
       const { error: leadStatusErr } = await sb
         .from('contacts')
         .update({ lead_status: 'agendado' })

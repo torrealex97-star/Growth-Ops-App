@@ -45,7 +45,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       actor_user_id: t.userId,
       entity_type: 'sale',
@@ -53,6 +53,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       action: 'update',
       new_values: patch,
     })
+    if (auditErr) console.error('[sales/[id]] no se pudo registrar audit_logs:', auditErr.message)
 
     return NextResponse.json({ ok: true, sale: updated })
   } catch (err) {
