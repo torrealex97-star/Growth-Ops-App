@@ -909,7 +909,7 @@ function DashboardEquipo() {
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard
-            title="Facturación bruta"
+            title="Facturación"
             value={loading ? '—' : fmt(cur.gross)}
             icon={TrendingUp}
             loading={loading}
@@ -923,8 +923,8 @@ function DashboardEquipo() {
             loading={loading}
             description={
               loading
-                ? 'cobrado real'
-                : `nuevo ${fmt(nuevoVsRecurrente.nuevo.importe)} · recurrente ${fmt(nuevoVsRecurrente.recurrente.importe)}`
+                ? 'Libro interno · cobros brutos'
+                : `Libro interno · bruto · nuevo ${fmt(nuevoVsRecurrente.nuevo.importe)} · recurrente ${fmt(nuevoVsRecurrente.recurrente.importe)}`
             }
             compareLabel="vs mes anterior · cobrado real"
             {...delta(cur.cash, prev.cash)}
@@ -938,7 +938,7 @@ function DashboardEquipo() {
             {...delta(cur.count, prev.count)}
           />
           <KPICard
-            title={showAverageTicket ? 'Ticket medio por cliente' : 'Cash collected medio'}
+            title={showAverageTicket ? 'Ticket medio por cliente' : 'Cash Collected medio'}
             value={loading ? '—' : fmt(showAverageTicket ? cur.avgTicket : cur.avgCash)}
             icon={Receipt}
             loading={loading}
@@ -960,7 +960,7 @@ function DashboardEquipo() {
           <SalesChart
             data={series}
             cashData={cashSeries}
-            title={`Facturación vs cash cobrado · ${PERIOD_LABELS[periodPreset]} · por ${trend.granularity}`}
+            title={`Facturación vs Cash Collected · ${PERIOD_LABELS[periodPreset]} · por ${trend.granularity}`}
             className="h-full"
           />
         </div>

@@ -502,7 +502,7 @@ export default function PaymentsPipelinePage() {
               description={`${activeSales.length} ventas`}
             />
             <KPICard
-              title="Cash collected"
+              title="Cash Collected (libro interno)"
               value={formatCurrency(kpis.totalCashCollected)}
               icon={Wallet}
               loading={loading}

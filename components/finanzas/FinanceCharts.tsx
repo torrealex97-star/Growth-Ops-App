@@ -151,7 +151,7 @@ export function FinanceEvolution({
           )}
           <span className="flex items-center gap-2">
             <i className="h-2 w-2 rounded-full bg-brand-500" />
-            Cobros
+            Cash Collected (libro interno)
           </span>
           <span className="flex items-center gap-2">
             <i className="h-2 w-2 rounded-full bg-brand-200" />
@@ -184,7 +184,7 @@ export function FinanceEvolution({
             />
             <Bar
               dataKey="cash"
-              name="Cobros"
+              name="Cash Collected (libro interno)"
               fill="hsl(var(--brand-500))"
               radius={[8, 8, 0, 0]}
               maxBarSize={16}
@@ -233,7 +233,7 @@ export function FinanceEvolution({
                   </th>
                 )}
                 <th className="text-right font-medium" scope="col">
-                  Cobros
+                  Cash Collected (libro interno)
                 </th>
                 <th className="text-right font-medium" scope="col">
                   Gastos
@@ -283,7 +283,7 @@ export function FinanceDual({ title, data, showCacAxis }: { title: string; data:
           </span>
           <span className="flex items-center gap-2">
             <i className="h-2 w-2 rounded-full bg-brand-500" />
-            Cash cobrado
+            Cash Collected
           </span>
           {conGasto && (
             <span className="flex items-center gap-2">
@@ -343,7 +343,7 @@ export function FinanceDual({ title, data, showCacAxis }: { title: string; data:
             />
             <Bar
               dataKey="cash"
-              name="Cash cobrado"
+              name="Cash Collected"
               fill="hsl(var(--brand-500))"
               radius={[8, 8, 0, 0]}
               maxBarSize={16}
@@ -368,8 +368,8 @@ export function FinanceDual({ title, data, showCacAxis }: { title: string; data:
         </ResponsiveContainer>
       </div>
       <p className="mt-3 text-xs text-muted-foreground">
-        La brecha entre barras es el dinero vendido aún sin cobrar. El CAC solo se traza donde el cubo tuvo gasto
-        publicitario y cierres: sin gasto detrás, un CAC no existe.
+        La diferencia entre facturación y cobros del periodo no equivale a deuda pendiente. El CAC solo se traza donde
+        el cubo tuvo gasto publicitario y cierres: sin gasto detrás, un CAC no existe.
       </p>
     </section>
   )

@@ -76,6 +76,8 @@ const num = (x: number | string | null | undefined): number => Number(x ?? 0)
 // (o charge_id) de Stripe. Es la dedupKey que declara el registro (§2):
 // transaction_id/payment_id primero; sin referencia no hay cruce posible y la
 // fila interna entra como dinero propio del fallback.
+const esPagoLiquidado = (sp: StripePaymentRow) => ['succeeded', 'refunded', 'partially_refunded'].includes(sp.status)
+
 function mismaReferenciaStripe(ref: string | null | undefined, sp: StripePaymentRow): boolean {
   if (!ref) return false
   return ref === sp.payment_id || (sp.charge_id != null && ref === sp.charge_id)
@@ -111,7 +113,7 @@ export function canonicalCash(
   // que llegaran por una consulta mal montada).
   const stripeVistos = new Set<string>()
   for (const sp of stripePayments) {
-    if (!sp.payment_id || stripeVistos.has(sp.payment_id)) continue
+    if (!esPagoLiquidado(sp) || !sp.payment_id || stripeVistos.has(sp.payment_id)) continue
     stripeVistos.add(sp.payment_id)
     const bruto = num(sp.amount)
     const devuelto = Math.min(num(sp.refunded_amount), bruto)
@@ -136,7 +138,7 @@ export function canonicalCash(
     const esCobrado = c.status === 'collected'
 
     if (esCobrado) {
-      const cruze = stripePayments.find((sp) => mismaReferenciaStripe(c.payment_reference, sp))
+      const cruze = stripePayments.find((sp) => esPagoLiquidado(sp) && mismaReferenciaStripe(c.payment_reference, sp))
       if (cruze) {
         // EL MISMO dinero: cuenta UNA vez y gana la primaria (§2/§19).
         duplicatedPayments.push(c.id)
@@ -227,7 +229,7 @@ export function serieCanonicaCash(
   // 1. Primaria: pago de Stripe una vez, NETO de su propia devolución.
   const stripeVistos = new Set<string>()
   for (const sp of stripePayments) {
-    if (!sp.payment_id || stripeVistos.has(sp.payment_id)) continue
+    if (!esPagoLiquidado(sp) || !sp.payment_id || stripeVistos.has(sp.payment_id)) continue
     stripeVistos.add(sp.payment_id)
     const bruto = num(sp.amount)
     const devuelto = Math.min(num(sp.refunded_amount), bruto)
@@ -238,7 +240,7 @@ export function serieCanonicaCash(
   const vivas = new Set<string>()
   for (const c of collections) {
     if (c.status !== 'collected') continue
-    const cruze = stripePayments.find((sp) => mismaReferenciaStripe(c.payment_reference, sp))
+    const cruze = stripePayments.find((sp) => esPagoLiquidado(sp) && mismaReferenciaStripe(c.payment_reference, sp))
     if (cruze) continue
     vivas.add(c.id)
     bump(c.collected_at, num(c.gross_amount))

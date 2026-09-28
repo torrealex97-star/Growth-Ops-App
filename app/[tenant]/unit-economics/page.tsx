@@ -993,10 +993,10 @@ export default function UnitEconomicsPage() {
                     loading={loading}
                     description={
                       cash.bySource.stripe > 0 && cash.bySource.internal > 0
-                        ? `Cash neto: Stripe ${formatCurrency(cash.bySource.stripe)} + interno ${formatCurrency(cash.bySource.internal)} / ad spend`
+                        ? `Cash Collected: Stripe ${formatCurrency(cash.bySource.stripe)} + interno ${formatCurrency(cash.bySource.internal)} / ad spend`
                         : cash.bySource.stripe > 0
-                          ? 'Cash neto de Stripe / ad spend'
-                          : 'Cash neto de cobros internos (Stripe sin sincronizar) / ad spend'
+                          ? 'Cash Collected de Stripe / ad spend'
+                          : 'Cash Collected de cobros internos / ad spend'
                     }
                     target={kpiObjetivos('mer', totals.mer, 'ratio') ?? undefined}
                   />
@@ -1353,7 +1353,7 @@ export default function UnitEconomicsPage() {
                 loading={loading}
                 description="Cancelaciones de cita, no de venta"
               />
-              <KPICard title="Primer contacto" value="—" description="No disponible en esta vista" />
+              <KPICard title="Speed to Lead" value="—" description="No disponible en esta vista" />
             </div>
             <AppointmentStatusStrip loading={loading} rows={appointmentStates} />
           </DepartmentSection>

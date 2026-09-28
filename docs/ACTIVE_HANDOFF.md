@@ -2,6 +2,8 @@
 
 ## CODEX — consistencia y rediseño de dashboards (28-sep, en curso)
 
+Corrección tras localizar `docs/SOURCE_OF_TRUTH.md`: se retiró íntegramente el intento no validado de redefinir adquisición. Lote actual se ciñe a `METRICS.md` §1/2/6 y MONEY D8: CAC por contactos únicos (no primeras compras), ventas activas/partial_refund, reservas excluidas de series; IA reutiliza SOURCE_REGISTRY. Nombres corregidos en dashboard, gráficos, pagos, gestoría y alta de cobro; se identifica libro interno bruto sin confundirlo con caja consolidada. No modifica datos ni decisiones A3. Quality final PASS (1133 unitarias, 3 omitidas; 765 métricas), cuatro nuevas de paridad contractual. Build PASS; smoke local confirma las etiquetas, servidor activo en 3100. Dead-code ejecutado como informe informativo. Coherencia global NO certificada: siguen discrepancias documentadas entre registros de caja, cohortes de tasas y documentación histórica.
+
 Ampliación solicitada: coherencia transversal de términos y cálculos KPI en toda la app. Auditoría en `DASHBOARD_AUDIT.md`, sección revisión transversal 28-sep. Reclama revisión de registros `lib/metrics/registro.ts`, `lib/ai/metrics/registry.ts`, agregadores y consumidores de métricas; no aplicar cambios de contrato financiero ni CAC hasta resolver las definiciones contradictorias. La revisión visual anterior NO certifica coherencia global.
 
 Terminología corregida a petición del usuario: Facturación (precio pactado) y Cash Collected (canonicalCash.net), también en selectores, evolución y tabla comercial. Finanzas muestra Facturación, Cash Collected y Devoluciones; elimina el KPI bruto redundante. No modifica fórmulas, fechas ni fuentes. Quality y build PASS. Producción pendiente.

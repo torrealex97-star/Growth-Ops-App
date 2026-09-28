@@ -297,4 +297,19 @@ Petición: una misma métrica debe conservar significado y cálculo en toda la a
 
 ### Siguiente paso
 
-Resolver contrato de CAC y Cash Collected con el usuario (pregunta enviada en esta tarea). Después corregir helpers y registros existentes, migrar consumidores por familia, ejecutar pruebas de igualdad entre superficies y recorrido autenticado. Mantener visible que el trabajo global está pendiente; las correcciones de etiquetas de Unit Economics no lo sustituyen.
+Usar SOURCE_OF_TRUTH, METRICS y MONEY existentes; la solicitud de redefinir CAC se retiró al localizar el contrato. Corregir helpers y registros contra ellos, migrar consumidores por familia y ejecutar pruebas de igualdad entre superficies y recorrido autenticado. Mantener visible que el trabajo global está pendiente; las correcciones de etiquetas de Unit Economics no lo sustituyen.
+
+### Ajustes contra los contratos existentes (sin redefinir métricas)
+
+La referencia omitida en el primer intento era `docs/SOURCE_OF_TRUTH.md`; su registro ejecutable es `lib/sources/registry.ts`. Se retiró ese intento sin publicar código. La propuesta de CAC por primeras compras queda descartada: `METRICS.md` §6 define contactos únicos con venta activa.
+
+Implementado en el lote actual:
+
+- Agregados de CAC cuentan contactos únicos; identidad incompleta devuelve ausencia explicada. Query solicita `contact_id`.
+- Agregados y series reutilizan `isActiveSale`; las reservas abiertas quedan fuera de la serie igual que del total (MONEY D8).
+- IA consulta SOURCE_REGISTRY para nombres, fuente y fórmula; CAC consulta el registro métrico alineado con METRICS §6.
+- Cash canónico y serie descartan estados no liquidados de Stripe, sin suprimir cobros internos confirmados por una referencia a un intento pendiente.
+- Nombres de caja consistentes; gestoría identifica libro interno bruto y el alta de cobro distingue importe tras fee.
+- Cuatro regresiones de paridad: cliente repetido, reserva/devolución parcial, fuente IA compartida y pago pendiente.
+
+Pendiente de resolución completa (no ocultar ni certificar): agregados/objetivos aún consumen libro interno frente a caja consolidada; denominadores de tasas publicados y cobertura; periodo histórico descrito en METRICS frente a filtros actuales. Los contratos de dinero abiertos no se eligen por cuenta del agente.
