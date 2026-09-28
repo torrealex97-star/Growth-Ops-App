@@ -1,6 +1,6 @@
 # Relevo activo
 
-## CODEX — consistencia de dashboards (28-sep, en curso)
+## CODEX — consistencia de dashboards (28-sep, pendiente de retomar)
 
 Rama `codex/dashboard-consistency`, base `16d484c`. Reclama unit-economics, resumen financiero, componentes KPI/funnel y acceso VSL con sus pruebas. Alcance: error VSL, periodo/población de embudos, trazabilidad de cash y señales KPI neutrales. No modifica datos financieros ni migraciones. Checkout aislado; WIP de navegación ajeno preservado.
 
@@ -9,6 +9,15 @@ Implementado: ambos embudos leen el mismo agregado del periodo; asistencia por e
 VSL: POSTGRES_URL ausente en runtime. Tras autorización y acceso al Dashboard, credencial validada con el pooler oficial (conexión SQL y tablas VSL correctas); restaurada como secreto de producción en Vercel por stdin, sin mostrarla ni guardarla en temporales. Falta activación y comprobación HTTP: despliegues bloqueados en cola tras un build prolongado. Se canceló exclusivamente nuestro redespliegue del código antiguo al aparecer nuevo main; el despliegue Git de main posterior a la restauración debe recoger la variable. No afirmar VSL reparado hasta verificar la pantalla y endpoints.
 
 PR #278, commit de código 97094a3. Validación: quality local PASS (1133 unit, 3 skips; 757 métricas); build local y CI PASS, quality CI y secretos PASS. Smoke E2E: 10 PASS, contrato adjunto agota 20 s con carga en curso; reintento del job solicitado, sin modificar pruebas. Preview en cola. Verificación visual pendiente. Nuevo main c28327f revisado: cambios en dashboard principal, sin sobrescribirlos. Siguiente: revisar E2E reintentado, desbloquear/verificar despliegue Git y VSL, luego integrar PR y comprobar pantallas. No fusionada.
+
+### Punto de relevo solicitado por el usuario
+
+Trabajo preservado en PR #278 y rama `codex/dashboard-consistency`; sin fusionar ni afirmar despliegue. El usuario pide pasar a otras tareas mientras queda este seguimiento pendiente. No repetir la recuperación de credenciales ni modificar datos para cuadrar métricas.
+
+- **Validaciones por commit:** los resultados anteriores corresponden al código `97094a3`. Los commits posteriores solo actualizan/formatean este relevo. En la última consulta del head `aa59553`, Vercel seguía pendiente y no se mostraba una nueva ejecución de Quality/E2E; no confundir los resultados anteriores con validación del head actual.
+- **VSL:** configuración restaurada y conexión SQL probada; pantalla y endpoints de producción todavía NO verificados. No volver a pedir la credencial ni guardarla en archivos. Primero comprobar si el despliegue Git posterior a la restauración ya terminó.
+- **Al retomar:** leer main y reclamaciones nuevas; comprobar el SHA del despliegue activo y la cola de Vercel; validar VSL con sesión existente (sin «Ver como»); revisar el fallo/reintento E2E de contratos; actualizar la rama desde main sin sobrescribir trabajo ajeno; integrar solo tras checks relevantes y verificar Unit Economics y resumen financiero.
+- **Criterio de cierre:** VSL carga sin error de conexión, PR integrada con checks aprobados, métricas del periodo coherentes y distinción de fuentes de cash visible en producción. Mantener el orden diagnóstico de KPI del usuario: definición, fuente, completitud, periodo, maturity, asignación, cálculo y finalmente benchmark.
 
 ## ✅ Último P1 de crons cerrado: presupuesto real del sync de pagos Stripe (PR #277, 28-sep tarde)
 
