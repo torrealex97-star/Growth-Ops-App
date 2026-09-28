@@ -1,5 +1,26 @@
 # Relevo activo
 
+## ✅ Assets hero en producción verificados (28-sep mañana, Freebuff/Buffy)
+
+Cierre del pendiente de la noche del 27-sep («falta verificar el deployment que sirva los assets
+nuevos»). Producción ya los sirve desde el deployment production READY `dpl_5EodtVe7` (commit
+`f18e336`, PR #259, 28-sep 06:26Z — descendiente del `b7a77f9` de los assets; los builds propios
+habían quedado CANCELED en cola de Vercel Hobby y quedaron cubiertos por los merges posteriores:
+no hizo falta redeploy manual).
+
+Verificación en vivo sobre `https://app.scalixsystems.com`:
+
+- `/panel/hero.mp4` → HTTP 200, `content-length: 825608` (806 KB), etag `38f30eb7…` = MD5 byte a
+  byte del fichero comprimido del repo.
+- `/panel/hero-poster.webp` → 200, `content-type: image/webp`, 17,6 KB, etag = MD5 local.
+- `/panel/hero-poster.png` → 404 (ya no existe ni se referencia).
+- Home HTTP 200; su HTML solo referencia `hero-poster.webp` y `hero.mp4` (cero refs al PNG).
+- Ahorro real por visitante nuevo, ya en producción: 6,70 MB → 0,82 MB (−88%).
+
+Pendientes que siguen vivos: borrado de `public/brand/iawinners-logo.png` (1,47 MB, 0 referencias,
+espera ok de Alex) y las 12 credenciales de `integration_settings` (esperando que Alex pegue valores;
+Meta ya verificada en vivo).
+
 ## ✅ UX/a11y: clases Tailwind fuera de escala y botones de icono sin nombre (PR #265, mergeada)
 
 **MERGEADA** (squash `9eda4b0` en `main`, 28-sep). CI verde completo en la rama
@@ -212,6 +233,9 @@ que pesaban dentro del mp4 original. **Asset muerto detectado: `public/brand/iaw
 de ok de Alex).** Pendiente de decidir (Fase 2, no ejecutada): mover el vídeo a Bunny Stream (ya
 conectada) si el tráfico de la landing crece; a escala actual no ahorra dinero (Vercel Hobby
 gratis, 100 GB/mes) y la compresión ya resuelve el problema.
+**→ Verificado en producción el 28-sep** (deployment `dpl_5EodtVe7`, commit `f18e336`): hero.mp4
+806 KB 200, poster WebP 17 KB 200 con etags = MD5 del repo, PNG 404, home 200 solo con refs
+nuevas. Detalle arriba.
 
 ## ✅ RESULTADO (27-sep): taste lote 3 — deuda UX R4 (REQ-UX-02/03/05) + revisión visual (PR #250)
 
