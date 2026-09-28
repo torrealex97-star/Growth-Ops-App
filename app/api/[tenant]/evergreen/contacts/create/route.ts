@@ -64,7 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       actor_user_id: t.userId,
       entity_type: 'contact',
@@ -72,6 +72,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       action: 'create',
       new_values: { full_name: fullName, email: clean(body.email), phone: clean(body.phone) },
     })
+    if (auditErr) console.error(`[contacts/create] alta ${created.id} sin auditoría:`, auditErr.message)
 
     return NextResponse.json({ ok: true, id: created.id, contact: created })
   } catch (err) {

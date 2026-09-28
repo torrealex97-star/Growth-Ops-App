@@ -292,12 +292,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       })
       emailed = r.ok
       emailError = r.ok ? null : (r.error ?? null)
-      if (r.ok)
-        await sb
+      if (r.ok) {
+        const { error: flagErr } = await sb
           .from('contracts')
           .update({ email_sent_at: nowIso })
           .eq('id', studentContract.contractId)
           .eq('tenant_id', t.tenantId)
+        // El email SÍ se envió; si esto falla la UI mostrará "no enviado" y alguien podría
+        // reenviarlo duplicado.
+        if (flagErr)
+          console.error(
+            `[contracts/student] contrato ${studentContract.contractId}: enviado pero sin marcar email_sent_at:`,
+            flagErr.message
+          )
+      }
     }
 
     // ── Contrato del TOMADOR (si el comprador es distinto del agendador) ──
@@ -329,12 +337,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
             'Estás a punto de aceptar las condiciones como tomador/pagador de la formación.',
         })
         payerEmailed = rp.ok
-        if (rp.ok)
-          await sb
+        if (rp.ok) {
+          const { error: flagErr } = await sb
             .from('contracts')
             .update({ email_sent_at: nowIso })
             .eq('id', payerContract.contractId)
             .eq('tenant_id', t.tenantId)
+          if (flagErr)
+            console.error(
+              `[contracts/student] contrato ${payerContract.contractId}: enviado pero sin marcar email_sent_at:`,
+              flagErr.message
+            )
+        }
       }
     }
 

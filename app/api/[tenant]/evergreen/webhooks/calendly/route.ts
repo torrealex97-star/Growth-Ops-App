@@ -248,7 +248,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       console.warn('[atribucion] no se pudo registrar el toque:', e instanceof Error ? e.message : e)
     }
     if (!resolved.created) {
-      await sb
+      const { error: enriquecimientoErr } = await sb
         .from('contacts')
         .update({
           last_seen_at: now,
@@ -258,6 +258,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         })
         .eq('id', contact.id)
         .eq('tenant_id', tenantId)
+      // Si falla, se pierde el enriquecimiento del CRM (teléfono/instagram/edad del formulario).
+      if (enriquecimientoErr)
+        console.warn(`[calendly] no se pudo enriquecer el contacto ${contact.id}:`, enriquecimientoErr.message)
     }
 
     // --- Cualificación efectiva (arrastre en reprogramaciones) ---

@@ -137,13 +137,16 @@ export function KPIReportPanel() {
         submitted_at: new Date().toISOString(),
         tenant_id: tenantId,
       }
-      const { data: saved } = await supabase
+      const { data: saved, error: upsertErr } = await supabase
         .from('kpi_daily_reports')
         .upsert(payload, { onConflict: 'user_id,report_date' })
         .select('*')
         .single()
-      setExistingReport((saved as KpiDailyReport) ?? (payload as unknown as KpiDailyReport))
-      setReadOnly(true)
+      // Si falla, el informe automático del closer NO quedó guardado: no se puede pintar el
+      // payload local como si lo estuviera.
+      if (upsertErr) console.error('[KPIReportPanel] no se pudo guardar el informe automático:', upsertErr.message)
+      setExistingReport(upsertErr ? null : ((saved as KpiDailyReport) ?? (payload as unknown as KpiDailyReport)))
+      setReadOnly(!upsertErr)
     } else if (reportRes.data) {
       setExistingReport(reportRes.data)
       setReadOnly(true)

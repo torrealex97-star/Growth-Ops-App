@@ -96,13 +96,14 @@ export async function limpiarActividadTenant(
   }
 
   // Cierre de auditoría de la propia limpieza (no cuenta como actividad de negocio).
-  await sb.from('audit_logs').insert({
+  const { error: auditErr } = await sb.from('audit_logs').insert({
     tenant_id: tenantId,
     entity_type: 'e2e_cleanup',
     action: 'delete',
     old_values: { tablas: resultados },
     new_values: { motivo: 'Limpieza post-suite E2E del tenant QA' },
   })
+  if (auditErr) errores.push(`audit_logs: ${auditErr.message}`)
 
   return {
     ok: errores.length === 0,

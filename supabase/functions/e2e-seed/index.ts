@@ -49,7 +49,8 @@ Deno.serve(async (req: Request) => {
   async function ensureTenant(): Promise<string> {
     const { data: t } = await sb.from('tenants').select('id').eq('slug', SLUG).single()
     if (t) {
-      await sb.from('tenants').update({ status: 'active' }).eq('id', t.id)
+      const { error } = await sb.from('tenants').update({ status: 'active' }).eq('id', t.id)
+      if (error) throw error
       return t.id
     }
     const { data: c, error } = await sb.from('tenants').insert({ slug: SLUG, name: 'QA E2E' }).select('id').single()
@@ -81,12 +82,14 @@ Deno.serve(async (req: Request) => {
       if (error) throw error
       userId = created.user.id
     }
-    await sb
+    const { error: userErr } = await sb
       .from('users')
       .upsert({ id: userId, full_name: nombre, email, role_id: await rolId(rolGlobal), is_active: true })
-    await sb
+    if (userErr) throw userErr
+    const { error: memberErr } = await sb
       .from('tenant_members')
       .upsert({ tenant_id: tenantId, user_id: userId, role: rolMembresia }, { onConflict: 'tenant_id,user_id' })
+    if (memberErr) throw memberErr
     return userId
   }
 
@@ -266,7 +269,11 @@ Deno.serve(async (req: Request) => {
         let perfilId: string
         if (perfil) {
           perfilId = perfil.id
-          await sb.from('collaborator_profiles').update({ status: 'pending_contract' }).eq('id', perfilId)
+          const { error: updErr } = await sb
+            .from('collaborator_profiles')
+            .update({ status: 'pending_contract' })
+            .eq('id', perfilId)
+          if (updErr) throw updErr
         } else {
           const { data: created, error } = await sb
             .from('collaborator_profiles')
@@ -360,9 +367,16 @@ Deno.serve(async (req: Request) => {
       if (ids.contractIds || ids.perfilId) {
         const contractIds = (ids.contractIds as string[]) ?? []
         const pdfs = await borrarPdfsContratos(contractIds)
-        if (ids.perfilId) await sb.from('collaborator_profiles').delete().eq('id', String(ids.perfilId))
-        for (const id of contractIds) await sb.from('contracts').delete().eq('id', id)
-        return json({ ok: true, pdfsBorrados: pdfs })
+        const errores: string[] = []
+        if (ids.perfilId) {
+          const { error } = await sb.from('collaborator_profiles').delete().eq('id', String(ids.perfilId))
+          if (error) errores.push(`collaborator_profiles: ${error.message}`)
+        }
+        for (const id of contractIds) {
+          const { error } = await sb.from('contracts').delete().eq('id', id)
+          if (error) errores.push(`contracts/${id}: ${error.message}`)
+        }
+        return json({ ok: errores.length === 0, pdfsBorrados: pdfs, ...(errores.length ? { errores } : {}) })
       }
       // Modo tenant: purga idempotente de TODO lo sintético del tenant QA (solo filas
       // con marcadores QA Seed; nunca datos reales). Orden respetando FKs.
@@ -375,6 +389,14 @@ Deno.serve(async (req: Request) => {
           [EMAIL_ADMIN, EMAIL_COLAB_COMISIONES, EMAIL_COLAB_CONTRATO].includes(u.email)
         )
         const misUserIds = misUsers.map((u: { id: string }) => u.id)
+        const errores: string[] = []
+        const borrar = async (
+          tabla: string,
+          aplicar: (q: ReturnType<typeof sb.from>) => PromiseLike<{ error: unknown }>
+        ) => {
+          const { error } = await aplicar(sb.from(tabla))
+          if (error) errores.push(`${tabla}: ${(error as { message?: string })?.message ?? String(error)}`)
+        }
         const { data: contacts } = await sb
           .from('contacts')
           .select('id')
@@ -383,31 +405,33 @@ Deno.serve(async (req: Request) => {
         for (const ct of contacts ?? []) {
           const { data: ventas } = await sb.from('sales').select('id').eq('tenant_id', tenantId).eq('contact_id', ct.id)
           for (const v of ventas ?? []) {
-            await sb.from('commissions').delete().eq('sale_id', v.id)
-            await sb.from('collections').delete().eq('sale_id', v.id)
-            await sb.from('contracts').delete().eq('sale_id', v.id)
-            await sb.from('sales').delete().eq('id', v.id)
+            // Orden respetando FKs: si commissions/collections/contracts fallan, el delete de
+            // sales fallaría igual por FK — pero se quiere ver la causa real, no el error de FK.
+            await borrar('commissions', (q) => q.delete().eq('sale_id', v.id))
+            await borrar('collections', (q) => q.delete().eq('sale_id', v.id))
+            await borrar('contracts', (q) => q.delete().eq('sale_id', v.id))
+            await borrar('sales', (q) => q.delete().eq('id', v.id))
           }
-          await sb.from('contacts').delete().eq('id', ct.id)
+          await borrar('contacts', (q) => q.delete().eq('id', ct.id))
         }
         const { data: prods } = await sb.from('products').select('id').eq('tenant_id', tenantId).eq('name', PRODUCTO)
         for (const p of prods ?? []) {
-          await sb.from('payment_plans').delete().eq('product_id', p.id)
-          await sb.from('products').delete().eq('id', p.id)
+          await borrar('payment_plans', (q) => q.delete().eq('product_id', p.id))
+          await borrar('products', (q) => q.delete().eq('id', p.id))
         }
         const { data: gastos } = await sb
           .from('expenses')
           .select('id')
           .eq('tenant_id', tenantId)
           .eq('concept', GASTO_CONCEPTO)
-        for (const g of gastos ?? []) await sb.from('expenses').delete().eq('id', g.id)
+        for (const g of gastos ?? []) await borrar('expenses', (q) => q.delete().eq('id', g.id))
         if (misUserIds.length) {
           const { data: perfiles } = await sb
             .from('collaborator_profiles')
             .select('id, user_id')
             .eq('tenant_id', tenantId)
             .in('user_id', misUserIds)
-          for (const p of perfiles ?? []) await sb.from('collaborator_profiles').delete().eq('id', p.id)
+          for (const p of perfiles ?? []) await borrar('collaborator_profiles', (q) => q.delete().eq('id', p.id))
           const { data: contratos } = await sb
             .from('contracts')
             .select('id')
@@ -415,14 +439,21 @@ Deno.serve(async (req: Request) => {
             .in('user_id', misUserIds)
           const idsContratos = (contratos ?? []).map((c: { id: string }) => c.id)
           await borrarPdfsContratos(idsContratos)
-          for (const id of idsContratos) await sb.from('contracts').delete().eq('id', id)
+          for (const id of idsContratos) await borrar('contracts', (q) => q.delete().eq('id', id))
         }
         for (const u of misUsers) {
-          await sb.from('tenant_members').delete().eq('tenant_id', tenantId).eq('user_id', u.id)
-          await sb.from('users').delete().eq('id', u.id)
-          await sb.auth.admin.deleteUser(u.id)
+          await borrar('tenant_members', (q) => q.delete().eq('tenant_id', tenantId).eq('user_id', u.id))
+          await borrar('users', (q) => q.delete().eq('id', u.id))
+          const { error: authErr } = await sb.auth.admin.deleteUser(u.id)
+          if (authErr) errores.push(`auth.deleteUser/${u.id}: ${authErr.message}`)
         }
-        return json({ ok: true, tenantId, modo: 'tenant', usuariosBorrados: misUsers.length })
+        return json({
+          ok: errores.length === 0,
+          tenantId,
+          modo: 'tenant',
+          usuariosBorrados: misUsers.length,
+          ...(errores.length ? { errores } : {}),
+        })
       }
       return json({ error: 'cleanup requiere ids (quirúrgico) o tenant (purga QA)' }, 400)
     }
