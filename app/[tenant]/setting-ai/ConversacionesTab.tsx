@@ -1,7 +1,7 @@
 'use client'
 import { useTenant } from '@/lib/tenant-context'
 import { useEffect, useState } from 'react'
-import { Sparkles, ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
+import { Sparkles, ChevronDown, ChevronRight, Loader2, MessageCircle, ExternalLink } from 'lucide-react'
 import { formatNumber, formatPercent } from '@/lib/utils'
 
 type ConvMsg = { from: 'agente' | 'lead'; text?: string; created_time?: string }
@@ -13,6 +13,20 @@ type IgConversation = {
   message_count: number
   messages: ConvMsg[]
 }
+
+// GHL devuelve la misma forma base (id, unread_count, message_count, messages) más el canal y
+// la vinculación con el perfil del CRM (resuelta en servidor por ghl_contact_id → email →
+// teléfono); la UI es la misma lista con un badge de canal y un enlace al contacto.
+type GhConversation = IgConversation & {
+  channel?: string
+  contactId?: string
+  contact_name?: string | null
+  contact_email?: string | null
+  contact_phone?: string | null
+  contactoVinculado?: { id: string; full_name: string } | null
+  vinculacion?: string | null
+}
+type Conv = IgConversation & Partial<GhConversation>
 type Analysis = {
   avatar_detectado?: string
   fase_alcanzada?: string
@@ -34,6 +48,7 @@ type ResumenMetricas = {
 
 const PLATFORMS = [
   { k: 'instagram' as const, label: 'Instagram' },
+  { k: 'ghl' as const, label: 'GHL' },
   { k: 'facebook' as const, label: 'Facebook' },
   { k: 'tiktok' as const, label: 'TikTok' },
 ]
@@ -41,7 +56,7 @@ type Platform = (typeof PLATFORMS)[number]['k']
 type RespuestaConvos = {
   error?: string
   configured?: boolean
-  conversations?: IgConversation[]
+  conversations?: Conv[]
   motivo?: string
 }
 
@@ -50,7 +65,7 @@ export default function ConversacionesTab() {
   const [platform, setPlatform] = useState<Platform>('instagram')
   const [loading, setLoading] = useState(false)
   const [configured, setConfigured] = useState<boolean | null>(null)
-  const [conversations, setConversations] = useState<IgConversation[]>([])
+  const [conversations, setConversations] = useState<Conv[]>([])
   const [error, setError] = useState('')
   const [motivo, setMotivo] = useState('')
   const [openId, setOpenId] = useState<string | null>(null)
@@ -61,7 +76,7 @@ export default function ConversacionesTab() {
   const [metricsMotivo, setMetricsMotivo] = useState('')
 
   useEffect(() => {
-    if (platform !== 'instagram') {
+    if (platform !== 'instagram' && platform !== 'ghl') {
       setConfigured(false)
       setConversations([])
       setError('')
@@ -74,7 +89,7 @@ export default function ConversacionesTab() {
     // esperar en cliente también, para que el usuario vea un mensaje y no una rueda eterna.
     const controlador = new AbortController()
     const reloj = setTimeout(() => controlador.abort(), 35_000)
-    fetch(`/api/${tenant}/evergreen/setting-ai/conversations?platform=instagram`, {
+    fetch(`/api/${tenant}/evergreen/setting-ai/conversations?platform=${platform}`, {
       signal: controlador.signal,
     })
       .then(async (r) =>
@@ -154,8 +169,9 @@ export default function ConversacionesTab() {
         <div>
           <h1 className="text-base font-bold text-foreground leading-tight">Conversaciones</h1>
           <p className="text-2xs text-muted-foreground leading-tight">
-            Extrae y analiza con IA las conversaciones reales de redes sociales.
+            Extrae y analiza con IA las conversaciones reales: redes sociales y la bandeja de GHL.
           </p>
+          {motivo && configured && <p className="text-2xs text-amber-500/90 leading-tight mt-0.5">{motivo}</p>}
         </div>
         <div className="flex-1" />
         <div className="flex rounded-lg border border-border overflow-hidden text-xs">
@@ -174,7 +190,7 @@ export default function ConversacionesTab() {
       <ResumenCrossPlataforma metrics={metrics} motivo={metricsMotivo} />
 
       <div className="flex-1 overflow-y-auto py-4">
-        {platform !== 'instagram' ? (
+        {platform !== 'instagram' && platform !== 'ghl' ? (
           <PlaceholderPlatform platform={platform} />
         ) : loading ? (
           <p className="text-muted-foreground text-sm text-center py-10 flex items-center justify-center gap-2">
@@ -184,12 +200,25 @@ export default function ConversacionesTab() {
           <p className="text-red-400 text-sm text-center py-10">Error: {error}</p>
         ) : configured === false ? (
           <div className="text-center py-14 text-muted-foreground text-sm max-w-md mx-auto">
-            <p className="mb-2 font-semibold text-foreground">Instagram no está operativo para mensajería.</p>
+            <p className="mb-2 font-semibold text-foreground">
+              {platform === 'ghl'
+                ? 'GoHighLevel no está operativo para mensajería.'
+                : 'Instagram no está operativo para mensajería.'}
+            </p>
             {motivo && <p className="mb-2 text-foreground">{motivo}</p>}
             <p>
-              Configura el token en <b>Configuración → Integraciones</b> (necesita el permiso{' '}
-              <code className="text-2xs bg-muted px-1 py-0.5 rounded">instagram_manage_messages</code>) para poder ver y
-              analizar aquí las conversaciones reales.
+              {platform === 'ghl' ? (
+                <>
+                  Configura el <b>PIT token</b> y el <b>Location ID</b> en <b>Configuración → Integraciones</b> para ver
+                  aquí la bandeja unificada de GHL (SMS, Facebook, Instagram, WhatsApp y email).
+                </>
+              ) : (
+                <>
+                  Configura el token en <b>Configuración → Integraciones</b> (necesita el permiso{' '}
+                  <code className="text-2xs bg-muted px-1 py-0.5 rounded">instagram_manage_messages</code>) para poder
+                  ver y analizar aquí las conversaciones reales.
+                </>
+              )}
             </p>
           </div>
         ) : conversations.length === 0 ? (
@@ -207,7 +236,14 @@ export default function ConversacionesTab() {
                   ) : (
                     <ChevronRight className="w-4 h-4 shrink-0" />
                   )}
-                  <span className="font-medium text-sm flex-1 truncate">{c.participant || 'Lead sin nombre'}</span>
+                  <span className="font-medium text-sm flex-1 truncate">
+                    {c.contactoVinculado?.full_name || c.participant || c.contact_name || 'Lead sin nombre'}
+                  </span>
+                  {c.channel && (
+                    <span className="text-3xs text-muted-foreground border border-border rounded px-1 py-0.5 uppercase">
+                      {c.channel}
+                    </span>
+                  )}
                   {c.unread_count > 0 && (
                     <span className="text-3xs bg-brand-600 text-white rounded-full px-1.5 py-0.5">
                       {c.unread_count} sin leer
@@ -233,6 +269,21 @@ export default function ConversacionesTab() {
                         ))}
                       </div>
                     )}
+                    {platform === 'ghl' &&
+                      (c.contactoVinculado ? (
+                        <a
+                          href={`/${tenant}/crm/contactos/${c.contactoVinculado.id}`}
+                          className="flex items-center gap-1 text-2xs text-brand-400 hover:opacity-80 mb-2"
+                          title={`Perfil vinculado (${c.vinculacion === 'ghl_contact_id' ? 'ID de GHL' : c.vinculacion === 'email' ? 'email' : 'teléfono'})`}
+                        >
+                          <ExternalLink className="w-3 h-3" /> Ver perfil: {c.contactoVinculado.full_name}
+                        </a>
+                      ) : (
+                        <p className="text-2xs text-muted-foreground mb-2 flex items-center gap-1">
+                          <MessageCircle className="w-3 h-3" /> Sin perfil vinculado en el CRM (coincide por ID de GHL,
+                          email o teléfono).
+                        </p>
+                      ))}
                     <button
                       onClick={() => analyze(c)}
                       disabled={analyzing === c.id || c.messages.length === 0}
