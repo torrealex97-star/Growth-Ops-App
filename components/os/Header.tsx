@@ -165,7 +165,13 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center border-b border-border bg-background/95 backdrop-blur-xl px-4 lg:px-7">
-      <Button variant="ghost" size="icon" className="lg:hidden mr-2 text-muted-foreground" onClick={onMenuClick}>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="lg:hidden mr-2 text-muted-foreground"
+        aria-label="Abrir menú de navegación"
+        onClick={onMenuClick}
+      >
         <Menu className="w-5 h-5" />
       </Button>
 

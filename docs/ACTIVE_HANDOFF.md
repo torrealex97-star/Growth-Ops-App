@@ -1,5 +1,24 @@
 # Relevo activo
 
+## ✅ UX/a11y: clases Tailwind fuera de escala y botones de icono sin nombre (PR #265, mergeada)
+
+**MERGEADA** (squash `9eda4b0` en `main`, 28-sep). CI verde completo en la rama
+(run 36391898185: Quality 1m43s, gitleaks, Build 2m14s y Smoke E2E 4m13s ✓). Fila del tablero
+retirada; rama `audit/bughunt-visual` eliminada.
+
+- **Bugs visuales:** `w-4.5 h-4.5` (BusinessContextCard, GrowthContextForm) y `h-18` ×2
+  (modal de reels de Instagram) NO existen en la escala de Tailwind (sin extensión de
+  `spacing` en el config): el icono caía a 24px por defecto dentro de una caja de 36px y la
+  miniatura perdía su altura. Corregidos a la convención del repo (`w-4 h-4`, `h-14`).
+- **A11y:** 14 botones solo-icono sin `aria-label`/`title` anunciaban «botón» a secas
+  (contratos, plantillas, recursos, productos, KPI, Header, Sidebar, calendar-popover).
+- Barrido sistemático post-fix: 0 utilidades fuera de escala, 0 botones de icono sin nombre.
+- Descartados como no-bugs en el mismo barrido: `parseFloat` sobre importes (todos en
+  `type="number"` con `min` salvo conciliación, cuyos negativos son movimientos legítimos),
+  `key={index}` en esqueletos estáticos, `target="_blank"` (noopener implícito en
+  navegadores modernos, pendiente como endurecimiento) y charts recharts (todos con
+  `ResponsiveContainer`, sin API privada tras la major #261).
+
 ## ✅ Fechas solo-día del plan de cuotas ancladas a UTC (PR #264, mergeada)
 
 **MERGEADA** (squash `04e3720` en `main`, 28-sep). CI verde completo en la rama

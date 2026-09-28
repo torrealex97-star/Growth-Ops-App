@@ -240,6 +240,7 @@ export default function PlantillasPage() {
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                    aria-label="Editar plantilla"
                     onClick={() => openEdit(t)}
                   >
                     <Edit2 className="w-3.5 h-3.5" />
@@ -248,6 +249,7 @@ export default function PlantillasPage() {
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 text-muted-foreground hover:text-red-400"
+                    aria-label="Eliminar plantilla"
                     onClick={() => remove(t)}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
