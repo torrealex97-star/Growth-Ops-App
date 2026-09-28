@@ -93,6 +93,7 @@ export function CalendarPopover({
             variant="ghost"
             size="icon"
             className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            aria-label="Mes anterior"
             onClick={() => setViewMonth((m) => subMonths(m, 1))}
           >
             <ChevronLeft className="w-4 h-4" />
@@ -105,6 +106,7 @@ export function CalendarPopover({
             variant="ghost"
             size="icon"
             className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            aria-label="Mes siguiente"
             onClick={() => setViewMonth((m) => addMonths(m, 1))}
           >
             <ChevronRight className="w-4 h-4" />

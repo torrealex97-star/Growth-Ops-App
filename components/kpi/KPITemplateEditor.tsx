@@ -186,6 +186,7 @@ export function KPITemplateEditor({ roleKey, templates, onUpdate }: KPITemplateE
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                  aria-label="Editar plantilla KPI"
                   onClick={() => openEdit(t)}
                 >
                   <Edit2 className="w-3.5 h-3.5" />
