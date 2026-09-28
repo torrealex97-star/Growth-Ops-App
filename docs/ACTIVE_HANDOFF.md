@@ -25,6 +25,50 @@ Trabajo preservado en PR #278 y rama `codex/dashboard-consistency`; sin fusionar
 - **Al retomar:** leer main y reclamaciones nuevas; comprobar el SHA del despliegue activo y la cola de Vercel; validar VSL con sesión existente (sin «Ver como»); revisar el fallo/reintento E2E de contratos; actualizar la rama desde main sin sobrescribir trabajo ajeno; integrar solo tras checks relevantes y verificar Unit Economics y resumen financiero.
 - **Criterio de cierre:** VSL carga sin error de conexión, PR integrada con checks aprobados, métricas del periodo coherentes y distinción de fuentes de cash visible en producción. Mantener el orden diagnóstico de KPI del usuario: definición, fuente, completitud, periodo, maturity, asignación, cálculo y finalmente benchmark.
 
+## ⏳ Dashboard WDC alineado con el filtro temporal — código en `main`, deployment pendiente (28-sep tarde)
+
+**No repetir el desarrollo.** Los cambios están publicados directamente en `main` en los commits
+`c28327f` y `d07bb45`:
+
+- El bloque financiero de `/[tenant]/dashboard` usa todo el rango seleccionado, no solo el primer
+  mes. La facturación se fecha por `sale_date` y el cash por `collected_at` (MONEY D1), incluyendo
+  cobros del periodo correspondientes a ventas anteriores.
+- La gráfica «Facturación vs cash cobrado» usa exactamente el filtro global: detalle diario hasta
+  45 días y mensual para rangos mayores. Ya no está fijada a «últimos 6 meses».
+- Analítica/Métricas generales reutiliza las series canónicas de `/metricas/brief`; no se creó una
+  segunda fórmula ni otra consulta financiera.
+- Con un único producto activo, la cuarta KPI muestra **Cash collected medio** por venta cobrada.
+  Con varios productos muestra **Ticket medio por cliente**, agrupando varias ventas del mismo
+  contacto (una venta sin contacto cuenta como cliente independiente).
+- Administradores/directores no ven las tarjetas de comisión personal en la vista agregada. Al
+  seleccionar una persona sí aparecen con su nombre; closers, setters y colaboradores conservan
+  su resumen propio.
+- El estado vacío de «Objetivos de empresa» ofrece a liderazgo un enlace a
+  `/[tenant]/kpi/templates?tab=objetivos`; esa URL abre directamente la pestaña Objetivos.
+- Regresión añadida en `tests/metrics/dashboard-period-finance.test.mjs` (4 casos).
+
+**Validación ejecutada antes del push:** format PASS, lint PASS con avisos preexistentes,
+typecheck PASS, `test:metrics` 756/756 PASS y build real de producción PASS. La suite general
+equivalente dio 1.130 PASS, 3 SKIP y 1 fallo preexistente de compatibilidad del arnés con Node 26
+(`apify-retry-scenario`: parameter properties de TypeScript); no está relacionado con este cambio.
+
+**Único pendiente:** comprobar el deployment y hacer smoke autenticado cuando Vercel libere la
+cola. Deployment esperado:
+`https://growthops-preview-3003-dp26vx2di-app-b1af.vercel.app` (`production`, estado `Queued` al
+cerrar esta sesión). `https://app.scalixsystems.com` seguía apuntando al deployment READY de unas
+8 horas antes, por lo que todavía no mostraba estos cambios. No lanzar otro deploy duplicado ni
+cancelar los trabajos en cola sin identificar primero sus commits; Claude Code también estaba
+publicando. Comandos de continuación:
+
+```bash
+vercel inspect https://growthops-preview-3003-dp26vx2di-app-b1af.vercel.app --wait --timeout 5m
+vercel inspect https://app.scalixsystems.com
+```
+
+Cuando el deployment quede READY, verificar en WDC Dashboard: cambio de rango, totales y gráfica
+coherentes, nombre de la cuarta KPI según número de productos, ausencia de comisiones en vista
+admin agregada, enlace de objetivos y gráfica financiera dentro de Analítica/Métricas generales.
+
 ## 📋 Documento de decisiones para Alex: `docs/DECISIONES-PENDIENTES-ALEX.md` (28-sep tarde)
 
 Las 3 decisiones que bloquean el resto de la auditoría FASE A (A5 clawback/refunds acumulados,
