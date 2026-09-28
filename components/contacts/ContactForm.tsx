@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -44,6 +45,7 @@ export function ContactForm({
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<ContactFormData>({
     resolver: zodResolver(contactSchema),
@@ -53,6 +55,27 @@ export function ContactForm({
       phone_prefix: defaultValues?.phone_prefix || initialSplit.prefix,
     },
   })
+
+  // Sincroniza el formulario cuando el padre actualiza los VALORES del contacto (p. ej. al
+  // deshacer un cambio desde la ficha). Sin esto, los inputs conservaban el valor editado
+  // mientras la cabecera mostraba el restaurado: otro submit habría re-escrito lo deshecho.
+  // OJO: se compara por VALORES y no por identidad del objeto — los consumidores pasan el
+  // literal inline en cada render, y un reset por identidad borraría lo que el usuario escribe.
+  const aplicados = useRef<Partial<ContactFormData> | null>(null)
+  useEffect(() => {
+    const next = {
+      ...(defaultValues ?? {}),
+      phone: defaultValues?.phone ? splitPhone(defaultValues.phone).national : (defaultValues?.phone ?? ''),
+      phone_prefix: defaultValues?.phone_prefix || splitPhone(defaultValues?.phone || '').prefix,
+    }
+    const prev = aplicados.current as Record<string, unknown> | null
+    const cambio =
+      !prev ||
+      Object.keys(next).some((k) => (prev as Record<string, unknown>)[k] !== (next as Record<string, unknown>)[k])
+    if (!cambio) return
+    aplicados.current = next
+    reset(next)
+  }, [defaultValues, reset])
 
   const isLoading = loading || isSubmitting
 
