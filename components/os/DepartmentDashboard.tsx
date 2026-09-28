@@ -2,9 +2,11 @@
 
 import { useId, useState, type ReactNode } from 'react'
 import Link from 'next/link'
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowUpRight, BarChart3, Info } from 'lucide-react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { formatNumber } from '@/lib/utils'
+import { KPICard, TargetRow } from '@/components/os/DashboardKPICard'
+import type { ComponentProps } from 'react'
 
 export function DepartmentSection({
   id,
@@ -22,18 +24,18 @@ export function DepartmentSection({
   children: ReactNode
 }) {
   return (
-    <section id={id} aria-labelledby={`${id}-heading`} className="scroll-mt-8 space-y-4 border-t border-border/50 pt-8">
+    <section id={id} aria-labelledby={`${id}-heading`} className="scroll-mt-8 space-y-3 border-t border-border/50 pt-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 id={`${id}-heading`} className="font-display text-xl font-semibold tracking-tight">
-            <span className="mr-3 text-primary">{number}</span>
+          <h2 id={`${id}-heading`} className="font-display text-base font-semibold tracking-tight">
+            <span className="mr-2 text-brand-500">{number}</span>
             {title}
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{description}</p>
         </div>
         <Link
           href={href}
-          className="inline-flex min-h-10 items-center gap-1 text-sm text-muted-foreground hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+          className="inline-flex min-h-10 items-center gap-1 text-sm text-muted-foreground hover:text-brand-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
         >
           Ver detalle <ArrowUpRight className="h-4 w-4" />
         </Link>
@@ -73,26 +75,26 @@ export function MetricExplorer({
   const axisDate = (s: string) =>
     s.length === 7 ? s.split('-').reverse().join('/') : s.slice(5).split('-').reverse().join('/')
   return (
-    <div className="dashboard-card overflow-hidden rounded-2xl p-5 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="dashboard-card overflow-hidden rounded-xl p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-display text-base font-semibold">{title}</h3>
         {controls}
-      </div>
-      <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label={`Métrica de ${title}`}>
-        {metrics.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            aria-pressed={m.id === metric.id}
-            onClick={() => setSelected(m.id)}
-            className={`min-h-10 rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${m.id === metric.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}
-          >
-            {m.label}
-          </button>
-        ))}
+        <div className="flex flex-wrap gap-1" role="group" aria-label={`Métrica de ${title}`}>
+          {metrics.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              aria-pressed={m.id === metric.id}
+              onClick={() => setSelected(m.id)}
+              className={`min-h-9 rounded-full px-3 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${m.id === metric.id ? 'bg-brand-500 text-white' : 'bg-muted text-muted-foreground hover:text-foreground'}`}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
       </div>
       <div
-        className="mt-5 h-64 w-full min-w-0"
+        className="mt-3 h-44 w-full min-w-0"
         role="img"
         aria-label={`${metric.label}: evolución del periodo seleccionado`}
       >
@@ -133,7 +135,7 @@ export function MetricExplorer({
                 />
                 <Bar
                   dataKey="value"
-                  fill="hsl(var(--primary))"
+                  fill="hsl(var(--brand-500))"
                   radius={[4, 4, 0, 0]}
                   maxBarSize={32}
                   isAnimationActive={false}
@@ -143,8 +145,8 @@ export function MetricExplorer({
               <AreaChart data={metric.data} margin={{ top: 8, right: 8, left: 12, bottom: 0 }}>
                 <defs>
                   <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.22} />
-                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.01} />
+                    <stop offset="0%" stopColor="hsl(var(--brand-500))" stopOpacity={0.22} />
+                    <stop offset="100%" stopColor="hsl(var(--brand-500))" stopOpacity={0.01} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.4} />
@@ -175,7 +177,7 @@ export function MetricExplorer({
                 <Area
                   type="monotone"
                   dataKey="value"
-                  stroke="hsl(var(--primary))"
+                  stroke="hsl(var(--brand-500))"
                   strokeWidth={2.5}
                   fill={`url(#${gradientId})`}
                   connectNulls={false}
@@ -186,7 +188,12 @@ export function MetricExplorer({
           </ResponsiveContainer>
         )}
       </div>
-      {note && <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{note}</p>}
+      {note && (
+        <details className="mt-2 text-xs text-muted-foreground">
+          <summary className="cursor-pointer">Sobre estos datos</summary>
+          <p className="mt-2">{note}</p>
+        </details>
+      )}
     </div>
   )
 }
@@ -204,7 +211,7 @@ export function BreakdownBars({
 }) {
   const max = Math.max(...rows.map((r) => Math.abs(r.value)), 1)
   return (
-    <div className="dashboard-card rounded-2xl p-5 sm:p-6">
+    <div className="dashboard-card rounded-xl p-4">
       <h3 className="font-display text-base font-semibold">{title}</h3>
       {loading ? (
         <div className="mt-5 h-32 rounded-xl bg-muted motion-safe:animate-pulse" />
@@ -220,13 +227,102 @@ export function BreakdownBars({
               </div>
               <div className="h-2 rounded-full bg-muted">
                 <div
-                  className="h-2 rounded-full bg-primary/80"
+                  className="h-2 rounded-full bg-brand-500/80"
                   style={{ width: `${(Math.abs(r.value) / max) * 100}%` }}
                 />
               </div>
             </div>
           ))}
         </dl>
+      )}
+    </div>
+  )
+}
+
+/** Compact executive metric, scoped to this dashboard instead of changing shared cards. */
+export function CompactMetric({
+  title,
+  value,
+  icon: Icon = BarChart3,
+  loading,
+  description,
+  target,
+}: ComponentProps<typeof KPICard>) {
+  return (
+    <div className="dashboard-card flex min-w-0 items-start gap-2.5 rounded-xl p-3">
+      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1">
+          <p className="text-2xs leading-4 text-muted-foreground">{title}</p>
+          {description && (
+            <span title={description} tabIndex={0} aria-label={description} className="shrink-0 text-muted-foreground">
+              <Info className="h-3 w-3" />
+            </span>
+          )}
+        </div>
+        {loading ? (
+          <div className="mt-2 h-6 w-16 rounded bg-muted motion-safe:animate-pulse" />
+        ) : (
+          <p className="mt-1 font-display text-base xl:text-lg font-semibold leading-6 tracking-tight tabular-nums">
+            {value}
+          </p>
+        )}
+        {target && <TargetRow target={target} />}
+      </div>
+    </div>
+  )
+}
+
+export function AppointmentStatusStrip({
+  rows,
+  loading,
+}: {
+  rows: { label: string; value: number }[]
+  loading: boolean
+}) {
+  const total = rows.reduce((sum, r) => sum + r.value, 0)
+  return (
+    <div className="dashboard-card rounded-xl p-4">
+      <h3 className="text-sm font-medium">Estado de las citas</h3>
+      {loading ? (
+        <div className="mt-4 h-8 rounded bg-muted motion-safe:animate-pulse" />
+      ) : total === 0 ? (
+        <p className="py-4 text-sm text-muted-foreground">Sin citas registradas en el periodo.</p>
+      ) : (
+        <>
+          <div
+            className="mt-4 flex h-8 overflow-hidden rounded-md"
+            role="img"
+            aria-label={rows.map((r) => `${r.label}: ${r.value}`).join(', ')}
+          >
+            {rows.map((r, i) => (
+              <div
+                key={r.label}
+                title={`${r.label}: ${r.value}`}
+                className="flex items-center justify-center text-xs font-semibold text-white"
+                style={{
+                  width: `${(r.value / total) * 100}%`,
+                  background: `color-mix(in srgb, hsl(var(--brand-500)) ${Math.max(30, 100 - i * 20)}%, hsl(var(--muted)))`,
+                }}
+              >
+                {r.value / total > 0.08 ? r.value : ''}
+              </div>
+            ))}
+          </div>
+          <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
+            {rows.map((r, i) => (
+              <li key={r.label} className="flex items-center gap-1.5">
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{
+                    background: `color-mix(in srgb, hsl(var(--brand-500)) ${Math.max(30, 100 - i * 20)}%, hsl(var(--muted)))`,
+                  }}
+                />
+                {r.label} · {r.value}
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   )

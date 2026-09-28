@@ -4,8 +4,15 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { mensajeDeCarga, primerError } from '@/lib/supabase/resultado'
 import { FunnelDinamico, FUNNEL_LABELS, FUNNEL_ORDEN, type OpcionFunnel } from '@/components/os/FunnelDinamico'
-import { DepartmentSection, MetricExplorer, BreakdownBars } from '@/components/os/DepartmentDashboard'
-import { KPICard, TargetRow } from '@/components/os/DashboardKPICard'
+import {
+  DepartmentSection,
+  MetricExplorer,
+  BreakdownBars,
+  CompactMetric as KPICard,
+  AppointmentStatusStrip,
+} from '@/components/os/DepartmentDashboard'
+import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
+import { TargetRow } from '@/components/os/DashboardKPICard'
 import { evaluaTarget, eligeTarget, valorTarget, METRICAS_CON_OBJETIVO } from '@/lib/targets/vs-actual'
 import { PieChart, Target, Users, TrendingUp, Wallet, Filter, MousePointerClick, Megaphone } from 'lucide-react'
 import { cuentaComoVenta } from '@/lib/analytics'
@@ -788,7 +795,7 @@ export default function UnitEconomicsPage() {
           key={g}
           aria-pressed={granularidad === g}
           onClick={() => setGranularidad(g)}
-          className={`min-h-9 rounded-full px-3 text-xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${granularidad === g ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          className={`min-h-9 rounded-full px-3 text-xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${granularidad === g ? 'bg-brand-500 text-white' : 'text-muted-foreground hover:text-foreground'}`}
         >
           {g === 'dia' ? 'Día' : g === 'semana' ? 'Semana' : 'Mes'}
         </button>
@@ -797,7 +804,7 @@ export default function UnitEconomicsPage() {
   )
 
   return (
-    <div className="dashboard-surface p-4 sm:p-6 space-y-8">
+    <div className="dashboard-surface operator-overview p-4 sm:p-5 space-y-5">
       {errorCarga && (
         <div className="dashboard-card border-destructive/40 p-4">
           <p className="text-foreground text-sm font-medium">Faltan datos para calcular estas cifras</p>
@@ -825,7 +832,7 @@ export default function UnitEconomicsPage() {
             por día y campaña, y es lo que se usa en cuanto se elige un periodo. */}
             {/* Estado REAL de la selección de cuentas: el texto anterior confesaba el bug
             ("Todas las cuentas de Meta accesibles") — ahora se declara lo que de verdad cuenta. */}
-            <p className="text-muted-foreground mt-2 text-xs">
+            <p className="sr-only">
               {cuentas.listo && !cuentas.todas
                 ? `Cuentas de Meta: solo las ${cuentas.seleccionadas.length} seleccionadas en Integraciones › Meta Ads.`
                 : 'Cuentas de Meta: todas las accesibles por el token. Selecciona cuentas en Integraciones › Meta Ads para acotar.'}
@@ -870,18 +877,23 @@ export default function UnitEconomicsPage() {
             }}
           />
 
-          {/* FILTROS GLOBALES: origen + atribución + familia de embudo, todo en una barra. */}
-          <FiltrosAtribucion
-            origen={origen}
-            onOrigenChange={setOrigen}
-            atribucion={atribucion}
-            onAtribucionChange={setAtribucion}
-            avanzadosAbiertos={avanzadosAbiertos}
-            onToggleAvanzados={() => setAvanzadosAbiertos((v) => !v)}
-            funnelOpcion={funnelOpcion}
-            onFunnelChange={setFunnelOpcion}
-          />
-
+          <details className="text-xs text-muted-foreground">
+            <summary className="cursor-pointer py-1">Origen, atribución y familia de embudo</summary>
+            <div className="mt-2">
+              {' '}
+              {/* FILTROS GLOBALES: origen + atribución + familia de embudo, todo en una barra. */}
+              <FiltrosAtribucion
+                origen={origen}
+                onOrigenChange={setOrigen}
+                atribucion={atribucion}
+                onAtribucionChange={setAtribucion}
+                avanzadosAbiertos={avanzadosAbiertos}
+                onToggleAvanzados={() => setAvanzadosAbiertos((v) => !v)}
+                funnelOpcion={funnelOpcion}
+                onFunnelChange={setFunnelOpcion}
+              />
+            </div>
+          </details>
           <nav aria-label="Departamentos" className="flex flex-wrap gap-2">
             {['Negocio', 'Marketing', 'Operación', 'Ventas', 'Finanzas', 'Clientes'].map((label, i) => (
               <a
@@ -895,7 +907,7 @@ export default function UnitEconomicsPage() {
           </nav>
           <section id="departamento-0" className="space-y-4">
             <h2 className="font-display text-xl font-semibold">Negocio</h2>
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-6">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
               <KPICard
                 title="Facturación"
                 value={formatCurrency(funnelOperativo.facturacion)}
@@ -1047,7 +1059,7 @@ export default function UnitEconomicsPage() {
             description="Inversión, demanda y origen de las oportunidades."
             href={`/${tenant}/marketing/adquisicion/campanas`}
           >
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <KPICard
                 title="Inversión publicitaria"
                 value={formatCurrency(marketingFunnel.adspend)}
@@ -1072,7 +1084,7 @@ export default function UnitEconomicsPage() {
                 description="Citas del periodo con campaña asociada"
               />
             </div>
-            <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
+            <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
               <MetricExplorer
                 title="Tendencia de adquisición"
                 loading={loading}
@@ -1318,7 +1330,7 @@ export default function UnitEconomicsPage() {
             description="Del lead a la llamada: volumen y estado de las agendas."
             href={`/${tenant}/crm/agendas`}
           >
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <KPICard
                 title="Agendas"
                 value={formatNumber(ventas.agendas)}
@@ -1343,11 +1355,7 @@ export default function UnitEconomicsPage() {
               />
               <KPICard title="Primer contacto" value="—" description="No disponible en esta vista" />
             </div>
-            <BreakdownBars
-              title="Estado de las citas · todos los orígenes"
-              loading={loading}
-              rows={appointmentStates}
-            />
+            <AppointmentStatusStrip loading={loading} rows={appointmentStates} />
           </DepartmentSection>
 
           <DepartmentSection
@@ -1357,43 +1365,68 @@ export default function UnitEconomicsPage() {
             description="De las llamadas a las ventas y la facturación."
             href={`/${tenant}/analitica/embudo`}
           >
-            <FunnelDinamico
-              tenant={tenant}
-              operativo={funnelOperativo}
-              loading={loading}
-              opcion={funnelOpcion}
-              rango={{ from: rangoISO(rango.from), to: rangoISO(rango.to) }}
-            />
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-              <KPICard
-                title="Ofertas registradas"
-                value={formatNumber(funnelOperativo.offersDeclaradas)}
-                loading={loading}
-                description="Declaradas en citas asistidas del periodo"
-              />
-              <KPICard
-                title="Ventas"
-                value={formatNumber(ventas.ventas)}
-                loading={loading}
-                description="Según el origen seleccionado"
-              />
-              <KPICard
-                title="Facturación"
-                value={formatCurrency(ventas.facturacion)}
-                loading={loading}
-                description="Según el origen seleccionado"
-              />
-              <KPICard
-                title="Ticket medio"
-                value={ventas.ventas ? formatCurrency(ventas.facturacion / ventas.ventas) : '—'}
-                loading={loading}
-                description="Facturación / ventas del origen"
-              />
+            <div className="grid gap-3 lg:grid-cols-[3fr_1fr]">
+              <div className="dashboard-card rounded-xl p-4">
+                {funnelOpcion === 'todos' ? (
+                  <>
+                    <h3 className="mb-3 text-sm font-medium">Actividad comercial del periodo</h3>
+                    <ConnectedFunnel
+                      compact
+                      activityOnly
+                      loading={loading}
+                      stages={[
+                        { label: 'Asistencias', value: funnelOperativo.asistencias },
+                        { label: 'Ofertas registradas', value: funnelOperativo.offersDeclaradas },
+                        { label: 'Ventas', value: funnelOperativo.cierres },
+                      ]}
+                    />
+                  </>
+                ) : (
+                  <FunnelDinamico
+                    tenant={tenant}
+                    operativo={funnelOperativo}
+                    loading={loading}
+                    opcion={funnelOpcion}
+                    rango={{ from: rangoISO(rango.from), to: rangoISO(rango.to) }}
+                  />
+                )}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 content-start">
+                <KPICard
+                  title="Ticket medio"
+                  value={ventas.ventas ? formatCurrency(ventas.facturacion / ventas.ventas) : '—'}
+                  loading={loading}
+                  description="Facturación / ventas del origen seleccionado"
+                />
+                <KPICard
+                  title="Facturación"
+                  value={formatCurrency(ventas.facturacion)}
+                  loading={loading}
+                  description="Según el origen seleccionado"
+                />
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Los totales de actividad no demuestran conversiones de una misma cohorte. El análisis por closer y
-              seguimiento está en el detalle comercial.
-            </p>
+            <div className="dashboard-card overflow-x-auto rounded-xl p-4">
+              <table className="w-full text-left text-xs">
+                <caption className="sr-only">Rendimiento por closer</caption>
+                <thead className="text-muted-foreground">
+                  <tr>
+                    {['Closer', 'Asistencias', 'Ofertas', 'Ventas', 'Cobrado'].map((label) => (
+                      <th key={label} className="pb-3 font-medium">
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td colSpan={5} className="border-t border-border/50 py-4 text-center text-muted-foreground">
+                      Desglose por closer no disponible en esta vista. Consulta el detalle comercial.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </DepartmentSection>
 
           <DepartmentSection
@@ -1403,7 +1436,7 @@ export default function UnitEconomicsPage() {
             description="Cobros y devoluciones, con sus fuentes diferenciadas."
             href={`/${tenant}/finanzas/analitica/resumen`}
           >
-            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <KPICard title="Cobrado bruto" value={formatCurrency(cash.gross)} loading={loading} />
               <KPICard title="Devoluciones descontadas" value={formatCurrency(cash.refunds)} loading={loading} />
               <KPICard title="Cobrado neto" value={formatCurrency(cash.net)} loading={loading} />
@@ -1413,7 +1446,7 @@ export default function UnitEconomicsPage() {
                 loading={loading}
               />
             </div>
-            <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
+            <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
               <MetricExplorer
                 title="Evolución de cobros"
                 loading={loading}
@@ -1465,13 +1498,30 @@ export default function UnitEconomicsPage() {
                 loading={loading}
                 description="Facturación del periodo / clientes con compra"
               />
-              <div className="dashboard-card rounded-2xl p-5">
-                <h3 className="text-sm font-medium">Retención y entrega</h3>
-                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                  Esta vista aún no dispone de una serie de alumnos activos, bajas y cohortes. Consulta el seguimiento
-                  de alumnos en el detalle.
-                </p>
+              <KPICard
+                title="Retención"
+                value="—"
+                description="Sin serie de clientes activos y bajas disponible en esta vista"
+              />
+            </div>
+            <div className="dashboard-card rounded-xl p-4">
+              <h3 className="text-sm font-medium">Retención por cohorte</h3>
+              <div className="mt-4 grid grid-cols-5 gap-2 text-center text-xs text-muted-foreground">
+                <span>Cohorte</span>
+                {['Mes 0', 'Mes 1', 'Mes 2', 'Mes 3'].map((m) => (
+                  <span key={m}>{m}</span>
+                ))}
+                {Array.from({ length: 3 }, (_, row) =>
+                  Array.from({ length: 5 }, (_, col) => (
+                    <span key={`${row}-${col}`} className="rounded bg-muted/50 py-3">
+                      —
+                    </span>
+                  ))
+                )}
               </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Sin datos de cohortes disponibles. No se calcula retención a partir de ventas.
+              </p>
             </div>
           </DepartmentSection>
         </>

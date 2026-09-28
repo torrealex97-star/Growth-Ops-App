@@ -12,14 +12,17 @@ export function ConnectedFunnel({
   stages,
   loading = false,
   activityOnly = false,
+  compact = false,
 }: {
   stages: ConnectedFunnelStage[]
   loading?: boolean
+  compact?: boolean
   activityOnly?: boolean
 }) {
   if (loading) return <div className="h-64 animate-pulse rounded-xl bg-muted" />
 
-  const height = (index: number) => 240 - (index / Math.max(stages.length - 1, 1)) * 120
+  const height = (index: number) =>
+    (compact ? 120 : 240) - (index / Math.max(stages.length - 1, 1)) * (compact ? 60 : 120)
   return (
     <div className="connected-funnel">
       <div
@@ -29,7 +32,7 @@ export function ConnectedFunnel({
         aria-label="Etapas del embudo de conversión"
       >
         <div
-          className="flex h-64 items-center"
+          className={`flex items-center ${compact ? 'h-36' : 'h-64'}`}
           style={{
             minWidth:
               stages.reduce((sum, stage) => sum + Math.max(130, formatNumber(stage.value).length * 18 + 40), 0) +
