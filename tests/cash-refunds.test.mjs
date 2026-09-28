@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { canonicalCash, serieCanonicaCash } from '../../lib/canonical/cash.ts'
+import { canonicalCash, serieCanonicaCash } from '../lib/canonical/cash.ts'
 
 // -----------------------------------------------------------------------------
 // P1 PARCIAL (auditoría FASE A, 28-sep): el cash canónico debe comportarse igual
