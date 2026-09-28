@@ -183,7 +183,13 @@ export default function RefundsPage() {
         reason,
         refundDate,
       }),
+    }).catch(() => {
+      // Red caída: el botón no puede quedarse deshabilitado para siempre.
+      setSubmitting(false)
+      toast.error('Error de red al registrar la devolución. Revisa tu conexión e inténtalo de nuevo.')
+      return null
     })
+    if (!res) return
     const payload = (await res.json().catch(() => ({}))) as {
       error?: string
       outOfWindow?: boolean

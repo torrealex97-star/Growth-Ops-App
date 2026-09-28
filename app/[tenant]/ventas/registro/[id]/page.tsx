@@ -144,10 +144,22 @@ export default function SaleDetailPage() {
 
   const fetchFollowUps = useCallback(async () => {
     setLoadingFollowUps(true)
-    const res = await fetch(`/api/${tenant}/evergreen/sales/${id}/follow-ups`)
-    const data = await res.json()
-    if (res.ok) setFollowUps(data.notes || [])
-    setLoadingFollowUps(false)
+    try {
+      const res = await fetch(`/api/${tenant}/evergreen/sales/${id}/follow-ups`)
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setFollowUps(data.notes || [])
+      } else {
+        setFollowUps([])
+        toast.error('No se pudieron cargar las notas de seguimiento')
+      }
+    } catch {
+      // Un fallo de red no puede dejar el spinner para siempre ni una promesa rechazada viva.
+      setFollowUps([])
+      toast.error('No se pudieron cargar las notas de seguimiento (error de red)')
+    } finally {
+      setLoadingFollowUps(false)
+    }
   }, [id, tenant])
 
   useEffect(() => {

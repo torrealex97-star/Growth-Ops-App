@@ -98,6 +98,7 @@ export default function PnlPage() {
   const [refunds, setRefunds] = useState<RefundRow[]>([])
   const [expenses, setExpenses] = useState<ExpenseRow[]>([])
   const [commissions, setCommissions] = useState<CommissionRow[]>([])
+  const [fuentesEnError, setFuentesEnError] = useState<string[]>([])
 
   const monthOptions = useMemo(() => lastNMonths(12, nowYm()).reverse(), [])
 
@@ -136,6 +137,27 @@ export default function PnlPage() {
           .range(0, FINANCE_QUERY_ROW_CAP),
       ])
       if (!mounted) return
+      // Un fallo aislado de lectura NO se convierte en "esa fuente está a cero": el P&L pintaría
+      // ingresos/costes parciales como si fueran el mes completo. Se declara la fuente ilegible
+      // y la UI avisa en vez de mostrar cifras falsas (patrón `primerError` del resumen).
+      const fuentesFallidas = [
+        salesRes.error && 'ventas',
+        collRes.error && 'cobros',
+        refundsRes.error && 'devoluciones',
+        expensesRes.error && 'gastos',
+        commissionsRes.error && 'comisiones',
+      ].filter(Boolean) as string[]
+      if (fuentesFallidas.length) {
+        setFuentesEnError(fuentesFallidas)
+        setSales([])
+        setCollections([])
+        setRefunds([])
+        setExpenses([])
+        setCommissions([])
+        setLoading(false)
+        return
+      }
+      setFuentesEnError([])
       // El embed de payment_plans llega anidado: se aplana aquí para que el predicado de venta
       // (cuentaComoVenta) pueda ver si la fila es una reserva todavía abierta.
       setSales(((salesRes.data || []) as SaleRow[]).map((v) => ({ ...v, payment_plan_method: metodoDePlan(v) })))
@@ -192,13 +214,22 @@ export default function PnlPage() {
         </label>
       </div>
 
+      {fuentesEnError.length > 0 && (
+        <div className="dashboard-card p-4 border border-red-500/40 bg-red-500/5" role="alert">
+          <p className="text-sm text-red-400">
+            No se pudieron leer: {fuentesEnError.join(', ')}. Las cifras del P&amp;L NO se muestran porque estarían
+            incompletas. Corrige la fuente fallida y recarga la página.
+          </p>
+        </div>
+      )}
+
       {loading ? (
         <div className="dashboard-card p-6 space-y-3">
           {Array.from({ length: 14 }).map((_, i) => (
             <div key={i} className="h-5 bg-muted rounded animate-pulse" style={{ width: `${60 + (i % 5) * 8}%` }} />
           ))}
         </div>
-      ) : (
+      ) : fuentesEnError.length > 0 ? null : (
         <div className="dashboard-card p-6 divide-y divide-border">
           <Line label="Contracted Revenue" value={money(pnl.contractedRevenue)} />
           <Line label="Gross Revenue (Cash Collected, bruto)" value={money(pnl.grossRevenue)} />

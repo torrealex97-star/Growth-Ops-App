@@ -190,10 +190,16 @@ function EntrenamientoTab() {
   // ---------- Persist ----------
   useEffect(() => {
     if (!hydrated) return
-    localStorage.setItem(
-      LS,
-      JSON.stringify({ threads, activeId, corrections, basePrompt, notes, mode, model, autocorrect, persona })
-    )
+    // localStorage puede lanzar (modo privado de Safari/Firefox, cuota agotada): la escritura
+    // sin capturar rompería el efecto en CADA cambio de estado. Si falla, se avisa una vez.
+    try {
+      localStorage.setItem(
+        LS,
+        JSON.stringify({ threads, activeId, corrections, basePrompt, notes, mode, model, autocorrect, persona })
+      )
+    } catch {
+      console.warn('[setting-ai] persistencia local no disponible (navegador privado o cuota llena)')
+    }
   }, [threads, activeId, corrections, basePrompt, notes, mode, model, autocorrect, persona, hydrated])
 
   useEffect(() => {
