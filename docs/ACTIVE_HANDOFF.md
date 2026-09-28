@@ -10,8 +10,6 @@ VSL: POSTGRES_URL ausente en runtime. Tras autorización y acceso al Dashboard, 
 
 PR #278, commit de código 97094a3. Validación: quality local PASS (1133 unit, 3 skips; 757 métricas); build local y CI PASS, quality CI y secretos PASS. Smoke E2E: 10 PASS, contrato adjunto agota 20 s con carga en curso; reintento del job solicitado, sin modificar pruebas. Preview en cola. Verificación visual pendiente. Nuevo main c28327f revisado: cambios en dashboard principal, sin sobrescribirlos. Siguiente: revisar E2E reintentado, desbloquear/verificar despliegue Git y VSL, luego integrar PR y comprobar pantallas. No fusionada.
 
-
-
 ## ✅ Último P1 de crons cerrado: presupuesto real del sync de pagos Stripe (PR #277, 28-sep tarde)
 
 El deadline del sync de pagos Stripe (30 s cron / 45 s manual) **solo gobernaba la paginación**
@@ -23,16 +21,16 @@ sin escribir la página leída y el reintento empezaba de cero. Arreglado en
 `lib/finance/stripeFees.ts` + `lib/finance/stripePaymentsSync.ts`:
 
 - **Bucle de fees deadline-aware** (`fetchStripeFeesForChargeIds`): consulta el reloj antes de
-cada llamada con margen de 5 s para responder; tope duro de 200 fees por turno.
+  cada llamada con margen de 5 s para responder; tope duro de 200 fees por turno.
 - **Upsert garantizado antes del corte**: el dinero de la página leída se persiste SIEMPRE;
-el reintento nunca empieza de cero.
+  el reintento nunca empieza de cero.
 - **Corte honesto**: `truncated || deadlineReached` y `fees_pendientes` en el detail del run
-(cron y ruta manual).
+  (cron y ruta manual).
 - **Fee bueno no se pisa con NULL**: si la lectura falla o el presupuesto se agotó, la clave
-`stripe_fee` se omite del payload → PostgREST no toca la columna en el conflicto (conserva el
-fee del espejo); filas nuevas quedan NULL con el fallback del motor (comportamiento declarado).
+  `stripe_fee` se omite del payload → PostgREST no toca la columna en el conflicto (conserva el
+  fee del espejo); filas nuevas quedan NULL con el fallback del motor (comportamiento declarado).
 - **Fee inmutable no se re-pide**: una lectura previa del espejo (`stripe_fee IS NOT NULL`)
-ahorra el bucle entero cuando no hay pagos nuevos (caso común): 0 llamadas de fee.
+  ahorra el bucle entero cuando no hay pagos nuevos (caso común): 0 llamadas de fee.
 
 Tests: `tests/stripe-fees-deadline.test.mjs` (7 con mock de Stripe: reloj, corte parcial que
 no pierde el dinero, conservación de fee, NULL honesto, cero re-lecturas, guardas estáticas).
