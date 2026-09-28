@@ -198,7 +198,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       }
     }
 
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       actor_user_id: t.userId,
       entity_type: 'collaborator_profile',
@@ -213,6 +213,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           : null,
       },
     })
+    if (auditErr) console.error('[colaboradores] no se pudo registrar audit_logs (create):', auditErr.message)
 
     return NextResponse.json({
       ok: true,
@@ -269,7 +270,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
     const { error } = await sb.from('collaborator_profiles').update(patch).eq('id', body.id).eq('tenant_id', t.tenantId)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       actor_user_id: t.userId,
       entity_type: 'collaborator_profile',
@@ -278,6 +279,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       old_values: previo,
       new_values: patch,
     })
+    if (auditErr) console.error('[colaboradores] no se pudo registrar audit_logs (update):', auditErr.message)
 
     return NextResponse.json({ ok: true })
   } catch (err) {

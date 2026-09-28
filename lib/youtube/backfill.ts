@@ -23,7 +23,10 @@ async function enqueuePendingReels(sb: SupabaseClient, tenantId: string): Promis
   const toEnqueue = (allReels ?? [])
     .filter((r) => !knownSet.has(r.external_id))
     .map((r) => ({ tenant_id: tenantId, ig_media_external_id: r.external_id, status: 'pending' }))
-  if (toEnqueue.length) await sb.from('youtube_uploads').insert(toEnqueue)
+  if (toEnqueue.length) {
+    const { error } = await sb.from('youtube_uploads').insert(toEnqueue)
+    if (error) console.error('[youtube/backfill] no se pudieron encolar reels pendientes:', error.message)
+  }
 }
 
 async function loadPendingRows(sb: SupabaseClient, tenantId: string): Promise<PendingRow[]> {
@@ -64,7 +67,7 @@ async function uploadOne(
     const caption = media.caption || ''
     const title = caption.split('\n')[0]?.slice(0, 90) || 'Nuevo Reel'
     const result = await uploadReelToYoutube(freshUrl, title, `${caption}\n\nOriginal: ${media.permalink ?? ''}`, env)
-    await sb
+    const { error: markUploadedErr } = await sb
       .from('youtube_uploads')
       .update({
         youtube_video_id: result.videoId,
@@ -74,9 +77,17 @@ async function uploadOne(
       })
       .eq('ig_media_external_id', row.ig_media_external_id)
       .eq('tenant_id', tenantId)
+    // El vídeo YA está en YouTube: si esto falla, la fila se queda 'pending' y el próximo
+    // run la vuelve a subir — un Short público duplicado. Log con contexto para poder
+    // corregir la fila a mano (marcarla 'uploaded' con este video_id) antes del próximo run.
+    if (markUploadedErr)
+      console.error(
+        `[youtube/backfill] AVISO: reel ${row.ig_media_external_id} subido a YouTube (video ${result.videoId}) pero no se pudo marcar 'uploaded' — se reintentará y subirá DUPLICADO:`,
+        markUploadedErr.message
+      )
     return true
   } catch (err) {
-    await sb
+    const { error: markFailedErr } = await sb
       .from('youtube_uploads')
       .update({
         status: 'failed',
@@ -85,6 +96,11 @@ async function uploadOne(
       })
       .eq('ig_media_external_id', row.ig_media_external_id)
       .eq('tenant_id', tenantId)
+    if (markFailedErr)
+      console.error(
+        `[youtube/backfill] no se pudo marcar 'failed' el reel ${row.ig_media_external_id}:`,
+        markFailedErr.message
+      )
     return false
   }
 }

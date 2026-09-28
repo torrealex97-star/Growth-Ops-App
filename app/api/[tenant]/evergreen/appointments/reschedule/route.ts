@@ -231,15 +231,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           // Persistido (no solo logueado): el cron diario de recordatorios reintenta cancelar
           // estos eventos huérfanos para que un fallo transitorio de Calendly no deje un
           // duplicado permanente en Google Calendar sin que nadie se entere.
-          await sb
+          const { error: cleanupErr } = await sb
             .from('appointments')
             .update({ calendly_cleanup_pending: true, calendly_cleanup_event_uuid: oldEventUuid })
             .eq('id', appointmentId)
             .eq('tenant_id', t.tenantId)
+          // Si esto falla, el evento huérfano en Calendly nunca se reintenta cancelar (el cron
+          // de recordatorios se guía por este flag): queda como duplicado permanente sin aviso.
+          if (cleanupErr)
+            console.error(
+              `[reschedule] AVISO: no se pudo marcar calendly_cleanup_pending para el evento ${oldEventUuid} — el cron no lo reintentará:`,
+              cleanupErr.message
+            )
         }
       }
 
-      await sb.from('audit_logs').insert({
+      const { error: auditErr } = await sb.from('audit_logs').insert({
         tenant_id: t.tenantId,
         actor_user_id: t.userId,
         entity_type: 'appointment',
@@ -248,22 +255,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         old_values: oldValues,
         new_values: { appointment_datetime: newDatetimeISO, duration_minutes: parsedDuration, calendlyCanceled },
       })
+      if (auditErr) console.error('[reschedule] no se pudo registrar audit_logs:', auditErr.message)
 
       // Historial de llamadas (best-effort): deja constancia de la reagenda en `activities` sin
       // que un fallo aquí tumbe la reprogramación, que ya se aplicó correctamente arriba.
-      try {
-        await sb.from('activities').insert({
-          tenant_id: t.tenantId,
-          contact_id: appt.contact_id,
-          person_id: t.userId,
-          type: 'llamada',
-          direction: 'saliente',
-          result: 'cita_agendada',
-          notes: `Reagendada de ${formatDateTime(oldValues.appointment_datetime)} a ${formatDateTime(newDatetimeISO)}${priorStatusNote}`,
-        })
-      } catch (activityErr) {
-        console.error('[reschedule] No se pudo registrar la actividad de reagenda:', activityErr)
-      }
+      // OJO: supabase-js no lanza en fallo — comprobar { error }, no envolver en try/catch.
+      const { error: activityErr } = await sb.from('activities').insert({
+        tenant_id: t.tenantId,
+        contact_id: appt.contact_id,
+        person_id: t.userId,
+        type: 'llamada',
+        direction: 'saliente',
+        result: 'cita_agendada',
+        notes: `Reagendada de ${formatDateTime(oldValues.appointment_datetime)} a ${formatDateTime(newDatetimeISO)}${priorStatusNote}`,
+      })
+      if (activityErr) console.error('[reschedule] No se pudo registrar la actividad de reagenda:', activityErr.message)
 
       return NextResponse.json({ ok: true, appointmentId, calendlyCanceled })
     }
@@ -291,7 +297,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       })
     }
 
-    await sb.from('audit_logs').insert({
+    const { error: auditErr2 } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       actor_user_id: t.userId,
       entity_type: 'appointment',
@@ -300,22 +306,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       old_values: oldValues,
       new_values: { appointment_datetime: newDatetimeISO, duration_minutes: parsedDuration },
     })
+    if (auditErr2) console.error('[reschedule] no se pudo registrar audit_logs:', auditErr2.message)
 
     // Historial de llamadas (best-effort): igual que en el path de Calendly, no debe tumbar la
     // reprogramación (que ya se aplicó arriba) si falla.
-    try {
-      await sb.from('activities').insert({
-        tenant_id: t.tenantId,
-        contact_id: appt.contact_id,
-        person_id: t.userId,
-        type: 'llamada',
-        direction: 'saliente',
-        result: 'cita_agendada',
-        notes: `Reagendada de ${formatDateTime(oldValues.appointment_datetime)} a ${formatDateTime(newDatetimeISO)}${priorStatusNote}`,
-      })
-    } catch (activityErr) {
-      console.error('[reschedule] No se pudo registrar la actividad de reagenda:', activityErr)
-    }
+    // OJO: supabase-js no lanza en fallo — comprobar { error }, no envolver en try/catch.
+    const { error: activityErr2 } = await sb.from('activities').insert({
+      tenant_id: t.tenantId,
+      contact_id: appt.contact_id,
+      person_id: t.userId,
+      type: 'llamada',
+      direction: 'saliente',
+      result: 'cita_agendada',
+      notes: `Reagendada de ${formatDateTime(oldValues.appointment_datetime)} a ${formatDateTime(newDatetimeISO)}${priorStatusNote}`,
+    })
+    if (activityErr2) console.error('[reschedule] No se pudo registrar la actividad de reagenda:', activityErr2.message)
 
     return NextResponse.json({ ok: true, appointmentId })
   } catch (err) {

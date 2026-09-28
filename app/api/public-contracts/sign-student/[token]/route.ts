@@ -318,7 +318,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       await sendStudentOnboardingEmail({ to: accessEmail, studentName: signerName.trim(), company })
     }
 
-    await sb.from('audit_logs').insert({
+    const { error: auditFirmaErr } = await sb.from('audit_logs').insert({
       tenant_id: tenantId,
       entity_type: 'contract',
       entity_id: c.id,
@@ -333,6 +333,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
         onboarding_webhook: webhook,
       },
     })
+    if (auditFirmaErr)
+      console.error(
+        '[public-contracts/sign-student] no se pudo registrar audit_logs de la firma:',
+        auditFirmaErr.message
+      )
 
     return NextResponse.json({
       ok: true,

@@ -757,7 +757,7 @@ export default function NewSalePage() {
         return
       }
       saleId = newSaleId
-      await supabase.from('audit_logs').insert({
+      const { error: auditErr } = await supabase.from('audit_logs').insert({
         tenant_id: tenantId,
         actor_user_id: sesion.userId,
         entity_type: 'sale',
@@ -766,6 +766,7 @@ export default function NewSalePage() {
         old_values: null,
         new_values: salePayload,
       })
+      if (auditErr) console.error('[ventas/registro/nueva] no se pudo registrar audit_logs de la venta:', auditErr)
     }
 
     // Registra un cobro (cash collected) + genera comisiones pendientes vía endpoint server-side
