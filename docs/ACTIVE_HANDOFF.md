@@ -1,5 +1,24 @@
 # Relevo activo
 
+## ✅ UX/a11y: clases Tailwind fuera de escala y botones de icono sin nombre (PR #265, mergeada)
+
+**MERGEADA** (squash `9eda4b0` en `main`, 28-sep). CI verde completo en la rama
+(run 36391898185: Quality 1m43s, gitleaks, Build 2m14s y Smoke E2E 4m13s ✓). Fila del tablero
+retirada; rama `audit/bughunt-visual` eliminada.
+
+- **Bugs visuales:** `w-4.5 h-4.5` (BusinessContextCard, GrowthContextForm) y `h-18` ×2
+  (modal de reels de Instagram) NO existen en la escala de Tailwind (sin extensión de
+  `spacing` en el config): el icono caía a 24px por defecto dentro de una caja de 36px y la
+  miniatura perdía su altura. Corregidos a la convención del repo (`w-4 h-4`, `h-14`).
+- **A11y:** 14 botones solo-icono sin `aria-label`/`title` anunciaban «botón» a secas
+  (contratos, plantillas, recursos, productos, KPI, Header, Sidebar, calendar-popover).
+- Barrido sistemático post-fix: 0 utilidades fuera de escala, 0 botones de icono sin nombre.
+- Descartados como no-bugs en el mismo barrido: `parseFloat` sobre importes (todos en
+  `type="number"` con `min` salvo conciliación, cuyos negativos son movimientos legítimos),
+  `key={index}` en esqueletos estáticos, `target="_blank"` (noopener implícito en
+  navegadores modernos, pendiente como endurecimiento) y charts recharts (todos con
+  `ResponsiveContainer`, sin API privada tras la major #261).
+
 ## ✅ Fechas solo-día del plan de cuotas ancladas a UTC (PR #264, mergeada)
 
 **MERGEADA** (squash `04e3720` en `main`, 28-sep). CI verde completo en la rama
@@ -1076,11 +1095,10 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama                   | Toca                                                                                                                                                            | Desde  |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar)         | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts`                                                                 | 25-sep |
-| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)           | solo `expenses` vía migración pendiente; nada en código                                                                                                         | 23-sep |
-| Freebuff (Buffy)  | **UX/a11y: clases Tailwind fuera de escala y botones de icono sin nombre accesible** — `w-4.5/h-4.5` (×2) y `h-18` (×2) no existen (icono 24px en caja 36px; miniatura sin altura) y 14 `size="icon"` sin aria-label anunciaban «botón» a secas. Fix + barrido sistemático                                                                                                                     | `audit/bughunt-visual` | `components/settings/BusinessContextCard.tsx`, `components/settings/GrowthContextForm.tsx`, `app/[tenant]/instagram/page.tsx` + 9 ficheros con botones de icono | 28-sep |
+| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama           | Toca                                                                                            | Desde  |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
+| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
+| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
