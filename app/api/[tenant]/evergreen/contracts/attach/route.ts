@@ -77,12 +77,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
 
     if (contract.kind === 'equipo' && contract.user_id) {
-      await sb
+      const { error: activarErr } = await sb
         .from('collaborator_profiles')
         .update({ status: 'active', updated_at: new Date().toISOString() })
         .eq('tenant_id', t.tenantId)
         .eq('user_id', contract.user_id)
         .in('status', ['invited', 'pending_contract'])
+      // El contrato ya quedó marcado 'firmado' — si esto falla, el colaborador se queda
+      // sin activar sin forma de reintentarlo por su cuenta.
+      if (activarErr)
+        console.error(
+          `[contracts/attach] contrato ${contract.id} adjuntado pero no se pudo activar collaborator_profiles (user ${contract.user_id}):`,
+          activarErr.message
+        )
     }
 
     await sb.from('audit_logs').insert({

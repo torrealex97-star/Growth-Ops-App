@@ -186,7 +186,8 @@ test('el audit guarda el hecho, nunca la PII que se acaba de borrar', async () =
   const informe = await correr(sb)
   const audit = sb.ops.find((o) => o.tabla === 'audit_logs')
   assert.equal(audit.fila.action, 'erase_person')
-  assert.equal(audit.fila.entity_id, null, 'el id de la persona no puede quedar en el audit')
+  // entity_id es NOT NULL (no puede ir null): lleva el hash no reversible, nunca el contact_id.
+  assert.equal(audit.fila.entity_id, informe.personaHash, 'entity_id debe ser el hash, no el id real ni null')
   const serializado = JSON.stringify(audit.fila)
   assert.ok(!serializado.includes(CONTACTO.id), 'el contact_id no puede aparecer')
   assert.ok(!serializado.includes(CONTACTO.email), 'el correo no puede aparecer')

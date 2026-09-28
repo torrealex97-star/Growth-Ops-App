@@ -241,7 +241,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     try {
       const toque = leerToque(body)
       if (colaboradorId || toqueTieneDatos(toque)) {
-        await registrarToque(sb, tenantId, contact.id, { ...toque, enEl: now, colaboradorId })
+        const r = await registrarToque(sb, tenantId, contact.id, { ...toque, enEl: now, colaboradorId })
+        if (!r.ok) console.warn('[atribucion] no se pudo registrar el toque:', r.error)
       }
     } catch (e) {
       console.warn('[atribucion] no se pudo registrar el toque:', e instanceof Error ? e.message : e)

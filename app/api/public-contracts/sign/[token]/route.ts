@@ -229,12 +229,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       // Solo en contratos de equipo y solo desde estados previos a la firma —
       // las decisiones manuales del admin (suspended/inactive) no se tocan.
       if (c.kind === 'equipo') {
-        await sb
+        const { error: activarErr } = await sb
           .from('collaborator_profiles')
           .update({ status: 'active', updated_at: signedAt })
           .eq('tenant_id', tenantId)
           .eq('user_id', c.user_id)
           .in('status', ['invited', 'pending_contract'])
+        // El contrato YA está firmado (no se puede volver a firmar) — si esto falla, el
+        // colaborador se queda sin activar y sin forma de reintentarlo por su cuenta.
+        if (activarErr)
+          console.error(
+            `[public-contracts/sign] contrato ${c.id} firmado pero no se pudo activar collaborator_profiles (user ${c.user_id}):`,
+            activarErr.message
+          )
       }
     }
 

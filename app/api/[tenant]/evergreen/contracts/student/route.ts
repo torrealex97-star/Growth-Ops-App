@@ -223,7 +223,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         contractId = existing.id
         token = existing.signing_token as string
         if (existing.status !== 'firmado') {
-          await sb
+          const { error: updateErr } = await sb
             .from('contracts')
             .update({
               title,
@@ -237,6 +237,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
             })
             .eq('id', contractId)
             .eq('tenant_id', t.tenantId)
+          // Si falla, terms/body_snapshot se quedan con el precio/plan VIEJO y el email de
+          // firma de abajo mandaría igual el enlace — el firmante firmaría el contrato viejo.
+          if (updateErr) throw new Error(updateErr.message)
         }
       } else {
         token = randomBytes(24).toString('hex')

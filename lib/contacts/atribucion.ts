@@ -171,7 +171,7 @@ export async function registrarToque(
         .from('contact_attributions')
         .update({ collaborator_id: colaboradorEntrante })
         .eq('id', existente.id)
-        .eq('collaborator_id', null) // guard: si otra entrega lo llenó mientras tanto, no pisa
+        .is('collaborator_id', null) // guard: si otra entrega lo llenó mientras tanto, no pisa
       if (errorFill) return { ok: false, error: errorFill.message }
       await sb.from('audit_logs').insert({
         tenant_id: tenantId,
