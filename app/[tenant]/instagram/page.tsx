@@ -962,10 +962,10 @@ export default function InstagramPage() {
                       <img
                         src={detail.thumbnail_url}
                         alt=""
-                        className="w-14 h-18 object-cover rounded-lg bg-muted shrink-0"
+                        className="w-14 h-14 object-cover rounded-lg bg-muted shrink-0"
                       />
                     ) : (
-                      <div className="w-14 h-18 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                      <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center shrink-0">
                         <Play className="w-5 h-5 text-muted-foreground" />
                       </div>
                     )}

@@ -156,7 +156,7 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
             </div>
             <span className="font-sans font-semibold text-white text-lg tracking-tight">{branding.name}</span>
           </div>
-          <Button variant="ghost" size="icon" className="lg:hidden h-8 w-8" onClick={onClose}>
+          <Button variant="ghost" size="icon" className="lg:hidden h-8 w-8" aria-label="Cerrar menú" onClick={onClose}>
             <X className="w-4 h-4" />
           </Button>
         </div>

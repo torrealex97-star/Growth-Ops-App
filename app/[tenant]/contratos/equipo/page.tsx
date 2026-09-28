@@ -251,6 +251,7 @@ export default function ContratosEquipoPage() {
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 text-muted-foreground hover:text-red-400"
+                  aria-label="Eliminar contrato"
                   onClick={() => del(c)}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
