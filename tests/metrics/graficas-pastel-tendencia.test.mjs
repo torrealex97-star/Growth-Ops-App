@@ -49,7 +49,8 @@ test('la variación se compara contra el periodo anterior y no inventa porcentaj
   assert.match(trend, /anterior != null && anterior !== 0/)
   assert.match(trend, /sin periodo anterior con el que comparar/)
   // Con muy pocos puntos no se parte la serie para inventar un periodo previo.
-  assert.match(trend, /conDato\.length < 4/)
+  assert.doesNotMatch(trend, /conDato\.slice\(/)
+  assert.match(trend, /summarizeTrend\(data, aggregate, previousTotal\)/)
 })
 
 test('las dos gráficas usan el color de marca de la subcuenta', () => {

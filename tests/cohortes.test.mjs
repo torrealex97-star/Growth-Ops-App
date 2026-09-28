@@ -54,3 +54,22 @@ test('el % cobrado a 30d se calcula sobre colecciones de la cohorte', () => {
   )
   assert.equal(rows[0].collectedAt[30], 500)
 })
+
+test('una reserva o venta anulada del mismo mes no aporta cobros a la cohorte activa', () => {
+  const rows = buildCohorts(
+    [sale(), sale({ id: 'cancelled', status: 'cancelled' }), sale({ id: 'reserve', payment_plan_method: 'reserva' })],
+    [coll(), coll({ sale_id: 'cancelled' }), coll({ sale_id: 'reserve' })],
+    new Date('2026-09-28T12:00:00Z')
+  )
+  assert.equal(rows[0].collectedAt[30], 500)
+})
+
+test('las ventanas maduran desde fin del mes y no incorporan cobros futuros', () => {
+  const rows = buildCohorts(
+    [sale()],
+    [coll(), coll({ collected_at: '2026-10-01', gross_amount: 100 })],
+    new Date('2026-09-30T12:00:00Z')
+  )
+  assert.deepEqual(rows[0].mature, { 30: true, 60: false, 90: false, 180: false })
+  assert.equal(rows[0].collectedAt[180], 500)
+})

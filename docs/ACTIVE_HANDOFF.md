@@ -1,5 +1,36 @@
 # Relevo activo
 
+## Relevo prioritario — auditoría transversal de dashboards, 28-sep cierre
+
+El usuario solicita subir y fusionar lo validado y continuar el resto con otro agente. Rama `codex/dashboard-consistency`, PR #278. Leer primero esta sección y `docs/DASHBOARD_VISUAL_AUDIT.md`; los párrafos históricos posteriores no certifican el estado actual. No cambiar datos de negocio ni usar «Ver como».
+
+### Correcciones de este lote
+
+- Ventas/Ranking/Actividad: consultas por tenant, estados de error, reservas excluidas mediante contrato existente; agendas canónicas. Embudo muestra actividad independiente, no conversiones de personas no enlazadas. Ofertas explícitamente declaradas.
+- Tendencias: total del periodo completo, comparación solo con periodo anterior explícito; eliminado cálculo que partía la serie en dos. Ejes monetarios más anchos y variaciones neutrales.
+- Meta: no sumar alcance único entre días/campañas; sin comparación inventada. Funnels reutiliza recuentos CRM canónicos y bloquea conversiones/pérdidas no demostrables.
+- Cohortes financieras: ventanas inmaduras sin porcentaje definitivo; excluidos cobros de ventas no elegibles y futuros. VSL sin muestra no presenta tasas cero ni diagnóstico de caídas.
+- P&L: nombres y alcance del libro interno explícitos, resultado con signo. Gastos registrados diferenciados del total P&L. Colaboradores distingue cobros de facturación, excluye reservas y respeta signo de ajustes de comisión.
+- E2E actualizado al selector conjunto Facturación/Cash Collected y sección Asistencia; no se elimina cobertura de interacción/móvil.
+
+### Plan pendiente, en orden
+
+1. **Verificación del cierre:** consultar PR #278 y SHA actual; confirmar Quality, Build, Smoke E2E y despliegue. No usar verde de un SHA anterior. Si no está fusionado, resolver checks antes de merge. No asumir que producción ya cambió.
+2. **Analítica general (prioridad alta):** `components/metrics/PanelGrowth.tsx`, `lib/metrics/consulta.ts`, `agregados.ts`, API `evergreen/metricas/brief`. Se observó Health máximo con cobertura insuficiente, denominadores contradictorios de métricas disponibles y cash del libro interno etiquetado como consolidado. Unificar con reconciliación canónica y bloquear conclusiones si falta fuente, periodo, madurez o población. Cash ROAS requiere atribución real: no dividir todos los cobros entre gasto publicitario. Añadir regresiones de fuentes incompletas, reservas, cero frente a desconocido y cobros de ventas anteriores.
+3. **Atribución (NO incluida en este lote):** conserva implementación previa. Mezcla totales históricos con agendas del periodo; RPC debe seguir aislando tenant. Rediseñar consulta autorizada/paginada con mismo periodo, exclusión de reservas, deduplicación y distinción fuente de ingesta/canal. Conservar prueba `tests/atribucion-aislamiento.test.mjs`; adaptar al nuevo contrato solo demostrando aislamiento equivalente. Un borrador descartado está en `/tmp/growthops-attribution-pending.patch` de esta máquina; es referencia incompleta, NO aplicar sin revisión. Primer/último toque y calidad necesitan alcance temporal explícito.
+4. **Colaboradores y comisiones:** completar paginación/detección de truncado, deduplicación de contactos/citas. Explicar comisión por fecha de creación frente a periodo de liquidación/P&L; no reasignar roles ni forzar igualdad entre poblaciones distintas. Validar devoluciones/ajustes negativos.
+5. **Finanzas:** aclarar origen de cobros del libro interno frente a consolidado en resumen. Proyección/morosidad sin planes no prueban inexistencia de deuda: mostrar cobertura. Verificar desglose de comisiones por tipo, gasto publicitario sin duplicar, primer cobro de venta nueva y cuotas de ventas anteriores. Cash Collected medio sigue siendo SOLO primera transacción de ventas nuevas (corrección previa `05c304d`).
+6. **Revisión visual después del build/despliegue:** Unit Economics, Embudo, Ranking, Actividad, Funnels, Marketing/Meta, Atribución, Colaboradores, VSL, resumen/P&L/cohortes/proyección/morosidad/gastos/comisiones. Escritorio y móvil 390 px; probar selector, periodo, granularidad, filtros, tooltip, errores y vacíos. Esta sesión inspeccionó pantallas anteriores al último lote; aún NO certifica cada pantalla corregida.
+7. **Instagram y resto:** alcance agregado de reels no es personas únicas; aclarar periodo y etiquetas. Completar revisión de ventas/registro, cobros/conciliación y dashboard principal. Contenido editorial vacío se verificó; no necesita métricas ficticias. Clientes se mantiene pendiente de definición del usuario.
+
+### Entorno y criterios de aceptación
+
+Checkout local `/tmp/growthops-dashboard-consistency`, puerto 3100. Runtime Node en caché Codex. Solo variables públicas de Supabase en servidor local; endpoints que requieren credencial privilegiada pueden fallar localmente. Revisar esos endpoints en preview/producción autenticada; NO inyectar secretos en logs/docs. No hay cambios de BD/migraciones en este lote.
+
+Mismo tenant, periodo, zona horaria, población y fuente deben dar mismo KPI en todas las vistas. Fuentes fallidas/truncadas son desconocidas, no cero. No comparar poblaciones distintas como conversiones. Diagnóstico obligatorio: definición → fuente → completitud → periodo → madurez → asignación → cálculo → benchmark. No publicar cifras reales ni nombres de clientes en este repositorio público. Usar fixtures sintéticos.
+
+Validación local del lote final: quality PASS (1.135 unitarias, 3 omitidas y 778 métricas); dead-code informativo ejecutado. Build local final PASS. CI del SHA subido debe confirmarse en el PR antes de fusionar. Smoke anterior fallaba por selector antiguo, no por autenticación: actualizado, pendiente resultado del nuevo CI. No declarar la auditoría completa.
+
 ## ✅ Producción desbloqueada: builds de Vercel vuelven a desplegar + logo IA Winners 404 (PR #280, 28-sep tarde)
 
 **Diagnóstico (5× `BUILD_EXCEEDED_MAXIMUM_TIME`, 10:37Z-15:16Z):** los builds de Vercel expiraban
@@ -24,6 +55,8 @@ Nota: **ojo con la sección siguiente** («Dashboard WDC… deployment pendiente
 despliegue quedó resuelto por este mismo deployment (`44dcecc` es descendiente de esos commits).
 
 ## CODEX — consistencia y rediseño de dashboards (28-sep, en curso)
+
+Ampliación activa: auditoría visual de todos los dashboards departamentales y contraste con contratos existentes. Reclama `app/[tenant]/analitica/*`, `components/os/TrendChart.tsx`, sus tests y documentación; misma rama/PR. Amplía reclamación a `components/os/MetaAds*`, `lib/meta/funnels.ts`, VSL (solo estados sin muestra), cohortes financieras y etiquetas P&L; correcciones de madurez y presentación sin escrituras de negocio. Incluye `lib/funnels/{queries,compute,types}.ts` y página Funnels para reutilizar recuentos canónicos del CRM y bloquear conversiones no enlazadas. Reclama también Atribución y Colaboradores (lecturas/etiquetas/KPI) para exclusión canónica de reservas, periodo explícito y fuentes completas. Primera discrepancia reproducida: embudo comercial cuenta reservas y ofertas de poblaciones distintas; tendencia parte el periodo por la mitad sin fuente anterior explícita. No modificar datos persistentes. Inventario y evidencia se registran en DASHBOARD_AUDIT.md.
 
 Corrección tras localizar `docs/SOURCE_OF_TRUTH.md`: se retiró íntegramente el intento no validado de redefinir adquisición. Lote actual se ciñe a `METRICS.md` §1/2/6 y MONEY D8: CAC por contactos únicos (no primeras compras), ventas activas/partial_refund, reservas excluidas de series; IA reutiliza SOURCE_REGISTRY. Nombres corregidos en dashboard, gráficos, pagos, gestoría y alta de cobro; se identifica libro interno bruto sin confundirlo con caja consolidada. No modifica datos ni decisiones A3. Quality final PASS (1133 unitarias, 3 omitidas; 765 métricas), cuatro nuevas de paridad contractual. Build PASS; smoke local confirma las etiquetas, servidor activo en 3100. Dead-code ejecutado como informe informativo. Coherencia global NO certificada: siguen discrepancias documentadas entre registros de caja, cohortes de tasas y documentación histórica.
 

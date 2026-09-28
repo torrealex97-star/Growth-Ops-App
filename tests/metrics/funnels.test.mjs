@@ -135,3 +135,16 @@ test('cada familia declara su descripción y su etiqueta', () => {
     assert.ok(FUNNEL_DEFS[family].description.length > 0)
   }
 })
+
+test('los hechos independientes del periodo no se presentan como conversiones', () => {
+  const r = computeFunnel({
+    family: 'web_seo',
+    counts: {
+      ...counts({ sesiones: 100, leads: 10, agendas: 5, llamadas: 4, cierres: 2 }),
+      cierres: { ...ok(2, 'crm'), periodActivity: true },
+    },
+  })
+  const close = r.stages.find((s) => s.stage.id === 'cierres')
+  assert.equal(close.conversionFromPrevious, null)
+  assert.equal(close.blockedBy, 'poblacion_no_enlazada')
+})

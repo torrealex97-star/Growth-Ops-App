@@ -10,12 +10,9 @@ test('visión de negocio: departamentos, selección de métricas y lectura móvi
   await page.goto(`/${slug}/unit-economics`)
   await expect(page.getByRole('heading', { name: 'Visión del negocio', exact: true })).toBeVisible()
   const selector = page.getByRole('group', { name: 'Métrica de Evolución del negocio', exact: true })
-  await selector.getByRole('button', { name: 'Cash Collected', exact: true }).click()
-  await expect(selector.getByRole('button', { name: 'Cash Collected', exact: true })).toHaveAttribute(
-    'aria-pressed',
-    'true'
-  )
-  await expect(selector.getByRole('button', { name: 'Facturación', exact: true })).toHaveAttribute(
+  await selector.getByRole('button', { name: 'Ventas', exact: true }).click()
+  await expect(selector.getByRole('button', { name: 'Ventas', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(selector.getByRole('button', { name: 'Facturación y Cash Collected', exact: true })).toHaveAttribute(
     'aria-pressed',
     'false'
   )
@@ -24,7 +21,7 @@ test('visión de negocio: departamentos, selección de métricas y lectura móvi
     'aria-pressed',
     'true'
   )
-  for (const name of ['Marketing', 'Operación comercial', 'Ventas', 'Finanzas', 'Clientes']) {
+  for (const name of ['Marketing', 'Asistencia', 'Ventas', 'Finanzas', 'Clientes']) {
     await expect(page.getByRole('heading', { name: new RegExp(name + '$'), level: 2 })).toHaveCount(1)
   }
   await page.setViewportSize({ width: 390, height: 844 })

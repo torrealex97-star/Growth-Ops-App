@@ -32,6 +32,7 @@ export type CohortRow = {
   contracted: number
   clients: number
   collectedAt: Record<CohortWindow, number>
+  mature: Record<CohortWindow, boolean>
 }
 
 const num = (x: number | string | null | undefined): number => Number(x ?? 0)
@@ -53,14 +54,23 @@ function daysBetween(a: string, b: string): number {
  *  · % cobrado a Nd: colecciones 'collected' de ventas de la cohorte con
  *    collected_at − sale_date ≤ N días, sumadas dentro de cada ventana.
  */
-export function buildCohorts(sales: CohortSaleRow[], collections: CohortCollectionRow[]): CohortRow[] {
+export function buildCohorts(
+  sales: CohortSaleRow[],
+  collections: CohortCollectionRow[],
+  now = new Date()
+): CohortRow[] {
   const saleMap = new Map(sales.map((s) => [s.id, s]))
   const byCohort = new Map<string, CohortRow>()
 
   const ensure = (ym: string): CohortRow => {
     const existing = byCohort.get(ym)
     if (existing) return existing
-    const row: CohortRow = { ym, contracted: 0, clients: 0, collectedAt: { 30: 0, 60: 0, 90: 0, 180: 0 } }
+    const [year, month] = ym.split('-').map(Number)
+    const endOfMonth = Date.UTC(year, month, 0)
+    const mature = Object.fromEntries(
+      COHORT_WINDOWS.map((w) => [w, endOfMonth + w * 86400000 <= now.getTime()])
+    ) as Record<CohortWindow, boolean>
+    const row: CohortRow = { ym, contracted: 0, clients: 0, collectedAt: { 30: 0, 60: 0, 90: 0, 180: 0 }, mature }
     byCohort.set(ym, row)
     return row
   }
@@ -90,7 +100,7 @@ export function buildCohorts(sales: CohortSaleRow[], collections: CohortCollecti
   for (const c of collections) {
     if (c.status !== 'collected' || !c.collected_at || !c.sale_id) continue
     const sale = saleMap.get(c.sale_id)
-    if (!sale || !sale.sale_date) continue
+    if (!sale || !sale.sale_date || !cuentaComoVenta(sale) || Date.parse(c.collected_at) > now.getTime()) continue
     const ym = ymOf(sale.sale_date)
     if (!ym || !byCohort.has(ym)) continue
     const row = byCohort.get(ym)!

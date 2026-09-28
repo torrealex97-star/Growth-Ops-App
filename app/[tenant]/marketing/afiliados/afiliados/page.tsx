@@ -34,7 +34,8 @@ import {
   Check,
   CalendarCheck,
 } from 'lucide-react'
-import { isActiveSale } from '@/lib/analytics'
+import { metodoDePlan } from '@/lib/metrics/agregados'
+import { cuentaComoVenta } from '@/lib/analytics'
 import { isAttended, isNoShow } from '@/lib/appointments/status'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { enlaceDeColaborador } from '@/lib/tracking/enlaces'
@@ -64,6 +65,8 @@ function filaDeUser(p: PerfilColaborador): { full_name: string | null; email: st
   return Array.isArray(u) ? (u[0] ?? null) : u
 }
 type VentaRow = {
+  payment_plan_method?: string | null
+  reservation_completed_at?: string | null
   id: string
   contact_id: string | null
   sale_date: string | null
@@ -81,6 +84,7 @@ type ComisionRow = {
   user_id: string | null
   participant_type: string | null
   percent: number | string | null
+  direction?: string | null
   commission_amount: number | string | null
   status: string | null
   created_at: string | null
@@ -123,6 +127,7 @@ export default function AfiliadosPage() {
   const tenantId = useTenantId()
   // Sesión ya resuelta por el layout: evita repetir auth.getUser() + from('users') aquí.
   const sesion = useSesion()
+  const [kpiError, setKpiError] = useState(false)
   const [loading, setLoading] = useState(true)
 
   const [perfiles, setPerfiles] = useState<PerfilColaborador[]>([])
@@ -165,11 +170,12 @@ export default function AfiliadosPage() {
     let mounted = true
     async function load() {
       if (!sesion || !mounted) return
+      setKpiError(false)
       const sb = createClient()
 
       // La entidad estructurada es la fuente del listado (§45). Con el join a users
       // salen nombre y email sin segunda consulta.
-      const { data: perfilesData } = await sb
+      const { data: perfilesData, error: perfilesError } = await sb
         .from('collaborator_profiles')
         .select(
           'id, user_id, code, name, status, default_commission_percent, notes, created_at, users(full_name, email)'
@@ -177,6 +183,11 @@ export default function AfiliadosPage() {
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
       if (!mounted) return
+      if (perfilesError) {
+        setKpiError(true)
+        setLoading(false)
+        return
+      }
       const lista = (perfilesData ?? []) as PerfilColaborador[]
       setPerfiles(lista)
 
@@ -197,18 +208,26 @@ export default function AfiliadosPage() {
           .not('collaborator_id', 'is', null),
         // Citas del tenant: solo las columnas del desglose (asistidas/canceladas por colaborador).
         sb.from('appointments').select('id, contact_id, appointment_datetime, status').eq('tenant_id', tenantId),
-        sb.from('sales').select('id, contact_id, sale_date, gross_amount, status').eq('tenant_id', tenantId),
+        sb
+          .from('sales')
+          .select('id, contact_id, sale_date, gross_amount, status, reservation_completed_at, payment_plans(method)')
+          .eq('tenant_id', tenantId),
         sb.from('collections').select('sale_id, gross_amount, status, collected_at').eq('tenant_id', tenantId),
         sb
           .from('commissions')
-          .select('id, user_id, participant_type, percent, commission_amount, status, created_at')
+          .select('id, user_id, participant_type, percent, commission_amount, direction, status, created_at')
           .eq('tenant_id', tenantId)
           .in('user_id', userIds),
       ])
       if (!mounted) return
+      if ([attrRes, apptRes, salesRes, collRes, commRes].some((r) => r.error)) {
+        setKpiError(true)
+        setLoading(false)
+        return
+      }
       setAtribuciones((attrRes.data ?? []) as { contact_id: string; collaborator_id: string }[])
       setCitas((apptRes.data ?? []) as CitaRow[])
-      setVentas((salesRes.data ?? []) as VentaRow[])
+      setVentas((salesRes.data ?? []).map((v) => ({ ...v, payment_plan_method: metodoDePlan(v) })))
       setCobros((collRes.data ?? []) as CobroRow[])
       setComisiones((commRes.data ?? []) as ComisionRow[])
 
@@ -292,7 +311,7 @@ export default function AfiliadosPage() {
         (v) =>
           v.contact_id &&
           ids.has(v.contact_id) &&
-          isActiveSale({ status: v.status ?? '' }) &&
+          cuentaComoVenta({ ...v, status: v.status ?? '' }) &&
           inPeriod(v.sale_date, rango)
       )
       const gross = ventasP.reduce((acc, v) => acc + num(v.gross_amount), 0)
@@ -316,7 +335,7 @@ export default function AfiliadosPage() {
       // Comisiones: el LEDGER real del motor (lane 'collaborator' o legacy), no un % estimado.
       const comisionesP = comisiones
         .filter((c) => c.user_id === p.user_id && c.status !== 'cancelled' && inPeriod(c.created_at, rango))
-        .reduce((acc, c) => acc + num(c.commission_amount), 0)
+        .reduce((acc, c) => acc + (c.direction === 'negative' ? -1 : 1) * num(c.commission_amount), 0)
       return {
         contactos: contactos.length,
         citas: citasP.length,
@@ -499,6 +518,13 @@ export default function AfiliadosPage() {
   const detallePerfil = detalle && 'perfil' in detalle ? detalle.perfil : detalle
   const detalleKpi = detallePerfil ? kpiDePerfil(detallePerfil) : null
 
+  if (kpiError)
+    return (
+      <div role="alert" className="dashboard-card p-6">
+        No se pudo leer la fuente completa de colaboradores. Recarga para reintentar; no se muestran métricas parciales.
+      </div>
+    )
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -603,7 +629,7 @@ export default function AfiliadosPage() {
               description={`en ${PERIOD_LABELS[periodPreset].toLowerCase()}`}
             />
             <KPICard
-              title="Facturación (cash)"
+              title="Cobros de ventas del periodo"
               value={formatCurrency(totales.cash)}
               icon={Wallet}
               description={`${formatCurrency(totales.gross)} en ventas activas`}
@@ -612,7 +638,7 @@ export default function AfiliadosPage() {
               title="Comisiones del ledger"
               value={formatCurrency(totales.comisiones)}
               icon={Percent}
-              description="motor de comisiones, no estimación"
+              description="Por fecha de creación; incluye ajustes negativos"
             />
           </div>
 
@@ -907,7 +933,9 @@ function FichaColaborador({
   const ventasDelColaborador = useMemo(
     () =>
       ventas
-        .filter((v) => v.contact_id && idsContacto.has(v.contact_id) && isActiveSale({ status: v.status ?? '' }))
+        .filter(
+          (v) => v.contact_id && idsContacto.has(v.contact_id) && cuentaComoVenta({ ...v, status: v.status ?? '' })
+        )
         .slice()
         .sort((a, b) => ((a.sale_date ?? '') < (b.sale_date ?? '') ? 1 : -1))
         .slice(0, 25),
@@ -1004,10 +1032,10 @@ function FichaColaborador({
           description={`en ${PERIOD_LABELS[periodPreset].toLowerCase()}`}
         />
         <KPICard
-          title="Facturación (cash)"
+          title="Cobros de ventas del periodo"
           value={formatCurrency(kpi.cash)}
           icon={Wallet}
-          description="cobros collected del periodo"
+          description="Cobros brutos registrados, vinculados a ventas del periodo"
         />
         <KPICard
           title="Comisiones"
