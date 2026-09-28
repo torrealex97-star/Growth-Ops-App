@@ -53,6 +53,14 @@ async function borrarTabla(
     count: 'exact',
   })
   if (error) {
+    // PGRST205 = la tabla no existe todavía en ESTE entorno (migración pendiente de aplicar, p.ej.
+    // en el proyecto Supabase que usa el E2E de CI). No es un fallo de la limpieza en sí — una tabla
+    // que no existe no tiene filas que borrar — así que no se cuenta como error de verdad; solo se
+    // avisa para que quien vea el resultado sepa que esa tabla concreta va a la zaga de main.
+    if (/Could not find the table/i.test(error.message)) {
+      console.warn(`[e2e-limpieza] ${tabla} no existe todavía en este entorno (migración pendiente): 0 filas`)
+      return 0
+    }
     errores.push(`${tabla}: ${error.message}`)
     return null
   }

@@ -160,6 +160,24 @@ test('un fallo en una tabla no aborta la limpieza y marca ok=false', async () =>
   assert.match(falloSales.error, /foreign key/)
 })
 
+test('una tabla del orden que aún no existe en este entorno (migración pendiente) no cuenta como error', async () => {
+  // Caso real: sale_drafts se añadió a ORDEN_BORRADO en la misma PR que su migración, y el E2E
+  // de CI corre contra un proyecto Supabase donde esa migración todavía no se aplicó — PostgREST
+  // responde "Could not find the table" (PGRST205). No es un fallo de la limpieza: una tabla que
+  // no existe no tiene filas que borrar.
+  const { sb } = fakeSb(
+    { collections: 1, sales: 1 },
+    { sale_drafts: "Could not find the table 'public.sale_drafts' in the schema cache" }
+  )
+  const { ok, total, resultados } = await limpiarActividadTenant(sb, 'tenant-1')
+
+  assert.equal(ok, true)
+  assert.equal(total, 2) // collections + sales; sale_drafts aporta 0, no es un fallo
+  const filaSaleDrafts = resultados.find((r) => r.tabla === 'sale_drafts')
+  assert.equal(filaSaleDrafts.filas, 0)
+  assert.equal(filaSaleDrafts.error, undefined)
+})
+
 test('tenant ya limpio → 0 filas, ok=true (idempotente)', async () => {
   const { sb } = fakeSb({})
   const { ok, total } = await limpiarActividadTenant(sb, 'tenant-1')
