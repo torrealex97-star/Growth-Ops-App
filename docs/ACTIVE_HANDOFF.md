@@ -1,5 +1,30 @@
 # Relevo activo
 
+## ✅ Último P1 de crons cerrado: presupuesto real del sync de pagos Stripe (PR #277, 28-sep tarde)
+
+El deadline del sync de pagos Stripe (30 s cron / 45 s manual) **solo gobernaba la paginación**
+dentro de `stripeList`. Después venían, sin presupuesto alguno: (1) el bucle de fees —una llamada
+`charges/:id?expand[]=balance_transaction` POR PAGO, secuencial, cada una con timeout de hasta
+20 s— y (2) el upsert al final. **Worst-case medido con mock: 2.000 pagos = 20 páginas + hasta
+2.000 llamadas de fee ≈ 400 s solo de fees** (>6× el maxDuration=60 de Vercel): la función moría
+sin escribir la página leída y el reintento empezaba de cero. Arreglado en
+`lib/finance/stripeFees.ts` + `lib/finance/stripePaymentsSync.ts`:
+
+- **Bucle de fees deadline-aware** (`fetchStripeFeesForChargeIds`): consulta el reloj antes de
+cada llamada con margen de 5 s para responder; tope duro de 200 fees por turno.
+- **Upsert garantizado antes del corte**: el dinero de la página leída se persiste SIEMPRE;
+el reintento nunca empieza de cero.
+- **Corte honesto**: `truncated || deadlineReached` y `fees_pendientes` en el detail del run
+(cron y ruta manual).
+- **Fee bueno no se pisa con NULL**: si la lectura falla o el presupuesto se agotó, la clave
+`stripe_fee` se omite del payload → PostgREST no toca la columna en el conflicto (conserva el
+fee del espejo); filas nuevas quedan NULL con el fallback del motor (comportamiento declarado).
+- **Fee inmutable no se re-pide**: una lectura previa del espejo (`stripe_fee IS NOT NULL`)
+ahorra el bucle entero cuando no hay pagos nuevos (caso común): 0 llamadas de fee.
+
+Tests: `tests/stripe-fees-deadline.test.mjs` (7 con mock de Stripe: reloj, corte parcial que
+no pierde el dinero, conservación de fee, NULL honesto, cero re-lecturas, guardas estáticas).
+
 ## ✅ Documentación de lecciones y deudas actualizada (28-sep tarde, Freebuff/Buffy — petición de Alex)
 
 Cierre de la petición «actualiza todos los md con las lecciones y deudas». **Solo docs/markdown;
@@ -45,9 +70,9 @@ conocido de node 26) y metrics 754/754.
   los globs de `npm test` ni `test:metrics` — no se ejecutaban en CI desde que se crearon) se
   reubicaron a `tests/`: la suite pasó de 1089 a 1127 tests y la capa canónica ya es red real.
 - **Siguen abiertos SOLO los que requieren decisión de Alex/carriles ajenos:** clawback y refunds
-  acumulados (A5), semántica de doble firma concurrente (responsable de contratos), onboarding de
-  alumno sin outbox (coordinación con carril F1 para el GHL webhook) y el Stripe fees/upsert P1
-  (worst-case medido pendiente).
+  acumulados (A5), semántica de doble firma concurrente (responsable de contratos) y onboarding de
+  alumno sin outbox (coordinación con carril F1 para el GHL webhook). **El Stripe fees/upsert P1
+  quedó cerrado en PR #275 (sección de arriba).**
 
 ## Auditoría estática FASE A (26-sep) — estado al 28-sep (tarde)
 
