@@ -1,5 +1,12 @@
 # Relevo activo
 
+## 📋 Documento de decisiones para Alex: `docs/DECISIONES-PENDIENTES-ALEX.md` (28-sep tarde)
+
+Las 3 decisiones que bloquean el resto de la auditoría FASE A (A5 clawback/refunds acumulados,
+doble firma concurrente, onboarding de alumno sin outbox) con estado real verificado hoy, opciones
+A/B/C, recomendación y coste estimado. Esperando la respuesta de Alex en formato
+«A5: X · Firma: X · Onboarding: X».
+
 ## ✅ Último P1 de crons cerrado: presupuesto real del sync de pagos Stripe (PR #277, 28-sep tarde)
 
 El deadline del sync de pagos Stripe (30 s cron / 45 s manual) **solo gobernaba la paginación**
