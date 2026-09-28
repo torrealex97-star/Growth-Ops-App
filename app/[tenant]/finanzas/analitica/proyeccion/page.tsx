@@ -35,6 +35,7 @@ export default function ProyeccionPage() {
   const [loading, setLoading] = useState(true)
   const [installments, setInstallments] = useState<InstallmentRow[]>([])
   const [commissions, setCommissions] = useState<CommissionRow[]>([])
+  const [fuentesEnError, setFuentesEnError] = useState<string[]>([])
 
   useEffect(() => {
     let mounted = true
@@ -55,6 +56,16 @@ export default function ProyeccionPage() {
           .in('status', ['approved', 'pending']),
       ])
       if (!mounted) return
+      // Un fallo de lectura NO es "sin cuotas por cobrar": la proyección pintaría 0 € por
+      // cobrar con una fuente ilegible. Se declara el estado y la UI avisa.
+      if (instRes.error || commRes.error) {
+        setFuentesEnError([instRes.error && 'cuotas', commRes.error && 'comisiones'].filter(Boolean) as string[])
+        setInstallments([])
+        setCommissions([])
+        setLoading(false)
+        return
+      }
+      setFuentesEnError([])
       setInstallments((instRes.data as unknown as InstallmentRow[]) ?? [])
       setCommissions((commRes.data as CommissionRow[]) ?? [])
       setLoading(false)
@@ -138,13 +149,22 @@ export default function ProyeccionPage() {
         </button>
       </div>
 
+      {fuentesEnError.length > 0 && (
+        <div className="rounded-lg border border-red-500/40 bg-red-500/5 p-4" role="alert">
+          <p className="text-sm text-red-400">
+            No se pudieron leer: {fuentesEnError.join(', ')}. La proyección NO se muestra porque estaría incompleta.
+            Recarga cuando la fuente vuelva a responder.
+          </p>
+        </div>
+      )}
+
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {Array.from({ length: 3 }).map((_, i) => (
             <div key={i} className="h-28 bg-card border border-border rounded-lg animate-pulse" />
           ))}
         </div>
-      ) : (
+      ) : fuentesEnError.length > 0 ? null : (
         <>
           {proj.overdue > 0 && (
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-200">

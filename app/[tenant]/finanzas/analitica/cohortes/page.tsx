@@ -32,6 +32,7 @@ export default function CohortsPage() {
   const [loading, setLoading] = useState(true)
   const [sales, setSales] = useState<SaleRow[]>([])
   const [collections, setCollections] = useState<CollectionRow[]>([])
+  const [fuentesEnError, setFuentesEnError] = useState<string[]>([])
 
   useEffect(() => {
     let mounted = true
@@ -53,6 +54,16 @@ export default function CohortsPage() {
           .range(0, FINANCE_QUERY_ROW_CAP),
       ])
       if (!mounted) return
+      // Un fallo de lectura NO es "esa fuente a cero": cohortes con ventas o cobros parciales
+      // pintarían retenciones falsas. Se declara el estado ilegible y la UI avisa.
+      if (salesRes.error || collRes.error) {
+        setFuentesEnError([salesRes.error && 'ventas', collRes.error && 'cobros'].filter(Boolean) as string[])
+        setSales([])
+        setCollections([])
+        setLoading(false)
+        return
+      }
+      setFuentesEnError([])
       // El embed de payment_plans llega anidado: se aplana aquí para que el predicado de venta
       // (cuentaComoVenta) pueda ver si la fila es una reserva todavía abierta.
       setSales(((salesRes.data || []) as SaleRow[]).map((v) => ({ ...v, payment_plan_method: metodoDePlan(v) })))
@@ -78,7 +89,12 @@ export default function CohortsPage() {
       </div>
 
       <div className="dashboard-card overflow-hidden">
-        {loading ? (
+        {fuentesEnError.length > 0 ? (
+          <p className="text-sm text-red-400 py-6" role="alert">
+            No se pudieron leer: {fuentesEnError.join(', ')}. Las cohortes NO se muestran porque estarían incompletas.
+            Recarga cuando la fuente vuelva a responder.
+          </p>
+        ) : loading ? (
           <div className="p-5 space-y-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="h-8 bg-muted rounded animate-pulse" />
