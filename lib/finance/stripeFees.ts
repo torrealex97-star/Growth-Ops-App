@@ -16,6 +16,61 @@
 
 import { stripeGet } from '@/lib/stripe/client'
 
+/** Margen para responder a tiempo antes del corte del runtime (mismo criterio que los crons). */
+const SAFETY_MARGIN_MS = 5_000
+
+/**
+ * fetchStripeFeesForChargeIds — fees para los cargos del pago que ya se ha leído este turno.
+ *
+ * DEADLINE-AWARE: cada llamada a Stripe puede costar hasta 20 s (TIMEOUT_MS del cliente), así que
+ * el bucle consulta el reloj ANTES de cada fetch: si no queda presupuesto para OTRA llamada
+ * completa, se detiene y devuelve `deadlineReached: true` para que quien llama persista lo
+ * leído, informe `truncated: true` y continúe en la siguiente ejecución (el upsert es
+ * idempotente y los fees ya escritos no se pisan).
+ *
+ * NUNCA PISA UN FEE BUENO CON NULL: si la lectura de un fee falla (Stripe caído, timeout, red),
+ * la fila se omite del resultado — quien ya tiene fee en el espejo lo conserva; quien no lo
+ * tiene aún lo recibirá en la siguiente pasada. Los fees de un charge son inmutables en Stripe:
+ * re-leerlos cada turno es costo evitable para una siguiente iteración.
+ */
+export async function fetchStripeFeesForChargeIds(
+  secretKey: string,
+  accountId: string | null | undefined,
+  chargeIds: string[],
+  opts: {
+    /** Epoch ms límite. Si falta, no hay presupuesto externo: solo limita MAX_FEES por turno. */
+    deadline?: number
+    /** Fees ya conocidos por charge_id: se piden SOLO los que faltan. */
+    yaConFee?: Set<string>
+    /** Tope duro de llamadas por turno (cinturón si nadie pasó deadline). */
+    maxFees?: number
+  } = {}
+): Promise<{ fees: Map<string, number>; deadlineReached: boolean }> {
+  const fees = new Map<string, number>()
+  const pendientes = chargeIds.filter((c) => !opts.yaConFee?.has(c))
+  const tope = opts.maxFees ?? 200
+  let deadlineReached = false
+
+  for (const chargeId of pendientes.slice(0, tope)) {
+    if (opts.deadline != null && Date.now() >= opts.deadline - SAFETY_MARGIN_MS) {
+      deadlineReached = true
+      break
+    }
+    try {
+      const fee = await fetchStripeFeeForCharge(secretKey, accountId, chargeId)
+      if (fee != null) fees.set(chargeId, fee)
+    } catch {
+      // Fallo puntual de una lectura: se omite (null honesto solo para quien NO tenía fee). El
+      // bucle sigue: un fee caído no debe detener los demás ni el upsert del dinero.
+      continue
+    }
+  }
+
+  // Si el tope cortó la cola, también es "no cabía en este turno".
+  if (pendientes.length > tope) deadlineReached = true
+  return { fees, deadlineReached }
+}
+
 type BalanceTxn = {
   id: string
   /** Neto en céntimos: gross − fee. Solo informativo aquí. */

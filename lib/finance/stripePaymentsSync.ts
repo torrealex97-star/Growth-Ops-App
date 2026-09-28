@@ -19,7 +19,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { stripeList } from '@/lib/stripe/client'
-import { fetchStripeFeeForCharge } from './stripeFees'
+import { fetchStripeFeesForChargeIds } from './stripeFees'
 
 export type StripePaymentsSyncResult = {
   /** Pagos vistos en esta pasada (los que entraron o se refrescaron). */
@@ -29,6 +29,8 @@ export type StripePaymentsSyncResult = {
   pages: number
   /** Pagos con devolución total o parcial detectada en esta pasada. */
   refunded: number
+  /** Fees que quedaron pendientes por presupuesto (se completan en la siguiente ejecución). */
+  feesPendientes: number
 }
 
 type StripeIntentRow = {
@@ -116,15 +118,57 @@ export async function syncStripePayments(
     })
 
   // FEE REAL por pago (balance_transaction del charge): la base de comisión de todo el
-  // equipo es el comisionable MENOS este fee, y el motor la lee del espejo. Un fallo o un
-  // fee no disponible deja `stripe_fee` NULL (el motor usa su fallback) — nunca bloquea el sync.
-  const filas = []
-  for (const fila of filasBase) {
-    const stripe_fee = fila.charge_id
-      ? await fetchStripeFeeForCharge(stripeSecretKey, stripeAccountId, fila.charge_id)
-      : null
-    filas.push({ ...fila, stripe_fee })
+  // equipo es el comisionable MENOS este fee, y el motor la lee del espejo. Presupuesto REAL:
+  // el deadline solo cubría la paginación — el bucle de fees (secuencial, hasta 20 s por
+  // llamada) y el upsert iban después sin presupuesto: una muerte por maxDuration perdía la
+  // página entera y el reintento empezaba de cero. Ahora el bucle consulta el reloj antes de
+  // cada llamada y el upsert del dinero se garantiza ANTES del corte.
+  const chargeIds = filasBase.filter((f) => f.charge_id).map((f) => f.charge_id as string)
+
+  // Fees que el espejo YA tiene: el fee de un charge es inmutable en Stripe, re-leerlo de la
+  // API cada día es presupuesto quemado. Una lectura del estado previo ahorra el bucle entero
+  // cuando no hay pagos nuevos (el caso común). Fail-ruidoso: sin este dato no se puede
+  // decidir qué pedir ni qué conservar.
+  const yaConFee = new Set<string>()
+  for (let i = 0; i < chargeIds.length; i += 200) {
+    const loteIds = chargeIds.slice(i, i + 200)
+    if (loteIds.length === 0) continue
+    const { data: previos, error } = await sb
+      .from('stripe_payments')
+      .select('charge_id')
+      .eq('tenant_id', tenantId)
+      .not('stripe_fee', 'is', null)
+      .in('charge_id', loteIds)
+    if (error) throw new Error(`No se pudo leer el estado de fees del espejo: ${error.message}`)
+    for (const r of previos ?? []) if (r.charge_id) yaConFee.add(r.charge_id)
   }
+
+  const { fees: feesDeStripe, deadlineReached } = await fetchStripeFeesForChargeIds(
+    stripeSecretKey,
+    stripeAccountId,
+    chargeIds,
+    { deadline: opts.deadline, yaConFee, maxFees: 200 }
+  )
+
+  // Persistencia INCREMENTAL garantizada: el dinero de la página leída se escribe SIEMPRE
+  // (idempotente por (tenant_id, payment_id), refresca refunded_amount/status). El fee solo
+  // se toca cuando se sabe su valor; si la lectura falló o el presupuesto se agotó, la clave
+  // NO se incluye → PostgREST no toca la columna en el conflicto (conserva el fee del espejo)
+  // y en filas nuevas queda NULL (el motor usa su fallback). Nunca se pisa un fee bueno con
+  // null por una lectura caída, y lo pendiente se retoma en la siguiente ejecución.
+  let feesPendientes = 0
+  const filas = filasBase.map((f) => {
+    const feeDeEste = f.charge_id ? feesDeStripe.get(f.charge_id) : undefined
+    const yaTenia = f.charge_id != null && yaConFee.has(f.charge_id)
+    const fila = { ...f } as (typeof filasBase)[number] & { stripe_fee?: number | null }
+    if (feeDeEste != null) {
+      fila.stripe_fee = feeDeEste
+    } else if (!yaTenia) {
+      if (!deadlineReached) fila.stripe_fee = null
+      else feesPendientes++
+    }
+    return fila
+  })
 
   // UPSERT por (tenant_id, payment_id): reejecutar nunca duplica; refresca refunded_amount/status
   // por si la devolución llegó entre ejecuciones y el webhook no pudo escribir el espejo.
@@ -140,8 +184,9 @@ export async function syncStripePayments(
 
   return {
     written,
-    truncated,
+    truncated: truncated || deadlineReached,
     pages,
     refunded: filas.filter((f) => f.refunded_amount > 0).length,
+    feesPendientes,
   }
 }
