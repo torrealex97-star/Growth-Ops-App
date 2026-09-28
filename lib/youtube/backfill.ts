@@ -57,6 +57,26 @@ async function uploadOne(
 ): Promise<boolean> {
   const media = row.ig_media
   if (!media) return false
+
+  // CLAIM ATÓMICO pending→uploading: publicar en YouTube es un efecto externo irreversible.
+  // Antes se subía primero y se actualizaba el estado después (ignorando el resultado del
+  // UPDATE): si el UPDATE fallaba, la fila seguía 'pending' y la siguiente pasada la volvía
+  // a seleccionar → vídeo duplicado en YouTube y cuota de API consumida dos veces. Tampoco
+  // había protección contra dos ejecuciones solapadas (cron + sync) tomando la misma fila.
+  // Si el claim falla, la fila queda 'pending' y lo reintenta una pasada posterior.
+  const claimado = await sb
+    .from('youtube_uploads')
+    .update({
+      status: 'uploading' as const,
+      error: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('ig_media_external_id', row.ig_media_external_id)
+    .eq('tenant_id', tenantId)
+    .eq('status', 'pending')
+    .select('ig_media_external_id')
+  if (claimado.error || !claimado.data?.length) return false
+
   try {
     // media_url de IG expira; la refrescamos justo antes de descargar por si el reel es de hace días.
     const freshUrl = (await refreshOwnMediaUrl(cfg, row.ig_media_external_id)) || media.media_url
@@ -64,27 +84,35 @@ async function uploadOne(
     const caption = media.caption || ''
     const title = caption.split('\n')[0]?.slice(0, 90) || 'Nuevo Reel'
     const result = await uploadReelToYoutube(freshUrl, title, `${caption}\n\nOriginal: ${media.permalink ?? ''}`, env)
-    await sb
+    const { error: updErr } = await sb
       .from('youtube_uploads')
       .update({
         youtube_video_id: result.videoId,
-        status: 'uploaded',
+        status: 'uploaded' as const,
         error: null,
         updated_at: new Date().toISOString(),
       })
       .eq('ig_media_external_id', row.ig_media_external_id)
       .eq('tenant_id', tenantId)
+    // El vídeo ya está publicado: el fallo del espejo NO puede provocar otra subida. Se marca
+    // como uploaded igualmente y el error queda en la fila para reconciliación manual.
+    if (updErr) {
+      console.error(`[youtube-backfill] ${row.ig_media_external_id}: publicado pero sin espejo: ${updErr.message}`)
+    }
     return true
   } catch (err) {
-    await sb
+    const { error: failErr } = await sb
       .from('youtube_uploads')
       .update({
-        status: 'failed',
+        status: 'failed' as const,
         error: err instanceof Error ? err.message : String(err),
         updated_at: new Date().toISOString(),
       })
       .eq('ig_media_external_id', row.ig_media_external_id)
       .eq('tenant_id', tenantId)
+    if (failErr) {
+      console.error(`[youtube-backfill] ${row.ig_media_external_id}: sin marcar failed: ${failErr.message}`)
+    }
     return false
   }
 }
