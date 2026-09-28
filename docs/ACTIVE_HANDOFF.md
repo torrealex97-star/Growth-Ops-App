@@ -1,5 +1,28 @@
 # Relevo activo
 
+## ✅ Producción desbloqueada: builds de Vercel vuelven a desplegar + logo IA Winners 404 (PR #280, 28-sep tarde)
+
+**Diagnóstico (5× `BUILD_EXCEEDED_MAXIMUM_TIME`, 10:37Z-15:16Z):** los builds de Vercel expiraban
+en la fase «Linting and checking validity of types» (el compile de Next acababa en 3,2 min):
+ESLint 9 (#262) + Tailwind 4 (#263) dispararon la carga de tipos que en CI exige 6 GB de heap, y
+la instancia de build de Hobby no llega. **Producción estuvo congelada desde 06:26Z** (f18e336):
+todo el trabajo del día (PRs #271-#277) seguía fuera.
+
+**Fix (`44dcecc`):** `next.config.js` salta typecheck/eslint SOLO en la build de Vercel
+(`process.env.VERCEL`); CI de GitHub sigue siendo el gate de tipos/lint de cada SHA (4 jobs, 6 GB).
+**Resultado verificado en producción:** el deployment de `44dcecc` pasó a READY en **~7 minutos**
+(los builds pre-fix seguían expirando a los ~45-50 min — `d07bb45` murió exactamente igual mientras
+el fix esperaba cola: control experimental involuntario).
+
+Verificación en vivo tras el despliegue: `/brand/iawinners-logo.png` → **404** (borrado desplegado;
+la marca IA Winners ya no queda accesible públicamente), home 200, hero.mp4 825.608 bytes y poster
+WebP 17.598 con etags = MD5 del repo, PNG viejo 404, HTML de la home sin ninguna referencia a
+iawinners. Riesgo asumido declarado: un push directo a main sin PR desplegaría sin typecheck (no
+existe tal workflow hoy; si aparece, retirar el flag).
+
+Nota: **ojo con la sección siguiente** («Dashboard WDC… deployment pendiente») — su pendiente de
+despliegue quedó resuelto por este mismo deployment (`44dcecc` es descendiente de esos commits).
+
 ## CODEX — consistencia y rediseño de dashboards (28-sep, en curso)
 
 Corrección tras localizar `docs/SOURCE_OF_TRUTH.md`: se retiró íntegramente el intento no validado de redefinir adquisición. Lote actual se ciñe a `METRICS.md` §1/2/6 y MONEY D8: CAC por contactos únicos (no primeras compras), ventas activas/partial_refund, reservas excluidas de series; IA reutiliza SOURCE_REGISTRY. Nombres corregidos en dashboard, gráficos, pagos, gestoría y alta de cobro; se identifica libro interno bruto sin confundirlo con caja consolidada. No modifica datos ni decisiones A3. Quality final PASS (1133 unitarias, 3 omitidas; 765 métricas), cuatro nuevas de paridad contractual. Build PASS; smoke local confirma las etiquetas, servidor activo en 3100. Dead-code ejecutado como informe informativo. Coherencia global NO certificada: siguen discrepancias documentadas entre registros de caja, cohortes de tasas y documentación histórica.
