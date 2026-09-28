@@ -9,6 +9,13 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      // REQ-UX-03 (deuda R4): la app tenía cientos de usos de text-[10px]/text-[11px] sin token.
+      // text-3xs (10px) y text-2xs (11px) los sustituyen con PARIDAD EXACTA: solo font-size, sin
+      // line-height propio (igual que el arbitrario que reemplazan, cuya line-height heredaba).
+      fontSize: {
+        '3xs': '10px',
+        '2xs': '11px',
+      },
       colors: {
         // Color de marca — respaldado por variables CSS (ver app/globals.css) en vez de hex fijo,
         // para que el acento cambie por tenant en runtime (Fase 10: branding, sin rebuild) vía el

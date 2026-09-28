@@ -152,7 +152,7 @@ export function AnotacionesInspector({ desde, hasta, userId, puedeGestionarTodas
             return (
               <div key={a.id} className="flex items-start justify-between gap-2 rounded-lg bg-muted/60 p-2">
                 <div className="min-w-0">
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     {a.date}
                     {a.category ? ` · ${a.category}` : ''}
                   </p>

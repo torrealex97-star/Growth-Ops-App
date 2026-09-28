@@ -26,7 +26,7 @@ export function SetterAgendas({ rows }: { rows: SetterAgendaRow[] }) {
                 <p className="text-sm font-semibold text-foreground">
                   {formatNumber(r.total)} <span className="text-xs font-normal text-muted-foreground">agendas</span>
                 </p>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   {formatNumber(r.shows)} llamadas atendidas · {formatNumber(r.noShows)} no asistieron ·{' '}
                   {r.showRate === null ? (
                     <span className="text-amber-400">sin marcar</span>

@@ -78,7 +78,7 @@ export function CreateProjectDialog({ open, onOpenChange }: Props) {
               >
                 <Icon className={cn('h-5 w-5', kind === k ? 'text-brand-400' : 'text-muted-foreground')} />
                 <span className="text-sm font-medium">{label}</span>
-                <span className="text-[11px] text-muted-foreground">{desc}</span>
+                <span className="text-2xs text-muted-foreground">{desc}</span>
               </button>
             ))}
           </div>

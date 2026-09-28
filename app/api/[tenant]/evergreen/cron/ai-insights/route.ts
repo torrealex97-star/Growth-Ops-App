@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { getTenantConfigWithFallback } from '@/lib/config'
 import { detectAnomalies } from '@/lib/ai/insights/detectors'
 import { formatCurrency } from '@/lib/utils'
 
@@ -19,7 +20,10 @@ export const maxDuration = 60
 type TenantResult = { detected: number; inserted: number; duplicados_ignorados: number }
 
 async function detectForTenant(sb: SupabaseClient, tenantId: string): Promise<TenantResult> {
-  const anomalies = await detectAnomalies(tenantId, sb)
+  // Config del tenant: da a los detectores la selección de cuentas de ads de Integraciones, para
+  // que el CAC/ROAS del insight no mezcle gasto de cuentas deseleccionadas.
+  const env = await getTenantConfigWithFallback(tenantId)
+  const anomalies = await detectAnomalies(tenantId, sb, env)
   let inserted = 0
   let ignored = 0
   for (const a of anomalies) {

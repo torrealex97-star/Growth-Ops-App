@@ -54,7 +54,7 @@ const hoyISO = () => new Date().toISOString().split('T')[0]
 /**
  * Compone el plan de cuotas de una venta.
  * @param plan real (sale_expected_installments) de la venta, si existe.
- * @param cobros collections de la venta (status != reversed).
+ * @param cobros collections de la venta (status === 'collected').
  * @param meta datos de la venta para derivar la previsión cuando no hay plan real.
  */
 export function planCuotasDeVenta(
@@ -68,7 +68,10 @@ export function planCuotasDeVenta(
     installmentsStartDate: string | null
   } | null
 ): PlanCuotas {
-  const cobrosValidos = cobros.filter((c) => c.status !== 'reversed')
+  // Definición canónica (docs/MONEY.md D5, ya aplicada en lib/canonical/cash.ts): solo
+  // 'collected' es cash confirmado. `!== 'reversed'` dejaba pasar 'disputed' — una cuota en
+  // disputa se pintaba "cobrada" (verde) aunque el dinero está en el aire hasta que se resuelva.
+  const cobrosValidos = cobros.filter((c) => c.status === 'collected')
 
   // ── CALENDARIO REAL ── sale_expected_installments manda cuando existe.
   if (cuotasReales.length > 0) {

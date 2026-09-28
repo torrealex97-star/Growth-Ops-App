@@ -29,12 +29,12 @@ export function CaptionPanel({ caption, hashtags }: Props) {
   return (
     <div className="border-t border-border bg-card px-4 py-3 shrink-0 max-h-40 overflow-y-auto">
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="text-3xs font-semibold uppercase tracking-wider text-muted-foreground">
           Copy para Instagram
         </span>
         <button
           onClick={copy}
-          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-1 text-3xs text-muted-foreground hover:text-foreground transition-colors"
         >
           {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
           {copied ? 'Copiado' : 'Copiar'}

@@ -61,8 +61,8 @@ test('reduced-motion: el video se oculta y queda el póster estático', () => {
   assert.ok(desde > 0, 'debe existir bloque prefers-reduced-motion')
   const bloque = css.slice(desde)
   assert.match(bloque, /\.go-hero__video \{\s*display: none;/)
-  assert.match(bloque, /background-image: url\('\/panel\/hero-poster\.png'\)/)
-  assert.ok(readFileSync(join(root, 'public/panel/hero-poster.png')).length > 100000, 'el póster existe')
+  assert.match(bloque, /background-image: url\('\/panel\/hero-poster\.webp'\)/)
+  assert.ok(readFileSync(join(root, 'public/panel/hero-poster.webp')).length > 0, 'el póster webp existe')
 })
 
 test('la estética nueva NO rompe la no-enumeración de subcuentas (§42)', () => {

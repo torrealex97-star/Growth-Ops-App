@@ -315,7 +315,7 @@ export default function PlantillasPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     Se usará esta plantilla cuando la venta tenga ese método. &ldquo;Por defecto&rdquo; cubre los
                     métodos sin plantilla propia.
                   </p>
@@ -375,7 +375,7 @@ export default function PlantillasPage() {
                     type="button"
                     onClick={() => insertVar(v)}
                     title={help}
-                    className="text-[11px] font-mono px-2 py-1 rounded border border-border bg-muted text-foreground hover:border-border hover:text-foreground transition-colors"
+                    className="text-2xs font-mono px-2 py-1 rounded border border-border bg-muted text-foreground hover:border-border hover:text-foreground transition-colors"
                   >
                     {`{{${v}}}`}
                   </button>

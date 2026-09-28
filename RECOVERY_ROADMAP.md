@@ -42,7 +42,9 @@ el único ítem era el doc baseline (R0.1). Si aparece trabajo nuevo no fusionad
 - R5.1: F3 resto de fases (continuar contrato de métricas).
 - R5.2: creación de usuarios desde Config › Subcuentas (ROADMAP J).
 - R5.3: % VSL desde el reproductor (WISHLIST 4) + estados configurables (WISHLIST 3, si los pide).
-- R5.4: alertas A3 — BLOCKED_USER canal (WhatsApp/email/Slack).
+- R5.4: alertas A3 — DEPRIORIZADO por Alex (27-sep), no BLOCKED_USER: el tramo que llega al alumno
+  se deja listo para conectar (detección separada del envío) el día que se decida el canal, pero no
+  es prioridad ahora. No iniciar sin que Alex lo reactive.
 - R5.5: rate limiting de login (decidir plataforma vs endpoint — USER).
 
 ## PHASE R6 — Cleanup legacy

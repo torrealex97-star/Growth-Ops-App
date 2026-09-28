@@ -151,17 +151,17 @@ export default function TestimonioDetallePage() {
               <div className="flex items-center gap-2 flex-wrap mb-1">
                 <h1 className="text-2xl font-bold text-foreground">{t.name}</h1>
                 {t.kind === 'cliente' && (
-                  <span className="px-2 py-0.5 rounded-md border border-border text-[10px] font-medium text-muted-foreground">
+                  <span className="px-2 py-0.5 rounded-md border border-border text-3xs font-medium text-muted-foreground">
                     Cliente de la agencia, no alumno
                   </span>
                 )}
                 {!t.hasRevenue && (
-                  <span className="px-2 py-0.5 rounded-md border border-border text-[10px] font-medium text-muted-foreground">
+                  <span className="px-2 py-0.5 rounded-md border border-border text-3xs font-medium text-muted-foreground">
                     Sin cifras · testimonio de proceso
                   </span>
                 )}
                 {!t.active && (
-                  <span className="px-2 py-0.5 rounded-md border border-border text-[10px] font-medium text-muted-foreground">
+                  <span className="px-2 py-0.5 rounded-md border border-border text-3xs font-medium text-muted-foreground">
                     Desactivado
                   </span>
                 )}
@@ -196,9 +196,7 @@ export default function TestimonioDetallePage() {
 
           <div className="grid md:grid-cols-2 gap-4 mb-6">
             <div className="rounded-xl border border-border bg-card overflow-hidden">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3.5 pt-3">
-                Foto
-              </p>
+              <p className="text-3xs font-semibold uppercase tracking-wider text-muted-foreground px-3.5 pt-3">Foto</p>
               {t.photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={t.photoUrl} alt={t.name} className="w-full object-contain bg-background/40 mt-2" />
@@ -211,7 +209,7 @@ export default function TestimonioDetallePage() {
             </div>
 
             <div className="rounded-xl border border-border bg-card overflow-hidden">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3.5 pt-3">
+              <p className="text-3xs font-semibold uppercase tracking-wider text-muted-foreground px-3.5 pt-3">
                 Vídeo del testimonio
               </p>
               {vid ? (
@@ -263,7 +261,7 @@ export default function TestimonioDetallePage() {
             <h2 className="text-sm font-semibold text-foreground">Su historia</h2>
             {t.cifra && (
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-400 mb-1">Cifra ancla</p>
+                <p className="text-3xs font-semibold uppercase tracking-wider text-brand-400 mb-1">Cifra ancla</p>
                 <p className="text-sm text-brand-300 font-medium">{t.cifra}</p>
               </div>
             )}
@@ -273,7 +271,7 @@ export default function TestimonioDetallePage() {
               { label: 'Vehículo — qué usó', value: t.vehiculo },
             ].map(({ label, value }) => (
               <div key={label}>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">{label}</p>
+                <p className="text-3xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">{label}</p>
                 <p className="text-sm text-foreground/90 leading-relaxed">
                   {value || <span className="text-muted-foreground">Sin rellenar</span>}
                 </p>
