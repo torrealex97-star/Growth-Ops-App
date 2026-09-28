@@ -37,7 +37,8 @@ test('unit-economics ya no calcula ni presenta el diagnóstico de calidad', () =
   }
   // El funnel canónico (analítica) sí se queda:
   assert.match(page, /FunnelCanonicoPanel/)
-  assert.match(page, /canonicalizeLeads/)
+  assert.match(page, /buildPeriodFunnel/)
+  assert.match(leer('lib/metrics/period-funnel.ts'), /canonicalizeLeads/)
 })
 
 test('el panel de unit-economics es solo funnel y nombra a Data Health como casa de la calidad', () => {
@@ -45,7 +46,7 @@ test('el panel de unit-economics es solo funnel y nombra a Data Health como casa
   assert.ok(!panelOS.includes('QualityStats'), 'el panel OS aún define QualityStats')
   assert.ok(!panelOS.includes('QualityRow'), 'el panel OS aún define la fila de calidad')
   assert.match(panelOS, /export function FunnelCanonicoPanel/)
-  assert.match(panelOS, /Funnel del negocio/)
+  assert.match(panelOS, /Detalle de actividad del periodo/)
   assert.match(panelOS, /Data Health/)
 })
 

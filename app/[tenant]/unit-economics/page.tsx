@@ -12,7 +12,8 @@ import { FinanceDual } from '@/components/finanzas/FinanceCharts'
 import { KPICard, TargetRow } from '@/components/os/DashboardKPICard'
 import { evaluaTarget, eligeTarget, valorTarget, METRICAS_CON_OBJETIVO } from '@/lib/targets/vs-actual'
 import { PieChart, Target, Users, TrendingUp, Wallet, Filter, MousePointerClick, Megaphone } from 'lucide-react'
-import { ACTIVE_SALE_STATUSES } from '@/lib/analytics'
+import { cuentaComoVenta } from '@/lib/analytics'
+import { metodoDePlan } from '@/lib/metrics/agregados'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
 import { FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 import {
@@ -30,12 +31,10 @@ import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { useCuentasMetaActivas } from '@/lib/meta/use-cuentas-activas'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset, type PeriodRange } from '@/lib/filters/period'
-import { isCancelled } from '@/lib/unit-economics'
 import { leadDate } from '@/lib/analytics'
-import type { FunnelOperativo, FiltroAtribucion } from '@/lib/metrics/operativo'
-import { canonicalizeLeads, canonicalizeAppointments } from '@/lib/canonical/dedup'
+import type { FiltroAtribucion } from '@/lib/metrics/operativo'
+import { buildPeriodFunnel } from '@/lib/metrics/period-funnel'
 import { canonicalCash, serieCanonicaCash, type StripePaymentRow } from '@/lib/canonical/cash'
-import { resolverOferta, CONFIG_OFERTA_POR_DEFECTO } from '@/lib/metrics/oferta'
 import { FunnelCanonicoPanel } from '@/components/os/DataQualityPanel'
 import { PanelOrganico } from '@/components/os/PanelOrganico'
 
@@ -264,7 +263,7 @@ function buildMarketingFunnel(
   const salesCallsBooked = appointments.filter((a) => a.contact_id && contactHasCampaign.has(a.contact_id)).length
 
   const attributedSales = sales.filter(
-    (s) => ACTIVE_SALE_STATUSES.includes(s.status) && s.contact_id && contactHasCampaign.has(s.contact_id)
+    (s) => cuentaComoVenta(s) && s.contact_id && contactHasCampaign.has(s.contact_id)
   )
   const dealsClosed = attributedSales.length
   const grossFromDeals = attributedSales.reduce((a, s) => a + num(s.gross_amount), 0)
@@ -301,60 +300,6 @@ function buildMarketingFunnel(
 // hubiera 559 agendas y 27 ventas REALES. La ausencia de atribución NO significa
 // que el evento no haya ocurrido: los totales del negocio se cuentan del CRM
 // (contacts/appointments/sales), y la atribución se declara aparte, nunca mezclada.
-
-function buildFunnelOperativo(
-  contacts: ContactRow[],
-  appointments: AppointmentRow[],
-  sales: SaleRow[],
-  hayPeriodo: boolean,
-  rango: PeriodRange
-): FunnelOperativo {
-  const ahora = new Date()
-  // Leads por FECHA REAL (leadDate = first_seen_at → first_contact_at → created_at): created_at es
-  // cuándo se importó la fila (la importación de GHL estampó todo el histórico el mismo día), no
-  // cuándo llegó el lead.
-  const contactos = hayPeriodo ? contacts.filter((c) => inPeriod(leadDate(c), rango)) : contacts
-  const agendasVisibles = hayPeriodo
-    ? appointments.filter((a) => inPeriod(a.appointment_datetime, rango))
-    : appointments
-  const ventas = hayPeriodo ? sales.filter((s) => inPeriod(s.sale_date, rango)) : sales
-  const ventasActivas = ventas.filter((s) => ACTIVE_SALE_STATUSES.includes(s.status))
-
-  // ASISTENCIA = misma semántica que el KPI "Shows" de esta misma página (buildSalesOverview):
-  // citas vivas que ya pasaron. Los closers casi nunca marcan status='show' (4 de 559), así que
-  // contar el status diría 4 asistencias mientras el KPI de al lado enseña 517. Dos números
-  // distintos para el mismo concepto es exactamente el problema de nomenclatura que unifica el brief.
-  const agendasVivasYaPasadas = agendasVisibles.filter((a) => {
-    if (isCancelled(a.status)) return false
-    if (!a.appointment_datetime) return true
-    const t = Date.parse(a.appointment_datetime)
-    return Number.isNaN(t) || t <= ahora.getTime()
-  }).length
-
-  const conCampaign = new Set(contacts.filter((c) => !!c.campaign_id).map((c) => c.id))
-  const agendasAtrib = agendasVisibles.filter((a) => a.contact_id && conCampaign.has(a.contact_id)).length
-  const ventasAtrib = ventasActivas.filter((s) => s.contact_id && conCampaign.has(s.contact_id))
-
-  return {
-    leads: contactos.length,
-    agendas: agendasVisibles.length,
-    asistencias: agendasVivasYaPasadas,
-    cierres: ventasActivas.length,
-    facturacion: ventasActivas.reduce((a, s) => a + num(s.gross_amount), 0),
-    atribuidos: {
-      agendas: agendasAtrib,
-      cierres: ventasAtrib.length,
-      facturacion: ventasAtrib.reduce((a, s) => a + num(s.gross_amount), 0),
-    },
-  }
-}
-
-function ratioColor(ratio: number | null): string {
-  if (ratio === null) return 'text-muted-foreground'
-  if (ratio >= 3) return 'text-emerald-400'
-  if (ratio >= 1) return 'text-amber-400'
-  return 'text-red-400'
-}
 
 // Fila de la serie diaria de campañas: es la que permite acotar por periodo, porque lleva la fecha.
 type DailyRow = {
@@ -422,7 +367,7 @@ export default function UnitEconomicsPage() {
             .range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('sales')
-            .select('id, gross_amount, status, contact_id, sale_date')
+            .select('id, gross_amount, status, contact_id, sale_date, reservation_completed_at, payment_plans(method)')
             .eq('tenant_id', tenantId)
             .range(0, FINANCE_QUERY_ROW_CAP),
           supabase
@@ -483,7 +428,7 @@ export default function UnitEconomicsPage() {
       )
       setErrorCarga(fallo ? mensajeDeCarga('los datos de campañas, ventas y cobros', fallo) : null)
       setCampaigns(campRes.data || [])
-      setSales(salesRes.data || [])
+      setSales((salesRes.data || []).map((s) => ({ ...s, payment_plan_method: metodoDePlan(s) })))
       setCollections(collRes.data || [])
       setStripePagos((stripeRes.data || []) as StripePaymentRow[])
       setContacts(contactsRes.data || [])
@@ -584,7 +529,7 @@ export default function UnitEconomicsPage() {
     // Neto del merge canónico (§2): NUNCA la suma de las dos fuentes — contar Stripe y la app
     // por separado convertiría un mismo cobro en dos.
     const totalCashCollected = cash.net
-    const activeSales = ventasVisibles.filter((s) => ACTIVE_SALE_STATUSES.includes(s.status))
+    const activeSales = ventasVisibles.filter((s) => cuentaComoVenta(s))
     // Clientes ÚNICOS, no nº de ventas — mismo fix que buildChannelRows. Antes dividía por
     // nº de ventas: un cliente que compra 2 veces contaba como "2 clientes", lo que infla el
     // denominador y hace que tanto CAC como "LTV medio" salgan sistemáticamente por debajo de
@@ -611,7 +556,7 @@ export default function UnitEconomicsPage() {
   // total completo: es su definición. El filtro de atribución (atribucion) acota el resto de la
   // página, no esta base.
   const funnelOperativo = useMemo(
-    () => buildFunnelOperativo(contacts, appointments, sales, hayPeriodo, rango),
+    () => buildPeriodFunnel(contacts, appointments, sales, hayPeriodo, rango),
     [contacts, appointments, sales, hayPeriodo, rango]
   )
   // El filtro de atribución NO recorta funnelOperativoBase (su definición es el total real);
@@ -686,37 +631,14 @@ export default function UnitEconomicsPage() {
   // (oportunidad / contacto+fecha+importe) — SIN sumar dos fuentes del mismo evento.
   // El funnel canónico alimenta la sección "Funnel del negocio". El diagnóstico de calidad
   // (duplicados, conflictos, huecos de captura) vive en Configuración › Data Health.
-  const funnelGlobal = useMemo(() => {
-    const { leads } = canonicalizeLeads(
-      contacts.map((c) => ({
-        id: c.id,
-        email: c.email ?? null,
-        phone: c.phone ?? null,
-        created_at: c.created_at ?? null,
-      }))
-    )
-    const { appointments: apptsCanon } = canonicalizeAppointments(
-      appointments.map((a) => ({
-        id: a.id,
-        contact_id: a.contact_id,
-        calendly_event_id: null,
-        calendar_event_id: null,
-        scheduled_at: a.appointment_datetime,
-        status: a.status,
-      }))
-    )
-    const resueltas = appointments.map((a) => resolverOferta(a, CONFIG_OFERTA_POR_DEFECTO))
-    const ofertas = resueltas.filter((r) => r.valor === true).length
-    const offersDeclaradas = resueltas.filter((r) => r.valor === true && r.origen === 'declarado').length
-    return {
-      newUniqueLeads: leads.length,
-      booked: apptsCanon.length,
-      shows: funnelOperativo.asistencias,
-      offers: ofertas,
-      offersDeclaradas,
-      sales: funnelOperativo.cierres,
-    }
-  }, [contacts, appointments, funnelOperativo])
+  const funnelGlobal = {
+    newUniqueLeads: funnelOperativo.leads,
+    booked: funnelOperativo.agendas,
+    shows: funnelOperativo.asistencias,
+    offers: funnelOperativo.offers,
+    offersDeclaradas: funnelOperativo.offersDeclaradas,
+    sales: funnelOperativo.cierres,
+  }
 
   // ── EVOLUCIÓN TEMPORAL ───────────────────────────────────────────
   // Series día/semana/mes dentro de la ventana del periodo (o últimos 90 días si "todo").
@@ -746,7 +668,7 @@ export default function UnitEconomicsPage() {
       if (a.appointment_datetime) bump(a.appointment_datetime, 'agendas', 1)
     }
     for (const s of ventasVisibles) {
-      if (ACTIVE_SALE_STATUSES.includes(s.status) && s.sale_date) bump(s.sale_date, 'cierres', 1)
+      if (cuentaComoVenta(s) && s.sale_date) bump(s.sale_date, 'cierres', 1)
     }
     for (const d of dailyVisible) {
       bump(d.date, 'spend', num(d.spend))
@@ -818,7 +740,7 @@ export default function UnitEconomicsPage() {
     // Cubos: unión ordenada de donde haya algo (ventas, cash, gasto) dentro de la ventana.
     const cubos = new Set<string>()
     for (const s of ventasVisibles) {
-      if (ACTIVE_SALE_STATUSES.includes(s.status) && s.sale_date && ventana(s.sale_date)) cubos.add(cuboDe(s.sale_date))
+      if (cuentaComoVenta(s) && s.sale_date && ventana(s.sale_date)) cubos.add(cuboDe(s.sale_date))
     }
     for (const p of stripePagos) if (p.paid_at && ventana(p.paid_at)) cubos.add(cuboDe(p.paid_at))
     for (const c of collections) if (c.collected_at && ventana(c.collected_at)) cubos.add(cuboDe(c.collected_at))
@@ -1024,13 +946,15 @@ export default function UnitEconomicsPage() {
           ) : (
             <>
               <div className="flex items-baseline gap-1">
-                <span className={`text-2xl font-bold ${ratioColor(totals.ltvCacRatio)}`}>
+                <span className="text-2xl font-bold text-foreground">
                   {totals.ltvCacRatio !== null
                     ? `${formatNumber(totals.ltvCacRatio, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}:1`
                     : '—'}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">Objetivo saludable: ≥ 3:1</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Ratio descriptivo del periodo. No acredita por sí solo la rentabilidad ni el valor de vida del cliente.
+              </p>
               {(() => {
                 const t = kpiObjetivos('ltv_cac', totals.ltvCacRatio, 'ratio')
                 return t ? <TargetRow target={t} /> : null
@@ -1422,7 +1346,7 @@ export default function UnitEconomicsPage() {
                       <td className="py-2.5 pr-4">{formatCurrency(row.revenue)}</td>
                       <td className="py-2.5 pr-4">
                         {row.roas !== null ? (
-                          <span className={ratioColor(row.roas)}>
+                          <span className="text-foreground">
                             {formatNumber(row.roas, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x
                           </span>
                         ) : (

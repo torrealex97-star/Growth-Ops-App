@@ -1,5 +1,17 @@
 # Relevo activo
 
+## CODEX — consistencia de dashboards (28-sep, en curso)
+
+Rama `codex/dashboard-consistency`, base `16d484c`. Reclama unit-economics, resumen financiero, componentes KPI/funnel y acceso VSL con sus pruebas. Alcance: error VSL, periodo/población de embudos, trazabilidad de cash y señales KPI neutrales. No modifica datos financieros ni migraciones. Checkout aislado; WIP de navegación ajeno preservado.
+
+Implementado: ambos embudos leen el mismo agregado del periodo; asistencia por estado confirmado y reservas excluidas mediante cuentaComoVenta. Sin conversiones de cohorte inferidas de totales independientes. LTV:CAC descriptivo, variaciones de gasto neutrales. Resumen separa cobros registrados brutos de consolidado Stripe/interno y expone diferencia sin tocar P&L ni crear cobros. Tests de periodo, reservas, asistencia y aislamiento de consultas.
+
+VSL: logs runtime confirman POSTGRES_URL ausente. Recuperación de credencial autorizada por el usuario, pero la conexión directa del respaldo solo resuelve IPv6 y no se pudo validar desde el entorno local; pendiente endpoint oficial del pooler/acceso al Dashboard. No se restauró una credencial sin validar. No se guardaron secretos en archivos temporales.
+
+Validación: quality local PASS (1133 unit, 3 skips; 757 métricas). Build PASS; dead-code informativo ejecutado. Verificación visual del nuevo build pendiente. No afirmar cierre del incidente VSL ni despliegue de este cambio.
+
+
+
 ## ✅ Último P1 de crons cerrado: presupuesto real del sync de pagos Stripe (PR #277, 28-sep tarde)
 
 El deadline del sync de pagos Stripe (30 s cron / 45 s manual) **solo gobernaba la paginación**

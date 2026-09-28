@@ -9,8 +9,6 @@
 // "contactos sin canal".
 
 import { useMemo } from 'react'
-import { formatPercent } from '@/lib/utils'
-import { SOURCE_REGISTRY } from '@/lib/sources/registry'
 import { InfoHint } from '@/components/ui/info-hint'
 
 export type FunnelGlobal = {
@@ -23,54 +21,39 @@ export type FunnelGlobal = {
   sales: number
 }
 
-const pct = (n: number | null) => (n == null ? '—' : formatPercent(n, 0))
-
-// Etiqueta de fuente con tooltip (§37): qué es, fórmula, source of truth y fallbacks.
-// InfoHint: el cartel queda ~20 s tras salir del hover — tiempo de leer la fórmula entera.
-function SourceHint({ metric }: { metric: string }) {
-  const def = SOURCE_REGISTRY[metric]
-  if (!def) return null
-  const fallbacks = def.fallbacks.length ? def.fallbacks.join(' › ') : 'ninguno'
-  const text = `${def.what}\nFórmula: ${def.formula}\nSource of Truth: ${def.primary}. Fallback: ${fallbacks}.`
-  return <InfoHint text={text} />
-}
-
 export function FunnelCanonicoPanel({ funnel }: { funnel: FunnelGlobal }) {
-  // Funnel global (§23): conversiones y drop-off por etapa. Oferta incluida con offer_made cuando
-  // exista; si ninguna oferta está registrada, la etapa se muestra sin romper el resto.
+  // Recuentos del mismo periodo; sin cocientes entre poblaciones no enlazadas.
   const etapas = useMemo(() => {
-    const conTasa = (a: number, b: number) => (b > 0 ? (a / b) * 100 : null)
     return [
-      { from: 'Leads', to: 'Agendas', value: funnel.booked, rate: conTasa(funnel.booked, funnel.newUniqueLeads) },
-      { from: 'Agendas', to: 'Shows', value: funnel.shows, rate: conTasa(funnel.shows, funnel.booked) },
+      { from: 'Leads', to: 'Agendas', value: funnel.booked },
+      { from: 'Agendas', to: 'Shows', value: funnel.shows },
       {
         from: 'Shows',
         // Sin NINGUNA marca, la etapa es la suposición del negocio y hay que decirlo: un Show →
         // Oferta "100%" que nadie midió no es un logro, es el criterio por defecto.
         to: funnel.offersDeclaradas === 0 && funnel.offers > 0 ? 'Ofertas (supuestas)' : 'Ofertas',
         value: funnel.offers,
-        rate: conTasa(funnel.offers, funnel.shows),
       },
-      { from: 'Ofertas', to: 'Ventas', value: funnel.sales, rate: conTasa(funnel.sales, funnel.offers) },
+      { from: 'Ofertas', to: 'Ventas', value: funnel.sales },
     ]
   }, [funnel])
 
   return (
     <div className="dashboard-card p-5">
       <h3 className="font-display text-lg font-semibold">
-        Funnel del negocio
+        Detalle de actividad del periodo
         <span className="ml-2 align-middle">
-          <SourceHint metric="lead" />
+          <InfoHint text="Personas deduplicadas antes de filtrar por primera fecha conocida en origen (first_seen_at; created_at como respaldo). Las citas y ventas usan su propia fecha del periodo." />
         </span>
       </h3>
       <p className="mt-0.5 text-xs text-muted-foreground">
-        Entidades canónicas: leads únicos, agendas consolidadas, shows confirmados, ventas sin doble conteo. El
-        diagnóstico de calidad de datos vive en Configuración › Data Health.
+        Mismo periodo y población que el embudo superior. Recuentos de actividad sin conversión entre personas no
+        enlazadas. El diagnóstico de calidad de datos vive en Configuración › Data Health.
       </p>
       {funnel.offersDeclaradas === 0 && funnel.offers > 0 && (
         <p className="mt-1 text-xs text-amber-400/90">
           Nadie ha marcado todavía si presentó la oferta: las llamadas celebradas cuentan como oferta por la regla del
-          negocio. En cuanto alguien marque un “No” en la ficha de la agenda, la etapa pasa a dato real.
+          negocio. Las ofertas declaradas y las supuestas se conservan diferenciadas.
         </p>
       )}
       <div className="mt-4 space-y-3">
@@ -81,22 +64,8 @@ export function FunnelCanonicoPanel({ funnel }: { funnel: FunnelGlobal }) {
         {etapas.map((e) => (
           <div key={`${e.from}-${e.to}`}>
             <div className="flex items-baseline justify-between">
-              <span className="text-sm text-muted-foreground">
-                → {e.to}{' '}
-                <span className="text-3xs">
-                  {e.from} → {e.to} %
-                </span>
-              </span>
+              <span className="text-sm text-muted-foreground">→ {e.to} </span>
               <span className="font-display text-lg font-semibold tabular-nums">{e.value}</span>
-            </div>
-            <div className="mt-1 flex items-center gap-2">
-              <div className="h-1.5 flex-1 rounded-full bg-muted">
-                <div
-                  className="h-1.5 rounded-full bg-brand-500"
-                  style={{ width: `${e.rate != null ? Math.max(2, Math.min(100, e.rate)) : 0}%` }}
-                />
-              </div>
-              <span className="w-14 text-right text-xs tabular-nums text-muted-foreground">{pct(e.rate)}</span>
             </div>
           </div>
         ))}

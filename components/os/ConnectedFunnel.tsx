@@ -8,7 +8,15 @@ export interface ConnectedFunnelStage {
 }
 
 /** Diagrama de etapas: la silueta es esquemática, no una escala de volúmenes. */
-export function ConnectedFunnel({ stages, loading = false }: { stages: ConnectedFunnelStage[]; loading?: boolean }) {
+export function ConnectedFunnel({
+  stages,
+  loading = false,
+  activityOnly = false,
+}: {
+  stages: ConnectedFunnelStage[]
+  loading?: boolean
+  activityOnly?: boolean
+}) {
   if (loading) return <div className="h-64 animate-pulse rounded-xl bg-muted" />
 
   const height = (index: number) => 240 - (index / Math.max(stages.length - 1, 1)) * 120
@@ -44,7 +52,9 @@ export function ConnectedFunnel({ stages, loading = false }: { stages: Connected
                     />
                   </svg>
                   <div className="relative text-center text-slate-950">
-                    <p className="text-sm font-semibold tabular-nums">{formatPercent(stage.conversion, 1)}</p>
+                    <p className="text-sm font-semibold tabular-nums">
+                      {activityOnly ? '' : formatPercent(stage.conversion, 1)}
+                    </p>
                     <span className="text-2xl" aria-hidden="true">
                       →
                     </span>
@@ -74,7 +84,7 @@ export function ConnectedFunnel({ stages, loading = false }: { stages: Connected
             {index > 0 && (
               <p className="py-2 text-xs font-medium text-muted-foreground tabular-nums">
                 <span aria-hidden="true">↓ </span>
-                {formatPercent(stage.conversion, 1)}
+                {activityOnly ? '' : formatPercent(stage.conversion, 1)}
               </p>
             )}
             <div
@@ -91,7 +101,10 @@ export function ConnectedFunnel({ stages, loading = false }: { stages: Connected
         ))}
       </ol>
       <p className="mt-2 text-xs text-muted-foreground">
-        Conversión respecto a la etapa anterior · Silueta esquemática, no a escala.
+        {activityOnly
+          ? 'Actividad del periodo; no expresa conversión entre personas.'
+          : 'Conversión respecto a la etapa anterior.'}{' '}
+        Silueta esquemática, no a escala.
       </p>
     </div>
   )
