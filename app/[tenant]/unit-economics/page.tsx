@@ -17,6 +17,7 @@ import { PieChart, Target, Users, TrendingUp, Wallet, Filter, MousePointerClick,
 import { cuentaComoVenta } from '@/lib/analytics'
 import { metodoDePlan } from '@/lib/metrics/agregados'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
+import { promedioPrimerPago } from '@/lib/finance/nuevo-vs-recurrente'
 import { FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 import {
   buildChannelRows,
@@ -52,6 +53,7 @@ type TargetRowEstado = {
 }
 
 type CollectionRow = {
+  sale_id: string
   id?: string
   /** `payment_reference` = id de Stripe cuando el cobro vino de ahí: la clave del dedup (§2). */
   payment_reference?: string | null
@@ -372,7 +374,7 @@ export default function UnitEconomicsPage() {
             .range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('collections')
-            .select('id, gross_amount, collected_at, status, payment_reference')
+            .select('id, sale_id, gross_amount, collected_at, status, payment_reference')
             .eq('tenant_id', tenantId)
             .range(0, FINANCE_QUERY_ROW_CAP),
           // Fuente PRIMARIA del cash (§2): espejo de pagos de Stripe (succeeded, neto de su
@@ -496,6 +498,11 @@ export default function UnitEconomicsPage() {
     [sales, hayPeriodo, rango]
   )
 
+  const primerPago = promedioPrimerPago(
+    ventasVisibles.filter(cuentaComoVenta).map((s) => s.id),
+    collections,
+    rangoISO(rango.to)
+  )
   const channelRows = useMemo(
     () => buildChannelRows(campanasParaTotales, ventasVisibles, contacts),
     [campanasParaTotales, ventasVisibles, contacts]
@@ -965,9 +972,9 @@ export default function UnitEconomicsPage() {
               />
               <KPICard
                 title="Cash Collected medio"
-                value={funnelOperativo.cierres ? formatCurrency(cash.net / funnelOperativo.cierres) : '—'}
+                value={primerPago.promedio === null ? '—' : formatCurrency(primerPago.promedio)}
                 loading={loading}
-                description="Cash Collected del periodo / ventas nuevas del periodo. Incluye cobros de ventas anteriores."
+                description={`Promedio del primer pago confirmado de las ventas nuevas del periodo. Excluye cuotas posteriores. ${primerPago.ventasSinPrimerPago} ventas sin primer pago identificado; si falta alguno no se estima el promedio.`}
               />
             </div>
             <MetricExplorer
@@ -1427,9 +1434,9 @@ export default function UnitEconomicsPage() {
                 />
                 <KPICard
                   title="Cash Collected medio"
-                  value={funnelOperativo.cierres ? formatCurrency(cash.net / funnelOperativo.cierres) : '—'}
+                  value={primerPago.promedio === null ? '—' : formatCurrency(primerPago.promedio)}
                   loading={loading}
-                  description="Cash Collected / ventas nuevas del periodo; total de empresa, incluye cobros de ventas anteriores."
+                  description={`Promedio del primer pago confirmado de las ventas nuevas del periodo. Excluye cuotas posteriores. ${primerPago.ventasSinPrimerPago} ventas sin primer pago identificado; si falta alguno no se estima el promedio.`}
                 />
                 <KPICard
                   title="Cash Collected"

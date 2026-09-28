@@ -98,3 +98,36 @@ export function tipoDeCuotaFutura(fechaCuota: string | null, cobrosRecogidosDeLa
   const hayPrevios = cobrosRecogidosDeLaVenta.some((f) => !!f && f.slice(0, 10) <= dia)
   return hayPrevios ? 'recurrente' : 'nuevo'
 }
+
+/** Primer pago confirmado por venta nueva. Recibe historial completo, nunca cuotas del periodo aisladas. */
+export function promedioPrimerPago(
+  saleIds: string[],
+  collections: (FilaCobroParaClasificar & { id?: string })[],
+  through?: string | null
+): { promedio: number | null; ventasConPrimerPago: number; ventasSinPrimerPago: number } {
+  const ids = new Set(saleIds)
+  const first = new Map<string, (typeof collections)[number]>()
+  const ambiguous = new Set<string>()
+  for (const c of collections) {
+    if (!ids.has(c.sale_id) || c.status !== 'collected' || !c.collected_at) continue
+    if (through && c.collected_at.slice(0, 10) > through.slice(0, 10)) continue
+    const previous = first.get(c.sale_id)
+    if (!previous || c.collected_at < previous.collected_at!) {
+      first.set(c.sale_id, c)
+      ambiguous.delete(c.sale_id)
+    } else if (c.collected_at === previous.collected_at && Number(c.gross_amount) !== Number(previous.gross_amount)) {
+      ambiguous.add(c.sale_id)
+    }
+  }
+  const values = [...first.values()]
+  const missing = ids.size - values.length
+  const valid = values.every((c) => c.gross_amount != null && Number.isFinite(Number(c.gross_amount)))
+  return {
+    promedio:
+      ids.size && !missing && valid && !ambiguous.size
+        ? values.reduce((sum, c) => sum + Number(c.gross_amount), 0) / ids.size
+        : null,
+    ventasConPrimerPago: first.size,
+    ventasSinPrimerPago: missing,
+  }
+}

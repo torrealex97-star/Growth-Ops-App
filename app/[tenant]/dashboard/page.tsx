@@ -25,6 +25,7 @@ import {
 } from '@/lib/filters/period'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import ColaboradorDashboard from '@/components/collaborators/ColaboradorDashboard'
+import { promedioPrimerPago } from '@/lib/finance/nuevo-vs-recurrente'
 import { canonicalCash, serieCanonicaCash, type StripePaymentRow } from '@/lib/canonical/cash'
 import { resolverScopeColaborador, type ScopeColaborador } from '@/lib/collaborators/scope'
 import { useTenantId } from '@/lib/tenant-context'
@@ -505,7 +506,15 @@ function DashboardEquipo() {
   const currentCashInputs = cashInputs(range)
   const currentCash = canonicalCash(currentCashInputs.stripe, currentCashInputs.internal)
   const curBase = periodKpis(filteredSales, filteredCollections)
-  const cur = { ...curBase, cash: currentCash.net, avgCash: curBase.count ? currentCash.net / curBase.count : 0 }
+  const cur = {
+    ...curBase,
+    cash: currentCash.net,
+    avgCash: promedioPrimerPago(
+      filteredSales.filter(cuentaComoVenta).map((s) => s.id),
+      collections,
+      range.to?.toLocaleDateString('sv-SE')
+    ).promedio,
+  }
   const previousSales = useMemo(
     () => sales.filter((sale) => saleMatches(sale) && inPeriod(sale.sale_date, previousRange)),
     [sales, saleMatches, previousRange]
@@ -517,7 +526,15 @@ function DashboardEquipo() {
   const previousCashInputs = cashInputs(previousRange)
   const previousCash = canonicalCash(previousCashInputs.stripe, previousCashInputs.internal)
   const prevBase = periodKpis(previousSales, previousCollections)
-  const prev = { ...prevBase, cash: previousCash.net, avgCash: prevBase.count ? previousCash.net / prevBase.count : 0 }
+  const prev = {
+    ...prevBase,
+    cash: previousCash.net,
+    avgCash: promedioPrimerPago(
+      previousSales.filter(cuentaComoVenta).map((s) => s.id),
+      collections,
+      previousRange.to?.toLocaleDateString('sv-SE')
+    ).promedio,
+  }
   const trend = financialTrend(
     filteredSales,
     filteredCollections,
@@ -985,20 +1002,23 @@ function DashboardEquipo() {
           <KPICard
             title={showAverageTicket ? 'Ticket medio por cliente' : 'Cash Collected medio'}
             value={
-              loading || (!showAverageTicket && !cur.count) ? '—' : fmt(showAverageTicket ? cur.avgTicket : cur.avgCash)
+              loading || (!showAverageTicket && cur.avgCash === null)
+                ? '—'
+                : fmt(showAverageTicket ? cur.avgTicket : cur.avgCash!)
             }
             icon={Receipt}
             loading={loading}
             description={
               showAverageTicket
                 ? `${productsInPeriod} productos vendidos`
-                : 'Cash Collected / ventas nuevas del periodo; incluye cobros de ventas anteriores'
+                : 'Promedio del primer pago confirmado por venta nueva; excluye cuotas posteriores. Sin dato si falta identificar algún primer pago.'
             }
             compareLabel="vs periodo anterior"
-            {...delta(
-              showAverageTicket ? cur.avgTicket : cur.avgCash,
-              showAverageTicket ? prev.avgTicket : prev.avgCash
-            )}
+            {...(showAverageTicket
+              ? delta(cur.avgTicket, prev.avgTicket)
+              : cur.avgCash !== null && prev.avgCash !== null
+                ? delta(cur.avgCash, prev.avgCash)
+                : {})}
           />
         </div>
       </div>

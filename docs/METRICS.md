@@ -120,6 +120,6 @@ la función/tabla indicada aquí — no reimplementar el cálculo.
 
 ## Cash Collected medio — definición solicitada, 28-sep-2026
 
-En Negocio/Ventas de Unit Economics y en el dashboard principal: **Cash Collected del periodo / ventas activas nuevas del periodo**, excluidas las reservas abiertas. Numerador consolidado por `lib/canonical/cash.ts`; denominador por `cuentaComoVenta`, con el mismo ámbito visible. Si no hay ventas, se muestra `—`. Incluye cobros del periodo correspondientes a ventas anteriores: es un promedio del periodo, no cash al cierre de una cohorte ni promedio por cobro. Facturación y Cash Collected no se suman entre sí.
+En Negocio/Ventas de Unit Economics y en el dashboard principal: **promedio del primer pago confirmado de cada venta nueva del periodo**, usando `promedioPrimerPago` en `lib/finance/nuevo-vs-recurrente.ts`. Se consulta el historial completo de cobros internos vinculados por `sale_id`, se elige una sola transacción inicial por venta y se excluyen cuotas posteriores y ventas antiguas. Solo ventas activas, sin reservas abiertas. No se sustituyen importes faltantes por cero: si falta identificar el primer pago de alguna venta, se muestra `—`. Esta aclaración del usuario sustituye la interpretación anterior de cash total del periodo dividido por ventas.
 
 Coste por venta = inversión / ventas; se distingue de CAC (clientes únicos, §6). Los porcentajes del bloque Asistencia indican peso sobre todas las agendas del ámbito seleccionado y no reemplazan el Show Rate sobre citas resueltas.
