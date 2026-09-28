@@ -58,7 +58,7 @@ test('un toque vacío no se escribe', async () => {
 // ---------------------------------------------------------------------------------------------
 
 function sbFalso({ existente }) {
-  const escrito = { insert: null, update: null }
+  const escrito = { insert: null, update: null, updates: [], isGuard: null }
   const sb = {
     from: () => ({
       select: () => ({
@@ -74,7 +74,21 @@ function sbFalso({ existente }) {
       },
       update: (fila) => {
         escrito.update = fila
-        return { eq: async () => ({ error: null }) }
+        escrito.updates.push(fila)
+        return {
+          eq: () => ({
+            error: null,
+            // La segunda .eq() SOLO existiría si el bug volviera: el guard real usa .is().
+            eq: (col, val) => {
+              escrito.isGuard = { metodo: 'eq', col, val }
+              return { error: null }
+            },
+            is: (col, val) => {
+              escrito.isGuard = { metodo: 'is', col, val }
+              return { error: null }
+            },
+          }),
+        }
       },
     }),
   }
@@ -107,6 +121,32 @@ test('un toque posterior actualiza el último y NO toca el primero', async () =>
     assert.ok(!clave.startsWith('first_'), `el update no puede tocar ${clave}`)
   }
   assert.equal(escrito.insert, null, 'no debe insertar una segunda fila primaria')
+})
+
+test('el relleno de colaborador vacío usa .is(), no .eq() — PostgREST trata eq(col, null) como el texto "null"', async () => {
+  const { sb, escrito } = sbFalso({
+    existente: { id: 'a1', first_touch_at: '2026-09-01T10:00:00Z', collaborator_id: null },
+  })
+  const r = await registrarToque(sb, 't1', 'c1', {
+    utmSource: 'ref',
+    colaboradorId: 'colab-1',
+    enEl: '2026-09-20T10:00:00Z',
+  })
+  assert.deepEqual(r, { ok: true, accion: 'actualizada' })
+  assert.deepEqual(escrito.isGuard, { metodo: 'is', col: 'collaborator_id', val: null })
+})
+
+test('un colaborador ya asignado no se pisa (first-valid-collaborator-wins): no llama al guard de relleno', async () => {
+  const { sb, escrito } = sbFalso({
+    existente: { id: 'a1', first_touch_at: '2026-09-01T10:00:00Z', collaborator_id: 'colab-viejo' },
+  })
+  const r = await registrarToque(sb, 't1', 'c1', {
+    utmSource: 'ref',
+    colaboradorId: 'colab-nuevo',
+    enEl: '2026-09-20T10:00:00Z',
+  })
+  assert.deepEqual(r, { ok: true, accion: 'actualizada' })
+  assert.equal(escrito.isGuard, null, 'no debe intentar rellenar un colaborador ya asignado')
 })
 
 test('un error de lectura no se traga: se devuelve', async () => {

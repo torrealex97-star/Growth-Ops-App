@@ -110,9 +110,10 @@ test('el código público es único por subcuenta y jamás identidad: el UUID ma
 test('registrarToque no roba la atribución: solo rellena si estaba vacía, con guard', () => {
   const codigo = sinComentarios(leer(ATRIBUCION))
   // El update de relleno lleva el guard: si otra entrega lo llenó mientras tanto, no pisa.
+  // OJO: .is(), no .eq() — PostgREST trata eq(col, null) como el TEXTO "null", no SQL NULL.
   assert.match(
     codigo,
-    /\.update\(\{ collaborator_id: colaboradorEntrante \}\)[\s\S]{0,120}\.eq\('collaborator_id', null\)/
+    /\.update\(\{ collaborator_id: colaboradorEntrante \}\)[\s\S]{0,120}\.is\('collaborator_id', null\)/
   )
   // Y la actualización principal del toque existente NO lleva collaborator_id (el primero se queda).
   const updatePrincipal = codigo.match(/\.update\(ultimos\)/)

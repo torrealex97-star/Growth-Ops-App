@@ -113,11 +113,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (!userId) return NextResponse.json({ error: 'Falta userId o email' }, { status: 400 })
 
     // Membership del tenant: sin ella el layout no deja entrar (reutilizado tal cual).
-    await sb
+    const { error: membershipErr } = await sb
       .from('tenant_members')
       .upsert(
         { tenant_id: t.tenantId, user_id: userId, role: 'member' },
         { onConflict: 'tenant_id,user_id', ignoreDuplicates: true }
+      )
+    if (membershipErr)
+      return NextResponse.json(
+        { error: 'No se pudo dar de alta en la subcuenta: ' + membershipErr.message },
+        { status: 500 }
       )
 
     // Código público: el que pida el admin (normalizado) o uno generado único.
@@ -179,11 +184,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         // firma. Si ya hay uno FIRMADO (re-alta de un usuario existente), nace
         // directamente activo.
         estadoFinal = contrato.estado === 'ya_firmado' ? 'active' : 'pending_contract'
-        await sb
+        const { error: estadoErr } = await sb
           .from('collaborator_profiles')
           .update({ status: estadoFinal, updated_at: new Date().toISOString() })
           .eq('id', creado.id)
           .eq('tenant_id', t.tenantId)
+        // Si falla, la respuesta abajo reportaría estadoFinal aunque la fila siguiera en 'invited':
+        // se refleja el estado real en la respuesta en vez de fingir que el update funcionó.
+        if (estadoErr) {
+          console.error('[colaboradores] no se pudo actualizar el estado tras el contrato:', estadoErr.message)
+          estadoFinal = status
+        }
       }
     }
 
