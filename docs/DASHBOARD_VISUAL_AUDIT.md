@@ -20,3 +20,27 @@ Referencia: dashboard oscuro suave y embudo horizontal continuo aprobado en el c
 - Las siluetas de funnel son esquemáticas; cantidades y conversiones mantienen los valores existentes.
 - VSL, Actividad y Proyección siguen sujetos a sus estados vacíos actuales: la revisión poblada requiere datos existentes en esas vistas.
 - El usuario autorizó la publicación tras superar el gate local. La fusión sigue condicionada a CI y revisión de Preview.
+
+## Revisión transversal — 28 septiembre, antes del cierre de PR #278
+
+Se inspeccionaron visualmente versiones local y producción; no confundir esas observaciones con la verificación del último código. Plan ejecutable y limitaciones en `ACTIVE_HANDOFF.md`, sección «Relevo prioritario». No hay modificación de datos de negocio.
+
+| Pantalla inspeccionada    | Hallazgo                                                        | Estado del lote                                                    |
+| ------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Embudo de ventas, ranking | Reservas contadas como cierres; ratios de hechos independientes | Corrección canónica, pendiente revalidación visual tras despliegue |
+| Tendencias                | Comparación entre mitades del mismo periodo                     | Helper probado: total completo y comparación explícita             |
+| Meta campañas             | Alcance no aditivo y comparación anterior falsa                 | Corregido; endpoint local requiere configuración servidor          |
+| Atribución                | Histórico y periodo mezclados; cobertura y población            | Pendiente, refactorización experimental excluida                   |
+| Resumen financiero        | Cobros internos y consolidado con distinta cobertura            | Conciliación existente; claridad visual pendiente                  |
+| P&L y gastos              | Alcance de libro interno y gastos registrados poco claro        | Etiquetas y resultado firmado corregidos                           |
+| Cohortes financieras      | Ventanas inmaduras coloreadas como resultados malos             | Madurez y elegibilidad corregidas, regresiones añadidas            |
+| Proyección y morosidad    | Sin planes cargados; cero no demuestra cobertura completa       | Pendiente aviso de cobertura y validación funcional                |
+| VSL                       | Sin visionados mostraba tasas cero y ausencia de caídas         | Corregido estado sin muestra; VSL carga en producción              |
+| Funnels                   | Reservas, deduplicación y conversiones sin cohorte              | Recuentos compartidos y tasas/pérdidas bloqueadas                  |
+| Instagram                 | Suma de reach de reels no es alcance único del periodo          | Pendiente definición/etiqueta y pestañas secundarias               |
+| Colaboradores             | «Facturación (cash)», reservas y signo de comisión              | Etiquetas/eligibilidad corregidas; paginación pendiente            |
+| Comisiones                | Creación y liquidación no son la misma fecha                    | Pendiente armonizar alcance visible, sin alterar datos             |
+| Analítica general         | Salud máxima con cobertura baja y cash no consolidado           | Prioridad alta pendiente; NO certificada como consistente          |
+| Contenido                 | Tabla editorial vacía explícita                                 | Inspeccionada; no requiere inventar KPIs                           |
+
+Pendiente completar comprobación visual final de Actividad, dashboard principal, Ventas/registro y Cobros/conciliación, además de móvil tras build. Clientes no se redefine sin el usuario.

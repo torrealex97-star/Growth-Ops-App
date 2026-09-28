@@ -92,7 +92,7 @@ export async function consultarMetricas(
           // payment_plans(method): para excluir reservas sin completar de ventas/clientes (una
           // reserva que solo pagó la seña no es cliente — ver esReservaAbierta en agregados.ts).
           .select(
-            'sale_date, gross_amount, status, closer_id, appointment_id, reservation_completed_at, payment_plans(method)'
+            'contact_id, sale_date, gross_amount, status, closer_id, appointment_id, reservation_completed_at, payment_plans(method)'
           )
           .eq('tenant_id', tenantId)
           .gte('sale_date', periodo.desde)

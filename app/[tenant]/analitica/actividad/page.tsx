@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useTenantId } from '@/lib/tenant-context'
+import { metodoDePlan } from '@/lib/metrics/agregados'
 import { createClient } from '@/lib/supabase/client'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import {
@@ -15,7 +17,7 @@ import {
   Wallet,
   TrendingUp,
 } from 'lucide-react'
-import { lastNMonths, monthLabel, ACTIVE_SALE_STATUSES } from '@/lib/analytics'
+import { lastNMonths, monthLabel, cuentaComoVenta } from '@/lib/analytics'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -39,6 +41,8 @@ type RoleUser = {
 }
 
 type SaleRow = {
+  payment_plan_method?: string | null
+  reservation_completed_at?: string | null
   setter_id: string | null
   closer_id: string | null
   gross_amount: number | string | null
@@ -65,13 +69,6 @@ function fmtPct(v: number | null): string {
 
 function fmtNum(v: number | null): string {
   return v !== null ? formatNumber(v, { maximumFractionDigits: 1 }) : '—'
-}
-
-function ratioColor(ratio: number | null, good: number, warn: number): string {
-  if (ratio === null) return 'text-muted-foreground'
-  if (ratio >= good) return 'text-emerald-400'
-  if (ratio >= warn) return 'text-amber-400'
-  return 'text-red-400'
 }
 
 // ==================== AGREGACIÓN ====================
@@ -135,6 +132,11 @@ type MemberRow = {
 // ==================== PAGE ====================
 
 export default function ProspectingPage() {
+  const tenantId = useTenantId()
+  const [loadError, setLoadError] = useState(false)
+  const [reportError, setReportError] = useState(false)
+  const [reportsLoading, setReportsLoading] = useState(true)
+  const [retry, setRetry] = useState(0)
   const [loading, setLoading] = useState(true)
   const [reports, setReports] = useState<KpiReportRow[]>([])
   const [roleUsers, setRoleUsers] = useState<RoleUser[]>([])
@@ -155,48 +157,76 @@ export default function ProspectingPage() {
   useEffect(() => {
     let mounted = true
     async function load() {
+      setLoading(true)
+      setLoadError(false)
       const supabase = createClient()
 
       const [usersRes, salesRes] = await Promise.all([
-        supabase.from('users').select('id, full_name, is_active, roles(key)').eq('is_active', true),
-        supabase.from('sales').select('setter_id, closer_id, gross_amount, status, sale_date'),
+        supabase
+          .from('users')
+          .select('id, full_name, is_active, roles(key), tenant_members!inner(tenant_id)', { count: 'exact' })
+          .eq('tenant_members.tenant_id', tenantId)
+          .eq('is_active', true)
+          .range(0, 49999),
+        supabase
+          .from('sales')
+          .select(
+            'setter_id, closer_id, gross_amount, status, sale_date, reservation_completed_at, payment_plans(method)',
+            { count: 'exact' }
+          )
+          .eq('tenant_id', tenantId)
+          .range(0, 49999),
       ])
 
       if (!mounted) return
+      if ([usersRes, salesRes].some((r) => r.error || (r.count ?? 0) > (r.data?.length ?? 0))) {
+        setLoadError(true)
+        setLoading(false)
+        return
+      }
       setRoleUsers((usersRes.data as RoleUser[] | null) || [])
-      setSales(salesRes.data || [])
+      setSales((salesRes.data ?? []).map((s) => ({ ...s, payment_plan_method: metodoDePlan(s) })))
       setLoading(false)
     }
     load()
     return () => {
       mounted = false
     }
-  }, [])
+  }, [tenantId, retry])
 
   // Reportes del mes seleccionado — cargados por rango de fechas
   useEffect(() => {
     let mounted = true
     async function loadReports() {
+      setReportsLoading(true)
+      setReportError(false)
       const supabase = createClient()
       const [y, m] = ym.split('-').map(Number)
       const from = `${ym}-01`
       const lastDay = new Date(y, m, 0).getDate()
       const to = `${ym}-${String(lastDay).padStart(2, '0')}`
 
-      const { data } = await supabase
+      const { data, error, count } = await supabase
         .from('kpi_daily_reports')
-        .select('user_id, role_key, report_date, data')
+        .select('user_id, role_key, report_date, data', { count: 'exact' })
+        .eq('tenant_id', tenantId)
+        .range(0, 49999)
         .gte('report_date', from)
         .lte('report_date', to)
 
       if (!mounted) return
+      setReportsLoading(false)
+      if (error || (count ?? 0) > (data?.length ?? 0)) {
+        setReportError(true)
+        return
+      }
       setReports((data as KpiReportRow[] | null) || [])
     }
     loadReports()
     return () => {
       mounted = false
     }
-  }, [ym])
+  }, [ym, tenantId, retry])
 
   const prospectingUserIds = useMemo(
     () => new Set(roleUsers.filter((u) => PROSPECTING_ROLES.has(u.roles?.key || '')).map((u) => u.id)),
@@ -210,7 +240,7 @@ export default function ProspectingPage() {
     const lastDay = new Date(y, m, 0).getDate()
     const to = `${ym}-${String(lastDay).padStart(2, '0')}`
     return sales.filter((s) => {
-      if (!ACTIVE_SALE_STATUSES.includes(s.status)) return false
+      if (!cuentaComoVenta(s)) return false
       if (!s.sale_date || s.sale_date < from || s.sale_date > to) return false
       if (!s.setter_id || !prospectingUserIds.has(s.setter_id)) return false
       return true
@@ -258,7 +288,7 @@ export default function ProspectingPage() {
   const daysInMonth = useMemo(() => {
     const [y, m] = ym.split('-').map(Number)
     return new Date(y, m, 0).getDate()
-  }, [ym])
+  }, [ym, tenantId, retry])
 
   const kpis = useMemo(() => {
     const a = globalAgg
@@ -387,7 +417,14 @@ export default function ProspectingPage() {
         </div>
       </div>
 
-      {loading ? (
+      {loadError || reportError ? (
+        <div role="alert" className="dashboard-card p-6">
+          No se pudo cargar la fuente completa. No se muestran totales parciales.
+          <button className="ml-3 underline" onClick={() => setRetry((n) => n + 1)}>
+            Reintentar
+          </button>
+        </div>
+      ) : loading || reportsLoading ? (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[...Array(8)].map((_, i) => (
@@ -510,17 +547,11 @@ export default function ProspectingPage() {
                         <td className="py-2.5 pr-4">{fmtNum(row.horas)}</td>
                         <td className="py-2.5 pr-4">{fmtNum(row.intentos)}</td>
                         <td className="py-2.5 pr-4">{fmtNum(row.respuestas)}</td>
-                        <td className={`py-2.5 pr-4 font-medium ${ratioColor(row.pctResponse, 0.4, 0.2)}`}>
-                          {fmtPct(row.pctResponse)}
-                        </td>
+                        <td className={`py-2.5 pr-4 font-medium text-foreground`}>{fmtPct(row.pctResponse)}</td>
                         <td className="py-2.5 pr-4">{fmtNum(row.conversaciones)}</td>
-                        <td className={`py-2.5 pr-4 font-medium ${ratioColor(row.pctConvo, 0.5, 0.25)}`}>
-                          {fmtPct(row.pctConvo)}
-                        </td>
+                        <td className={`py-2.5 pr-4 font-medium text-foreground`}>{fmtPct(row.pctConvo)}</td>
                         <td className="py-2.5 pr-4">{fmtNum(row.citas)}</td>
-                        <td className={`py-2.5 pr-4 font-medium ${ratioColor(row.pctBooked, 0.3, 0.15)}`}>
-                          {fmtPct(row.pctBooked)}
-                        </td>
+                        <td className={`py-2.5 pr-4 font-medium text-foreground`}>{fmtPct(row.pctBooked)}</td>
                         <td className="py-2.5 pr-4">{row.nrPerHr !== null ? formatCurrency(row.nrPerHr) : '—'}</td>
                       </tr>
                     ))}

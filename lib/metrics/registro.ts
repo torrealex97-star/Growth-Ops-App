@@ -151,7 +151,7 @@ const METRICAS_SALES: DefinicionMetrica[] = [
     shortName: 'CAC',
     category: 'sales',
     unit: 'eur',
-    formula: 'Inversión publicitaria del periodo / Ventas del periodo',
+    formula: 'Inversión publicitaria del periodo / Clientes únicos con venta activa del mismo ámbito y periodo',
     description: 'Cuánto cuesta en publicidad conseguir un cliente que compra.',
     whyItMatters: 'Comparado con lo que deja cada cliente, dice si se puede invertir más mañana sin perder dinero.',
     dataSource: 'Inversión de la plataforma publicitaria + ventas',

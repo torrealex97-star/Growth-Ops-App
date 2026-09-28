@@ -198,7 +198,7 @@ export function FunnelChart({ result, state = 'ok', message, onStageClick, tabla
                           ) : i > 0 ? (
                             <span>conversión no calculable</span>
                           ) : null}
-                          {perdidos != null && perdidos > 0 ? (
+                          {s.conversionFromPrevious != null && perdidos != null && perdidos > 0 ? (
                             <span className="tabular-nums">−{fmt(perdidos)} se caen</span>
                           ) : null}
                           {activa === s.stage.id && s.conversionFromTop != null && i > 0 ? (

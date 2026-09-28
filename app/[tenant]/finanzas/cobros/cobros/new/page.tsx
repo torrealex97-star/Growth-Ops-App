@@ -364,7 +364,7 @@ export default function NewCollectionPage() {
               <span className="text-red-400 font-medium">-{formatCurrency(processingFee)}</span>
             </div>
             <div className="flex justify-between text-sm pt-1 border-t border-border">
-              <span className="text-muted-foreground">Cash collected neto (bruto − comisión)</span>
+              <span className="text-muted-foreground">Importe tras comisión de pasarela</span>
               <span className="text-emerald-400 font-medium">{formatCurrency(netCashCollected)}</span>
             </div>
           </div>

@@ -3,22 +3,25 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { mensajeDeCarga, primerError } from '@/lib/supabase/resultado'
-import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
 import { FunnelDinamico, FUNNEL_LABELS, FUNNEL_ORDEN, type OpcionFunnel } from '@/components/os/FunnelDinamico'
-import { TrendChart } from '@/components/os/TrendChart'
-import { cn } from '@/lib/utils'
-import { DonutChart, type Segmento } from '@/components/os/DonutChart'
-import { FinanceDual } from '@/components/finanzas/FinanceCharts'
-import { KPICard, TargetRow } from '@/components/os/DashboardKPICard'
+import {
+  DepartmentSection,
+  MetricExplorer,
+  BreakdownBars,
+  CompactMetric as KPICard,
+  AppointmentStatusStrip,
+} from '@/components/os/DepartmentDashboard'
+import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
 import { evaluaTarget, eligeTarget, valorTarget, METRICAS_CON_OBJETIVO } from '@/lib/targets/vs-actual'
 import { PieChart, Target, Users, TrendingUp, Wallet, Filter, MousePointerClick, Megaphone } from 'lucide-react'
-import { ACTIVE_SALE_STATUSES } from '@/lib/analytics'
+import { cuentaComoVenta } from '@/lib/analytics'
+import { metodoDePlan } from '@/lib/metrics/agregados'
 import { formatCurrency, formatNumber, formatPercent } from '@/lib/utils'
+import { promedioPrimerPago } from '@/lib/finance/nuevo-vs-recurrente'
 import { FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 import {
   buildChannelRows,
   buildSalesOverview,
-  ejeCacVisible,
   serieDualFacturacionCash,
   type AttributionFilter,
   type FathomSinCita,
@@ -30,13 +33,11 @@ import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { useCuentasMetaActivas } from '@/lib/meta/use-cuentas-activas'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset, type PeriodRange } from '@/lib/filters/period'
-import { isCancelled } from '@/lib/unit-economics'
 import { leadDate } from '@/lib/analytics'
-import type { FunnelOperativo, FiltroAtribucion } from '@/lib/metrics/operativo'
-import { canonicalizeLeads, canonicalizeAppointments } from '@/lib/canonical/dedup'
+import type { FiltroAtribucion } from '@/lib/metrics/operativo'
+import { buildPeriodFunnel } from '@/lib/metrics/period-funnel'
 import { canonicalCash, serieCanonicaCash, type StripePaymentRow } from '@/lib/canonical/cash'
-import { resolverOferta, CONFIG_OFERTA_POR_DEFECTO } from '@/lib/metrics/oferta'
-import { FunnelCanonicoPanel } from '@/components/os/DataQualityPanel'
+import { BusinessFinance } from '@/components/os/BusinessFinance'
 import { PanelOrganico } from '@/components/os/PanelOrganico'
 
 // Objetivo de dashboard (§27): fila mínima de `targets` para comparar contra lo del periodo.
@@ -52,6 +53,7 @@ type TargetRowEstado = {
 }
 
 type CollectionRow = {
+  sale_id: string
   id?: string
   /** `payment_reference` = id de Stripe cuando el cobro vino de ahí: la clave del dedup (§2). */
   payment_reference?: string | null
@@ -214,9 +216,8 @@ function FiltrosAtribucion({
             anuncio. Aquí se muestran los agregados, no la tabla.
           </p>
           <p>
-            <span className="text-foreground font-medium">Nota honesta:</span> hoy casi ningún contacto lleva
-            campaign_id (la tabla de atribución está vacía), así que «Atribuidos» puede mostrar 0 aunque los totales del
-            negocio no lo sean. No es un fallo de esta pantalla: es el estado real de la cobertura de datos.
+            <span className="text-foreground font-medium">Cobertura:</span> los contactos sin campaña asociada no
+            aparecen en los desgloses atribuidos. La ausencia de atribución no implica ausencia de actividad.
           </p>
         </div>
       )}
@@ -264,7 +265,7 @@ function buildMarketingFunnel(
   const salesCallsBooked = appointments.filter((a) => a.contact_id && contactHasCampaign.has(a.contact_id)).length
 
   const attributedSales = sales.filter(
-    (s) => ACTIVE_SALE_STATUSES.includes(s.status) && s.contact_id && contactHasCampaign.has(s.contact_id)
+    (s) => cuentaComoVenta(s) && s.contact_id && contactHasCampaign.has(s.contact_id)
   )
   const dealsClosed = attributedSales.length
   const grossFromDeals = attributedSales.reduce((a, s) => a + num(s.gross_amount), 0)
@@ -301,60 +302,6 @@ function buildMarketingFunnel(
 // hubiera 559 agendas y 27 ventas REALES. La ausencia de atribución NO significa
 // que el evento no haya ocurrido: los totales del negocio se cuentan del CRM
 // (contacts/appointments/sales), y la atribución se declara aparte, nunca mezclada.
-
-function buildFunnelOperativo(
-  contacts: ContactRow[],
-  appointments: AppointmentRow[],
-  sales: SaleRow[],
-  hayPeriodo: boolean,
-  rango: PeriodRange
-): FunnelOperativo {
-  const ahora = new Date()
-  // Leads por FECHA REAL (leadDate = first_seen_at → first_contact_at → created_at): created_at es
-  // cuándo se importó la fila (la importación de GHL estampó todo el histórico el mismo día), no
-  // cuándo llegó el lead.
-  const contactos = hayPeriodo ? contacts.filter((c) => inPeriod(leadDate(c), rango)) : contacts
-  const agendasVisibles = hayPeriodo
-    ? appointments.filter((a) => inPeriod(a.appointment_datetime, rango))
-    : appointments
-  const ventas = hayPeriodo ? sales.filter((s) => inPeriod(s.sale_date, rango)) : sales
-  const ventasActivas = ventas.filter((s) => ACTIVE_SALE_STATUSES.includes(s.status))
-
-  // ASISTENCIA = misma semántica que el KPI "Shows" de esta misma página (buildSalesOverview):
-  // citas vivas que ya pasaron. Los closers casi nunca marcan status='show' (4 de 559), así que
-  // contar el status diría 4 asistencias mientras el KPI de al lado enseña 517. Dos números
-  // distintos para el mismo concepto es exactamente el problema de nomenclatura que unifica el brief.
-  const agendasVivasYaPasadas = agendasVisibles.filter((a) => {
-    if (isCancelled(a.status)) return false
-    if (!a.appointment_datetime) return true
-    const t = Date.parse(a.appointment_datetime)
-    return Number.isNaN(t) || t <= ahora.getTime()
-  }).length
-
-  const conCampaign = new Set(contacts.filter((c) => !!c.campaign_id).map((c) => c.id))
-  const agendasAtrib = agendasVisibles.filter((a) => a.contact_id && conCampaign.has(a.contact_id)).length
-  const ventasAtrib = ventasActivas.filter((s) => s.contact_id && conCampaign.has(s.contact_id))
-
-  return {
-    leads: contactos.length,
-    agendas: agendasVisibles.length,
-    asistencias: agendasVivasYaPasadas,
-    cierres: ventasActivas.length,
-    facturacion: ventasActivas.reduce((a, s) => a + num(s.gross_amount), 0),
-    atribuidos: {
-      agendas: agendasAtrib,
-      cierres: ventasAtrib.length,
-      facturacion: ventasAtrib.reduce((a, s) => a + num(s.gross_amount), 0),
-    },
-  }
-}
-
-function ratioColor(ratio: number | null): string {
-  if (ratio === null) return 'text-muted-foreground'
-  if (ratio >= 3) return 'text-emerald-400'
-  if (ratio >= 1) return 'text-amber-400'
-  return 'text-red-400'
-}
 
 // Fila de la serie diaria de campañas: es la que permite acotar por periodo, porque lleva la fecha.
 type DailyRow = {
@@ -422,12 +369,12 @@ export default function UnitEconomicsPage() {
             .range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('sales')
-            .select('id, gross_amount, status, contact_id, sale_date')
+            .select('id, gross_amount, status, contact_id, sale_date, reservation_completed_at, payment_plans(method)')
             .eq('tenant_id', tenantId)
             .range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('collections')
-            .select('id, gross_amount, collected_at, status, payment_reference')
+            .select('id, sale_id, gross_amount, collected_at, status, payment_reference')
             .eq('tenant_id', tenantId)
             .range(0, FINANCE_QUERY_ROW_CAP),
           // Fuente PRIMARIA del cash (§2): espejo de pagos de Stripe (succeeded, neto de su
@@ -483,7 +430,7 @@ export default function UnitEconomicsPage() {
       )
       setErrorCarga(fallo ? mensajeDeCarga('los datos de campañas, ventas y cobros', fallo) : null)
       setCampaigns(campRes.data || [])
-      setSales(salesRes.data || [])
+      setSales((salesRes.data || []).map((s) => ({ ...s, payment_plan_method: metodoDePlan(s) })))
       setCollections(collRes.data || [])
       setStripePagos((stripeRes.data || []) as StripePaymentRow[])
       setContacts(contactsRes.data || [])
@@ -551,6 +498,11 @@ export default function UnitEconomicsPage() {
     [sales, hayPeriodo, rango]
   )
 
+  const primerPago = promedioPrimerPago(
+    ventasVisibles.filter(cuentaComoVenta).map((s) => s.id),
+    collections,
+    rangoISO(rango.to)
+  )
   const channelRows = useMemo(
     () => buildChannelRows(campanasParaTotales, ventasVisibles, contacts),
     [campanasParaTotales, ventasVisibles, contacts]
@@ -584,7 +536,7 @@ export default function UnitEconomicsPage() {
     // Neto del merge canónico (§2): NUNCA la suma de las dos fuentes — contar Stripe y la app
     // por separado convertiría un mismo cobro en dos.
     const totalCashCollected = cash.net
-    const activeSales = ventasVisibles.filter((s) => ACTIVE_SALE_STATUSES.includes(s.status))
+    const activeSales = ventasVisibles.filter((s) => cuentaComoVenta(s))
     // Clientes ÚNICOS, no nº de ventas — mismo fix que buildChannelRows. Antes dividía por
     // nº de ventas: un cliente que compra 2 veces contaba como "2 clientes", lo que infla el
     // denominador y hace que tanto CAC como "LTV medio" salgan sistemáticamente por debajo de
@@ -601,8 +553,14 @@ export default function UnitEconomicsPage() {
   }, [campanasParaTotales, ventasVisibles, cash])
 
   const marketingFunnel = useMemo(
-    () => buildMarketingFunnel(campanasParaTotales, contacts, appointments, ventasVisibles),
-    [campanasParaTotales, contacts, appointments, ventasVisibles]
+    () =>
+      buildMarketingFunnel(
+        campanasParaTotales,
+        contacts,
+        hayPeriodo ? appointments.filter((a) => inPeriod(a.appointment_datetime, rango)) : appointments,
+        ventasVisibles
+      ),
+    [campanasParaTotales, contacts, appointments, ventasVisibles, hayPeriodo, rango]
   )
 
   // REALIDAD OPERACIONAL: totales del CRM en el periodo, SIN exigir atribución. Es lo que el
@@ -611,7 +569,7 @@ export default function UnitEconomicsPage() {
   // total completo: es su definición. El filtro de atribución (atribucion) acota el resto de la
   // página, no esta base.
   const funnelOperativo = useMemo(
-    () => buildFunnelOperativo(contacts, appointments, sales, hayPeriodo, rango),
+    () => buildPeriodFunnel(contacts, appointments, sales, hayPeriodo, rango),
     [contacts, appointments, sales, hayPeriodo, rango]
   )
   // El filtro de atribución NO recorta funnelOperativoBase (su definición es el total real);
@@ -640,14 +598,30 @@ export default function UnitEconomicsPage() {
     [agendasVisibles, ventasVisibles, contacts, filtroEfectivo, fathomVisible]
   )
 
+  const actividad = useMemo(() => {
+    const ids = new Set(
+      contacts
+        .filter((c) => filtroEfectivo === 'todos' || (filtroEfectivo === 'ads' ? !!c.campaign_id : !c.campaign_id))
+        .map((c) => c.id)
+    )
+    const matches = (id: string | null) =>
+      filtroEfectivo === 'todos' || (id ? ids.has(id) : filtroEfectivo === 'organico')
+    return buildPeriodFunnel(
+      contacts.filter((c) => ids.has(c.id)),
+      appointments.filter((a) => matches(a.contact_id)),
+      sales.filter((v) => matches(v.contact_id)),
+      hayPeriodo,
+      rango
+    )
+  }, [contacts, appointments, sales, filtroEfectivo, hayPeriodo, rango])
+  const porcentajeAgenda = (n: number) => (actividad.agendas ? formatPercent((n / actividad.agendas) * 100) : '—')
+
   const hasData = campaignsVisibles.length > 0 || sales.length > 0 || appointments.length > 0
   // ¿Hay campañas de anuncios que mirar? Decide si el bloque de atribución se muestra.
-  const hasAdsData = campanasParaTotales.length > 0
   // El detalle de anuncios (cards de atribución, embudo de adquisición, tabla por canal) SOLO se
   // enseña cuando el filtro pide anuncios: con origen+atribución en "todos" la pantalla describe
   // el negocio entero, y mezclar "0 de 96 atribuidos" dentro de esa lectura confunde. Quien quiera
   // la vista de anuncios, la pide con el filtro — es exactamente para eso que existe.
-  const vistaAnuncios = origen === 'ads' || atribucion === 'atribuidos'
 
   // ── TARGET vs ACTUAL (§29): el objetivo VIGENTE de cada métrica, comparado contra lo del periodo ──
   // El objetivo sale de la tabla `targets` (editada en Formularios KPI › Objetivos del dashboard):
@@ -686,45 +660,12 @@ export default function UnitEconomicsPage() {
   // (oportunidad / contacto+fecha+importe) — SIN sumar dos fuentes del mismo evento.
   // El funnel canónico alimenta la sección "Funnel del negocio". El diagnóstico de calidad
   // (duplicados, conflictos, huecos de captura) vive en Configuración › Data Health.
-  const funnelGlobal = useMemo(() => {
-    const { leads } = canonicalizeLeads(
-      contacts.map((c) => ({
-        id: c.id,
-        email: c.email ?? null,
-        phone: c.phone ?? null,
-        created_at: c.created_at ?? null,
-      }))
-    )
-    const { appointments: apptsCanon } = canonicalizeAppointments(
-      appointments.map((a) => ({
-        id: a.id,
-        contact_id: a.contact_id,
-        calendly_event_id: null,
-        calendar_event_id: null,
-        scheduled_at: a.appointment_datetime,
-        status: a.status,
-      }))
-    )
-    const resueltas = appointments.map((a) => resolverOferta(a, CONFIG_OFERTA_POR_DEFECTO))
-    const ofertas = resueltas.filter((r) => r.valor === true).length
-    const offersDeclaradas = resueltas.filter((r) => r.valor === true && r.origen === 'declarado').length
-    return {
-      newUniqueLeads: leads.length,
-      booked: apptsCanon.length,
-      shows: funnelOperativo.asistencias,
-      offers: ofertas,
-      offersDeclaradas,
-      sales: funnelOperativo.cierres,
-    }
-  }, [contacts, appointments, funnelOperativo])
-
   // ── EVOLUCIÓN TEMPORAL ───────────────────────────────────────────
   // Series día/semana/mes dentro de la ventana del periodo (o últimos 90 días si "todo").
   // Leads del CRM (contacts), agendas (appointments), cierres (ventas activas) y gasto+leads
   // de anuncios (campaign_daily, ya filtrado por cuenta/periodo). TrendChart pinta huecos
   // como huecos: un día sin dato no finge una caída a cero.
   const [granularidad, setGranularidad] = useState<'dia' | 'semana' | 'mes'>('dia')
-  const etiquetaGranularidad = granularidad === 'dia' ? 'día' : granularidad === 'semana' ? 'semana' : 'mes'
   const seriesEvolucion = useMemo(() => {
     const fin = rango.to ?? new Date()
     const t1 = fin.getTime()
@@ -746,7 +687,7 @@ export default function UnitEconomicsPage() {
       if (a.appointment_datetime) bump(a.appointment_datetime, 'agendas', 1)
     }
     for (const s of ventasVisibles) {
-      if (ACTIVE_SALE_STATUSES.includes(s.status) && s.sale_date) bump(s.sale_date, 'cierres', 1)
+      if (cuentaComoVenta(s) && s.sale_date) bump(s.sale_date, 'cierres', 1)
     }
     for (const d of dailyVisible) {
       bump(d.date, 'spend', num(d.spend))
@@ -777,18 +718,6 @@ export default function UnitEconomicsPage() {
     return { leads: serie('leads'), agendas: serie('agendas'), cierres: serie('cierres'), spend: serie('spend') }
   }, [contacts, appointments, ventasVisibles, dailyVisible, rango, granularidad])
 
-  // GATE DE TRACKING: una métrica sin ningún dato en la ventana no se pinta — ni gráfico vacío
-  // ni "cero ruido". En cuanto haya un lead, una agenda, un cierre o gasto registrado, el
-  // gráfico entra solo. La sección completa desaparece si no hay ninguna serie con datos.
-  const tieneDatosSerie = (serie: { value: number }[]) => serie.some((p) => p.value > 0)
-  const hayEvolucion = {
-    leads: tieneDatosSerie(seriesEvolucion.leads),
-    spend: tieneDatosSerie(seriesEvolucion.spend),
-    agendas: tieneDatosSerie(seriesEvolucion.agendas),
-    cierres: tieneDatosSerie(seriesEvolucion.cierres),
-  }
-  const evolucionVisible = Object.values(hayEvolucion).some(Boolean)
-
   // ── DUAL FACTURACIÓN vs CASH (misma granularidad que Evolución) ──
   // Brecha vendido-vs-cobrado por cubo, con el CAC del cubo SOLO donde hubo gasto (un CAC sin
   // gasto detrás no existe). La clave de cubo es EXACTAMENTE la de Evolución: una sola definición
@@ -818,7 +747,7 @@ export default function UnitEconomicsPage() {
     // Cubos: unión ordenada de donde haya algo (ventas, cash, gasto) dentro de la ventana.
     const cubos = new Set<string>()
     for (const s of ventasVisibles) {
-      if (ACTIVE_SALE_STATUSES.includes(s.status) && s.sale_date && ventana(s.sale_date)) cubos.add(cuboDe(s.sale_date))
+      if (cuentaComoVenta(s) && s.sale_date && ventana(s.sale_date)) cubos.add(cuboDe(s.sale_date))
     }
     for (const p of stripePagos) if (p.paid_at && ventana(p.paid_at)) cubos.add(cuboDe(p.paid_at))
     for (const c of collections) if (c.collected_at && ventana(c.collected_at)) cubos.add(cuboDe(c.collected_at))
@@ -868,27 +797,42 @@ export default function UnitEconomicsPage() {
         cash: b.cash,
         cac: b.cac,
       })),
-      ejeCac: ejeCacVisible(serie),
       conDatos: serie.some((b) => b.facturacion > 0 || b.cash > 0),
     }
   }, [ventasVisibles, stripePagos, collections, dailyVisible, hayPeriodo, rango, granularidad])
 
-  // Distribución de facturación por canal (para el donut de la vista de anuncios).
-  const donutCanal: Segmento[] = useMemo(
-    () =>
-      channelRows
-        .filter((r) => r.revenue > 0)
-        .sort((a, b) => b.revenue - a.revenue)
-        .map((r, i) => ({
-          label: labelChannel(r.channel),
-          value: r.revenue,
-          color: `hsl(var(--brand-500) / ${Math.max(1 - i * 0.28, 0.16)})`,
-        })),
-    [channelRows]
+  const appointmentLabels: Record<string, string> = {
+    scheduled: 'Programadas',
+    confirmed: 'Confirmadas',
+    show: 'Asistidas',
+    completed: 'Completadas',
+    no_show: 'No asistidas',
+    cancelled: 'Canceladas',
+    canceled: 'Canceladas',
+    rescheduled: 'Reagendadas',
+  }
+  const appointmentStates = Object.entries(actividad.estados).map(([status, value]) => ({
+    label: appointmentLabels[status] ?? status,
+    value,
+  }))
+  const periodControls = (
+    <div role="group" aria-label="Agrupación temporal" className="flex rounded-full bg-muted p-1">
+      {(['dia', 'semana', 'mes'] as const).map((g) => (
+        <button
+          type="button"
+          key={g}
+          aria-pressed={granularidad === g}
+          onClick={() => setGranularidad(g)}
+          className={`min-h-9 rounded-full px-3 text-xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${granularidad === g ? 'bg-brand-500 text-white' : 'text-muted-foreground hover:text-foreground'}`}
+        >
+          {g === 'dia' ? 'Día' : g === 'semana' ? 'Semana' : 'Mes'}
+        </button>
+      ))}
+    </div>
   )
 
   return (
-    <div className="dashboard-surface p-4 sm:p-6 space-y-5">
+    <div className="dashboard-surface operator-overview p-4 sm:p-5 space-y-5">
       {errorCarga && (
         <div className="dashboard-card border-destructive/40 p-4">
           <p className="text-foreground text-sm font-medium">Faltan datos para calcular estas cifras</p>
@@ -902,550 +846,743 @@ export default function UnitEconomicsPage() {
           </button>
         </div>
       )}
-      {/* Header */}
-      <div>
-        <div className="flex items-center gap-2">
-          <PieChart className="w-6 h-6 text-white" />
-          <h1 className="text-2xl font-semibold text-foreground">Métricas y KPIs</h1>
-        </div>
-        <p className="text-muted-foreground text-sm mt-1">
-          Rentabilidad, ventas y conversión de tu negocio en el periodo seleccionado.
-        </p>
-        {/* El aviso que había aquí decía que esta pantalla no podía filtrar por periodo porque
+      {!errorCarga && (
+        <>
+          {/* Header */}
+          <div>
+            <div className="flex items-center gap-2">
+              <PieChart className="w-6 h-6 text-white" />
+              <h1 className="text-2xl font-semibold text-foreground">Visión del negocio</h1>
+            </div>
+            <p className="text-muted-foreground text-sm mt-1">De la captación al cobro, departamento a departamento.</p>
+            {/* El aviso que había aquí decía que esta pantalla no podía filtrar por periodo porque
             `campaigns.adspend` es un acumulado. Era cierto a medias: `campaign_daily` guarda el gasto
             por día y campaña, y es lo que se usa en cuanto se elige un periodo. */}
-        {/* Estado REAL de la selección de cuentas: el texto anterior confesaba el bug
+            {/* Estado REAL de la selección de cuentas: el texto anterior confesaba el bug
             ("Todas las cuentas de Meta accesibles") — ahora se declara lo que de verdad cuenta. */}
-        <p className="text-muted-foreground mt-2 text-xs">
-          {cuentas.listo && !cuentas.todas
-            ? `Cuentas de Meta: solo las ${cuentas.seleccionadas.length} seleccionadas en Integraciones › Meta Ads.`
-            : 'Cuentas de Meta: todas las accesibles por el token. Selecciona cuentas en Integraciones › Meta Ads para acotar.'}
-          {hayPeriodo
-            ? ' El gasto y las métricas de anuncios salen de la serie diaria del periodo elegido.'
-            : ' Sin periodo: acumulado histórico desde el origen de los datos.'}
-        </p>
-      </div>
-
-      {/* Selector de cuenta Meta: multi-select real cuando hay varias elegidas en Integraciones. */}
-      {cuentas.listo && !cuentas.todas && cuentas.seleccionadas.length > 1 && (
-        <div className="flex items-center gap-2 text-sm">
-          <Megaphone className="w-4 h-4 text-muted-foreground" />
-          <span className="text-muted-foreground text-xs">Meta Ads:</span>
-          <select
-            value={cuentaSel}
-            onChange={(e) => setCuentaSel(e.target.value)}
-            className="bg-muted border border-border rounded-md px-2 py-1 text-xs text-foreground"
-            aria-label="Cuenta de Meta Ads"
-          >
-            <option value="todas">Todas las seleccionadas ({cuentas.seleccionadas.length})</option>
-            {cuentas.seleccionadas.map((id) => (
-              <option key={id} value={id}>
-                {cuentas.nombres?.[id] || id}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      <PeriodFilterBar
-        preset={periodPreset}
-        onPresetChange={setPeriodPreset}
-        customFrom={customFrom}
-        customTo={customTo}
-        onCustomFromChange={setCustomFrom}
-        onCustomToChange={setCustomTo}
-        onClear={() => {
-          setPeriodPreset('all')
-          setCustomFrom('')
-          setCustomTo('')
-        }}
-      />
-
-      {/* FILTROS GLOBALES: origen + atribución + familia de embudo, todo en una barra. */}
-      <FiltrosAtribucion
-        origen={origen}
-        onOrigenChange={setOrigen}
-        atribucion={atribucion}
-        onAtribucionChange={setAtribucion}
-        avanzadosAbiertos={avanzadosAbiertos}
-        onToggleAvanzados={() => setAvanzadosAbiertos((v) => !v)}
-        funnelOpcion={funnelOpcion}
-        onFunnelChange={setFunnelOpcion}
-      />
-
-      {/* Top cards: los datos principales del negocio, lo primero (jerarquía de lectura del
-          dashboard: números que deciden presupuesto → funnel → detalle por departamento). */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard
-          title="MER"
-          value={
-            loading || totals.mer === null
-              ? '—'
-              : `${formatNumber(totals.mer, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x`
-          }
-          icon={TrendingUp}
-          loading={loading}
-          description={
-            cash.bySource.stripe > 0 && cash.bySource.internal > 0
-              ? `Cash neto: Stripe ${formatCurrency(cash.bySource.stripe)} + interno ${formatCurrency(cash.bySource.internal)} / ad spend`
-              : cash.bySource.stripe > 0
-                ? 'Cash neto de Stripe / ad spend'
-                : 'Cash neto de cobros internos (Stripe sin sincronizar) / ad spend'
-          }
-          target={kpiObjetivos('mer', totals.mer, 'ratio') ?? undefined}
-        />
-        <KPICard
-          title="CAC global"
-          value={loading ? '—' : totals.cacGlobal !== null ? formatCurrency(totals.cacGlobal) : '—'}
-          icon={Target}
-          loading={loading}
-          description="Ad spend / clientes únicos (no por venta)"
-          target={kpiObjetivos('cac', totals.cacGlobal, 'money') ?? undefined}
-        />
-        <KPICard
-          title="LTV medio"
-          value={loading ? '—' : totals.ltvMedio !== null ? formatCurrency(totals.ltvMedio) : '—'}
-          icon={Wallet}
-          loading={loading}
-          description="Facturación activa / clientes únicos"
-        />
-        <div className="dashboard-card p-5">
-          <div className="flex items-start justify-between mb-4">
-            <p className="text-sm font-medium text-muted-foreground">LTV:CAC ratio</p>
-            <div className="w-9 h-9 rounded-lg border border-border bg-background flex items-center justify-center">
-              <Users className="w-4 h-4 text-muted-foreground" />
-            </div>
+            <p className="sr-only">
+              {cuentas.listo && !cuentas.todas
+                ? `Cuentas de Meta: solo las ${cuentas.seleccionadas.length} seleccionadas en Integraciones › Meta Ads.`
+                : 'Cuentas de Meta: todas las accesibles por el token. Selecciona cuentas en Integraciones › Meta Ads para acotar.'}
+              {hayPeriodo
+                ? ' El gasto y las métricas de anuncios salen de la serie diaria del periodo elegido.'
+                : ' Sin periodo: acumulado histórico desde el origen de los datos.'}
+            </p>
           </div>
-          {loading ? (
-            <div className="space-y-2">
-              <div className="h-8 w-32 bg-muted animate-pulse rounded" />
-              <div className="h-4 w-20 bg-muted animate-pulse rounded" />
+
+          {/* Selector de cuenta Meta: multi-select real cuando hay varias elegidas en Integraciones. */}
+          {cuentas.listo && !cuentas.todas && cuentas.seleccionadas.length > 1 && (
+            <div className="flex items-center gap-2 text-sm">
+              <Megaphone className="w-4 h-4 text-muted-foreground" />
+              <span className="text-muted-foreground text-xs">Meta Ads:</span>
+              <select
+                value={cuentaSel}
+                onChange={(e) => setCuentaSel(e.target.value)}
+                className="bg-muted border border-border rounded-md px-2 py-1 text-xs text-foreground"
+                aria-label="Cuenta de Meta Ads"
+              >
+                <option value="todas">Todas las seleccionadas ({cuentas.seleccionadas.length})</option>
+                {cuentas.seleccionadas.map((id) => (
+                  <option key={id} value={id}>
+                    {cuentas.nombres?.[id] || id}
+                  </option>
+                ))}
+              </select>
             </div>
-          ) : (
-            <>
-              <div className="flex items-baseline gap-1">
-                <span className={`text-2xl font-bold ${ratioColor(totals.ltvCacRatio)}`}>
-                  {totals.ltvCacRatio !== null
-                    ? `${formatNumber(totals.ltvCacRatio, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}:1`
-                    : '—'}
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">Objetivo saludable: ≥ 3:1</p>
-              {(() => {
-                const t = kpiObjetivos('ltv_cac', totals.ltvCacRatio, 'ratio')
-                return t ? <TargetRow target={t} /> : null
-              })()}
-            </>
           )}
-        </div>
-      </div>
 
-      {/* FUNNEL DINÁMICO: la familia la elige la barra de filtros global (controlado). */}
-      <FunnelDinamico
-        tenant={tenant}
-        operativo={funnelOperativo}
-        loading={loading}
-        opcion={funnelOpcion}
-        rango={{ from: rangoISO(rango.from), to: rangoISO(rango.to) }}
-      />
-
-      {/* VENTAS Y AGENDAS — todas, vengan de donde vengan. El embudo de marketing de abajo mide lo
-          atribuible a los anuncios y por eso deja fuera lo orgánico; esto NO puede heredar ese
-          filtro, o la pantalla dice 0 citas con cientos en la base. El origen es un desplegable. */}
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="text-foreground text-lg font-semibold">Ventas y agendas</h2>
-            <p className="text-muted-foreground mt-1 text-sm">
-              Todas las del periodo, vengan de anuncios, de la web o de recomendación.
-            </p>
-          </div>
-          <label className="text-muted-foreground text-xs">
-            Origen
-            <select
-              value={origen}
-              onChange={(e) => setOrigen(e.target.value as AttributionFilter)}
-              className="border-border bg-background/60 text-foreground mt-1 block rounded-lg border px-2 py-1 text-sm"
-            >
-              <option value="todos">Todos los orígenes</option>
-              <option value="ads">Solo atribuido a anuncios</option>
-              <option value="organico">Orgánico y directo</option>
-            </select>
-          </label>
-        </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <KPICard
-            title="Agendas"
-            value={loading ? '—' : formatNumber(ventas.agendas)}
-            icon={Users}
-            loading={loading}
-            description={`${formatNumber(ventas.canceladas)} canceladas`}
+          <PeriodFilterBar
+            preset={periodPreset}
+            onPresetChange={setPeriodPreset}
+            customFrom={customFrom}
+            customTo={customTo}
+            onCustomFromChange={setCustomFrom}
+            onCustomToChange={setCustomTo}
+            onClear={() => {
+              setPeriodPreset('all')
+              setCustomFrom('')
+              setCustomTo('')
+            }}
           />
-          <KPICard
-            title="Shows"
-            value={loading ? '—' : formatNumber(ventas.shows)}
-            icon={Target}
-            loading={loading}
-            // Una cita futura no cuenta como asistencia todavía: contarla daría un show-up que aún
-            // no ha ocurrido, y con esa cifra se decide.
-            description={
-              ventas.llamadasSinCita > 0
-                ? `Incluye ${formatNumber(ventas.llamadasSinCita)} llamadas grabadas en Fathom sin cita asociada`
-                : 'Citas no canceladas que ya han pasado'
-            }
-          />
-          <KPICard
-            title="Ventas"
-            value={loading ? '—' : formatNumber(ventas.ventas)}
-            icon={Wallet}
-            loading={loading}
-            description={
-              ventas.tasaCierre !== null ? `${formatPercent(ventas.tasaCierre)} de cierre sobre shows` : 'Sin shows aún'
-            }
-            target={kpiObjetivos('sales_count', ventas.ventas, 'count') ?? undefined}
-          />
-          <KPICard
-            title="Facturación"
-            value={loading ? '—' : formatCurrency(ventas.facturacion)}
-            icon={TrendingUp}
-            loading={loading}
-            description={ventas.tasaAsistencia !== null ? `${formatPercent(ventas.tasaAsistencia)} de asistencia` : '—'}
-            target={kpiObjetivos('revenue', ventas.facturacion, 'money') ?? undefined}
-          />
-        </div>
-      </div>
 
-      {/* EVOLUCIÓN TEMPORAL: día/semana/mes de las métricas que se gestionan por tendencia.
-          Solo las series con datos entran; sin ninguna, la sección no se renderiza. */}
-      {evolucionVisible && (
-        <section className="dashboard-card p-5 sm:p-6 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="font-display text-xl font-semibold">Evolución</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Variación en el tiempo del periodo seleccionado. Las campañas de anuncios aportan gasto; sin periodo se
-                muestran los últimos 90 días.
-              </p>
-            </div>
-            <div
-              className="bg-muted border-border flex rounded-lg border p-0.5"
-              role="tablist"
-              aria-label="Granularidad"
-            >
-              {(
-                [
-                  ['dia', 'Día'],
-                  ['semana', 'Semana'],
-                  ['mes', 'Mes'],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  role="tab"
-                  aria-selected={granularidad === id}
-                  onClick={() => setGranularidad(id)}
-                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                    granularidad === id ? 'bg-brand-500 text-zinc-950' : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {hayEvolucion.leads && (
-              <TrendChart title={`Leads por ${etiquetaGranularidad}`} data={seriesEvolucion.leads} />
-            )}
-            {hayEvolucion.spend && (
-              <TrendChart
-                title={`Gasto publicitario por ${etiquetaGranularidad}`}
-                data={seriesEvolucion.spend}
-                format={formatCurrency}
-              />
-            )}
-            {hayEvolucion.agendas && (
-              <TrendChart title={`Agendas por ${etiquetaGranularidad}`} data={seriesEvolucion.agendas} />
-            )}
-            {hayEvolucion.cierres && (
-              <TrendChart title={`Cierres por ${etiquetaGranularidad}`} data={seriesEvolucion.cierres} />
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* DUAL FACTURACIÓN vs CASH: la brecha vendido-vs-cobrado por cubo, con el CAC del cubo
-          solo donde hubo gasto publicitario y cierres. Comparte la granularidad y la clave de
-          cubo de Evolución; sin datos no se pinta (hueco ≠ cero). */}
-      {dualFacturacionCash.conDatos && (
-        <FinanceDual
-          title={`Facturación vs cash por ${etiquetaGranularidad}`}
-          data={dualFacturacionCash.puntos}
-          showCacAxis={dualFacturacionCash.ejeCac}
-        />
-      )}
-
-      {/* ADQUISICIÓN ORGÁNICA (prototipo): contenido público del negocio vía Apify. Números con
-          fuente visible; sin Apify configurado la sección muestra un estado honesto y nada más. */}
-      <PanelOrganico />
-
-      {/* FUNNEL GLOBAL (dashboard global §20-§23): una única versión coherente de la realidad —
-          leads canónicos y agendas consolidadas. El diagnóstico de calidad (duplicados, conflictos,
-          huecos de captura) vive en Configuración › Data Health. */}
-      {!loading && (contacts.length > 0 || appointments.length > 0 || sales.length > 0) && (
-        <FunnelCanonicoPanel funnel={funnelGlobal} />
-      )}
-
-      {/* ATRIBUCIÓN declarada aparte: nunca se resta del total del negocio. Solo tiene sentido en
-          la vista de anuncios; en "todos" la pantalla describe el negocio completo. */}
-      {vistaAnuncios && hasAdsData && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-          <div className="dashboard-card p-3">
-            <p className="text-muted-foreground">Agendas atribuidas a anuncios</p>
-            <p className="text-base font-semibold text-foreground mt-1">
-              {formatNumber(funnelOperativo.atribuidos.agendas)}
-              <span className="text-muted-foreground text-xs font-normal">
-                {' '}
-                de {formatNumber(funnelOperativo.agendas)}
-              </span>
-            </p>
-          </div>
-          <div className="dashboard-card p-3">
-            <p className="text-muted-foreground">Cierres atribuidos</p>
-            <p className="text-base font-semibold text-foreground mt-1">
-              {formatNumber(funnelOperativo.atribuidos.cierres)}
-              <span className="text-muted-foreground text-xs font-normal">
-                {' '}
-                de {formatNumber(funnelOperativo.cierres)}
-              </span>
-            </p>
-          </div>
-          <div className="dashboard-card p-3">
-            <p className="text-muted-foreground">Facturación atribuida</p>
-            <p className="text-base font-semibold text-foreground mt-1">
-              {formatCurrency(funnelOperativo.atribuidos.facturacion)}
-              <span className="text-muted-foreground text-xs font-normal">
-                {' '}
-                de {formatCurrency(funnelOperativo.facturacion)}
-              </span>
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* DETALLE DE ANUNCIOS — solo en la vista de anuncios (vistaAnuncios): en "todos" la
-          pantalla describe el negocio entero y este embudo mediría otra cosa. */}
-      {vistaAnuncios && (
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">Detalle de adquisición</h2>
-            <p className="text-muted-foreground text-sm mt-1">
-              Impresiones, clicks y leads de campañas, atribuidos hasta el cierre de venta — solo lo que viene de
-              anuncios. Las cifras de todo origen están arriba.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <KPICard
-              title="Impressions"
-              value={loading ? '—' : formatNumber(marketingFunnel.impressions)}
-              icon={Megaphone}
-              loading={loading}
-            />
-            <KPICard
-              title="Clicks (outbound)"
-              value={loading ? '—' : formatNumber(marketingFunnel.clicks)}
-              icon={MousePointerClick}
-              loading={loading}
-            />
-            <KPICard
-              title="New unique leads"
-              value={loading ? '—' : formatNumber(marketingFunnel.leads)}
-              icon={Filter}
-              loading={loading}
-            />
-            <KPICard
-              title="Adspend"
-              value={loading ? '—' : formatCurrency(marketingFunnel.adspend)}
-              icon={Wallet}
-              loading={loading}
-            />
-          </div>
-
-          <div className="grid gap-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <KPICard
-                title="CPM"
-                value={loading ? '—' : marketingFunnel.cpm !== null ? formatCurrency(marketingFunnel.cpm) : '—'}
-                loading={loading}
-                description="Coste por mil impresiones"
-              />
-              <KPICard
-                title="CTR"
-                value={loading ? '—' : formatPercent(marketingFunnel.ctr)}
-                loading={loading}
-                description="Clicks / impresiones"
-              />
-              <KPICard
-                title="CPC"
-                value={loading ? '—' : marketingFunnel.cpc !== null ? formatCurrency(marketingFunnel.cpc) : '—'}
-                loading={loading}
-                description="Coste por click"
-              />
-              <KPICard
-                title="CPL"
-                value={loading ? '—' : marketingFunnel.cpl !== null ? formatCurrency(marketingFunnel.cpl) : '—'}
-                loading={loading}
-                description="Coste por lead"
+          <details className="text-xs text-muted-foreground">
+            <summary className="cursor-pointer py-1">Origen, atribución y familia de embudo</summary>
+            <div className="mt-2">
+              {' '}
+              {/* FILTROS GLOBALES: origen + atribución + familia de embudo, todo en una barra. */}
+              <FiltrosAtribucion
+                origen={origen}
+                onOrigenChange={setOrigen}
+                atribucion={atribucion}
+                onAtribucionChange={setAtribucion}
+                avanzadosAbiertos={avanzadosAbiertos}
+                onToggleAvanzados={() => setAvanzadosAbiertos((v) => !v)}
+                funnelOpcion={funnelOpcion}
+                onFunnelChange={setFunnelOpcion}
               />
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <KPICard
-              title="% Clic a lead"
-              value={loading ? '—' : formatPercent(marketingFunnel.clickToLead)}
+          </details>
+          <nav aria-label="Departamentos" className="flex flex-wrap gap-2">
+            {['Negocio', 'Marketing', 'Asistencia', 'Ventas', 'Finanzas', 'Clientes'].map((label, i) => (
+              <a
+                key={label}
+                href={`#departamento-${i}`}
+                className="rounded-full border border-border px-4 py-2 text-xs text-muted-foreground hover:text-primary"
+              >
+                {label}
+              </a>
+            ))}
+          </nav>
+          <section id="departamento-0" className="space-y-4">
+            <h2 className="font-display text-xl font-semibold">Negocio</h2>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+              <KPICard
+                title="Facturación"
+                value={formatCurrency(funnelOperativo.facturacion)}
+                loading={loading}
+                description="Precio pactado de las ventas activas del periodo"
+                target={kpiObjetivos('revenue', funnelOperativo.facturacion, 'money') ?? undefined}
+              />
+              <KPICard
+                title="Cash Collected"
+                value={formatCurrency(cash.net)}
+                loading={loading}
+                description="Cobros confirmados del periodo, sin duplicados y descontando devoluciones"
+              />
+              <KPICard
+                title="Ventas nuevas"
+                value={formatNumber(funnelOperativo.cierres)}
+                loading={loading}
+                description="Sin reservas abiertas"
+                target={kpiObjetivos('sales_count', funnelOperativo.cierres, 'count') ?? undefined}
+              />
+              <KPICard
+                title="Ticket medio"
+                value={
+                  funnelOperativo.cierres ? formatCurrency(funnelOperativo.facturacion / funnelOperativo.cierres) : '—'
+                }
+                loading={loading}
+                description="Facturación / ventas"
+              />
+              <KPICard
+                title="Inversión"
+                value={formatCurrency(totals.totalAdspend)}
+                loading={loading}
+                description="Publicidad del periodo"
+              />
+              <KPICard
+                title="Cash Collected medio"
+                value={primerPago.promedio === null ? '—' : formatCurrency(primerPago.promedio)}
+                loading={loading}
+                description={`Promedio del primer pago confirmado de las ventas nuevas del periodo. Excluye cuotas posteriores. ${primerPago.ventasSinPrimerPago} ventas sin primer pago identificado; si falta alguno no se estima el promedio.`}
+              />
+            </div>
+            <MetricExplorer
+              title="Evolución del negocio"
               loading={loading}
-            />
-            <KPICard
-              title="Agendas atribuidas"
-              value={loading ? '—' : formatNumber(marketingFunnel.salesCallsBooked)}
-              icon={Users}
-              loading={loading}
-              description="Citas de contactos con campaña"
-            />
-            <KPICard
-              title="% Lead a agenda"
-              value={loading ? '—' : formatPercent(marketingFunnel.leadToBooked)}
-              loading={loading}
-            />
-            <KPICard
-              title="Coste por agenda"
-              value={loading ? '—' : marketingFunnel.bscCost !== null ? formatCurrency(marketingFunnel.bscCost) : '—'}
-              loading={loading}
-              description="Gasto publicitario / agendas atribuidas"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <KPICard
-              title="Cierres atribuidos"
-              value={loading ? '—' : formatNumber(marketingFunnel.dealsClosed)}
-              icon={Target}
-              loading={loading}
-              description="Ventas de contactos con campaña"
-            />
-            <KPICard
-              title="% Cierre sobre agendas"
-              value={loading ? '—' : formatPercent(marketingFunnel.convertLsc)}
-              loading={loading}
-              description="Cierres atribuidos / agendas atribuidas"
-            />
-            <KPICard
-              title="ROAS"
-              value={
-                loading || marketingFunnel.roas === null
-                  ? '—'
-                  : `${formatNumber(marketingFunnel.roas, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x`
+              controls={periodControls}
+              metrics={[
+                {
+                  id: 'revenue',
+                  label: 'Facturación y Cash Collected',
+                  comparisonLabel: 'Cash Collected',
+                  data: dualFacturacionCash.serie.map((p) => ({
+                    date: p.cubo,
+                    value: p.facturacion,
+                    comparison: p.cash,
+                  })),
+                  format: formatCurrency,
+                },
+                { id: 'sales', label: 'Ventas', data: seriesEvolucion.cierres },
+                { id: 'spend', label: 'Inversión', data: seriesEvolucion.spend, format: formatCurrency },
+              ]}
+              note={
+                hayPeriodo
+                  ? 'Actividad del periodo seleccionado. Cada métrica conserva su fecha de registro.'
+                  : 'Tendencia de los últimos 90 días. Los indicadores superiores muestran el histórico completo.'
               }
-              icon={TrendingUp}
-              loading={loading}
-              description="Facturación de cierres atribuidos / gasto"
             />
-            <KPICard
-              title="Valor de pipeline"
-              value={loading ? '—' : marketingFunnel.pipeValue > 0 ? formatCurrency(marketingFunnel.pipeValue) : '—'}
-              icon={Wallet}
-              loading={loading}
-              description="Valor de pipeline en citas atribuidas"
-            />
-          </div>
-        </div>
-      )}
+            <details className="rounded-2xl border border-border/50 p-4">
+              <summary className="cursor-pointer text-sm font-medium">Economía de adquisición y objetivos</summary>
+              <div className="mt-4">
+                {' '}
+                {/* Top cards: los datos principales del negocio, lo primero (jerarquía de lectura del
+          dashboard: números que deciden presupuesto → funnel → detalle por departamento). */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <KPICard
+                    title="MER"
+                    value={
+                      loading || totals.mer === null
+                        ? '—'
+                        : `${formatNumber(totals.mer, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x`
+                    }
+                    icon={TrendingUp}
+                    loading={loading}
+                    description={
+                      cash.bySource.stripe > 0 && cash.bySource.internal > 0
+                        ? `Cash Collected: Stripe ${formatCurrency(cash.bySource.stripe)} + interno ${formatCurrency(cash.bySource.internal)} / ad spend`
+                        : cash.bySource.stripe > 0
+                          ? 'Cash Collected de Stripe / ad spend'
+                          : 'Cash Collected de cobros internos / ad spend'
+                    }
+                    target={kpiObjetivos('mer', totals.mer, 'ratio') ?? undefined}
+                  />
+                  <KPICard
+                    title="CAC global"
+                    value={loading ? '—' : totals.cacGlobal !== null ? formatCurrency(totals.cacGlobal) : '—'}
+                    icon={Target}
+                    loading={loading}
+                    description="Ad spend / clientes únicos (no por venta)"
+                    target={kpiObjetivos('cac', totals.cacGlobal, 'money') ?? undefined}
+                  />
+                  <KPICard
+                    title="Facturación por cliente"
+                    value={loading ? '—' : totals.ltvMedio !== null ? formatCurrency(totals.ltvMedio) : '—'}
+                    icon={Wallet}
+                    loading={loading}
+                    description="Facturación activa / clientes únicos"
+                  />
+                  <KPICard
+                    title="Facturación por cliente / CAC"
+                    value={totals.ltvCacRatio === null ? '—' : `${formatNumber(totals.ltvCacRatio)}:1`}
+                    loading={loading}
+                    description="Ratio descriptivo del periodo. No acredita por sí solo la rentabilidad ni el valor de vida del cliente."
+                  />
+                </div>
+              </div>
+            </details>
+          </section>
 
-      {/* DISTRIBUCIÓN por canal (vista de anuncios): qué parte de la facturación y de los leads
-          aporta cada canal. Con la cobertura de atribución actual puede no haber nada que
-          distribuir — entonces no se enseña, en lugar de pintar donuts vacíos. */}
-      {vistaAnuncios && (donutCanal.length > 0 || channelRows.some((r) => r.leads > 0)) && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <DonutChart title="Facturación por canal" data={donutCanal} format={formatCurrency} />
-          <DonutChart
-            title="Leads por canal"
-            data={channelRows
-              .filter((r) => r.leads > 0)
-              .sort((a, b) => b.leads - a.leads)
-              .map((r, i) => ({
-                label: labelChannel(r.channel),
-                value: r.leads,
-                color: `hsl(var(--brand-500) / ${Math.max(1 - i * 0.28, 0.16)})`,
-              }))}
-          />
-        </div>
-      )}
-
-      {/* Tabla por canal */}
-      {vistaAnuncios && (
-        <div className="dashboard-card p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">Unit economics por canal</h3>
-          {loading ? (
-            <div className="space-y-2">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-10 w-full bg-muted animate-pulse rounded" />
-              ))}
+          <DepartmentSection
+            id="departamento-1"
+            number="01"
+            title="Marketing"
+            description="Inversión, demanda y origen de las oportunidades."
+            href={`/${tenant}/marketing/adquisicion/campanas`}
+          >
+            <div role="group" aria-label="Atribución de Marketing" className="flex gap-2">
+              <button
+                className="rounded-full border px-3 py-2 text-xs"
+                aria-pressed={filtroEfectivo === 'todos'}
+                onClick={() => {
+                  setOrigen('todos')
+                  setAtribucion('todos')
+                }}
+              >
+                Todos los resultados
+              </button>
+              <button
+                className="rounded-full border px-3 py-2 text-xs"
+                aria-pressed={filtroEfectivo === 'ads'}
+                onClick={() => setAtribucion('atribuidos')}
+              >
+                Solo atribuidos
+              </button>
             </div>
-          ) : !hasData || channelRows.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">Sin datos todavía.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-muted-foreground text-xs uppercase tracking-wider border-b border-border">
-                    <th className="py-2 pr-4">Canal</th>
-                    <th className="py-2 pr-4">Ad spend</th>
-                    <th className="py-2 pr-4">Leads</th>
-                    <th className="py-2 pr-4">CPL</th>
-                    <th className="py-2 pr-4">Clientes</th>
-                    <th className="py-2 pr-4">CAC</th>
-                    <th className="py-2 pr-4">Revenue</th>
-                    <th className="py-2 pr-4">ROAS</th>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <KPICard title="Inversión publicitaria" value={formatCurrency(totals.totalAdspend)} loading={loading} />
+              <KPICard
+                title="Leads"
+                value={formatNumber(actividad.leads)}
+                loading={loading}
+                description="Leads únicos del CRM, según atribución y periodo seleccionados."
+              />
+              <KPICard
+                title="Coste por lead"
+                value={actividad.leads ? formatCurrency(totals.totalAdspend / actividad.leads) : '—'}
+                loading={loading}
+                description="Inversión / leads del ámbito seleccionado."
+              />
+              <KPICard title="Agendas" value={formatNumber(actividad.agendas)} loading={loading} />
+              <KPICard
+                title="Coste por agenda"
+                value={actividad.agendas ? formatCurrency(totals.totalAdspend / actividad.agendas) : '—'}
+                loading={loading}
+                description="Inversión / agendas del ámbito seleccionado."
+              />
+              <KPICard title="Ventas nuevas" value={formatNumber(actividad.cierres)} loading={loading} />
+              <KPICard
+                title="Coste por venta"
+                value={actividad.cierres ? formatCurrency(totals.totalAdspend / actividad.cierres) : '—'}
+                loading={loading}
+                description="Inversión / ventas. CAC usa clientes únicos y se muestra en Economía de adquisición."
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {filtroEfectivo === 'todos'
+                ? 'Promedios globales: incluyen resultados sin atribución; no demuestran que todos procedan de anuncios.'
+                : 'Resultados con campaña asociada al contacto.'}
+            </p>
+            <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+              <MetricExplorer
+                title="Tendencia de adquisición"
+                loading={loading}
+                bars
+                controls={periodControls}
+                metrics={[
+                  { id: 'spend', label: 'Inversión', data: seriesEvolucion.spend, format: formatCurrency },
+                  { id: 'leads', label: 'Leads CRM', data: seriesEvolucion.leads },
+                  { id: 'bookings', label: 'Agendas CRM', data: seriesEvolucion.agendas },
+                ]}
+                note="Leads y agendas CRM incluyen todos los orígenes. La inversión corresponde a las cuentas publicitarias seleccionadas."
+              />
+              <BreakdownBars
+                title="Facturación atribuida por canal"
+                rows={channelRows
+                  .filter((r) => r.revenue > 0)
+                  .map((r) => ({ label: labelChannel(r.channel), value: r.revenue }))}
+                format={formatCurrency}
+                loading={loading}
+              />
+            </div>
+            <details className="rounded-2xl border border-border/50 p-4">
+              <summary className="cursor-pointer text-sm font-medium">
+                Diagnóstico de adquisición y desglose por canal
+              </summary>
+              <div className="mt-4 space-y-5">
+                {' '}
+                {/* DETALLE DE ANUNCIOS — solo en la vista de anuncios (vistaAnuncios): en "todos" la
+          pantalla describe el negocio entero y este embudo mediría otra cosa. */}
+                {
+                  <div className="space-y-4">
+                    <div>
+                      <h2 className="text-lg font-semibold text-foreground">Detalle de adquisición</h2>
+                      <p className="text-muted-foreground text-sm mt-1">
+                        Impresiones, clicks y leads de campañas, atribuidos hasta el cierre de venta — solo lo que viene
+                        de anuncios. Las cifras de todo origen están arriba.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <KPICard
+                        title="Impressions"
+                        value={loading ? '—' : formatNumber(marketingFunnel.impressions)}
+                        icon={Megaphone}
+                        loading={loading}
+                      />
+                      <KPICard
+                        title="Clicks (outbound)"
+                        value={loading ? '—' : formatNumber(marketingFunnel.clicks)}
+                        icon={MousePointerClick}
+                        loading={loading}
+                      />
+                      <KPICard
+                        title="Leads de campañas"
+                        value={loading ? '—' : formatNumber(marketingFunnel.leads)}
+                        icon={Filter}
+                        loading={loading}
+                      />
+                      <KPICard
+                        title="Adspend"
+                        value={loading ? '—' : formatCurrency(marketingFunnel.adspend)}
+                        icon={Wallet}
+                        loading={loading}
+                      />
+                    </div>
+
+                    <div className="grid gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <KPICard
+                          title="CPM"
+                          value={
+                            loading ? '—' : marketingFunnel.cpm !== null ? formatCurrency(marketingFunnel.cpm) : '—'
+                          }
+                          loading={loading}
+                          description="Coste por mil impresiones"
+                        />
+                        <KPICard
+                          title="CTR"
+                          value={loading ? '—' : formatPercent(marketingFunnel.ctr)}
+                          loading={loading}
+                          description="Clicks / impresiones"
+                        />
+                        <KPICard
+                          title="CPC"
+                          value={
+                            loading ? '—' : marketingFunnel.cpc !== null ? formatCurrency(marketingFunnel.cpc) : '—'
+                          }
+                          loading={loading}
+                          description="Coste por click"
+                        />
+                        <KPICard
+                          title="CPL"
+                          value={
+                            loading ? '—' : marketingFunnel.cpl !== null ? formatCurrency(marketingFunnel.cpl) : '—'
+                          }
+                          loading={loading}
+                          description="Coste por lead"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <KPICard
+                        title="% Clic a lead"
+                        value={loading ? '—' : formatPercent(marketingFunnel.clickToLead)}
+                        loading={loading}
+                      />
+                      <KPICard
+                        title="Agendas atribuidas"
+                        value={loading ? '—' : formatNumber(marketingFunnel.salesCallsBooked)}
+                        icon={Users}
+                        loading={loading}
+                        description="Citas de contactos con campaña"
+                      />
+                      <KPICard
+                        title="% Lead a agenda"
+                        value={loading ? '—' : formatPercent(marketingFunnel.leadToBooked)}
+                        loading={loading}
+                      />
+                      <KPICard
+                        title="Coste por agenda"
+                        value={
+                          loading
+                            ? '—'
+                            : marketingFunnel.bscCost !== null
+                              ? formatCurrency(marketingFunnel.bscCost)
+                              : '—'
+                        }
+                        loading={loading}
+                        description="Gasto publicitario / agendas atribuidas"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <KPICard
+                        title="Cierres atribuidos"
+                        value={loading ? '—' : formatNumber(marketingFunnel.dealsClosed)}
+                        icon={Target}
+                        loading={loading}
+                        description="Ventas de contactos con campaña"
+                      />
+                      <KPICard
+                        title="% Cierre sobre agendas"
+                        value={loading ? '—' : formatPercent(marketingFunnel.convertLsc)}
+                        loading={loading}
+                        description="Cierres atribuidos / agendas atribuidas"
+                      />
+                      <KPICard
+                        title="ROAS"
+                        value={
+                          loading || marketingFunnel.roas === null
+                            ? '—'
+                            : `${formatNumber(marketingFunnel.roas, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x`
+                        }
+                        icon={TrendingUp}
+                        loading={loading}
+                        description="Facturación de cierres atribuidos / gasto"
+                      />
+                      <KPICard
+                        title="Valor de pipeline"
+                        value={
+                          loading
+                            ? '—'
+                            : marketingFunnel.pipeValue > 0
+                              ? formatCurrency(marketingFunnel.pipeValue)
+                              : '—'
+                        }
+                        icon={Wallet}
+                        loading={loading}
+                        description="Valor de pipeline en citas atribuidas"
+                      />
+                    </div>
+                  </div>
+                }
+                {/* Tabla por canal */}
+                {
+                  <div className="dashboard-card p-5">
+                    <h3 className="text-sm font-semibold text-foreground mb-4">Unit economics por canal</h3>
+                    {loading ? (
+                      <div className="space-y-2">
+                        {[...Array(4)].map((_, i) => (
+                          <div key={i} className="h-10 w-full bg-muted animate-pulse rounded" />
+                        ))}
+                      </div>
+                    ) : !hasData || channelRows.length === 0 ? (
+                      <p className="text-sm text-muted-foreground py-6 text-center">Sin datos todavía.</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-left text-muted-foreground text-xs uppercase tracking-wider border-b border-border">
+                              <th className="py-2 pr-4">Canal</th>
+                              <th className="py-2 pr-4">Ad spend</th>
+                              <th className="py-2 pr-4">Leads</th>
+                              <th className="py-2 pr-4">CPL</th>
+                              <th className="py-2 pr-4">Clientes</th>
+                              <th className="py-2 pr-4">CAC</th>
+                              <th className="py-2 pr-4">Revenue</th>
+                              <th className="py-2 pr-4">ROAS</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {channelRows.map((row) => (
+                              <tr key={row.channel} className="border-b border-border/50 text-foreground">
+                                <td className="py-2.5 pr-4 font-medium text-foreground">{labelChannel(row.channel)}</td>
+                                <td className="py-2.5 pr-4">{formatCurrency(row.adspend)}</td>
+                                <td className="py-2.5 pr-4">{formatNumber(row.leads)}</td>
+                                <td className="py-2.5 pr-4">{row.cpl !== null ? formatCurrency(row.cpl) : '—'}</td>
+                                <td className="py-2.5 pr-4">{formatNumber(row.customers)}</td>
+                                <td className="py-2.5 pr-4">{row.cac !== null ? formatCurrency(row.cac) : '—'}</td>
+                                <td className="py-2.5 pr-4">{formatCurrency(row.revenue)}</td>
+                                <td className="py-2.5 pr-4">
+                                  {row.roas !== null ? (
+                                    <span className="text-foreground">
+                                      {formatNumber(row.roas, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x
+                                    </span>
+                                  ) : (
+                                    '—'
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                }
+              </div>
+            </details>
+            <details className="rounded-2xl border border-border/50 p-4">
+              <summary className="cursor-pointer text-sm font-medium">Contenido y adquisición orgánica</summary>
+              <div className="mt-4">
+                <PanelOrganico />
+              </div>
+            </details>
+          </DepartmentSection>
+
+          <DepartmentSection
+            id="departamento-2"
+            number="02"
+            title="Asistencia"
+            description="Del lead a la llamada: volumen y estado de las agendas."
+            href={`/${tenant}/crm/agendas`}
+          >
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <KPICard
+                title="Agendas"
+                value={formatNumber(actividad.agendas)}
+                loading={loading}
+                description="Total de agendas únicas del ámbito y periodo seleccionados."
+              />
+              <KPICard
+                title="Cancelaciones"
+                value={`${formatNumber(actividad.canceladas)} · ${porcentajeAgenda(actividad.canceladas)}`}
+                loading={loading}
+                description="Cancelaciones / total de agendas."
+              />
+              <KPICard
+                title="No shows"
+                value={`${formatNumber(actividad.noShows)} · ${porcentajeAgenda(actividad.noShows)}`}
+                loading={loading}
+                description="No shows registrados / total de agendas. Una cita sin resultado no cuenta como no show."
+              />
+              <KPICard
+                title="Asistencias"
+                value={`${formatNumber(actividad.asistencias)} · ${porcentajeAgenda(actividad.asistencias)}`}
+                loading={loading}
+                description="Asistencias confirmadas / total de agendas. Citas pendientes permanecen en el denominador; no es el Show Rate sobre citas resueltas."
+              />
+            </div>
+            <AppointmentStatusStrip loading={loading} rows={appointmentStates} />
+          </DepartmentSection>
+
+          <DepartmentSection
+            id="departamento-3"
+            number="03"
+            title="Ventas"
+            description="De las llamadas a las ventas y la facturación."
+            href={`/${tenant}/analitica/embudo`}
+          >
+            <div className="grid gap-3 lg:grid-cols-[3fr_1fr]">
+              <div className="dashboard-card rounded-xl p-4">
+                {funnelOpcion === 'todos' ? (
+                  <>
+                    <h3 className="mb-3 text-sm font-medium">Actividad comercial del periodo</h3>
+                    <ConnectedFunnel
+                      compact
+                      activityOnly
+                      loading={loading}
+                      stages={[
+                        { label: 'Asistencias', value: funnelOperativo.asistencias },
+                        { label: 'Ofertas registradas', value: funnelOperativo.offersDeclaradas },
+                        { label: 'Ventas', value: funnelOperativo.cierres },
+                      ]}
+                    />
+                  </>
+                ) : (
+                  <FunnelDinamico
+                    tenant={tenant}
+                    operativo={funnelOperativo}
+                    loading={loading}
+                    opcion={funnelOpcion}
+                    rango={{ from: rangoISO(rango.from), to: rangoISO(rango.to) }}
+                  />
+                )}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 content-start">
+                <KPICard
+                  title="Ticket medio"
+                  value={
+                    funnelOperativo.cierres
+                      ? formatCurrency(funnelOperativo.facturacion / funnelOperativo.cierres)
+                      : '—'
+                  }
+                  loading={loading}
+                  description="Facturación / ventas nuevas del periodo; total de empresa, como Negocio."
+                />
+                <KPICard
+                  title="Cash Collected medio"
+                  value={primerPago.promedio === null ? '—' : formatCurrency(primerPago.promedio)}
+                  loading={loading}
+                  description={`Promedio del primer pago confirmado de las ventas nuevas del periodo. Excluye cuotas posteriores. ${primerPago.ventasSinPrimerPago} ventas sin primer pago identificado; si falta alguno no se estima el promedio.`}
+                />
+                <KPICard
+                  title="Cash Collected"
+                  value={formatCurrency(cash.net)}
+                  loading={loading}
+                  description="Total de empresa: mismo cálculo que Negocio y Finanzas."
+                />
+                <KPICard
+                  title="Facturación"
+                  value={formatCurrency(funnelOperativo.facturacion)}
+                  loading={loading}
+                  description="Total de empresa: mismo cálculo que Negocio y Finanzas."
+                />
+              </div>
+            </div>
+
+            <div className="dashboard-card overflow-x-auto rounded-xl p-4">
+              <table className="w-full text-left text-xs">
+                <caption className="sr-only">Rendimiento por closer</caption>
+                <thead className="text-muted-foreground">
+                  <tr>
+                    {['Closer', 'Asistencias', 'Ofertas', 'Ventas', 'Cash Collected'].map((label) => (
+                      <th key={label} className="pb-3 font-medium">
+                        {label}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {channelRows.map((row) => (
-                    <tr key={row.channel} className="border-b border-border/50 text-foreground">
-                      <td className="py-2.5 pr-4 font-medium text-foreground">{labelChannel(row.channel)}</td>
-                      <td className="py-2.5 pr-4">{formatCurrency(row.adspend)}</td>
-                      <td className="py-2.5 pr-4">{formatNumber(row.leads)}</td>
-                      <td className="py-2.5 pr-4">{row.cpl !== null ? formatCurrency(row.cpl) : '—'}</td>
-                      <td className="py-2.5 pr-4">{formatNumber(row.customers)}</td>
-                      <td className="py-2.5 pr-4">{row.cac !== null ? formatCurrency(row.cac) : '—'}</td>
-                      <td className="py-2.5 pr-4">{formatCurrency(row.revenue)}</td>
-                      <td className="py-2.5 pr-4">
-                        {row.roas !== null ? (
-                          <span className={ratioColor(row.roas)}>
-                            {formatNumber(row.roas, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x
-                          </span>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  <tr>
+                    <td colSpan={5} className="border-t border-border/50 py-4 text-center text-muted-foreground">
+                      Desglose por closer no disponible en esta vista. Consulta el detalle comercial.
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
-      )}
+          </DepartmentSection>
 
-      {/* Nota de atribución */}
-      {vistaAnuncios && (
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          La atribución por canal se calcula a partir de{' '}
-          <span className="text-muted-foreground">contacts.campaign_id</span> (aproximación tipo last-touch): cada
-          contacto se asigna al canal de la campaña que lo originó, y las ventas activas de esos contactos se atribuyen
-          al canal correspondiente. Los clientes sin campaña asociada no se incluyen en el desglose por canal.
-        </p>
+          <DepartmentSection
+            id="departamento-4"
+            number="04"
+            title="Finanzas"
+            description="Cobros y devoluciones, con sus fuentes diferenciadas."
+            href={`/${tenant}/finanzas/analitica/resumen`}
+          >
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+              <KPICard
+                title="Facturación"
+                value={formatCurrency(funnelOperativo.facturacion)}
+                loading={loading}
+                description="Precio pactado de las ventas activas del periodo"
+              />
+              <KPICard
+                title="Cash Collected"
+                value={formatCurrency(cash.net)}
+                loading={loading}
+                description="Cobros confirmados del periodo, sin duplicados y descontando devoluciones"
+              />
+              <KPICard
+                title="Devoluciones"
+                value={formatCurrency(cash.refunds)}
+                loading={loading}
+                description="Devoluciones descontadas del Cash Collected"
+              />
+            </div>
+            <BusinessFinance
+              tenantId={tenantId}
+              from={rangoISO(rango.from) ?? '0000-01-01'}
+              to={rangoISO(rango.to) ?? '9999-12-31'}
+            />
+            <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+              <MetricExplorer
+                title="Evolución de Cash Collected"
+                loading={loading}
+                bars
+                controls={periodControls}
+                metrics={[
+                  {
+                    id: 'cash',
+                    label: 'Cash Collected',
+                    data: dualFacturacionCash.serie.map((p) => ({ date: p.cubo, value: p.cash })),
+                    format: formatCurrency,
+                  },
+                ]}
+                note="Cobros por su fecha de pago. La diferencia con la facturación del periodo no representa deuda pendiente."
+              />
+              <BreakdownBars
+                title="Cash Collected por fuente"
+                loading={loading}
+                format={formatCurrency}
+                rows={[
+                  { label: 'Stripe', value: cash.bySource.stripe },
+                  { label: 'Otros cobros registrados', value: cash.bySource.internal },
+                ]}
+              />
+            </div>
+          </DepartmentSection>
+
+          <DepartmentSection
+            id="departamento-5"
+            number="05"
+            title="Clientes"
+            description="Clientes con compra en el periodo y seguimiento de la entrega."
+            href={`/${tenant}/students`}
+          >
+            <div className="grid gap-4 sm:grid-cols-3">
+              <KPICard
+                title="Clientes con compra"
+                value={formatNumber(totals.totalCustomers)}
+                loading={loading}
+                description="Personas únicas con venta activa"
+              />
+              <KPICard
+                title="Facturación por cliente"
+                value={totals.ltvMedio === null ? '—' : formatCurrency(totals.ltvMedio)}
+                loading={loading}
+                description="Facturación del periodo / clientes con compra"
+              />
+              <KPICard
+                title="Retención"
+                value="—"
+                description="Sin serie de clientes activos y bajas disponible en esta vista"
+              />
+            </div>
+            <div className="dashboard-card rounded-xl p-4">
+              <h3 className="text-sm font-medium">Retención por cohorte</h3>
+              <div className="mt-4 grid grid-cols-5 gap-2 text-center text-xs text-muted-foreground">
+                <span>Cohorte</span>
+                {['Mes 0', 'Mes 1', 'Mes 2', 'Mes 3'].map((m) => (
+                  <span key={m}>{m}</span>
+                ))}
+                {Array.from({ length: 3 }, (_, row) =>
+                  Array.from({ length: 5 }, (_, col) => (
+                    <span key={`${row}-${col}`} className="rounded bg-muted/50 py-3">
+                      —
+                    </span>
+                  ))
+                )}
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Sin datos de cohortes disponibles. No se calcula retención a partir de ventas.
+              </p>
+            </div>
+          </DepartmentSection>
+        </>
       )}
     </div>
   )

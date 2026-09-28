@@ -176,15 +176,11 @@ test('serieCanonicaCash: día, semana (dominio UTC) y mes, con las reglas del ca
   assert.deepEqual(mes, [{ cubo: '2026-09', neto: 850 }]) // 500+300-100+200-50; neto == cash.net canónico
 })
 
-test('PAGE (fuente): el dual usa ComposedChart, comparte granularidad y trae el cash canónico por cubo', () => {
+test('PAGE (fuente): el selector conserva facturación y cash canónico por cubo', () => {
   const src = readFileSync(join(root, 'app/[tenant]/unit-economics/page.tsx'), 'utf8')
   assert.ok(src.includes('serieDualFacturacionCash'), 'la página consume el helper canónico')
   assert.ok(src.includes('serieCanonicaCash'), 'cash por cubo del canónico, no suma a ciegas')
-  assert.ok(src.includes('<FinanceDual'), 'gráfico dual renderizado')
-  const chart = readFileSync(join(root, 'components/finanzas/FinanceCharts.tsx'), 'utf8')
-  assert.ok(chart.includes('export function FinanceDual'), 'FinanceDual exportado')
-  assert.ok(chart.includes('<ComposedChart') && chart.includes('yAxisId'), 'barras € + CAC en eje derecho')
-  assert.ok(chart.includes('dataKey="cac"'), 'línea del CAC')
-  // Nunca solo color: leyenda con las tres series.
-  assert.ok(chart.includes('<Legend'), 'leyenda declarada')
+  assert.ok(src.includes('<MetricExplorer'), 'evolución seleccionable')
+  assert.ok(src.includes('value: p.facturacion') && src.includes('value: p.cash'), 'ambas series canónicas disponibles')
+  assert.ok(!src.includes('<FinanceDual'), 'no duplica la evolución en otra gráfica')
 })

@@ -10,6 +10,7 @@ import { PieChart, Wallet, ShoppingCart, Receipt, TrendingDown, Scale, Users, Cr
 import { cuentaComoVenta, lastNMonths, prevMonth, monthLabel, pctDelta } from '@/lib/analytics'
 import { metodoDePlan } from '@/lib/metrics/agregados'
 import { formatCurrency } from '@/lib/utils'
+import { canonicalCash, type StripePaymentRow } from '@/lib/canonical/cash'
 import { computeMonthlyPnl, FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 import { clasificarCobrosPorMes, type FilaCobroParaClasificar } from '@/lib/finance/nuevo-vs-recurrente'
 
@@ -33,6 +34,7 @@ type CollectionRow = {
   vat: number | string | null
   collected_at: string | null
   status: string
+  payment_reference: string | null
   expected_installment_id: string | null
 }
 type ExpenseRow = { amount: number | string; category: string; expense_date: string | null }
@@ -80,6 +82,7 @@ export default function FinanzasPage() {
   const [ym, setYm] = useState(nowYm())
   const [sales, setSales] = useState<SaleRow[]>([])
   const [collections, setCollections] = useState<CollectionRow[]>([])
+  const [stripePayments, setStripePayments] = useState<StripePaymentRow[]>([])
   const [expenses, setExpenses] = useState<ExpenseRow[]>([])
   const [refunds, setRefunds] = useState<RefundRow[]>([])
   const [commissions, setCommissions] = useState<CommissionRow[]>([])
@@ -92,7 +95,7 @@ export default function FinanzasPage() {
     async function load() {
       setLoading(true)
       const supabase = createClient()
-      const [salesRes, collRes, expensesRes, refundsRes, commissionsRes, usersRes] = await Promise.all([
+      const [salesRes, collRes, expensesRes, refundsRes, commissionsRes, usersRes, stripeRes] = await Promise.all([
         supabase
           .from('sales')
           // reservation_completed_at + payment_plans(method): sin ellos una reserva abierta es
@@ -103,7 +106,7 @@ export default function FinanzasPage() {
         supabase
           .from('collections')
           .select(
-            'id, sale_id, gross_amount, commissionable_amount, processing_fee, vat, collected_at, status, expected_installment_id'
+            'id, sale_id, gross_amount, commissionable_amount, processing_fee, vat, collected_at, status, expected_installment_id, payment_reference'
           )
           .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
@@ -127,14 +130,20 @@ export default function FinanzasPage() {
           .select('base_salary, tenant_members!inner(tenant_id)')
           .eq('tenant_members.tenant_id', tenantId)
           .eq('is_active', true),
+        supabase
+          .from('stripe_payments')
+          .select('payment_id, charge_id, amount, refunded_amount, status, paid_at, customer_email')
+          .eq('tenant_id', tenantId)
+          .range(0, FINANCE_QUERY_ROW_CAP),
       ])
       if (!mounted) return
-      const fallo = primerError(salesRes, collRes, expensesRes, refundsRes, commissionsRes, usersRes)
+      const fallo = primerError(salesRes, collRes, expensesRes, refundsRes, commissionsRes, usersRes, stripeRes)
       setErrorCarga(fallo ? mensajeDeCarga('los datos de facturación', fallo) : null)
       // El embed de payment_plans llega anidado: se aplana aquí para que el predicado de venta
       // (cuentaComoVenta) pueda ver si la fila es una reserva todavía abierta.
       setSales(((salesRes.data || []) as SaleRow[]).map((v) => ({ ...v, payment_plan_method: metodoDePlan(v) })))
       setCollections(collRes.data || [])
+      setStripePayments((stripeRes.data || []) as StripePaymentRow[])
       setExpenses(expensesRes.data || [])
       setRefunds(refundsRes.data || [])
       setCommissions(commissionsRes.data || [])
@@ -172,11 +181,9 @@ export default function FinanzasPage() {
       const cashCollected = monthCollections.reduce((a, c) => a + num(c.gross_amount), 0)
       const platformFees = monthCollections.reduce((a, c) => a + num(c.processing_fee), 0)
 
-      const expensesTotal = monthExpenses.reduce((a, e) => a + num(e.amount), 0)
       const positiveCommissions = monthCommissions
         .filter((c) => c.direction !== 'negative')
         .reduce((a, c) => a + num(c.commission_amount), 0)
-      const totalExpenses = expensesTotal + positiveCommissions
 
       const totalRefunds = monthRefunds.reduce((a, r) => a + num(r.gross_refund_amount), 0)
 
@@ -186,25 +193,20 @@ export default function FinanzasPage() {
       const netResult = monthPnl.preTaxProfit
       const margin = monthPnl.preTaxMargin === null ? null : monthPnl.preTaxMargin * 100
 
-      const byCategory = new Map<string, number>()
-      for (const e of monthExpenses) {
-        byCategory.set(e.category, (byCategory.get(e.category) || 0) + num(e.amount))
-      }
-      if (positiveCommissions > 0) {
-        byCategory.set('comisiones', (byCategory.get('comisiones') || 0) + positiveCommissions)
-      }
-      const categories = Array.from(byCategory.entries())
-        .map(([category, amount]) => ({
-          category,
-          label: CATEGORY_LABELS[category] || (category === 'comisiones' ? 'Comisiones' : category),
-          amount,
-        }))
-        .sort((a, b) => b.amount - a.amount)
+      const categories = [
+        { category: 'cogs', label: 'Costes directos', amount: monthPnl.cogs },
+        { category: 'comisiones', label: 'Comisiones', amount: monthPnl.comisiones },
+        { category: 'sueldos', label: 'Sueldos', amount: monthPnl.salarios },
+        { category: 'publicidad', label: 'Publicidad', amount: monthPnl.adspend },
+        { category: 'herramientas', label: 'Herramientas', amount: monthPnl.software },
+        { category: 'pasarela', label: 'Pasarela', amount: monthPnl.platformFees },
+        { category: 'otros', label: 'Otros', amount: monthPnl.otros },
+      ].sort((a, b) => b.amount - a.amount)
 
       return {
         contractedSales,
         cashCollected,
-        totalExpenses,
+        totalExpenses: monthPnl.cogs + monthPnl.totalOpex,
         totalRefunds,
         platformFees,
         netResult,
@@ -215,6 +217,21 @@ export default function FinanzasPage() {
   }, [sales, collections, expenses, refunds, commissions])
 
   const cur = useMemo(() => summaryFor(ym), [summaryFor, ym])
+  // Mismo consolidado que Unit Economics; el libro interno sigue sustentando el P&L.
+  const consolidatedCash = useMemo(
+    () =>
+      canonicalCash(
+        stripePayments.filter((p) => ymOf(p.paid_at) === ym),
+        collections
+          .filter((c) => ymOf(c.collected_at) === ym)
+          .map((c) => ({
+            ...c,
+            gross_amount: num(c.gross_amount),
+          }))
+      ),
+    [stripePayments, collections, ym]
+  )
+
   const prev = useMemo(() => summaryFor(prevMonth(ym)), [summaryFor, ym])
 
   // NUEVO vs RECURRENTE del mes seleccionado (canónico: lib/finance/nuevo-vs-recurrente).
@@ -402,17 +419,12 @@ export default function FinanzasPage() {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
               <KPICard
                 title="Cash Collected"
-                value={fmt(cur.cashCollected)}
+                value={fmt(consolidatedCash.net)}
                 icon={Wallet}
-                description={
-                  loading
-                    ? 'facturación bruta, sin restar devoluciones'
-                    : `nuevo ${fmt(cobroMes.nuevo.importe)} · recurrente ${fmt(cobroMes.recurrente.importe)}`
-                }
-                {...delta(cur.cashCollected, prev.cashCollected)}
+                description="Cobros consolidados de Stripe y otros medios; devoluciones descontadas. Mismo cálculo que Negocio."
               />
               <KPICard
-                title="Ventas contratadas"
+                title="Facturación"
                 value={fmt(cur.contractedSales)}
                 icon={ShoppingCart}
                 description="vs mes anterior"
@@ -422,11 +434,14 @@ export default function FinanzasPage() {
                 title="Gastos totales"
                 value={fmt(cur.totalExpenses)}
                 icon={Receipt}
-                description="gastos + comisiones"
+                description="Costes directos + gastos operativos, comisiones y pasarela (P&L)"
+                deltaSentiment="neutral"
+                compareLabel="vs mes anterior; variación de gasto"
                 {...delta(cur.totalExpenses, prev.totalExpenses)}
               />
               <KPICard
                 title="Comisiones plataforma"
+                deltaSentiment="neutral"
                 value={fmt(cur.platformFees)}
                 icon={CreditCard}
                 description="Stripe, transferencia, Sequra..."
@@ -451,6 +466,34 @@ export default function FinanzasPage() {
               </div>
             </div>
           </div>
+
+          <section className="dashboard-card p-5 space-y-3" aria-label="Conciliación de fuentes de cash">
+            <h2 className="font-display text-lg font-semibold">Cash consolidado y libro interno</h2>
+            <p className="text-sm text-muted-foreground">
+              Mismo consolidado que Métricas: Stripe + cobros internos sin duplicar referencias. El resultado de I&amp;G
+              usa los cobros registrados en la app; una diferencia entre fuentes requiere conciliación.
+            </p>
+            <dl className="grid gap-4 sm:grid-cols-3 text-sm">
+              <div>
+                <dt>Consolidado bruto</dt>
+                <dd className="text-lg font-semibold">{fmt(consolidatedCash.gross)}</dd>
+              </div>
+              <div>
+                <dt>Devoluciones descontadas en el consolidado</dt>
+                <dd className="text-lg font-semibold">{fmt(consolidatedCash.refunds)}</dd>
+              </div>
+              <div>
+                <dt>Cash Collected</dt>
+                <dd className="text-lg font-semibold">{fmt(consolidatedCash.net)}</dd>
+              </div>
+            </dl>
+            <p className="text-sm text-muted-foreground">
+              Diferencia entre consolidado bruto y cobros registrados: {fmt(consolidatedCash.gross - cur.cashCollected)}
+              .{consolidatedCash.duplicatedPayments} registros internos cruzados con Stripe;{' '}
+              {consolidatedCash.amountConflicts.length} discrepancias de importe. No cambia el resultado contable ni
+              registra cobros automáticamente.
+            </p>
+          </section>
 
           {/* Evolución y desglose: panel principal con resumen financiero lateral. */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
@@ -484,9 +527,10 @@ export default function FinanzasPage() {
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
                 <KPICard
                   title="Devoluciones del mes"
+                  deltaSentiment="neutral"
                   value={`− ${fmt(cur.totalRefunds)}`}
                   icon={TrendingDown}
-                  description="se resta del Cash Collected para el neto"
+                  description="se resta de los cobros registrados para el neto"
                   {...delta(cur.totalRefunds, prev.totalRefunds)}
                 />
                 <div className="dashboard-card p-6">

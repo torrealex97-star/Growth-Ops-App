@@ -8,10 +8,23 @@ export interface ConnectedFunnelStage {
 }
 
 /** Diagrama de etapas: la silueta es esquemática, no una escala de volúmenes. */
-export function ConnectedFunnel({ stages, loading = false }: { stages: ConnectedFunnelStage[]; loading?: boolean }) {
-  if (loading) return <div className="h-64 animate-pulse rounded-xl bg-muted" />
+export function ConnectedFunnel({
+  stages,
+  loading = false,
+  activityOnly = false,
+  compact = false,
+}: {
+  stages: ConnectedFunnelStage[]
+  loading?: boolean
+  compact?: boolean
+  activityOnly?: boolean
+}) {
+  if (loading) return <div className={`${compact ? 'h-36' : 'h-64'} motion-safe:animate-pulse rounded-xl bg-muted`} />
 
-  const height = (index: number) => 240 - (index / Math.max(stages.length - 1, 1)) * 120
+  const connectorHeight = compact ? 144 : 240
+
+  const height = (index: number) =>
+    (compact ? 120 : 240) - (index / Math.max(stages.length - 1, 1)) * (compact ? 60 : 120)
   return (
     <div className="connected-funnel">
       <div
@@ -21,7 +34,7 @@ export function ConnectedFunnel({ stages, loading = false }: { stages: Connected
         aria-label="Etapas del embudo de conversión"
       >
         <div
-          className="flex h-64 items-center"
+          className={`flex items-center ${compact ? 'h-36' : 'h-64'}`}
           style={{
             minWidth:
               stages.reduce((sum, stage) => sum + Math.max(130, formatNumber(stage.value).length * 18 + 40), 0) +
@@ -31,20 +44,25 @@ export function ConnectedFunnel({ stages, loading = false }: { stages: Connected
           {stages.map((stage, index) => (
             <Fragment key={stage.label}>
               {index > 0 && (
-                <div className="relative flex h-60 w-16 shrink-0 items-center justify-center">
+                <div
+                  className="relative flex w-16 shrink-0 items-center justify-center"
+                  style={{ height: connectorHeight }}
+                >
                   <svg
                     className="absolute inset-0 h-full w-full"
-                    viewBox="0 0 64 240"
+                    viewBox={`0 0 64 ${connectorHeight}`}
                     preserveAspectRatio="none"
                     aria-hidden="true"
                   >
                     <polygon
-                      points={`0,${(240 - height(index - 1)) / 2} 64,${(240 - height(index)) / 2} 64,${(240 + height(index)) / 2} 0,${(240 + height(index - 1)) / 2}`}
+                      points={`0,${(connectorHeight - height(index - 1)) / 2} 64,${(connectorHeight - height(index)) / 2} 64,${(connectorHeight + height(index)) / 2} 0,${(connectorHeight + height(index - 1)) / 2}`}
                       fill={`color-mix(in srgb, hsl(var(--brand-300)) ${100 - index * 8}%, hsl(var(--brand-500)))`}
                     />
                   </svg>
                   <div className="relative text-center text-slate-950">
-                    <p className="text-sm font-semibold tabular-nums">{formatPercent(stage.conversion, 1)}</p>
+                    <p className="text-sm font-semibold tabular-nums">
+                      {activityOnly ? '' : formatPercent(stage.conversion, 1)}
+                    </p>
                     <span className="text-2xl" aria-hidden="true">
                       →
                     </span>
@@ -74,7 +92,7 @@ export function ConnectedFunnel({ stages, loading = false }: { stages: Connected
             {index > 0 && (
               <p className="py-2 text-xs font-medium text-muted-foreground tabular-nums">
                 <span aria-hidden="true">↓ </span>
-                {formatPercent(stage.conversion, 1)}
+                {activityOnly ? '' : formatPercent(stage.conversion, 1)}
               </p>
             )}
             <div
@@ -91,7 +109,10 @@ export function ConnectedFunnel({ stages, loading = false }: { stages: Connected
         ))}
       </ol>
       <p className="mt-2 text-xs text-muted-foreground">
-        Conversión respecto a la etapa anterior · Silueta esquemática, no a escala.
+        {activityOnly
+          ? 'Actividad del periodo; no expresa conversión entre personas.'
+          : 'Conversión respecto a la etapa anterior.'}{' '}
+        Silueta esquemática, no a escala.
       </p>
     </div>
   )

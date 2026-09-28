@@ -17,7 +17,7 @@ export type StageResult = {
    * Por qué una conversión no se pudo calcular. Que la UI pueda decir "la fuente falló" en vez de
    * un "—" indistinguible de "el denominador era 0".
    */
-  blockedBy?: 'error_fuente' | 'no_configurada' | 'unidades_incompatibles'
+  blockedBy?: 'error_fuente' | 'no_configurada' | 'unidades_incompatibles' | 'poblacion_no_enlazada'
 }
 
 export type FunnelResult = {
@@ -71,9 +71,11 @@ export function computeFunnel({ family, counts, inversion = null }: ComputeInput
 
     if (!usable) {
       blockedBy = count.status === 'no_configurada' ? 'no_configurada' : 'error_fuente'
+    } else if (count.periodActivity) {
+      blockedBy = 'poblacion_no_enlazada'
     } else if (previous === null) {
       // Primera etapa legible: no hay nada antes con lo que comparar, y eso no es un fallo.
-      conversionFromTop = value === null ? null : 100
+      conversionFromTop = value === null || value === 0 ? null : 100
     } else if (previous.counts !== stage.counts) {
       // Personas contra eventos daría tasas por encima del 100 % sin que nada esté roto.
       blockedBy = 'unidades_incompatibles'

@@ -73,20 +73,18 @@ export function FunnelDinamico({ tenant, operativo, loading, rango, opcion }: Pr
     }
   }, [opcion, tenant, rango.from, rango.to])
 
-  // Etapas 'todos': leads → agendas → asistencias → cierres con conversiones entre sí.
-  // Las transiciones son todas dentro del mismo universo (personas del CRM), así que la
-  // conversión es calculable siempre que el denominador exista.
+  // Etapas de actividad del periodo: no acreditan una cohorte enlazada.
   const etapasTodos = useMemo(() => {
-    const conv = (a: number, b: number) => (b > 0 ? (a / b) * 100 : null)
+    // No linked cohort: period activity does not establish conversion.
     return [
       { label: 'Leads', value: operativo.leads, conversion: null as number | null },
-      { label: 'Agendas', value: operativo.agendas, conversion: conv(operativo.agendas, operativo.leads) },
+      { label: 'Agendas', value: operativo.agendas, conversion: null },
       {
         label: 'Asistencias',
         value: operativo.asistencias,
-        conversion: conv(operativo.asistencias, operativo.agendas),
+        conversion: null,
       },
-      { label: 'Cierres', value: operativo.cierres, conversion: conv(operativo.cierres, operativo.asistencias) },
+      { label: 'Cierres', value: operativo.cierres, conversion: null },
     ]
   }, [operativo])
 
@@ -106,10 +104,11 @@ export function FunnelDinamico({ tenant, operativo, loading, rango, opcion }: Pr
       <div className="mt-5">
         {opcion === 'todos' ? (
           <>
-            <ConnectedFunnel stages={etapasTodos} loading={loading} />
+            <ConnectedFunnel stages={etapasTodos} loading={loading} activityOnly />
             <p className="text-muted-foreground mt-3 text-xs">
-              {formatNumber(operativo.cierres)} cierres de {formatNumber(operativo.leads)} leads. La parte atribuida a
-              anuncios se declara en las tarjetas de abajo, nunca se resta del total.
+              {formatNumber(operativo.cierres)} cierres y {formatNumber(operativo.leads)} leads en el periodo. Son
+              hechos independientes, no una cohorte enlazada. La parte atribuida a anuncios se declara en las tarjetas
+              de abajo, nunca se resta del total.
             </p>
           </>
         ) : motor.kind === 'loading' ? (
