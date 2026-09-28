@@ -11,6 +11,14 @@
 
 <!-- Añade aquí lo que está pendiente de confirmar -->
 
+- `[fix]` **SeQura fail-closed (PR #273)**: un listado ilegible o truncado ya no da por recuperados a TODOS los morosos ausentes — lanza y el cron reintenta; `marcarRecuperados` extraída como función pura y los errores dejan de tragarse.
+- `[fix]` **Segunda tanda P1 (PR #271, carril Claude Code)**: reprogramación de Calendly 500, cancelación+reprogramación de citas, webhook de onboarding, `audit_logs` en complete-reservation/sales/students/course-access/documents/override y checks del backfill de YouTube.
+- `[fix]` **Tanda dinero (PR #269)**: el alta de venta consume el booleano de `recordCollection` (estado parcial, acceso bloqueado si el cobro falló, toast honesto); `repNetCash` solo resta refunds `processed`; `collections/record` fail-ruidoso si falla el count previo (no reenvía `venta.registrada`); `appointments/create` valida que el contacto es del tenant.
+- `[fix]` **Efectos externos (PR #270)**: cron Reels con presupuesto real (45 s) y esqueletos persistidos antes del bucle; backfill de YouTube con claim atómico `pending→uploading` (fin de las re-publicaciones dobles).
+- `[mejora]` **UX/estados (PR #272)**: home con error explícito y reintento, Setting-AI tolera storage caído, devoluciones/follow-ups sin loaders eternos, ContactForm resincroniza por valores, P&L/cohortes/proyección/gestoría declaran la fuente ilegible en vez de pintar sumas parciales.
+- `[mejora]` `AGENTS.md`: nuevas reglas de código de la auditoría FASE A — helpers UTC de fechas solo-día, comprobación `{ error }` de supabase-js, claim atómico antes de efectos irreversibles, presupuesto de cron ≪ `maxDuration`, consumo de booleanos de helpers de escritura y estados de error honestos en UI.
+- `[mejora]` Escalado de dependencias (carril Claude Code): ESLint 9 flat config (#262), Tailwind 4.3.3 (#263), recharts 3.10.1 (#261).
+
 - `[mejora]` **Fiabilidad CI/ops (PR #214)**: el login E2E del global-setup reintenta una segunda vez y deja captura + errores de consola en `test-results/` si falla del todo (fin del flake del 25-sep que tumbó CI de `main`); el cron `calendly-ghl` baja su presupuesto de 35+25 s a 20+18 s para dejar colchón bajo el corte de 60 s de Vercel (504 `FUNCTION_INVOCATION_TIMEOUT` del 25-sep).
 - `[mejora]` `AGENTS.md`: nuevas reglas aprendidas el 25-sep — suites solo por los scripts canónicos de `package.json` (los specs E2E no son `node:test`), prohibido fusionar linajes sin merge-base (caso PR #210), presupuestos de cron muy por debajo del `maxDuration` de Vercel, y la fila del tablero como contrato de relevo de trabajo sin commitear.
 
