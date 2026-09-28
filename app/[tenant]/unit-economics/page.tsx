@@ -1331,7 +1331,7 @@ export default function UnitEconomicsPage() {
             description="Del lead a la llamada: volumen y estado de las agendas."
             href={`/${tenant}/crm/agendas`}
           >
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <KPICard
                 title="Agendas"
                 value={formatNumber(ventas.agendas)}
@@ -1354,7 +1354,6 @@ export default function UnitEconomicsPage() {
                 loading={loading}
                 description="Cancelaciones de cita, no de venta"
               />
-              <KPICard title="Speed to Lead" value="—" description="No disponible en esta vista" />
             </div>
             <AppointmentStatusStrip loading={loading} rows={appointmentStates} />
           </DepartmentSection>
