@@ -164,8 +164,8 @@ export default function ProspectingPage() {
       const [usersRes, salesRes] = await Promise.all([
         supabase
           .from('users')
-          .select('id, full_name, is_active, roles(key)', { count: 'exact' })
-          .eq('tenant_id', tenantId)
+          .select('id, full_name, is_active, roles(key), tenant_members!inner(tenant_id)', { count: 'exact' })
+          .eq('tenant_members.tenant_id', tenantId)
           .eq('is_active', true)
           .range(0, 49999),
         supabase

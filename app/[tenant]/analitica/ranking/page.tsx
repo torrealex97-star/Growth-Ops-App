@@ -206,14 +206,14 @@ export default function PipelinePage() {
           .range(0, 49999),
         supabase
           .from('users')
-          .select('id, full_name', { count: 'exact' })
-          .eq('tenant_id', tenantId)
+          .select('id, full_name, tenant_members!inner(tenant_id)', { count: 'exact' })
+          .eq('tenant_members.tenant_id', tenantId)
           .range(0, 49999)
           .eq('is_active', true),
         supabase
           .from('users')
-          .select('id, full_name, roles(key)', { count: 'exact' })
-          .eq('tenant_id', tenantId)
+          .select('id, full_name, roles(key), tenant_members!inner(tenant_id)', { count: 'exact' })
+          .eq('tenant_members.tenant_id', tenantId)
           .range(0, 49999)
           .eq('is_active', true),
         supabase

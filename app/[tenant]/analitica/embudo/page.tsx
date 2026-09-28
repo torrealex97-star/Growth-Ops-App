@@ -164,8 +164,8 @@ export default function VentasMetricasPage() {
         fetchAllRows(() =>
           supabase
             .from('users')
-            .select('id, full_name, roles(key)', { count: 'exact' })
-            .eq('tenant_id', tenantId)
+            .select('id, full_name, roles(key), tenant_members!inner(tenant_id)', { count: 'exact' })
+            .eq('tenant_members.tenant_id', tenantId)
             .eq('is_active', true)
             .order('id')
         ),
