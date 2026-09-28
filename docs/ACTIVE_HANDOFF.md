@@ -2,6 +2,8 @@
 
 ## CODEX — consistencia y rediseño de dashboards (28-sep, en curso)
 
+Terminología corregida a petición del usuario: Facturación (precio pactado) y Cash Collected (canonicalCash.net), también en selectores, evolución y tabla comercial. Finanzas muestra Facturación, Cash Collected y Devoluciones; elimina el KPI bruto redundante. No modifica fórmulas, fechas ni fuentes. Quality y build PASS. Producción pendiente.
+
 Revisión solicitada con `.agents/skills/data-visualization-pro/SKILL.md`: conserva composición aprobada, añade tabla desplegable de valores a cada tendencia (incluye ausencia explícita), ajusta conectores y skeleton del embudo compacto a su altura y respeta movimiento reducido. Quality PASS (1133 unitarias, 3 skip; 761 métricas) y build PASS. No cambia cálculos ni fuentes. Verificado en navegador local: tabla desplegable con valores, embudo conectado en escritorio (1536 px) y composición móvil (390 px); viewport restaurado. Producción pendiente.
 
 Rama `codex/dashboard-consistency`, base inicial `16d484c`; integrado main `d07bb45`. Rediseño visual aprobado por el usuario: resumen de negocio y bloques Marketing, Operación comercial, Ventas, Finanzas y Clientes; selectores de métricas y datos reales, sin cifras de maqueta. Reclama también components/os/DepartmentDashboard.tsx. Reclama unit-economics, resumen financiero, componentes KPI/funnel y acceso VSL con sus pruebas. Alcance: error VSL, periodo/población de embudos, trazabilidad de cash y señales KPI neutrales. No modifica datos financieros ni migraciones. Checkout aislado; WIP de navegación ajeno preservado.

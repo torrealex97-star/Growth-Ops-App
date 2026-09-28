@@ -912,14 +912,14 @@ export default function UnitEconomicsPage() {
                 title="Facturación"
                 value={formatCurrency(funnelOperativo.facturacion)}
                 loading={loading}
-                description="Ventas del periodo"
+                description="Precio pactado de las ventas activas del periodo"
                 target={kpiObjetivos('revenue', funnelOperativo.facturacion, 'money') ?? undefined}
               />
               <KPICard
-                title="Cobrado neto"
+                title="Cash Collected"
                 value={formatCurrency(cash.net)}
                 loading={loading}
-                description="Stripe + interno, sin duplicar"
+                description="Cobros confirmados del periodo, sin duplicados y descontando devoluciones"
               />
               <KPICard
                 title="Ventas"
@@ -962,7 +962,7 @@ export default function UnitEconomicsPage() {
                 },
                 {
                   id: 'cash',
-                  label: 'Cobrado',
+                  label: 'Cash Collected',
                   data: dualFacturacionCash.serie.map((p) => ({ date: p.cubo, value: p.cash })),
                   format: formatCurrency,
                 },
@@ -1411,7 +1411,7 @@ export default function UnitEconomicsPage() {
                 <caption className="sr-only">Rendimiento por closer</caption>
                 <thead className="text-muted-foreground">
                   <tr>
-                    {['Closer', 'Asistencias', 'Ofertas', 'Ventas', 'Cobrado'].map((label) => (
+                    {['Closer', 'Asistencias', 'Ofertas', 'Ventas', 'Cash Collected'].map((label) => (
                       <th key={label} className="pb-3 font-medium">
                         {label}
                       </th>
@@ -1436,26 +1436,36 @@ export default function UnitEconomicsPage() {
             description="Cobros y devoluciones, con sus fuentes diferenciadas."
             href={`/${tenant}/finanzas/analitica/resumen`}
           >
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <KPICard title="Cobrado bruto" value={formatCurrency(cash.gross)} loading={loading} />
-              <KPICard title="Devoluciones descontadas" value={formatCurrency(cash.refunds)} loading={loading} />
-              <KPICard title="Cobrado neto" value={formatCurrency(cash.net)} loading={loading} />
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
               <KPICard
-                title="Facturación contratada"
+                title="Facturación"
                 value={formatCurrency(funnelOperativo.facturacion)}
                 loading={loading}
+                description="Precio pactado de las ventas activas del periodo"
+              />
+              <KPICard
+                title="Cash Collected"
+                value={formatCurrency(cash.net)}
+                loading={loading}
+                description="Cobros confirmados del periodo, sin duplicados y descontando devoluciones"
+              />
+              <KPICard
+                title="Devoluciones"
+                value={formatCurrency(cash.refunds)}
+                loading={loading}
+                description="Devoluciones descontadas del Cash Collected"
               />
             </div>
             <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
               <MetricExplorer
-                title="Evolución de cobros"
+                title="Evolución de Cash Collected"
                 loading={loading}
                 bars
                 controls={periodControls}
                 metrics={[
                   {
                     id: 'cash',
-                    label: 'Cobrado neto',
+                    label: 'Cash Collected',
                     data: dualFacturacionCash.serie.map((p) => ({ date: p.cubo, value: p.cash })),
                     format: formatCurrency,
                   },
@@ -1463,7 +1473,7 @@ export default function UnitEconomicsPage() {
                 note="Cobros por su fecha de pago. La diferencia con la facturación del periodo no representa deuda pendiente."
               />
               <BreakdownBars
-                title="Fuentes del cobrado neto"
+                title="Cash Collected por fuente"
                 loading={loading}
                 format={formatCurrency}
                 rows={[

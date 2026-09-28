@@ -10,8 +10,11 @@ test('visión de negocio: departamentos, selección de métricas y lectura móvi
   await page.goto(`/${slug}/unit-economics`)
   await expect(page.getByRole('heading', { name: 'Visión del negocio', exact: true })).toBeVisible()
   const selector = page.getByRole('group', { name: 'Métrica de Evolución del negocio', exact: true })
-  await selector.getByRole('button', { name: 'Cobrado', exact: true }).click()
-  await expect(selector.getByRole('button', { name: 'Cobrado', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await selector.getByRole('button', { name: 'Cash Collected', exact: true }).click()
+  await expect(selector.getByRole('button', { name: 'Cash Collected', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  )
   await expect(selector.getByRole('button', { name: 'Facturación', exact: true })).toHaveAttribute(
     'aria-pressed',
     'false'
