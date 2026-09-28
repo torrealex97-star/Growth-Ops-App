@@ -53,8 +53,14 @@ test('anon sigue fuera y el search_path queda fijo', () => {
   assert.match(sql, /ALTER FUNCTION public\.merge_contacts\(UUID, UUID, UUID\) SET search_path TO 'public';/)
 })
 
-test('el cliente pasa la subcuenta activa al RPC', () => {
+test('todas las lecturas directas de atribución filtran la subcuenta activa', () => {
   const page = readFileSync(join(root, 'app/[tenant]/marketing/adquisicion/atribucion/page.tsx'), 'utf8')
   assert.match(page, /const tenantId = useTenantId\(\)/)
-  assert.match(page, /rpc\('attribution_funnel_for_tenant', \{ p_tenant_id: tenantId \}\)/)
+  const consultas = page.split(/\.from\('/).slice(1)
+  assert.ok(consultas.length >= 6)
+  for (const consulta of consultas) {
+    const bloque = consulta.split(/fetchAllRows|set[A-Z]|return/)[0]
+    assert.match(bloque, /\.eq\('tenant_id', tenantId\)/)
+  }
+  assert.ok(!page.includes("rpc('attribution_funnel_for_tenant'"))
 })

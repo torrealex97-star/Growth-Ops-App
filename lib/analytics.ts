@@ -105,7 +105,8 @@ const dayOf = (d: string | null | undefined) => (d ? String(d).slice(0, 10) : ''
 
 const SOURCE_FALLBACK = 'Directo / Sin atribuir'
 const labelSource = (a?: { source: string | null; utm_source: string | null }) =>
-  a?.source || a?.utm_source || SOURCE_FALLBACK
+  [a?.source, a?.utm_source].find((value) => value && !['ghl', 'ghl_import'].includes(value.trim().toLowerCase())) ||
+  SOURCE_FALLBACK
 
 // --- Meses ---
 export function lastNMonths(n: number, refYm: string): string[] {

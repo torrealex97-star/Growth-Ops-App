@@ -18,6 +18,8 @@
 // El rol 'affiliate' (el propio colaborador) solo ve SU ficha; para admins/directores
 // además permite cambiar estado vía PATCH de la ruta API ya auditada (§76).
 
+import { fetchAllRows } from '@/lib/supabase/paginate'
+import { canonicalizeAppointments } from '@/lib/canonical/dedup'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -201,35 +203,68 @@ export default function AfiliadosPage() {
       const userIds = lista.map((p) => p.user_id).filter((x): x is string => !!x)
       const esColab = (sesion.user as { roles?: { key?: string } | null }).roles?.key === 'affiliate'
       const [attrRes, apptRes, salesRes, collRes, commRes] = await Promise.all([
-        sb
-          .from('contact_attributions')
-          .select('contact_id, collaborator_id')
-          .eq('tenant_id', tenantId)
-          .not('collaborator_id', 'is', null),
+        fetchAllRows(() =>
+          sb
+            .from('contact_attributions')
+            .select('contact_id, collaborator_id')
+            .eq('tenant_id', tenantId)
+            .not('collaborator_id', 'is', null)
+            .order('id')
+        ),
         // Citas del tenant: solo las columnas del desglose (asistidas/canceladas por colaborador).
-        sb.from('appointments').select('id, contact_id, appointment_datetime, status').eq('tenant_id', tenantId),
-        sb
-          .from('sales')
-          .select('id, contact_id, sale_date, gross_amount, status, reservation_completed_at, payment_plans(method)')
-          .eq('tenant_id', tenantId),
-        sb.from('collections').select('sale_id, gross_amount, status, collected_at').eq('tenant_id', tenantId),
-        sb
-          .from('commissions')
-          .select('id, user_id, participant_type, percent, commission_amount, direction, status, created_at')
-          .eq('tenant_id', tenantId)
-          .in('user_id', userIds),
+        fetchAllRows(() =>
+          sb
+            .from('appointments')
+            .select('id, contact_id, appointment_datetime, status')
+            .eq('tenant_id', tenantId)
+            .order('id')
+        ),
+        fetchAllRows(() =>
+          sb
+            .from('sales')
+            .select('id, contact_id, sale_date, gross_amount, status, reservation_completed_at, payment_plans(method)')
+            .eq('tenant_id', tenantId)
+            .order('id')
+        ),
+        fetchAllRows(() =>
+          sb
+            .from('collections')
+            .select('sale_id, gross_amount, status, collected_at')
+            .eq('tenant_id', tenantId)
+            .order('id')
+        ),
+        fetchAllRows(() =>
+          sb
+            .from('commissions')
+            .select('id, user_id, participant_type, percent, commission_amount, direction, status, created_at')
+            .eq('tenant_id', tenantId)
+            .in('user_id', userIds)
+            .order('id')
+        ),
       ])
       if (!mounted) return
-      if ([attrRes, apptRes, salesRes, collRes, commRes].some((r) => r.error)) {
+      if ([attrRes, apptRes, salesRes, collRes, commRes].some((r) => r.error || r.truncated)) {
         setKpiError(true)
         setLoading(false)
         return
       }
-      setAtribuciones((attrRes.data ?? []) as { contact_id: string; collaborator_id: string }[])
-      setCitas((apptRes.data ?? []) as CitaRow[])
-      setVentas((salesRes.data ?? []).map((v) => ({ ...v, payment_plan_method: metodoDePlan(v) })))
-      setCobros((collRes.data ?? []) as CobroRow[])
-      setComisiones((commRes.data ?? []) as ComisionRow[])
+      setAtribuciones((attrRes.rows ?? []) as { contact_id: string; collaborator_id: string }[])
+      const appts = (apptRes.rows ?? []) as CitaRow[]
+      const apptsById = new Map(appts.map((a) => [a.id, a]))
+      setCitas(
+        canonicalizeAppointments(
+          appts.map((a) => ({
+            ...a,
+            scheduled_at: a.appointment_datetime,
+            status: a.status ?? '',
+            calendly_event_id: null,
+            calendar_event_id: null,
+          }))
+        ).appointments.map((a) => apptsById.get(a.appointmentId)!)
+      )
+      setVentas((salesRes.rows ?? []).map((v) => ({ ...v, payment_plan_method: metodoDePlan(v) })))
+      setCobros((collRes.rows ?? []) as CobroRow[])
+      setComisiones((commRes.rows ?? []) as ComisionRow[])
 
       // Destinos del enlace de referido: para admins, todas las campañas activas del
       // tenant; para el propio colaborador, SOLO sus campañas asignadas — la misma
@@ -323,7 +358,7 @@ export default function AfiliadosPage() {
       )
       const asistidasP = citasP.filter((c) => isAttended(c.status))
       const canceladasP = citasP.filter((c) => c.status === 'cancelled')
-      // Cash canónico: cobros 'collected' de las ventas activas del periodo,
+      // Libro interno: cobros 'collected' de las ventas activas del periodo,
       // recaudados dentro del periodo (mismo criterio que el resto de vistas).
       const ventasPeriodoIds = new Set(ventasP.map((v) => v.id))
       const cashP = cobros
@@ -337,7 +372,7 @@ export default function AfiliadosPage() {
         .filter((c) => c.user_id === p.user_id && c.status !== 'cancelled' && inPeriod(c.created_at, rango))
         .reduce((acc, c) => acc + (c.direction === 'negative' ? -1 : 1) * num(c.commission_amount), 0)
       return {
-        contactos: contactos.length,
+        contactos: ids.size,
         citas: citasP.length,
         asistidas: asistidasP.length,
         canceladas: canceladasP.length,

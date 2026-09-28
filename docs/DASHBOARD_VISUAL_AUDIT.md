@@ -44,3 +44,23 @@ Se inspeccionaron visualmente versiones local y producción; no confundir esas o
 | Contenido                 | Tabla editorial vacía explícita                                 | Inspeccionada; no requiere inventar KPIs                           |
 
 Pendiente completar comprobación visual final de Actividad, dashboard principal, Ventas/registro y Cobros/conciliación, además de móvil tras build. Clientes no se redefine sin el usuario.
+
+## Continuación del 28-sep — validación autenticada
+
+- Negocio frente a Atribución: paridad de los cuatro totales del periodo tras consolidar identidad/citas y excluir reservas.
+- Negocio frente a Analítica general: mismo Cash Collected canónico y facturación; pruebas de primaria caída, ventas incompletas y deduplicación.
+- Colaboradores: lectura completa, ventas elegibles, cash del libro interno y comisión con fecha de creación explícita.
+- Cohortes: reciente sin porcentaje definitivo; histórico medido sin colores de benchmark.
+- Producción del PR #278 confirmada en Embudo. Esta continuación necesita su propio CI/despliegue.
+- Revisión final móvil todavía pendiente: la herramienta no confirmó que el cambio de viewport afectase a la pestaña auditada; se restauró el tamaño normal.
+
+Se corrigieron dos fallos adicionales encontrados en la revisión: el motor clasificaba como «sin medir» métricas sin objetivo, y `ghl_import` se consideraba un canal de adquisición. Ningún dato de negocio se alteró.
+
+- Dashboard principal: detectados canceladas excluidas de Agendas, conversiones de flujos independientes, atribución histórica mezclada y ROAS global mal nombrado; corregidos y confirmados en el build final.
+- Índice de Analítica: mes hasta hoy distinto del mes natural global; usa ahora los mismos presets y muestra fechas.
+- Registro de ventas: resumen contaba reservas abiertas; corregido sin ocultar registros operativos.
+- Conciliación: inspección de estado vacío, sin ejecutar cotejo ni importar extractos. Cero resultados no certifica cobertura de todos los pagos.
+
+El build final confirma paridad de agendas en Analítica, Dashboard y Negocio bajo el mismo mes natural, y ventas elegibles en Registro. La previsión recorta las observaciones en hoy para no proyectar desde días futuros.
+
+Previsión revalidada visualmente tras el build final: la serie observada termina en hoy y la proyección en el cierre del periodo, sin extenderse al siguiente mes.
