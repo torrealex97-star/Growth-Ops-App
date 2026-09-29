@@ -72,7 +72,11 @@ export function etiquetaDia(iso: string | undefined, ahora: number = Date.now())
   if (dias === 0) return 'Hoy'
   if (dias === 1) return 'Ayer'
   const mismoAnio = new Date(t).getFullYear() === new Date(ahora).getFullYear()
-  return new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', ...(mismoAnio ? {} : { year: 'numeric' }) }).format(t)
+  return new Intl.DateTimeFormat('es', {
+    day: 'numeric',
+    month: 'short',
+    ...(mismoAnio ? {} : { year: 'numeric' }),
+  }).format(t)
 }
 
 /** Último mensaje (los listados llegan en orden cronológico ascendente). null si vacío. */
