@@ -89,7 +89,18 @@ function fmtNum(n: number): string {
   return formatNumber(Math.max(0, Math.floor(n)))
 }
 
-export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; embed?: boolean }) {
+export function VslPlayer({
+  video,
+  embed = false,
+  preview = false,
+}: {
+  video: VslPlayerVideo
+  embed?: boolean
+  /** Vista previa desde el admin: reproduce de verdad (HLS, CTA, colores…) pero nunca crea sesión
+   *  de tracking ni toca el localStorage del slug real — mirar el propio vídeo no puede sumar una
+   *  impresión falsa a sus métricas ni pisar la posición de "continuar viendo" de un espectador real. */
+  preview?: boolean
+}) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const sessionRef = useRef<string | null>(null)
   const watchedRef = useRef<Set<number>>(new Set())
@@ -120,6 +131,7 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
 
   // ---- ¿Ya estaba viendo el vídeo? -> ofrecer continuar / reiniciar ---------
   useEffect(() => {
+    if (preview) return
     const saved = readPos(video.slug, video.duration_seconds)
     if (saved != null) {
       wantResumeRef.current = true // no autoplay hasta que el usuario elija
@@ -134,6 +146,7 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
     if (!mode || mode === 'off') return
 
     if (mode === 'real') {
+      if (preview) return // no contaminar "viendo ahora" real con la propia vista previa del admin
       let alive = true
       const pull = () => {
         fetch(`/api/vsl/live/${video.slug}`)
@@ -230,36 +243,39 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
       el.src = src
     }
 
-    // Crea la sesión de tracking
-    const anonId = getAnonId()
-    fetch('/api/vsl/session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slug: video.slug, anonId, referrer: document.referrer || null }),
-    })
-      .then((r) => r.json())
-      .then((d) => {
-        if (!cancelled && d?.sessionId) {
-          sessionRef.current = d.sessionId
-          // avisa al parent de que ya hay sesión (para identify diferido) e incluye el anonId,
-          // para que loader.js pueda enganchar el visionado ANÓNIMO a una cita de Calendly
-          // (lo pasa como salesforce_uuid en el enlace, aunque el lead no haga optin).
-          try {
-            window.parent?.postMessage({ __tccvsl: 'ready', slug: video.slug, anonId }, '*')
-          } catch {
-            // Se ignora a propósito: el reproductor va en un iframe de otro dominio y `window.parent`
-            // puede no existir (abierto directo) o rechazar el mensaje. Es una señal opcional para la
-            // landing; sin ella el vídeo funciona igual.
-          }
-          // Si el autoplay ya arrancó antes de tener sesión, registra el 'play' ahora
-          // (si no, se perdería y el play rate saldría 0).
-          if (hasPlayedRef.current && !playSentRef.current) {
-            playSentRef.current = true
-            sendBeat('play')
-          }
-        }
+    // Crea la sesión de tracking — nunca en preview: sessionRef.current se queda en null y sendBeat()
+    // se vuelve un no-op solo (mira su guarda), así que basta con no crear la sesión.
+    if (!preview) {
+      const anonId = getAnonId()
+      fetch('/api/vsl/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: video.slug, anonId, referrer: document.referrer || null }),
       })
-      .catch(() => {})
+        .then((r) => r.json())
+        .then((d) => {
+          if (!cancelled && d?.sessionId) {
+            sessionRef.current = d.sessionId
+            // avisa al parent de que ya hay sesión (para identify diferido) e incluye el anonId,
+            // para que loader.js pueda enganchar el visionado ANÓNIMO a una cita de Calendly
+            // (lo pasa como salesforce_uuid en el enlace, aunque el lead no haga optin).
+            try {
+              window.parent?.postMessage({ __tccvsl: 'ready', slug: video.slug, anonId }, '*')
+            } catch {
+              // Se ignora a propósito: el reproductor va en un iframe de otro dominio y `window.parent`
+              // puede no existir (abierto directo) o rechazar el mensaje. Es una señal opcional para la
+              // landing; sin ella el vídeo funciona igual.
+            }
+            // Si el autoplay ya arrancó antes de tener sesión, registra el 'play' ahora
+            // (si no, se perdería y el play rate saldría 0).
+            if (hasPlayedRef.current && !playSentRef.current) {
+              playSentRef.current = true
+              sendBeat('play')
+            }
+          }
+        })
+        .catch(() => {})
+    }
 
     setReady(true)
     return () => {
@@ -361,8 +377,9 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
       if (!watchedRef.current.has(sec)) {
         watchedRef.current.add(sec)
         pendingRef.current.add(sec)
-        // Persiste la posición (1x/seg) para poder ofrecer "continuar" al volver
-        savePos(video.slug, el.currentTime, d)
+        // Persiste la posición (1x/seg) para poder ofrecer "continuar" al volver — nunca en preview:
+        // pisaría el "por dónde iba" real de quien vea el vídeo público en este mismo navegador.
+        if (!preview) savePos(video.slug, el.currentTime, d)
       }
       if (el.currentTime > maxReachedRef.current) maxReachedRef.current = el.currentTime
     }
@@ -405,7 +422,7 @@ export function VslPlayer({ video, embed = false }: { video: VslPlayerVideo; emb
   const onEnded = () => {
     setPlaying(false)
     sendBeat('ended')
-    clearPos(video.slug) // ya lo terminó: la próxima vez empieza de cero
+    if (!preview) clearPos(video.slug) // ya lo terminó: la próxima vez empieza de cero
     if (cfg.ctaEnabled && !cfg.ctaOnce) {
       ctaShownRef.current = false // en loop sin once: el CTA vuelve en la siguiente vuelta
     }

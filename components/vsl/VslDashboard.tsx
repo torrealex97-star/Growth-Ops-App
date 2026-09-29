@@ -11,7 +11,22 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DEFAULT_CONFIG, derivadosDeSource, type VslConfig } from '@/lib/vsl/types'
-import { Plus, Copy, Check, Trash2, Upload, Loader2, Play, Eye, Users, Flag, Percent, Video } from 'lucide-react'
+import { VslPlayer } from '@/components/vsl/VslPlayer'
+import {
+  Plus,
+  Copy,
+  Check,
+  Trash2,
+  Upload,
+  Loader2,
+  Play,
+  Eye,
+  Users,
+  Flag,
+  Percent,
+  Video,
+  AlertTriangle,
+} from 'lucide-react'
 
 interface Video {
   id: string
@@ -202,6 +217,11 @@ export function VslDashboard() {
                 {d.preview && previewSlug === v.slug && (
                   <img src={d.preview} alt="" className="absolute inset-0 h-full w-full object-cover" />
                 )}
+                {!v.source_url && (
+                  <span className="absolute right-1 top-1 flex items-center gap-1 rounded bg-red-950/90 px-1.5 py-0.5 text-2xs font-medium text-red-300">
+                    <AlertTriangle className="h-3 w-3" /> Sin fuente
+                  </span>
+                )}
               </div>
               <div className="truncate px-3 py-2 text-sm">{v.name}</div>
             </button>
@@ -247,13 +267,26 @@ export function VslDashboard() {
                 >
                   Editar / configurar
                 </Button>
-                <Button size="sm" variant="outline" onClick={copySnippet}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={copySnippet}
+                  disabled={!videos.find((x) => x.slug === selected)?.source_url}
+                >
                   {copied ? <Check className="mr-1 h-4 w-4" /> : <Copy className="mr-1 h-4 w-4" />}
                   {copied ? 'Copiado' : 'Copiar'}
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
+              {!videos.find((x) => x.slug === selected)?.source_url && (
+                <p className="flex items-start gap-2 rounded-lg border border-red-900/50 bg-red-950/30 px-3 py-2 text-sm text-red-300">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  Este vídeo todavía no tiene un archivo de fuente. Si pegas este código ahora, el reproductor mostrará
+                  &quot;Este vídeo aún no tiene fuente configurada&quot;. Pulsa &quot;Editar / configurar&quot; y sube
+                  el vídeo (o pega su URL de Bunny/.mp4) antes de compartir el enlace.
+                </p>
+              )}
               <pre className="overflow-x-auto rounded-lg bg-black/40 p-3 text-xs text-foreground">{snippet}</pre>
             </CardContent>
           </Card>
@@ -570,6 +603,17 @@ function VideoForm({
 
   const save = async () => {
     setErr(null)
+    // No es un bloqueo duro (una subida a Bunny puede seguir procesando y aun así conviene guardar
+    // el resto de la configuración), pero sí una confirmación explícita: guardar así deja el vídeo
+    // en un estado en el que su embed público muestra "sin fuente configurada" hasta que se complete.
+    if (
+      !sourceUrl.trim() &&
+      !confirm(
+        'Este vídeo no tiene ningún archivo ni URL de fuente todavía. Si lo guardas así, su código de embed no reproducirá nada hasta que subas el vídeo. ¿Guardar de todas formas?'
+      )
+    ) {
+      return
+    }
     setSaving(true)
     try {
       const r = await fetch(`/api/${tenant}/evergreen/vsl/videos`, {
@@ -665,6 +709,33 @@ function VideoForm({
               className="mt-2 bg-black/30 text-xs"
             />
           </div>
+        </div>
+
+        {/* Vista previa en vivo: el mismo VslPlayer que verá quien visite la landing, con la config
+            actual del formulario (colores, CTA, autoplay…) aplicada en tiempo real. `preview` corta
+            toda escritura de tracking/localStorage — mirar el propio vídeo no puede sumar una
+            impresión falsa a sus métricas. Sin esto, la única forma de ver cómo queda era guardar,
+            copiar el embed y pegarlo en otra página. */}
+        <div>
+          <Label className="text-foreground">Vista previa</Label>
+          {sourceUrl.trim() ? (
+            <div className="mt-1 overflow-hidden rounded-lg">
+              <VslPlayer
+                preview
+                video={{
+                  slug: initial.slug || 'preview',
+                  source_url: sourceUrl,
+                  poster_url: posterUrl || null,
+                  duration_seconds: duration,
+                  config,
+                }}
+              />
+            </div>
+          ) : (
+            <div className="mt-1 flex aspect-video items-center justify-center rounded-lg border border-dashed border-white/15 bg-black/20 text-sm text-muted-foreground">
+              Sube o pega la fuente del vídeo para ver aquí la vista previa.
+            </div>
+          )}
         </div>
 
         {/* Config del reproductor */}
