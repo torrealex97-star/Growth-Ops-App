@@ -34,6 +34,18 @@ docs-only con deployment CANCELED por ignoreCommand, por diseño). Home 200; rut
 cerró el mismo día — el fix de mapeo de la firma real (sección ✅ de arriba) entra en el PR de esa
 fecha y no queda ninguna acción pendiente para Alex en GHL.
 
+## Rediseño de Conversaciones como inbox de dos paneles (29-sep noche, Freebuff) — fusionado #301
+
+Petición de Alex («revísala como diseñador UX/UI de plataformas de chat»): Setting AI › Conversaciones
+pasa de acordeones a bandeja unificada — lista escaneable con avatar, vista previa del último mensaje
+("Tú: …"), tiempo relativo, punto de no-leídos y badge de canal con icono; panel de chat con
+separadores Hoy/Ayer, hora por burbuja, equipo a la derecha y auto-scroll. Skeleton de carga, estado
+sin-configurar con enlace directo a Integraciones. Lógica pura en `lib/setting-ai/inbox.ts` (+10
+tests deterministas). Sin cambios de API ni contrato de datos; Instagram y GHL comparten la UI.
+Fusionado en #301 (`b4e1194`) con CI completo verde y producción READY. Nota de diseño: el canal
+NO_SHOW de GHL se presenta como "Llamada" (llamada perdida, ver sección ✅ de arriba); si algún día
+GHL distingue no-show real de llamada, es un cambio puntual en `canalDe`.
+
 
 ## Estado de entrega — 28-sep-2026
 
