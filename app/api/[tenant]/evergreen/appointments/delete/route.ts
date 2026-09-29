@@ -65,11 +65,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
 
     // Desenlaza las reagendas que apuntan a esta como origen.
-    await sb
+    const { error: desenlaceErr } = await sb
       .from('appointments')
       .update({ origin_appointment_id: null })
       .eq('origin_appointment_id', appointmentId)
       .eq('tenant_id', t.tenantId)
+    // Si falla, el delete de abajo fallaría igual por la FK — pero con un error de FK confuso en
+    // vez de la causa real.
+    if (desenlaceErr)
+      return NextResponse.json(
+        { error: `No se pudo desenlazar las reagendas: ${desenlaceErr.message}` },
+        { status: 500 }
+      )
 
     const { error: delErr } = await sb.from('appointments').delete().eq('id', appointmentId).eq('tenant_id', t.tenantId)
     if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 })

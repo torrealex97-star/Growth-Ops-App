@@ -83,10 +83,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const c = conn as { id: string; refresh_token: string }
     const token = await accessTokenFromRefresh(c.refresh_token, creds)
     if ('error' in token) {
-      await sb
+      const { error: dbErr } = await sb
         .from('google_oauth_connections')
         .update({ status: token.revoked ? 'revocada' : 'error', last_error: token.error })
         .eq('id', c.id)
+      if (dbErr) console.warn('[facturas-email] no se pudo marcar el estado de error de la conexión:', dbErr.message)
       return NextResponse.json(
         {
           error: token.revoked
@@ -206,10 +207,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
 
     if (!dryRun) {
-      await sb
+      const { error: syncFlagErr } = await sb
         .from('google_oauth_connections')
         .update({ last_sync_at: new Date().toISOString(), status: 'conectada', last_error: null })
         .eq('id', c.id)
+      if (syncFlagErr) console.warn('[facturas-email] no se pudo actualizar last_sync_at:', syncFlagErr.message)
     }
 
     return NextResponse.json({

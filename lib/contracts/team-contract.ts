@@ -127,7 +127,14 @@ export async function crearContratoEquipo(input: ContratoEquipoInput): Promise<C
     }
     const personalEmail = providedPersonalEmail || member.personal_email || null
     if (providedPersonalEmail && providedPersonalEmail !== member.personal_email) {
-      await sb.from('users').update({ personal_email: providedPersonalEmail }).eq('id', member.id)
+      const { error: emailErr } = await sb
+        .from('users')
+        .update({ personal_email: providedPersonalEmail })
+        .eq('id', member.id)
+      // Se usa como cc del envío justo debajo con la variable local `personalEmail` (ya resuelta),
+      // así que el email de este contrato sale igual; solo el PRÓXIMO envío se quedaría sin él.
+      if (emailErr)
+        console.error(`[team-contract] no se pudo guardar el correo personal de ${member.id}:`, emailErr.message)
     }
 
     // Plantilla: la indicada, o la de equipo activa del rol del colaborador
@@ -243,16 +250,30 @@ export async function crearContratoEquipo(input: ContratoEquipoInput): Promise<C
       const r = await sendContractEmail({ mail, to: primary, cc, memberName: member.full_name, company, signUrl })
       emailed = r.ok
       emailError = r.ok ? null : (r.error ?? null)
-      if (r.ok) await sb.from('contracts').update({ email_sent_at: now }).eq('id', created.id).eq('tenant_id', tenantId)
+      if (r.ok) {
+        const { error: flagErr } = await sb
+          .from('contracts')
+          .update({ email_sent_at: now })
+          .eq('id', created.id)
+          .eq('tenant_id', tenantId)
+        // El email SÍ se envió; si esto falla la UI mostrará "no enviado" y alguien podría reenviarlo
+        // duplicado.
+        if (flagErr)
+          console.error(
+            `[team-contract] contrato ${created.id}: enviado pero sin marcar email_sent_at:`,
+            flagErr.message
+          )
+      }
     }
 
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: tenantId,
       entity_type: 'contract',
       entity_id: created.id,
       action: 'create',
       new_values: { kind: 'equipo', user_id: member.id, created_by: createdBy, emailed, automatico: !input.force },
     })
+    if (auditErr) console.error(`[team-contract] contrato ${created.id}: creado sin auditoría:`, auditErr.message)
 
     return {
       ok: true,

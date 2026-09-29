@@ -295,7 +295,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           // el hecho se puede volver a derivar de él cuando se arregle lo que falló.
           console.warn('[ghl-webhook] no se pudo escribir el hecho canónico:', errorHecho.message)
         } else if (escrito?.id) {
-          await sb.from('raw_events').update({ canonical_event_id: escrito.id }).eq('id', sobreId)
+          const { error: enlaceErr } = await sb
+            .from('raw_events')
+            .update({ canonical_event_id: escrito.id })
+            .eq('id', sobreId)
+          if (enlaceErr) console.warn('[ghl-webhook] no se pudo enlazar el hecho canónico:', enlaceErr.message)
         }
       }
 

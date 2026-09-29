@@ -237,8 +237,7 @@ export async function reprocesar(
       continue
     }
 
-    resumen.reprocesados++
-    await sb
+    const { error: marcaErr } = await sb
       .from('raw_events')
       .update({
         normalizer_version: versionObjetivo,
@@ -246,6 +245,16 @@ export async function reprocesar(
         processed_at: new Date().toISOString(),
       })
       .eq('id', sobre.id)
+    // Si la marca no se guarda, el sobre sigue con la versión vieja y la próxima pasada lo vuelve
+    // a reprocesar — no se cuenta como "reprocesado" si no quedó constancia de que lo fue.
+    if (marcaErr) {
+      resumen.fallidos++
+      if (resumen.muestra.length < MUESTRA_MAX) {
+        resumen.muestra.push({ sobre: sobre.id, accion: 'reprocesar', motivo: marcaErr.message })
+      }
+      continue
+    }
+    resumen.reprocesados++
 
     if (opciones.deadline && Date.now() > opciones.deadline) break
   }

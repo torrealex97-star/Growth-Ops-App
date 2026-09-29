@@ -83,10 +83,13 @@ test('el cleanup por tenant es quirúrgico: escopado a los usuarios marcadores Q
   // cliente, es anterior y no cuenta: no toca actividad de otros agentes).
   const trasScope = tenantCleanup.slice(idxScope)
   assert.ok(
-    trasScope.includes('from("collaborator_profiles").delete()'),
-    'perfiles borrados tras el escopo por usuario QA'
+    trasScope.includes('borrar("collaborator_profiles",'),
+    'perfiles borrados (vía el helper borrar()) tras el escopo por usuario QA'
   )
-  assert.ok(trasScope.includes('from("contracts").delete()'), 'contratos borrados tras el escopo por usuario QA')
+  assert.ok(
+    trasScope.includes('borrar("contracts",'),
+    'contratos borrados (vía el helper borrar()) tras el escopo por usuario QA'
+  )
 })
 
 test('los datos QA llevan marcadores reconocibles (QA Seed / qa-seed-*)', () => {

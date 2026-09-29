@@ -75,7 +75,14 @@ export async function generateDraftForMedia(
     if (!transcript) {
       if (!media.media_url) throw new Error('Este contenido no tiene vídeo descargable')
       transcript = await transcribeMediaUrl(media.media_url, groqKey)
-      await sb.from('ig_competitor_media').update({ transcript }).eq('id', media.id).eq('tenant_id', tenantId)
+      const { error: cacheErr } = await sb
+        .from('ig_competitor_media')
+        .update({ transcript })
+        .eq('id', media.id)
+        .eq('tenant_id', tenantId)
+      // Es caché: si falla, no se pierde nada salvo tener que volver a pagar Groq en la próxima pasada.
+      if (cacheErr)
+        console.warn(`[reels/generate] no se pudo cachear la transcripción de ${media.id}:`, cacheErr.message)
     }
 
     const [styleBlock, businessContext] = await Promise.all([readStylePrompt(tenantId), readBusinessContext(tenantId)])
@@ -104,17 +111,28 @@ export async function generateDraftForMedia(
     }
 
     if (draftId) {
-      await sb.from('reel_drafts').update(row).eq('id', draftId).eq('tenant_id', tenantId)
+      const { error: saveErr } = await sb.from('reel_drafts').update(row).eq('id', draftId).eq('tenant_id', tenantId)
+      // El guion (Claude) y la transcripción (Groq) ya están pagados: si esto falla, el cron
+      // igual cuenta el draft como creado y el trabajo se pierde sin dejar rastro.
+      if (saveErr) return { ok: false, error: `Generado pero no guardado: ${saveErr.message}` }
     } else {
-      await sb.from('reel_drafts').upsert(row, { onConflict: 'source_media_id' })
+      const { error: saveErr } = await sb.from('reel_drafts').upsert(row, { onConflict: 'source_media_id' })
+      if (saveErr) return { ok: false, error: `Generado pero no guardado: ${saveErr.message}` }
     }
     return { ok: true }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     if (draftId) {
-      await sb.from('reel_drafts').update({ gen_error: msg }).eq('id', draftId).eq('tenant_id', tenantId)
+      const { error: markErr } = await sb
+        .from('reel_drafts')
+        .update({ gen_error: msg })
+        .eq('id', draftId)
+        .eq('tenant_id', tenantId)
+      // Si ni esto se guarda, el borrador no queda marcado para regenerarse y el fallo es invisible.
+      if (markErr)
+        console.error(`[reels/generate] draft ${draftId}: fallo sin poder marcar gen_error:`, markErr.message)
     } else {
-      await sb.from('reel_drafts').upsert(
+      const { error: markErr } = await sb.from('reel_drafts').upsert(
         {
           tenant_id: tenantId,
           source_media_id: media.id,
@@ -128,6 +146,8 @@ export async function generateDraftForMedia(
         },
         { onConflict: 'source_media_id' }
       )
+      if (markErr)
+        console.error(`[reels/generate] media ${media.id}: fallo sin poder marcar gen_error:`, markErr.message)
     }
     return { ok: false, error: msg }
   }

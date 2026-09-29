@@ -173,7 +173,11 @@ No inventes; si la transcripción es pobre, refléjalo en los scores.`
 async function processOne(appt) {
   const id = appt.id
   console.log(`[${id}] procesando…`)
-  await sb.from('appointments').update({ transcript_status: 'procesando' }).eq('id', id)
+  const { error: procesandoErr } = await sb
+    .from('appointments')
+    .update({ transcript_status: 'procesando' })
+    .eq('id', id)
+  if (procesandoErr) console.error(`[${id}] no se pudo marcar transcript_status=procesando:`, procesandoErr.message)
   const fileId = driveFileId(appt.transcript_drive_url || '')
   if (!fileId) throw new Error('Enlace de Drive no válido')
 
@@ -195,7 +199,7 @@ async function processOne(appt) {
     const contact = appt.contacts || {}
     const analysis = await analyzeCall(transcript, contact.full_name)
 
-    await sb
+    const { error: saveErr } = await sb
       .from('appointments')
       .update({
         transcript,
@@ -208,6 +212,9 @@ async function processOne(appt) {
         ai_analyzed_at: new Date().toISOString(),
       })
       .eq('id', id)
+    // El análisis (Claude) y la transcripción ya están hechos: si esto falla, no se puede
+    // decir "LISTO" — se propaga para que el catch de tick() marque 'error' de verdad.
+    if (saveErr) throw new Error(`Analizado pero no guardado: ${saveErr.message}`)
 
     // Generación automática de tareas DESACTIVADA (pendiente de entrenamiento).
     console.log(`[${id}] LISTO — ${chunks.length} trozos (tareas automáticas desactivadas)`)
@@ -234,10 +241,12 @@ async function tick() {
     await processOne(appt)
   } catch (e) {
     console.error(`[${appt.id}] ERROR:`, e.message)
-    await sb
+    const { error: markErr } = await sb
       .from('appointments')
       .update({ transcript_status: 'error', ai_summary: `Error: ${e.message}` })
       .eq('id', appt.id)
+    // Si ni esto se guarda, la cita se queda en 'procesando' para siempre y nadie la reintentará.
+    if (markErr) console.error(`[${appt.id}] no se pudo marcar transcript_status=error:`, markErr.message)
   }
 }
 
