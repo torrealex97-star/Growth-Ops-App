@@ -1,5 +1,24 @@
 # Relevo activo
 
+## Estado de entrega — 28-sep-2026
+
+PR [#284](https://github.com/torrealex97-star/Growth-Ops-App/pull/284) **fusionado** en `main`, commit `5b74885`. CI del head `24aa455`: formato, lint, tipos, unitarias/métricas, build, secretos y Smoke E2E **PASS**. La preview omitida de Supabase no equivale a una prueba ejecutada.
+
+El despliegue de producción asociado al merge sigue **PENDING** en la última consulta a GitHub; se observó en cola en Vercel. No afirmar que la web pública contiene estos cambios ni que el flujo de registro se ha probado allí. Un commit posterior de main puede sustituir este despliegue: verificar que incluye `5b74885` y su estado READY antes del smoke.
+
+### Continuación priorizada y criterio de cierre
+
+1. **Producción y cobros**: comprobar despliegue del merge o descendiente; revisar Ventas y campana con sesión existente. Verificar lista, permisos admin/closer y formulario nueva venta/cuota. El alta real no se ejecutó: probar persistencia, idempotencia y comisiones en QA con datos de prueba, nunca registrar ventas ficticias en un tenant real.
+2. **Otras fuentes**: Stripe es la única bandeja automática implementada. Confirmar proveedores realmente activos antes de añadir conectores. Transferencias y otras fuentes manuales conservan su flujo; la integración de deuda no demuestra ingesta de cobros.
+3. **Cobertura operativa**: completar paginación y aislamiento de ventas/atribución/usuarios en Registro; comprobar más de 1.000 filas y errores de fuente sin convertirlos en cero.
+4. **Finanzas**: revisar Cobros, Morosidad y Conciliación. Explicar y conciliar consolidado Stripe + interno frente al libro interno, planes incompletos y comisiones por creación frente a liquidación. No forzar igualdad entre universos distintos.
+5. **Atribución y tasas**: revisar periodos, muestra, asignación y cohortes maduras; Show Rate sobre citas resueltas según contrato canónico. Orden obligatorio: definición → fuente → completitud → periodo → madurez → asignación → cálculo → benchmark. Un benchmark nunca prueba por sí solo un error.
+6. **Visual/responsive**: verificar dashboards en móvil y escritorio con branding del tenant. Mantener métricas documentadas; no rellenar ausencias con datos ilustrativos. Clientes/retención aplazados por indicación del usuario.
+
+Documentación canónica: `docs/SOURCE_OF_TRUTH.md`, `docs/METRICS.md`, `docs/MONEY.md`. Cash Collected medio de venta nueva representa la primera transacción de esas ventas, no todo el cash del periodo dividido entre ventas nuevas. La consulta de liquidaciones fue solo lectura; no se borraron ni modificaron comisiones. El detalle financiero permanece en la base de datos, no en este repositorio.
+
+Esta actualización documental no reserva archivos para implementación futura. Reclamar el siguiente lote antes de editarlo; no retomar todo el backlog simultáneamente.
+
 ## Codex — cobros pendientes en Ventas y campana, 28-sep
 
 Rama `codex/finance-breakdown-donuts` / PR #284, ampliada por petición del usuario. Bandeja de cobros Stripe sincronizados sin referencia interna en Ventas y en notificaciones; closers solo contactos asignados, admin/director pendientes globales del tenant. Lecturas paginadas, identidades ambiguas no asignadas por intuición. Registro humano de venta nueva (producto, plan, total pactado y cuotas restantes) o cobro de venta existente. Importe, moneda, estado y fee se verifican contra Stripe antes de escribir. Reserva existente conserva su estado: completar el producto/plan desde el detalle de venta. Fuentes manuales conservan el registro habitual; no se añadió un conector automático inexistente para seQura/transferencias.
@@ -8,15 +27,15 @@ Migración `20260928191947_resolve_payment_inbox.sql` APLICADA mediante Supabase
 
 Validaciones: quality PASS (1.141 unitarias, 3 omitidas; 783 métricas), build PASS, dead-code informativo. `tests/integration/payment-inbox-postgres.mjs` ejecutado contra PGlite aislado: alta, reintento, cuota existente, rollback de plan inválido/cobro manual y permisos. Para repetir, instalar PGlite fuera del repo y pasar `PGLITE_TEST_MODULE` a su módulo ESM. Sin dependencia nueva de producción. Advisor de seguridad no menciona la función nueva.
 
-Verificado local con build optimizado: lista, contador y campana con enlace a Ventas; formulario inline, opciones de venta nueva/cuota y estado sin ventas existentes. El modal inicial bloqueó el renderizador del navegador integrado; sustituido por edición inline, comprobada visualmente sin bloqueo. No se pulsó Guardar sobre pagos reales. CI/deploy del nuevo commit pendientes; NO afirmar publicado. El E2E de la revisión anterior del PR fue CANCELADO por concurrencia (no fallo de código).
+Verificado local con build optimizado: lista, contador y campana con enlace a Ventas; formulario inline, opciones de venta nueva/cuota y estado sin ventas existentes. El modal inicial bloqueó el renderizador del navegador integrado; sustituido por edición inline, comprobada visualmente sin bloqueo. No se pulsó Guardar sobre pagos reales. CI del head final PASS, incluido Smoke E2E; PR #284 fusionado. Despliegue público pendiente de verificación. El E2E de la revisión anterior del PR fue CANCELADO por concurrencia (no fallo de código).
 
-Servidor local optimizado 127.0.0.1:3100, configuración existente únicamente en memoria. Siguiente: esperar CI del nuevo commit antes de fusionar y verificar despliegue. Seguir preguntando por otras fuentes automáticas si el usuario confirma alguna; hoy solo Stripe aporta pagos no registrados en el espejo.
+Servidor local optimizado 127.0.0.1:3100, configuración existente únicamente en memoria. Siguiente: verificar despliegue de producción y ejecutar el smoke indicado arriba. Seguir preguntando por otras fuentes automáticas si el usuario confirma alguna; hoy solo Stripe aporta pagos no registrados en el espejo.
 
 ## Codex — gráficos circulares de Finanzas (28-sep)
 
 Rama `codex/finance-breakdown-donuts`. Los tres desgloses de Negocio (cobros por mes de venta, gastos y comisiones por función) reutilizan `FinanceBreakdown`, igual que Finanzas. Fuentes y cálculos intactos. Se conserva la leyenda completa, incluidos ceros, y el estado de ajustes negativos. Corregido el aviso de agrupación: ya no aparece cuando solo se excluyen ceros del anillo.
 
-Quality completo PASS y los tres anillos verificados visualmente en localhost:3100. Servidor local ahora en modo dev, configuración existente solo en memoria. Pendiente CI del PR y despliegue; no afirmar publicado hasta comprobarlos. Archivos: `components/os/BusinessFinance.tsx`, `components/finanzas/FinanceCharts.tsx`. Sin datos privados ni cambios de base de datos.
+Quality completo PASS y los tres anillos verificados visualmente en localhost:3100. Servidor local sustituido después por build optimizado, configuración solo en memoria. Incluido en PR #284 fusionado, CI PASS; producción pendiente de verificación. Archivos: `components/os/BusinessFinance.tsx`, `components/finanzas/FinanceCharts.tsx`. Sin datos privados ni cambios de base de datos.
 
 ## CODEX — continuación de auditoría, 28-sep
 

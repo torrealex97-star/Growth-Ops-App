@@ -1,5 +1,19 @@
 # PENDIENTES — [tenant] OS
 
+## Actualización de entrega — 2026-09-28
+
+Este bloque actualiza únicamente dashboards y registro de cobros; el inventario histórico inferior no se ha revalidado completo. Estado y criterios de aceptación en [ACTIVE_HANDOFF](docs/ACTIVE_HANDOFF.md).
+
+- [x] PR #284 fusionado (`5b74885`): tres desgloses financieros circulares, bandeja Stripe en Ventas y notificaciones, registro transaccional e idempotente con revisión humana.
+- [x] CI del head final: calidad, build, secretos y Smoke E2E aprobados; SQL probado con datos sintéticos y UI local inspeccionada sin registrar cobros reales.
+- [ ] Confirmar producción READY para el merge o descendiente y verificar el flujo publicado. Última consulta: Vercel PENDING.
+- [ ] Completar prueba de registro de pago y permisos por rol en QA; no confundir inspección visual con alta real comprobada.
+- [ ] Confirmar otras fuentes automáticas de cobro antes de ampliar la bandeja (actualmente solo Stripe).
+- [ ] Completar paginación/aislamiento del Registro de ventas y auditoría de Cobros, Morosidad y Conciliación.
+- [ ] Completar atribución, cohortes y diagnósticos conforme a los contratos canónicos, antes de comparar benchmarks.
+- [ ] Verificar responsive de dashboards. Clientes/retención aplazados por el usuario.
+
+
 > ## Estado de consolidación (2026-09-22)
 >
 > `origin/main` está publicado en `c2c3e6a33a847b9d3220b9783a01106dc87f73c8` mediante la PR #173, que actualizó este handoff y este backlog. Las PR #171 y #172 también están fusionadas; sus checks de código fueron verdes. La PR #173 solo cambió documentación y no generó workflow nuevo por `paths-ignore`; Supabase Preview quedó omitido. El checkout compartido conserva WIP no publicado; no tratarlo como desplegado ni mezclarlo sin PR atómico.
