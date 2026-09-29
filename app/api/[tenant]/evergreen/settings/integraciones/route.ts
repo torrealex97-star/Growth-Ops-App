@@ -520,19 +520,17 @@ async function saveLastCheck(tenantId: string, group: string, result: ProbeResul
   current[group] = { ok: result.ok, message: result.message, code: result.code, checkedAt: new Date().toISOString() }
   // Un fallo al guardar el estado NO puede tumbar la comprobación: el usuario ya tiene su respuesta,
   // y como máximo la luz seguirá gris ("sin comprobar"), que es lo honesto si no se pudo registrar.
-  await client
-    .from('integration_settings')
-    .upsert(
-      {
-        tenant_id: tenantId,
-        key: HEALTH_KEY,
-        value: JSON.stringify(current),
-        is_secret: false,
-        label: 'Último resultado de comprobación por integración',
-      },
-      { onConflict: 'tenant_id,key' }
-    )
-    .select('key')
+  const { error } = await client.from('integration_settings').upsert(
+    {
+      tenant_id: tenantId,
+      key: HEALTH_KEY,
+      value: JSON.stringify(current),
+      is_secret: false,
+      label: 'Último resultado de comprobación por integración',
+    },
+    { onConflict: 'tenant_id,key' }
+  )
+  if (error) console.warn(`[settings/integraciones] no se pudo guardar el estado de ${group}:`, error.message)
 }
 
 // Habla con la API de cada integración y devuelve un veredicto en claro.

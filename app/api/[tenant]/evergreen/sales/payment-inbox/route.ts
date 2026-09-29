@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
+import { getTenantConfigWithFallback } from '@/lib/config'
+import { stripeGet } from '@/lib/stripe/client'
 import { readPaymentInbox } from '@/lib/sales/payment-inbox'
+import { firstInvoiceLinePriceId, resolveByPriceId } from '@/lib/sales/priceRecognition'
 
 export const runtime = 'nodejs'
 export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
@@ -54,7 +57,50 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
         session.role === 'closer' && !session.isSuperAdmin
           ? (sales.data ?? []).filter((s) => s.closer_id === session.userId)
           : (sales.data ?? [])
-      return NextResponse.json({ payment, products: products.data, plans: plans.data, sales: visibleSales })
+
+      // RECONOCIMIENTO POR PRICE ID (best-effort): si el cobro viene de una factura (suscripción/
+      // plan de cuotas), su Price ID puede estar mapeado a un producto/plan en Integraciones. Un
+      // Payment Link de un solo pago sin factura no trae esta señal, y un fallo aquí NUNCA rompe
+      // la bandeja — el admin sigue pudiendo elegir a mano, igual que hoy.
+      let suggestion: { productId: string; paymentPlanId: string } | null = null
+      try {
+        const cfg = await getTenantConfigWithFallback(session.tenantId, true)
+        if (cfg.STRIPE_SECRET_KEY) {
+          const intent = await stripeGet<{ invoice?: unknown }>(
+            `payment_intents/${encodeURIComponent(paymentId)}`,
+            new URLSearchParams([['expand[]', 'invoice']]),
+            { secretKey: cfg.STRIPE_SECRET_KEY, accountId: cfg.STRIPE_ACCOUNT_ID }
+          )
+          const priceId = firstInvoiceLinePriceId(intent.invoice)
+          if (priceId) {
+            const { data: mapRows } = await sb
+              .from('stripe_price_map')
+              .select('stripe_price_id, product_id, payment_plan_id')
+              .eq('tenant_id', session.tenantId)
+              .eq('stripe_price_id', priceId)
+              .limit(1)
+            suggestion = resolveByPriceId(
+              priceId,
+              (mapRows ?? []).map((r) => ({
+                stripePriceId: r.stripe_price_id,
+                productId: r.product_id,
+                paymentPlanId: r.payment_plan_id,
+              }))
+            )
+          }
+        }
+      } catch {
+        // Best-effort: sin sugerencia, la bandeja funciona exactamente igual que antes de esto.
+      }
+
+      return NextResponse.json({
+        payment,
+        products: products.data,
+        plans: plans.data,
+        sales: visibleSales,
+        suggestedProductId: suggestion?.productId ?? null,
+        suggestedPaymentPlanId: suggestion?.paymentPlanId ?? null,
+      })
     }
     return NextResponse.json({ rows, total: rows.length })
   } catch {

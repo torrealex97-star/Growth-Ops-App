@@ -22,6 +22,8 @@ type Detail = {
     method: string | null
   }[]
   sales: { id: string; sale_date: string; gross_amount: number; products: { name: string } | null }[]
+  suggestedProductId: string | null
+  suggestedPaymentPlanId: string | null
 }
 const changed = 'growthops:payment-inbox-changed'
 
@@ -99,11 +101,16 @@ export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; 
       const body = await res.json()
       if (!res.ok) throw new Error(body.error)
       setDetail(body)
-      setMode('')
+      // Reconocido por Price ID (ver lib/sales/priceRecognition.ts): se prerrellena, pero sigue
+      // siendo una sugerencia — el admin/closer puede cambiarla antes de guardar.
+      const suggestedPlan = body.suggestedPaymentPlanId
+        ? (body.plans as Detail['plans']).find((p) => p.id === body.suggestedPaymentPlanId)
+        : null
+      setMode(body.suggestedProductId ? 'new' : '')
       setSaleId('')
-      setProduct('')
-      setPlan('')
-      setGross('')
+      setProduct(body.suggestedProductId ?? '')
+      setPlan(body.suggestedPaymentPlanId ?? '')
+      setGross(suggestedPlan ? String(suggestedPlan.gross_price) : '')
       setCount('')
       setStart('')
       setDate(body.payment.paid_at?.slice(0, 10) ?? '')
@@ -295,6 +302,12 @@ export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; 
                     {detail.sales.length > 0 && (
                       <p className="text-sm text-amber-400">
                         Este contacto ya tiene ventas. Confirma que es otra compra y no una cuota.
+                      </p>
+                    )}
+                    {detail.suggestedProductId && product === detail.suggestedProductId && (
+                      <p className="text-sm text-emerald-400">
+                        Producto y plan reconocidos por el Price ID de Stripe. Confirma que son correctos antes de
+                        guardar.
                       </p>
                     )}
                     <label className="block text-sm">

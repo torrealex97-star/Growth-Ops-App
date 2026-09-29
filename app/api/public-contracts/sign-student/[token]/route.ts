@@ -109,7 +109,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
 
   // Marca "leído" (primera apertura) si aún no está firmado.
   if (data.status !== 'firmado' && !data.read_at) {
-    await sb.from('contracts').update({ read_at: new Date().toISOString() }).eq('id', data.id)
+    const { error: readAtErr } = await sb
+      .from('contracts')
+      .update({ read_at: new Date().toISOString() })
+      .eq('id', data.id)
+    // Solo alimenta el tracking del closer (primera apertura): best-effort, se loguea para no
+    // perderlo en silencio.
+    if (readAtErr) console.warn(`[sign-student] contrato ${data.id}: no se pudo marcar read_at:`, readAtErr.message)
   }
 
   const terms = (data.terms ?? {}) as StudentContractTerms
@@ -243,14 +249,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
 
     // Persiste teléfono en el contacto si lo aportó al firmar.
     if (c.contact_id && sd.phone) {
-      await sb
-        .from('contacts')
-        .update({ phone: sd.phone })
-        .eq('id', c.contact_id)
-        .then(
-          () => {},
-          () => {}
-        )
+      const { error: phoneErr } = await sb.from('contacts').update({ phone: sd.phone }).eq('id', c.contact_id)
+      if (phoneErr)
+        console.warn(`[sign-student] contrato ${c.id}: no se pudo guardar el teléfono aportado:`, phoneErr.message)
     }
 
     // Dispara el webhook de onboarding a GHL SOLO en el contrato de alumno (venta
