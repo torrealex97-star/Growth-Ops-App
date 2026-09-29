@@ -47,9 +47,7 @@ async function main() {
   // 1. Tenants activos (y el filtro opcional por slug si Alex pasa uno).
   const slugFiltro = process.argv[2] || null
   const q = sb.from('tenants').select('id, slug, name').eq('status', 'active').order('name')
-  const { data: tenants, error: tErr } = slugFiltro
-    ? await q.eq('slug', slugFiltro)
-    : await q
+  const { data: tenants, error: tErr } = slugFiltro ? await q.eq('slug', slugFiltro) : await q
   if (tErr) throw new Error(`tenants: ${tErr.message}`)
   console.log(`Subcuentas activas: ${tenants.length}${slugFiltro ? ` (filtro slug=${slugFiltro})` : ''}`)
 
@@ -78,7 +76,9 @@ async function main() {
       console.log(`\n[${t.slug}] GHL_API_TOKEN presente pero NO descifrable con CONFIG_ENC_KEY local: ${e.message}`)
       continue
     }
-    console.log(`\n[${t.slug}] credencial GHL presente (${ghlToken.is_secret ? 'cifrada' : 'en claro'}) — probando API…`)
+    console.log(
+      `\n[${t.slug}] credencial GHL presente (${ghlToken.is_secret ? 'cifrada' : 'en claro'}) — probando API…`
+    )
 
     // 3. GET /conversations/search, mismos parámetros que la ruta en producción.
     const u = new URL('https://services.leadconnectorhq.com/conversations/search')
@@ -111,10 +111,13 @@ async function main() {
     // 5. Claves de mensajes de la primera conversación (la otra llamada que hace la ruta).
     const firstId = convs[0]?.id
     if (firstId) {
-      const resM = await fetch(`https://services.leadconnectorhq.com/conversations/${encodeURIComponent(firstId)}/messages?limit=50`, {
-        headers: { Authorization: `Bearer ${token}`, Version: '2021-07-28', Accept: 'application/json' },
-        signal: AbortSignal.timeout(20_000),
-      })
+      const resM = await fetch(
+        `https://services.leadconnectorhq.com/conversations/${encodeURIComponent(firstId)}/messages?limit=50`,
+        {
+          headers: { Authorization: `Bearer ${token}`, Version: '2021-07-28', Accept: 'application/json' },
+          signal: AbortSignal.timeout(20_000),
+        }
+      )
       const bodyM = await resM.json().catch(() => ({}))
       console.log(`mensajes HTTP ${resM.status}`)
       const wm = bodyM.messages ?? {}
