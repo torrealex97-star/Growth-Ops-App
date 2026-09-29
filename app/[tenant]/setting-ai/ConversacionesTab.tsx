@@ -3,6 +3,9 @@ import { useTenant } from '@/lib/tenant-context'
 import { useEffect, useState } from 'react'
 import { Sparkles, ChevronDown, ChevronRight, Loader2, MessageCircle, ExternalLink } from 'lucide-react'
 import { formatNumber, formatPercent } from '@/lib/utils'
+import { SearchBox } from '@/components/ui/search-box'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { canalesDisponibles, filtrarConversaciones } from '@/lib/setting-ai/filtrar-conversaciones'
 
 type ConvMsg = { from: 'agente' | 'lead'; text?: string; created_time?: string }
 type IgConversation = {
@@ -75,8 +78,13 @@ export default function ConversacionesTab() {
   const [metricas, setMetricas] = useState<
     Partial<Record<'instagram' | 'ghl', { resumen?: ResumenMetricas; motivo?: string }>>
   >({})
+  const [busqueda, setBusqueda] = useState('')
+  const [canal, setCanal] = useState('todos')
 
   useEffect(() => {
+    // Cambiar de plataforma limpia también el filtro: la lista nueva no comparte canales.
+    setBusqueda('')
+    setCanal('todos')
     if (platform !== 'instagram' && platform !== 'ghl') {
       setConfigured(false)
       setConversations([])
@@ -171,6 +179,9 @@ export default function ConversacionesTab() {
     }
   }
 
+  const canales = canalesDisponibles(conversations)
+  const visibles = filtrarConversaciones(conversations, busqueda, canal)
+
   return (
     <div className="flex flex-col h-[calc(100vh-6.5rem)] text-foreground">
       <div className="flex items-center gap-3 flex-wrap pb-3 border-b border-border">
@@ -180,6 +191,34 @@ export default function ConversacionesTab() {
             Extrae y analiza con IA las conversaciones reales: redes sociales y la bandeja de GHL.
           </p>
           {motivo && configured && <p className="text-2xs text-amber-500/90 leading-tight mt-0.5">{motivo}</p>}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap pb-3">
+          <SearchBox
+            value={busqueda}
+            onChange={setBusqueda}
+            placeholder="Buscar por nombre, email o teléfono…"
+            className="w-64"
+          />
+          {canales.length > 1 && (
+            <Select value={canal} onValueChange={setCanal}>
+              <SelectTrigger className="w-40 bg-card border-border" aria-label="Filtrar por canal">
+                <SelectValue placeholder="Canal" />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border">
+                <SelectItem value="todos">Todos los canales</SelectItem>
+                {canales.map((ch) => (
+                  <SelectItem key={ch} value={ch}>
+                    {ch.toUpperCase()}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {!loading && !error && configured !== false && conversations.length > 0 && (
+            <span className="text-2xs text-muted-foreground">
+              {visibles.length} de {conversations.length} conversaciones
+            </span>
+          )}
         </div>
         <div className="flex-1" />
         <div className="flex rounded-lg border border-border overflow-hidden text-xs">
@@ -233,83 +272,89 @@ export default function ConversacionesTab() {
           <p className="text-muted-foreground text-sm text-center py-10">No hay conversaciones recientes.</p>
         ) : (
           <div className="flex flex-col gap-2 max-w-3xl mx-auto">
-            {conversations.map((c) => (
-              <div key={c.id} className="border border-border rounded-xl overflow-hidden">
-                <button
-                  onClick={() => setOpenId(openId === c.id ? null : c.id)}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-muted/50"
-                >
-                  {openId === c.id ? (
-                    <ChevronDown className="w-4 h-4 shrink-0" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4 shrink-0" />
-                  )}
-                  <span className="font-medium text-sm flex-1 truncate">
-                    {c.contactoVinculado?.full_name || c.participant || c.contact_name || 'Lead sin nombre'}
-                  </span>
-                  {c.channel && (
-                    <span className="text-3xs text-muted-foreground border border-border rounded px-1 py-0.5 uppercase">
-                      {c.channel}
-                    </span>
-                  )}
-                  {c.unread_count > 0 && (
-                    <span className="text-3xs bg-brand-600 text-white rounded-full px-1.5 py-0.5">
-                      {c.unread_count} sin leer
-                    </span>
-                  )}
-                  <span className="text-2xs text-muted-foreground">{c.message_count} msgs</span>
-                </button>
-                {openId === c.id && (
-                  <div className="border-t border-border p-3 bg-background">
-                    {c.messages.length === 0 ? (
-                      <p className="text-muted-foreground text-xs mb-3">
-                        No se pudo extraer la transcripción de esta conversación.
-                      </p>
+            {visibles.length === 0 ? (
+              <p className="text-muted-foreground text-sm text-center py-10">
+                Ninguna conversación coincide con la búsqueda.
+              </p>
+            ) : (
+              visibles.map((c) => (
+                <div key={c.id} className="border border-border rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => setOpenId(openId === c.id ? null : c.id)}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-muted/50"
+                  >
+                    {openId === c.id ? (
+                      <ChevronDown className="w-4 h-4 shrink-0" />
                     ) : (
-                      <div className="flex flex-col gap-1.5 max-h-64 overflow-y-auto mb-3">
-                        {c.messages.map((m, i) => (
-                          <div
-                            key={i}
-                            className={`text-xs max-w-[80%] rounded-2xl px-3 py-1.5 whitespace-pre-wrap ${m.from === 'agente' ? 'self-start bg-muted' : 'self-end bg-brand-600/20 ml-auto'}`}
-                          >
-                            {m.text}
-                          </div>
-                        ))}
-                      </div>
+                      <ChevronRight className="w-4 h-4 shrink-0" />
                     )}
-                    {platform === 'ghl' &&
-                      (c.contactoVinculado ? (
-                        <a
-                          href={`/${tenant}/crm/contactos/${c.contactoVinculado.id}`}
-                          className="flex items-center gap-1 text-2xs text-brand-400 hover:opacity-80 mb-2"
-                          title={`Perfil vinculado (${c.vinculacion === 'ghl_contact_id' ? 'ID de GHL' : c.vinculacion === 'email' ? 'email' : 'teléfono'})`}
-                        >
-                          <ExternalLink className="w-3 h-3" /> Ver perfil: {c.contactoVinculado.full_name}
-                        </a>
-                      ) : (
-                        <p className="text-2xs text-muted-foreground mb-2 flex items-center gap-1">
-                          <MessageCircle className="w-3 h-3" /> Sin perfil vinculado en el CRM (coincide por ID de GHL,
-                          email o teléfono).
+                    <span className="font-medium text-sm flex-1 truncate">
+                      {c.contactoVinculado?.full_name || c.participant || c.contact_name || 'Lead sin nombre'}
+                    </span>
+                    {c.channel && (
+                      <span className="text-3xs text-muted-foreground border border-border rounded px-1 py-0.5 uppercase">
+                        {c.channel}
+                      </span>
+                    )}
+                    {c.unread_count > 0 && (
+                      <span className="text-3xs bg-brand-600 text-white rounded-full px-1.5 py-0.5">
+                        {c.unread_count} sin leer
+                      </span>
+                    )}
+                    <span className="text-2xs text-muted-foreground">{c.message_count} msgs</span>
+                  </button>
+                  {openId === c.id && (
+                    <div className="border-t border-border p-3 bg-background">
+                      {c.messages.length === 0 ? (
+                        <p className="text-muted-foreground text-xs mb-3">
+                          No se pudo extraer la transcripción de esta conversación.
                         </p>
-                      ))}
-                    <button
-                      onClick={() => analyze(c)}
-                      disabled={analyzing === c.id || c.messages.length === 0}
-                      className="bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white rounded-lg px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5"
-                    >
-                      {analyzing === c.id ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : (
-                        <Sparkles className="w-3.5 h-3.5" />
+                        <div className="flex flex-col gap-1.5 max-h-64 overflow-y-auto mb-3">
+                          {c.messages.map((m, i) => (
+                            <div
+                              key={i}
+                              className={`text-xs max-w-[80%] rounded-2xl px-3 py-1.5 whitespace-pre-wrap ${m.from === 'agente' ? 'self-start bg-muted' : 'self-end bg-brand-600/20 ml-auto'}`}
+                            >
+                              {m.text}
+                            </div>
+                          ))}
+                        </div>
                       )}
-                      Analizar con IA
-                    </button>
-                    {analyzeError[c.id] && <p className="text-red-400 text-xs mt-2">{analyzeError[c.id]}</p>}
-                    {analyses[c.id] && <AnalysisCard a={analyses[c.id]} />}
-                  </div>
-                )}
-              </div>
-            ))}
+                      {platform === 'ghl' &&
+                        (c.contactoVinculado ? (
+                          <a
+                            href={`/${tenant}/crm/contactos/${c.contactoVinculado.id}`}
+                            className="flex items-center gap-1 text-2xs text-brand-400 hover:opacity-80 mb-2"
+                            title={`Perfil vinculado (${c.vinculacion === 'ghl_contact_id' ? 'ID de GHL' : c.vinculacion === 'email' ? 'email' : 'teléfono'})`}
+                          >
+                            <ExternalLink className="w-3 h-3" /> Ver perfil: {c.contactoVinculado.full_name}
+                          </a>
+                        ) : (
+                          <p className="text-2xs text-muted-foreground mb-2 flex items-center gap-1">
+                            <MessageCircle className="w-3 h-3" /> Sin perfil vinculado en el CRM (coincide por ID de
+                            GHL, email o teléfono).
+                          </p>
+                        ))}
+                      <button
+                        onClick={() => analyze(c)}
+                        disabled={analyzing === c.id || c.messages.length === 0}
+                        className="bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white rounded-lg px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5"
+                      >
+                        {analyzing === c.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5" />
+                        )}
+                        Analizar con IA
+                      </button>
+                      {analyzeError[c.id] && <p className="text-red-400 text-xs mt-2">{analyzeError[c.id]}</p>}
+                      {analyses[c.id] && <AnalysisCard a={analyses[c.id]} />}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         )}
       </div>
