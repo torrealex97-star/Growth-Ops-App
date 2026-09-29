@@ -295,7 +295,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           // el hecho se puede volver a derivar de él cuando se arregle lo que falló.
           console.warn('[ghl-webhook] no se pudo escribir el hecho canónico:', errorHecho.message)
         } else if (escrito?.id) {
-          await sb.from('raw_events').update({ canonical_event_id: escrito.id }).eq('id', sobreId)
+          const { error: enlaceErr } = await sb
+            .from('raw_events')
+            .update({ canonical_event_id: escrito.id })
+            .eq('id', sobreId)
+          if (enlaceErr) console.warn('[ghl-webhook] no se pudo enlazar el hecho canónico:', enlaceErr.message)
         }
       }
 
@@ -450,7 +454,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       // datos (triggers de backfill, reporting) vea la misma señal textual.
       if (refCode && !toque.utmContent) toque.utmContent = refCode
       if (colaboradorId || toqueTieneDatos(toque)) {
-        await registrarToque(sb, tenantId, contact.id, { ...toque, enEl: now, colaboradorId })
+        const r = await registrarToque(sb, tenantId, contact.id, { ...toque, enEl: now, colaboradorId })
+        if (!r.ok) console.warn('[atribucion] no se pudo registrar el toque:', r.error)
       }
     } catch (e) {
       console.warn('[atribucion] no se pudo registrar el toque:', e instanceof Error ? e.message : e)

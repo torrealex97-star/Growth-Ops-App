@@ -97,11 +97,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Antes de insertar: si esta venta no tenía NINGÚN cobro previo, este es el primero
     // (equivale a "venta creada" de cara a creatuagente, que no ve el alta de la venta en sí,
     // solo el cobro).
-    const { count: priorCollections } = await sb
+    const { count: priorCollections, error: priorErr } = await sb
       .from('collections')
       .select('id', { count: 'exact', head: true })
       .eq('tenant_id', t.tenantId)
       .eq('sale_id', saleId)
+    // El count fallido NO se interpreta: "¿es el primer cobro?" con una lectura corrupta sería
+    // reenviar el evento `venta.registrada` a Creatuagente (el count null activaría la rama
+    // isFirstCollection). Fail-ruidoso: el usuario reintenta y el endpoint es idempotente.
+    if (priorErr) {
+      return NextResponse.json(
+        { error: `No se pudo comprobar si es el primer cobro de la venta: ${priorErr.message}` },
+        { status: 500 }
+      )
+    }
     const isFirstCollection = !priorCollections
 
     const { data: coll, error: collErr } = await sb

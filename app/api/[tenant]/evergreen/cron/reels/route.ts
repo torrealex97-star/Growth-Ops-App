@@ -7,7 +7,11 @@ import { businessToday } from '@/lib/dates/business'
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-const TIME_BUDGET_MS = 270_000 // deja margen sobre maxDuration=300s
+// Presupuesto por INVOCACIÓN: el runtime de Vercel corta a maxDuration (60 s), así que el
+// presupuesto real es 60 − cold start/margen (~15 s). El valor anterior (270 s, con comentario
+// "sobre maxDuration=300") era inalcanzable: la función moría a mitad de una generación y ni
+// siquiera llegaba a persistir el esqueleto de los candidatos no procesados.
+const TIME_BUDGET_MS = 45_000
 
 function svc(): SupabaseClient {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -73,23 +77,33 @@ async function runForTenant(
   let errors = 0
   let skipped = 0
 
+  // Esqueleto INMEDIATO para TODOS los candidatos de esta invocación (status 'pendiente'):
+  // si el runtime corta en medio, los que no dieron tiempo a generar ya están registrados
+  // y la próxima pasada los regenera. Luego se sobrescriben con el draft real al generarse.
+  if ((candidates as CompetitorMediaRow[]).length > 0) {
+    const { error: esqueletoErr } = await sb.from('reel_drafts').upsert(
+      (candidates as CompetitorMediaRow[]).map((candidate) => ({
+        tenant_id: tenantId,
+        source_media_id: candidate.id,
+        source_permalink: candidate.permalink,
+        source_account: usernameOf.get(candidate.competitor_id) || null,
+        thumbnail_url: candidate.thumbnail_url,
+        caption: candidate.caption,
+        status: 'pendiente' as const,
+        gen_error: 'pendiente de generar',
+        draft_day: today,
+      })),
+      { onConflict: 'source_media_id' }
+    )
+    // Es justo la red de seguridad para un corte a mitad de invocación: si el esqueleto no se
+    // guarda, esos candidatos se pierden sin que la siguiente pasada sepa que existían.
+    if (esqueletoErr)
+      console.error(`[cron/reels] no se pudieron persistir los esqueletos de ${tenantId}:`, esqueletoErr.message)
+  }
+
   for (const candidate of candidates as CompetitorMediaRow[]) {
     if (Date.now() - startedAt > TIME_BUDGET_MS) {
-      // Sin presupuesto de tiempo: deja un esqueleto para regenerar en la próxima pasada.
-      await sb.from('reel_drafts').upsert(
-        {
-          tenant_id: tenantId,
-          source_media_id: candidate.id,
-          source_permalink: candidate.permalink,
-          source_account: usernameOf.get(candidate.competitor_id) || null,
-          thumbnail_url: candidate.thumbnail_url,
-          caption: candidate.caption,
-          status: 'pendiente' as const,
-          gen_error: 'pendiente de generar',
-          draft_day: today,
-        },
-        { onConflict: 'source_media_id' }
-      )
+      // Presupuesto agotado: los esqueletos ya quedaron registrados arriba.
       skipped++
       continue
     }

@@ -47,6 +47,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Va por service role para saltar la RLS de INSERT (que solo deja a admin/director), igual que
     // el resto de endpoints de agendas. Sin closer/Calendly no exigimos email del contacto.
     if (body.manual) {
+      // AISLAMIENTO: contactId llega del cliente. Sin esta comprobación, un UUID ajeno
+      // (de otra subcuenta) crearía una cita cross-tenant: el insert estampa el tenant
+      // correcto pero enlaza un contacto que NO es de esta subcuenta (la FK solo apunta a
+      // contacts(id), no a (tenant_id, contact_id)). El camino Calendly ya lo validaba.
+      const { data: contactoPropio, error: contactoErr } = await sb
+        .from('contacts')
+        .select('id')
+        .eq('id', contactId)
+        .eq('tenant_id', t.tenantId)
+        .maybeSingle()
+      if (contactoErr) return NextResponse.json({ error: contactoErr.message }, { status: 500 })
+      if (!contactoPropio)
+        return NextResponse.json({ error: 'El contacto no existe en esta subcuenta' }, { status: 404 })
+
       const { data: saved, error: insErr } = await sb
         .from('appointments')
         .insert({
@@ -63,7 +77,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         .select('id')
         .single()
       if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
-      await sb.from('contacts').update({ lead_status: 'agendado' }).eq('id', contactId).eq('tenant_id', t.tenantId)
+      const { error: leadStatusErr } = await sb
+        .from('contacts')
+        .update({ lead_status: 'agendado' })
+        .eq('id', contactId)
+        .eq('tenant_id', t.tenantId)
+      // La cita YA se creó: no se aborta por esto, pero si falla el contacto se queda con su
+      // lead_status anterior y el embudo/lista de leads queda desincronizado sin que nadie lo vea.
+      if (leadStatusErr)
+        console.error('[appointments/create] no se pudo marcar el contacto como agendado:', leadStatusErr.message)
       return NextResponse.json({ ok: true, appointmentId: saved.id, manual: true })
     }
 
@@ -157,7 +179,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
     const appointmentId = saved.id
 
-    await sb.from('contacts').update({ lead_status: 'agendado' }).eq('id', contact.id).eq('tenant_id', t.tenantId)
+    const { error: leadStatusErr } = await sb
+      .from('contacts')
+      .update({ lead_status: 'agendado' })
+      .eq('id', contact.id)
+      .eq('tenant_id', t.tenantId)
+    if (leadStatusErr)
+      console.error('[appointments/create] no se pudo marcar el contacto como agendado:', leadStatusErr.message)
 
     return NextResponse.json({ ok: true, appointmentId, eventUri: result.eventUri })
   } catch (err) {

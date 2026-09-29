@@ -21,17 +21,12 @@ type CollectionRow = CohortCollectionRow
 
 const WINDOWS = COHORT_WINDOWS
 
-function pctColor(pct: number): string {
-  if (pct >= 80) return 'text-emerald-400'
-  if (pct >= 50) return 'text-amber-400'
-  return 'text-red-400'
-}
-
 export default function CohortsPage() {
   const tenantId = useTenantId()
   const [loading, setLoading] = useState(true)
   const [sales, setSales] = useState<SaleRow[]>([])
   const [collections, setCollections] = useState<CollectionRow[]>([])
+  const [fuentesEnError, setFuentesEnError] = useState<string[]>([])
 
   useEffect(() => {
     let mounted = true
@@ -53,6 +48,16 @@ export default function CohortsPage() {
           .range(0, FINANCE_QUERY_ROW_CAP),
       ])
       if (!mounted) return
+      // Un fallo de lectura NO es "esa fuente a cero": cohortes con ventas o cobros parciales
+      // pintarían retenciones falsas. Se declara el estado ilegible y la UI avisa.
+      if (salesRes.error || collRes.error) {
+        setFuentesEnError([salesRes.error && 'ventas', collRes.error && 'cobros'].filter(Boolean) as string[])
+        setSales([])
+        setCollections([])
+        setLoading(false)
+        return
+      }
+      setFuentesEnError([])
       // El embed de payment_plans llega anidado: se aplana aquí para que el predicado de venta
       // (cuentaComoVenta) pueda ver si la fila es una reserva todavía abierta.
       setSales(((salesRes.data || []) as SaleRow[]).map((v) => ({ ...v, payment_plan_method: metodoDePlan(v) })))
@@ -78,7 +83,12 @@ export default function CohortsPage() {
       </div>
 
       <div className="dashboard-card overflow-hidden">
-        {loading ? (
+        {fuentesEnError.length > 0 ? (
+          <p className="text-sm text-red-400 py-6" role="alert">
+            No se pudieron leer: {fuentesEnError.join(', ')}. Las cohortes NO se muestran porque estarían incompletas.
+            Recarga cuando la fuente vuelva a responder.
+          </p>
+        ) : loading ? (
           <div className="p-5 space-y-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="h-8 bg-muted rounded animate-pulse" />
@@ -112,10 +122,12 @@ export default function CohortsPage() {
                       const pct = row.contracted ? (collected / row.contracted) * 100 : 0
                       return (
                         <td key={w} className="px-4 py-3 text-right">
-                          <div className={`font-semibold ${pctColor(pct)}`}>
-                            {row.contracted ? `${pct.toFixed(0)}%` : '—'}
+                          <div className="font-semibold text-foreground">
+                            {row.mature[w] && row.contracted ? `${pct.toFixed(0)}%` : '—'}
                           </div>
-                          <div className="text-xs text-muted-foreground">{formatCurrency(collected)}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {row.mature[w] ? formatCurrency(collected) : 'En maduración'}
+                          </div>
                         </td>
                       )
                     })}
@@ -128,10 +140,9 @@ export default function CohortsPage() {
       </div>
 
       <p className="text-xs text-muted-foreground max-w-3xl">
-        Esta vista detecta el deterioro de la calidad de cobro antes de que impacte en el cashflow: si el %30d o %60d de
-        las cohortes recientes empieza a caer respecto a cohortes anteriores, es una señal temprana de que las ventas
-        nuevas están tardando más en convertirse en caja (o directamente no se están cobrando), aunque la facturación
-        bruta siga viéndose bien.
+        Fuente: cobros confirmados del libro interno, vinculados a ventas activas. Las ventanas se muestran cuando ha
+        transcurrido su duración desde el final del mes de la cohorte. Antes de comparar resultados, comprueba
+        cobertura, vinculación y maduración. Estos porcentajes no representan retención de clientes.
       </p>
     </div>
   )

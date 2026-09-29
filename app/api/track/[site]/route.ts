@@ -170,7 +170,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // 5) Normalización a canónico. Sin anonymous_id no hay visitor: se marca skipped (el raw queda).
   const anonymousId = (body.anonymous_id ?? '').trim().slice(0, 128) || null
   if (!anonymousId) {
-    await sb
+    const { error: flagErr } = await sb
       .from('raw_events')
       .update({
         processing_status: 'skipped',
@@ -178,6 +178,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         processed_at: new Date().toISOString(),
       })
       .eq('id', rawRow.id)
+    // Si falla, el evento en bruto se queda como 'received' — el replay lo reprocesaría igual
+    // (es idempotente), pero el panel de salud contaría trabajo pendiente que ya se resolvió.
+    if (flagErr) console.warn(`[track] no se pudo marcar skipped (sin_anonymous_id) ${rawRow.id}:`, flagErr.message)
     return NextResponse.json({ accepted: false, reason: 'sin_anonymous_id' }, { status: 200 })
   }
 
@@ -201,10 +204,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     visitorId = newVisitor?.id ?? null
   }
   if (!visitorId) {
-    await sb
+    const { error: flagErr } = await sb
       .from('raw_events')
       .update({ processing_status: 'received', rejection_reason: 'visitor_no_resuelto' })
       .eq('id', rawRow.id)
+    if (flagErr) console.warn(`[track] no se pudo anotar visitor_no_resuelto en ${rawRow.id}:`, flagErr.message)
     return NextResponse.json({ accepted: false, reason: 'visitor_no_resuelto' }, { status: 200 })
   }
 
@@ -310,17 +314,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     { onConflict: 'tenant_id,source,source_event_id', ignoreDuplicates: true }
   )
   if (canonicalError) {
-    await sb
+    const { error: flagErr } = await sb
       .from('raw_events')
       .update({ rejection_reason: `canonico:${canonicalError.code ?? 'error'}` })
       .eq('id', rawRow.id)
+    if (flagErr) console.warn(`[track] no se pudo anotar el rechazo canónico en ${rawRow.id}:`, flagErr.message)
     return NextResponse.json({ error: 'No se pudo normalizar el evento' }, { status: 500 })
   }
 
-  await sb
+  const { error: normalizedErr } = await sb
     .from('raw_events')
     .update({ processing_status: 'normalized', processed_at: new Date().toISOString() })
     .eq('id', rawRow.id)
+  // Si falla, el evento se queda como 'received': el replay lo reprocesaría (idempotente por
+  // source_event_id), pero es trabajo repetido y el panel de salud daría cifras falsas.
+  if (normalizedErr) console.warn(`[track] no se pudo marcar normalized ${rawRow.id}:`, normalizedErr.message)
 
   return NextResponse.json({ accepted: true }, { status: 201 })
 }

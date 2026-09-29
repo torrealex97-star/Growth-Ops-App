@@ -60,3 +60,22 @@ golden dataset), privacidad.
 - **Vocabulario de `canonical_events`** — el mapeo lo elige el usuario, no el código.
 
 **No tocar sin reconectar antes**: Meta e Instagram (credenciales caducadas o sin permiso).
+
+## Postdata (28-sep) — auditoría estática FASE A, sin re-medir la tabla
+
+La tabla de arriba NO se ha vuelto a medir (sigue midiendo el 22-sep). Lo que ha cambiado desde
+entonces, con evidencia: el informe de auditoría estática del 26-sep (FASE A, solo lectura) está
+consolidado en `docs/ACTIVE_HANDOFF.md` — **10 hallazgos resueltos y fusionados con CI verde**
+(PRs #236–#260, #269, #270, #272, #273): alta de venta con cobro verificado, `repNetCash` solo
+resta refunds `processed`, cron Reels con presupuesto real y esqueletos previos, claim atómico en
+backfill de YouTube, estados de error honestos en P&L/cohortes/home, SeQura fail-closed y cash
+canónico con tests de regresión.
+
+Quedan abiertos SOLO los que requieren decisión de negocio o carril ajeno (ver 🧱 Deuda técnica de
+`PENDIENTES.md` y las opciones en `docs/DECISIONES-PENDIENTES-ALEX.md`): clawback/refunds
+acumulados (A5 de Alex), semántica de doble firma concurrente (responsable de contratos),
+onboarding sin outbox y webhook GHL no-objeto (carril F1), y las reservas estructurales que ya
+constaban aquí. **Nota operativa (28-sep):** el typecheck/lint de la build de Vercel está saltado
+desde #280 (`process.env.VERCEL` en `next.config.js`) — CI de GitHub es el gate de tipos de cada
+SHA; el límite permanente sigue siendo que todo hallazgo es **estático hasta reproducirse** con
+mocks/QA; sin credenciales QA/producción locales.

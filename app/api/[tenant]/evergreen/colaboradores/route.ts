@@ -113,11 +113,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (!userId) return NextResponse.json({ error: 'Falta userId o email' }, { status: 400 })
 
     // Membership del tenant: sin ella el layout no deja entrar (reutilizado tal cual).
-    await sb
+    const { error: membershipErr } = await sb
       .from('tenant_members')
       .upsert(
         { tenant_id: t.tenantId, user_id: userId, role: 'member' },
         { onConflict: 'tenant_id,user_id', ignoreDuplicates: true }
+      )
+    if (membershipErr)
+      return NextResponse.json(
+        { error: 'No se pudo dar de alta en la subcuenta: ' + membershipErr.message },
+        { status: 500 }
       )
 
     // Código público: el que pida el admin (normalizado) o uno generado único.
@@ -179,15 +184,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         // firma. Si ya hay uno FIRMADO (re-alta de un usuario existente), nace
         // directamente activo.
         estadoFinal = contrato.estado === 'ya_firmado' ? 'active' : 'pending_contract'
-        await sb
+        const { error: estadoErr } = await sb
           .from('collaborator_profiles')
           .update({ status: estadoFinal, updated_at: new Date().toISOString() })
           .eq('id', creado.id)
           .eq('tenant_id', t.tenantId)
+        // Si falla, la respuesta abajo reportaría estadoFinal aunque la fila siguiera en 'invited':
+        // se refleja el estado real en la respuesta en vez de fingir que el update funcionó.
+        if (estadoErr) {
+          console.error('[colaboradores] no se pudo actualizar el estado tras el contrato:', estadoErr.message)
+          estadoFinal = status
+        }
       }
     }
 
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       actor_user_id: t.userId,
       entity_type: 'collaborator_profile',
@@ -202,6 +213,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           : null,
       },
     })
+    if (auditErr) console.error('[colaboradores] no se pudo registrar audit_logs (create):', auditErr.message)
 
     return NextResponse.json({
       ok: true,
@@ -258,7 +270,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
     const { error } = await sb.from('collaborator_profiles').update(patch).eq('id', body.id).eq('tenant_id', t.tenantId)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       actor_user_id: t.userId,
       entity_type: 'collaborator_profile',
@@ -267,6 +279,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       old_values: previo,
       new_values: patch,
     })
+    if (auditErr) console.error('[colaboradores] no se pudo registrar audit_logs (update):', auditErr.message)
 
     return NextResponse.json({ ok: true })
   } catch (err) {

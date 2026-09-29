@@ -49,17 +49,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const s = data.session
 
   // AUDITORÍA de la salida (quién entró como quién ya está registrado; esto cierra el círculo).
-  try {
-    await svc().from('audit_logs').insert({
-      actor_user_id: t.superAdmin.user_id,
-      entity_type: 'ver_como',
-      entity_id: t.objetivo.userId,
-      action: 'salir',
-      new_values: { tenant },
-    })
-  } catch {
-    console.error('[ver-como/salir] no se pudo registrar en audit_logs')
-  }
+  // audit_logs.tenant_id es NOT NULL: sin resolver el slug a UUID el insert fallaba SIEMPRE
+  // (y el try/catch anterior no lo veía — supabase-js no lanza, devuelve { error }).
+  const svcClient = svc()
+  const { data: tenantRow } = await svcClient.from('tenants').select('id').eq('slug', tenant).maybeSingle()
+  const { error: auditErr } = await svcClient.from('audit_logs').insert({
+    tenant_id: tenantRow?.id ?? null,
+    actor_user_id: t.superAdmin.user_id,
+    entity_type: 'ver_como',
+    entity_id: t.objetivo.userId,
+    action: 'salir',
+    new_values: { tenant },
+  })
+  if (auditErr) console.error('[ver-como/salir] no se pudo registrar en audit_logs:', auditErr.message)
 
   const ref = process.env.NEXT_PUBLIC_SUPABASE_URL!.replace(/^https:\/\//, '').split('.')[0]
   const payload = {

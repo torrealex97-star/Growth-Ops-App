@@ -69,6 +69,7 @@ export async function GET(req: NextRequest) {
               devueltos: r.refunded,
               paginas: r.pages,
               truncado: r.truncated,
+              fees_pendientes: r.feesPendientes,
             },
           })
         )

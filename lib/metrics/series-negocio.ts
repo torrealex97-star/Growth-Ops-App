@@ -1,3 +1,4 @@
+import { isActiveSale } from '@/lib/analytics'
 // SERIES DIARIAS DE FACTURACIÓN Y CASH, para objetivos y previsión.
 //
 // PURO A PROPÓSITO, como agregados.ts: recibe las filas ya leídas y devuelve puntos por día. Reutiliza
@@ -6,7 +7,7 @@
 // paralelos de "qué venta cuenta" es la forma más fácil de que el panel y el objetivo discrepen sin que
 // nadie se entere.
 
-import { enPeriodo, VENTAS_QUE_CUENTAN, type FilaCobro, type FilaVenta, type Periodo } from './agregados'
+import { enPeriodo, esReservaAbierta, type FilaCobro, type FilaVenta, type Periodo } from './agregados'
 import { acumular, serieDiaria, type FilaSerie } from './series'
 import type { PuntoSerie } from './prevision'
 
@@ -19,7 +20,7 @@ const num = (v: unknown): number => {
 /** Serie diaria acumulada de facturación (precio comprometido), solo ventas que cuentan. */
 export function serieFacturacionAcumulada(ventas: FilaVenta[], periodo: Periodo): PuntoSerie[] {
   const filas: FilaSerie[] = ventas
-    .filter((v) => enPeriodo(v.sale_date, periodo) && (!v.status || VENTAS_QUE_CUENTAN.has(v.status)))
+    .filter((v) => enPeriodo(v.sale_date, periodo) && isActiveSale({ status: v.status ?? '' }) && !esReservaAbierta(v))
     .map((v) => ({ fecha: v.sale_date, valor: num(v.gross_amount) }))
   return acumular(serieDiaria(filas, periodo))
 }

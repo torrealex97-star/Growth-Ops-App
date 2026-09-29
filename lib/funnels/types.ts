@@ -26,6 +26,8 @@ export type MetricValue = {
   status: MetricStatus
   source: FunnelSource
   lastSync: string | null
+  /** Hechos independientes del periodo: no constituyen una cohorte de conversión. */
+  periodActivity?: boolean
   /** Solo con status 'error_fuente'. Para poder decir QUÉ falló en vez de un "—" mudo. */
   error?: string
 }

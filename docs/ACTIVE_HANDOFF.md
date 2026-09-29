@@ -1,5 +1,320 @@
 # Relevo activo
 
+## Estado de entrega — 28-sep-2026
+
+PR [#284](https://github.com/torrealex97-star/Growth-Ops-App/pull/284) **fusionado** en `main`, commit `5b74885`. CI del head `24aa455`: formato, lint, tipos, unitarias/métricas, build, secretos y Smoke E2E **PASS**. La preview omitida de Supabase no equivale a una prueba ejecutada.
+
+El despliegue de producción asociado al merge sigue **PENDING** en la última consulta a GitHub; se observó en cola en Vercel. No afirmar que la web pública contiene estos cambios ni que el flujo de registro se ha probado allí. Un commit posterior de main puede sustituir este despliegue: verificar que incluye `5b74885` y su estado READY antes del smoke.
+
+### Continuación priorizada y criterio de cierre
+
+1. **Producción y cobros**: comprobar despliegue del merge o descendiente; revisar Ventas y campana con sesión existente. Verificar lista, permisos admin/closer y formulario nueva venta/cuota. El alta real no se ejecutó: probar persistencia, idempotencia y comisiones en QA con datos de prueba, nunca registrar ventas ficticias en un tenant real.
+2. **Otras fuentes**: Stripe es la única bandeja automática implementada. Confirmar proveedores realmente activos antes de añadir conectores. Transferencias y otras fuentes manuales conservan su flujo; la integración de deuda no demuestra ingesta de cobros.
+3. **Cobertura operativa**: completar paginación y aislamiento de ventas/atribución/usuarios en Registro; comprobar más de 1.000 filas y errores de fuente sin convertirlos en cero.
+4. **Finanzas**: revisar Cobros, Morosidad y Conciliación. Explicar y conciliar consolidado Stripe + interno frente al libro interno, planes incompletos y comisiones por creación frente a liquidación. No forzar igualdad entre universos distintos.
+5. **Atribución y tasas**: revisar periodos, muestra, asignación y cohortes maduras; Show Rate sobre citas resueltas según contrato canónico. Orden obligatorio: definición → fuente → completitud → periodo → madurez → asignación → cálculo → benchmark. Un benchmark nunca prueba por sí solo un error.
+6. **Visual/responsive**: verificar dashboards en móvil y escritorio con branding del tenant. Mantener métricas documentadas; no rellenar ausencias con datos ilustrativos. Clientes/retención aplazados por indicación del usuario.
+
+Documentación canónica: `docs/SOURCE_OF_TRUTH.md`, `docs/METRICS.md`, `docs/MONEY.md`. Cash Collected medio de venta nueva representa la primera transacción de esas ventas, no todo el cash del periodo dividido entre ventas nuevas. La consulta de liquidaciones fue solo lectura; no se borraron ni modificaron comisiones. El detalle financiero permanece en la base de datos, no en este repositorio.
+
+Esta actualización documental no reserva archivos para implementación futura. Reclamar el siguiente lote antes de editarlo; no retomar todo el backlog simultáneamente.
+
+## Codex — cobros pendientes en Ventas y campana, 28-sep
+
+Rama `codex/finance-breakdown-donuts` / PR #284, ampliada por petición del usuario. Bandeja de cobros Stripe sincronizados sin referencia interna en Ventas y en notificaciones; closers solo contactos asignados, admin/director pendientes globales del tenant. Lecturas paginadas, identidades ambiguas no asignadas por intuición. Registro humano de venta nueva (producto, plan, total pactado y cuotas restantes) o cobro de venta existente. Importe, moneda, estado y fee se verifican contra Stripe antes de escribir. Reserva existente conserva su estado: completar el producto/plan desde el detalle de venta. Fuentes manuales conservan el registro habitual; no se añadió un conector automático inexistente para seQura/transferencias.
+
+Migración `20260928191947_resolve_payment_inbox.sql` APLICADA mediante Supabase y registrada con esa versión. Función SECURITY INVOKER solo service_role; EXECUTE de anon/authenticated denegado comprobado en BD. No se modificaron ventas/cobros reales. Transacción y candado por pago evitan ventas parciales/doble clic; referencia pi/ch reconocida. Cobro manual similar sin referencia bloquea y exige conciliación. Comisiones usan atribución/generación existentes; fallo queda marcado para revisión.
+
+Validaciones: quality PASS (1.141 unitarias, 3 omitidas; 783 métricas), build PASS, dead-code informativo. `tests/integration/payment-inbox-postgres.mjs` ejecutado contra PGlite aislado: alta, reintento, cuota existente, rollback de plan inválido/cobro manual y permisos. Para repetir, instalar PGlite fuera del repo y pasar `PGLITE_TEST_MODULE` a su módulo ESM. Sin dependencia nueva de producción. Advisor de seguridad no menciona la función nueva.
+
+Verificado local con build optimizado: lista, contador y campana con enlace a Ventas; formulario inline, opciones de venta nueva/cuota y estado sin ventas existentes. El modal inicial bloqueó el renderizador del navegador integrado; sustituido por edición inline, comprobada visualmente sin bloqueo. No se pulsó Guardar sobre pagos reales. CI del head final PASS, incluido Smoke E2E; PR #284 fusionado. Despliegue público pendiente de verificación. El E2E de la revisión anterior del PR fue CANCELADO por concurrencia (no fallo de código).
+
+Servidor local optimizado 127.0.0.1:3100, configuración existente únicamente en memoria. Siguiente: verificar despliegue de producción y ejecutar el smoke indicado arriba. Seguir preguntando por otras fuentes automáticas si el usuario confirma alguna; hoy solo Stripe aporta pagos no registrados en el espejo.
+
+## Codex — gráficos circulares de Finanzas (28-sep)
+
+Rama `codex/finance-breakdown-donuts`. Los tres desgloses de Negocio (cobros por mes de venta, gastos y comisiones por función) reutilizan `FinanceBreakdown`, igual que Finanzas. Fuentes y cálculos intactos. Se conserva la leyenda completa, incluidos ceros, y el estado de ajustes negativos. Corregido el aviso de agrupación: ya no aparece cuando solo se excluyen ceros del anillo.
+
+Quality completo PASS y los tres anillos verificados visualmente en localhost:3100. Servidor local sustituido después por build optimizado, configuración solo en memoria. Incluido en PR #284 fusionado, CI PASS; producción pendiente de verificación. Archivos: `components/os/BusinessFinance.tsx`, `components/finanzas/FinanceCharts.tsx`. Sin datos privados ni cambios de base de datos.
+
+## CODEX — continuación de auditoría, 28-sep
+
+PR de entrega: [#282](https://github.com/torrealex97-star/Growth-Ops-App/pull/282), rama `codex/metrics-audit-continuation`, desde main tras merge #278. Implementación terminada; consultar el PR para el estado de CI/fusión/despliegue. Esta sección documenta el lote y no reserva archivos para trabajo futuro. Ámbito: consulta/diagnóstico/registros de métricas, dashboard principal e índice de Analítica, fuentes/atribución/Colaboradores, resumen de registro de ventas y aclaraciones de Finanzas/Instagram. No hay migraciones ni escrituras de negocio. #278 fusionado, CI completo aprobado y despliegue confirmado en el embudo de producción.
+
+Implementado en esta continuación:
+
+- Analítica general reutiliza `canonicalCash` y `serieCanonicaCash`: primaria Stripe y cobros internos sin duplicar, mismo valor/serie que Negocio. Fallos o truncado de fuentes invalidan métricas dependientes y previsiones; COGS incompleto no se vuelve cero.
+- Cash ROAS queda desconocido sin el enlace de pagos a adquisición de pago; no se sustituye por MER. Agendas deduplicadas; tasas de cierre sin cohorte enlazada/madura no se infieren de flujos.
+- El motor deja de llamar «sin medir» a métricas que tienen valor pero no tienen objetivo. Índice de KPIs presentado con cobertura/fiabilidad e hipótesis a verificar; ratio cash/facturación no equivale a deuda.
+- Atribución abandona los totales históricos mezclados con el periodo: todas las lecturas están aisladas por tenant y paginadas; identidades se consolidan preservando las atribuciones de sus duplicados. Citas, ventas, first/last touch y calidad corresponden al ámbito temporal indicado. Reservas excluidas. Se conserva el test de seguridad del RPC existente y se prueba el aislamiento de las nuevas lecturas.
+- `ghl`/`ghl_import` por sí solos no son canales publicitarios; si existe UTM válida se conserva. La cobertura usa Facturación, no Revenue.
+- Colaboradores pagina fuentes de KPI, consolida agendas y evita contar dos veces el mismo contacto. Comisión por creación distinta de liquidación explícita; cobros de ventas del periodo no se llaman facturación.
+- Dashboard principal consolida leads/agendas y cuenta canceladas dentro de agendas, como Negocio. Muestra actividad sin conversiones de cohortes no enlazadas; tabla por fuente con el mismo periodo. Facturación/inversión y CAC global se identifican sin llamarlos ROAS atribuible.
+- Analítica usa los presets compartidos (mes/trimestre/año naturales y ventanas móviles inclusivas), con fechas visibles. La previsión y series observadas terminan en hoy; no usan relleno futuro ni proyectan más allá del periodo. El aviso de atribución diferencia registro histórico de cobertura publicitaria del periodo.
+- Registro de ventas excluye reservas abiertas de su resumen, conservándolas en la tabla operativa; origen registrado no se presenta como prueba de atribución.
+- Resumen financiero identifica el anillo del libro interno. Proyección vacía declara dependencia de planes completos. Instagram distingue alcance acumulado por pieza de personas únicas.
+
+Verificado con sesión local: Atribución y Negocio coinciden en leads/agendas/ventas/facturación; Analítica general y Negocio coinciden en cash consolidado. Colaboradores carga sus ventas/cobros/comisiones; cohortes recientes muestran En maduración sin semáforos de rendimiento. Se detectaron y corrigieron durante esa revisión el falso «sin medir» por falta de objetivo y las importaciones contadas como atribución; ambos ajustes confirmados en navegador. La revisión de periodos detectó además que Analítica cortaba Este mes en hoy, a diferencia del resto de vistas; corregido con el helper compartido.
+
+Quality (formato/lint/tipos/unitarias) y suite de métricas final PASS: 1.136 unitarias, 3 omitidas y 783 métricas. Build final PASS, incluida previsión. Validación visual final: la previsión usa solo días observados y termina en el cierre del periodo. Dead-code informativo ejecutado. Sin datos de tenants en fixtures/docs.
+
+Entrega condicionada a CI/preview de #282. Responsive pendiente (intento de viewport de herramienta no confirmó tamaño efectivo, no contarlo como validación móvil). Datos que no deben inventarse: Cash ROAS atribuible, conversiones de cohorte madura, planes de deuda completos, clientes/retención y desglose por closer del resumen. La cobertura no autoriza modificar registros para forzar igualdad. Dashboard, periodos y registro confirmados en el build final: recuentos coherentes y reservas excluidas del resumen. Cobros inspeccionado: tabla del libro interno, sin total consolidado; pendiente aclarar el subtítulo «todos los pagos» y cobertura de lectura. Conciliación inspeccionada: tabla vacía de resultados de cotejo, no demuestra que todos los cobros estén conciliados; no se pulsó Cotejar ni se importaron datos.
+
+### Siguiente lote, por prioridad
+
+1. **Cobertura de lecturas operativas**: `ventas/registro` aún usa consulta sin paginación para ventas/atribución y listado de usuarios sujeto a RLS sin join tenant_members. Aplicar el patrón paginado y aislamiento ya validado; revisar error de atribución, estado obsoleto tras fallo y tests con más de 1.000 filas. Dashboard principal usa techo con detección; validar el límite real del servidor, no asumir que range amplía PostgREST.
+2. **Show Rate y diagnóstico**: conservar definición canónica sobre citas resueltas y mostrar su muestra/cobertura junto al porcentaje. No equipararlo a asistencias/total agendas de Negocio. Auditar recomendación de escalado y semáforos contra completitud, madurez y asignación antes de benchmarks; no afirmar causalidad.
+3. **Finanzas**: inspeccionar Cobros y Morosidad, cobertura de planes/ingesta y estado vacío de Conciliación. Contrastar consolidado Stripe+interno con libro interno mediante conciliación por pago/venta; no forzar iguales fuentes de distinta cobertura. Diferenciar comisiones por creación/liquidación y gastos, sin modificar registros.
+4. **Adquisición**: fuente de registro distinta de canal; completar verificación de filtros de pago/campaña, formularios y calidad. Cash ROAS necesita enlace verificable pago→venta→canal; no sustituirlo por MER. Revisar todas las series y paginación en pestañas secundarias de Instagram.
+5. **Visual y responsive**: repetir matriz completa con rango idéntico, móvil real confirmado y estados vacíos/fallo; registrar pantalla, fuente y resultado, sin datos privados. Clientes/retención sigue aplazado por el usuario. Desglose de closer requiere fuente enlazada, no filas inventadas.
+
+Servidor local configurado con credencial de servidor existente comprobada contra el proyecto actual, solo en 127.0.0.1:3100; credenciales solo en memoria del proceso, nunca en archivos del worktree ni navegador. Esta configuración permite verificar APIs antes bloqueadas por configuración local. No imprimir variables ni payloads.
+
+## Relevo prioritario — auditoría transversal de dashboards, 28-sep cierre
+
+El usuario solicita subir y fusionar lo validado y continuar el resto con otro agente. Rama `codex/dashboard-consistency`, PR #278. Leer primero esta sección y `docs/DASHBOARD_VISUAL_AUDIT.md`; los párrafos históricos posteriores no certifican el estado actual. No cambiar datos de negocio ni usar «Ver como».
+
+### Correcciones de este lote
+
+- Ventas/Ranking/Actividad: consultas por tenant, estados de error, reservas excluidas mediante contrato existente; agendas canónicas. Embudo muestra actividad independiente, no conversiones de personas no enlazadas. Ofertas explícitamente declaradas.
+- Tendencias: total del periodo completo, comparación solo con periodo anterior explícito; eliminado cálculo que partía la serie en dos. Ejes monetarios más anchos y variaciones neutrales.
+- Meta: no sumar alcance único entre días/campañas; sin comparación inventada. Funnels reutiliza recuentos CRM canónicos y bloquea conversiones/pérdidas no demostrables.
+- Cohortes financieras: ventanas inmaduras sin porcentaje definitivo; excluidos cobros de ventas no elegibles y futuros. VSL sin muestra no presenta tasas cero ni diagnóstico de caídas.
+- P&L: nombres y alcance del libro interno explícitos, resultado con signo. Gastos registrados diferenciados del total P&L. Colaboradores distingue cobros de facturación, excluye reservas y respeta signo de ajustes de comisión.
+- E2E actualizado al selector conjunto Facturación/Cash Collected y sección Asistencia; no se elimina cobertura de interacción/móvil.
+
+### Plan pendiente, en orden
+
+1. **Verificación del cierre:** consultar PR #278 y SHA actual; confirmar Quality, Build, Smoke E2E y despliegue. No usar verde de un SHA anterior. Si no está fusionado, resolver checks antes de merge. No asumir que producción ya cambió.
+2. **Analítica general (prioridad alta):** `components/metrics/PanelGrowth.tsx`, `lib/metrics/consulta.ts`, `agregados.ts`, API `evergreen/metricas/brief`. Se observó Health máximo con cobertura insuficiente, denominadores contradictorios de métricas disponibles y cash del libro interno etiquetado como consolidado. Unificar con reconciliación canónica y bloquear conclusiones si falta fuente, periodo, madurez o población. Cash ROAS requiere atribución real: no dividir todos los cobros entre gasto publicitario. Añadir regresiones de fuentes incompletas, reservas, cero frente a desconocido y cobros de ventas anteriores.
+3. **Atribución (NO incluida en este lote):** conserva implementación previa. Mezcla totales históricos con agendas del periodo; RPC debe seguir aislando tenant. Rediseñar consulta autorizada/paginada con mismo periodo, exclusión de reservas, deduplicación y distinción fuente de ingesta/canal. Conservar prueba `tests/atribucion-aislamiento.test.mjs`; adaptar al nuevo contrato solo demostrando aislamiento equivalente. Un borrador descartado está en `/tmp/growthops-attribution-pending.patch` de esta máquina; es referencia incompleta, NO aplicar sin revisión. Primer/último toque y calidad necesitan alcance temporal explícito.
+4. **Colaboradores y comisiones:** completar paginación/detección de truncado, deduplicación de contactos/citas. Explicar comisión por fecha de creación frente a periodo de liquidación/P&L; no reasignar roles ni forzar igualdad entre poblaciones distintas. Validar devoluciones/ajustes negativos.
+5. **Finanzas:** aclarar origen de cobros del libro interno frente a consolidado en resumen. Proyección/morosidad sin planes no prueban inexistencia de deuda: mostrar cobertura. Verificar desglose de comisiones por tipo, gasto publicitario sin duplicar, primer cobro de venta nueva y cuotas de ventas anteriores. Cash Collected medio sigue siendo SOLO primera transacción de ventas nuevas (corrección previa `05c304d`).
+6. **Revisión visual después del build/despliegue:** Unit Economics, Embudo, Ranking, Actividad, Funnels, Marketing/Meta, Atribución, Colaboradores, VSL, resumen/P&L/cohortes/proyección/morosidad/gastos/comisiones. Escritorio y móvil 390 px; probar selector, periodo, granularidad, filtros, tooltip, errores y vacíos. Esta sesión inspeccionó pantallas anteriores al último lote; aún NO certifica cada pantalla corregida.
+7. **Instagram y resto:** alcance agregado de reels no es personas únicas; aclarar periodo y etiquetas. Completar revisión de ventas/registro, cobros/conciliación y dashboard principal. Contenido editorial vacío se verificó; no necesita métricas ficticias. Clientes se mantiene pendiente de definición del usuario.
+
+### Entorno y criterios de aceptación
+
+Checkout local `/tmp/growthops-dashboard-consistency`, puerto 3100. Runtime Node en caché Codex. Solo variables públicas de Supabase en servidor local; endpoints que requieren credencial privilegiada pueden fallar localmente. Revisar esos endpoints en preview/producción autenticada; NO inyectar secretos en logs/docs. No hay cambios de BD/migraciones en este lote.
+
+Mismo tenant, periodo, zona horaria, población y fuente deben dar mismo KPI en todas las vistas. Fuentes fallidas/truncadas son desconocidas, no cero. No comparar poblaciones distintas como conversiones. Diagnóstico obligatorio: definición → fuente → completitud → periodo → madurez → asignación → cálculo → benchmark. No publicar cifras reales ni nombres de clientes en este repositorio público. Usar fixtures sintéticos.
+
+Validación local del lote final: quality PASS (1.135 unitarias, 3 omitidas y 778 métricas); dead-code informativo ejecutado. Build local PASS antes del último ajuste de paginación del embudo. Verificación autenticada detectó lectura truncada; se sustituyó por fetchAllRows con orden estable. La causa adicional era users.tenant_id inexistente; Embudo/Ranking/Actividad ahora filtran usuarios mediante tenant_members!inner, como el dashboard principal. Quality repetida PASS después del ajuste. El build/Smoke definitivo debe pasar en CI. CI del SHA subido debe confirmarse en el PR antes de fusionar. Smoke anterior fallaba por selector antiguo, no por autenticación: actualizado, pendiente resultado del nuevo CI. No declarar la auditoría completa.
+
+## ✅ Producción desbloqueada: builds de Vercel vuelven a desplegar + logo IA Winners 404 (PR #280, 28-sep tarde)
+
+**Diagnóstico (5× `BUILD_EXCEEDED_MAXIMUM_TIME`, 10:37Z-15:16Z):** los builds de Vercel expiraban
+en la fase «Linting and checking validity of types» (el compile de Next acababa en 3,2 min):
+ESLint 9 (#262) + Tailwind 4 (#263) dispararon la carga de tipos que en CI exige 6 GB de heap, y
+la instancia de build de Hobby no llega. **Producción estuvo congelada desde 06:26Z** (f18e336):
+todo el trabajo del día (PRs #271-#277) seguía fuera.
+
+**Fix (`44dcecc`):** `next.config.js` salta typecheck/eslint SOLO en la build de Vercel
+(`process.env.VERCEL`); CI de GitHub sigue siendo el gate de tipos/lint de cada SHA (4 jobs, 6 GB).
+**Resultado verificado en producción:** el deployment de `44dcecc` pasó a READY en **~7 minutos**
+(los builds pre-fix seguían expirando a los ~45-50 min — `d07bb45` murió exactamente igual mientras
+el fix esperaba cola: control experimental involuntario).
+
+Verificación en vivo tras el despliegue: `/brand/iawinners-logo.png` → **404** (borrado desplegado;
+la marca IA Winners ya no queda accesible públicamente), home 200, hero.mp4 825.608 bytes y poster
+WebP 17.598 con etags = MD5 del repo, PNG viejo 404, HTML de la home sin ninguna referencia a
+iawinners. Riesgo asumido declarado: un push directo a main sin PR desplegaría sin typecheck (no
+existe tal workflow hoy; si aparece, retirar el flag).
+
+Nota: **ojo con la sección siguiente** («Dashboard WDC… deployment pendiente») — su pendiente de
+despliegue quedó resuelto por este mismo deployment (`44dcecc` es descendiente de esos commits).
+
+## CODEX — consistencia y rediseño de dashboards (28-sep, en curso)
+
+Ampliación activa: auditoría visual de todos los dashboards departamentales y contraste con contratos existentes. Reclama `app/[tenant]/analitica/*`, `components/os/TrendChart.tsx`, sus tests y documentación; misma rama/PR. Amplía reclamación a `components/os/MetaAds*`, `lib/meta/funnels.ts`, VSL (solo estados sin muestra), cohortes financieras y etiquetas P&L; correcciones de madurez y presentación sin escrituras de negocio. Incluye `lib/funnels/{queries,compute,types}.ts` y página Funnels para reutilizar recuentos canónicos del CRM y bloquear conversiones no enlazadas. Reclama también Atribución y Colaboradores (lecturas/etiquetas/KPI) para exclusión canónica de reservas, periodo explícito y fuentes completas. Primera discrepancia reproducida: embudo comercial cuenta reservas y ofertas de poblaciones distintas; tendencia parte el periodo por la mitad sin fuente anterior explícita. No modificar datos persistentes. Inventario y evidencia se registran en DASHBOARD_AUDIT.md.
+
+Corrección tras localizar `docs/SOURCE_OF_TRUTH.md`: se retiró íntegramente el intento no validado de redefinir adquisición. Lote actual se ciñe a `METRICS.md` §1/2/6 y MONEY D8: CAC por contactos únicos (no primeras compras), ventas activas/partial_refund, reservas excluidas de series; IA reutiliza SOURCE_REGISTRY. Nombres corregidos en dashboard, gráficos, pagos, gestoría y alta de cobro; se identifica libro interno bruto sin confundirlo con caja consolidada. No modifica datos ni decisiones A3. Quality final PASS (1133 unitarias, 3 omitidas; 765 métricas), cuatro nuevas de paridad contractual. Build PASS; smoke local confirma las etiquetas, servidor activo en 3100. Dead-code ejecutado como informe informativo. Coherencia global NO certificada: siguen discrepancias documentadas entre registros de caja, cohortes de tasas y documentación histórica.
+
+Ampliación solicitada: coherencia transversal de términos y cálculos KPI en toda la app. Auditoría en `DASHBOARD_AUDIT.md`, sección revisión transversal 28-sep. Reclama revisión de registros `lib/metrics/registro.ts`, `lib/ai/metrics/registry.ts`, agregadores y consumidores de métricas; no aplicar cambios de contrato financiero ni CAC hasta resolver las definiciones contradictorias. La revisión visual anterior NO certifica coherencia global.
+
+Terminología corregida a petición del usuario: Facturación (precio pactado) y Cash Collected (canonicalCash.net), también en selectores, evolución y tabla comercial. Finanzas muestra Facturación, Cash Collected y Devoluciones; elimina el KPI bruto redundante. No modifica fórmulas, fechas ni fuentes. Quality y build PASS. Producción pendiente.
+
+Revisión solicitada con `.agents/skills/data-visualization-pro/SKILL.md`: conserva composición aprobada, añade tabla desplegable de valores a cada tendencia (incluye ausencia explícita), ajusta conectores y skeleton del embudo compacto a su altura y respeta movimiento reducido. Quality PASS (1133 unitarias, 3 skip; 761 métricas) y build PASS. No cambia cálculos ni fuentes. Verificado en navegador local: tabla desplegable con valores, embudo conectado en escritorio (1536 px) y composición móvil (390 px); viewport restaurado. Producción pendiente.
+
+Rama `codex/dashboard-consistency`, base inicial `16d484c`; integrado main `d07bb45`. Rediseño visual aprobado por el usuario: resumen de negocio y bloques Marketing, Operación comercial, Ventas, Finanzas y Clientes; selectores de métricas y datos reales, sin cifras de maqueta. Reclama también components/os/DepartmentDashboard.tsx. Reclama unit-economics, resumen financiero, componentes KPI/funnel y acceso VSL con sus pruebas. Alcance: error VSL, periodo/población de embudos, trazabilidad de cash y señales KPI neutrales. No modifica datos financieros ni migraciones. Checkout aislado; WIP de navegación ajeno preservado.
+
+Ajuste visual tras comparación con la maqueta aprobada: KPIs compactos específicos de esta vista, acento de marca en selectores/gráficas, cabeceras y notas compactas, barra segmentada de estados, funnel comercial de tres etapas con indicadores laterales, tabla de closer y matriz de cohortes con estado sin datos explícito. No inventa tasas ni clientes. Verificado con sesión local en escritorio (1536 px) y móvil (390 px, main.scrollWidth == clientWidth); restaurado viewport normal. Pendiente completar fuentes del desglose por closer/cohortes y comprobación de producción; no afirmar paridad de datos con los ejemplos.
+
+Rediseño aplicado en código (verificación autenticada inicial realizada): cabecera de negocio con seis indicadores; evolución con selector; bloques Marketing, Operación comercial, Ventas, Finanzas y Clientes; barras por canal y estado, funnel existente y desglose de fuentes de cash. Mantiene marca/tipografía y cálculos canónicos. Métricas de la maqueta no cargadas por esta página (gastos, vencimientos, retención, primer contacto) no se inventan: acceso al detalle o estado explícito. Controles nativos con foco y aria-pressed; gráficos sin animación de geometría. Revisión React realizada. Tests estáticos adaptados al nuevo layout y smoke E2E de selectores/agrupación/móvil añadido (ejecución pendiente). Quality local PASS: 1133 unit + 761 métricas, 3 skips. Build local PASS; dead-code informativo ejecutado. Build servido en puerto 3100. Revisión local autenticada: se reprodujo RangeError de moneda al pintar ejes (Recharts pasa índice como segundo argumento); corregido envolviendo tickFormatter con un único valor numérico. Pantalla y cambio Facturación/Cobrado y Día/Semana verificados en navegador. No publicado en producción; revisión móvil y E2E completos aún pendientes.
+
+Implementado: ambos embudos leen el mismo agregado del periodo; asistencia por estado confirmado y reservas excluidas mediante cuentaComoVenta. Sin conversiones de cohorte inferidas de totales independientes. LTV:CAC descriptivo, variaciones de gasto neutrales. Resumen separa cobros registrados brutos de consolidado Stripe/interno y expone diferencia sin tocar P&L ni crear cobros. Tests de periodo, reservas, asistencia y aislamiento de consultas.
+
+VSL: POSTGRES_URL ausente en runtime. Tras autorización y acceso al Dashboard, credencial validada con el pooler oficial (conexión SQL y tablas VSL correctas); restaurada como secreto de producción en Vercel por stdin, sin mostrarla ni guardarla en temporales. Falta activación y comprobación HTTP: despliegues bloqueados en cola tras un build prolongado. Se canceló exclusivamente nuestro redespliegue del código antiguo al aparecer nuevo main; el despliegue Git de main posterior a la restauración debe recoger la variable. No afirmar VSL reparado hasta verificar la pantalla y endpoints.
+
+PR #278, commit de código 97094a3. Validación: quality local PASS (1133 unit, 3 skips; 757 métricas); build local y CI PASS, quality CI y secretos PASS. Smoke E2E: 10 PASS, contrato adjunto agota 20 s con carga en curso; reintento del job solicitado, sin modificar pruebas. Preview en cola. Verificación visual pendiente. Nuevo main c28327f revisado: cambios en dashboard principal, sin sobrescribirlos. Siguiente: revisar E2E reintentado, desbloquear/verificar despliegue Git y VSL, luego integrar PR y comprobar pantallas. No fusionada.
+
+### Punto de relevo solicitado por el usuario
+
+Trabajo preservado en PR #278 y rama `codex/dashboard-consistency`; sin fusionar ni afirmar despliegue. El usuario pide pasar a otras tareas mientras queda este seguimiento pendiente. No repetir la recuperación de credenciales ni modificar datos para cuadrar métricas.
+
+- **Validaciones por commit:** los resultados anteriores corresponden al código `97094a3`. Los commits posteriores solo actualizan/formatean este relevo. En la última consulta del head `aa59553`, Vercel seguía pendiente y no se mostraba una nueva ejecución de Quality/E2E; no confundir los resultados anteriores con validación del head actual.
+- **VSL:** configuración restaurada y conexión SQL probada; pantalla y endpoints de producción todavía NO verificados. No volver a pedir la credencial ni guardarla en archivos. Primero comprobar si el despliegue Git posterior a la restauración ya terminó.
+- **Al retomar:** leer main y reclamaciones nuevas; comprobar el SHA del despliegue activo y la cola de Vercel; validar VSL con sesión existente (sin «Ver como»); revisar el fallo/reintento E2E de contratos; actualizar la rama desde main sin sobrescribir trabajo ajeno; integrar solo tras checks relevantes y verificar Unit Economics y resumen financiero.
+- **Criterio de cierre:** VSL carga sin error de conexión, PR integrada con checks aprobados, métricas del periodo coherentes y distinción de fuentes de cash visible en producción. Mantener el orden diagnóstico de KPI del usuario: definición, fuente, completitud, periodo, maturity, asignación, cálculo y finalmente benchmark.
+
+## ⏳ Dashboard WDC alineado con el filtro temporal — código en `main`, deployment pendiente (28-sep tarde)
+
+**No repetir el desarrollo.** Los cambios están publicados directamente en `main` en los commits
+`c28327f` y `d07bb45`:
+
+- El bloque financiero de `/[tenant]/dashboard` usa todo el rango seleccionado, no solo el primer
+  mes. La facturación se fecha por `sale_date` y el cash por `collected_at` (MONEY D1), incluyendo
+  cobros del periodo correspondientes a ventas anteriores.
+- La gráfica «Facturación vs cash cobrado» usa exactamente el filtro global: detalle diario hasta
+  45 días y mensual para rangos mayores. Ya no está fijada a «últimos 6 meses».
+- Analítica/Métricas generales reutiliza las series canónicas de `/metricas/brief`; no se creó una
+  segunda fórmula ni otra consulta financiera.
+- Con un único producto activo, la cuarta KPI muestra **Cash collected medio** por venta cobrada.
+  Con varios productos muestra **Ticket medio por cliente**, agrupando varias ventas del mismo
+  contacto (una venta sin contacto cuenta como cliente independiente).
+- Administradores/directores no ven las tarjetas de comisión personal en la vista agregada. Al
+  seleccionar una persona sí aparecen con su nombre; closers, setters y colaboradores conservan
+  su resumen propio.
+- El estado vacío de «Objetivos de empresa» ofrece a liderazgo un enlace a
+  `/[tenant]/kpi/templates?tab=objetivos`; esa URL abre directamente la pestaña Objetivos.
+- Regresión añadida en `tests/metrics/dashboard-period-finance.test.mjs` (4 casos).
+
+**Validación ejecutada antes del push:** format PASS, lint PASS con avisos preexistentes,
+typecheck PASS, `test:metrics` 756/756 PASS y build real de producción PASS. La suite general
+equivalente dio 1.130 PASS, 3 SKIP y 1 fallo preexistente de compatibilidad del arnés con Node 26
+(`apify-retry-scenario`: parameter properties de TypeScript); no está relacionado con este cambio.
+
+**Único pendiente:** comprobar el deployment y hacer smoke autenticado cuando Vercel libere la
+cola. Deployment esperado:
+`https://growthops-preview-3003-dp26vx2di-app-b1af.vercel.app` (`production`, estado `Queued` al
+cerrar esta sesión). `https://app.scalixsystems.com` seguía apuntando al deployment READY de unas
+8 horas antes, por lo que todavía no mostraba estos cambios. No lanzar otro deploy duplicado ni
+cancelar los trabajos en cola sin identificar primero sus commits; Claude Code también estaba
+publicando. Comandos de continuación:
+
+```bash
+vercel inspect https://growthops-preview-3003-dp26vx2di-app-b1af.vercel.app --wait --timeout 5m
+vercel inspect https://app.scalixsystems.com
+```
+
+Cuando el deployment quede READY, verificar en WDC Dashboard: cambio de rango, totales y gráfica
+coherentes, nombre de la cuarta KPI según número de productos, ausencia de comisiones en vista
+admin agregada, enlace de objetivos y gráfica financiera dentro de Analítica/Métricas generales.
+
+## 📋 Documento de decisiones para Alex: `docs/DECISIONES-PENDIENTES-ALEX.md` (28-sep tarde)
+
+Las 3 decisiones que bloquean el resto de la auditoría FASE A (A5 clawback/refunds acumulados,
+doble firma concurrente, onboarding de alumno sin outbox) con estado real verificado hoy, opciones
+A/B/C, recomendación y coste estimado. Esperando la respuesta de Alex en formato
+«A5: X · Firma: X · Onboarding: X».
+
+## ✅ Último P1 de crons cerrado: presupuesto real del sync de pagos Stripe (PR #277, 28-sep tarde)
+
+El deadline del sync de pagos Stripe (30 s cron / 45 s manual) **solo gobernaba la paginación**
+dentro de `stripeList`. Después venían, sin presupuesto alguno: (1) el bucle de fees —una llamada
+`charges/:id?expand[]=balance_transaction` POR PAGO, secuencial, cada una con timeout de hasta
+20 s— y (2) el upsert al final. **Worst-case medido con mock: 2.000 pagos = 20 páginas + hasta
+2.000 llamadas de fee ≈ 400 s solo de fees** (>6× el maxDuration=60 de Vercel): la función moría
+sin escribir la página leída y el reintento empezaba de cero. Arreglado en
+`lib/finance/stripeFees.ts` + `lib/finance/stripePaymentsSync.ts`:
+
+- **Bucle de fees deadline-aware** (`fetchStripeFeesForChargeIds`): consulta el reloj antes de
+  cada llamada con margen de 5 s para responder; tope duro de 200 fees por turno.
+- **Upsert garantizado antes del corte**: el dinero de la página leída se persiste SIEMPRE;
+  el reintento nunca empieza de cero.
+- **Corte honesto**: `truncated || deadlineReached` y `fees_pendientes` en el detail del run
+  (cron y ruta manual).
+- **Fee bueno no se pisa con NULL**: si la lectura falla o el presupuesto se agotó, la clave
+  `stripe_fee` se omite del payload → PostgREST no toca la columna en el conflicto (conserva el
+  fee del espejo); filas nuevas quedan NULL con el fallback del motor (comportamiento declarado).
+- **Fee inmutable no se re-pide**: una lectura previa del espejo (`stripe_fee IS NOT NULL`)
+  ahorra el bucle entero cuando no hay pagos nuevos (caso común): 0 llamadas de fee.
+
+Tests: `tests/stripe-fees-deadline.test.mjs` (7 con mock de Stripe: reloj, corte parcial que
+no pierde el dinero, conservación de fee, NULL honesto, cero re-lecturas, guardas estáticas).
+
+## ✅ Documentación de lecciones y deudas actualizada (28-sep tarde, Freebuff/Buffy — petición de Alex)
+
+Cierre de la petición «actualiza todos los md con las lecciones y deudas». **Solo docs/markdown;
+sin código.** Qué cambió:
+
+- **`AGENTS.md`** — nueva sección «Reglas de código aprendidas a golpes (26–28-sep, auditoría
+  FASE A)»: helpers UTC de fechas solo-día (`plan-cuotas.ts`), `{ error }` de supabase-js SIEMPRE
+  (incluido el gotcha TS de filtrar unión types), claim atómico antes de efectos externos
+  irreversibles, presupuesto de cron ≪ `maxDuration` + esqueletos antes del bucle, consumir los
+  booleanos de helpers de escritura, error de carga ≠ estado vacío en UI, resets de formularios
+  comparando valores, clases Tailwind solo de la escala existente y tests `.mjs` sin sintaxis TS.
+- **`PENDIENTES.md`** — 🧱 Deuda técnica con 6 entradas nuevas: firmas concurrentes sin CAS
+  (requiere decisión del responsable de contratos), onboarding de alumno sin outbox (carril F1),
+  webhook GHL no-objeto (carril F1), refunds acumulados + clawback (A5 de Alex), semántica refunds
+  `pending`/`rejected` en cash canónico (la deuda de los globs que la arrastraba la cerró en
+  paralelo la PR #274). «Hecho recientemente» con el cierre de la FASE A (26–28-sep).
+- **`CAPABILITIES.md`** — postdata 28-sep: la tabla NO se re-mide; lista lo resuelto con evidencia
+  (10 hallazgos, PRs #236–#273) y los abiertos con su bloqueo real.
+- **`CHANGELOG.md`** — entradas 26–28-sep: #269, #270, #271, #272, #273, reglas de AGENTS.md y
+  escalado de dependencias del carril Claude Code (#261/#262/#263).
+
+Validación: markdown puro — `prettier --check` en verde; el `paths-ignore` solo exime los pushes
+a `main`, NO las PRs: esta pasó CI completo (4 jobs en verde).
+Abiertos para Alex (decisión, no trabajo de agentes): A5 clawback/refunds, semántica de doble
+firma, y los dos del carril F1 (onboarding outbox, webhook no-objeto) pendientes de coordinación.
+
+## ✅ Bugs sin decisión de Alex cerrados: SeQura fail-closed + cash canónico verificado (PR #273, mergeada 28-sep tarde)
+
+**MERGEADA** (squash `8586ebb` en `main`). CI verde completo (Quality 2m15s, gitleaks, Build 3m5s,
+Smoke E2E 5m17s). Quality gate local en arnés: unit 1085/1089 (1 fallo = apify-retry-scenario,
+conocido de node 26) y metrics 754/754.
+
+- **SeQura (P2, «un hueco no es un cero»):** `searchAllOrders` asignaba `total=0` ante un listado
+  sin `of N total` legible y `syncDelinquents` marcaba 'recuperado' a TODOS los morosos ausentes.
+  Ahora listado ilegible o página corta vs total anunciado LANZA (`SequraApiError`), el run del
+  cron falla y reintenta (sync idempotente por upsert); la salida vacía válida sigue pasando.
+  `marcarRecuperados` extraída como función pura: lectura fallida no colapsa a `[]` y el update
+  de 'recuperado' fallido propaga (antes `if (!error) recovered++` se lo tragaba).
+- **Cash canónico (P1 parcial):** `canonicalCash` y `serieCanonicaCash` ya filtraban refunds a
+  'processed' pero sin test (la serie ni siquiera tenía cobertura): 5 casos nuevos de regresión
+  lo dejan verificado, paridad con `repNetCash` desde #269.
+- **Deuda cerrada (PR #274, mergeada):** los 3 ficheros de `tests/canonical/` (que no encajaban en
+  los globs de `npm test` ni `test:metrics` — no se ejecutaban en CI desde que se crearon) se
+  reubicaron a `tests/`: la suite pasó de 1089 a 1127 tests y la capa canónica ya es red real.
+- **Siguen abiertos SOLO los que requieren decisión de Alex/carriles ajenos:** clawback y refunds
+  acumulados (A5), semántica de doble firma concurrente (responsable de contratos) y onboarding de
+  alumno sin outbox (coordinación con carril F1 para el GHL webhook). **El Stripe fees/upsert P1
+  quedó cerrado en PR #275 (sección de arriba).**
+
+## Auditoría estática FASE A (26-sep) — estado al 28-sep (tarde)
+
+**Qué es:** consolidación del informe de auditoría estática del 26-sep (inspección de código, sin
+reproducción HTTP/DB ni acceso a producción). Al 28-sep **10 de los hallazgos abiertos están
+resueltos y fusionados** (PRs #269/#270/#272/#273, CI verde completo en cada una); quedan los que
+requieren decisión de negocio (detalle en la sección de arriba).
+
+### Resueltos en `main` — informe original + tandas del 28-sep
+
+- Informe original (PRs #236, #238, #239, #240, #244, #245, #249, #256, #259, #260; además `my-status` y `BusinessContextCard`): disputed ≠ cash; PATCH collections→cuota; approve-review recuperable; tools IA y detectores sin fabricar ceros/anomalías; historial del agente; crons monthly/reminders fail-ruidoso; allowlist de complete-reservation; sales/delete compensable; proyección con guards; webhook GHL con writes verificados; my-status propagando error; BusinessContextCard con try/finally.
+- **#269 (tanda dinero):** el alta de venta consume el booleano de `recordCollection` (estado parcial, contrato de acceso bloqueado si el cobro falló, toast honesto); `repNetCash` solo resta refunds `processed`; `collections/record` fail-ruidoso si el count previo falla (no reenvía `venta.registrada`); `appointments/create` manual valida que el contacto es del tenant.
+- **#270 (efectos externos):** cron Reels con presupuesto real (45 s) y esqueletos persistidos ANTES del bucle (si el runtime corta, nada se pierde); backfill de YouTube con claim atómico `pending→uploading` y espejo post-upload verificado (sin re-publicaciones).
+- **#272 (UX/estados):** home con error explícito + reintento (no «cero subcuentas»); Setting AI tolera storage no disponible; devoluciones y follow-ups sin loaders eternos; ContactForm resincroniza por VALORES al deshacer; P&L, cohortes, proyección y gestoría declaran la fuente ilegible en vez de pintar sumas parciales.
+
+### Abiertos — dinero y estados
+
+- **P1 — clawback y refunds acumulados.** `refunds/create` no consulta refunds previos (dos parciales válidos pueden superar lo cobrado) y no tiene idempotency key; `calculateNegativeCommissionsForRefund` limita cada fila contra SU positiva, no el total del participante. **Requiere la decisión A5 de Alex** antes de tocar.
+- **P1 — los tramos descuentan refunds no `processed`… parcialmente resuelto:** `repNetCash` ya filtra (PR #269), pero el cash canónico (`lib/canonical/cash.ts`) debe reverificarse contra refunds en `pending`/`rejected` cuando existan filas en esos estados.
+
+### Abiertos — crons e integraciones
+
+- **P2 — SeQura puede cerrar morosos con un listado ilegible o truncado** (`searchAllOrders` asigna `total=0` si no matchea `of N total`). Tests: salida vacía válida vs truncada, >100 pedidos.
+- **P2 — webhook GHL: `JSON.parse` válido pero no-objeto lanza 500 antes de guardar el sobre.** Carril F1: coordinar. Test: cuerpo `null`/`[]`.
+
+### Abiertos — aislamiento y contratos (requieren decisión/QA de firmas)
+
+- **P1 — dos firmas concurrentes con el mismo token pueden pisar PDF/hash:** el UPDATE final no condiciona por el estado leído (sin CAS) y el storage sube con `upsert: true`; en firma de alumno el evento a GHL se emite antes del UPDATE. La propia auditoría condiciona el fix a decidir la semántica ante doble submit con el responsable de contratos (impacto jurídico/financiero).
+- **P2 — onboarding de alumno sin outbox:** fallo de GHL → contrato firmado con `accesos_enviados_at: null` pero sin reintento automático (409 impide volver a firmar); fallo del UPDATE tras GHL aceptado → evento repetible sin dedupe visible.
+
+**Cobertura y límites:** sin P0 identificado; siguen abiertos el barrido de escrituras restantes, el
+contraste tipos↔esquema vivo, la RLS efectiva y el smoke E2E autenticado. Todo hallazgo sigue
+siendo **estático hasta reproducirse** con mocks/QA.
+
 ## ✅ Assets hero en producción verificados (28-sep mañana, Freebuff/Buffy)
 
 Cierre del pendiente de la noche del 27-sep («falta verificar el deployment que sirva los assets
@@ -17,9 +332,11 @@ Verificación en vivo sobre `https://app.scalixsystems.com`:
 - Home HTTP 200; su HTML solo referencia `hero-poster.webp` y `hero.mp4` (cero refs al PNG).
 - Ahorro real por visitante nuevo, ya en producción: 6,70 MB → 0,82 MB (−88%).
 
-Pendientes que siguen vivos: borrado de `public/brand/iawinners-logo.png` (1,47 MB, 0 referencias,
-espera ok de Alex) y las 12 credenciales de `integration_settings` (esperando que Alex pegue valores;
-Meta ya verificada en vivo).
+**Borrado ejecutado el 28-sep con ok de Alex** (commit `05e05d1`): `public/brand/iawinners-logo.png`
+(1,47 MB, 0 referencias en código, único resto de la marca IA Winners) eliminado del repo; además,
+producción lo servía públicamente en `/brand/iawinners-logo.png` (200, 1.539.785 bytes) — tras el
+despliegue esa URL pasará a 404. Queda vivo: las 12 credenciales de `integration_settings`
+(esperando que Alex pegue valores; Meta ya verificada en vivo).
 
 ## ✅ UX/a11y: clases Tailwind fuera de escala y botones de icono sin nombre (PR #265, mergeada)
 
@@ -229,8 +546,8 @@ Referencias actualizadas en `app/page.tsx` y `app/panel.css`; test del panel ada
 (7/7 verde en arnés; build verde). Descarga por visitante nuevo: 6,70 MB → 0,82 MB (−88%);
 página total a networkidle −26%. Bonus: el re-encode elimina los metadatos C2PA (procedencia IA)
 que pesaban dentro del mp4 original. **Asset muerto detectado: `public/brand/iawinners-logo.png`
-(1,47 MB) no tiene NI UNA referencia en el código — candidato a borrar de repo y disco (pendiente
-de ok de Alex).** Pendiente de decidir (Fase 2, no ejecutada): mover el vídeo a Bunny Stream (ya
+(1,47 MB) no tiene NI UNA referencia en el código — borrado el 28-sep, commit `05e05d1`, con ok de
+Alex (producción lo servía públicamente; su URL pasará a 404 al desplegar).** Pendiente de decidir (Fase 2, no ejecutada): mover el vídeo a Bunny Stream (ya
 conectada) si el tráfico de la landing crece; a escala actual no ahorra dinero (Vercel Hobby
 gratis, 100 GB/mes) y la compresión ya resuelve el problema.
 **→ Verificado en producción el 28-sep** (deployment `dpl_5EodtVe7`, commit `f18e336`): hero.mp4
@@ -1119,10 +1436,11 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                            | Rama           | Toca                                                                                            | Desde  |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
-| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
-| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                      | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
+| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Rama           | Toca                                                                                            | Desde  |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
+| Freebuff (Buffy)  | **Tarea de limpieza cerrada (28-sep noche).** Retirada fila obsoleta (#287 fusionada). 🔴 **Vercel en rate limit 24 h**: `main` (`4f83230`) tiene CI verde completo pero SIN deployment de producción — verificar READY cuando se recupere (~20:30Z del 29-sep) antes de afirmar que nada de #271-#287 está publicado. Dependabot #266 rebase pendiente de Alex (el bot no tiene push access: "only users with push access"); #229 bloqueada por `eslint-config-next` (comentario con el bloqueo). Libre para la siguiente tarea | (rama borrada) | —                                                                                               | 28-sep |
+| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI                                                                                                                                   | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
+| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                                                                                                                                                        | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
 
 ## Reglas de trabajo (2026-09-21)
 
@@ -1415,3 +1733,15 @@ Tres más del 25-sep (codificadas también en `AGENTS.md`, con el caso que las o
 **Bloqueo de memoria RESUELTO — causa raíz identificada (26-sep):** tsc no moría por el preview gestionado sino por un `next-server` huérfano de una gestión anterior escuchando en `:3000` (~1,7 GiB RSS, 8 h en pie); `freebuff-preview restart` recicló el preview nuevo (`:3001`, verificado sirviendo) pero no limpió el huérfano. Se terminó ÚNICAMENTE el árbol huérfano de `:3000` (SIGTERM y SIGKILL al PID confirmado como huérfano, no al preview). Además, el pico de tsc supera 2,2 GB de heap incluso con ~2,4 GB disponibles, así que se activaron 2 GB de swap dentro del contenedor (`fallocate -l 2G /swapfile; mkswap; swapon /swapfile`) y el typecheck se lanzó con `NODE_OPTIONS='--max-old-space-size=3584'`: pasó integralmente. No se cambió `tsconfig.json` ni se excluyó ruta alguna. La rama tiene base común directa con `origin/main` (`b87ab41`).
 
 **Cierre de la unidad (26-sep):** commit del fix `b6f85d2` + relevo `7a24627`, push, PR #233, CI de PR verde (run 36255945786) y run cancelado posterior por `cancel-in-progress` (no es fallo), merge `ae98914`, CI de `main` SUCCESS (run 36256579445), `npm run quality` PASS sobre `main` fusionada, rama remota y local eliminadas, fila del tablero retirada. De los pendientes de producto, el escenario Apify con fallo/reintento quedó CERRADO el 26-sep vía PR #234 (merge `1cb7659`): congelado en `tests/apify-retry-scenario.test.mjs`, que ejecuta `processRunResults` real con un mini-DB en memoria (CAS genuino, upserts idempotentes) y `fetch` interceptado — sin red ni credenciales; CI de PR run 36263193522 success y quality PASS sobre `main` fusionada. Reserva honesta: en el run del merge sobre `main` (36263667257) quality/build/secretos pasaron y el job Smoke E2E salió CANCELADO por la cola de concurrencia `e2e-tenant-qa` ("higher priority waiting request"), no por fallo; el E2E del mismo árbol pasó en el run de la PR. La credencial gestionada de GitHub no permite `gh run rerun` ("not accessible by integration"): quien fusione a continuación o Alex debe relanzar ese job (Re-run failed jobs) o validar el E2E con el próximo push de código a `main`. Sigue pendiente además la verificación read-only del ledger de migraciones de Supabase (requiere credenciales). Nota de entorno para próximos agentes: el typecheck integral necesita >2,2 GB de heap; si el sandbox arranca sin swap, recrearlo con `fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile` y lanzar con `NODE_OPTIONS='--max-old-space-size=3584'` (verificado en esta sesión; no debilitar cobertura).
+
+## En curso: bloque financiero Unit Economics
+
+Codex, rama codex/dashboard-consistency: gastos y resultado canónico por rango, cobros por primer pago y mes de venta. Archivos pnl.ts, componente financiero y unit-economics. Sin escrituras de datos. Quality PASS (1133 unit, 3 skip; 769 métricas). Mes completo coincide con P&L anterior; filtro diario conserva fecha de comisión vinculada al cobro; comisión con fecha solo mensual impide un resultado exacto en mes parcial. Desglose del libro interno explícitamente bruto, distinto del cash consolidado Stripe. Smoke autenticado local: gastos, resultado firmado y origen de cobros visibles. Build final PASS tras endurecer la granularidad mensual de liquidation_month. Smoke final autenticado y captura visual PASS: gastos, signo del resultado, margen, desglose por mes de venta y aviso de cobertura visibles. Servidor local activo en 3100; sesión 60974. No desplegado; no certificar resultado consolidado Stripe: el resultado corresponde al libro interno.
+
+## Ajustes de KPI y reconciliación solicitados (en curso)
+
+Codex, misma rama/PR: Cash Collected medio por ventas del periodo, gráfico dual, filtro Marketing, asistencia deduplicada y comisiones por función registrada. Reclama dashboard principal y resumen financiero además de Unit Economics: tarjetas de Cash Collected reutilizan canonicalCash; series del dashboard usan serieCanonicaCash. P&L y gastos siguen computeMonthlyPnl; no cambia asientos. Auditoría SQL de solo lectura confirma cobros de ventas anteriores y pagos de Stripe sin referencia interna; no suponer ventas nuevas ni crear ventas para cuadrarlos. Sin publicar cifras ni datos de tenant en este repositorio público. Quality PASS (1133 unitarias, 3 skip; 771 métricas). Smoke autenticado: total Cash Collected coincide en Unit Economics, dashboard principal y resumen financiero; promedio coincide en los dos dashboards; selector Marketing cambia/restaura aria-pressed. Build final PASS; smoke final verifica Asistencia, No shows, dos tarjetas de promedio y desglose de comisiones. Servidor local 3100, sesión 94017. No declarar coherencia global de todas las rutas: persisten conciliaciones de datos, fuentes de objetivos/brief y granularidad histórica de devoluciones. Clientes fuera del alcance a petición del usuario.
+
+## Aclaración del primer pago medio (28-sep)
+
+El usuario aclara que Cash Collected medio debe medir la primera transacción de la venta nueva, no el cash total del periodo. Helper compartido `promedioPrimerPago` en `lib/finance/nuevo-vs-recurrente.ts`, consumido por Negocio/Ventas y dashboard principal. Historial completo de cobros, una primera transacción por venta activa del periodo, sin cuotas posteriores ni ventas antiguas; corte a fin del periodo y ausencia explícita si falta un pago o el primero es ambiguo. Documento METRICS actualizado con la definición corregida. Quality PASS (1133 unit, 3 skip; 774 métricas), build PASS y dead-code informativo. Smoke autenticado confirma que el promedio corregido coincide entre Unit Economics y dashboard principal. Local 3100 activo, sesión 19536. No cambia cobros ni cash total. Producción pendiente de PR #278.

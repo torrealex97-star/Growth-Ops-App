@@ -24,9 +24,9 @@ test('el panel solo pinta lo que le da la ruta', () => {
   assert.doesNotMatch(codigo, /diagnosticarCuelloBotella|calcularSalud|calcularAgregados/)
 })
 
-test('la restricción va primero, antes de las tarjetas', () => {
+test('la hipótesis a verificar va primero, antes de las tarjetas', () => {
   const codigo = sinComentarios(leer(PANEL))
-  const restriccion = codigo.indexOf('Restricción actual')
+  const restriccion = codigo.indexOf('Hipótesis a verificar')
   const tarjetas = codigo.indexOf('<KpiCard')
   assert.ok(restriccion > -1 && restriccion < tarjetas, 'un panel que abre con veinte tarjetas no dirige a nada')
 })
@@ -99,12 +99,14 @@ test('el índice de Analítica ya no es una redirección vacía', () => {
 
 test('los filtros de periodo son los mismos que en el resto de métricas', () => {
   const codigo = leer(PAGINA)
-  for (const etiqueta of ['Hoy', '3 días', '7 días', 'Este mes', 'Trimestre', 'Año']) {
+  for (const etiqueta of ['today', '3d', '7d', 'month', 'quarter', 'year']) {
     assert.ok(codigo.includes(etiqueta), `falta el rango ${etiqueta}`)
   }
+  assert.match(codigo, /getPeriodRange\(rango, '', ''\)/)
+  assert.match(codigo, /PERIOD_LABELS\[r\]/)
   // Accesible: el grupo se anuncia y el botón activo se declara.
   assert.match(codigo, /role="group"/)
-  assert.match(codigo, /aria-pressed=\{rango === r\.id\}/)
+  assert.match(codigo, /aria-pressed=\{rango === r\}/)
 })
 
 test('el periodo se pasa a la ruta en vez de recalcularse en el panel', () => {

@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { searchAllOrders, showOrder, type SequraEnv } from './client'
 
 // Identificador de comercio en SeQura — es una cuenta real de terceros, no una marca. Se lee de la
@@ -16,6 +16,43 @@ export type SyncResult = {
   delinquentFound: number
   upserted: number
   recovered: number
+}
+
+/**
+ * Filas que ya no están en mora (pagaron) -> recuperado, salvo que el equipo ya las haya
+ * marcado como incobrable (esa decisión no se pisa sola).
+ * PURE: sin BD, testeable — el invariante es "un hueco no es un cero": solo se marca
+ * 'recuperado' a quien estaba EN el listado legible de SeQura y dejo de estar en mora.
+ * Cualquier fila con update fallido se propaga: cerrar en silencio sería mentir en el run.
+ */
+export async function marcarRecuperados(
+  sb: Pick<SupabaseClient, 'from'>,
+  tenantId: string,
+  delinquentRefs: string[]
+): Promise<number> {
+  // Fail-closed: si la lectura falla, NO se sabe quién sigue en seguimiento — un [] aquí
+  // marcaría 'recuperado' a NADIE y escondería morosos cerrados sin base.
+  const { data: stillPending, error: pendingError } = await sb
+    .from('sequra_delinquent_customers')
+    .select('id, order_reference')
+    .eq('tenant_id', tenantId)
+    .not('status', 'in', '(recuperado,incobrable)')
+  if (pendingError) {
+    throw new Error(`No se pudo leer la lista de morosos en seguimiento: ${pendingError.message}`)
+  }
+
+  let recovered = 0
+  for (const row of stillPending) {
+    if (delinquentRefs.includes(row.order_reference)) continue
+    const { error } = await sb
+      .from('sequra_delinquent_customers')
+      .update({ status: 'recuperado', last_synced_at: new Date().toISOString() })
+      .eq('id', row.id)
+      .eq('tenant_id', tenantId)
+    if (error) throw new Error(`Error marcando recuperado ${row.order_reference}: ${error.message}`)
+    recovered++
+  }
+  return recovered
 }
 
 export async function syncSequraDelinquents(tenantId: string, env: SequraEnv): Promise<SyncResult> {
@@ -57,23 +94,9 @@ export async function syncSequraDelinquents(tenantId: string, env: SequraEnv): P
     if (error) throw new Error(`Error guardando ${detail.primaryReference}: ${error.message}`)
   }
 
-  // Filas que ya no están en mora (pagaron) -> recuperado, salvo que el equipo ya las
-  // haya marcado como incobrable (esa decisión no se pisa sola).
-  let recovered = 0
-  const { data: stillPending } = await sb
-    .from('sequra_delinquent_customers')
-    .select('id, order_reference')
-    .eq('tenant_id', tenantId)
-    .not('status', 'in', '(recuperado,incobrable)')
-  for (const row of stillPending ?? []) {
-    if (delinquentRefs.includes(row.order_reference)) continue
-    const { error } = await sb
-      .from('sequra_delinquent_customers')
-      .update({ status: 'recuperado', last_synced_at: new Date().toISOString() })
-      .eq('id', row.id)
-      .eq('tenant_id', tenantId)
-    if (!error) recovered++
-  }
+  // Filas que ya no están en mora (pagaron) -> recuperado; la lógica (y el fail-closed)
+  // vive en marcarRecuperados, extraída para poder probar el invariante sin BD.
+  const recovered = await marcarRecuperados(sb, tenantId, delinquentRefs)
 
   return { checked, delinquentFound, upserted: delinquentFound, recovered }
 }

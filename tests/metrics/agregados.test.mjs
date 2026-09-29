@@ -110,7 +110,7 @@ test('los importes que llegan como string de Postgres se suman como números', (
 test('CAC, ROAS, CTR, CPC y CPM salen de los números reales', () => {
   const m = con({
     campanas: [dia({ spend: 1000, impressions: 100_000, clicks: 2000 })],
-    ventas: [venta(), venta()],
+    ventas: [venta({ contact_id: 'a' }), venta({ contact_id: 'b' })],
     cobros: [cobro({ gross_amount: 2000 })],
   })
   assert.equal(m.cac.valor, 500) // 1000 € / 2 ventas

@@ -137,7 +137,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       if (instErr) return NextResponse.json({ error: instErr.message }, { status: 500 })
     }
 
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       actor_user_id: t.userId,
       entity_type: 'sale',
@@ -151,6 +151,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       },
       new_values: { ...payload, _accion: 'completar_reserva' },
     })
+    // Cambio de dinero (gross_amount/plan) SIN rastro: la auditoría es parte del hecho, no un extra.
+    if (auditErr) console.error('[sales/complete-reservation] no se pudo registrar audit_logs:', auditErr.message)
 
     // La reserva ya es cliente: el cobro de la reserva (que se dejó sin comisionar a propósito,
     // ver saleNeedsCommissionReview) ahora sí debe comisionar. Se reabre y se reconcilia junto con

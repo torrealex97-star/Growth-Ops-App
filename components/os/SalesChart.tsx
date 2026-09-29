@@ -46,7 +46,7 @@ const CustomTooltip = ({
 // Área en vez de barras: comunica mejor evolución/volumen (punto 18) y usa el token de marca del
 // tenant (--brand-500, rosa en WDC / azul en Evergreen) en vez de un blanco fijo — antes el chart
 // no cambiaba de acento aunque el resto de la UI sí lo hiciera por tenant.
-export function SalesChart({ data, title = 'Cash Cobrado por Día', className, cashData }: SalesChartProps) {
+export function SalesChart({ data, title = 'Cash Collected por día', className, cashData }: SalesChartProps) {
   const dual = cashData && cashData.length > 0
   // Fusiona las dos series por periodo para superponerlas en el mismo eje.
   const dataDual: PuntoDual[] = dual
@@ -69,7 +69,7 @@ export function SalesChart({ data, title = 'Cash Cobrado por Día', className, c
             </span>
             <span className="flex items-center gap-1.5">
               <i className="h-2 w-2 rounded-full bg-emerald-400" />
-              Cash cobrado
+              Cash Collected
             </span>
           </div>
         )}
@@ -116,7 +116,7 @@ export function SalesChart({ data, title = 'Cash Cobrado por Día', className, c
               <Area
                 type="monotone"
                 dataKey="cash"
-                name="Cash cobrado"
+                name="Cash Collected"
                 stroke="#34d399"
                 strokeWidth={2}
                 fill="url(#salesChartFillCash)"

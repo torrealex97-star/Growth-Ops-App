@@ -239,7 +239,7 @@ export async function grantAccess(
     return { ok: false, motivo: 'no_escrito', mensaje: 'No se pudo dar el acceso (0 filas escritas).' }
   }
 
-  await sb.from('audit_logs').insert({
+  const { error: auditErr } = await sb.from('audit_logs').insert({
     tenant_id: actor.tenantId,
     entity_type: 'tenant_member',
     entity_id: target.id,
@@ -247,6 +247,7 @@ export async function grantAccess(
     actor_user_id: actor.userId,
     new_values: { tenant_id: tenantId, email: target.email, role },
   })
+  if (auditErr) console.error('[tenants/provision] no se pudo auditar grantAccess:', auditErr.message)
   return { ok: true, accion: 'acceso_dado', email: target.email }
 }
 
@@ -293,7 +294,7 @@ export async function revokeAccess(
     return { ok: false, motivo: 'no_escrito', mensaje: 'Esa persona ya no tenía acceso a esta subcuenta.' }
   }
 
-  await sb.from('audit_logs').insert({
+  const { error: auditErr } = await sb.from('audit_logs').insert({
     tenant_id: actor.tenantId,
     entity_type: 'tenant_member',
     entity_id: userId,
@@ -301,6 +302,7 @@ export async function revokeAccess(
     actor_user_id: actor.userId,
     old_values: { tenant_id: tenantId, user_id: userId },
   })
+  if (auditErr) console.error('[tenants/provision] no se pudo auditar revokeAccess:', auditErr.message)
   return { ok: true, accion: 'acceso_quitado' }
 }
 
@@ -359,7 +361,7 @@ export async function setTenantStatus(
     return { ok: false, motivo: 'no_escrito', mensaje: 'No se pudo cambiar el estado (0 filas afectadas).' }
   }
 
-  await sb.from('audit_logs').insert({
+  const { error: auditErr } = await sb.from('audit_logs').insert({
     tenant_id: actor.tenantId,
     entity_type: 'tenant',
     entity_id: tenantId,
@@ -368,5 +370,6 @@ export async function setTenantStatus(
     old_values: { status: estadoAnterior },
     new_values: { status },
   })
+  if (auditErr) console.error('[tenants/provision] no se pudo auditar setTenantStatus:', auditErr.message)
   return { ok: true, status }
 }

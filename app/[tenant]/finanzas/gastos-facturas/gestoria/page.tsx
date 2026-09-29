@@ -98,6 +98,7 @@ export default function GestoriaPage() {
   const [refunds, setRefunds] = useState<RefundRow[]>([])
   const [sales, setSales] = useState<PnlSaleRow[]>([])
   const [commissions, setCommissions] = useState<PnlCommissionRow[]>([])
+  const [fuentesEnError, setFuentesEnError] = useState<string[]>([])
 
   const monthOptions = useMemo(() => lastNMonths(12, nowYm()).reverse(), [])
 
@@ -123,6 +124,26 @@ export default function GestoriaPage() {
           .range(0, FINANCE_QUERY_ROW_CAP),
       ])
       if (!mounted) return
+      // Un fallo aislado NO es "esa fuente a cero": el export pintaría totales parciales como
+      // si fueran el mes completo. Se declara el estado ilegible y la UI avisa.
+      const fuentesFallidas = [
+        collRes.error && 'cobros',
+        expensesRes.error && 'gastos',
+        refundsRes.error && 'devoluciones',
+        salesRes.error && 'ventas',
+        commissionsRes.error && 'comisiones',
+      ].filter(Boolean) as string[]
+      if (fuentesFallidas.length) {
+        setFuentesEnError(fuentesFallidas)
+        setCollections([])
+        setExpenses([])
+        setRefunds([])
+        setSales([])
+        setCommissions([])
+        setLoading(false)
+        return
+      }
+      setFuentesEnError([])
       setCollections(collRes.data || [])
       setExpenses(expensesRes.data || [])
       setRefunds(refundsRes.data || [])
@@ -165,7 +186,7 @@ export default function GestoriaPage() {
     const rows: string[][] = [
       ['Concepto', 'Importe'],
       ['Mes', monthLabel(ym)],
-      ['Facturación / Cash Collected', summary.cashCollected.toFixed(2)],
+      ['Cash Collected (libro interno, bruto)', summary.cashCollected.toFixed(2)],
       ['Devoluciones', (-summary.totalRefunds).toFixed(2)],
       ['Gastos totales', (-summary.totalExpenses).toFixed(2)],
       ['Comisiones de plataforma', (-summary.platformFees).toFixed(2)],
@@ -222,6 +243,15 @@ export default function GestoriaPage() {
         </label>
       </div>
 
+      {fuentesEnError.length > 0 && (
+        <div className="rounded-lg border border-red-500/40 bg-red-500/5 p-4" role="alert">
+          <p className="text-sm text-red-400">
+            No se pudieron leer: {fuentesEnError.join(', ')}. Los totales del export NO se muestran porque estarían
+            incompletos. Corrige la fuente fallida y recarga.
+          </p>
+        </div>
+      )}
+
       {loading ? (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -231,7 +261,7 @@ export default function GestoriaPage() {
           </div>
           <div className="h-64 bg-card rounded-lg animate-pulse" />
         </div>
-      ) : (
+      ) : fuentesEnError.length > 0 ? null : (
         <>
           {/* Resumen I&G del mes */}
           <div>
@@ -247,7 +277,7 @@ export default function GestoriaPage() {
               </button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-              <MetricCard label="Facturación / Cash Collected" value={fmt(summary.cashCollected)} />
+              <MetricCard label="Cash Collected (libro interno, bruto)" value={fmt(summary.cashCollected)} />
               <MetricCard
                 label="Devoluciones"
                 value={`− ${fmt(summary.totalRefunds)}`}

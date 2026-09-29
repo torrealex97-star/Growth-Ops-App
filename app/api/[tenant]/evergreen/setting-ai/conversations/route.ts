@@ -10,6 +10,15 @@ import {
   fetchIgConversationsWithMessages,
 } from '@/lib/instagram/client'
 import { edadLegible, guardarSnapshot, leerSnapshot } from '@/lib/instagram/snapshot'
+import {
+  cfgDesdeEnv,
+  descargarConversacionesGhl,
+  guardarSnapshotGhl,
+  leerSnapshotGhl,
+  vincularConContactos,
+  type GhConversation,
+} from '@/lib/ghl/conversaciones'
+import { serviceClient } from '@/lib/integrations/citas-sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,10 +27,13 @@ export const dynamic = 'force-dynamic'
 // tardía de Meta no reviente la lambda.
 export const maxDuration = 60
 
-// Lista conversaciones (DMs) con su transcripción, para la pestaña "Conversaciones" de
-// Setting AI. Instagram trae datos reales (mismo cliente que usa el sync orgánico);
-// Facebook y TikTok todavía no tienen integración de mensajería, así que devuelven
-// configured:false para que el front pinte un placeholder "próximamente".
+// Lista conversaciones con su transcripción, para la pestaña "Conversaciones" de Setting AI.
+// Instagram trae datos reales (mismo cliente que usa el sync orgánico). GHL también: pull bajo
+// demanda de /conversations/search + mensajes de la API v2 (lib/ghl/conversaciones.ts) con la
+// MISMA mecánica de snapshot stale; es la bandeja unificada de la subcuenta (SMS, Facebook,
+// Instagram, WhatsApp, email) y cada conversación llega vinculada al perfil del CRM cuando hay
+// match (ghl_contact_id → email → teléfono). Facebook y TikTok directos siguen sin integración
+// de mensajería: configured:false para que el front pinte un placeholder "próximamente".
 //
 // Dos capas de defensa contra la lentitud de Meta (endpoint de conversaciones más pesado
 // que el resto de la Graph API: hoy dio error #1 y un timeout SUYO en la misma página):
@@ -38,8 +50,42 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   if ('error' in t) return t.error
 
   const platform = req.nextUrl.searchParams.get('platform') || 'instagram'
-  if (platform !== 'instagram') {
+  if (platform !== 'instagram' && platform !== 'ghl') {
     return NextResponse.json({ configured: false, platform, conversations: [] })
+  }
+
+  // GHL: mismo contrato que Instagram (snapshot → stale + refresco en after() → descarga con
+  // plazo duro). Sin credencial o con GHL caído: configured:false con motivo accionable, o el
+  // último snapshot correcto con su edad declarada — nunca una lista vacía que parezca
+  // "no hay chats" (un error de carga no es un estado vacío).
+  if (platform === 'ghl') {
+    const snap = await leerSnapshotGhl(t.tenantId)
+    if (snap) {
+      const fresco = Date.now() - new Date(snap.guardado).getTime() < 3 * 60_000
+      if (!fresco) {
+        after(async () => {
+          await descargarGhl(t.tenantId).catch(() => null) // guardarSnapshotGhl ocurre dentro
+        })
+      }
+      return NextResponse.json({
+        configured: true,
+        platform,
+        conversations: snap.conversaciones,
+        motivo: `Último snapshot correcto (${edadLegible(snap.guardado)}).`,
+        stale: true,
+        guardado: snap.guardado,
+      })
+    }
+    const resultadoGhl = await conPlazo(descargarGhl(t.tenantId), 25_000)
+    if (resultadoGhl === PLAZO) {
+      return NextResponse.json({
+        configured: false,
+        platform,
+        conversations: [],
+        motivo: 'GHL no respondió a tiempo. Inténtalo de nuevo en unos minutos.',
+      })
+    }
+    return NextResponse.json(resultadoGhl)
   }
 
   // getTenantConfigWithFallback indexa por tenantId (UUID), no por slug: pasar el slug
@@ -96,11 +142,50 @@ function conPlazo<T>(p: Promise<T>, ms: number): Promise<T | typeof PLAZO> {
 type RespuestaConvos = {
   configured: boolean
   platform: string
-  conversations: IgConversation[]
+  conversations: (IgConversation | GhConversation)[]
   motivo?: string
   error?: string
   stale?: boolean
   guardado?: string
+}
+
+// Descarga GHL: credenciales del tenant (decryptSecret de integration_settings vía config con
+// fallback a env), pull con presupuesto interno de 20s (por debajo del plazo duro de 25s de la
+// ruta), vinculación con contacts y snapshot como respaldo. Un fallo de vinculación por BD es
+// un error ruidoso (no una lista "sin perfil" que parezca que no hay matches).
+async function descargarGhl(tenantId: string): Promise<RespuestaConvos> {
+  const platform = 'ghl'
+  const cfg = cfgDesdeEnv(await getTenantConfigWithFallback(tenantId, true))
+  if (!cfg) {
+    return {
+      configured: false,
+      platform,
+      conversations: [],
+      motivo: 'Faltan el token o el Location ID de GoHighLevel. Configúralos en Configuración → Integraciones.',
+    }
+  }
+  try {
+    const conversaciones = await descargarConversacionesGhl(cfg, { limite: 20, deadlineMs: Date.now() + 20_000 })
+    await vincularConContactos(serviceClient(), tenantId, conversaciones)
+    // Descarga buena: queda como respaldo para cuando GHL no responda (se guarda DESPUÉS de
+    // vincular, para que el snapshot conserve también la vinculación con perfiles).
+    if (conversaciones.length) await guardarSnapshotGhl(tenantId, conversaciones)
+    return { configured: true, platform, conversations: conversaciones }
+  } catch (e) {
+    const mensaje = e instanceof Error ? e.message : String(e)
+    const snap = await leerSnapshotGhl(tenantId)
+    if (snap) {
+      return {
+        configured: true,
+        platform,
+        conversations: snap.conversaciones,
+        motivo: `GHL no respondió (${mensaje}); mostrando el último snapshot correcto (${edadLegible(snap.guardado)}).`,
+        stale: true,
+        guardado: snap.guardado,
+      }
+    }
+    return { configured: false, platform, conversations: [], motivo: `GHL no respondió: ${mensaje}` }
+  }
 }
 
 async function descargar(tenant: string, platform: string): Promise<RespuestaConvos> {

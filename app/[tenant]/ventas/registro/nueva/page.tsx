@@ -757,7 +757,7 @@ export default function NewSalePage() {
         return
       }
       saleId = newSaleId
-      await supabase.from('audit_logs').insert({
+      const { error: auditErr } = await supabase.from('audit_logs').insert({
         tenant_id: tenantId,
         actor_user_id: sesion.userId,
         entity_type: 'sale',
@@ -766,6 +766,7 @@ export default function NewSalePage() {
         old_values: null,
         new_values: salePayload,
       })
+      if (auditErr) console.error('[ventas/registro/nueva] no se pudo registrar audit_logs de la venta:', auditErr)
     }
 
     // Registra un cobro (cash collected) + genera comisiones pendientes vía endpoint server-side
@@ -798,6 +799,11 @@ export default function NewSalePage() {
     }
 
     // ── Cobros inmediatos + calendario de cuotas ──
+    // recordCollection devuelve false si el cobro NO se registró (HTTP no-OK o red). Antes el
+    // resultado se ignoraba y el flujo seguía hasta el toast de éxito: la venta quedaba creada
+    // sin collection ni comisiones aparentando éxito. Desde aquí se marca el estado parcial y
+    // se evita además generar/enviar el contrato (acceso al producto) si el dinero no entró.
+    let ventaConCobroFallido = false
     // Al completar una reserva las cuotas ya las insertó el endpoint server-side (RLS). En una venta
     // nueva se insertan aquí desde el cliente. En ambos casos los cobros van por el endpoint server-side.
 
@@ -814,7 +820,8 @@ export default function NewSalePage() {
         0
       )
       if (alreadyCollected < reservationAmountNumber) {
-        await recordCollection(reservationAmountNumber - alreadyCollected)
+        const cobroOk = await recordCollection(reservationAmountNumber - alreadyCollected)
+        if (!cobroOk) ventaConCobroFallido = true
       }
     }
 
@@ -845,14 +852,21 @@ export default function NewSalePage() {
         }
         if (upfront) {
           const amt = Number(upfront.expected_gross_amount)
-          await recordCollection(amt, amt)
+          const cobroOkUpfront = await recordCollection(amt, amt)
+          if (!cobroOkUpfront) ventaConCobroFallido = true
         }
       }
     } else if (financeAsInstallments) {
       // Autofinanciado / plan personalizado: reserva ya pagada (venta nueva) + entrada al momento
       // = cash collected; el resto, cuotas. (Si viene de completar una reserva, ya se registró arriba.)
-      if (!reservationId && reservationAmountNumber > 0) await recordCollection(reservationAmountNumber)
-      if (downPaymentNumber > 0) await recordCollection(downPaymentNumber)
+      if (!reservationId && reservationAmountNumber > 0) {
+        const cobroOkReserva = await recordCollection(reservationAmountNumber)
+        if (!cobroOkReserva) ventaConCobroFallido = true
+      }
+      if (downPaymentNumber > 0) {
+        const cobroOkEntrada = await recordCollection(downPaymentNumber)
+        if (!cobroOkEntrada) ventaConCobroFallido = true
+      }
       if (!reservationId) {
         const rest = buildInstallmentRows(saleId)
         if (rest.length) {
@@ -873,36 +887,55 @@ export default function NewSalePage() {
       // Se pasa commissionable explícito (= lo realmente cobrado) para que el endpoint NO
       // reaplique el cash_collection_ratio del plan de reserva (que es un valor de referencia,
       // no el % real a comisionar sobre un importe de reserva variable).
-      if (!reservationId) await recordCollection(gross, gross)
+      if (!reservationId) {
+        const cobroOkReserva = await recordCollection(gross, gross)
+        if (!cobroOkReserva) ventaConCobroFallido = true
+      }
     } else {
       // Full pay (pago único): el cliente paga el total ahora → se registra como cash collected
       // para que la venta cuente en Ingresos/Gastos y genere las comisiones (setter/closer/afiliado).
       if (reservationId) {
         // Completar una reserva: se cobra el resto pendiente de una vez.
         const remaining = Math.round((gross - alreadyPaid) * 100) / 100
-        if (remaining > 0) await recordCollection(remaining)
+        if (remaining > 0) {
+          const cobroOkResto = await recordCollection(remaining)
+          if (!cobroOkResto) ventaConCobroFallido = true
+        }
       } else {
         // Venta nueva full-pay: el cobro es el total bruto (la reserva ya pagada forma parte de él).
-        await recordCollection(gross)
+        const cobroOk = await recordCollection(gross)
+        if (!cobroOk) ventaConCobroFallido = true
       }
     }
 
     // Genera el contrato de alumno y lo envía por email (firma en caliente). Deja el enlace
     // "cortafuegos" listo para copiar/pegar al alumno pase lo que pase con el correo.
+    // SOLO si el dinero entró: enviar un contrato con acceso al producto tras un cobro fallido
+    // sería entregar sin cobro registrado (ni comisiones) como si nada hubiera pasado.
     let contractSignUrl: string | null = null
-    try {
-      const cRes = await fetch(`/api/${tenant}/evergreen/contracts/student`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ saleId, send: true }),
-      })
-      const cd = await cRes.json().catch(() => ({}))
-      if (cRes.ok) contractSignUrl = cd.signUrl ?? null
-    } catch {
-      /* no bloquea la venta */
-    }
+    if (ventaConCobroFallido) {
+      contractSignUrl = null
+    } else
+      try {
+        const cRes = await fetch(`/api/${tenant}/evergreen/contracts/student`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ saleId, send: true }),
+        })
+        const cd = await cRes.json().catch(() => ({}))
+        if (cRes.ok) contractSignUrl = cd.signUrl ?? null
+      } catch {
+        /* no bloquea la venta */
+      }
 
-    if (contractSignUrl) {
+    if (ventaConCobroFallido) {
+      // El fallo concreto ya avisó con su propio toast; el estado GLOBAL no puede ser
+      // "creada correctamente" porque la venta quedó sin cash ni comisiones.
+      toast.warning(reservationId ? 'Pago completado con cobro incompleto' : 'Venta creada con cobro incompleto', {
+        description:
+          'Hay cobros que no se pudieron registrar. Revisa la ficha de la venta y regístralos desde Cobros; no repitas el alta (crearía otra venta).',
+      })
+    } else if (contractSignUrl) {
       try {
         await navigator.clipboard.writeText(contractSignUrl)
       } catch {

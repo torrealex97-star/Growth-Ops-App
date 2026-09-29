@@ -62,6 +62,7 @@ export function MetaAdsView({
     if (!periodActive || !rangeFrom || !rangeTo) return
     let active = true
     setCargando(true)
+    setError(null)
     ;(async () => {
       try {
         const res = await fetch(`/api/${tenant}/evergreen/meta/daily-actions?from=${rangeFrom}&to=${rangeTo}`)
@@ -353,6 +354,12 @@ export function MetaAdsView({
               ))}
             </div>
           </div>
+          {trendDef?.key === 'reach' && (
+            <p className="text-xs text-muted-foreground">
+              El alcance único no se obtiene sumando días o campañas. Las agrupaciones sin alcance deduplicado se
+              muestran sin dato.
+            </p>
+          )}
           {trendDef && <MetaTrend metric={trendDef} rows={seriesPorGranularidad} />}
         </div>
       )}

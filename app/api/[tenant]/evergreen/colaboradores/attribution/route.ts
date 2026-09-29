@@ -93,8 +93,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // AUDITORÍA (§64): quién, qué, cuándo, anterior, nuevo y por qué.
-    await sb.from('audit_logs').insert({
+    // AUDITORÍA (§64): quién, qué, cuándo, anterior, nuevo y por qué. Este endpoint existe
+    // PRECISAMENTE para que ningún cambio de atribución financiera quede sin rastro — si el
+    // audit falla, el cambio ya aplicado es justo lo que la ruta promete que nunca pasa.
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       actor_user_id: t.userId,
       entity_type: 'contact_attribution',
@@ -103,6 +105,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       old_values: { collaborator_id: anterior },
       new_values: { collaborator_id: collaboratorId, reason },
     })
+    if (auditErr) {
+      return NextResponse.json(
+        {
+          error:
+            'El cambio de atribución se aplicó pero no se pudo auditar: ' +
+            auditErr.message +
+            '. Revisar a mano — este endpoint no permite cambios sin rastro.',
+        },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json({ ok: true, from: anterior, to: collaboratorId })
   } catch (err) {

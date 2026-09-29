@@ -179,7 +179,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           .eq('user_id', userId)
           .limit(1)
         if (!perfilPrevio || perfilPrevio.length === 0) {
-          await supabase.from('collaborator_profiles').insert({
+          const { error: perfilErr } = await supabase.from('collaborator_profiles').insert({
             tenant_id: t.tenantId,
             user_id: userId,
             code: (trackingCode ?? (await generateUniqueTrackingCode(supabase))).toUpperCase(),
@@ -189,6 +189,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
             // el admin desde el panel de Colaboradores; aquí solo nace la ficha.
             default_commission_percent: null,
           })
+          // Sin esta fila el afiliado no tiene scope de colaborador ni carril de ledger correcto.
+          if (perfilErr) console.error('[invite] no se pudo crear el perfil de colaborador:', perfilErr.message)
         }
       }
     }

@@ -11,6 +11,7 @@
 // tamaño de muestra y, cuando falta, el motivo. Devolver 0 donde no se ha medido es el error que hace
 // que alguien decida sobre un dato que no existe.
 
+import { isActiveSale } from '@/lib/analytics'
 import { evaluarCualificacion } from '@/lib/metrics/cualificacion'
 import { extraerRespuestas } from '@/lib/metrics/respuestas-formulario'
 import {
@@ -61,6 +62,7 @@ export function porcentaje(parte: number, total: number, motivo: string): Medici
 // ---------------------------------------------------------------------------------------------
 
 export type FilaVenta = {
+  contact_id?: string | null
   sale_date: string | null
   gross_amount: number | string | null
   status: string | null
@@ -139,7 +141,7 @@ function mediana(valores: number[]): number | null {
 }
 
 /** Estados de venta que cuentan. Una venta reembolsada o anulada no es facturación del periodo. */
-export const VENTAS_QUE_CUENTAN = new Set(['active', 'activa', 'completed', 'completada'])
+export const VENTAS_QUE_CUENTAN = new Set(['active', 'partial_refund'])
 
 /** Estados de cita que significan que la cita ya no va a ocurrir. No entran en el denominador. */
 const CITAS_CANCELADAS = new Set(['cancelled', 'cancelled_admin', 'cancelled_lead', 'cancelada', 'rescheduled'])
@@ -209,7 +211,7 @@ export function calcularAgregados(e: Entrada): Agregados {
   const cash = cobrosDelPeriodo.reduce((a, c) => a + num(c.gross_amount), 0)
 
   const ventasDelPeriodo = e.ventas.filter(
-    (v) => enPeriodo(v.sale_date, p) && (!v.status || VENTAS_QUE_CUENTAN.has(v.status)) && !esReservaAbierta(v)
+    (v) => enPeriodo(v.sale_date, p) && isActiveSale({ status: v.status ?? '' }) && !esReservaAbierta(v)
   )
   // Facturación = precio COMPROMETIDO, no la suma de lo cobrado. Es la corrección que ya costó una
   // migración de datos: un plan a 10 plazos factura el total y cobra una décima parte cada mes.
@@ -286,8 +288,12 @@ export function calcularAgregados(e: Entrada): Agregados {
     ? dividir(cash, gasto, 'Sin gasto en anuncios en el periodo no hay ROAS que calcular.', cobrosDelPeriodo.length)
     : sinDato('Sin datos de campañas no se puede calcular el ROAS.')
 
+  const clientes = new Set(ventasDelPeriodo.map((v) => v.contact_id).filter(Boolean)).size
+  const identidadCompleta = ventasDelPeriodo.every((v) => !!v.contact_id)
   m.cac = hayCampanas
-    ? dividir(gasto, nVentas, 'No hay ventas en el periodo: el CAC sería una división por cero.', nVentas)
+    ? identidadCompleta
+      ? dividir(gasto, clientes, 'No hay clientes en el periodo: el CAC sería una división por cero.', clientes)
+      : sinDato('Falta contact_id en ventas: no se pueden contar clientes únicos para el CAC.')
     : sinDato('Sin datos de campañas no se puede calcular el CAC.')
 
   m.ctr = hayCampanas

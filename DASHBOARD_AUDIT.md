@@ -112,85 +112,85 @@ La RPC de atribución es histórica, sin fechas; touchRows está limitado y el f
 
 ## Contratos críticos y decisión de representación
 
-| Métrica | Definición / numerador / denominador | Tiempo y fuente | Scope y visual recomendada |
-|---|---|---|---|
-| Leads nuevos | contactos únicos no fusionados; no confundir contactos importados con llegada | first_seen_at; fallback first_contact_at, luego created_at con confianza explícita | tenant + persona/canal; card y serie; cobertura del fallback visible |
-| Agendas | explicitar citas previstas vs nuevas reservas; cancelaciones separadas | appointment_datetime para agenda del día; booked_at para captación de agendas si disponible | tabla por estado + serie; no conectar cohortes sin ID |
-| Show rate | asistencias / agendas elegibles conforme definición canónica; pendientes y futuras separadas | fecha cita; madurez de estado y evidencia | ratio + n/N; sin benchmark si provisional |
-| Close rate | cierres / asistencias (o llamadas cualificadas si contrato aprobado) | distinguir actividad de cohorte enlazada | tabla por closer + n/N, no pie |
-| Ventas | ventas válidas excluyendo reservas abiertas; clientes únicos son otra métrica | sale_date, sales + payment_plans | card + drilldown; total operativo conserva sin atribuir |
-| Contracted Revenue | suma contratada válida; no Cash ni billed/recognized | sale_date | card y serie, moneda base acreditada |
-| Cash / Net Cash | pagos válidos deduplicados; refunds por ocurrencia; fees según MONEY | paid_at/collected_at y fecha refund; Stripe + manual validado | serie y conciliación por referencia; partial si falla fuente |
-| CPL / CAC | gasto / leads; gasto / clientes nuevos únicos con scope explícito | campaign_daily y población atribuible o blended declarada | ratio + denominador y gasto; no dividir poblaciones distintas |
-| ROAS / MER | revenue o cash declarado / gasto del mismo scope; no intercambiar atribuible y total | periodo y FX consistentes | card + desglose; no benchmark hasta calidad completa |
-| Retención/LTV | cohortes clientes, ventana madura, pagos netos y delivery enlazados | faltan verificaciones para contrato implementado | cohortes; celdas inmaduras N/A, nunca rojo automático |
-| Comisiones | estados earned/pending/approved/paid/reversed del motor; D8/D9 | base y fecha según motor, no fórmula paralela UI | tabla y totales por estado/persona |
+| Métrica            | Definición / numerador / denominador                                                         | Tiempo y fuente                                                                             | Scope y visual recomendada                                           |
+| ------------------ | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Leads nuevos       | contactos únicos no fusionados; no confundir contactos importados con llegada                | first_seen_at; fallback first_contact_at, luego created_at con confianza explícita          | tenant + persona/canal; card y serie; cobertura del fallback visible |
+| Agendas            | explicitar citas previstas vs nuevas reservas; cancelaciones separadas                       | appointment_datetime para agenda del día; booked_at para captación de agendas si disponible | tabla por estado + serie; no conectar cohortes sin ID                |
+| Show rate          | asistencias / agendas elegibles conforme definición canónica; pendientes y futuras separadas | fecha cita; madurez de estado y evidencia                                                   | ratio + n/N; sin benchmark si provisional                            |
+| Close rate         | cierres / asistencias (o llamadas cualificadas si contrato aprobado)                         | distinguir actividad de cohorte enlazada                                                    | tabla por closer + n/N, no pie                                       |
+| Ventas             | ventas válidas excluyendo reservas abiertas; clientes únicos son otra métrica                | sale_date, sales + payment_plans                                                            | card + drilldown; total operativo conserva sin atribuir              |
+| Contracted Revenue | suma contratada válida; no Cash ni billed/recognized                                         | sale_date                                                                                   | card y serie, moneda base acreditada                                 |
+| Cash / Net Cash    | pagos válidos deduplicados; refunds por ocurrencia; fees según MONEY                         | paid_at/collected_at y fecha refund; Stripe + manual validado                               | serie y conciliación por referencia; partial si falla fuente         |
+| CPL / CAC          | gasto / leads; gasto / clientes nuevos únicos con scope explícito                            | campaign_daily y población atribuible o blended declarada                                   | ratio + denominador y gasto; no dividir poblaciones distintas        |
+| ROAS / MER         | revenue o cash declarado / gasto del mismo scope; no intercambiar atribuible y total         | periodo y FX consistentes                                                                   | card + desglose; no benchmark hasta calidad completa                 |
+| Retención/LTV      | cohortes clientes, ventana madura, pagos netos y delivery enlazados                          | faltan verificaciones para contrato implementado                                            | cohortes; celdas inmaduras N/A, nunca rojo automático                |
+| Comisiones         | estados earned/pending/approved/paid/reversed del motor; D8/D9                               | base y fecha según motor, no fórmula paralela UI                                            | tabla y totales por estado/persona                                   |
 
 ## Matriz principal (código; cobertura browser detallada más abajo)
 
 Rutas relativas a `/<tenant>`. ¿Correcto? se refiere al contrato inspeccionado, no certifica el render final.
 
-| Screen | Metric | Definition | Source | Correct? | Data Complete? | UI Appropriate? | Finding | Action |
-|---|---|---|---|---|---|---|---|---|
-| dashboard | ventas, contratado, cash, variación | actividad del periodo y comparación equivalente | analytics + sales/collections | No | Parcial | Pendiente | F03,F05,F06 | separar conjuntos y fuente |
-| analitica | ratios, gasto, salud | diagnóstico sujeto a calidad y madurez | Brief/metrics | Parcial | No acreditada | Pendiente | F08,F14 | gates antes de KPI |
-| analitica/embudo | etapas y conversiones | cohorte compatible o actividad rotulada | CRM + métricas | Parcial | No | Pendiente | F07,F11 | n/N, madurez, sin atribuir |
-| analitica/ranking | ventas, cash por persona | atribución al dueño real | analytics | Parcial | No setters | Pendiente | F03,F06,F11 | tabla con muestra y sin asignar |
-| analitica/actividad; actividad | actividad declarada y ventas | separar manual de hechos canónicos | reports + sales | Parcial | No acreditada | Pendiente | F01,F11 | rotular origen, scope servidor |
-| unit-economics | cash, CAC, ticket, funnel | población/moneda/fecha compatibles | canonicalCash + sales/appointments | No | Parcial | Pendiente | F03–F07 | moneda, refunds, reservas |
-| marketing/adquisicion/campanas | gasto, CPC, CTR, CPL, ROAS | gasto diario y atribución explícita | campaign_daily/campaigns | Parcial | Histórico desconocido | Pendiente | F07,F12,F16 | probar cuenta/campaña/fechas |
-| marketing/adquisicion/atribucion | atribuido, first/last touch | no sustituir total operacional | RPC + contact_attributions | Parcial | Parcial | Pendiente | F16 | fechas y sin atribuir |
-| funnels; funnels/eventos | etapa, caída, conversión | misma población enlazada | Meta + crmStages | No como cohorte | Parcial | Pendiente | F02,F07 | separar actividad y cohorte |
-| marketing/adquisicion/vsl | plays, watch, leads | tracking first party; seek no es tiempo visto | video sessions + SQL | Parcial | Sin sesiones | Pendiente | F02,F12 | scope, n=0 unknown, CTA/QoE |
-| instagram (crecimiento/reels/captacion) | alcance, seguidores, contenido | snapshots/API según disponibilidad | Instagram daily/media | Parcial | Histórico desconocido | Pendiente | F12 | cobertura y periodo visibles |
-| instagram/conversaciones | conversaciones/DMs | solo API autorizada | integración limitada | No evaluable | Sin conversaciones | Pendiente | F12 | mantener explicación limitación |
-| marketing/afiliados | ventas, comisiones, campañas | ledger/atribución propia | scoped queries | Parcial | No acreditada | Pendiente | F01 | verificar todos los roles |
-| crm/contactos; detalle/Person360 | contactos y timeline | fecha llegada, deduplicación, pertenencia | contacts/timeline | Parcial | Faltan enlaces | Pendiente | F01,F11 | revisar permisos y drilldown |
-| crm/agendas; seguimiento; fathom-revision | agendas, show, seguimiento | evidencia y estado maduro | appointments/Fathom | Parcial | No | Pendiente | F01,F11 | resolver provisionales |
-| ventas/registro; detalle; reservas | ventas/reservas/cobros | D8, cash separado | sales/plans/collections | Parcial | Enlaces parciales | Pendiente | F01,F03 | reserva no equivale venta |
-| ventas/pagos | cobro y pendiente por venta | cohorte sale_date y cash histórico declarados | sales/collections/installments | Parcial | No acreditada | Pendiente | F01,F05 | scope y semántica del filtro |
-| comisiones; colaborador | earned/pending/paid/future | motor D8/D9, solo propios | commissions + profiles | Parcial | Asignación incompleta | Pendiente | F01,F11 | no duplicar motor; probar rol |
-| finanzas/analitica/resumen;pnl | cash, gastos, beneficio | MONEY, fuente y periodo homogéneos | collections/refunds/expenses | Parcial | No acreditada | Pendiente | F03,F05,F13 | errores explícitos, reconciliar |
-| finanzas/analitica/cohortes | clientes, recuperación 30–180 | clientes únicos y ventana madura | sales/collections | No | Parcial | Pendiente | F09 | madurez y mismo universo |
-| finanzas/analitica/proyeccion | cobros/gastos esperados | deuda exigible, no monitoring | installments/commissions | Parcial | No acreditada | Pendiente | F13,F15 | estados y failure mode |
-| finanzas/morosidad | vencido, pendiente | deuda total vs vencimientos del mes | installments/Sequra | Parcial | No acreditada | Pendiente | F15 | separar periodos/universos |
-| finanzas/cobros (cobros/conciliacion/devoluciones) | cobro, matching, refunds | ocurrencia y deduplicación | Stripe/collections/refunds | Parcial | Conciliación pendiente | Pendiente | F04,F05 | conciliar sin borrar |
-| finanzas/gastos-facturas | gastos/facturas | fechas, estado y moneda acreditados | expenses/invoices | Pendiente | Pendiente | Pendiente | área activa de otro agente | inspección adicional sin editar |
-| finanzas/socios | beneficio distribuible propio | motor P&L + participación | API socios | Parcial | No acreditada | Pendiente | F13 | conserva scope propio; errores |
-| students/producto; csm-events; drops | alumnos, delivery, bajas | únicos, reservas completadas, cohortes | sales/CSM | Pendiente | Pendiente | Pendiente | F18; filtro reserva requiere revisión | no concluir retención/LTV |
-| recursos/testimonios/grabaciones | resultados y material | resultados verificados, no vanity | recursos | Pendiente | Pendiente | Pendiente | inventario de código | revisión UI/drilldowns |
-| settings/data-health; integraciones | frescura, cobertura, mapping | por job/cuenta y ventana esperada | sync_runs + configuración | Parcial | Inicio esperado ausente | Pendiente | F12,F17 | cubrir toda cadena de fuentes |
-| setting-ai; kpi/templates | simulación y objetivos | separar entrenamiento de hechos | simulador/config | Pendiente | No aplica/pendiente | Pendiente | no es performance productiva | comprobar etiquetas y acceso |
-| Ask/AI | resumen, campañas, contactos | misma métrica/periodo que UI | agent/tools | No; count corregido | Parcial | Pendiente | F10 | capa semántica compartida |
+| Screen                                             | Metric                              | Definition                                      | Source                             | Correct?            | Data Complete?          | UI Appropriate? | Finding                               | Action                          |
+| -------------------------------------------------- | ----------------------------------- | ----------------------------------------------- | ---------------------------------- | ------------------- | ----------------------- | --------------- | ------------------------------------- | ------------------------------- |
+| dashboard                                          | ventas, contratado, cash, variación | actividad del periodo y comparación equivalente | analytics + sales/collections      | No                  | Parcial                 | Pendiente       | F03,F05,F06                           | separar conjuntos y fuente      |
+| analitica                                          | ratios, gasto, salud                | diagnóstico sujeto a calidad y madurez          | Brief/metrics                      | Parcial             | No acreditada           | Pendiente       | F08,F14                               | gates antes de KPI              |
+| analitica/embudo                                   | etapas y conversiones               | cohorte compatible o actividad rotulada         | CRM + métricas                     | Parcial             | No                      | Pendiente       | F07,F11                               | n/N, madurez, sin atribuir      |
+| analitica/ranking                                  | ventas, cash por persona            | atribución al dueño real                        | analytics                          | Parcial             | No setters              | Pendiente       | F03,F06,F11                           | tabla con muestra y sin asignar |
+| analitica/actividad; actividad                     | actividad declarada y ventas        | separar manual de hechos canónicos              | reports + sales                    | Parcial             | No acreditada           | Pendiente       | F01,F11                               | rotular origen, scope servidor  |
+| unit-economics                                     | cash, CAC, ticket, funnel           | población/moneda/fecha compatibles              | canonicalCash + sales/appointments | No                  | Parcial                 | Pendiente       | F03–F07                               | moneda, refunds, reservas       |
+| marketing/adquisicion/campanas                     | gasto, CPC, CTR, CPL, ROAS          | gasto diario y atribución explícita             | campaign_daily/campaigns           | Parcial             | Histórico desconocido   | Pendiente       | F07,F12,F16                           | probar cuenta/campaña/fechas    |
+| marketing/adquisicion/atribucion                   | atribuido, first/last touch         | no sustituir total operacional                  | RPC + contact_attributions         | Parcial             | Parcial                 | Pendiente       | F16                                   | fechas y sin atribuir           |
+| funnels; funnels/eventos                           | etapa, caída, conversión            | misma población enlazada                        | Meta + crmStages                   | No como cohorte     | Parcial                 | Pendiente       | F02,F07                               | separar actividad y cohorte     |
+| marketing/adquisicion/vsl                          | plays, watch, leads                 | tracking first party; seek no es tiempo visto   | video sessions + SQL               | Parcial             | Sin sesiones            | Pendiente       | F02,F12                               | scope, n=0 unknown, CTA/QoE     |
+| instagram (crecimiento/reels/captacion)            | alcance, seguidores, contenido      | snapshots/API según disponibilidad              | Instagram daily/media              | Parcial             | Histórico desconocido   | Pendiente       | F12                                   | cobertura y periodo visibles    |
+| instagram/conversaciones                           | conversaciones/DMs                  | solo API autorizada                             | integración limitada               | No evaluable        | Sin conversaciones      | Pendiente       | F12                                   | mantener explicación limitación |
+| marketing/afiliados                                | ventas, comisiones, campañas        | ledger/atribución propia                        | scoped queries                     | Parcial             | No acreditada           | Pendiente       | F01                                   | verificar todos los roles       |
+| crm/contactos; detalle/Person360                   | contactos y timeline                | fecha llegada, deduplicación, pertenencia       | contacts/timeline                  | Parcial             | Faltan enlaces          | Pendiente       | F01,F11                               | revisar permisos y drilldown    |
+| crm/agendas; seguimiento; fathom-revision          | agendas, show, seguimiento          | evidencia y estado maduro                       | appointments/Fathom                | Parcial             | No                      | Pendiente       | F01,F11                               | resolver provisionales          |
+| ventas/registro; detalle; reservas                 | ventas/reservas/cobros              | D8, cash separado                               | sales/plans/collections            | Parcial             | Enlaces parciales       | Pendiente       | F01,F03                               | reserva no equivale venta       |
+| ventas/pagos                                       | cobro y pendiente por venta         | cohorte sale_date y cash histórico declarados   | sales/collections/installments     | Parcial             | No acreditada           | Pendiente       | F01,F05                               | scope y semántica del filtro    |
+| comisiones; colaborador                            | earned/pending/paid/future          | motor D8/D9, solo propios                       | commissions + profiles             | Parcial             | Asignación incompleta   | Pendiente       | F01,F11                               | no duplicar motor; probar rol   |
+| finanzas/analitica/resumen;pnl                     | cash, gastos, beneficio             | MONEY, fuente y periodo homogéneos              | collections/refunds/expenses       | Parcial             | No acreditada           | Pendiente       | F03,F05,F13                           | errores explícitos, reconciliar |
+| finanzas/analitica/cohortes                        | clientes, recuperación 30–180       | clientes únicos y ventana madura                | sales/collections                  | No                  | Parcial                 | Pendiente       | F09                                   | madurez y mismo universo        |
+| finanzas/analitica/proyeccion                      | cobros/gastos esperados             | deuda exigible, no monitoring                   | installments/commissions           | Parcial             | No acreditada           | Pendiente       | F13,F15                               | estados y failure mode          |
+| finanzas/morosidad                                 | vencido, pendiente                  | deuda total vs vencimientos del mes             | installments/Sequra                | Parcial             | No acreditada           | Pendiente       | F15                                   | separar periodos/universos      |
+| finanzas/cobros (cobros/conciliacion/devoluciones) | cobro, matching, refunds            | ocurrencia y deduplicación                      | Stripe/collections/refunds         | Parcial             | Conciliación pendiente  | Pendiente       | F04,F05                               | conciliar sin borrar            |
+| finanzas/gastos-facturas                           | gastos/facturas                     | fechas, estado y moneda acreditados             | expenses/invoices                  | Pendiente           | Pendiente               | Pendiente       | área activa de otro agente            | inspección adicional sin editar |
+| finanzas/socios                                    | beneficio distribuible propio       | motor P&L + participación                       | API socios                         | Parcial             | No acreditada           | Pendiente       | F13                                   | conserva scope propio; errores  |
+| students/producto; csm-events; drops               | alumnos, delivery, bajas            | únicos, reservas completadas, cohortes          | sales/CSM                          | Pendiente           | Pendiente               | Pendiente       | F18; filtro reserva requiere revisión | no concluir retención/LTV       |
+| recursos/testimonios/grabaciones                   | resultados y material               | resultados verificados, no vanity               | recursos                           | Pendiente           | Pendiente               | Pendiente       | inventario de código                  | revisión UI/drilldowns          |
+| settings/data-health; integraciones                | frescura, cobertura, mapping        | por job/cuenta y ventana esperada               | sync_runs + configuración          | Parcial             | Inicio esperado ausente | Pendiente       | F12,F17                               | cubrir toda cadena de fuentes   |
+| setting-ai; kpi/templates                          | simulación y objetivos              | separar entrenamiento de hechos                 | simulador/config                   | Pendiente           | No aplica/pendiente     | Pendiente       | no es performance productiva          | comprobar etiquetas y acceso    |
+| Ask/AI                                             | resumen, campañas, contactos        | misma métrica/periodo que UI                    | agent/tools                        | No; count corregido | Parcial                 | Pendiente       | F10                                   | capa semántica compartida       |
 
 ## Cobertura browser real y pendientes — actualización de relevo
 
-| Pantalla | Observado / probado | Pendiente o hallazgo |
-|---|---|---|
-| Dashboard | desktop, Hoy y restaurar mes; cards, funnel, ranking, tabla | mezcla de tenant F19; cash/cohorte F06; atribución histórica no cambia |
-| Unit economics | desktop, filtro Solo anuncios/Todos | funnel inferior mezcla históricos con periodo, ratios >100%; F04–F08 |
-| Embudo / ranking | desktop; tablas y advertencia de mapping | denominadores distintos entre paneles; selector redundante; roles pendientes |
-| Actividad analítica | abrir KPI de hoy | modal sin formulario de rol; carga final del resto pendiente |
-| Campañas | Meta/Campañas, Hoy/Mes, CSV pulsado | contenido del archivo no validado; CTR F20; cuenta/campaña pendientes |
-| Atribución | desktop, cobertura y tablas | históricos frente a filtro de periodo F16 |
-| VSL | desktop, estado sin sesiones | cero y «Sin caídas relevantes» sin muestra F22 |
-| Instagram | Reels/Crecimiento/Captación/Conversaciones | limitación API visible; cobertura de comparación 30 días no acreditada |
-| Finanzas resumen / P&L | desktop; resumen cambiar mes y restaurar | importes coinciden entre ambos, pero no con dashboard; F03–F05/F19 |
-| Cohortes / proyección / morosidad | desktop y estados vacíos | madurez F09; ausencia de cuotas no equivale ausencia de deuda |
-| Ventas registro / detalle / reservas / pagos | desktop; Ver abre detalle de venta | reservas como activas, pagos históricos bajo filtro mensual; no cambios financieros |
-| Comisiones | desktop y Futuras | estados ledger explícitos; controles de carga ocupan jerarquía principal; no modificar carril ajeno |
-| Agendas | Calendario/Métricas equipo/Tabla | cierres cero frente a ventas existentes por enlaces ausentes; históricos por pestaña |
-| Contactos | lista desktop | contaminación tenant; ficha no confirmada |
-| Colaboradores | listado/KPIs/campañas | atribución estructurada y ledger visibles; contrato impide dashboard personal |
-| Alumnos | desktop y screenshot | fila ajena al tenant; onboarding vacío, porcentajes sin muestra |
-| CSM / bajas | lectura de cards/estados vacíos | ratios 0% y grado 0 sin muestra; recuperación no es retención |
-| Cobros / conciliación / devoluciones | tablas y avisos | conciliación identifica fees/refunds/enlaces pendientes; devoluciones internas vacías; no se ejecutó cotejo |
-| Gastos | desktop/screenshot | gráfico con etiquetas recortadas; gasto Meta contable difiere diario (temporalidad/sync por comprobar); área ajena sin editar |
-| Data Health | estado jobs, fuentes, webhooks, identidad | transporte vs dato diferenciados; inactividad por sí sola no demuestra webhook roto F23 |
-| Setting AI | entrenamiento vacío | simulación diferenciada de hechos; no ejecutar conversaciones que generen coste |
-| Contenido | tabla vacía y filtros | selector de editores incluye usuarios globales; no metricar rendimiento desde vacío |
-| Settings / usuarios | navegación admin | fallo de retorno Ver como F21; sesión recuperada, no volver a impersonar |
-| Funnels | desktop y móvil 390×844; fuente VSL HTTP 400 | barras estrechas y texto oculto F24; consulta REST F25 |
+| Pantalla                                     | Observado / probado                                         | Pendiente o hallazgo                                                                                                          |
+| -------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Dashboard                                    | desktop, Hoy y restaurar mes; cards, funnel, ranking, tabla | mezcla de tenant F19; cash/cohorte F06; atribución histórica no cambia                                                        |
+| Unit economics                               | desktop, filtro Solo anuncios/Todos                         | funnel inferior mezcla históricos con periodo, ratios >100%; F04–F08                                                          |
+| Embudo / ranking                             | desktop; tablas y advertencia de mapping                    | denominadores distintos entre paneles; selector redundante; roles pendientes                                                  |
+| Actividad analítica                          | abrir KPI de hoy                                            | modal sin formulario de rol; carga final del resto pendiente                                                                  |
+| Campañas                                     | Meta/Campañas, Hoy/Mes, CSV pulsado                         | contenido del archivo no validado; CTR F20; cuenta/campaña pendientes                                                         |
+| Atribución                                   | desktop, cobertura y tablas                                 | históricos frente a filtro de periodo F16                                                                                     |
+| VSL                                          | desktop, estado sin sesiones                                | cero y «Sin caídas relevantes» sin muestra F22                                                                                |
+| Instagram                                    | Reels/Crecimiento/Captación/Conversaciones                  | limitación API visible; cobertura de comparación 30 días no acreditada                                                        |
+| Finanzas resumen / P&L                       | desktop; resumen cambiar mes y restaurar                    | importes coinciden entre ambos, pero no con dashboard; F03–F05/F19                                                            |
+| Cohortes / proyección / morosidad            | desktop y estados vacíos                                    | madurez F09; ausencia de cuotas no equivale ausencia de deuda                                                                 |
+| Ventas registro / detalle / reservas / pagos | desktop; Ver abre detalle de venta                          | reservas como activas, pagos históricos bajo filtro mensual; no cambios financieros                                           |
+| Comisiones                                   | desktop y Futuras                                           | estados ledger explícitos; controles de carga ocupan jerarquía principal; no modificar carril ajeno                           |
+| Agendas                                      | Calendario/Métricas equipo/Tabla                            | cierres cero frente a ventas existentes por enlaces ausentes; históricos por pestaña                                          |
+| Contactos                                    | lista desktop                                               | contaminación tenant; ficha no confirmada                                                                                     |
+| Colaboradores                                | listado/KPIs/campañas                                       | atribución estructurada y ledger visibles; contrato impide dashboard personal                                                 |
+| Alumnos                                      | desktop y screenshot                                        | fila ajena al tenant; onboarding vacío, porcentajes sin muestra                                                               |
+| CSM / bajas                                  | lectura de cards/estados vacíos                             | ratios 0% y grado 0 sin muestra; recuperación no es retención                                                                 |
+| Cobros / conciliación / devoluciones         | tablas y avisos                                             | conciliación identifica fees/refunds/enlaces pendientes; devoluciones internas vacías; no se ejecutó cotejo                   |
+| Gastos                                       | desktop/screenshot                                          | gráfico con etiquetas recortadas; gasto Meta contable difiere diario (temporalidad/sync por comprobar); área ajena sin editar |
+| Data Health                                  | estado jobs, fuentes, webhooks, identidad                   | transporte vs dato diferenciados; inactividad por sí sola no demuestra webhook roto F23                                       |
+| Setting AI                                   | entrenamiento vacío                                         | simulación diferenciada de hechos; no ejecutar conversaciones que generen coste                                               |
+| Contenido                                    | tabla vacía y filtros                                       | selector de editores incluye usuarios globales; no metricar rendimiento desde vacío                                           |
+| Settings / usuarios                          | navegación admin                                            | fallo de retorno Ver como F21; sesión recuperada, no volver a impersonar                                                      |
+| Funnels                                      | desktop y móvil 390×844; fuente VSL HTTP 400                | barras estrechas y texto oculto F24; consulta REST F25                                                                        |
 
 **Sin completar:** funnels/eventos, socios, Brief, integraciones, recursos/testimonios/grabaciones, Person360 y seguimiento/Fathom; revisión mobile/tablet; todos los exports, custom ranges, paginación, cuenta/campaña/oferta, cambio real de tenant y UI de todos los roles. No inventar PASS. La matriz/scorecard original sigue provisional: esta tabla especifica qué dejó de estar pendiente.
 
@@ -226,25 +226,25 @@ Quality local: format PASS, lint PASS con warnings existentes, typecheck PASS, u
 
 PARTIAL en visual significa cobertura parcial; consultar registro browser anterior para distinguir observado de pendiente. FAIL se apoya en hallazgo concreto; no implica que todas las métricas de esa pantalla fallen.
 
-| Screen | Data correctness | Business usefulness | Visual clarity | Filter consistency | Tenant/permission |
-|---|---|---|---|---|---|
-| Dashboard | FAIL | PARTIAL | PARTIAL | FAIL | FAIL (colaborador) |
-| Analytics/Brief | FAIL | PARTIAL | PARTIAL | PARTIAL | PARTIAL |
-| Embudo/Ranking | PARTIAL | PARTIAL | PARTIAL | PARTIAL | PARTIAL |
-| Unit economics | FAIL | PARTIAL | PARTIAL | PARTIAL | PARTIAL |
-| Campañas/Atribución | PARTIAL | PARTIAL | PARTIAL | PARTIAL | PARTIAL |
-| Funnels | FAIL (como cohorte) | PARTIAL | PARTIAL | FAIL (población) | FAIL (scope API) |
-| VSL | PARTIAL | PARTIAL | PARTIAL | PARTIAL | FAIL (scope API) |
-| Instagram | PARTIAL | PARTIAL | PARTIAL | PARTIAL | PARTIAL |
-| CRM/Ventas/Colaborador | PARTIAL | PARTIAL | PARTIAL | PARTIAL | FAIL (RLS comprobada) |
-| Comisiones | PARTIAL | PARTIAL | PARTIAL | PARTIAL | PARTIAL |
-| Finanzas resumen/P&L | PARTIAL | PARTIAL | PARTIAL | PARTIAL | PARTIAL |
-| Cohortes | FAIL | PARTIAL | PARTIAL | PARTIAL | PARTIAL |
-| Proyección/Morosidad | PARTIAL | PARTIAL | PARTIAL | PARTIAL | PARTIAL |
-| Socios | PARTIAL | PARTIAL | PARTIAL | PARTIAL | PARTIAL (scope código correcto) |
-| Delivery/Recursos | PARTIAL | PARTIAL | PARTIAL | PARTIAL | PARTIAL |
-| Data Health/Integraciones | PARTIAL | PARTIAL | PARTIAL | PARTIAL | PARTIAL |
-| Ask/AI | FAIL | PARTIAL | PARTIAL | FAIL | PARTIAL |
+| Screen                    | Data correctness    | Business usefulness | Visual clarity | Filter consistency | Tenant/permission               |
+| ------------------------- | ------------------- | ------------------- | -------------- | ------------------ | ------------------------------- |
+| Dashboard                 | FAIL                | PARTIAL             | PARTIAL        | FAIL               | FAIL (colaborador)              |
+| Analytics/Brief           | FAIL                | PARTIAL             | PARTIAL        | PARTIAL            | PARTIAL                         |
+| Embudo/Ranking            | PARTIAL             | PARTIAL             | PARTIAL        | PARTIAL            | PARTIAL                         |
+| Unit economics            | FAIL                | PARTIAL             | PARTIAL        | PARTIAL            | PARTIAL                         |
+| Campañas/Atribución       | PARTIAL             | PARTIAL             | PARTIAL        | PARTIAL            | PARTIAL                         |
+| Funnels                   | FAIL (como cohorte) | PARTIAL             | PARTIAL        | FAIL (población)   | FAIL (scope API)                |
+| VSL                       | PARTIAL             | PARTIAL             | PARTIAL        | PARTIAL            | FAIL (scope API)                |
+| Instagram                 | PARTIAL             | PARTIAL             | PARTIAL        | PARTIAL            | PARTIAL                         |
+| CRM/Ventas/Colaborador    | PARTIAL             | PARTIAL             | PARTIAL        | PARTIAL            | FAIL (RLS comprobada)           |
+| Comisiones                | PARTIAL             | PARTIAL             | PARTIAL        | PARTIAL            | PARTIAL                         |
+| Finanzas resumen/P&L      | PARTIAL             | PARTIAL             | PARTIAL        | PARTIAL            | PARTIAL                         |
+| Cohortes                  | FAIL                | PARTIAL             | PARTIAL        | PARTIAL            | PARTIAL                         |
+| Proyección/Morosidad      | PARTIAL             | PARTIAL             | PARTIAL        | PARTIAL            | PARTIAL                         |
+| Socios                    | PARTIAL             | PARTIAL             | PARTIAL        | PARTIAL            | PARTIAL (scope código correcto) |
+| Delivery/Recursos         | PARTIAL             | PARTIAL             | PARTIAL        | PARTIAL            | PARTIAL                         |
+| Data Health/Integraciones | PARTIAL             | PARTIAL             | PARTIAL        | PARTIAL            | PARTIAL                         |
+| Ask/AI                    | FAIL                | PARTIAL             | PARTIAL        | FAIL               | PARTIAL                         |
 
 ## Lo demostrado y lo que no
 
@@ -265,3 +265,51 @@ Desktop y móvil muestran las barras como cápsulas estrechas con etiquetas ocul
 UI muestra HTTP 400, correctamente distinto de cero. `lib/funnels/queries.ts:countVslSessions` construye `not.<columna>=is.null`; el operador debe estar en el valor del filtro, no en el nombre de columna. Hipótesis de causa muy concreta por código, pendiente de reproducir respuesta REST sanitizada y verificar esquema/fechas antes de corregir. No afirmar fallo del tracking ni eliminar aviso. AUTO_FIX pequeño + test de URL y respuesta count, sin tocar sesiones reales.
 
 **Responsive parcial:** Funnels y cabecera/filtros de unit-economics revisados a 390×844. Unit-economics no desborda documento (390/390); ocupa casi todo el primer viewport con filtros. No se verificó todavía el funnel inferior ni todas sus tablas en móvil. Viewport restaurado al finalizar. Resto de responsive sigue pendiente.
+
+## Revisión transversal de términos y fórmulas — 28-sep
+
+Petición: una misma métrica debe conservar significado y cálculo en toda la app, incluida IA, objetivos y exportaciones. Estado: inventario de contradicciones inspeccionado en código, **no cerrado ni certificado**. Base: `eb29384`. No se han cambiado importes ni registros de negocio.
+
+### Contradicciones comprobadas
+
+| KPI / superficie                         | Evidencia en código                                                                                                                                                                   | Resolución necesaria                                                                                                                       |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Cash Collected, métricas globales        | `lib/canonical/cash.ts` consolida Stripe y libro interno, deduplica y resta devoluciones; Unit Economics usa `cash.net`                                                               | Mantener fuentes y deduplicación compartidas, con fecha del hecho y estado elegible explícitos                                             |
+| Cash Collected, diagnóstico/IA/objetivos | `lib/metrics/agregados.ts` suma `gross_amount` de cobros confirmados; `lib/ai/metrics/registry.ts` describe solo collections; `lib/analytics.ts` objetivos suma collections collected | No renombrar sin migrar el contrato de fuentes, devoluciones y población autorizada. No sumar Stripe a objetivos personales sin atribución |
+| Gestoría                                 | UI y CSV llaman «Facturación / Cash Collected» a suma de collections collected                                                                                                        | Separar facturación contratada de cobros brutos registrados; conservar P&L y conciliación                                                  |
+| Alta de cobro                            | «Cash collected neto» muestra bruto menos fee                                                                                                                                         | Etiquetar importe tras comisión de pasarela; no es el Cash Collected de negocio (MONEY D4)                                                 |
+| CAC                                      | Registro, IA y agregados dividen entre ventas; Unit Economics divide entre contactos únicos compradores del periodo                                                                   | Confirmar clientes nuevos vs compradores únicos. No llamar CAC al coste por venta; recompras y falta de historia deben quedar explícitas   |
+| Cash ROAS                                | Registro exige cobro atribuible a anuncios; agregados divide todo cash entre gasto                                                                                                    | Exigir atribución o distinguir rendimiento global; no aplicar objetivos de ROAS atribuido al cociente global                               |
+| Show Rate                                | Skill: asistidas/agendadas; registro: asistidas/no canceladas; agregados: asistidas/(asistidas+no-show)                                                                               | Distinguir tasa observada de cohortes maduras; alinear fórmula publicada y denominador real, mostrar cobertura                             |
+| Pitch / Offer Rate                       | Registro: ofertas/asistidas; motor usa solo llamadas con oferta marcada                                                                                                               | Declarar denominador observado y cobertura; ausencia de marcado no es negativa                                                             |
+| Close Rate                               | Skill marketing usa llamadas cualificadas; ventas usa live; registro distingue llamadas/ofertas                                                                                       | Mantener variantes con nombre y denominador explícitos, ventas y llamadas vinculadas de la misma población                                 |
+| Documentación                            | `docs/METRICS.md` describe CAC histórico y Cash bruto interno; página ya tiene periodo y consolidación; MONEY y módulo cash añaden reglas distintas                                   | Actualizar desde contrato acordado y comportamiento probado, sin convertir documentación antigua en prueba de corrección                   |
+| Términos secundarios                     | «Primer contacto» en resumen vs Speed to Lead; ayudas «Cash neto»; variantes de capitalización y ROAS sin base indicada                                                               | Unificar etiquetas después de comprobar semántica; no reemplazos globales de texto como «primer contacto» en atribución                    |
+
+### Contrato de aceptación
+
+- Reutilizar `lib/metrics/registro.ts` y `lib/metrics/definiciones.ts`; no crear otro diccionario paralelo.
+- Cada KPI identifica unidad, numerador, denominador, fuente, fecha de corte, exclusiones, atribución, madurez y estado de completitud.
+- Mismo KPI + misma población autorizada + mismo filtro = mismo valor en tarjeta, serie, exportación, objetivo e IA.
+- Bruto, neto de devoluciones, neto de fees, neto de IVA y base comisionable no son intercambiables.
+- Regresiones con cliente que recompra, reserva abierta, venta anterior cobrada hoy, devolución posterior, pago duplicado, fuente caída, cita futura y marcado incompleto.
+- Ningún benchmark permite saltarse definición, fuente, completitud, periodo, madurez, asignación y cálculo.
+
+### Siguiente paso
+
+Usar SOURCE_OF_TRUTH, METRICS y MONEY existentes; la solicitud de redefinir CAC se retiró al localizar el contrato. Corregir helpers y registros contra ellos, migrar consumidores por familia y ejecutar pruebas de igualdad entre superficies y recorrido autenticado. Mantener visible que el trabajo global está pendiente; las correcciones de etiquetas de Unit Economics no lo sustituyen.
+
+### Ajustes contra los contratos existentes (sin redefinir métricas)
+
+La referencia omitida en el primer intento era `docs/SOURCE_OF_TRUTH.md`; su registro ejecutable es `lib/sources/registry.ts`. Se retiró ese intento sin publicar código. La propuesta de CAC por primeras compras queda descartada: `METRICS.md` §6 define contactos únicos con venta activa.
+
+Implementado en el lote actual:
+
+- Agregados de CAC cuentan contactos únicos; identidad incompleta devuelve ausencia explicada. Query solicita `contact_id`.
+- Agregados y series reutilizan `isActiveSale`; las reservas abiertas quedan fuera de la serie igual que del total (MONEY D8).
+- IA consulta SOURCE_REGISTRY para nombres, fuente y fórmula; CAC consulta el registro métrico alineado con METRICS §6.
+- Cash canónico y serie descartan estados no liquidados de Stripe, sin suprimir cobros internos confirmados por una referencia a un intento pendiente.
+- Nombres de caja consistentes; gestoría identifica libro interno bruto y el alta de cobro distingue importe tras fee.
+- Cuatro regresiones de paridad: cliente repetido, reserva/devolución parcial, fuente IA compartida y pago pendiente.
+
+Pendiente de resolución completa (no ocultar ni certificar): agregados/objetivos aún consumen libro interno frente a caja consolidada; denominadores de tasas publicados y cobertura; periodo histórico descrito en METRICS frente a filtros actuales. Los contratos de dinero abiertos no se eligen por cuenta del agente.

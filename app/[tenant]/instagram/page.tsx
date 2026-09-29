@@ -301,6 +301,7 @@ export default function InstagramPage() {
   const latest = daily[daily.length - 1]
   const first30 = daily.length > 1 ? daily[Math.max(0, daily.length - 30)] : null
   const growth30 = latest && first30 ? latest.followers_count - first30.followers_count : 0
+  // Suma de alcances por pieza; una persona puede aparecer en varios reels.
   const totalReach = media.reduce((s, m) => s + m.reach, 0)
   const analyzed = media.filter((m) => m.ai_analysis).length
   const facebookMatchedCount = media.filter((m) => !!matchFb(m)).length
@@ -434,7 +435,11 @@ export default function InstagramPage() {
             label="Crecimiento 30d"
             value={`${growth30 >= 0 ? '+' : ''}${nf(growth30)}`}
           />
-          <Kpi icon={<Eye className="w-4 h-4 text-sky-400" />} label="Reach total reels" value={nf(totalReach)} />
+          <Kpi
+            icon={<Eye className="w-4 h-4 text-sky-400" />}
+            label="Alcance acumulado por reel"
+            value={nf(totalReach)}
+          />
           <Kpi
             icon={<Sparkles className="w-4 h-4 text-brand-400" />}
             label="Reels analizados"
@@ -454,7 +459,11 @@ export default function InstagramPage() {
             label="Crecimiento 30d"
             value={`${growth30 >= 0 ? '+' : ''}${nf(growth30)}`}
           />
-          <Kpi icon={<Eye className="w-4 h-4 text-sky-400" />} label="Reach total reels" value={nf(totalReach)} />
+          <Kpi
+            icon={<Eye className="w-4 h-4 text-sky-400" />}
+            label="Alcance acumulado por reel"
+            value={nf(totalReach)}
+          />
           <Kpi
             icon={<Heart className="w-4 h-4 text-pink-400" />}
             label="Likes totales"

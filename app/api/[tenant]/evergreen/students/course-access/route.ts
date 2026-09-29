@@ -65,7 +65,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       actor_user_id: t.userId,
       entity_type: 'sale',
@@ -73,6 +73,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       action: `course_access_${action}`,
       new_values: { ...patch, webhookResult },
     })
+    if (auditErr) console.error('[students/course-access] no se pudo registrar audit_logs:', auditErr.message)
 
     return NextResponse.json({
       ok: true,

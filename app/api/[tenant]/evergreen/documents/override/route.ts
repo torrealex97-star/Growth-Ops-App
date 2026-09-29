@@ -81,22 +81,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: 'Failed to apply override' }, { status: 500 })
     }
 
-    // Registrar en audit log (si existe la tabla)
-    try {
-      await supabase.from('audit_logs').insert({
-        tenant_id: t.tenantId,
-        action: 'document_verification_override',
-        entity_type: 'sale',
-        entity_id: saleId,
-        new_values: {
-          reason,
-          timestamp: new Date().toISOString(),
-          actor: userId,
-        },
-      })
-    } catch {
-      // No fallar si no existe la tabla
-    }
+    // Bypass privilegiado de la verificación de documentos: sin rastro auditado en condiciones
+    // no hay forma de saber después quién lo activó ni por qué. La tabla existe siempre (se usa
+    // en todo el resto de la app) — el try/catch anterior no protegía de nada real.
+    const { error: auditErr } = await supabase.from('audit_logs').insert({
+      tenant_id: t.tenantId,
+      actor_user_id: userId,
+      action: 'document_verification_override',
+      entity_type: 'sale',
+      entity_id: saleId,
+      new_values: {
+        reason,
+        timestamp: new Date().toISOString(),
+      },
+    })
+    if (auditErr) console.error('[documents/override] no se pudo registrar audit_logs:', auditErr.message)
 
     return NextResponse.json({
       success: true,

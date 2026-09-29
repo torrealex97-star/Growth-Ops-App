@@ -126,7 +126,7 @@ test('lo que no tiene dato va a sinDatos y no puede ser la restricción', () => 
   assert.equal(d.primaria, null)
   assert.deepEqual(
     d.sinDatos.map((s) => s.key),
-    ['sin_valor', 'sin_objetivo']
+    ['sin_valor']
   )
   // Se declara como hueco de medición, no como diagnóstico.
   assert.ok(d.sinDatos.every((s) => s.certeza === 'requiere_investigacion'))

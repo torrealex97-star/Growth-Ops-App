@@ -133,7 +133,7 @@ function codeOf(err: unknown): string | null {
  */
 export async function reclaimAllStaleRuns(sb: SupabaseClient): Promise<void> {
   const cutoff = new Date(Date.now() - STALE_RUN_MS).toISOString()
-  await sb
+  const { error } = await sb
     .from('integration_sync_runs')
     .update({
       status: 'timeout',
@@ -149,6 +149,10 @@ export async function reclaimAllStaleRuns(sb: SupabaseClient): Promise<void> {
     })
     .eq('status', 'running')
     .lt('started_at', cutoff)
+  // Si el barrido falla, las ejecuciones colgadas siguen bloqueando el cerrojo de "una sola en
+  // curso" y nadie se entera — quien llama ya la invoca con .catch(() => {}), así que esto es
+  // lo único que deja rastro.
+  if (error) console.warn('[sync-runs] el barrido de ejecuciones colgadas falló:', error.message)
 }
 
 /**
@@ -207,14 +211,13 @@ export async function recordSyncRun<T>(
   }
 
   const finish = async (fields: Record<string, unknown>) => {
-    await sb
+    const { error } = await sb
       .from('integration_sync_runs')
       .update({ finished_at: new Date().toISOString(), ...fields })
       .eq('id', runId)
-      .then(
-        () => undefined,
-        () => undefined
-      )
+    // Si esto falla, la ejecución se queda en 'running' y el cerrojo de "una sola en curso"
+    // bloquea el próximo sync hasta que el barrido de colgados la cierre (STALE_RUN_MS).
+    if (error) console.warn(`[sync-runs] no se pudo cerrar la ejecución ${runId}:`, error.message)
   }
 
   try {

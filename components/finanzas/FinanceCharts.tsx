@@ -63,7 +63,6 @@ export function FinanceBreakdown({
           { label: 'Otros', amount: ordered.slice(MAX_RING_SLICES - 1).reduce((sum, s) => sum + s.amount, 0) },
         ]
       : ordered
-  const restantes = slices.filter((s) => !ringSlices.some((r) => r.label === s.label))
   return (
     <section className="dashboard-card flex h-full flex-col p-5">
       <h2 className="text-sm font-medium text-foreground">{title}</h2>
@@ -122,7 +121,7 @@ export function FinanceBreakdown({
           )
         })}
       </ul>
-      {restantes.length > 0 && (
+      {ordered.length > MAX_RING_SLICES && !hasNegative && (
         <p className="mt-2 text-2xs text-muted-foreground">
           El anillo muestra el top {Math.min(ringSlices.length, MAX_RING_SLICES - 1)} y agrupa el resto como “Otros”; el
           desglose completo está en la lista.
@@ -151,7 +150,7 @@ export function FinanceEvolution({
           )}
           <span className="flex items-center gap-2">
             <i className="h-2 w-2 rounded-full bg-brand-500" />
-            Cobros
+            Cash Collected (libro interno)
           </span>
           <span className="flex items-center gap-2">
             <i className="h-2 w-2 rounded-full bg-brand-200" />
@@ -184,7 +183,7 @@ export function FinanceEvolution({
             />
             <Bar
               dataKey="cash"
-              name="Cobros"
+              name="Cash Collected (libro interno)"
               fill="hsl(var(--brand-500))"
               radius={[8, 8, 0, 0]}
               maxBarSize={16}
@@ -233,7 +232,7 @@ export function FinanceEvolution({
                   </th>
                 )}
                 <th className="text-right font-medium" scope="col">
-                  Cobros
+                  Cash Collected (libro interno)
                 </th>
                 <th className="text-right font-medium" scope="col">
                   Gastos
@@ -283,7 +282,7 @@ export function FinanceDual({ title, data, showCacAxis }: { title: string; data:
           </span>
           <span className="flex items-center gap-2">
             <i className="h-2 w-2 rounded-full bg-brand-500" />
-            Cash cobrado
+            Cash Collected
           </span>
           {conGasto && (
             <span className="flex items-center gap-2">
@@ -343,7 +342,7 @@ export function FinanceDual({ title, data, showCacAxis }: { title: string; data:
             />
             <Bar
               dataKey="cash"
-              name="Cash cobrado"
+              name="Cash Collected"
               fill="hsl(var(--brand-500))"
               radius={[8, 8, 0, 0]}
               maxBarSize={16}
@@ -368,8 +367,8 @@ export function FinanceDual({ title, data, showCacAxis }: { title: string; data:
         </ResponsiveContainer>
       </div>
       <p className="mt-3 text-xs text-muted-foreground">
-        La brecha entre barras es el dinero vendido aún sin cobrar. El CAC solo se traza donde el cubo tuvo gasto
-        publicitario y cierres: sin gasto detrás, un CAC no existe.
+        La diferencia entre facturación y cobros del periodo no equivale a deuda pendiente. El CAC solo se traza donde
+        el cubo tuvo gasto publicitario y cierres: sin gasto detrás, un CAC no existe.
       </p>
     </section>
   )

@@ -84,23 +84,39 @@ export function computeMonthlyPnl(
     refunds: PnlRefundRow[]
     expenses: PnlExpenseRow[]
     commissions: PnlCommissionRow[]
-  }
+  },
+  period?: { from: string; to: string }
 ): MonthlyPnl {
   const { sales, collections, refunds, expenses, commissions } = data
-  const monthSales = sales.filter((s) => cuentaComoVenta(s) && ymOf(s.sale_date) === ym)
-  const monthCollections = collections.filter((c) => c.status === 'collected' && ymOf(c.collected_at) === ym)
-  const monthRefunds = refunds.filter((r) => ymOf(r.refund_date) === ym)
-  const monthExpenses = expenses.filter((e) => ymOf(e.expense_date) === ym)
+  const includes = (date: string | null) => {
+    if (!period) return ymOf(date) === ym
+    if (!date) return false
+    if (date.length === 7) {
+      const first = `${date}-01`
+      const last = new Date(Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)), 0)).toISOString().slice(0, 10)
+      if (last < period.from || first > period.to) return false
+      if (period.from > first || period.to < last)
+        throw new Error(
+          'Hay comisiones con fecha mensual: selecciona meses completos para obtener un resultado exacto.'
+        )
+      return true
+    }
+    return date.slice(0, 10) >= period.from && date.slice(0, 10) <= period.to
+  }
+  const monthSales = sales.filter((s) => cuentaComoVenta(s) && includes(s.sale_date))
+  const monthCollections = collections.filter((c) => c.status === 'collected' && includes(c.collected_at))
+  const monthRefunds = refunds.filter((r) => includes(r.refund_date))
+  const monthExpenses = expenses.filter((e) => includes(e.expense_date))
 
   // Correlación (matching): la comisión es un coste del INGRESO que la generó, así que se
   // reconoce en el mes del COBRO asociado (collected_at), no en su mes de liquidación/pago.
   // Las negativas (devoluciones) se imputan a su mes de liquidación (= mes de la devolución).
-  const collMonth = new Map(collections.map((c) => [c.id, ymOf(c.collected_at)]))
+  const collMonth = new Map(collections.map((c) => [c.id, c.collected_at ?? '']))
   const commissionYm = (c: PnlCommissionRow) =>
     c.direction === 'negative'
       ? ymOf(c.liquidation_month)
       : ((c.collection_id ? collMonth.get(c.collection_id) : undefined) ?? ymOf(c.liquidation_month))
-  const monthCommissions = commissions.filter((c) => commissionYm(c) === ym)
+  const monthCommissions = commissions.filter((c) => includes(commissionYm(c)))
 
   const contractedRevenue = monthSales.reduce((a, s) => a + num(s.gross_amount), 0)
   const grossRevenue = monthCollections.reduce((a, c) => a + num(c.gross_amount), 0)

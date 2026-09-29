@@ -819,7 +819,9 @@ export default function ExpensesPage() {
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Wallet className="w-6 h-6 text-brand-400" /> Gastos
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">Costes operativos — base del P&L, burn rate y runway</p>
+          <p className="text-muted-foreground text-sm mt-1">
+            Gastos registrados. El P&L incorpora además comisiones del equipo y costes de pasarela.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <SearchBox value={q} onChange={setQ} placeholder="Buscar concepto, proveedor..." className="w-64" />
@@ -927,7 +929,7 @@ export default function ExpensesPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="bg-card/50 border border-border rounded-lg p-4">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">Total gastos</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Gastos registrados</p>
               <p className="text-xl font-bold text-foreground mt-1">{formatCurrency(totals.total)}</p>
               <KpiDelta current={totals.total} previous={previousTotals.total} hasPrevious={hasPreviousPeriod} />
             </div>

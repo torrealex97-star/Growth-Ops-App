@@ -15,7 +15,7 @@ import { DailyMetricsPanel } from '@/components/os/DailyMetricsPanel'
 import { AdsTable } from '@/components/os/AdsTable'
 import { MetaAdsView } from '@/components/os/MetaAdsView'
 import { MultiSelect } from '@/components/ui/multi-select'
-import { useSesion, useTenant } from '@/lib/tenant-context'
+import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { useCuentasMetaActivas } from '@/lib/meta/use-cuentas-activas'
 import { DEFAULT_PERIOD } from '@/lib/filters/period'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -117,6 +117,7 @@ const ymdLocal = (d: Date) =>
 
 export default function CampaignsPage() {
   const tenant = useTenant()
+  const tenantId = useTenantId()
   const sesion = useSesion()
   const cuentas = useCuentasMetaActivas(tenant)
   const [items, setItems] = useState<Campaign[]>([])
@@ -461,8 +462,11 @@ export default function CampaignsPage() {
   // Se usa tanto en el auto-enlace (crear/editar) como en el botón manual "Contabilizar en gastos".
   const upsertAdExpense = async (campaignId: string, name: string, adspend: number) => {
     const supabase = createClient()
+    // expenses.tenant_id es NOT NULL: sin él este upsert fallaba SIEMPRE — el gasto de ads
+    // nunca llegaba a Gastos/P&L, aunque la UI mostrara "contabilizado".
     return supabase.from('expenses').upsert(
       {
+        tenant_id: tenantId,
         concept: `Ads - ${name}`,
         category: 'publicidad',
         subcategory: 'ads',

@@ -251,7 +251,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ t
       )
     }
 
-    await sb.from('audit_logs').insert({
+    // La víctima ya no existe en Auth (deleteUser borra la identidad): este snapshot es la
+    // ÚNICA constancia de quién era y quién la borró — sin él, un usuario borrado desaparece sin rastro.
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: guard.tenantId,
       entity_type: 'user',
       entity_id: userId,
@@ -259,6 +261,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ t
       actor_user_id: guard.callerId,
       old_values: victim ?? null,
     })
+    if (auditErr) console.error('[users] no se pudo registrar audit_logs de la eliminación:', auditErr.message)
 
     return NextResponse.json({ ok: true })
   } catch (err) {
