@@ -51,11 +51,7 @@ test('el formulario de VSL renderiza una vista previa en vivo con VslPlayer en m
 test('sin fuente, el listado y la tarjeta de embed avisan en vez de dejarlo en silencio', () => {
   assert.match(dash, /!v\.source_url/, 'las tarjetas del listado comprueban si falta la fuente')
   assert.match(dash, /Sin fuente/, 'hay una etiqueta visible de aviso en el listado')
-  assert.match(
-    dash,
-    /no tiene un archivo de fuente/,
-    'la tarjeta de embed explica por qué el código no va a funcionar'
-  )
+  assert.match(dash, /no tiene un archivo de fuente/, 'la tarjeta de embed explica por qué el código no va a funcionar')
   // El botón de copiar el snippet se deshabilita si el vídeo seleccionado no tiene fuente: copiar un
   // embed roto sin avisar es justo el bug reportado.
   const idxCopy = dash.indexOf('onClick={copySnippet}')
