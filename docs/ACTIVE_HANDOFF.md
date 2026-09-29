@@ -1,5 +1,29 @@
 # Relevo activo
 
+## 🔴 GHL_API_TOKEN indescifrable en producción — verificación en vivo de la pestaña GHL bloqueada (29-sep, Freebuff)
+
+**Verificación en vivo de la pestaña GHL (petición de Alex) — RESULTADO: bloqueada por credencial, no por código.**
+La sonda de solo-lectura `scripts/sonda-ghl-conversaciones.mjs` (corre fuera del árbol por el EPERM;
+lee credenciales descifradas EN MEMORIA y jamás imprime valores, solo firmas de campos) probó las 3
+subcuentas activas: `qa-e2e` y `scalix` sin credencial GHL; `women-digital-closer` tiene
+`GHL_API_TOKEN` cifrado (enc:v1:) que **NO descifra ni con la CONFIG_ENC_KEY de producción de Vercel**
+("unable to authenticate data" — AES-GCM, la clave no es la que cifró ese valor). El round-trip de
+`decryptSecret` con esa misma key verifica OK: el problema es el dato almacenado, no el código —
+es una **credencial huérfana de una rotación anterior** (la fila se guardó cuando la master key era otra).
+
+**Impacto real: NO es solo la pestaña nueva.** Toda lectura de GHL (`citas-sync`, cron `calendly-ghl`,
+probe de Integraciones, custom-fields-backfill y la pestaña/métricas de Conversaciones) falla cerrada
+en producción con esta credencial — `getTenantConfig` descarta en silencio el valor indescifrable y el
+código ve "faltan credenciales". La pestaña GHL muestra honestamente "GoHighLevel no está operativo".
+
+**Acción exacta para Alex (2 min):** pegar de nuevo el PIT token real en Configuración › Integraciones
+› GoHighLevel (se re-cifrará con la key actual) + Location ID si hiciera falta. Después: repetir la
+sonda (`node scripts/sonda-ghl-conversaciones.mjs` desde un arnés con env de producción) y abrir la
+pestaña — si la API responde con campos distintos a los asumidos (unreadCount anidado, lastMessageDate
+con otro nombre…), la sonda lo delata por firma y se ajusta el mapeo de `lib/ghl/conversaciones.ts`.
+Mientras tanto, todo el comportamiento de la pestaña sigue cubierto por los 10 tests con fetch falso.
+
+
 ## Estado de entrega — 28-sep-2026
 
 PR [#284](https://github.com/torrealex97-star/Growth-Ops-App/pull/284) **fusionado** en `main`, commit `5b74885`. CI del head `24aa455`: formato, lint, tipos, unitarias/métricas, build, secretos y Smoke E2E **PASS**. La preview omitida de Supabase no equivale a una prueba ejecutada.
