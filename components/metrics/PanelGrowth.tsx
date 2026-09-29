@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { AlertTriangle, Activity, Target } from 'lucide-react'
-import { useTenant } from '@/lib/tenant-context'
+import Link from 'next/link'
+import { AlertTriangle, Activity, Target, ArrowRight } from 'lucide-react'
+import { useSesion, useTenant } from '@/lib/tenant-context'
 import { esFalloVisible, pedir, type Fallo } from '@/lib/ui/pedir'
 import { EstadoPanel } from '@/components/ui/carga/EstadoPanel'
 import { KpiCard } from '@/components/metrics/KpiCard'
@@ -15,6 +16,7 @@ import type { ObjetivoMedido } from '@/lib/metrics/objetivos'
 import type { Prevision } from '@/lib/metrics/prevision'
 import type { LtgpCacAproximado } from '@/lib/metrics/ltgp-aproximado'
 import { PanelObjetivos } from '@/components/metrics/PanelObjetivos'
+import { AnotacionesInspector } from '@/components/metrics/AnotacionesInspector'
 
 const SalesChart = dynamic(() => import('@/components/os/SalesChart').then((m) => ({ default: m.SalesChart })), {
   ssr: false,
@@ -46,6 +48,7 @@ type Respuesta = {
     fuentesRecortadas: string[]
     ticketMedioUsado: number | null
     contextoConfigurado: boolean
+    atribucion: { contactos: number; conAtribucion: number }
   }
 }
 
@@ -59,6 +62,7 @@ const COLOR_ETIQUETA: Record<SaludNegocio['etiqueta'], string> = {
 
 export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }) {
   const tenant = useTenant()
+  const sesion = useSesion()
   const [datos, setDatos] = useState<Respuesta | null>(null)
   const [cargando, setCargando] = useState(true)
   const [fallo, setFallo] = useState<Fallo | null>(null)
@@ -224,6 +228,15 @@ export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }
         title="Facturación vs cash cobrado · acumulado del periodo"
       />
 
+      {/* Mismo rango que el gráfico de arriba: una anotación marca un evento de negocio (lanzamiento,
+          cambio de precio…) para explicar un salto en la serie, no un dato más que medir. */}
+      <AnotacionesInspector
+        desde={datos.periodo.desde}
+        hasta={datos.periodo.hasta}
+        userId={sesion?.userId}
+        puedeGestionarTodas={sesion?.rol === 'admin' || sesion?.rol === 'director'}
+      />
+
       <PanelObjetivos objetivos={objetivos} prevision={prevision} ltgpCacAproximado={ltgpCacAproximado} />
 
       {/* LAS TARJETAS, para comprobar lo de arriba. */}
@@ -241,6 +254,41 @@ export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }
             <KpiCard key={m.id} metrica={m} onDrilldown={() => setVerCalculo(m.key)} />
           ))}
         </div>
+      </section>
+
+      {/* ENLACES CRUZADOS, no motores duplicados. Cohortes y la calidad de atribución por fuente viven en
+          sus propias pantallas con su propio motor de datos (Finanzas y Marketing respectivamente); traer
+          esos números aquí con un fetch aparte rompería la regla de arriba —todo sale de /metricas/brief—
+          y dos pantallas acabarían diciendo cosas distintas del mismo negocio. Lo único que se puede dar
+          aquí sin recalcular nada es la cobertura de atribución, que YA viaja en esta misma respuesta. */}
+      <section className="grid gap-3 sm:grid-cols-2">
+        <Link
+          href={`/${tenant}/marketing/adquisicion/atribucion`}
+          className="dashboard-card flex items-center justify-between gap-3 p-4 transition-colors hover:border-brand-500/50"
+        >
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-foreground">Calidad por fuente</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {procedencia.atribucion.contactos > 0
+                ? `${procedencia.atribucion.conAtribucion} de ${procedencia.atribucion.contactos} contactos históricos con origen registrado.`
+                : 'Sin contactos históricos que atribuir todavía.'}{' '}
+              Ver el desglose por fuente →
+            </p>
+          </div>
+          <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        </Link>
+        <Link
+          href={`/${tenant}/cohorts`}
+          className="dashboard-card flex items-center justify-between gap-3 p-4 transition-colors hover:border-brand-500/50"
+        >
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-foreground">Cohortes</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Retención y recompra por cohorte de entrada, con su propio motor en Finanzas.
+            </p>
+          </div>
+          <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        </Link>
       </section>
 
       {/* VER CÁLCULO: de dónde sale el número. Sin esto nadie se fía de una cifra que no cuadra con su hoja. */}

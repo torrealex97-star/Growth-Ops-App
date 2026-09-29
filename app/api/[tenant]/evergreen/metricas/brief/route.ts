@@ -244,6 +244,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     periodo,
   })
 
+  // GROWTH CAPACITY, como tarjeta más: hasta ahora `capacidad.utilizacionVentas` solo alimentaba
+  // evaluarEscalado() y se descartaba antes de llegar a la respuesta — el panel no tenía forma de
+  // enseñarlo. Se añade a las mediciones (ver lib/metrics/registro.ts: sales.capacidad_ventas) en vez
+  // de mandarlo aparte, para que salga por el mismo KpiCard que el resto y no monte un componente
+  // paralelo para un único número.
+  consulta.agregados.capacidad_ventas_pct = {
+    valor: capacidad.utilizacionVentas,
+    muestra: consulta.agregados.agendas?.muestra ?? null,
+    motivo:
+      capacidad.utilizacionVentas === null
+        ? 'Falta declarar la capacidad semanal de llamadas del equipo en el contexto de negocio.'
+        : undefined,
+  }
+
   return NextResponse.json({
     periodo,
     brief,
