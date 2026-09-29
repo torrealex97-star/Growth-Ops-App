@@ -18,8 +18,12 @@ export function normalizarUsuarioIg(u: string | null | undefined): string | null
 // propio texto, no de que la persona realmente agendara.
 const PATRON_ENLACE_AGENDA = /calendly\.com|cal\.com\/|\.gohighlevel\.com\/widget|book(ing)?[a-z]*\.(com|app)/i
 
+export function detectarEnlaceAgendaEnMensajes(mensajes: { text?: string }[]): boolean {
+  return mensajes.some((m) => !!m.text && PATRON_ENLACE_AGENDA.test(m.text))
+}
+
 export function detectarEnlaceAgendaEnTexto(conv: IgConversation): boolean {
-  return conv.messages.some((m) => !!m.text && PATRON_ENLACE_AGENDA.test(m.text))
+  return detectarEnlaceAgendaEnMensajes(conv.messages)
 }
 
 export type ContactoIg = { id: string; instagram: string | null }
@@ -65,6 +69,26 @@ export type ResumenMetricas = {
   tasaAgendaSobreVinculados: number // 0-1, solo entre los que sí se pudieron verificar
 }
 
+// Agregación COMPARTIDA (Instagram y GHL): una sola implementación del resumen para que las
+// tarjetas cross-plataforma comparen lo mismo. Recibe el por-conversación ya resuelto y el total.
+export function resumir(porConversacion: MetricaConversacion[], total: number): ResumenMetricas {
+  const conContactoVinculado = porConversacion.filter((m) => m.matchedContactId).length
+  const conAgendaVerificada = porConversacion.filter((m) => m.tieneAgenda === true).length
+  const conVentaVerificada = porConversacion.filter((m) => m.tieneVenta === true).length
+  const sinContacto = porConversacion.filter((m) => !m.matchedContactId)
+
+  return {
+    totalConversaciones: total,
+    conContactoVinculado,
+    conAgendaVerificada,
+    conVentaVerificada,
+    sinContactoVinculado: sinContacto.length,
+    sinContactoConEnlaceAgenda: sinContacto.filter((m) => m.enlaceAgendaEnTexto).length,
+    tasaVinculacion: total > 0 ? conContactoVinculado / total : 0,
+    tasaAgendaSobreVinculados: conContactoVinculado > 0 ? conAgendaVerificada / conContactoVinculado : 0,
+  }
+}
+
 export function calcularMetricas(
   conversations: IgConversation[],
   contactos: ContactoIg[],
@@ -85,23 +109,5 @@ export function calcularMetricas(
     }
   })
 
-  const conContactoVinculado = porConversacion.filter((m) => m.matchedContactId).length
-  const conAgendaVerificada = porConversacion.filter((m) => m.tieneAgenda === true).length
-  const conVentaVerificada = porConversacion.filter((m) => m.tieneVenta === true).length
-  const sinContacto = porConversacion.filter((m) => !m.matchedContactId)
-  const total = conversations.length
-
-  return {
-    resumen: {
-      totalConversaciones: total,
-      conContactoVinculado,
-      conAgendaVerificada,
-      conVentaVerificada,
-      sinContactoVinculado: sinContacto.length,
-      sinContactoConEnlaceAgenda: sinContacto.filter((m) => m.enlaceAgendaEnTexto).length,
-      tasaVinculacion: total > 0 ? conContactoVinculado / total : 0,
-      tasaAgendaSobreVinculados: conContactoVinculado > 0 ? conAgendaVerificada / conContactoVinculado : 0,
-    },
-    porConversacion,
-  }
+  return { resumen: resumir(porConversacion, conversations.length), porConversacion }
 }
