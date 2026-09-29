@@ -23,6 +23,18 @@ pestaña — si la API responde con campos distintos a los asumidos (unreadCount
 con otro nombre…), la sonda lo delata por firma y se ajusta el mapeo de `lib/ghl/conversaciones.ts`.
 Mientras tanto, todo el comportamiento de la pestaña sigue cubierto por los 10 tests con fetch falso.
 
+## Cierre de sesión GHL (29-sep, Freebuff) — todo fusionado y desplegado
+
+Las 5 unidades de la sesión están fusionadas con CI verde y en producción: #283 (pestaña GHL en
+Conversaciones), #292 (GHL en el resumen cross-plataforma), #294 (búsqueda + filtro por canal),
+#295 (sonda + hallazgo 🔴 de arriba) y #297 (aviso de credenciales indescifrables en Integraciones).
+Producción verificada por API de Vercel: deployment READY en `398d1b9` (lo posterior a main son
+docs-only con deployment CANCELED por ignoreCommand, por diseño). Home 200; rutas
+`/conversations?platform=ghl` e `/integraciones` vivas (401/307 sin sesión). CHANGELOG completo.
+`main == origin/main`, tablero sin filas de esta sesión. **Único pendiente real: la acción de 2 min
+de arriba (regrabar `GHL_API_TOKEN`)**; tras regrabar, correr la sonda y ajustar el mapeo de
+`lib/ghl/conversaciones.ts` si la firma de campos difiere.
+
 
 ## Estado de entrega — 28-sep-2026
 
