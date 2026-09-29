@@ -83,6 +83,9 @@ type StateEntry = {
   /** Longitud del secreto guardado. Una longitud no es una credencial, y es lo único que delata un
    *  token pegado a medias, que Meta reporta como "Bad signature" y la máscara esconde. */
   length?: number
+  /** Guardado cifrado que la CONFIG_ENC_KEY actual NO puede leer (rotación previa o dato corrupto).
+   *  El runtime lo descarta y todo consumidor ve "faltan credenciales": hay que volver a pegarlo. */
+  indescifrable?: boolean
 }
 type BackfillRow = {
   paymentId: string
@@ -108,6 +111,15 @@ const STRIPE_CUSTOMER_STATUS_META: Record<StripeCustomerRow['status'], { label: 
   activo_mensual: { label: 'Activo mensual', className: 'text-emerald-600' },
   moroso: { label: 'Moroso', className: 'text-red-600' },
   cancelado: { label: 'Cancelado', className: 'text-muted-foreground' },
+}
+type StripePriceMapRow = {
+  id: string
+  stripe_price_id: string
+  product_id: string
+  payment_plan_id: string
+  created_at: string
+  products: { name: string } | null
+  payment_plans: { name: string } | null
 }
 type StripeReview = {
   summary: { total: number; matched: number; probable: number; mismatch: number; missing: number }
@@ -468,6 +480,7 @@ export default function IntegracionesPage() {
   const [groups, setGroups] = useState<Group[]>([])
   const [state, setState] = useState<Record<string, StateEntry>>({})
   const [encReady, setEncReady] = useState(true)
+  const [indescifrables, setIndescifrables] = useState<string[]>([])
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   // El motivo del fallo, para poder enseñarlo en pantalla en vez de dejar un loader eterno.
@@ -479,6 +492,16 @@ export default function IntegracionesPage() {
   const [reviewingStripe, setReviewingStripe] = useState(false)
   const [stripeCustomers, setStripeCustomers] = useState<StripeCustomerRow[] | null>(null)
   const [syncingCustomers, setSyncingCustomers] = useState(false)
+  // Mapeo Price ID de Stripe → producto/plan (lib/sales/priceRecognition.ts): la decisión que
+  // permite a la bandeja de cobros pendientes reconocer el producto sin adivinar por importe.
+  const [priceMap, setPriceMap] = useState<StripePriceMapRow[] | null>(null)
+  const [priceMapCatalogo, setPriceMapCatalogo] = useState<{
+    products: { id: string; name: string }[]
+    plans: { id: string; name: string; method: string | null }[]
+  } | null>(null)
+  const [loadingPriceMap, setLoadingPriceMap] = useState(false)
+  const [savingPriceMap, setSavingPriceMap] = useState(false)
+  const [newPriceMap, setNewPriceMap] = useState({ stripePriceId: '', productId: '', planId: '' })
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // El estado de cada integración lo calcula el servidor (credenciales + última comprobación real
   // contra su API + si sus sincronizaciones pueden funcionar). Antes era un `verification` local que
@@ -525,6 +548,7 @@ export default function IntegracionesPage() {
         encReady: boolean
         health?: IntegrationHealth[]
         webhooksEntrantes?: WebhookEntranteEstado[]
+        clavesIndescifrables?: string[]
       }>(`/api/${tenant}/evergreen/settings/integraciones`)
 
       if (!res.ok) {
@@ -540,6 +564,7 @@ export default function IntegracionesPage() {
       setGroups(j.groups)
       setState(j.state)
       setEncReady(j.encReady)
+      setIndescifrables(j.clavesIndescifrables ?? [])
       setHealth(Object.fromEntries(((j.health ?? []) as IntegrationHealth[]).map((h) => [h.id, h])))
       setWebhooksEntrantes(j.webhooksEntrantes ?? [])
       // precargar los no-secretos en los drafts para poder editarlos
@@ -558,6 +583,7 @@ export default function IntegracionesPage() {
 
   useEffect(() => {
     if (selectedId === 'stripe' && stripeCustomers === null) void loadStripeCustomers()
+    if (selectedId === 'stripe' && priceMap === null) void loadPriceMap()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId])
 
@@ -928,6 +954,88 @@ export default function IntegracionesPage() {
     setStripeCustomers(res.ok ? (res.data?.rows ?? []) : [])
   }
 
+  async function loadPriceMap() {
+    setLoadingPriceMap(true)
+    try {
+      const [mapaRes, catalogoRes] = await Promise.all([
+        fetch(`/api/${tenant}/evergreen/settings/integraciones/stripe-price-map`),
+        fetch(`/api/${tenant}/evergreen/stripe-backfill/registrar`),
+      ])
+      const mapaJson = await mapaRes.json().catch(() => ({}))
+      if (!mapaRes.ok) {
+        toast.error(mapaJson.error || 'No se pudo leer el mapeo de Price ID')
+        setPriceMap([])
+      } else {
+        setPriceMap((mapaJson.mapeos ?? []) as StripePriceMapRow[])
+      }
+      if (catalogoRes.ok) setPriceMapCatalogo(await catalogoRes.json())
+    } catch (error) {
+      toast.error('No se pudo leer el mapeo de Price ID', {
+        description: error instanceof Error ? error.message : String(error),
+      })
+      setPriceMap([])
+    } finally {
+      setLoadingPriceMap(false)
+    }
+  }
+
+  async function savePriceMap() {
+    if (!newPriceMap.stripePriceId.trim() || !newPriceMap.productId || !newPriceMap.planId) {
+      toast.error('Rellena el Price ID, el producto y el plan')
+      return
+    }
+    setSavingPriceMap(true)
+    try {
+      const r = await fetch(`/api/${tenant}/evergreen/settings/integraciones/stripe-price-map`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stripePriceId: newPriceMap.stripePriceId.trim(),
+          productId: newPriceMap.productId,
+          paymentPlanId: newPriceMap.planId,
+        }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        toast.error(j.error || 'No se pudo guardar el mapeo')
+        return
+      }
+      toast.success('Mapeo guardado: la bandeja lo sugerirá en el próximo cobro con ese Price ID')
+      setNewPriceMap({ stripePriceId: '', productId: '', planId: '' })
+      await loadPriceMap()
+    } catch (error) {
+      toast.error('No se pudo guardar el mapeo', {
+        description: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setSavingPriceMap(false)
+    }
+  }
+
+  async function deletePriceMap(row: StripePriceMapRow) {
+    if (
+      !window.confirm(
+        `¿Borrar el mapeo de ${row.stripe_price_id}? Los cobros futuros con ese Price ID dejarán de sugerirse solos.`
+      )
+    )
+      return
+    try {
+      const r = await fetch(
+        `/api/${tenant}/evergreen/settings/integraciones/stripe-price-map?id=${encodeURIComponent(row.id)}`,
+        { method: 'DELETE' }
+      )
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        toast.error(j.error || 'No se pudo borrar el mapeo')
+        return
+      }
+      toast.success('Mapeo borrado')
+      await loadPriceMap()
+    } catch (error) {
+      toast.error('No se pudo borrar el mapeo', { description: error instanceof Error ? error.message : String(error) })
+    }
+  }
+
   async function syncStripeCustomersHandler() {
     setSyncingCustomers(true)
     try {
@@ -993,6 +1101,21 @@ export default function IntegracionesPage() {
           <span>
             Falta la variable <code>CONFIG_ENC_KEY</code> en el entorno. Sin ella no se pueden guardar los campos
             secretos (tokens/keys). Añádela en Vercel y vuelve a intentarlo.
+          </span>
+        </div>
+      )}
+
+      {/* Credenciales guardadas que la clave actual no puede leer: el runtime las descarta y la
+          integración se comporta como "sin configurar" aunque haya un token escrito. Sin este aviso,
+          el diagnóstico es adivinanza (fue exactamente lo que pasó con GHL el 29-sep). */}
+      {indescifrables.length > 0 && (
+        <div className="flex items-start gap-2 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            {indescifrables.length === 1 ? 'Hay una credencial guardada que' : 'Hay credenciales guardadas que'} el
+            servidor <b>no puede descifrar</b> con la clave de cifrado actual (probable rotación previa de{' '}
+            <code>CONFIG_ENC_KEY</code>): se comportan como si no existieran. <b>Vuelve a pegarlas aquí</b> y guarda:{' '}
+            {indescifrables.join(', ')}
           </span>
         </div>
       )}
@@ -1355,20 +1478,28 @@ export default function IntegracionesPage() {
                             .filter((f) => !f.hidden && !f.advanced)
                             .map((f) => {
                               const st = state[f.key]
-                              const badge =
-                                st?.source === 'db' ? (
-                                  <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
-                                    <CheckCircle2 className="h-3 w-3" /> guardado
-                                  </span>
-                                ) : st?.source === 'env' ? (
-                                  <span className="inline-flex items-center gap-1 text-xs text-blue-600">
-                                    <KeyRound className="h-3 w-3" /> en entorno
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                                    <XCircle className="h-3 w-3" /> sin configurar
-                                  </span>
-                                )
+                              // Credencial indescifrable: badge rojo en vez de "guardado" — el
+                              // verde aquí sería mentir (el runtime no puede leer ese valor).
+                              const badge = st?.indescifrable ? (
+                                <span
+                                  className="inline-flex items-center gap-1 text-xs text-red-600"
+                                  title="Cifrado con una CONFIG_ENC_KEY distinta a la actual: el servidor no puede leerlo. Vuelve a pegar el valor y guarda."
+                                >
+                                  <XCircle className="h-3 w-3" /> indescifrable — vuelve a pegarlo
+                                </span>
+                              ) : st?.source === 'db' ? (
+                                <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
+                                  <CheckCircle2 className="h-3 w-3" /> guardado
+                                </span>
+                              ) : st?.source === 'env' ? (
+                                <span className="inline-flex items-center gap-1 text-xs text-blue-600">
+                                  <KeyRound className="h-3 w-3" /> en entorno
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                                  <XCircle className="h-3 w-3" /> sin configurar
+                                </span>
+                              )
                               return (
                                 <div key={f.key} className="space-y-1.5">
                                   <div className="flex items-center justify-between gap-2">
@@ -1876,6 +2007,137 @@ export default function IntegracionesPage() {
                               <p className="text-xs text-muted-foreground">
                                 Todavía no se ha sincronizado ningún cliente. Usa &quot;Sincronizar clientes&quot;.
                               </p>
+                            )}
+                          </div>
+                        )}
+
+                        {g.id === 'stripe' && (
+                          <div className="mt-5 space-y-3 rounded-md border border-dashed p-3">
+                            <div>
+                              <p className="text-sm font-medium">Reconocer producto por Price ID</p>
+                              <p className="text-xs text-muted-foreground">
+                                Cuando un cobro viene de una factura (suscripción o plan de cuotas) trae el Price ID de
+                                Stripe. Dile aquí, una vez, a qué producto y plan corresponde: la bandeja de cobros
+                                pendientes lo sugerirá solo en cada cobro futuro con ese Price ID — nunca se adivina por
+                                importe.
+                              </p>
+                            </div>
+
+                            {loadingPriceMap ? (
+                              <p className="text-xs text-muted-foreground">Cargando…</p>
+                            ) : (
+                              <>
+                                {(priceMapCatalogo?.products ?? []).length === 0 ||
+                                (priceMapCatalogo?.plans ?? []).length === 0 ? (
+                                  <div className="border-border bg-card/60 rounded-lg border p-3">
+                                    <p className="text-foreground text-xs font-medium">
+                                      Faltan datos de catálogo en esta subcuenta
+                                    </p>
+                                    <a
+                                      href={`/${tenant}/settings/products`}
+                                      className="text-primary mt-1 inline-block text-xs hover:underline"
+                                    >
+                                      Crear producto y plan de pago →
+                                    </a>
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-wrap items-end gap-2">
+                                    <label className="text-muted-foreground text-xs">
+                                      Price ID de Stripe
+                                      <Input
+                                        value={newPriceMap.stripePriceId}
+                                        onChange={(e) =>
+                                          setNewPriceMap((p) => ({ ...p, stripePriceId: e.target.value }))
+                                        }
+                                        placeholder="price_1AbCdE..."
+                                        className="mt-1 h-8 w-44 text-sm"
+                                      />
+                                    </label>
+                                    <label className="text-muted-foreground text-xs">
+                                      Producto
+                                      <select
+                                        value={newPriceMap.productId}
+                                        onChange={(e) => setNewPriceMap((p) => ({ ...p, productId: e.target.value }))}
+                                        className="border-border bg-background/60 text-foreground mt-1 block rounded-lg border px-2 py-1 text-sm"
+                                      >
+                                        <option value="">Elige…</option>
+                                        {(priceMapCatalogo?.products ?? []).map((p) => (
+                                          <option key={p.id} value={p.id}>
+                                            {p.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                    <label className="text-muted-foreground text-xs">
+                                      Plan
+                                      <select
+                                        value={newPriceMap.planId}
+                                        onChange={(e) => setNewPriceMap((p) => ({ ...p, planId: e.target.value }))}
+                                        className="border-border bg-background/60 text-foreground mt-1 block rounded-lg border px-2 py-1 text-sm"
+                                      >
+                                        <option value="">Elige…</option>
+                                        {(priceMapCatalogo?.plans ?? []).map((p) => (
+                                          <option key={p.id} value={p.id}>
+                                            {p.name}
+                                            {p.method ? ` · ${p.method}` : ''}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => void savePriceMap()}
+                                      disabled={
+                                        savingPriceMap ||
+                                        !newPriceMap.stripePriceId.trim() ||
+                                        !newPriceMap.productId ||
+                                        !newPriceMap.planId
+                                      }
+                                    >
+                                      {savingPriceMap ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                      Guardar mapeo
+                                    </Button>
+                                  </div>
+                                )}
+
+                                {priceMap && priceMap.length > 0 ? (
+                                  <div className="max-h-60 overflow-auto rounded border">
+                                    <table className="w-full text-xs">
+                                      <thead className="bg-card sticky top-0 text-left">
+                                        <tr>
+                                          <th className="p-2">Price ID</th>
+                                          <th className="p-2">Producto</th>
+                                          <th className="p-2">Plan</th>
+                                          <th className="p-2" />
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {priceMap.map((row) => (
+                                          <tr key={row.id} className="border-t">
+                                            <td className="p-2 font-mono">{row.stripe_price_id}</td>
+                                            <td className="p-2">{row.products?.name ?? '—'}</td>
+                                            <td className="p-2">{row.payment_plans?.name ?? '—'}</td>
+                                            <td className="p-2 text-right">
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => void deletePriceMap(row)}
+                                                className="h-6 px-2 text-red-400 hover:text-red-300"
+                                              >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                              </Button>
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                ) : priceMap && priceMap.length === 0 ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    Todavía no hay ningún Price ID mapeado.
+                                  </p>
+                                ) : null}
+                              </>
                             )}
                           </div>
                         )}

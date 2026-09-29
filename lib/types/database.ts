@@ -176,6 +176,7 @@ export type ContactAttribution = {
   first_touch_at: string | null
   last_touch_at: string | null
   is_primary: boolean
+  collaborator_id: string | null
   // v7 — UTMs de primer y último contacto
   first_utm_source: string | null
   first_utm_medium: string | null

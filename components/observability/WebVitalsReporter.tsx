@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { useReportWebVitals } from 'next/web-vitals'
 import * as Sentry from '@sentry/nextjs'
@@ -17,6 +17,16 @@ export function WebVitalsReporter() {
   const pathname = usePathname()
   const route = normalizarRutaTenant(pathname)
 
+  // CLS es acumulativo para TODA la pestaña (el navegador no lo resetea en una navegación de
+  // cliente de App Router, que nunca recarga el documento) — el valor que se reporta en cualquier
+  // momento es la suma de todos los saltos de layout desde que se abrió la pestaña, no de la
+  // página actual. Etiquetarlo con `route` (la página donde el usuario está AHORA) hace que un
+  // único salto temprano en /dashboard aparezca como "poor" en las 20 páginas visitadas después en
+  // esa misma sesión — hallazgo real en producción (mismo valor exacto de CLS en rutas sin
+  // relación). Se etiqueta con la ruta de ENTRADA de la sesión, capturada una sola vez, para que el
+  // dato apunte a dónde probablemente ocurrió el salto en vez de contaminar cada página siguiente.
+  const rutaEntrada = useRef(route)
+
   useReportWebVitals(
     useCallback(
       (metric) => {
@@ -25,7 +35,7 @@ export function WebVitalsReporter() {
         Sentry.metrics.distribution(`web_vital.${metric.name.toLowerCase()}`, metric.value, {
           unit: metric.name === 'CLS' ? 'none' : 'millisecond',
           attributes: {
-            route,
+            route: metric.name === 'CLS' ? rutaEntrada.current : route,
             rating: metric.rating,
             navigation_type: metric.navigationType,
           },

@@ -272,6 +272,28 @@ const METRICAS_SALES: DefinicionMetrica[] = [
     timeGranularity: ['dia', 'semana'],
   }),
   M({
+    id: 'sales.capacidad_ventas',
+    key: 'capacidad_ventas_pct',
+    name: 'Capacidad de ventas ocupada',
+    shortName: 'Capacidad',
+    category: 'sales',
+    unit: 'porcentaje',
+    formula: 'Agendas del periodo / Capacidad semanal de llamadas declarada × 100',
+    description: 'Qué parte de las llamadas que el equipo puede atender por semana ya está ocupada.',
+    whyItMatters:
+      'Acercarse al 100% es un techo de capacidad, no un resultado de negocio: más leads no sirven de nada si no hay dónde ponerlos. Por eso no lleva objetivo ni semáforo — alto no es "bueno" ni "malo" por sí solo.',
+    dataSource: 'Agendas del periodo + capacidad semanal declarada en el contexto de negocio',
+    // SIN OBJETIVO A PROPÓSITO: es información de capacidad, no un KPI a maximizar ni a minimizar.
+    // La flecha de variación usa `false` porque el uso que este número tiene en evaluarEscalado() es de
+    // aviso (cerca del 100% frena el escalado), no de logro — pero el semáforo (gris, por targetType
+    // 'ninguno') es lo que de verdad evita que se lea como un juicio.
+    higherIsBetter: false,
+    targetType: 'ninguno',
+    recommendedChart: 'linea',
+    timeGranularity: ['semana', 'mes'],
+    calculationDependencies: ['agendas'],
+  }),
+  M({
     id: 'sales.bamfam_rate',
     key: 'bamfam_rate',
     name: 'BAMFAM',

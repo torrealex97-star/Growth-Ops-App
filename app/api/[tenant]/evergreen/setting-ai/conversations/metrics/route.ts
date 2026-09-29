@@ -3,23 +3,53 @@ import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { leerSnapshot } from '@/lib/instagram/snapshot'
 import { calcularMetricas, type ContactoIg } from '@/lib/instagram/conversation-metrics'
+import { calcularMetricasGhl } from '@/lib/ghl/conversaciones-metricas'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-// Métricas del panel de Conversaciones: cuántas de las conversaciones de IG generaron agenda/venta
-// REALES (cruzando el username del participante con contacts.instagram y sus citas/ventas en BD),
-// no una suposición leída del texto. Reutiliza el snapshot que ya guarda /setting-ai/conversations
-// (misma fuente que ve el usuario en la lista) para no duplicar llamadas a la Graph API: las
-// métricas siempre son coherentes con lo que la pestaña de conversaciones está mostrando.
+// Métricas del panel de Conversaciones: cuántas de las conversaciones de IG o GHL generaron
+// agenda/venta REALES (cruzando con contacts y sus citas/ventas en BD), no una suposición leída del
+// texto. Reutiliza el snapshot que ya guarda /setting-ai/conversations (misma fuente que ve el
+// usuario en la lista) para no duplicar llamadas externas: las métricas son coherentes con lo que
+// la pestaña está mostrando. En GHL la vinculación se re-resuelve fresca (lib/ghl/conversaciones-metricas.ts).
 export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
   const t = await requireTenant(tenant)
   if ('error' in t) return t.error
 
   const platform = req.nextUrl.searchParams.get('platform') || 'instagram'
-  if (platform !== 'instagram') {
+  if (platform !== 'instagram' && platform !== 'ghl') {
     return NextResponse.json({ configured: false, platform, motivo: 'Próximamente.' })
+  }
+
+  // GHL: el cálculo vive en lib/ghl/conversaciones-metricas.ts (vinculación fresca + lecturas
+  // fail-loud). Un error de BD invalida la tarjeta con 500 — nunca una tasa en cero que parezca
+  // "GHL no convierte" (un hueco no es un cero).
+  if (platform === 'ghl') {
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+    try {
+      const r = await calcularMetricasGhl(sb, t.tenantId)
+      if (!r) {
+        return NextResponse.json({
+          configured: false,
+          platform,
+          motivo: 'Todavía no hay conversaciones descargadas. Abre la pestaña GHL de Conversaciones primero.',
+        })
+      }
+      return NextResponse.json({
+        configured: true,
+        platform,
+        resumen: r.resumen,
+        porConversacion: r.porConversacion,
+        guardado: r.guardado,
+      })
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : 'Error calculando métricas de GHL' },
+        { status: 500 }
+      )
+    }
   }
 
   const snap = await leerSnapshot(t.tenantId)
