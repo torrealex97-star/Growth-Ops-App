@@ -85,10 +85,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
 }
 
 async function marcarError(sb: SupabaseClient, id: string, error: string, revoked: boolean) {
-  await sb
+  const { error: dbErr } = await sb
     .from('google_oauth_connections')
     .update({ status: revoked ? 'revocada' : 'error', last_error: error })
     .eq('id', id)
+  // Si esto falla, el panel puede seguir mostrando "conectada" aunque Google haya revocado el
+  // acceso — un estado de conexión falso.
+  if (dbErr) console.warn('[ga4] no se pudo marcar el estado de error de la conexión:', dbErr.message)
 }
 
 // POST — elige propiedad y/o sincroniza.
@@ -200,10 +203,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
 
     if (!dryRun) {
-      await sb
+      const { error: syncFlagErr } = await sb
         .from('google_oauth_connections')
         .update({ last_sync_at: new Date().toISOString(), status: 'conectada', last_error: null })
         .eq('id', conn.id)
+      // El sync YA se hizo (escritas cuenta lo real); si esto falla el panel mostrará una fecha
+      // de sync antigua aunque los datos estén al día.
+      if (syncFlagErr) console.warn('[ga4] no se pudo actualizar last_sync_at:', syncFlagErr.message)
     }
 
     return NextResponse.json({ ok: true, dryRun, rango: { from, to }, paginas, leidas, escritas, muestra })

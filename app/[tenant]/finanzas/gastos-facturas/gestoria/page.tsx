@@ -186,7 +186,7 @@ export default function GestoriaPage() {
     const rows: string[][] = [
       ['Concepto', 'Importe'],
       ['Mes', monthLabel(ym)],
-      ['Facturación / Cash Collected', summary.cashCollected.toFixed(2)],
+      ['Cash Collected (libro interno, bruto)', summary.cashCollected.toFixed(2)],
       ['Devoluciones', (-summary.totalRefunds).toFixed(2)],
       ['Gastos totales', (-summary.totalExpenses).toFixed(2)],
       ['Comisiones de plataforma', (-summary.platformFees).toFixed(2)],
@@ -277,7 +277,7 @@ export default function GestoriaPage() {
               </button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-              <MetricCard label="Facturación / Cash Collected" value={fmt(summary.cashCollected)} />
+              <MetricCard label="Cash Collected (libro interno, bruto)" value={fmt(summary.cashCollected)} />
               <MetricCard
                 label="Devoluciones"
                 value={`− ${fmt(summary.totalRefunds)}`}

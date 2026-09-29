@@ -221,7 +221,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       if (sd.dni) patch.dni = sd.dni
       if (sd.address) patch.address = sd.address
       if (sd.phone) patch.phone = sd.phone
-      if (Object.keys(patch).length) await sb.from('users').update(patch).eq('id', c.user_id)
+      if (Object.keys(patch).length) {
+        const { error: datosErr } = await sb.from('users').update(patch).eq('id', c.user_id)
+        // DNI/dirección/teléfono son datos fiscales que se usan después en contratos y pagos —
+        // si no se guardan, el colaborador cree que los aportó y no queda rastro del fallo.
+        if (datosErr)
+          console.error(
+            `[public-contracts/sign] contrato ${c.id}: no se pudieron guardar los datos personales aportados:`,
+            datosErr.message
+          )
+      }
 
       // CIERRE DE LA CADENA DE ALTA (hallazgo E2E 19-sep): el alta del
       // colaborador (admin o registro público) deja su perfil en

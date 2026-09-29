@@ -162,11 +162,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       .maybeSingle()
     let competitorId = existing?.id as string | undefined
     if (competitorId) {
-      await sb
+      const { error: updErr } = await sb
         .from('ig_competitors')
         .update({ followers_count: profile.followers_count, media_count: profile.media_count, last_synced_at: at })
         .eq('id', competitorId)
         .eq('tenant_id', auth.tenantId)
+      if (updErr) console.warn(`[instagram/competitors] no se pudo actualizar ${competitorId}:`, updErr.message)
     } else {
       const { data: inserted, error: insErr } = await sb
         .from('ig_competitors')
@@ -221,6 +222,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     // Modo perfil: upsert de todos los reels recientes.
     let synced = 0
+    let syncError: string | null = null
     const { data: prevRows } = await sb
       .from('ig_competitor_media')
       .select('external_id, media_url')
@@ -234,7 +236,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       const { error } = await sb
         .from('ig_competitor_media')
         .upsert(rows, { onConflict: 'tenant_id,external_id', ignoreDuplicates: false })
-      if (!error) synced = rows.length
+      // El error ya no se traga: si falla, la respuesta lo dice en vez de mostrar
+      // reelsSynced: 0 como si el sync hubiera ido bien sin nada que guardar.
+      if (error) {
+        console.error('[instagram/competitors] no se pudo guardar el sync de reels:', error.message)
+        syncError = error.message
+      } else {
+        synced = rows.length
+      }
     }
 
     // Limpieza: reels que ya no están entre los 50 más recientes de Instagram se
@@ -242,13 +251,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // API). Los borramos si aún no tienen transcripción, para que no se acumulen
     // dando error "no recuperable" en la parrilla.
     const freshIds = rows.map((r) => r.external_id)
-    await sb
+    const { error: delErr } = await sb
       .from('ig_competitor_media')
       .delete()
       .eq('competitor_id', competitorId!)
       .eq('tenant_id', auth.tenantId)
       .is('transcript', null)
       .not('external_id', 'in', `(${freshIds.map((id) => `"${id}"`).join(',') || '""'})`)
+    if (delErr) console.warn('[instagram/competitors] no se pudo limpiar reels caducados:', delErr.message)
 
     return NextResponse.json({
       ok: true,
@@ -256,6 +266,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       username: profile.username,
       followers: profile.followers_count,
       reelsSynced: synced,
+      ...(syncError ? { syncWarning: syncError } : {}),
     })
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Error al analizar el perfil' }, { status: 500 })

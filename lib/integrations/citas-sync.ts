@@ -121,15 +121,17 @@ export async function findOrCreateContact(
             .eq('tenant_id', tenantId)
             .eq('field_key', fieldKey)
             .maybeSingle()
-          id =
-            existente?.id ??
-            (
-              await sb
-                .from('custom_field_defs')
-                .insert({ tenant_id: tenantId, field_key: fieldKey, label: def.label, field_type: def.field_type })
-                .select('id')
-                .single()
-            ).data?.id
+          if (existente?.id) {
+            id = existente.id
+          } else {
+            const { data: creado, error: creadoErr } = await sb
+              .from('custom_field_defs')
+              .insert({ tenant_id: tenantId, field_key: fieldKey, label: def.label, field_type: def.field_type })
+              .select('id')
+              .single()
+            if (creadoErr) console.warn(`[ghl] no se pudo crear el campo personalizado ${fieldKey}:`, creadoErr.message)
+            id = creado?.id
+          }
           if (id) keyToId.set(fieldKey, id)
         }
         if (id) customFields[id] = valor

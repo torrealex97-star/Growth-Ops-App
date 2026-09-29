@@ -59,7 +59,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Se registra el FALLO DE FIRMA sin el cuerpo: si alguien está probando a inyectar cobros, hay que
     // poder verlo, pero guardar el payload de un remitente no verificado es guardar lo que él quiera.
     // El motivo tampoco incluye el secreto ni la firma esperada.
-    await sb.from('raw_events').insert({
+    const { error: rechazoErr } = await sb.from('raw_events').insert({
       tenant_id: tenantId,
       source: 'stripe',
       payload: { _firma_rechazada: true, codigo: firma.codigo },
@@ -69,6 +69,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       request_origin: req.headers.get('origin'),
       user_agent: req.headers.get('user-agent'),
     })
+    // Rastro de seguridad (posible intento de inyectar cobros): si no se pudo guardar, que quede
+    // al menos en logs — es lo único que avisaría de un intento repetido.
+    if (rechazoErr) console.error('[stripe-webhook] no se pudo registrar el rechazo de firma:', rechazoErr.message)
     // 401 y no 400: el problema es de autenticación. Stripe reintenta ante 5xx, así que devolver 500
     // aquí provocaría reintentos infinitos de algo que nunca va a pasar la firma.
     return NextResponse.json({ error: 'Firma inválida' }, { status: 401 })
@@ -85,7 +88,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   if ('error' in n) {
     // Firma válida pero no se entiende el contenido: se guarda entero para poder reprocesarlo cuando
     // se arregle el normalizador. Es exactamente para esto que existe la capa RAW.
-    await sb.from('raw_events').insert({
+    const { error: rechazoErr } = await sb.from('raw_events').insert({
       tenant_id: tenantId,
       source: 'stripe',
       payload: evento as Record<string, unknown>,
@@ -93,6 +96,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       processing_status: 'rejected',
       rejection_reason: n.error,
     })
+    // Si esto falla, el evento NO quedó guardado en ningún sitio: no se puede responder 200 con
+    // "registrado: true" porque sería mentira, y Stripe no reintentaría un cobro que se perdió
+    // para siempre. 500 fuerza el reintento (mismo evt_id → misma ruta → nuevo intento de guardarlo).
+    if (rechazoErr) {
+      console.error('[stripe-webhook] no se pudo registrar el evento no reconocido:', rechazoErr.message)
+      return NextResponse.json({ error: 'No se pudo registrar el evento' }, { status: 500 })
+    }
     // 200: el evento ES de Stripe y ya está guardado. Un 4xx haría que Stripe lo reintentara una y
     // otra vez sin que el reintento cambie nada.
     return NextResponse.json({ recibido: true, registrado: true, procesado: false, motivo: n.error })
@@ -151,7 +161,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       .maybeSingle()
     const derivado = derivarStripe(evento)
     if (sobre?.id && derivado) {
-      const { data: escrito } = await sb
+      const { data: escrito, error: hechoErr } = await sb
         .from('canonical_events')
         .upsert(
           hechoDesdeSobre({
@@ -168,7 +178,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         )
         .select('id')
         .maybeSingle()
-      if (escrito?.id) await sb.from('raw_events').update({ canonical_event_id: escrito.id }).eq('id', sobre.id)
+      if (hechoErr) console.warn('[stripe-webhook] no se pudo derivar el hecho canónico:', hechoErr.message)
+      if (escrito?.id) {
+        const { error: enlaceErr } = await sb
+          .from('raw_events')
+          .update({ canonical_event_id: escrito.id })
+          .eq('id', sobre.id)
+        if (enlaceErr) console.warn('[stripe-webhook] no se pudo enlazar el hecho canónico:', enlaceErr.message)
+      }
     }
   } catch (e) {
     // Igual que en GHL: el sobre ya está a salvo y el hecho se puede derivar después con el replay.

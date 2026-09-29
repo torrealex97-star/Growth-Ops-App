@@ -68,7 +68,7 @@ export type DailyRow = {
 }
 
 export type Aggregated = {
-  base: { spend: number; impressions: number; reach: number; linkClicks: number }
+  base: { spend: number; impressions: number; reach: number | null; linkClicks: number }
   calc: MetaCalc
 }
 
@@ -83,7 +83,8 @@ export function aggregateRows(rows: DailyRow[]): Aggregated | null {
   const base = {
     spend: rows.reduce((s, r) => s + (Number(r.spend) || 0), 0),
     impressions: rows.reduce((s, r) => s + (Number(r.impressions) || 0), 0),
-    reach: rows.reduce((s, r) => s + (Number(r.reach) || 0), 0),
+    // Reach no es aditivo: la misma persona puede aparecer en varios días/campañas.
+    reach: rows.length === 1 ? rows[0].reach : null,
     linkClicks: rows.reduce((s, r) => s + (Number(r.link_clicks) || 0), 0),
   }
   return { base, calc: calcMeta({ ...base, actions, actionValues }) }
@@ -347,7 +348,7 @@ export function PerformanceByFunnel({ rows }: { rows: FunnelRowByFunnel[] }) {
 // La evolución de una métrica se lee en una línea: dirección, picos y caídas. Las barras
 // horizontales que había aquí son un ranking, no una serie temporal. Mismo criterio visual que
 // TrendChart (dashboard global): un eje, huecos como huecos (connectNulls=false) y variación de la
-// segunda mitad de la serie contra la primera.
+// comparación solo cuando existe una fuente explícita del periodo anterior.
 const fmtFecha = (iso: string) => {
   const d = new Date(`${iso}T00:00:00`)
   return isNaN(d.getTime()) ? iso : d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })
@@ -362,15 +363,6 @@ export function MetaTrend({ metric, rows }: { metric: MetricDef; rows: { date: s
       })),
     [rows, metric]
   )
-  const variacion = useMemo(() => {
-    const conDato = data.filter((d) => d.value != null) as { value: number }[]
-    if (conDato.length < 4) return null
-    const mitad = Math.floor(conDato.length / 2)
-    const sum = (arr: { value: number }[]) => arr.reduce((s, d) => s + d.value, 0)
-    const previo = sum(conDato.slice(0, mitad))
-    const reciente = sum(conDato.slice(mitad))
-    return previo !== 0 ? ((reciente - previo) / Math.abs(previo)) * 100 : null
-  }, [data])
   if (data.length === 0) return null
   return (
     <div className="dashboard-card p-5">
@@ -379,16 +371,7 @@ export function MetaTrend({ metric, rows }: { metric: MetricDef; rows: { date: s
           {metric.label}
           <MetricHint text={metric.tooltip} calculated={metric.calculated} />
         </p>
-        {variacion != null && (
-          <span
-            className={`text-xs tabular-nums ${
-              variacion > 0 ? 'text-emerald-400' : variacion < 0 ? 'text-red-400' : 'text-muted-foreground'
-            }`}
-          >
-            {variacion > 0 ? '▲' : variacion < 0 ? '▼' : '='} {formatPercent(Math.abs(variacion), 1)} vs periodo
-            anterior
-          </span>
-        )}
+        <span className="text-xs text-muted-foreground">Periodo seleccionado · sin comparación anterior</span>
       </div>
       <div className="mt-3 h-44 w-full">
         <ResponsiveContainer width="100%" height="100%">
@@ -434,6 +417,7 @@ export function MetaTrend({ metric, rows }: { metric: MetricDef; rows: { date: s
               stroke="hsl(var(--primary))"
               strokeWidth={2}
               fill={`url(#meta-trend-${metric.key.replace(/\W/g, '')})`}
+              isAnimationActive={false}
               connectNulls={false}
               dot={false}
               activeDot={{ r: 3 }}

@@ -1,6 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   serverExternalPackages: ['papaparse'],
+  // CI ES EL GATE DE TIPOS: GitHub Actions ya ejecuta typecheck (tsc --noEmit con 6 GB de heap:
+  // "El runner estándar se queda sin memoria con la carga actual de tipos", ci.yml) y lint en el
+  // SHA exacto de cada PR antes de mergear. En la build de Vercel (Hobby) la fase "Linting and
+  // checking validity of types" entra en thrashing con la carga de tipos actual y muere al cap de
+  // 45 min: 5 deployments production ERROR el 28-sep (10:37Z-15:16Z) con BUILD_EXCEEDED_MAXIMUM_TIME
+  // y producción congelada en f18e336. En la build de Vercel se salta; en local y CI se mantiene.
+  ...(process.env.VERCEL
+    ? { typescript: { ignoreBuildErrors: true }, eslint: { ignoreDuringBuilds: true } }
+    : {}),
   // Este repositorio vive dentro de una carpeta que también contiene otro package-lock.
   // Fijar la raíz evita que Next tracee desde /Documents y meta archivos ajenos en el
   // artefacto serverless (más tamaño, I/O y riesgo de un despliegue incompleto).

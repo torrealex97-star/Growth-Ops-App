@@ -72,7 +72,10 @@ backfill de YouTube, estados de error honestos en P&L/cohortes/home, SeQura fail
 canónico con tests de regresión.
 
 Quedan abiertos SOLO los que requieren decisión de negocio o carril ajeno (ver 🧱 Deuda técnica de
-`PENDIENTES.md`): clawback/refunds acumulados (A5 de Alex), semántica de doble firma concurrente
-(responsable de contratos), onboarding sin outbox y webhook GHL no-objeto (carril F1), y las
-reservas estructurales que ya constaban aquí. Límite permanente: todo hallazgo sigue siendo
-**estático hasta reproducirse** con mocks/QA; sin credenciales QA/producción locales.
+`PENDIENTES.md` y las opciones en `docs/DECISIONES-PENDIENTES-ALEX.md`): clawback/refunds
+acumulados (A5 de Alex), semántica de doble firma concurrente (responsable de contratos),
+onboarding sin outbox y webhook GHL no-objeto (carril F1), y las reservas estructurales que ya
+constaban aquí. **Nota operativa (28-sep):** el typecheck/lint de la build de Vercel está saltado
+desde #280 (`process.env.VERCEL` en `next.config.js`) — CI de GitHub es el gate de tipos de cada
+SHA; el límite permanente sigue siendo que todo hallazgo es **estático hasta reproducirse** con
+mocks/QA; sin credenciales QA/producción locales.

@@ -158,7 +158,7 @@ test('la atribución se cuenta y se avisa con números exactos', () => {
   const ruta = sinComentarios(leer(RUTA))
   assert.match(ruta, /key: 'atribucion_contactos'/)
   assert.match(ruta, /contactos > 0 && conAtribucion < contactos/)
-  assert.match(ruta, /de \$\{contactos\} contactos tienen origen conocido/)
+  assert.match(ruta, /de \$\{contactos\} contactos históricos tienen un registro de atribución/)
 })
 
 test('el aviso dice qué hacer, y que sin captura no hay nada que atribuir', () => {
@@ -180,4 +180,11 @@ test('los webhooks registran el toque sin arriesgar la cita', () => {
     // En try/catch: la cita y el contacto valen más que su procedencia.
     assert.match(codigo, /try \{[\s\S]{0,320}registrarToque[\s\S]{0,200}\} catch/, w)
   }
+})
+
+test('la previsión de un periodo abierto no trata días futuros como observados', () => {
+  const ruta = sinComentarios(leer(RUTA))
+  assert.match(ruta, /serieFacturacionObservada = consulta\.serieFacturacion\.filter\(\(p\) => p\.fecha <= hoy\)/)
+  assert.match(ruta, /preverSerie\(serieFacturacionObservada, avance\.diasRestantes/)
+  assert.match(ruta, /serieCashObservada = consulta\.serieCash\.filter\(\(p\) => p\.fecha <= hoy\)/)
 })

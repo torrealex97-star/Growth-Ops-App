@@ -77,7 +77,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         .select('id')
         .single()
       if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 })
-      await sb.from('contacts').update({ lead_status: 'agendado' }).eq('id', contactId).eq('tenant_id', t.tenantId)
+      const { error: leadStatusErr } = await sb
+        .from('contacts')
+        .update({ lead_status: 'agendado' })
+        .eq('id', contactId)
+        .eq('tenant_id', t.tenantId)
+      // La cita YA se creó: no se aborta por esto, pero si falla el contacto se queda con su
+      // lead_status anterior y el embudo/lista de leads queda desincronizado sin que nadie lo vea.
+      if (leadStatusErr)
+        console.error('[appointments/create] no se pudo marcar el contacto como agendado:', leadStatusErr.message)
       return NextResponse.json({ ok: true, appointmentId: saved.id, manual: true })
     }
 
@@ -171,7 +179,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
     const appointmentId = saved.id
 
-    await sb.from('contacts').update({ lead_status: 'agendado' }).eq('id', contact.id).eq('tenant_id', t.tenantId)
+    const { error: leadStatusErr } = await sb
+      .from('contacts')
+      .update({ lead_status: 'agendado' })
+      .eq('id', contact.id)
+      .eq('tenant_id', t.tenantId)
+    if (leadStatusErr)
+      console.error('[appointments/create] no se pudo marcar el contacto como agendado:', leadStatusErr.message)
 
     return NextResponse.json({ ok: true, appointmentId, eventUri: result.eventUri })
   } catch (err) {

@@ -120,8 +120,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
 
     const setStatus = async (status: string) => {
-      if (table === 'ig_media')
-        await sb.from('ig_media').update({ transcript_status: status }).eq('id', rowId).eq('tenant_id', t.tenantId)
+      if (table === 'ig_media') {
+        const { error } = await sb
+          .from('ig_media')
+          .update({ transcript_status: status })
+          .eq('id', rowId)
+          .eq('tenant_id', t.tenantId)
+        if (error) console.warn(`[transcribe] ${rowId}: no se pudo marcar transcript_status=${status}:`, error.message)
+      }
     }
 
     // Pide a Meta una media_url fresca (las URLs firmadas de la CDN caducan a las
@@ -146,7 +152,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         if (table === 'ig_media') {
           const fresh = await refreshOwnMediaUrl(cfg, externalId)
           if (fresh) {
-            await sb.from(table).update({ media_url: fresh }).eq('id', rowId).eq('tenant_id', t.tenantId)
+            const { error: cacheErr } = await sb
+              .from(table)
+              .update({ media_url: fresh })
+              .eq('id', rowId)
+              .eq('tenant_id', t.tenantId)
+            // Caché: si falla, este reel volverá a depender de una URL de Meta que caduca.
+            if (cacheErr) console.warn(`[transcribe] ${rowId}: no se pudo cachear media_url:`, cacheErr.message)
             return { url: fresh, reason: null }
           }
           console.error('[transcribe] refresh: Meta no devolvió media_url para el reel propio', { externalId })
@@ -166,11 +178,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           if (hit?.media_url) {
             // Si el id cambió respecto al guardado, actualizamos external_id también
             // para que futuras comparaciones directas ya no dependan del permalink.
-            await sb
+            const { error: cacheErr } = await sb
               .from(table)
               .update({ media_url: hit.media_url, external_id: hit.external_id })
               .eq('id', rowId)
               .eq('tenant_id', t.tenantId)
+            if (cacheErr) console.warn(`[transcribe] ${rowId}: no se pudo cachear media_url:`, cacheErr.message)
             return { url: hit.media_url, reason: null }
           }
           console.error('[transcribe] refresh: sin media_url para este reel de competencia', {
@@ -254,7 +267,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       // entre los 50 más recientes" en futuras transcripciones/re-análisis).
       if (table) {
         const persisted = await persistToStorage(sb, table, rowId, buf, mime)
-        if (persisted) await sb.from(table).update({ media_url: persisted }).eq('id', rowId).eq('tenant_id', t.tenantId)
+        if (persisted) {
+          const { error: persistErr } = await sb
+            .from(table)
+            .update({ media_url: persisted })
+            .eq('id', rowId)
+            .eq('tenant_id', t.tenantId)
+          // Es justo lo que evita el "ya no está entre los 50 más recientes" en el futuro.
+          if (persistErr)
+            console.warn(`[transcribe] ${rowId}: no se pudo guardar la URL de Storage propio:`, persistErr.message)
+        }
       }
       // Clave de Groq de ESTA subcuenta (antes: process.env, así que la del panel no se usaba).
       const groqKey = (await getTenantConfigWithFallback(t.tenantId)).GROQ_API_KEY
@@ -275,22 +297,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     try {
       analysis = await analyzeReel(transcript, ctx, await tenantAiEnv(t.tenantId))
     } catch (e) {
+      let transcriptSaved = true
       if (table === 'ig_media') {
-        await sb
+        const { error: saveErr } = await sb
           .from('ig_media')
           .update({ transcript, transcript_status: 'listo' })
           .eq('id', rowId)
           .eq('tenant_id', t.tenantId)
+        if (saveErr) {
+          transcriptSaved = false
+          console.error(`[transcribe] ${rowId}: análisis saturado y transcripción sin guardar:`, saveErr.message)
+        }
       } else if (table === 'ig_competitor_media') {
-        await sb.from('ig_competitor_media').update({ transcript }).eq('id', rowId).eq('tenant_id', t.tenantId)
+        const { error: saveErr } = await sb
+          .from('ig_competitor_media')
+          .update({ transcript })
+          .eq('id', rowId)
+          .eq('tenant_id', t.tenantId)
+        if (saveErr) {
+          transcriptSaved = false
+          console.error(`[transcribe] ${rowId}: análisis saturado y transcripción sin guardar:`, saveErr.message)
+        }
       }
       const raw = e instanceof Error ? e.message : String(e)
       const overloaded = /overloaded/i.test(raw)
       return NextResponse.json(
         {
           error: overloaded
-            ? 'Claude está saturado en este momento (alta demanda). La transcripción se ha guardado; vuelve a intentarlo en 1-2 minutos para generar el análisis.'
-            : `La transcripción se ha guardado, pero el análisis con IA falló: ${raw}`,
+            ? `Claude está saturado en este momento (alta demanda). ${transcriptSaved ? 'La transcripción se ha guardado; vuelve' : 'La transcripción NO se pudo guardar; vuelve a transcribir'} en 1-2 minutos para generar el análisis.`
+            : `${transcriptSaved ? 'La transcripción se ha guardado, pero' : 'La transcripción tampoco se pudo guardar, y'} el análisis con IA falló: ${raw}`,
           transcript,
         },
         { status: 503 }
@@ -298,19 +333,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
     const analyzedAt = new Date().toISOString()
 
+    let saveErr: { message: string } | null = null
     if (table === 'ig_media') {
-      await sb
+      ;({ error: saveErr } = await sb
         .from('ig_media')
         .update({ transcript, transcript_status: 'listo', ai_analysis: analysis, ai_analyzed_at: analyzedAt })
         .eq('id', rowId)
-        .eq('tenant_id', t.tenantId)
+        .eq('tenant_id', t.tenantId))
     } else if (table === 'ig_competitor_media') {
-      await sb
+      ;({ error: saveErr } = await sb
         .from('ig_competitor_media')
         .update({ transcript, ai_analysis: analysis })
         .eq('id', rowId)
-        .eq('tenant_id', t.tenantId)
+        .eq('tenant_id', t.tenantId))
     }
+    // El análisis (Claude) y la transcripción (Groq) ya están pagados: no se puede responder
+    // ok con ellos si no quedaron guardados.
+    if (saveErr)
+      return NextResponse.json(
+        { error: `Analizado pero no guardado: ${saveErr.message}`, transcript, analysis },
+        { status: 500 }
+      )
 
     return NextResponse.json({ ok: true, transcript, analysis })
   } catch (err) {

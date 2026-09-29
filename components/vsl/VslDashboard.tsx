@@ -160,12 +160,17 @@ export function VslDashboard() {
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
           <Kpi icon={Video} label="Vídeos" value={resumen.videos} />
           <Kpi icon={Eye} label="Impresiones" value={resumen.impressions} />
-          <Kpi icon={Play} label="Play rate" value={`${resumen.playRate}%`} sub={`${resumen.plays} plays`} />
-          <Kpi icon={Percent} label="% medio visto" value={`${resumen.avgPercent}%`} />
+          <Kpi
+            icon={Play}
+            label="Play rate"
+            value={resumen.impressions > 0 ? `${resumen.playRate}%` : '—'}
+            sub={`${resumen.plays} plays`}
+          />
+          <Kpi icon={Percent} label="% medio visto" value={resumen.plays > 0 ? `${resumen.avgPercent}%` : '—'} />
           <Kpi
             icon={Flag}
             label="Completado"
-            value={`${resumen.completionRate}%`}
+            value={resumen.plays > 0 ? `${resumen.completionRate}%` : '—'}
             sub={`${resumen.completed} llegan al final`}
           />
         </div>
@@ -259,14 +264,18 @@ export function VslDashboard() {
             <Kpi
               icon={Play}
               label="Play rate"
-              value={`${metrics.totals.playRate}%`}
+              value={metrics.totals.impressions > 0 ? `${metrics.totals.playRate}%` : '—'}
               sub={`${metrics.totals.plays} plays`}
             />
-            <Kpi icon={Percent} label="% medio visto" value={`${metrics.totals.avgPercent}%`} />
+            <Kpi
+              icon={Percent}
+              label="% medio visto"
+              value={metrics.totals.plays > 0 ? `${metrics.totals.avgPercent}%` : '—'}
+            />
             <Kpi
               icon={Flag}
               label="Completado"
-              value={`${metrics.totals.completionRate}%`}
+              value={metrics.totals.plays > 0 ? `${metrics.totals.completionRate}%` : '—'}
               sub={`${metrics.totals.completed} llegan al final`}
             />
           </div>
@@ -277,7 +286,7 @@ export function VslDashboard() {
               <CardTitle className="text-base text-foreground">Retención (cuánta gente sigue viendo)</CardTitle>
             </CardHeader>
             <CardContent>
-              {metrics.retention.length > 1 ? (
+              {metrics.totals.plays > 0 && metrics.retention.length > 1 ? (
                 <ResponsiveContainer width="100%" height={260}>
                   <AreaChart data={metrics.retention} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
                     <defs>
@@ -328,7 +337,9 @@ export function VslDashboard() {
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                 {metrics.milestones.map((m) => (
                   <div key={m.pct} className="rounded-lg bg-black/30 px-3 py-2 text-center">
-                    <p className="text-lg font-semibold tabular-nums text-foreground">{m.rate}%</p>
+                    <p className="text-lg font-semibold tabular-nums text-foreground">
+                      {metrics.totals.plays > 0 ? `${m.rate}%` : '—'}
+                    </p>
                     <p className="text-2xs text-muted-foreground">llegan al {m.pct}%</p>
                   </div>
                 ))}
@@ -343,7 +354,13 @@ export function VslDashboard() {
                 <CardTitle className="text-base text-foreground">Mayores caídas</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {metrics.drops.length === 0 && <p className="text-sm text-muted-foreground">Sin caídas relevantes.</p>}
+                {metrics.drops.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    {metrics.totals.plays > 0
+                      ? 'Sin caídas relevantes.'
+                      : 'Sin visionados suficientes para evaluar caídas.'}
+                  </p>
+                )}
                 {metrics.drops.map((d, i) => (
                   <div key={i} className="flex items-center justify-between rounded-lg bg-black/30 px-3 py-2 text-sm">
                     <span className="text-foreground">

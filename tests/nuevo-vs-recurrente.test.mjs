@@ -111,7 +111,7 @@ test('SALESCHART (fuente): superpone facturación y cash como dos ÁREAS con ley
   // (brand) + cash (verde) con rellenos distintos.
   const areas = (src.match(/<Area$/gm) ?? []).length + (src.match(/<Area\n/g) ?? []).length
   assert.ok(src.includes('dataKey="amount"') && src.includes('dataKey="cash"'), 'dos series: facturación + cash')
-  assert.ok(src.includes('name="Facturación"') && src.includes('name="Cash cobrado"'), 'series con nombre legible')
+  assert.ok(src.includes('name="Facturación"') && src.includes('name="Cash Collected"'), 'series con nombre legible')
   // Nunca solo color: leyenda (aquí custom en el header) + tooltip con ambas series.
   assert.ok(src.includes('<Legend') || src.includes('Legend'), 'leyenda declarada (no confiar solo en color)')
   assert.ok(src.includes('<Tooltip') || src.includes('CustomTooltip'), 'tooltip con detalle on demand')

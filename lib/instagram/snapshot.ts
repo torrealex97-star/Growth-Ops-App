@@ -34,19 +34,19 @@ export function edadLegible(iso: string, ahora = Date.now()): string {
 export async function guardarSnapshot(tenantId: string, conversaciones: IgConversation[]): Promise<void> {
   try {
     const sb = cliente()
-    await sb
-      .from('integration_settings')
-      .upsert(
-        {
-          tenant_id: tenantId,
-          key: KEY,
-          value: JSON.stringify({ conversaciones, guardado: new Date().toISOString() }),
-          is_secret: false,
-          label: 'Snapshot del listado de conversaciones de Instagram (respaldo cuando Meta no responde)',
-        },
-        { onConflict: 'tenant_id,key' }
-      )
-      .select('key')
+    const { error } = await sb.from('integration_settings').upsert(
+      {
+        tenant_id: tenantId,
+        key: KEY,
+        value: JSON.stringify({ conversaciones, guardado: new Date().toISOString() }),
+        is_secret: false,
+        label: 'Snapshot del listado de conversaciones de Instagram (respaldo cuando Meta no responde)',
+      },
+      { onConflict: 'tenant_id,key' }
+    )
+    // Silencioso por diseño (el snapshot es una optimización, no un requisito) pero visible en
+    // logs: si nunca se guarda, la pestaña se queda sin respaldo cuando Meta falle.
+    if (error) console.warn('[instagram/snapshot] no se pudo guardar el snapshot:', error.message)
   } catch {
     // Silencioso por diseño: el snapshot es una optimización, no un requisito.
   }

@@ -80,18 +80,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (!transcript && driveUrl) {
       const fileId = driveFileId(driveUrl)
       if (!fileId) return NextResponse.json({ error: 'Enlace de Drive no válido' }, { status: 400 })
-      await sb
+      const { error: procesandoErr } = await sb
         .from('appointments')
         .update({ transcript_status: 'procesando', transcript_drive_url: driveUrl })
         .eq('id', appointmentId)
         .eq('tenant_id', t.tenantId)
+      if (procesandoErr)
+        console.warn(
+          `[ai/call] ${appointmentId}: no se pudo marcar transcript_status=procesando:`,
+          procesandoErr.message
+        )
       const { buf, type } = await downloadFromDrive(fileId)
       if (buf.byteLength > GROQ_LIMIT_BYTES) {
-        await sb
+        const { error: errorFlagErr } = await sb
           .from('appointments')
           .update({ transcript_status: 'error' })
           .eq('id', appointmentId)
           .eq('tenant_id', t.tenantId)
+        // Si esto falla, la cita se queda en 'procesando' indefinidamente aunque ya se sepa que
+        // falló por tamaño — nadie la reintentará automáticamente.
+        if (errorFlagErr)
+          console.error(`[ai/call] ${appointmentId}: no se pudo marcar transcript_status=error:`, errorFlagErr.message)
         return NextResponse.json(
           {
             error: `El archivo pesa ${(buf.byteLength / 1024 / 1024).toFixed(1)}MB y supera el límite de 25MB de la transcripción gratuita. Sube solo el audio (mp3) o activa la transcripción de Meet y pega el texto.`,
@@ -102,11 +111,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       // Clave de Groq de ESTA subcuenta (antes: process.env, así que la del panel no se usaba).
       const groqKey = (await getTenantConfigWithFallback(t.tenantId)).GROQ_API_KEY
       transcript = await transcribeAudio(buf, type, groqKey, { filename: 'call' })
-      await sb
+      const { error: transcriptErr } = await sb
         .from('appointments')
         .update({ transcript, transcript_status: 'listo' })
         .eq('id', appointmentId)
         .eq('tenant_id', t.tenantId)
+      // La transcripción de Groq ya está pagada: si no se guarda, se perderá y habrá que
+      // volver a transcribir en el próximo intento.
+      if (transcriptErr)
+        return NextResponse.json({ error: `Transcrito pero no guardado: ${transcriptErr.message}` }, { status: 500 })
     }
     if (!transcript || transcript.trim().length < 20) {
       return NextResponse.json(
@@ -119,7 +132,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const contact = appt.contacts as { id?: string; full_name?: string } | null
     const analysis = await analyzeCall(transcript, { leadName: contact?.full_name }, await tenantAiEnv(t.tenantId))
 
-    await sb
+    const { error: analysisErr } = await sb
       .from('appointments')
       .update({
         transcript,
@@ -133,6 +146,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       })
       .eq('id', appointmentId)
       .eq('tenant_id', t.tenantId)
+    // El análisis (pagado a Claude) es el resultado que la respuesta promete devolver — si no se
+    // guardó, no se puede responder ok con él como si estuviera persistido.
+    if (analysisErr)
+      return NextResponse.json({ error: `Analizado pero no guardado: ${analysisErr.message}` }, { status: 500 })
 
     // 3) Generación automática de tareas: DESACTIVADA temporalmente.
     // (Pendiente de entrenar qué tareas deben salir tras una venta/llamada.)

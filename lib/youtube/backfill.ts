@@ -140,11 +140,13 @@ async function refreshYoutubeStats(sb: SupabaseClient, tenantId: string, env: Yo
     const stats = await fetchVideoStats(ids, env)
     const syncedAt = new Date().toISOString()
     for (const s of stats) {
-      await sb
+      const { error: statsErr } = await sb
         .from('youtube_uploads')
         .update({ views: s.views, likes: s.likes, comments: s.comments, stats_synced_at: syncedAt })
         .eq('youtube_video_id', s.videoId)
         .eq('tenant_id', tenantId)
+      // Best-effort: si falla, las estadísticas se quedan viejas hasta el próximo refresh.
+      if (statsErr) console.warn(`[youtube/backfill] no se pudo refrescar stats de ${s.videoId}:`, statsErr.message)
     }
   } catch {
     /* refresco de métricas opcional */

@@ -11,11 +11,7 @@ interface MarketingEfficiencyCardProps {
   customers: number
 }
 
-// "Eficiencia de marketing": agrupa inversión/ingresos/ROAS/CAC del periodo en un único bloque en
-// vez de 4 KPICards sueltas — son la misma pregunta de negocio ("¿lo que invertimos en ads está
-// funcionando?"), no 4 métricas independientes (punto 26). Usa el gasto DIARIO real de Meta
-// (campaign_daily vía /meta/spend-range), no el acumulado histórico de Unit Economics, así que sí
-// respeta el filtro de periodo del Dashboard.
+// Ratios globales del periodo; no acreditan atribución de ventas a anuncios.
 export function MarketingEfficiencyCard({ loading, spend, revenue, customers }: MarketingEfficiencyCardProps) {
   const tenant = useTenant()
 
@@ -34,7 +30,7 @@ export function MarketingEfficiencyCard({ loading, spend, revenue, customers }: 
           <Megaphone className="h-4 w-4" /> Eficiencia de marketing
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
-          Todavía no hay datos de Meta Ads en este periodo. Conecta Meta Ads para medir ROAS y CAC.
+          Todavía no hay datos de Meta Ads en este periodo. Conecta Meta Ads para consultar inversión y costes globales.
         </p>
         <Link
           href={`/${tenant}/settings/integraciones`}
@@ -46,7 +42,7 @@ export function MarketingEfficiencyCard({ loading, spend, revenue, customers }: 
     )
   }
 
-  const roas = spend > 0 ? revenue / spend : null
+  const revenueToSpend = spend > 0 ? revenue / spend : null
   const cac = spend > 0 && customers > 0 ? spend / customers : null
 
   return (
@@ -60,26 +56,34 @@ export function MarketingEfficiencyCard({ loading, spend, revenue, customers }: 
           <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{formatCurrency(spend)}</p>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground">Ingresos (mismo periodo)</p>
+          <p className="text-xs text-muted-foreground">Facturación</p>
           <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{formatCurrency(revenue)}</p>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground" title="Ingresos ÷ inversión en Ads del periodo">
-            ROAS
+          <p
+            className="text-xs text-muted-foreground"
+            title="Facturación total ÷ inversión publicitaria del periodo; incluye ventas sin atribución"
+          >
+            Facturación / inversión
           </p>
           <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
-            {roas === null ? '—' : `${formatNumber(roas, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x`}
+            {revenueToSpend === null
+              ? '—'
+              : `${formatNumber(revenueToSpend, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}x`}
           </p>
         </div>
         <div>
           <p className="text-xs text-muted-foreground" title="Inversión en Ads ÷ clientes únicos del periodo">
-            CAC
+            CAC global
           </p>
           <p className="mt-1 text-xl font-semibold tabular-nums text-foreground">
             {cac === null ? '—' : formatCurrency(cac)}
           </p>
         </div>
       </div>
+      <p className="mt-3 text-xs text-muted-foreground">
+        Incluye ventas sin atribución; no mide el retorno exclusivo de anuncios.
+      </p>
     </div>
   )
 }
