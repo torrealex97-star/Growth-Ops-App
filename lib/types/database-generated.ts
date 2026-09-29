@@ -1,4 +1,4 @@
-// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-23T17:40:52.379Z).
+// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-29T06:33:00.000Z).
 // Regenerar con: npm run tipos:bd  (y commitear). El test tests/esquema-tenant-invariante.test.mjs
 // comprueba que este artefacto sigue fresco respecto al esquema vivo.
 // Espejo exacto del esquema public de Supabase; los tipos de APP siguen en lib/types/database.ts.
@@ -4974,6 +4974,35 @@ export type EsquemaPublico = {
         created_at: string | undefined
         updated_at: string | undefined
         stripe_fee: number | string | undefined
+      }
+    }
+    StripePriceMap: {
+      Row: {
+        id: string | null
+        tenant_id: string | null
+        stripe_price_id: string | null
+        product_id: string | null
+        payment_plan_id: string | null
+        created_by: string | null
+        created_at: string | null
+      }
+      Insert: {
+        id: string | null | undefined
+        tenant_id: string | null | undefined
+        stripe_price_id: string | null | undefined
+        product_id: string | null | undefined
+        payment_plan_id: string | null | undefined
+        created_by: string | null | undefined
+        created_at: string | null | undefined
+      }
+      Update: {
+        id: string | undefined
+        tenant_id: string | undefined
+        stripe_price_id: string | undefined
+        product_id: string | undefined
+        payment_plan_id: string | undefined
+        created_by: string | undefined
+        created_at: string | undefined
       }
     }
     Suggestions: {
