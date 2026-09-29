@@ -18,6 +18,7 @@
   `freebuff-env list`).
 
 **Acción (una de dos):**
+
 1. Añadir las 2 claves a las Environment del workspace Freebuff → el agente regenera el artefacto,
    lo sube a `main` y fusiona #266/#290 sin más pasos; **o**
 2. Quien ya tenga las claves (Alex en local, o Claude Code) ejecuta `npm run tipos:bd` y sube el
@@ -54,6 +55,7 @@ juego; migrar hoy sería trabajo doble. Señal para reintentar: `eslint-plugin-r
 ## 4. 🟠 #225 — money 25-sep (la decisión grande)
 
 **Qué contiene** (9 commits, 34 ficheros):
+
 1. **Gasto de ads solo de cuentas seleccionadas** — daily-funnel, brief, funnels y la capa de
    consulta del agente IA filtran por las cuentas de Integraciones; Data Health gana el control
    `campanasFueraDeSeleccion`.
@@ -66,6 +68,7 @@ juego; migrar hoy sería trabajo doble. Señal para reintentar: `eslint-plugin-r
 5. **Gráfico dual facturación vs cash** en unit-economics, con CAC solo de ventas cobradas.
 
 **Obsolescencia medida, no estimada:**
+
 - **647 commits por detrás** de `main` (base del 25-sep, 9 commits propios).
 - **Los 34 ficheros que toca fueron todos modificados en `main` después de su base.** El merge no
   tiene conflictos textuales (merge-tree: 0 marcadores), pero eso solo significa que git no se
@@ -87,11 +90,11 @@ juego; migrar hoy sería trabajo doble. Señal para reintentar: `eslint-plugin-r
 
 **Opciones:**
 
-| Opción | Qué es | Coste | Lectura |
-| --- | --- | --- | --- |
-| **A. Sondar** | `update-branch` → CI completo (4 jobs) contra el `main` de hoy | ~10 min | Buena **sonda**, no camino a merge: aunque verde, el diff de dinero exige revisión humana por el solape |
-| **B. Relevar** | Extraer unidad por unidad (ads-seleccionadas, nuevo-vs-recurrente, dual-chart…) y rehacer sobre `main` solo lo vigente | Horas | El resultado más limpio; permite descartar lo que FASE A ya cubrió |
-| **C. Cerrar** | Cerrar la PR y anotar las ideas en `PENDIENTES.md` | 5 min | Razonable si los dashboards actuales ya responden a lo pedido |
+| Opción         | Qué es                                                                                                                 | Coste   | Lectura                                                                                                 |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
+| **A. Sondar**  | `update-branch` → CI completo (4 jobs) contra el `main` de hoy                                                         | ~10 min | Buena **sonda**, no camino a merge: aunque verde, el diff de dinero exige revisión humana por el solape |
+| **B. Relevar** | Extraer unidad por unidad (ads-seleccionadas, nuevo-vs-recurrente, dual-chart…) y rehacer sobre `main` solo lo vigente | Horas   | El resultado más limpio; permite descartar lo que FASE A ya cubrió                                      |
+| **C. Cerrar**  | Cerrar la PR y anotar las ideas en `PENDIENTES.md`                                                                     | 5 min   | Razonable si los dashboards actuales ya responden a lo pedido                                           |
 
 **Solo Alex puede decidir:** qué unidades siguen siendo producto deseado (¿el dual
 facturación-vs-cash tal cual? ¿el desglose en comisiones futuras?). Si responde «A», el agente
