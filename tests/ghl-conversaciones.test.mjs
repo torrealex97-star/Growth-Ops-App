@@ -12,6 +12,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  aIsoFecha,
   canalDe,
   cfgDesdeEnv,
   descargarConversacionesGhl,
@@ -62,6 +63,50 @@ test('canalDe: TYPE_* se traduce a canal legible; lo desconocido queda chat', ()
   assert.equal(canalDe('TYPE_INSTAGRAM', 'TYPE_SMS'), 'instagram')
   assert.equal(canalDe(null, 'TYPE_WHATSAPP'), 'whatsapp')
   assert.equal(canalDe(null, null), 'chat')
+  // Firma real observada en producción (sonda 29-sep): la llamada perdida llega como
+  // TYPE_NO_SHOW en conversaciones TYPE_PHONE con messageTypes [100] — el canal es 'call'.
+  assert.equal(canalDe('TYPE_NO_SHOW', 'TYPE_PHONE'), 'call')
+  assert.equal(canalDe('TYPE_NO_SHOW', null), 'call')
+})
+
+test('aIsoFecha: epoch-millis del listado, ISO de las transcripciones y basura honesta', () => {
+  // Firma real: lastMessageDate llega como número (epoch ms) en /conversations/search.
+  assert.equal(aIsoFecha(1759152000000), '2025-09-29T13:20:00.000Z')
+  // Si algún endpoint diera segundos, se detecta por magnitud (<10^11) y se multiplica.
+  assert.equal(aIsoFecha(1759152000), '2025-09-29T13:20:00.000Z')
+  // Las transcripciones sí traen ISO-8601 en texto: se respeta tal cual.
+  assert.equal(aIsoFecha('2026-09-28T10:00:00Z'), '2026-09-28T10:00:00Z')
+  assert.equal(aIsoFecha('no-es-fecha'), undefined)
+  assert.equal(aIsoFecha(null), undefined)
+  assert.equal(aIsoFecha(Number.NaN), undefined)
+})
+
+test('mapearConversacionGhl: firma REAL de producción (epoch ms + TYPE_NO_SHOW/TYPE_PHONE) mapea a canal y fecha correctos', () => {
+  const c = mapearConversacionGhl({
+    id: 'conv-real',
+    contactId: 'ct-real',
+    fullName: 'Lead Real',
+    email: 'lead@example.com',
+    phone: '+34600000000',
+    lastMessageType: 'TYPE_NO_SHOW',
+    type: 'TYPE_PHONE',
+    messageTypes: [100],
+    unreadCount: 0,
+    lastMessageDate: 1758998400000, // epoch ms, como llega de verdad
+  })
+  assert.equal(c.channel, 'call')
+  assert.equal(c.updated_time, '2025-09-27T18:40:00.000Z')
+  assert.equal(c.unread_count, 0)
+  assert.equal(c.participant, 'Lead Real')
+  // Y una de email (messageTypes [3]) mantiene el canal legible con fecha epoch.
+  const e = mapearConversacionGhl({
+    id: 'conv-mail',
+    lastMessageType: 'TYPE_EMAIL',
+    messageTypes: [3],
+    lastMessageDate: 1759084800000,
+  })
+  assert.equal(e.channel, 'email')
+  assert.equal(e.updated_time, '2025-09-28T18:40:00.000Z')
 })
 
 test('mapearMensajesGhl: inbound=lead, el resto=agente, sin texto queda placeholder, más antiguos primero', () => {

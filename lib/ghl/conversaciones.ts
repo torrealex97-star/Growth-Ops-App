@@ -44,6 +44,20 @@ export type GhConversation = {
 type Json = Record<string, unknown>
 const texto = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
 
+// GHL mezcla formatos de fecha: el listado de conversaciones trae epoch en MILISEGUNDOS
+// (observado en producción 29-sep: lastMessageDate: number) y las transcripciones traen
+// ISO-8601 en texto. <10^11 se interpreta como segundos (fecha actual: ms ≈ 1.8×10¹²);
+// lo que no se puede fechar queda undefined, nunca inventado.
+export function aIsoFecha(v: unknown): string | undefined {
+  if (typeof v === 'number' && Number.isFinite(v)) {
+    const ms = Math.abs(v) < 1e11 ? v * 1000 : v
+    const d = new Date(ms)
+    return Number.isNaN(d.getTime()) ? undefined : d.toISOString()
+  }
+  const s = texto(v)
+  return s && !Number.isNaN(Date.parse(s)) ? s : undefined
+}
+
 // Sin parameter properties (readonly en constructor): el runtime local (node 26, strip-only)
 // no las transforma y el módulo dejaría de importarse en tests — lección apify del 27-sep.
 export class GhlConversacionesError extends Error {
@@ -71,9 +85,12 @@ export function ghlHeaders(token: string): Record<string, string> {
 }
 
 // Mapea el tipo del último mensaje / de la conversación a un canal legible. Sin traducción
-// inventada: lo que GHL no dice queda como 'chat'.
+// inventada: lo que GHL no dice queda como 'chat'. Excepción observada en producción
+// (29-sep, sonda sobre 20 conversaciones reales): la llamada perdida llega como
+// TYPE_NO_SHOW (conversación TYPE_PHONE, messageTypes [100]) — el canal es 'call'.
 export function canalDe(lastMessageType: unknown, tipoConversacion: unknown): string {
   const t = texto(lastMessageType) || texto(tipoConversacion) || ''
+  if (t === 'TYPE_NO_SHOW') return 'call'
   if (t.startsWith('TYPE_')) return t.slice(5).toLowerCase()
   return t.toLowerCase() || 'chat'
 }
@@ -107,7 +124,7 @@ export function mapearConversacionGhl(row: FilaSearch): GhConversation | null {
     contact_phone: texto(row.phone) || null,
     unread_count: Number(row.unreadCount) || 0,
     message_count: 0,
-    updated_time: texto(row.lastMessageDate),
+    updated_time: aIsoFecha(row.lastMessageDate),
     messages: [],
   }
 }

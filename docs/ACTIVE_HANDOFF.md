@@ -1,39 +1,38 @@
 # Relevo activo
 
-## 🔴 GHL_API_TOKEN indescifrable en producción — verificación en vivo de la pestaña GHL bloqueada (29-sep, Freebuff)
+## ✅ GHL verificado en producción (29-sep tarde) — el hallazgo de la credencial huérfana era un artefacto local
 
-**Verificación en vivo de la pestaña GHL (petición de Alex) — RESULTADO: bloqueada por credencial, no por código.**
-La sonda de solo-lectura `scripts/sonda-ghl-conversaciones.mjs` (corre fuera del árbol por el EPERM;
-lee credenciales descifradas EN MEMORIA y jamás imprime valores, solo firmas de campos) probó las 3
-subcuentas activas: `qa-e2e` y `scalix` sin credencial GHL; `women-digital-closer` tiene
-`GHL_API_TOKEN` cifrado (enc:v1:) que **NO descifra ni con la CONFIG_ENC_KEY de producción de Vercel**
-("unable to authenticate data" — AES-GCM, la clave no es la que cifró ese valor). El round-trip de
-`decryptSecret` con esa misma key verifica OK: el problema es el dato almacenado, no el código —
-es una **credencial huérfana de una rotación anterior** (la fila se guardó cuando la master key era otra).
+**Corrección del hallazgo original de esta sección.** La credencial NUNCA estuvo huérfana: el token
+descifra con la CONFIG_ENC_KEY de producción y la API de GHL responde (sonda de solo-lectura 29-sep:
+HTTP 200, 20 conversaciones de 530 en la location, todas con transcripción). El error de descifrado
+del diagnóstico anterior era una contaminación del propio arnés: `vercel env pull` redacta las
+variables sensibles del dashboard ("[Sensitive]") y entrecomilla el resto, y la clave maestra se
+derivaba del valor ENTRECOMILLADO en vez del limpio — por eso "unable to authenticate data" solo en
+local. Además, el snapshot `ghl_conversaciones_snapshot` escrito a las 14:57Z con 20 conversaciones
+reales (vinculaciones ghl_contact_id/email incluidas) prueba que la pestaña ya tiró de datos reales
+en producción ese mismo día. **Sin acción pendiente para Alex en la credencial.**
 
-**Impacto real: NO es solo la pestaña nueva.** Toda lectura de GHL (`citas-sync`, cron `calendly-ghl`,
-probe de Integraciones, custom-fields-backfill y la pestaña/métricas de Conversaciones) falla cerrada
-en producción con esta credencial — `getTenantConfig` descarta en silencio el valor indescifrable y el
-código ve "faltan credenciales". La pestaña GHL muestra honestamente "GoHighLevel no está operativo".
+**Lo que la verificación en vivo SÍ destapó (fix en el PR de la misma fecha):** la firma real de la
+API diverge del mapeo en dos campos — `lastMessageDate` llega como epoch en MILISEGUNDOS (el mapeo
+esperaba ISO-8601 → `updated_time` salía siempre vacío) y la llamada perdida llega como
+`TYPE_NO_SHOW` (conversación TYPE_PHONE, messageTypes [100]) que se etiquetaba como canal
+"no_show". Ahora `aIsoFecha` acepta epoch/ISO y `canalDe` mapea TYPE_NO_SHOW → 'call'.
 
-**Acción exacta para Alex (2 min):** pegar de nuevo el PIT token real en Configuración › Integraciones
-› GoHighLevel (se re-cifrará con la key actual) + Location ID si hiciera falta. Después: repetir la
-sonda (`node scripts/sonda-ghl-conversaciones.mjs` desde un arnés con env de producción) y abrir la
-pestaña — si la API responde con campos distintos a los asumidos (unreadCount anidado, lastMessageDate
-con otro nombre…), la sonda lo delata por firma y se ajusta el mapeo de `lib/ghl/conversaciones.ts`.
-Mientras tanto, todo el comportamiento de la pestaña sigue cubierto por los 10 tests con fetch falso.
+**Lección para futuros diagnósticos:** los valores de `vercel env pull` NO son literales (redacción
+para secretos, comillas para el resto): limpiar SIEMPRE antes de derivaciones criptográficas y
+desconfiar de un "indescifrable" que producción no sufre.
 
 ## Cierre de sesión GHL (29-sep, Freebuff) — todo fusionado y desplegado
 
 Las 5 unidades de la sesión están fusionadas con CI verde y en producción: #283 (pestaña GHL en
 Conversaciones), #292 (GHL en el resumen cross-plataforma), #294 (búsqueda + filtro por canal),
-#295 (sonda + hallazgo 🔴 de arriba) y #297 (aviso de credenciales indescifrables en Integraciones).
+#295 (sonda de verificación en vivo) y #297 (aviso de credenciales indescifrables en Integraciones).
 Producción verificada por API de Vercel: deployment READY en `398d1b9` (lo posterior a main son
 docs-only con deployment CANCELED por ignoreCommand, por diseño). Home 200; rutas
 `/conversations?platform=ghl` e `/integraciones` vivas (401/307 sin sesión). CHANGELOG completo.
-`main == origin/main`, tablero sin filas de esta sesión. **Único pendiente real: la acción de 2 min
-de arriba (regrabar `GHL_API_TOKEN`)**; tras regrabar, correr la sonda y ajustar el mapeo de
-`lib/ghl/conversaciones.ts` si la firma de campos difiere.
+`main == origin/main`, tablero sin filas de esta sesión. **Seguimiento:** la verificación en vivo se
+cerró el mismo día — el fix de mapeo de la firma real (sección ✅ de arriba) entra en el PR de esa
+fecha y no queda ninguna acción pendiente para Alex en GHL.
 
 
 ## Estado de entrega — 28-sep-2026
