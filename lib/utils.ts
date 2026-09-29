@@ -93,3 +93,19 @@ function truncate(str: string, maxLen: number): string {
   if (!str || str.length <= maxLen) return str
   return str.slice(0, maxLen) + '…'
 }
+
+// Normaliza texto para búsquedas (minúsculas + sin acentos). Fuente ÚNICA: vive aquí (lib/, node
+// puede cargarlo en tests) y components/ui/search-box.tsx la re-exporta por compatibilidad.
+export function normalizeText(s: string): string {
+  return s
+    .toLocaleLowerCase('es-ES')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
+// Compara un teléfono ignorando espacios, guiones y prefijo +.
+export function phoneMatches(phone: string | null | undefined, query: string): boolean {
+  const qd = query.replace(/[^\d]/g, '')
+  if (qd.length < 3) return false
+  return (phone ?? '').replace(/[^\d]/g, '').includes(qd)
+}
