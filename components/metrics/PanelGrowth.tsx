@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { AlertTriangle, Activity, Target } from 'lucide-react'
-import { useTenant } from '@/lib/tenant-context'
+import { useSesion, useTenant } from '@/lib/tenant-context'
 import { esFalloVisible, pedir, type Fallo } from '@/lib/ui/pedir'
 import { EstadoPanel } from '@/components/ui/carga/EstadoPanel'
 import { KpiCard } from '@/components/metrics/KpiCard'
@@ -15,6 +15,7 @@ import type { ObjetivoMedido } from '@/lib/metrics/objetivos'
 import type { Prevision } from '@/lib/metrics/prevision'
 import type { LtgpCacAproximado } from '@/lib/metrics/ltgp-aproximado'
 import { PanelObjetivos } from '@/components/metrics/PanelObjetivos'
+import { AnotacionesInspector } from '@/components/metrics/AnotacionesInspector'
 
 const SalesChart = dynamic(() => import('@/components/os/SalesChart').then((m) => ({ default: m.SalesChart })), {
   ssr: false,
@@ -59,6 +60,7 @@ const COLOR_ETIQUETA: Record<SaludNegocio['etiqueta'], string> = {
 
 export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }) {
   const tenant = useTenant()
+  const sesion = useSesion()
   const [datos, setDatos] = useState<Respuesta | null>(null)
   const [cargando, setCargando] = useState(true)
   const [fallo, setFallo] = useState<Fallo | null>(null)
@@ -222,6 +224,15 @@ export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }
         data={serieFacturacion}
         cashData={serieCash}
         title="Facturación vs cash cobrado · acumulado del periodo"
+      />
+
+      {/* Mismo rango que el gráfico de arriba: una anotación marca un evento de negocio (lanzamiento,
+          cambio de precio…) para explicar un salto en la serie, no un dato más que medir. */}
+      <AnotacionesInspector
+        desde={datos.periodo.desde}
+        hasta={datos.periodo.hasta}
+        userId={sesion?.userId}
+        puedeGestionarTodas={sesion?.rol === 'admin' || sesion?.rol === 'director'}
       />
 
       <PanelObjetivos objetivos={objetivos} prevision={prevision} ltgpCacAproximado={ltgpCacAproximado} />
