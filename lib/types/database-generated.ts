@@ -1,4 +1,4 @@
-// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-29T06:33:00.000Z).
+// GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-29T08:45:34.501Z).
 // Regenerar con: npm run tipos:bd  (y commitear). El test tests/esquema-tenant-invariante.test.mjs
 // comprueba que este artefacto sigue fresco respecto al esquema vivo.
 // Espejo exacto del esquema public de Supabase; los tipos de APP siguen en lib/types/database.ts.
@@ -2995,6 +2995,7 @@ export type EsquemaPublico = {
         updated_by: string | null
         created_at: string | null
         updated_at: string | null
+        avg_delivery_cost_eur: number | string | null
       }
       Insert: {
         tenant_id: string | null | undefined
@@ -3011,6 +3012,7 @@ export type EsquemaPublico = {
         updated_by: string | null | undefined
         created_at: string | null | undefined
         updated_at: string | null | undefined
+        avg_delivery_cost_eur: number | string | null | undefined
       }
       Update: {
         tenant_id: string | undefined
@@ -3027,6 +3029,7 @@ export type EsquemaPublico = {
         updated_by: string | undefined
         created_at: string | undefined
         updated_at: string | undefined
+        avg_delivery_cost_eur: number | string | undefined
       }
     }
     IdentityMatches: {
@@ -3731,6 +3734,7 @@ export type EsquemaPublico = {
         is_active: boolean | null
         created_at: string | null
         updated_at: string | null
+        user_id: string | null
       }
       Insert: {
         id: string | null | undefined
@@ -3741,6 +3745,7 @@ export type EsquemaPublico = {
         is_active: boolean | null | undefined
         created_at: string | null | undefined
         updated_at: string | null | undefined
+        user_id: string | null | undefined
       }
       Update: {
         id: string | undefined
@@ -3751,6 +3756,7 @@ export type EsquemaPublico = {
         is_active: boolean | undefined
         created_at: string | undefined
         updated_at: string | undefined
+        user_id: string | undefined
       }
     }
     PaymentFollowUps: {

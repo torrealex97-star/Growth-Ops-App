@@ -72,8 +72,9 @@ export default function ConversacionesTab() {
   const [analyzing, setAnalyzing] = useState<string | null>(null)
   const [analyses, setAnalyses] = useState<Record<string, Analysis>>({})
   const [analyzeError, setAnalyzeError] = useState<Record<string, string>>({})
-  const [metrics, setMetrics] = useState<ResumenMetricas | null>(null)
-  const [metricsMotivo, setMetricsMotivo] = useState('')
+  const [metricas, setMetricas] = useState<
+    Partial<Record<'instagram' | 'ghl', { resumen?: ResumenMetricas; motivo?: string }>>
+  >({})
 
   useEffect(() => {
     if (platform !== 'instagram' && platform !== 'ghl') {
@@ -121,26 +122,33 @@ export default function ConversacionesTab() {
     }
   }, [platform, tenant])
 
-  // Resumen cross-plataforma (siempre Instagram: es la única con datos reales hoy). Independiente
-  // del tab activo — se ve aunque estés mirando el placeholder de Facebook/TikTok, que es
-  // justamente el punto: comparar qué plataforma trae más leads/agendas de un vistazo.
+  // Resumen cross-plataforma (Instagram y GHL: las dos con datos reales hoy). Independiente del
+  // tab activo — se ve aunque estés en el placeholder de Facebook/TikTok: comparar de un vistazo
+  // qué canal trae más leads/agendas verificadas es el punto.
   useEffect(() => {
     let cancel = false
-    fetch(`/api/${tenant}/evergreen/setting-ai/conversations/metrics?platform=instagram`)
-      .then((r) => r.json())
-      .then((j) => {
-        if (cancel) return
-        if (j.configured && j.resumen) setMetrics(j.resumen as ResumenMetricas)
-        else setMetricsMotivo(j.motivo || j.error || '')
-      })
-      .catch(() => {
-        if (!cancel) setMetricsMotivo('No se pudieron calcular las métricas.')
-      })
+    for (const p of ['instagram', 'ghl'] as const) {
+      fetch(`/api/${tenant}/evergreen/setting-ai/conversations/metrics?platform=${p}`)
+        .then((r) => r.json())
+        .then((j) => {
+          if (cancel) return
+          setMetricas((m) => ({
+            ...m,
+            [p]:
+              j.configured && j.resumen
+                ? { resumen: j.resumen as ResumenMetricas }
+                : { motivo: j.motivo || j.error || '' },
+          }))
+        })
+        .catch(() => {
+          if (!cancel) setMetricas((m) => ({ ...m, [p]: { motivo: 'No se pudieron calcular las métricas.' } }))
+        })
+    }
     return () => {
       cancel = true
     }
-    // Recalcula cuando la lista de conversaciones se refresca (el snapshot que lee este endpoint
-    // puede haber cambiado tras la descarga).
+    // Recalcula cuando la lista de conversaciones se refresca (el snapshot que leen estos
+    // endpoints puede haber cambiado tras la descarga).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenant, conversations.length])
 
@@ -187,7 +195,7 @@ export default function ConversacionesTab() {
         </div>
       </div>
 
-      <ResumenCrossPlataforma metrics={metrics} motivo={metricsMotivo} />
+      <ResumenCrossPlataforma metricas={metricas} />
 
       <div className="flex-1 overflow-y-auto py-4">
         {platform !== 'instagram' && platform !== 'ghl' ? (
@@ -312,30 +320,38 @@ export default function ConversacionesTab() {
 // Comparativa cross-plataforma: qué canal de mensajería genera más leads/agendas reales. Solo
 // Instagram tiene datos hoy — Facebook y TikTok se pintan como "próximamente" en la MISMA fila para
 // que la comparación esté lista en cuanto se conecten, en vez de tener que buscarla en otro sitio.
-function ResumenCrossPlataforma({ metrics, motivo }: { metrics: ResumenMetricas | null; motivo: string }) {
+function ResumenCrossPlataforma({
+  metricas,
+}: {
+  metricas: Partial<Record<'instagram' | 'ghl', { resumen?: ResumenMetricas; motivo?: string }>>
+}) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 py-3 border-b border-border">
-      <TarjetaPlataforma label="Instagram" metrics={metrics} motivo={motivo} />
-      <TarjetaPlataforma label="Facebook" proximamente />
-      <TarjetaPlataforma label="TikTok" proximamente />
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 py-3 border-b border-border">
+      <TarjetaPlataforma label="Instagram" data={metricas.instagram} />
+      <TarjetaPlataforma label="GHL" data={metricas.ghl} hint="SMS · Facebook · Instagram · WhatsApp · email" />
     </div>
   )
 }
 
 function TarjetaPlataforma({
   label,
-  metrics,
-  motivo,
+  data,
   proximamente,
+  hint,
 }: {
   label: string
-  metrics?: ResumenMetricas | null
-  motivo?: string
+  data?: { resumen?: ResumenMetricas; motivo?: string }
   proximamente?: boolean
+  hint?: string
 }) {
+  const metrics = data?.resumen
+  const motivo = data?.motivo
   return (
     <div className="border border-border rounded-xl p-3 bg-muted/30">
-      <p className="text-2xs font-semibold text-foreground mb-1.5">{label}</p>
+      <p className="text-2xs font-semibold text-foreground mb-1.5">
+        {label}
+        {hint && <span className="ml-1.5 font-normal text-3xs text-muted-foreground">{hint}</span>}
+      </p>
       {proximamente ? (
         <p className="text-3xs text-muted-foreground">Próximamente — sin integración de mensajería todavía.</p>
       ) : metrics ? (
