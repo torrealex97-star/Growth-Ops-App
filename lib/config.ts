@@ -54,6 +54,23 @@ export function decryptSecret(stored: string): string {
   return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8')
 }
 
+/**
+ * ¿El secreto guardado está cifrado con una CONFIG_ENC_KEY distinta a la actual (o corrupto)?
+ * Ocurre al rotar la master key: el valor almacenado sigue ahí, `getTenantConfig` lo descarta en
+ * silencio y TODO el código que lo consume ve "faltan credenciales" — un token vivo queda muerto
+ * sin nadie sabiendo por qué. El panel de Integraciones lo usa para señalar el campo en rojo y
+ * mandar la acción concreta: volver a pegar el valor (se re-cifra con la key actual).
+ */
+export function esIndescifrable(stored: string | null | undefined): boolean {
+  if (!stored?.startsWith(ENC_PREFIX)) return false
+  try {
+    decryptSecret(stored)
+    return false
+  } catch {
+    return true
+  }
+}
+
 function isEncrypted(stored: string | null | undefined): boolean {
   return !!stored && stored.startsWith(ENC_PREFIX)
 }

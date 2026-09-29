@@ -83,6 +83,9 @@ type StateEntry = {
   /** Longitud del secreto guardado. Una longitud no es una credencial, y es lo único que delata un
    *  token pegado a medias, que Meta reporta como "Bad signature" y la máscara esconde. */
   length?: number
+  /** Guardado cifrado que la CONFIG_ENC_KEY actual NO puede leer (rotación previa o dato corrupto).
+   *  El runtime lo descarta y todo consumidor ve "faltan credenciales": hay que volver a pegarlo. */
+  indescifrable?: boolean
 }
 type BackfillRow = {
   paymentId: string
@@ -468,6 +471,7 @@ export default function IntegracionesPage() {
   const [groups, setGroups] = useState<Group[]>([])
   const [state, setState] = useState<Record<string, StateEntry>>({})
   const [encReady, setEncReady] = useState(true)
+  const [indescifrables, setIndescifrables] = useState<string[]>([])
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   // El motivo del fallo, para poder enseñarlo en pantalla en vez de dejar un loader eterno.
@@ -525,6 +529,7 @@ export default function IntegracionesPage() {
         encReady: boolean
         health?: IntegrationHealth[]
         webhooksEntrantes?: WebhookEntranteEstado[]
+        clavesIndescifrables?: string[]
       }>(`/api/${tenant}/evergreen/settings/integraciones`)
 
       if (!res.ok) {
@@ -540,6 +545,7 @@ export default function IntegracionesPage() {
       setGroups(j.groups)
       setState(j.state)
       setEncReady(j.encReady)
+      setIndescifrables(j.clavesIndescifrables ?? [])
       setHealth(Object.fromEntries(((j.health ?? []) as IntegrationHealth[]).map((h) => [h.id, h])))
       setWebhooksEntrantes(j.webhooksEntrantes ?? [])
       // precargar los no-secretos en los drafts para poder editarlos
@@ -997,6 +1003,21 @@ export default function IntegracionesPage() {
         </div>
       )}
 
+      {/* Credenciales guardadas que la clave actual no puede leer: el runtime las descarta y la
+          integración se comporta como "sin configurar" aunque haya un token escrito. Sin este aviso,
+          el diagnóstico es adivinanza (fue exactamente lo que pasó con GHL el 29-sep). */}
+      {indescifrables.length > 0 && (
+        <div className="flex items-start gap-2 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            {indescifrables.length === 1 ? 'Hay una credencial guardada que' : 'Hay credenciales guardadas que'} el
+            servidor <b>no puede descifrar</b> con la clave de cifrado actual (probable rotación previa de{' '}
+            <code>CONFIG_ENC_KEY</code>): se comportan como si no existieran. <b>Vuelve a pegarlas aquí</b> y guarda:{' '}
+            {indescifrables.join(', ')}
+          </span>
+        </div>
+      )}
+
       {/* La mitad receptora de las integraciones: URLs exactas por subcuenta, estado del secret
           y último evento recibido con su evidencia. Antes de este bloque, dar de alta un webhook
           exigía cazar la URL en una guía y descubrir a posteriori que nada entraba. */}
@@ -1355,20 +1376,28 @@ export default function IntegracionesPage() {
                             .filter((f) => !f.hidden && !f.advanced)
                             .map((f) => {
                               const st = state[f.key]
-                              const badge =
-                                st?.source === 'db' ? (
-                                  <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
-                                    <CheckCircle2 className="h-3 w-3" /> guardado
-                                  </span>
-                                ) : st?.source === 'env' ? (
-                                  <span className="inline-flex items-center gap-1 text-xs text-blue-600">
-                                    <KeyRound className="h-3 w-3" /> en entorno
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                                    <XCircle className="h-3 w-3" /> sin configurar
-                                  </span>
-                                )
+                              // Credencial indescifrable: badge rojo en vez de "guardado" — el
+                              // verde aquí sería mentir (el runtime no puede leer ese valor).
+                              const badge = st?.indescifrable ? (
+                                <span
+                                  className="inline-flex items-center gap-1 text-xs text-red-600"
+                                  title="Cifrado con una CONFIG_ENC_KEY distinta a la actual: el servidor no puede leerlo. Vuelve a pegar el valor y guarda."
+                                >
+                                  <XCircle className="h-3 w-3" /> indescifrable — vuelve a pegarlo
+                                </span>
+                              ) : st?.source === 'db' ? (
+                                <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
+                                  <CheckCircle2 className="h-3 w-3" /> guardado
+                                </span>
+                              ) : st?.source === 'env' ? (
+                                <span className="inline-flex items-center gap-1 text-xs text-blue-600">
+                                  <KeyRound className="h-3 w-3" /> en entorno
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                                  <XCircle className="h-3 w-3" /> sin configurar
+                                </span>
+                              )
                               return (
                                 <div key={f.key} className="space-y-1.5">
                                   <div className="flex items-center justify-between gap-2">
