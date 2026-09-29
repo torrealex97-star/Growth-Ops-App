@@ -1438,6 +1438,74 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 - **#225 (money 25-sep):** 34 ficheros, 9 commits, **647 commits por detrás** de main, los 34 ficheros tocados luego por main (0 conflictos textuales, riesgo semántico; solape con FASE A: `commissions/future` ×14, `comisiones/page` ×13, `analytics` ×13, `funnels/queries` ×12, `unit-economics` ×9, `FinanceCharts` ×8, `consulta` ×8, `canonical/cash` ×4). Opciones para Alex: **A** sondear (update-branch + CI; solo sonda, exige revisión humana del diff de dinero), **B** relevar unidad a unidad sobre main, **C** cerrar anotando ideas en `PENDIENTES.md`. **Pendiente de su decisión** — el contenido de dinero es decisión de producto.
 - **#291 (Alex, UI del mapeo Price ID):** PR nueva; también quedará bloqueada por el artefacto de tipos.
 
+## Reparto de la cola abierta (29-sep): quién hace qué y cómo
+
+**Principio:** el reparto es por ACCESO, no por preferencia. Todo lo que exige regenerar tipos
+contra la BD viva (las dos claves de Supabase que lee `npm run tipos:bd`, ver cabecera de
+`scripts/generar-tipos-bd.mjs`) lo hace **Claude Code**, cuyo entorno sí las tiene. Todo lo que es
+bucle corto de `gh` + CI + docs lo hace **Freebuff (Buffy)**. Las decisiones de producto/dinero
+son **de Alex**; ningún agente las sustituye.
+
+### Tarea 1 — DESBLOQUEO TOTAL (Claude Code, entorno con credenciales de BD)
+
+El test «el artefacto de tipos generado está fresco respecto al esquema vivo» falla en el Quality
+de TODAS las PR (#266, #290, #291) y fallará en el próximo push a `main`: la migración
+`20260929100000_stripe_price_map` de #289 ya está aplicada al esquema vivo (la integración de
+Supabase la aplicó al fusionar), pero `lib/types/database-generated.ts` no la contiene (verificado
+con `git show origin/main:lib/types/database-generated.ts | grep stripe_price_map` → 0 apariciones).
+
+Pasos exactos para Claude Code:
+1. `git fetch --prune && git checkout main && git merge --ff-only origin/main` (debe estar en `8a75094` o posterior).
+2. Rama nueva: `git checkout -b fix/tipos-bd-stripe-price-map`.
+3. Con las dos claves de Supabase disponibles donde el script las lee (ver cabecera del script;
+   las lee y NUNCA las imprime): `npm run tipos:bd`.
+4. Revisar el diff de `lib/types/database-generated.ts`: debe añadir EXACTAMENTE la tabla
+   `stripe_price_map` y nada raro más (si aparecen tablas que no corresponden a migraciones
+   recientes, PARAR y avisar en el tablero).
+5. Commit acotado solo de ese fichero: `chore(tipos): regenera database-generated tras stripe_price_map (#289)`.
+6. Push, PR, esperar CI COMPLETO (el Quality incluye el test de frescura: si pasa ahí, queda
+   validado contra la BD viva), merge squash, borrar rama.
+7. Comentar en #266 y #290 que el desbloqueo aterrizó (la cola de Buffy se reanuda sola).
+
+NO hay que aplicar ninguna migración a mano: `20260929100000` ya está en el esquema vivo.
+
+### Tarea 2 — cola de PRs tras el desbloqueo (Freebuff/Buffy: gh + CI, sin BD)
+
+En este orden, una a una. Regla de la cola: esperar a que no haya runs E2E en curso antes de
+vigilar checks; un `cancelled` por concurrencia NO es un fallo — se re-dispara con
+`gh pr update-branch` o se espera turno.
+1. **#266 (dependabot)**: YA rebaseada (`619d2c9` = merge de `main` en su rama) y validada en
+   local por Buffy (tsc 0, lint 0, 1166 unit + 783 metrics 0 fallos, build OK, 0
+   vulnerabilidades; sin uso de APIs `beta`; solo `messages.create` y `createServerClient`).
+   Estaba roja SOLO por el artefacto de tipos. Con la Tarea 1 fusionada:
+   `gh pr update-branch 266` (re-ejecuta CI completo) → verde → `gh pr merge 266 --squash --delete-branch`.
+2. **#290 (docs, de Buffy)**: merge squash. Contiene el cierre del ciclo, el informe de decisión y
+   `docs/INFORME_DECISION_PRS_29SEP.md`.
+3. **#291 (de Alex, UI del mapeo Price ID)**: NI Buffy NI Claude Code la tocan — es de Alex.
+   Solo comentarle que con la Tarea 1 su CI pasará y puede fusionarla.
+4. **Vercel**: tras los merges, verificar deployment `success` de producción del nuevo `main`
+   (deployments API, environment=production, status del último) y anotarlo en el tablero.
+
+### Tarea 3 — #229 (ESLint 10) y #225 (money 25-sep): SOLO Alex decide, Buffy ejecuta
+
+- **#229**: diagnóstico completo en `docs/INFORME_DECISION_PRS_29SEP.md` y en comentarios de la
+  PR (peers directos SÍ aceptan 10; rompen `next lint` y `eslint-plugin-react` transitiva; ni las
+  latest de los plugins la soportan). **Recomendación: cerrar** y reintentar cuando
+  `eslint-plugin-react` declare `^10`. Si Alex confirma, Buffy la cierra con el texto listo.
+- **#225**: 34 ficheros, 9 commits, **647 commits por detrás** de `main`, los 34 ficheros tocados
+  luego por `main` (riesgo semántico con FASE A: `commissions/future` ×14, `comisiones/page` ×13,
+  `analytics` ×13, `funnels/queries` ×12, `unit-economics` ×9, `FinanceCharts` ×8, `consulta` ×8,
+  `canonical/cash` ×4). Opciones: **A** sondear (`gh pr update-branch 225` + CI, ~10 min; es
+  solo sonda, el diff de dinero exige revisión humana), **B** relevar unidad a unidad sobre
+  `main`, **C** cerrar anotando ideas en `PENDIENTES.md`. Buffy ejecuta la que Alex elija.
+
+### Alex — lo único pendiente de su parte
+
+1. Confirmar quién ejecuta la Tarea 1 (exponer las dos claves de Supabase al workspace Freebuff o
+   decir que la hace Claude Code) → desbloquea TODO.
+2. #229: ¿cerrar? (recomendado: sí).
+3. #225: ¿A, B o C?
+
 ## Tablero de reclamaciones (en curso AHORA)
 
 **CODEX — DASHBOARD & METRIC AUDIT (25-sep):** Ampliación tras browser: reclama filtros tenant en `dashboard/page.tsx`, `unit-economics/page.tsx`, `finanzas/analitica/{resumen,pnl,cohortes,proyeccion}/page.tsx`, CTR en `marketing/adquisicion/campanas/page.tsx` y tests asociados. No toca RLS ni motor financiero. auditoría transversal solicitada por el usuario; rama `codex/dashboard-metric-audit`. Reclama `DASHBOARD_AUDIT.md`, `DASHBOARD_CORRECTION_PLAN.md`, sección propia de relevo y fix acotado del conteo HEAD de contactos en `lib/ai/agent/tools.ts` con `tests/metrics/agent-overview-count.test.mjs`. Inspección de código y producción de solo lectura; ningún cambio de datos. No tocar el WIP del checkout Documents ni las migraciones/gastos reclamados por Claude Code. Regla KPI: definición → fuente → completitud → periodo → maduración → asignación → cálculo → benchmark orientativo.
@@ -1447,7 +1515,7 @@ fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo 
 
 | Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Rama           | Toca                                                                                            | Desde  |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
-| Freebuff (Buffy)  | **#289 FUSIONADA (`8a75094`) y en PRODUCCIÓN (deploy success 06:03Z; incluye la tanda P2 `d252f75` que Vercel debía). #266 rebaseada y validada local (tsc, lint, 1166+783 tests, build) pero BLOQUEADA por desfase de tipos: `stripe_price_map` ya viva en el esquema y `lib/types/database-generated.ts` viejo → el test de frescura falla en el Quality de CUALQUIER PR hasta que alguien con `SUPABASE_URL`+`SERVICE_ROLE` ejecute `npm run tipos:bd` y suba el artefacto a main (carril Claude Code/Alex; este workspace no tiene las claves). Esta PR de docs queda en cola hasta que eso aterrice | `docs/cierre-289-dependabot` | gh CLI, docs/ACTIVE_HANDOFF.md, rama rebase de #266 | 29-sep |
+| Freebuff (Buffy)  | **Cola de PR en espera de la Tarea 1** (ver «Reparto de la cola abierta» arriba): #266 lista para fusionar cuando el artefacto de tipos aterrice (rebaseada `619d2c9` + validada local), #290 docs lista, #291 es de Alex. #229 y #225 esperan decisión de Alex (¿cerrar? / ¿A-B-C?). Cuando Claude Code fusione `fix/tipos-bd-stripe-price-map`, Buffy ejecuta la Tarea 2 sola | `docs/cierre-289-dependabot` | gh CLI, docs | 29-sep |
 | Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI                                                                                                                                   | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
 | Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                                                                                                                                                        | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
 
