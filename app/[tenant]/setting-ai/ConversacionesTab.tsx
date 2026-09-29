@@ -1,13 +1,23 @@
 'use client'
 import { useTenant } from '@/lib/tenant-context'
-import { useEffect, useState } from 'react'
-import { Sparkles, ChevronDown, ChevronRight, Loader2, MessageCircle, ExternalLink } from 'lucide-react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
+import { Sparkles, Loader2, MessageCircle, ExternalLink, Phone, Mail, SearchX } from 'lucide-react'
 import { formatNumber, formatPercent } from '@/lib/utils'
 import { SearchBox } from '@/components/ui/search-box'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { canalesDisponibles, filtrarConversaciones } from '@/lib/setting-ai/filtrar-conversaciones'
+import {
+  claveDia,
+  etiquetaDia,
+  horaDe,
+  inicialesDe,
+  tiempoRelativo,
+  ultimoMensaje,
+  vistaPrevia,
+  type MsgMin,
+} from '@/lib/setting-ai/inbox'
 
-type ConvMsg = { from: 'agente' | 'lead'; text?: string; created_time?: string }
+type ConvMsg = MsgMin & { created_time?: string }
 type IgConversation = {
   id: string
   participant?: string
@@ -63,6 +73,29 @@ type RespuestaConvos = {
   motivo?: string
 }
 
+// Presentación del canal: icono y etiqueta legible. Lo que GHL no clasifique queda como
+// "Chat" (misma política honesta del mapeador: nada inventado).
+const CANAL_UI: Record<string, { label: string; icono: 'sms' | 'call' | 'email' | 'chat' }> = {
+  sms: { label: 'SMS', icono: 'sms' },
+  call: { label: 'Llamada', icono: 'call' },
+  email: { label: 'Email', icono: 'email' },
+  instagram: { label: 'Instagram', icono: 'chat' },
+  facebook: { label: 'Facebook', icono: 'chat' },
+  whatsapp: { label: 'WhatsApp', icono: 'chat' },
+  chat: { label: 'Chat', icono: 'chat' },
+}
+const canalUi = (canal: string | undefined) =>
+  CANAL_UI[canal ?? ''] ?? { label: labelCase(canal), icono: 'chat' as const }
+function labelCase(canal: string | undefined): string {
+  if (!canal) return 'Chat'
+  return canal.charAt(0).toUpperCase() + canal.slice(1)
+}
+function IconoCanal({ tipo, className }: { tipo: 'sms' | 'call' | 'email' | 'chat'; className?: string }) {
+  if (tipo === 'sms' || tipo === 'call') return <Phone className={className} />
+  if (tipo === 'email') return <Mail className={className} />
+  return <MessageCircle className={className} />
+}
+
 export default function ConversacionesTab() {
   const tenant = useTenant()
   const [platform, setPlatform] = useState<Platform>('instagram')
@@ -80,11 +113,13 @@ export default function ConversacionesTab() {
   >({})
   const [busqueda, setBusqueda] = useState('')
   const [canal, setCanal] = useState('todos')
+  const chatRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // Cambiar de plataforma limpia también el filtro: la lista nueva no comparte canales.
     setBusqueda('')
     setCanal('todos')
+    setOpenId(null)
     if (platform !== 'instagram' && platform !== 'ghl') {
       setConfigured(false)
       setConversations([])
@@ -130,6 +165,12 @@ export default function ConversacionesTab() {
     }
   }, [platform, tenant])
 
+  // Al abrir una conversación, el chat se lee desde el final (última réplica): así se lee
+  // cualquier bandeja; además deja visible la burbuja más reciente sin scroll manual.
+  useEffect(() => {
+    if (openId && chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
+  }, [openId])
+
   // Resumen cross-plataforma (Instagram y GHL: las dos con datos reales hoy). Independiente del
   // tab activo — se ve aunque estés en el placeholder de Facebook/TikTok: comparar de un vistazo
   // qué canal trae más leads/agendas verificadas es el punto.
@@ -157,7 +198,6 @@ export default function ConversacionesTab() {
     }
     // Recalcula cuando la lista de conversaciones se refresca (el snapshot que leen estos
     // endpoints puede haber cambiado tras la descarga).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenant, conversations.length])
 
   async function analyze(c: IgConversation) {
@@ -181,6 +221,7 @@ export default function ConversacionesTab() {
 
   const canales = canalesDisponibles(conversations)
   const visibles = filtrarConversaciones(conversations, busqueda, canal)
+  const seleccionada = visibles.find((c) => c.id === openId) ?? null
 
   return (
     <div className="flex flex-col h-[calc(100vh-6.5rem)] text-foreground">
@@ -188,7 +229,7 @@ export default function ConversacionesTab() {
         <div>
           <h1 className="text-base font-bold text-foreground leading-tight">Conversaciones</h1>
           <p className="text-2xs text-muted-foreground leading-tight">
-            Extrae y analiza con IA las conversaciones reales: redes sociales y la bandeja de GHL.
+            Toda la comunicación con cada lead, del primer contacto a la venta: redes sociales y bandeja de GHL.
           </p>
           {motivo && configured && <p className="text-2xs text-amber-500/90 leading-tight mt-0.5">{motivo}</p>}
         </div>
@@ -208,7 +249,7 @@ export default function ConversacionesTab() {
                 <SelectItem value="todos">Todos los canales</SelectItem>
                 {canales.map((ch) => (
                   <SelectItem key={ch} value={ch}>
-                    {ch.toUpperCase()}
+                    {canalUi(ch).label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -226,7 +267,10 @@ export default function ConversacionesTab() {
             <button
               key={p.k}
               onClick={() => setPlatform(p.k)}
-              className={`px-3 py-1.5 font-semibold ${platform === p.k ? 'bg-brand-600 text-white' : 'text-muted-foreground hover:text-foreground'}`}
+              aria-pressed={platform === p.k}
+              className={`px-3 py-1.5 font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 ${
+                platform === p.k ? 'bg-brand-600 text-white' : 'text-muted-foreground hover:text-foreground'
+              }`}
             >
               {p.label}
             </button>
@@ -236,135 +280,327 @@ export default function ConversacionesTab() {
 
       <ResumenCrossPlataforma metricas={metricas} />
 
-      <div className="flex-1 overflow-y-auto py-4">
-        {platform !== 'instagram' && platform !== 'ghl' ? (
+      {platform !== 'instagram' && platform !== 'ghl' ? (
+        <div className="flex-1 flex items-center justify-center py-4">
           <PlaceholderPlatform platform={platform} />
-        ) : loading ? (
-          <p className="text-muted-foreground text-sm text-center py-10 flex items-center justify-center gap-2">
-            <Loader2 className="w-4 h-4 animate-spin" /> Cargando conversaciones…
-          </p>
-        ) : error ? (
-          <p className="text-red-400 text-sm text-center py-10">Error: {error}</p>
-        ) : configured === false ? (
-          <div className="text-center py-14 text-muted-foreground text-sm max-w-md mx-auto">
-            <p className="mb-2 font-semibold text-foreground">
-              {platform === 'ghl'
-                ? 'GoHighLevel no está operativo para mensajería.'
-                : 'Instagram no está operativo para mensajería.'}
-            </p>
-            {motivo && <p className="mb-2 text-foreground">{motivo}</p>}
-            <p>
-              {platform === 'ghl' ? (
-                <>
-                  Configura el <b>PIT token</b> y el <b>Location ID</b> en <b>Configuración → Integraciones</b> para ver
-                  aquí la bandeja unificada de GHL (SMS, Facebook, Instagram, WhatsApp y email).
-                </>
-              ) : (
-                <>
-                  Configura el token en <b>Configuración → Integraciones</b> (necesita el permiso{' '}
-                  <code className="text-2xs bg-muted px-1 py-0.5 rounded">instagram_manage_messages</code>) para poder
-                  ver y analizar aquí las conversaciones reales.
-                </>
-              )}
-            </p>
-          </div>
-        ) : conversations.length === 0 ? (
-          <p className="text-muted-foreground text-sm text-center py-10">No hay conversaciones recientes.</p>
-        ) : (
-          <div className="flex flex-col gap-2 max-w-3xl mx-auto">
-            {visibles.length === 0 ? (
-              <p className="text-muted-foreground text-sm text-center py-10">
-                Ninguna conversación coincide con la búsqueda.
-              </p>
+        </div>
+      ) : loading ? (
+        <ListaSkeleton />
+      ) : error ? (
+        <p className="text-red-400 text-sm text-center py-10">Error: {error}</p>
+      ) : configured === false ? (
+        <EstadoSinConfig platform={platform} motivo={motivo} tenant={tenant} />
+      ) : conversations.length === 0 ? (
+        <p className="text-muted-foreground text-sm text-center py-10">No hay conversaciones recientes.</p>
+      ) : visibles.length === 0 ? (
+        <p className="text-muted-foreground text-sm text-center py-10 flex items-center justify-center gap-2">
+          <SearchX className="w-4 h-4" /> Ninguna conversación coincide con la búsqueda.
+        </p>
+      ) : (
+        // Bandeja de dos paneles: lista escaneable a la izquierda, transcripción completa a la
+        // derecha. El patrón inbox (lista + lectura) es el que ya conocen de cualquier CRM de chat:
+        // se escanea quién habló último y cuándo sin abrir nada, y la conversación abierta se lee
+        // entera sin plegar el resto.
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(280px,380px)_1fr] gap-3 py-3">
+          <ul aria-label="Conversaciones" className="flex flex-col gap-1.5 overflow-y-auto pr-1">
+            {visibles.map((c) => (
+              <li key={c.id}>
+                <FilaConversacion
+                  c={c}
+                  activa={openId === c.id}
+                  onClick={() => setOpenId(openId === c.id ? null : c.id)}
+                />
+              </li>
+            ))}
+          </ul>
+          <div className="hidden lg:block min-h-0">
+            {seleccionada ? (
+              <PanelChat
+                key={seleccionada.id}
+                c={seleccionada}
+                platform={platform}
+                tenant={tenant}
+                chatRef={chatRef}
+                analyzing={analyzing === seleccionada.id}
+                onAnalyze={() => analyze(seleccionada)}
+                analyzeError={analyzeError[seleccionada.id]}
+                analysis={analyses[seleccionada.id]}
+              />
             ) : (
-              visibles.map((c) => (
-                <div key={c.id} className="border border-border rounded-xl overflow-hidden">
-                  <button
-                    onClick={() => setOpenId(openId === c.id ? null : c.id)}
-                    className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-muted/50"
-                  >
-                    {openId === c.id ? (
-                      <ChevronDown className="w-4 h-4 shrink-0" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 shrink-0" />
-                    )}
-                    <span className="font-medium text-sm flex-1 truncate">
-                      {c.contactoVinculado?.full_name || c.participant || c.contact_name || 'Lead sin nombre'}
-                    </span>
-                    {c.channel && (
-                      <span className="text-3xs text-muted-foreground border border-border rounded px-1 py-0.5 uppercase">
-                        {c.channel}
-                      </span>
-                    )}
-                    {c.unread_count > 0 && (
-                      <span className="text-3xs bg-brand-600 text-white rounded-full px-1.5 py-0.5">
-                        {c.unread_count} sin leer
-                      </span>
-                    )}
-                    <span className="text-2xs text-muted-foreground">{c.message_count} msgs</span>
-                  </button>
-                  {openId === c.id && (
-                    <div className="border-t border-border p-3 bg-background">
-                      {c.messages.length === 0 ? (
-                        <p className="text-muted-foreground text-xs mb-3">
-                          No se pudo extraer la transcripción de esta conversación.
-                        </p>
-                      ) : (
-                        <div className="flex flex-col gap-1.5 max-h-64 overflow-y-auto mb-3">
-                          {c.messages.map((m, i) => (
-                            <div
-                              key={i}
-                              className={`text-xs max-w-[80%] rounded-2xl px-3 py-1.5 whitespace-pre-wrap ${m.from === 'agente' ? 'self-start bg-muted' : 'self-end bg-brand-600/20 ml-auto'}`}
-                            >
-                              {m.text}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {platform === 'ghl' &&
-                        (c.contactoVinculado ? (
-                          <a
-                            href={`/${tenant}/crm/contactos/${c.contactoVinculado.id}`}
-                            className="flex items-center gap-1 text-2xs text-brand-400 hover:opacity-80 mb-2"
-                            title={`Perfil vinculado (${c.vinculacion === 'ghl_contact_id' ? 'ID de GHL' : c.vinculacion === 'email' ? 'email' : 'teléfono'})`}
-                          >
-                            <ExternalLink className="w-3 h-3" /> Ver perfil: {c.contactoVinculado.full_name}
-                          </a>
-                        ) : (
-                          <p className="text-2xs text-muted-foreground mb-2 flex items-center gap-1">
-                            <MessageCircle className="w-3 h-3" /> Sin perfil vinculado en el CRM (coincide por ID de
-                            GHL, email o teléfono).
-                          </p>
-                        ))}
-                      <button
-                        onClick={() => analyze(c)}
-                        disabled={analyzing === c.id || c.messages.length === 0}
-                        className="bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white rounded-lg px-3 py-1.5 text-xs font-semibold flex items-center gap-1.5"
-                      >
-                        {analyzing === c.id ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <Sparkles className="w-3.5 h-3.5" />
-                        )}
-                        Analizar con IA
-                      </button>
-                      {analyzeError[c.id] && <p className="text-red-400 text-xs mt-2">{analyzeError[c.id]}</p>}
-                      {analyses[c.id] && <AnalysisCard a={analyses[c.id]} />}
-                    </div>
-                  )}
-                </div>
-              ))
+              <div className="h-full rounded-xl border border-dashed border-border flex flex-col items-center justify-center text-center text-muted-foreground text-sm gap-1.5 p-6">
+                <MessageCircle className="w-6 h-6 opacity-60" />
+                <p className="font-medium text-foreground">Elige una conversación</p>
+                <p className="text-2xs max-w-xs">
+                  Se abre aquí la transcripción completa del chat, con quién respondió qué y cuándo.
+                </p>
+              </div>
             )}
           </div>
+          {/* En móvil/tablet la transcripción va debajo de la lista (sin segunda columna). */}
+          <div className="lg:hidden">
+            {seleccionada && (
+              <PanelChat
+                c={seleccionada}
+                platform={platform}
+                tenant={tenant}
+                chatRef={chatRef}
+                analyzing={analyzing === seleccionada.id}
+                onAnalyze={() => analyze(seleccionada)}
+                analyzeError={analyzeError[seleccionada.id]}
+                analysis={analyses[seleccionada.id]}
+              />
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function nombreDe(c: Conv): string {
+  return c.contactoVinculado?.full_name || c.contact_name || c.participant || 'Lead sin nombre'
+}
+
+function FilaConversacion({ c, activa, onClick }: { c: Conv; activa: boolean; onClick: () => void }) {
+  const nombre = nombreDe(c)
+  const canal = canalUi(c.channel)
+  const ult = ultimoMensaje(c.messages)
+  const sinLeer = c.unread_count > 0
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={activa}
+      className={`w-full text-left rounded-xl border p-2.5 flex items-start gap-2.5 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 ${
+        activa ? 'border-brand-600/60 bg-brand-600/[0.06]' : 'border-border hover:bg-muted/50'
+      } ${sinLeer && !activa ? 'bg-brand-600/[0.04]' : ''}`}
+    >
+      {inicialesDe(nombre) ? (
+        <span
+          className={`w-9 h-9 shrink-0 rounded-full grid place-items-center text-2xs font-bold ${
+            sinLeer ? 'bg-brand-600 text-white' : 'bg-muted text-muted-foreground'
+          }`}
+          aria-hidden
+        >
+          {inicialesDe(nombre)}
+        </span>
+      ) : (
+        <span
+          className={`w-9 h-9 shrink-0 rounded-full grid place-items-center ${sinLeer ? 'bg-brand-600 text-white' : 'bg-muted text-muted-foreground'}`}
+          aria-hidden
+        >
+          <IconoCanal tipo={canal.icono} className="w-4 h-4" />
+        </span>
+      )}
+      <span className="flex-1 min-w-0">
+        <span className="flex items-center gap-1.5">
+          <span className={`text-sm truncate ${sinLeer ? 'font-bold text-foreground' : 'font-medium text-foreground'}`}>
+            {nombre}
+          </span>
+          {sinLeer && <span className="w-2 h-2 shrink-0 rounded-full bg-brand-500" aria-label="Sin leer" />}
+          <span className="text-3xs text-muted-foreground ml-auto shrink-0">
+            {tiempoRelativo(c.updated_time) ?? ''}
+          </span>
+        </span>
+        <span className="block text-2xs text-muted-foreground truncate mt-0.5">{vistaPrevia(ult)}</span>
+        <span className="flex items-center gap-1.5 mt-1">
+          <span className="inline-flex items-center gap-1 text-3xs text-muted-foreground border border-border rounded px-1 py-0.5">
+            <IconoCanal tipo={canal.icono} className="w-2.5 h-2.5" />
+            {canal.label}
+          </span>
+          {c.messages.length > 0 && <span className="text-3xs text-muted-foreground">{c.messages.length} msgs</span>}
+        </span>
+      </span>
+    </button>
+  )
+}
+
+function PanelChat({
+  c,
+  platform,
+  tenant,
+  chatRef,
+  analyzing,
+  onAnalyze,
+  analyzeError,
+  analysis,
+}: {
+  c: Conv
+  platform: Platform
+  tenant: string
+  chatRef: RefObject<HTMLDivElement>
+  analyzing: boolean
+  onAnalyze: () => void
+  analyzeError?: string
+  analysis?: Analysis
+}) {
+  const nombre = nombreDe(c)
+  const canal = canalUi(c.channel)
+  const msgs = c.messages
+  return (
+    <div className="h-full flex flex-col rounded-xl border border-border bg-background overflow-hidden">
+      <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border bg-muted/30">
+        {inicialesDe(nombre) ? (
+          <span className="w-8 h-8 shrink-0 rounded-full grid place-items-center text-2xs font-bold bg-muted text-muted-foreground">
+            {inicialesDe(nombre)}
+          </span>
+        ) : (
+          <span className="w-8 h-8 shrink-0 rounded-full grid place-items-center bg-muted text-muted-foreground">
+            <IconoCanal tipo={canal.icono} className="w-4 h-4" />
+          </span>
         )}
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-foreground truncate leading-tight">{nombre}</p>
+          <p className="text-3xs text-muted-foreground leading-tight">
+            {c.contact_email || c.contact_phone || canal.label}
+            {c.messages.length > 0 && ` · ${c.messages.length} mensajes`}
+          </p>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          {platform === 'ghl' &&
+            (c.contactoVinculado ? (
+              <a
+                href={`/${tenant}/crm/contactos/${c.contactoVinculado.id}`}
+                className="inline-flex items-center gap-1 text-2xs text-brand-400 hover:opacity-80"
+                title={`Perfil vinculado (${c.vinculacion === 'ghl_contact_id' ? 'ID de GHL' : c.vinculacion === 'email' ? 'email' : 'teléfono'})`}
+              >
+                <ExternalLink className="w-3 h-3" /> Ver perfil
+              </a>
+            ) : (
+              <span
+                className="text-3xs text-muted-foreground flex items-center gap-1"
+                title="Sin match por ID de GHL, email ni teléfono"
+              >
+                <MessageCircle className="w-3 h-3" /> Sin perfil en CRM
+              </span>
+            ))}
+          <button
+            onClick={onAnalyze}
+            disabled={analyzing || msgs.length === 0}
+            className="bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white rounded-lg px-2.5 py-1.5 text-2xs font-semibold inline-flex items-center gap-1.5 active:scale-[0.98] transition-transform"
+          >
+            {analyzing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+            Analizar con IA
+          </button>
+        </div>
+      </div>
+      {msgs.length === 0 ? (
+        <p className="text-muted-foreground text-xs p-4">No se pudo extraer la transcripción de esta conversación.</p>
+      ) : (
+        <div ref={chatRef} className="flex-1 overflow-y-auto p-3 flex flex-col gap-2">
+          {bloquesPorDia(msgs).map((b) => (
+            <div key={b.clave || b.etiqueta || 'sin-fecha'} className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2 py-0.5">
+                <span className="h-px flex-1 bg-border" />
+                <span className="text-3xs text-muted-foreground font-medium">{b.etiqueta}</span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
+              {b.mensajes.map((m, i) => (
+                <div
+                  key={i}
+                  className={`max-w-[85%] rounded-2xl px-3 py-1.5 text-xs whitespace-pre-wrap ${
+                    m.from === 'agente'
+                      ? 'self-end bg-brand-600 text-white rounded-br-sm'
+                      : 'self-start bg-muted text-foreground rounded-bl-sm'
+                  }`}
+                >
+                  {m.text}
+                  {m.created_time && (
+                    <span
+                      className={`block text-right text-3xs mt-0.5 ${m.from === 'agente' ? 'text-white/70' : 'text-muted-foreground'}`}
+                    >
+                      {horaDe(m.created_time)}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+      {(analyzeError || analysis) && (
+        <div className="border-t border-border p-3">
+          {analyzeError && <p className="text-red-400 text-xs">{analyzeError}</p>}
+          {analysis && <AnalysisCard a={analysis} />}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Agrupa los mensajes por día para los separadores (Hoy / Ayer / fecha). Fuera del JSX para
+// que el render sea legible; los helpers puros viven en lib/setting-ai/inbox.ts (testeables).
+function bloquesPorDia(msgs: ConvMsg[]) {
+  const bloques: { clave: string; etiqueta: string | null; mensajes: ConvMsg[] }[] = []
+  for (const m of msgs) {
+    const clave = claveDia(m.created_time)
+    const ult = bloques[bloques.length - 1]
+    if (ult && ult.clave === clave) ult.mensajes.push(m)
+    else bloques.push({ clave, etiqueta: etiquetaDia(m.created_time), mensajes: [m] })
+  }
+  return bloques
+}
+
+// Skeleton con la MISMA forma que la bandeja final (skill: nunca un spinner genérico donde
+// va una lista): filas avatar + dos líneas, 8 unidades como el límite habitual del listado.
+function ListaSkeleton() {
+  return (
+    <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(280px,380px)_1fr] gap-3 py-3" aria-hidden>
+      <div className="flex flex-col gap-1.5 overflow-hidden">
+        {Array.from({ length: 8 }, (_, i) => (
+          <div key={i} className="rounded-xl border border-border p-2.5 flex items-start gap-2.5 animate-pulse">
+            <span className="w-9 h-9 rounded-full bg-muted shrink-0" />
+            <span className="flex-1 flex flex-col gap-1.5 pt-0.5">
+              <span className="h-3 w-1/3 rounded bg-muted" />
+              <span className="h-2.5 w-3/4 rounded bg-muted" />
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="hidden lg:flex rounded-xl border border-border items-center justify-center">
+        <p className="text-2xs text-muted-foreground">Cargando conversaciones…</p>
+      </div>
+    </div>
+  )
+}
+
+function EstadoSinConfig({ platform, motivo, tenant }: { platform: Platform; motivo: string; tenant: string }) {
+  const esGhl = platform === 'ghl'
+  return (
+    <div className="flex-1 flex items-center justify-center py-4">
+      <div className="text-center text-muted-foreground text-sm max-w-md">
+        <MessageCircle className="w-8 h-8 mx-auto mb-3 opacity-50" />
+        <p className="mb-1 font-semibold text-foreground">
+          {esGhl ? 'GoHighLevel no está operativo para mensajería.' : 'Instagram no está operativo para mensajería.'}
+        </p>
+        {motivo && <p className="mb-3 text-foreground">{motivo}</p>}
+        <p className="mb-3">
+          {esGhl ? (
+            <>
+              Configura el <b>PIT token</b> y el <b>Location ID</b> para ver aquí la bandeja unificada de GHL (SMS,
+              Facebook, Instagram, WhatsApp y email).
+            </>
+          ) : (
+            <>
+              Configura el token (necesita el permiso{' '}
+              <code className="text-2xs bg-muted px-1 py-0.5 rounded">instagram_manage_messages</code>) para ver y
+              analizar aquí las conversaciones reales.
+            </>
+          )}
+        </p>
+        <a
+          href={`/${tenant}/settings/integraciones`}
+          className="inline-flex items-center rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-3 py-2 active:scale-[0.98] transition-transform"
+        >
+          Ir a Configuración → Integraciones
+        </a>
       </div>
     </div>
   )
 }
 
 // Comparativa cross-plataforma: qué canal de mensajería genera más leads/agendas reales. Solo
-// Instagram tiene datos hoy — Facebook y TikTok se pintan como "próximamente" en la MISMA fila para
-// que la comparación esté lista en cuanto se conecten, en vez de tener que buscarla en otro sitio.
+// Instagram y GHL tienen datos hoy — Facebook y TikTok se pintan como "próximamente" en la MISMA
+// fila para que la comparación esté lista en cuanto se conecten.
 function ResumenCrossPlataforma({
   metricas,
 }: {
@@ -431,7 +667,8 @@ function TarjetaPlataforma({
 function PlaceholderPlatform({ platform }: { platform: 'facebook' | 'tiktok' }) {
   const label = platform === 'facebook' ? 'Facebook' : 'TikTok'
   return (
-    <div className="text-center py-14 text-muted-foreground text-sm max-w-md mx-auto">
+    <div className="text-center text-muted-foreground text-sm max-w-md">
+      <MessageCircle className="w-8 h-8 mx-auto mb-3 opacity-50" />
       <p className="mb-2 font-semibold text-foreground">{label}: próximamente.</p>
       <p>
         Todavía no está conectada la extracción de conversaciones de {label}. En cuanto se active la integración,
@@ -443,7 +680,7 @@ function PlaceholderPlatform({ platform }: { platform: 'facebook' | 'tiktok' }) 
 
 function AnalysisCard({ a }: { a: Analysis }) {
   return (
-    <div className="mt-3 border border-border rounded-lg p-3 bg-muted/40 text-xs flex flex-col gap-2">
+    <div className="border border-border rounded-lg p-3 bg-muted/40 text-xs flex flex-col gap-2">
       <div className="flex gap-3 flex-wrap">
         {a.avatar_detectado && (
           <span>

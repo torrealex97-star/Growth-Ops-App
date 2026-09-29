@@ -11,6 +11,7 @@
 
 <!-- Añade aquí lo que está pendiente de confirmar -->
 
+- `[mejora]` **Bandeja de conversaciones rediseñada (Setting AI › Conversaciones)**: la pestaña pasa a un inbox de dos paneles. Lista escaneable con avatar, vista previa del último mensaje ("Tú: …"), tiempo relativo ("hace 12 min"), punto de no-leídos y badge de canal con icono (llamada, SMS, email…); la conversación abierta se lee como chat completo — separadores Hoy/Ayer, hora en cada burbuja, equipo a la derecha y lead a la izquierda, auto-scroll al final — con el análisis IA anclado a la cabecera y el perfil del CRM a un clic. Carga con skeleton con la forma de la bandeja y estado vacío con enlace directo a Integraciones.
 - `[fix]` **Mapeo de la pestaña GHL ajustado a la API real (verificación en vivo)**: la sonda sobre la API v2 real destapó que `lastMessageDate` llega como epoch en milisegundos (se mostraba la fecha vacía) y que la llamada perdida llega como `TYPE_NO_SHOW` (se etiquetaba como canal "no_show" en vez de "llamada"). Ahora ambos campos se interpretan como la API los manda.
 - `[nuevo]` **Aviso de credenciales indescifrables en Integraciones**: si un valor guardado (enc:v1:) no descifra con la CONFIG_ENC_KEY actual (rotación previa o dato corrupto), el panel lo señala — banner rojo arriba, badge "indescifrable — vuelve a pegarlo" en el campo en vez del verde "guardado" — en lugar de que la integración se comporte como "sin configurar" sin explicación. Detector en lib/config.ts (`esIndescifrable`), el GET sube `clavesIndescifrables`.
 
