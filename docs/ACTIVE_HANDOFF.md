@@ -1439,6 +1439,7 @@ Quedan expresamente fuera contratos, colaboradores, RAG, facturación, IA, integ
 
 ### DATA GAPS
 
+| Freebuff          | **Aviso de credenciales indescifrables en Integraciones** (lección GHL 29-sep): `esIndescifrable` en lib/config.ts detecta valores enc:v1: que la CONFIG_ENC_KEY actual no puede leer (rotación/corrupto); el GET de Integraciones marca el campo y sube `clavesIndescifrables`; la UI pinta banner rojo + badge "indescifrable — vuelve a pegarlo" en vez del verde "guardado" que mentía | `fix/integraciones-aviso-indescifrable` | `lib/config.ts`, `app/api/[tenant]/evergreen/settings/integraciones/route.ts`, `app/[tenant]/settings/integraciones/page.tsx`, `tests/integraciones-indescifrable.test.mjs` (NUEVO), esta fila | 29-sep |
 Asignaciones y enlaces incompletos, notas provisionales, fuentes de vídeo/conversaciones sin datos y fecha histórica esperada sin acreditar. Alcance exacto en plan. **Ningún hallazgo clasificado como problema real de negocio fuera de KPI.** Orden obligatorio: definición → fuente → completitud → periodo → maduración → asignación → cálculo → benchmark orientativo.
 
 ### NEXT RECOMMENDED WORK
