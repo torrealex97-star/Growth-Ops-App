@@ -11,6 +11,7 @@
 
 <!-- Añade aquí lo que está pendiente de confirmar -->
 
+- `[fix]` **Mapeo de la pestaña GHL ajustado a la API real (verificación en vivo)**: la sonda sobre la API v2 real destapó que `lastMessageDate` llega como epoch en milisegundos (se mostraba la fecha vacía) y que la llamada perdida llega como `TYPE_NO_SHOW` (se etiquetaba como canal "no_show" en vez de "llamada"). Ahora ambos campos se interpretan como la API los manda.
 - `[nuevo]` **Aviso de credenciales indescifrables en Integraciones**: si un valor guardado (enc:v1:) no descifra con la CONFIG_ENC_KEY actual (rotación previa o dato corrupto), el panel lo señala — banner rojo arriba, badge "indescifrable — vuelve a pegarlo" en el campo en vez del verde "guardado" — en lugar de que la integración se comporte como "sin configurar" sin explicación. Detector en lib/config.ts (`esIndescifrable`), el GET sube `clavesIndescifrables`.
 
 - `[nuevo]` **Búsqueda y filtro por canal en Conversaciones**: caja de búsqueda (nombre, texto del mensaje, email o teléfono — con matching de teléfonos aunque falte el prefijo) y selector de canal (Instagram, GHL, Facebook…) con contador "N de M" y estado vacío explícito; el filtrado es en cliente y cambiar de plataforma limpia el filtro. `normalizeText`/`phoneMatches` unificados en `lib/utils.ts` como fuente única.
