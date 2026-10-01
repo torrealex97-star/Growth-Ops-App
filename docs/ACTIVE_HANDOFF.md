@@ -1,5 +1,23 @@
 # Relevo activo
 
+## Bandeja de GHL paginada incremental ("Cargar más") (1-oct, Freebuff) — fusionada #303
+
+Petición de Alex («prepara el inbox para más de 100 conversaciones»): el listado de
+`/conversations/search` se pide por páginas con el cursor oficial `startAfterDate` (doc
+2021-07-28, `sortBy=last_message_date&sort=desc`) hasta cubrir el objetivo o agotar el deadline
+(20 s) — lo leído se devuelve SIEMPRE con cursor de continuación (nunca una lista vacía
+disfrazada ni un "más" que repita página). El cursor (`ghl_conversaciones_cursor` en
+`integration_settings`) y la fusión (sin duplicados, lo fresco gana, tope 300, tope en
+`cursorMasProfundo` para que un refresco nunca retroceda la bandeja) viven en servidor; el inbox
+añade el botón "Cargar más" (spinner, contador "125 de 530", error reintentable) y la ruta un
+`POST` de continuación (efecto externo con presupuesto: el GET sirve snapshot y refresca en
+`after()`, así un prefetch no gasta páginas). 6 tests nuevos (multi-página, continuación
+idempotente, deadline con cursor, página repetida, fusión, cursorMasProfundo). Fusionada en
+`4e56ebd` con CI completo verde y producción READY **verificada por API de Vercel con el conector
+MCP**. Nota operativa: la concurrencia del CI es global — los pushes en ráfaga de la rama
+`audit/mvp-phase0-baseline` (carril plan) cancelaron 3 veces el Smoke E2E; re-lanzado en ventana
+estable (3 min sin runs en curso) salió en verde a la primera. Sin acciones pendientes.
+
 ## Avatar del inbox con foto real (1-oct, Freebuff) — fusionado #302
 
 Petición de Alex («usa la foto de perfil real del contacto con fallback a iniciales»): GHL trae
