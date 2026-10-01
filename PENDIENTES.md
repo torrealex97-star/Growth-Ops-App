@@ -1,5 +1,23 @@
 # PENDIENTES — [tenant] OS
 
+## Actualización de entrega — 2026-10-01
+
+Arranca el ciclo **S1** (auditoría MVP profesional de punta a punta, petición explícita del usuario).
+Detalle completo en `docs/S1-MVP-READINESS-2026-10-01.md` — no se duplica aquí. Resumen:
+
+- [x] Fase 0 (baseline + skills + revalidación del ledger P1/P2 de S0-8): quality gate en verde
+      (1202/1205 tests, 3 fallos son de red al sandbox, no bugs reales); P0 = 0 confirmado.
+- [x] Revalidado: el P2 "índices únicos sin tenant_id (campaigns, ig_media)" de S0-8 **ya estaba
+      resuelto** desde el 14-sep — el ledger de S0-8 quedó desactualizado en ese punto.
+- [ ] Siguen abiertos y son trabajo de código (no bloqueados por Alex): frontera transaccional
+      cobro/comisión (barrido completo, hoy parcial), CAS en firma concurrente de contratos.
+- [ ] Bloqueos externos sin cambios desde S0-8 (siguen siendo de Alex, no de código): retención F6,
+      Instagram/Meta, rotar `RESEND_API_KEY`, UTMs/setter en GHL, `CRON_SECRET` en Preview, decisión
+      A5 de refunds (`MONEY.md`).
+- [ ] Hallazgo nuevo sin resolver: 3 rutas distintas llamadas "afiliados" (`afiliados/registro`,
+      `marketing/afiliados/afiliados`, `settings/afiliados`) — pendiente confirmar si son pantallas
+      legítimamente distintas antes de tocar nada.
+
 ## Actualización de entrega — 2026-09-28
 
 Este bloque actualiza únicamente dashboards y registro de cobros; el inventario histórico inferior no se ha revalidado completo. Estado y criterios de aceptación en [ACTIVE_HANDOFF](docs/ACTIVE_HANDOFF.md).
