@@ -489,7 +489,31 @@ Requiere decisión prioritaria: migración con asignación explícita de registr
 
 TypeScript y ESLint de los archivos: PASS; suite con Node 24: 1.202 PASS, 3 SKIP, 0 FAIL. Node 26 no admite el flag del script canónico, por lo que se usó el runtime Node 24 sin cambiar scripts. Quality completo PASS (incluye 783 tests de métricas); build PASS. Resto de la migración pendiente. Fases 10–14 no cerradas.
 
-**Configuración local limitada:** solo variables públicas facilitadas para el último arranque; varias API server-side responden 500/503. Separar esta limitación de entorno de fallos de producción. No usar esta ejecución para concluir que los journeys financieros funcionan o fallan en producción.
+**Lotes 2–5 — 20 páginas acumuladas:**
+
+- Lote 2: CRM/agendas (vista Tabla), ventas/reservas, finanzas/cobros/cobros y devoluciones. Cuatro páginas; filas de 48/80 px conservadas.
+- Lote 3: settings/products, empresa, commission-rules, tramos y socios. Cinco páginas; alturas 64/256/192/80/80 px y fondos originales conservados.
+- Lote 4: finanzas/analitica/resumen, cohortes, proyeccion, pnl y finanzas/socios. Cinco páginas; anchos dinámicos, fondos muted, bordes y alturas preservados.
+- Lote 5: analitica/actividad, embudo y ranking. Tres páginas; 9/10/8 elementos de carga renderizados comparados (incluye los de componentes hijos sin modificar). Dimensiones, radio y color idénticos antes/después.
+
+En cada lote: capturas locales fuera de Git, retención temporal de lecturas Fetch para observar loading y retirada después; TypeScript PASS, ESLint sin errores ni warnings nuevos, tests 1.202 PASS / 3 SKIP / 0 FAIL. Warnings preexistentes: directiva ESLint innecesaria en Reservas y dependencias de useMemo en Actividad. Comprobación geométrica puntual, no medición completa de CLS. No se modificaron condiciones ni consultas. EmptyState y resto de candidatos siguen pendientes; fases 10–14 abiertas.
+
+**Continuación 2-oct — lotes 6–10 y primeros EmptyState:**
+
+- Lote 6: ventas/pagos (pestaña Por venta), ventas/registro y audit. Tres páginas; comparación exacta de loaders. Typecheck/tests PASS; advertencia previa de directiva ESLint en Registro.
+- Lote 7: contratos/plantillas, contratos/equipo y drops. Tres páginas; comparación exacta. Typecheck/tests PASS; advertencia previa de navegación en Contratos/equipo.
+- Lote 8: finanzas/gastos-facturas/{gestoria,facturas,gastos}, csm-events, marketing/contenido y actividad. Seis páginas; comparación exacta, typecheck/lint/tests PASS. Icono Sparkles con pulse conservado: no es un placeholder.
+- Lote 9: settings/afiliados, marketing/afiliados/{campanas,afiliados}, instagram/{reels,competencia}. Cinco páginas; comparación exacta, typecheck/tests PASS, warnings preexistentes de imágenes y directiva ESLint.
+- Lote 10: settings/users, contratos y kpi/templates. Tres páginas; comparación exacta. Primera ejecución de TypeScript coincidió con regeneración de `.next/types` y falló en los archivos generados; repetición con el navegador estable PASS (TypeScript, ESLint y 1.202 tests / 3 SKIP / 0 FAIL). No se modificaron tipos generados.
+- EmptyState: finanzas/cobros/devoluciones y analitica/actividad. Dos estados vacíos migrados; mismo DOM funcional, dimensiones, posición, fuente, color y márgenes antes/después. Se conserva ancho de descripción con `[&>p]:max-w-none`. Typecheck/tests PASS, warning de useMemo preexistente en Actividad.
+
+Quality conjunto tras los diez lotes: PASS — formato, lint, TypeScript, 1.202 tests (3 SKIP, 0 FAIL) y 783 tests de métricas. Build conjunta PASS tras detener el servidor dev; servidor QA restaurado después.
+
+Acumulado: **40 páginas con Skeleton y 2 de ellas también con EmptyState**. No es cierre del inventario: quedan 12 archivos originales sin migrar (Recursos ×4 excluidos; detalles CRM/venta ×2 necesitan fixture; dashboard y ConversacionesTab requieren reproducción específica; unit-economics, atribución, campañas y registro público pendientes). Gastos sigue apareciendo en la búsqueda por su icono animado, correctamente sin migrar. Mantener pendientes los demás estados vacíos; no confundir texto inline con un EmptyState.
+
+Metadatos de RLS revisados en solo lectura para continuar las pantallas aisladas: expenses, csm_events, content_items, activities, contact_notes, contracts, contacts y campaigns tienen políticas RESTRICTIVE por pertenencia al tenant; users usa auth_can_view_user. No se ejecutaron escrituras ni migraciones. La pestaña QA se bloqueó durante una captura de Usuarios; se recuperó en otra pestaña manteniendo la sesión. No se reinició el tenant. Capturas solo locales, sin datos de negocio en commits.
+
+**Configuración local:** el arranque inicial con solo variables públicas produjo 500/503 en varias API server-side. Se restauró la configuración privilegiada existente únicamente en memoria del proceso local; pendiente verificar cada API necesaria para los journeys. Separar esta limitación de entorno de fallos de producción. No usar esta ejecución para concluir que los journeys financieros funcionan o fallan en producción.
 
 ## 7. Plan de fases (continuación, no reinicio)
 

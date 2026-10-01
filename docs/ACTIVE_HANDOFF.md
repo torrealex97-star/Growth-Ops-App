@@ -2,7 +2,11 @@
 
 ## Reclamación Codex — 1-oct: adopción Skeleton/EmptyState
 
-Rama `codex/skeleton-emptystate-adopcion` desde `e09a6a8`. Primer lote ajustado: tareas, seguimiento y comisiones; solo JSX de carga. Recursos excluido por decisión del usuario tras hallazgo de aislamiento. Auditoría visual local con cuenta QA, sin escribir operaciones financieras. Resultados en `docs/S1-MVP-READINESS-2026-10-01.md` y `PENDIENTES.md`. Login QA confirmado; antes de migrar se detectó aislamiento ausente en las dos tablas de Recursos/Enlaces. Seis sustituciones JSX en tres archivos, con medidas/color/radio idénticos en navegador. Sin escrituras de negocio. Quality y build PASS. Continuar próximos lotes aislados; no cerrar la Fase 10. No tocar cambios de otros checkouts.
+Rama `codex/skeleton-emptystate-adopcion` desde `e09a6a8`. Reclamación: adopción acotada de placeholders en páginas aisladas (CRM, ventas, ajustes, finanzas y analítica); solo import + JSX de carga, sin lógica ni diseño. Recursos excluido por decisión explícita del usuario tras hallazgo de aislamiento en `resource_links` y `resource_link_divisions`; no corregido. No ejecutar reset del tenant ni modificar credenciales.
+
+Avance 2-oct: 40 páginas con Skeleton y dos EmptyState. Lotes 1–9 con gates y comparación de medidas/radio/fondo sin cambios; lote 10 con comparación visual correcta y gates PASS al repetir tras carrera de generación de `.next/types`. Último commit: `ca7d1d7`. No modificar tipos generados. Capturas fuera de Git. Quality completo de las 40 páginas PASS (1.202 tests + 783 métricas, 3 SKIP); build conjunta PASS; dev QA restaurado en puerto 3101. Detalle por lote en S1 §6.8. No tocar cambios de otros checkouts.
+
+Pendiente: terminar candidatos aislados y clasificación EmptyState; verificar APIs del entorno local tras restaurar configuración server-side solo en memoria; continuar F10–14 según los prompts. No marcar auditoría finalizada, no repetir Web Vitals ya cerradas. Los journeys con venta/cobro requieren confirmación explícita y falta cuenta QA colaborador. Evidencia acumulada en `docs/S1-MVP-READINESS-2026-10-01.md` §6.8.
 
 ## Avatar del inbox con foto real (1-oct, Freebuff) — fusionado #302
 

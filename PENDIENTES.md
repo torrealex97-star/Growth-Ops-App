@@ -42,14 +42,7 @@ Detalle completo en `docs/S1-MVP-READINESS-2026-10-01.md` — no se duplica aqu�
       (TASK/ALERT/DATA ISSUE/FOLLOW-UP/APPROVAL/OPPORTUNITY/REMINDER/AI INSIGHT/SYSTEM) que pide el
       encargo. NO se construye en esta fase de hardening — es feature nueva, necesita decisión de
       diseño. Detalle en `docs/S1-MVP-READINESS-2026-10-01.md` §6.7.
-- [ ] **Hallazgo real de Fase 10 (UX/UI) — Skeleton/EmptyState existen pero casi no se usan:**
-      `components/ui/skeleton.tsx` dice en su propio comentario que se construyó para sustituir los
-      `animate-pulse` sueltos de una auditoría anterior, pero solo 1 fichero lo importa — hay 52
-      ficheros con el patrón suelto sin migrar. `components/ui/empty-state.tsx` igual: solo 1
-      fichero lo usa, hay 49 con texto de "sin datos" escrito a mano. No se migra en esta sesión
-      (52+49 ficheros sin poder verificar visualmente el resultado es demasiado riesgo a ciegas) —
-      queda como tarea acotada para cuando haya verificación visual. Detalle en
-      `docs/S1-MVP-READINESS-2026-10-01.md` §6.8.
+- [ ] **Fase 10 — adopción Skeleton/EmptyState en curso:** 40 páginas con Skeleton y 2 estados vacíos migrados en lotes pequeños, con comparación visual antes/después y gates por lote sin regresiones. Inventario inicial: 52 archivos con pulse y 48 con textos de vacío; no todos son candidatos. Recursos excluido por decisión del usuario ante el fallo de aislamiento. Resto de EmptyState pendiente de equivalencia visual; PageSkeleton no aplicado por introducir temporización/espaciado distintos. Faltan candidatos restantes y quality/build finales. Evidencia en `docs/S1-MVP-READINESS-2026-10-01.md` §6.8.
 - [x] Fase 11 (Accesibilidad) y Fase 12 (Performance): intentadas por código. Accesibilidad sin
       resultado fiable (necesita axe-core/navegador, no se inventa un hallazgo). Performance sin
       N+1 en las rutas interactivas muestreadas (closer-conflicts, contacts/[id], sales/[id]).
