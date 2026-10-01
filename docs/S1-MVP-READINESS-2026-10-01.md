@@ -127,6 +127,27 @@ de la sección 5 del encargo evita limpiezas erróneas.
 - Tenant isolation / Security: PASS según auditorías FASE 1-3 de `PROJECT_CONTEXT.md` — **pendiente
   de re-verificar con `security-review` en Fase 1**, no asumido sin más
 
+## 6.1 Fase 3 — cerrada: hallazgo de seguridad aplicado en producción
+
+**Confirmado por el usuario ("Vale avanza") y aplicado el 2026-10-01**, migración
+`20261001170000_revoke_collaborator_ghl_backfill_execute.sql`:
+
+- `attribute_ghl_contacts_for_collaborator(uuid, uuid, text)` — era SECURITY DEFINER ejecutable por
+  `anon`/`authenticated` sin verificar quién llama; permitía robar atribución de comisiones de
+  cualquier tenant conociendo su `tenant_id` (público) y el código de otro colaborador (público por
+  diseño). **REVOKE aplicado**, verificado contra `has_function_privilege`: `anon`/`authenticated`
+  ya no pueden ejecutarla, `service_role` conserva acceso. Verificado en código que solo se llama
+  internamente vía `PERFORM` desde otros triggers `SECURITY DEFINER` — nada se rompe.
+- Mismo REVOKE aplicado a los 5 triggers relacionados (`ghl_backfill_on_*`, `ensure_collaborator_profile*`)
+  por higiene (no explotables vía RPC directo, pero cerraban el mismo aviso del advisor).
+- Re-ejecutado el advisor de seguridad de Supabase tras el cambio: los 6 hallazgos desaparecieron.
+  Las 16 funciones que siguen apareciendo como "ejecutables por `authenticated`" son los helpers de
+  RLS (`auth_tenant_ids`, `is_admin_or_director`, `is_my_collaborator_row/sale`, etc.) que **tienen
+  que serlo** para que las políticas funcionen — documentado como intencional desde antes
+  (`PROJECT_CONTEXT.md`), no es un hallazgo nuevo.
+- `npm test` completo tras el cambio: mismo resultado que el baseline de §3 (1202/1205, los 3
+  fallos son de red al sandbox) — nada se rompió.
+
 ## 7. Plan de fases (continuación, no reinicio)
 
 Dado el tamaño real (93 pantallas, 14 fases, 42 secciones del encargo), este es un trabajo
@@ -137,7 +158,7 @@ multi-sesión. Las fases siguientes, en orden:
 | 0    | Baseline + skills + revalidación del ledger S0-8                                       | **Hecho** |
 | 1    | P0/P1 reales de código del ledger de S0-8                                              | **Hecho — resultado: ya no quedaba ninguno sin decisión previa de Alex** |
 | 2    | Confirmar propósito de las 3 rutas "afiliados"                                         | **Hecho — falso positivo, no hay duplicación** |
-| 3    | `security-review` sobre el estado actual (RLS, policies, `SECURITY DEFINER`)            | Siguiente |
+| 3    | Seguridad: advisors de Supabase + `SECURITY DEFINER`/RLS                                | **Hecho — 1 vulnerabilidad real cerrada en producción (ver §6.1)** |
 | 4-14 | Según el orden original del encargo (marketing/funnel, CRM/setting/sales, finanzas, colaboradores, integraciones, Action Center, UX/UI, responsive/accesibilidad, performance, smoke test, regresión final) | Pendiente — multi-sesión |
 
 ## 8. Lo que necesito de Alex (no bloquea el resto, se deja documentado)
