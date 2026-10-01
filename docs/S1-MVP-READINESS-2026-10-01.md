@@ -127,21 +127,30 @@ de la sección 5 del encargo evita limpiezas erróneas.
 - Tenant isolation / Security: PASS según auditorías FASE 1-3 de `PROJECT_CONTEXT.md` — **pendiente
   de re-verificar con `security-review` en Fase 1**, no asumido sin más
 
-### 6.0.1 Veredicto consolidado tras Fases 0-8 (este corte de sesión)
+### 6.0.1 Veredicto consolidado tras Fases 0-9 (este corte de sesión)
 
-Sigue siendo **MVP READY WITH BLOCKERS** — no cambia de categoría, pero el contenido detrás mejora:
+Sigue siendo **MVP READY WITH BLOCKERS** — no cambia de categoría, pero el contenido detrás mejora
+sustancialmente:
 
 - **Cerrado en código esta sesión:** 1 vulnerabilidad de seguridad en producción (RPC de atribución
-  de colaboradores sin verificación de llamador, §6.1); 1 hueco de datos real completado (ventas sin
-  `setter_id` en Data Health, §6.3).
-- **Verificado SIN hallazgos nuevos** (Fases 4, 6, 7, 8): filtro de cuentas de marketing, orgánico,
-  comparabilidad del funnel, terminología y veto de comisiones, aislamiento de colaboradores (27/27
-  tests), diseño de Data Health/conectores. Todo correctamente implementado ya antes de esta sesión.
-- **Bloqueado para ESTA sesión, no para el proyecto:** el MCP de Supabase falló por un error de
-  proxy (`ERR_PROXY_TUNNEL`) a mitad de sesión, cortando la posibilidad de verificar con datos reales
-  (recorrido Lead→Cierre, morosidad, conciliación). Fases 9-14 (Action Center, UX/UI, responsive,
-  accesibilidad, performance, smoke test, regresión final) necesitan navegador con sesión autenticada
-  o capturas del Growth Operator — no se pueden completar desde este sandbox sin esa entrada.
+  de colaboradores sin verificación de llamador, §6.1); 1 hueco de datos real completado y validado
+  contra producción (ventas sin `setter_id` en Data Health, §6.3).
+- **Hueco de DATOS real encontrado y reportado** (no de código): pagos de Stripe sin cobro interno
+  reconciliado en el único tenant con datos de producción (§6.4) — acción pendiente para Alex.
+- **Verificado SIN hallazgos nuevos** (Fases 4, 5, 6, 7, 8): filtro de cuentas de marketing, orgánico,
+  comparabilidad del funnel, pipeline interno del CRM, terminología y veto de comisiones, conciliación
+  Stripe↔cobros, aislamiento de colaboradores (27/27 tests), diseño de Data Health/conectores. Todo
+  correctamente implementado ya antes de esta sesión.
+- **Hueco real confirmado, NO corregido por ser feature nueva** (Fase 9): no existe un Action Center
+  unificado con los 9 tipos que pide el encargo — lo que hay son dos piezas correctas pero parciales
+  (kanban de tareas genérico + alertas de métricas en el Header, esta última ya con scope por rol).
+  Documentado para una fase de extensión deliberada posterior, no para esta de hardening.
+- **Bloqueado para ESTA sesión, no para el proyecto:** las Fases 10-14 (UX/UI, responsive,
+  accesibilidad, performance, smoke test, regresión final) piden específicamente un recorrido visual
+  por 93 pantallas, medir LCP/INP/CLS reales, y probar en dispositivos/tamaños reales — ninguno de
+  estos es verificable leyendo código fuente sin engañarse a uno mismo sobre lo que "verificar"
+  significa. Necesitan navegador con sesión autenticada o capturas del Growth Operator; no se
+  inventan hallazgos de código para rellenar fases que requieren otra herramienta.
 - Nada de lo anterior sube ni baja el veredicto: sigue siendo "con bloqueadores" porque los
   bloqueadores de Fase 0 (F6, Instagram, RESEND_API_KEY, UTMs de GHL, CRON_SECRET, MONEY.md A5,
   doble-submit de firma — todos de Alex, §8) no han cambiado.
@@ -378,6 +387,32 @@ sesión — mismo bloqueo del proxy de Supabase):
 **Veredicto Fase 8:** sin hallazgos nuevos — el diseño de Data Health ya cumple el requisito de ser
 central y de no disfrazar una tubería rota con datos viejos.
 
+## 6.7 Fase 9 — Action Center: hueco real confirmado, NO se construye (es feature nueva)
+
+El encargo pide un Action Center unificado con items tipados (TASK/ALERT/DATA ISSUE/FOLLOW-UP/
+APPROVAL/OPPORTUNITY/REMINDER/AI INSIGHT/SYSTEM), cada uno con título/descripción/prioridad/
+propietario/fuente/entidad/fecha límite/estado/acción, escalado por rol.
+
+**Lo que existe hoy no es eso — son dos piezas separadas, cada una correcta en su propio alcance:**
+
+- `app/[tenant]/tasks/page.tsx`: un kanban genérico de tareas (backlog/en curso/en revisión/hecho)
+  con prioridad, asignado y generación por IA desde transcripciones. Es gestión de tareas, no un
+  feed de items heterogéneos con fuente/entidad.
+- `components/os/Header.tsx`: panel de alertas del Growth Brief en el propio Header, ya con scope
+  por rol real (restringido a `admin`/`director`/`closer` para las alertas de métricas; las de
+  "agenda asistida sin grabación" ya filtran por `closer_id`/`setter_id` cuando el rol no es de
+  liderazgo) — pero es un solo tipo de alerta (métricas), no la taxonomía completa que pide el
+  encargo, y vive en un dropdown del Header, no en un panel lateral dedicado.
+
+**Por qué no se construye en esta fase:** unificar esto en un verdadero Action Center (con los 9
+tipos, entidad/fuente por item y un panel lateral más grande y claro) es una pieza de UI nueva de
+tamaño considerable, no una corrección de algo existente — contradice directamente "no features
+nuevas" de esta fase de hardening. Además requeriría decisiones de diseño (qué entra en cada tipo,
+cómo se prioriza entre fuentes) que no son mías para decidir unilateralmente.
+
+**Veredicto Fase 9:** hueco real y confirmado, documentado para una fase de EXTENSIÓN deliberada
+posterior (no esta), una vez cerradas las fases de corrección. No es un bug.
+
 ## 7. Plan de fases (continuación, no reinicio)
 
 Dado el tamaño real (93 pantallas, 14 fases, 42 secciones del encargo), este es un trabajo
@@ -390,11 +425,12 @@ multi-sesión. Las fases siguientes, en orden:
 | 2    | Confirmar propósito de las 3 rutas "afiliados"                                         | **Hecho — falso positivo, no hay duplicación** |
 | 3    | Seguridad: advisors de Supabase + `SECURITY DEFINER`/RLS                                | **Hecho — 1 vulnerabilidad real cerrada en producción (ver §6.1)** |
 | 4    | Marketing/funnel: filtro de cuentas Meta, orgánico, comparabilidad del funnel conectado         | **Hecho — sin bugs; 2 huecos de cobertura documentados, no corregidos (ver §6.2)** |
-| 5    | CRM/Setting/Sales: terminología, pipeline, asignación de setter                                 | **Parcial — 1 hueco real cerrado (ver §6.3); falta recorrido Lead→Cierre con datos reales (bloqueado por el proxy de Supabase esta sesión)** |
-| 6    | Finanzas/Comisiones: terminología de dinero, veto `pays_commissions` (D9)                       | **Parcial — sin bugs; falta morosidad/socios/conciliación con datos reales (ver §6.4)** |
+| 5    | CRM/Setting/Sales: terminología, pipeline, asignación de setter                                 | **Hecho — 1 hueco real cerrado y validado con datos reales (ver §6.3)** |
+| 6    | Finanzas/Comisiones: terminología de dinero, veto `pays_commissions` (D9), conciliación Stripe   | **Hecho — sin bugs; 1 hueco de DATOS real encontrado y reportado a Alex, no de código (ver §6.4). Morosidad/socios quedan sin revisar con datos reales** |
 | 7    | Colaboradores: aislamiento frontend + RLS                                                       | **Hecho — sin hallazgos nuevos, 27/27 tests de aislamiento pasan (ver §6.5)** |
 | 8    | Integraciones/Data Health: syncs obsoletas, fallos de job, webhooks                             | **Hecho — sin hallazgos nuevos, diseño ya correcto (ver §6.6)** |
-| 9-14 | Action Center, UX/UI, responsive/accesibilidad, performance, smoke test, regresión final — requieren navegador autenticado/capturas que esta sesión no tiene | **Bloqueado para esta sesión — ver §1** |
+| 9    | Action Center unificado (9 tipos, escalado por rol)                                              | **Hecho el diagnóstico — hueco real confirmado, NO se construye en esta fase: es feature nueva (ver §6.7)** |
+| 10-14 | UX/UI, responsive/accesibilidad, performance, smoke test, regresión final — requieren navegador autenticado/capturas que esta sesión no tiene | **Bloqueado para esta sesión — ver §1** |
 
 ## 8. Lo que necesito de Alex (no bloquea el resto, se deja documentado)
 

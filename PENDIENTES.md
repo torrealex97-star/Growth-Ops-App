@@ -31,6 +31,15 @@ Detalle completo en `docs/S1-MVP-READINESS-2026-10-01.md` — no se duplica aqu�
       alguien lo revise y los registre (o confirme que no son de una venta de la app). Mientras tanto
       el Cash Collected de Finanzas para ese tenant está subestimado. Detalle identificable (qué
       tenant, qué pagos) comunicado aparte — no se reproduce aquí (`docs/SECURITY_PRIVACY.md` §2).
+- [ ] **Hueco real confirmado — no existe un Action Center unificado** (Fase 9 del encargo): hoy hay
+      dos piezas correctas pero parciales (kanban de tareas genérico en `/tasks` + alertas de
+      métricas con scope por rol en el Header), no el panel único con 9 tipos de item
+      (TASK/ALERT/DATA ISSUE/FOLLOW-UP/APPROVAL/OPPORTUNITY/REMINDER/AI INSIGHT/SYSTEM) que pide el
+      encargo. NO se construye en esta fase de hardening — es feature nueva, necesita decisión de
+      diseño. Detalle en `docs/S1-MVP-READINESS-2026-10-01.md` §6.7.
+- [ ] Fases 10-14 (UX/UI, responsive/accesibilidad, performance real, smoke test visual, regresión
+      final) requieren navegador con sesión autenticada o capturas — no se pueden avanzar leyendo
+      solo código sin inventar verificaciones que no se hicieron. Pendientes de esa entrada.
 
 ## Actualización de entrega — 2026-09-28
 
