@@ -9,14 +9,18 @@ Detalle completo en `docs/S1-MVP-READINESS-2026-10-01.md` — no se duplica aqu�
       (1202/1205 tests, 3 fallos son de red al sandbox, no bugs reales); P0 = 0 confirmado.
 - [x] Revalidado: el P2 "índices únicos sin tenant_id (campaigns, ig_media)" de S0-8 **ya estaba
       resuelto** desde el 14-sep — el ledger de S0-8 quedó desactualizado en ese punto.
-- [ ] Siguen abiertos y son trabajo de código (no bloqueados por Alex): frontera transaccional
-      cobro/comisión (barrido completo, hoy parcial), CAS en firma concurrente de contratos.
+- [x] El "barrido completo del patrón de escrituras sin comprobar error" que esta misma sección
+      daba por pendiente **ya estaba cerrado** desde el 28-sep (PR #268, 29 tests de regresión
+      P0/P1/P2 en `tests/p{0,1,2}-escrituras-sin-comprobar-error.test.mjs`) — corregido aquí.
+- [ ] Único ítem de código genuinamente abierto del ledger de S0-8 que no depende de Alex: CAS en
+      firma concurrente de contratos — pero necesita decidir antes la semántica de doble submit
+      (ver 🧱 Deuda técnica más abajo), no es código libre para tocar ya.
 - [ ] Bloqueos externos sin cambios desde S0-8 (siguen siendo de Alex, no de código): retención F6,
       Instagram/Meta, rotar `RESEND_API_KEY`, UTMs/setter en GHL, `CRON_SECRET` en Preview, decisión
       A5 de refunds (`MONEY.md`).
-- [ ] Hallazgo nuevo sin resolver: 3 rutas distintas llamadas "afiliados" (`afiliados/registro`,
-      `marketing/afiliados/afiliados`, `settings/afiliados`) — pendiente confirmar si son pantallas
-      legítimamente distintas antes de tocar nada.
+- [x] Las 3 rutas "afiliados" (`afiliados/registro`, `marketing/afiliados/afiliados`,
+      `settings/afiliados`) se leyeron y **no son duplicación**: configuración del programa →
+      formulario público de alta → panel de gestión de los ya dados de alta. Nada que tocar.
 
 ## Actualización de entrega — 2026-09-28
 

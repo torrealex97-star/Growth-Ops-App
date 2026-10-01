@@ -89,23 +89,30 @@ bajo `app/api/[tenant]/evergreen/`.
 | `RESEND_API_KEY` guardada en claro                              | Externo — **requiere a Alex** (rotar). No verificable desde este sandbox (no hay acceso a Vercel env). |
 | GHL no manda UTMs / sin setter en citas de GHL                  | Externo — **requiere a Alex** (configurar workflows de GHL).                                          |
 | Devolución de Stripe no entra sola / `refunds` vacía            | Pendiente de decisión A5 (`docs/MONEY.md`) — **no tocar sin decisión de Alex**, ya señalado así en `PENDIENTES.md`. |
-| Cobro y comisión sin frontera transaccional                     | **Mejorado, no cerrado.** `PENDIENTES.md` (27-sep) documenta `collections/approve-review` ya recuperable (PR #245) y el patrón de ~92 escrituras sin comprobar error reducido activamente PR a PR. Queda barrido pendiente en `app/api` sin auditar completo. |
+| Cobro y comisión sin frontera transaccional / patrón de ~92 escrituras sin comprobar error | **RESUELTO.** Verificado en `git log`: PR #268 "barrido final de escrituras sin comprobar error — 10 hallazgos P0" cerró el patrón, con 29 tests de regresión permanentes (`tests/p0/p1/p2-escrituras-sin-comprobar-error.test.mjs`, los 29 en verde en el baseline de §3). `PENDIENTES.md` tenía esta línea desactualizada — corregida en esta misma fase. |
 | `CRON_SECRET` no existe en Preview                              | Externo — **requiere a Alex** (config de Vercel Preview env).                                         |
 | Contratos: firma concurrente sin CAS                            | **Sigue abierto**, documentado en `PENDIENTES.md` §Deuda técnica — requiere decisión del responsable de contratos antes de tocar código (impacto jurídico). |
 
-**Conclusión de esta revalidación:** de los 9 ítems no-P0 que S0-8 dejó abiertos, **1 ya estaba
-resuelto** (índices), **5 son bloqueos externos que dependen de Alex** (no de código), y **3 siguen
-genuinamente abiertos y son código mío para trabajar** (frontera transaccional cobro/comisión, CAS
-en firma concurrente, barrido completo del patrón de escrituras sin comprobar error).
+**Conclusión de esta revalidación:** de los 9 ítems no-P0 que S0-8 dejó abiertos, **2 ya estaban
+resueltos** (índices tenant-scoped; barrido de escrituras sin comprobar error vía PR #268), **5 son
+bloqueos externos que dependen de Alex** (no de código), y **1 sigue genuinamente abierto pero
+necesita una decisión de negocio antes de tocar código** (CAS en firma concurrente — el propio
+`PENDIENTES.md` dice "decidir primero la semántica de doble submit; después, CAS"). No queda ningún
+ítem de este ledger que sea código puro sin decisión previa pendiente.
 
-## 5. Hallazgo nuevo de esta sesión (no estaba en S0)
+## 5. Hallazgo de esta sesión — descartado tras lectura (falso positivo)
 
-**Duplicación aparente de "afiliados"** — existen tres rutas con ese nombre:
-`app/[tenant]/afiliados/registro`, `app/[tenant]/marketing/afiliados/afiliados`,
-`app/[tenant]/settings/afiliados`. Antes de tratarlo como duplicación a limpiar, hay que leer las
-tres (pendiente — ver Fase 2): es plausible que sean registro público / gestión / configuración,
-que son pantallas legítimamente distintas. **No se toca sin confirmar el propósito real de cada
-una** (regla de la sección 5 del encargo: SCREEN/ROLE/PURPOSE antes de actuar).
+**"Duplicación aparente de afiliados"** — existen tres rutas con ese nombre. Leídas las tres
+(Fase 2): **no es duplicación**, es un flujo de 3 piezas coherente y sin solape:
+
+| Ruta                                      | SCREEN / ROLE                          | PURPOSE                                                                 |
+| ------------------------------------------ | --------------------------------------- | ------------------------------------------------------------------------ |
+| `settings/afiliados`                       | Admin/Director — configuración          | Define el programa: campos del formulario público, % comisión por defecto, intro/mensaje de éxito |
+| `afiliados/registro` (pública, sin login)   | Visitante / afiliado potencial          | Formulario de alta que lee la config de arriba, por link de campaña (`?c=slug`) |
+| `marketing/afiliados/afiliados`            | Admin/Director/el propio colaborador    | Panel de gestión de `collaborator_profiles` ya dados de alta: KPIs, ventas, comisiones — reutiliza las definiciones canónicas del resto del sistema, no inventa fórmulas propias |
+
+No se toca nada aquí. Queda como ejemplo de por qué la regla "SCREEN/ROLE/PURPOSE antes de actuar"
+de la sección 5 del encargo evita limpiezas erróneas.
 
 ## 6. Veredicto de esta fase (Fase 0)
 
@@ -127,10 +134,11 @@ multi-sesión. Las fases siguientes, en orden:
 
 | Fase | Qué                                                                                   | Estado |
 | ---- | -------------------------------------------------------------------------------------- | ------ |
-| 0    | Baseline + skills + revalidación del ledger S0-8                                       | **Hecho (este documento)** |
-| 1    | P0/P1 reales de código (frontera transaccional, CAS firma, barrido escrituras sin check) + `security-review` | Siguiente |
-| 2    | Confirmar propósito de las 3 rutas "afiliados"; cerrar huecos de wiring encontrados     | Pendiente |
-| 3-14 | Según el orden original del encargo                                                    | Pendiente |
+| 0    | Baseline + skills + revalidación del ledger S0-8                                       | **Hecho** |
+| 1    | P0/P1 reales de código del ledger de S0-8                                              | **Hecho — resultado: ya no quedaba ninguno sin decisión previa de Alex** |
+| 2    | Confirmar propósito de las 3 rutas "afiliados"                                         | **Hecho — falso positivo, no hay duplicación** |
+| 3    | `security-review` sobre el estado actual (RLS, policies, `SECURITY DEFINER`)            | Siguiente |
+| 4-14 | Según el orden original del encargo (marketing/funnel, CRM/setting/sales, finanzas, colaboradores, integraciones, Action Center, UX/UI, responsive/accesibilidad, performance, smoke test, regresión final) | Pendiente — multi-sesión |
 
 ## 8. Lo que necesito de Alex (no bloquea el resto, se deja documentado)
 
