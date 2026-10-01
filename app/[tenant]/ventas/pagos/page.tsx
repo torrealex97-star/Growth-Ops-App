@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -520,7 +522,7 @@ export default function PaymentsPipelinePage() {
           {loading ? (
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
               {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="h-96 bg-card rounded-lg animate-pulse" />
+                <Skeleton key={i} className="h-96" />
               ))}
             </div>
           ) : aggregates.length === 0 ? (
