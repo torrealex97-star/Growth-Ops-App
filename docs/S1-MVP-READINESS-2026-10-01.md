@@ -477,6 +477,16 @@ disponible en el historial de esta sesión si se quiere abrir directamente.
 de red duplicadas al cargar una pantalla, gráficos lentos al interactuar, tiempo de cambio de tenant
 — nada de esto lo reporta Sentry Web Vitals, hace falta DevTools real.
 
+### Continuación Codex — 1-oct: acceso QA y bloqueo de aislamiento
+
+Entorno local aislado desde `e09a6a8`, puerto 3101. Login admin QA confirmado por navegador; no se ejecutó `scripts/e2e/setup-tenant.mjs` ni se cambió contraseña. Inventario reproducido: 52 archivos con `animate-pulse`, 48 con las expresiones de vacío del prompt (son candidatos, no migraciones aprobadas).
+
+**FAIL — aislamiento de Recursos/Enlaces, anterior a la migración visual.** La sesión QA muestra enlaces cuyo contenido hace referencia a otro negocio. Consulta de metadatos en BD confirma que `resource_links` y `resource_link_divisions` carecen de `tenant_id`; sus políticas SELECT/ALL se basan en `get_my_role()` / `is_admin_or_director()`, sin pertenencia a tenant. `app/[tenant]/recursos/enlaces/page.tsx` lee ambas tablas sin filtro de subcuenta y expone controles de gestión al admin QA. No se pulsaron controles de escritura ni se abrieron enlaces externos. La escritura cruzada no se ejecutó: el riesgo se deriva de las políticas, no de una prueba destructiva.
+
+Requiere decisión prioritaria: migración con asignación explícita de registros existentes, RLS por membresía y filtros canónicos en consumidores. No deducir el propietario por nombres ni asignar todos los registros automáticamente. Recursos queda fuera del lote visual hasta resolver o acordar su exclusión. No marcar Fase 10 ni journeys como PASS.
+
+**Configuración local limitada:** solo variables públicas facilitadas para el último arranque; varias API server-side responden 500/503. Separar esta limitación de entorno de fallos de producción. No usar esta ejecución para concluir que los journeys financieros funcionan o fallan en producción.
+
 ## 7. Plan de fases (continuación, no reinicio)
 
 Dado el tamaño real (93 pantallas, 14 fases, 42 secciones del encargo), este es un trabajo

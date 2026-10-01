@@ -1,5 +1,9 @@
 # Relevo activo
 
+## Reclamación Codex — 1-oct: adopción Skeleton/EmptyState
+
+Rama `codex/skeleton-emptystate-adopcion` desde `e09a6a8`. Primer lote: recursos, tareas, afiliados/registro y comisiones; solo JSX de carga. Auditoría visual local con cuenta QA, sin escribir operaciones financieras. Resultados en `docs/S1-MVP-READINESS-2026-10-01.md` y `PENDIENTES.md`. Login QA confirmado; antes de migrar se detectó aislamiento ausente en las dos tablas de Recursos/Enlaces. Sin cambios JSX ni escrituras de negocio; decisión de prioridad solicitada al usuario. No tocar cambios de otros checkouts.
+
 ## Avatar del inbox con foto real (1-oct, Freebuff) — fusionado #302
 
 Petición de Alex («usa la foto de perfil real del contacto con fallback a iniciales»): GHL trae
