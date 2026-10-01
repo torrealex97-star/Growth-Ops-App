@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 
 import { useEffect, useMemo, useState } from 'react'
@@ -436,11 +437,12 @@ export default function ProspectingPage() {
           <Skeleton className="h-64 border border-border" />
         </div>
       ) : !hasData ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center bg-card border border-border rounded-lg">
-          <PhoneCall className="w-12 h-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-2">Aún no hay reportes de KPI diarios</h3>
-          <p className="text-muted-foreground text-sm">El equipo los rellena en &quot;KPI Diario&quot;.</p>
-        </div>
+        <EmptyState
+          icon={PhoneCall}
+          title="Aún no hay reportes de KPI diarios"
+          description={'El equipo los rellena en "KPI Diario".'}
+          className="py-24 bg-card border border-border rounded-lg [&>p]:max-w-none"
+        />
       ) : (
         <>
           {/* KPIs globales */}
