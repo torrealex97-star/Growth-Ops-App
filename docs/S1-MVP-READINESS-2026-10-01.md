@@ -280,6 +280,31 @@ revisar `finanzas/morosidad`, `finanzas/socios` y la conciliación Stripe↔cobr
 **Veredicto Fase 6 (parcial):** terminología de dinero y veto de comisiones ya correctos en los dos
 lados. Sin bugs encontrados en lo revisado.
 
+## 6.5 Fase 7 — Colaboradores: aislamiento ya cubierto en frontend, RLS y tests (sin hallazgos nuevos)
+
+El encargo pide auditar que "un colaborador solo ve datos atribuibles a él, en frontend Y en
+RLS/API, no solo en UI". Esto ya estaba cubierto con una profundidad inusual ANTES de esta sesión:
+
+- `tests/colaboradores-aislamiento.test.mjs` (12 tests) + `tests/atribucion-colaborador-ui.test.mjs`
+  + `tests/cadena-contrato-colaborador.test.mjs` — ejecutados en esta sesión: **27/27 OK**. Cubren
+  exactamente los puntos del encargo: scope resuelto en la capa de datos (fail-closed: un error de
+  BD devuelve `[]`, nunca "todo el tenant"), contactos/agendas/ventas/pagos con scope "sin
+  escapatoria" en CADA query (`components/crm/ContactsAllView.tsx`, `crm/agendas`,
+  `ventas/registro`, `ventas/pagos`), RLS como backstop (`is_my_collaborator_row/_sale` con
+  `auth_tenant_ids()` para que ni el propio SECURITY DEFINER escape de subcuenta), override de
+  atribución solo admin/director con motivo obligatorio y auditoría, un único ledger de comisiones
+  (no tablas paralelas) y un test explícito que falla si aparece infraestructura paralela
+  (`affiliate_users`, `collaborator_appointments`, etc.) en cualquier fichero del repo.
+- `app/[tenant]/comisiones/page.tsx:87-120` confirma que la pantalla de comisiones también oculta
+  los agregados de Setters/Closers a un colaborador (`esColaborador` resuelto vía
+  `resolverScopeColaborador`) — el colaborador ve solo su propia lane, no los totales del equipo.
+- La vulnerabilidad real de este dominio (RPC de atribución ejecutable sin sesión) ya se cerró en
+  Fase 3 (§6.1) — es la pieza que estos tests NO podían cubrir porque atacaba por fuera de la capa
+  de aplicación (RPC directo de PostgREST), no por el frontend ni por una query mal filtrada.
+
+**Veredicto Fase 7:** sin hallazgos nuevos — el aislamiento de colaboradores está correctamente
+implementado y probado en los tres niveles que pide el encargo (frontend, RLS, capa de datos).
+
 ## 7. Plan de fases (continuación, no reinicio)
 
 Dado el tamaño real (93 pantallas, 14 fases, 42 secciones del encargo), este es un trabajo
@@ -294,7 +319,8 @@ multi-sesión. Las fases siguientes, en orden:
 | 4    | Marketing/funnel: filtro de cuentas Meta, orgánico, comparabilidad del funnel conectado         | **Hecho — sin bugs; 2 huecos de cobertura documentados, no corregidos (ver §6.2)** |
 | 5    | CRM/Setting/Sales: terminología, pipeline, asignación de setter                                 | **Parcial — 1 hueco real cerrado (ver §6.3); falta recorrido Lead→Cierre con datos reales (bloqueado por el proxy de Supabase esta sesión)** |
 | 6    | Finanzas/Comisiones: terminología de dinero, veto `pays_commissions` (D9)                       | **Parcial — sin bugs; falta morosidad/socios/conciliación con datos reales (ver §6.4)** |
-| 7-14 | Según el orden original del encargo (colaboradores, integraciones, Action Center, UX/UI, responsive/accesibilidad, performance, smoke test, regresión final) | Pendiente — multi-sesión |
+| 7    | Colaboradores: aislamiento frontend + RLS                                                       | **Hecho — sin hallazgos nuevos, 27/27 tests de aislamiento pasan (ver §6.5)** |
+| 8-14 | Según el orden original del encargo (integraciones/Data Health, Action Center, UX/UI, responsive/accesibilidad, performance, smoke test, regresión final) | Pendiente — multi-sesión |
 
 ## 8. Lo que necesito de Alex (no bloquea el resto, se deja documentado)
 
