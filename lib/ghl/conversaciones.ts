@@ -99,11 +99,30 @@ export function ghlHeaders(token: string): Record<string, string> {
 // inventada: lo que GHL no dice queda como 'chat'. Excepción observada en producción
 // (29-sep, sonda sobre 20 conversaciones reales): la llamada perdida llega como
 // TYPE_NO_SHOW (conversación TYPE_PHONE, messageTypes [100]) — el canal es 'call'.
+// TikTok llega como TYPE_TIKTOK y cae en el slice genérico → 'tiktok' (canal legible sin caso extra).
 export function canalDe(lastMessageType: unknown, tipoConversacion: unknown): string {
   const t = texto(lastMessageType) || texto(tipoConversacion) || ''
   if (t === 'TYPE_NO_SHOW') return 'call'
   if (t.startsWith('TYPE_')) return t.slice(5).toLowerCase()
   return t.toLowerCase() || 'chat'
+}
+
+// Canal GHL → tipo de mensaje de POST /conversations/messages (doc 2021-07-28, scope
+// conversations/message.write): la conversación ya existe, así que el envío por su canal es una
+// correspondencia directa. Custom/Live_Chat/InternalComment no son respuestas al lead: fuera.
+export function typeDe(canal: string): 'SMS' | 'Email' | 'WhatsApp' | 'IG' | 'FB' {
+  switch (canal) {
+    case 'email':
+      return 'Email'
+    case 'whatsapp':
+      return 'WhatsApp'
+    case 'instagram':
+      return 'IG'
+    case 'facebook':
+      return 'FB'
+    default:
+      return 'SMS' // sms y call (respuesta escrita tras llamada perdida) salen por SMS
+  }
 }
 
 type FilaSearch = {
@@ -392,6 +411,36 @@ export async function descargarConversacionesGhl(
     fetchImpl: opts.fetchImpl,
   })
   return conversaciones
+}
+
+// ── Envío de respuesta al lead (inbox saliente) ────────────────────────────────
+// POST /conversations/messages (doc 2021-07-28): el mensaje sale por el canal de la
+// conversación (typeDe) al contacto de la conversación. Efecto externo IRREVERSIBLE: la ruta
+// del inbox valida auth/tenant; aquí solo el contrato de GHL. Devuelve el messageId (traza
+// para soporte); un error HTTP de GHL se propaga con su mensaje real, nunca en silencio.
+export async function enviarMensajeGhl(
+  cfg: GhConversacionesCfg,
+  params: { conversacionId: string; contactId: string; canal: string; texto: string },
+  fetchImpl: typeof fetch = fetch
+): Promise<{ messageId: string | null }> {
+  const mensaje = texto(params.texto)
+  if (!mensaje) throw new GhlConversacionesError('El mensaje está vacío', 400)
+  if (!params.contactId)
+    throw new GhlConversacionesError('Esta conversación no tiene contacto de GHL: no se puede responder', 400)
+  const res = await fetchImpl(`${GHL_BASE}/conversations/messages`, {
+    method: 'POST',
+    headers: ghlHeaders(cfg.token),
+    body: JSON.stringify({
+      type: typeDe(params.canal),
+      contactId: params.contactId,
+      message: mensaje,
+      status: 'delivered',
+    }),
+    signal: AbortSignal.timeout(15_000),
+  })
+  const body = (await res.json().catch(() => ({}))) as { messageId?: unknown; message?: string }
+  if (!res.ok) throw new GhlConversacionesError(body.message || `GHL respondió ${res.status} al enviar`, res.status)
+  return { messageId: texto(body.messageId) ?? null }
 }
 
 /** Últimos 50 mensajes de UNA conversación. Lanza solo si GHL responde con error HTTP. */

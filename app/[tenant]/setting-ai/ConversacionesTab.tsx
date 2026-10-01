@@ -10,8 +10,10 @@ import {
   Mail,
   SearchX,
   ChevronDown,
+  ChevronRight,
   CalendarCheck,
   DollarSign,
+  Send,
 } from 'lucide-react'
 import { formatNumber, formatPercent } from '@/lib/utils'
 import { SearchBox } from '@/components/ui/search-box'
@@ -72,6 +74,8 @@ type ResumenMetricas = {
   sinContactoConEnlaceAgenda: number
   tasaVinculacion: number
   tasaAgendaSobreVinculados: number
+  respondidas: number
+  conEnlaceAgenda: number
 }
 
 const PLATFORMS = [
@@ -151,6 +155,10 @@ export default function ConversacionesTab() {
   const [total, setTotal] = useState<number | null>(null)
   const [cargandoMas, setCargandoMas] = useState(false)
   const [errorMas, setErrorMas] = useState('')
+  // Composer de respuesta (GHL): borrador, envío en curso y su error (reintentable).
+  const [borrador, setBorrador] = useState('')
+  const [enviando, setEnviando] = useState<string | null>(null)
+  const [errorEnvio, setErrorEnvio] = useState('')
   const chatRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -163,6 +171,9 @@ export default function ConversacionesTab() {
     setTotal(null)
     setCargandoMas(false)
     setErrorMas('')
+    setBorrador('')
+    setEnviando(null)
+    setErrorEnvio('')
     if (platform !== 'instagram' && platform !== 'ghl') {
       setConfigured(false)
       setConversations([])
@@ -210,11 +221,7 @@ export default function ConversacionesTab() {
     }
   }, [platform, tenant])
 
-  // Al abrir una conversación, el chat se lee desde el final (última réplica): así se lee
-  // cualquier bandeja; además deja visible la burbuja más reciente sin scroll manual.
-  useEffect(() => {
-    if (openId && chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
-  }, [openId])
+  // (El auto-scroll del chat vive junto a `seleccionada`, más abajo: también baja al enviar.)
 
   // Resumen cross-plataforma (Instagram y GHL: las dos con datos reales hoy). Independiente del
   // tab activo — se ve aunque estés en el placeholder de Facebook/TikTok: comparar de un vistazo
@@ -272,6 +279,41 @@ export default function ConversacionesTab() {
   // devuelve YA FUSIONADO con lo anterior (el snapshot del servidor es acumulativo). No toca
   // filtros ni la conversación abierta: sigue leyendo donde estaba. El cursor vive en servidor,
   // así que un reintento tras un corte continúa y no duplica filas.
+  // Enviar respuesta al lead desde el inbox (solo GHL: el servidor resuelve la conversación
+  // contra el snapshot y envía por su canal). Al volver ok, la burbuja se añade localmente
+  // (optimista, marcada pendiente hasta el próximo refresco de la bandeja).
+  async function enviarRespuesta() {
+    if (!seleccionada || enviando) return
+    const texto = borrador.trim()
+    if (!texto) return
+    setEnviando(seleccionada.id)
+    setErrorEnvio('')
+    try {
+      const r = await fetch(`/api/${tenant}/evergreen/setting-ai/conversations/reply`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ conversationId: seleccionada.id, texto }),
+      })
+      const j = (await r.json()) as { ok?: boolean; error?: string }
+      if (!r.ok || j.error) throw new Error(j.error || `El servidor respondió ${r.status}`)
+      setConversations((cs) =>
+        cs.map((c) =>
+          c.id === seleccionada.id
+            ? {
+                ...c,
+                messages: [...c.messages, { from: 'agente', text: texto, created_time: new Date().toISOString() }],
+              }
+            : c
+        )
+      )
+      setBorrador('')
+    } catch (e) {
+      setErrorEnvio((e as Error).message)
+    } finally {
+      setEnviando(null)
+    }
+  }
+
   async function cargarMas() {
     if (cargandoMas) return
     setCargandoMas(true)
@@ -297,6 +339,12 @@ export default function ConversacionesTab() {
   const canales = canalesDisponibles(conversations)
   const visibles = filtrarConversaciones(conversations, busqueda, canal)
   const seleccionada = visibles.find((c) => c.id === openId) ?? null
+
+  // Al abrir una conversación, el chat se lee desde el final (última réplica); al enviar una
+  // respuesta, baja a mostrarla. Mismo efecto para ambos casos, sin scroll manual.
+  useEffect(() => {
+    if (openId && chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
+  }, [openId, seleccionada?.messages.length])
 
   return (
     <div className="flex flex-col h-[calc(100vh-6.5rem)] text-foreground">
@@ -383,7 +431,11 @@ export default function ConversacionesTab() {
                 <FilaConversacion
                   c={c}
                   activa={openId === c.id}
-                  onClick={() => setOpenId(openId === c.id ? null : c.id)}
+                  onClick={() => {
+                    setOpenId(openId === c.id ? null : c.id)
+                    setBorrador('')
+                    setErrorEnvio('')
+                  }}
                   verificacion={verificadas[`${platform}:${c.id}`]}
                 />
               </li>
@@ -434,6 +486,11 @@ export default function ConversacionesTab() {
                 onAnalyze={() => analyze(seleccionada)}
                 analyzeError={analyzeError[seleccionada.id]}
                 analysis={analyses[seleccionada.id]}
+                borrador={borrador}
+                setBorrador={setBorrador}
+                onEnviar={enviarRespuesta}
+                enviando={enviando === seleccionada.id}
+                errorEnvio={errorEnvio}
               />
             ) : (
               <div className="h-full rounded-xl border border-dashed border-border flex flex-col items-center justify-center text-center text-muted-foreground text-sm gap-1.5 p-6">
@@ -457,6 +514,11 @@ export default function ConversacionesTab() {
                 onAnalyze={() => analyze(seleccionada)}
                 analyzeError={analyzeError[seleccionada.id]}
                 analysis={analyses[seleccionada.id]}
+                borrador={borrador}
+                setBorrador={setBorrador}
+                onEnviar={enviarRespuesta}
+                enviando={enviando === seleccionada.id}
+                errorEnvio={errorEnvio}
               />
             )}
           </div>
@@ -545,7 +607,13 @@ function FilaConversacion({
           <span className={`text-sm truncate ${sinLeer ? 'font-bold text-foreground' : 'font-medium text-foreground'}`}>
             {nombre}
           </span>
-          {sinLeer && <span className="w-2 h-2 shrink-0 rounded-full bg-brand-500" aria-label="Sin leer" />}
+          {sinLeer && (
+            <span
+              className="w-2 h-2 shrink-0 rounded-full bg-brand-500"
+              aria-label="Sin leer"
+              title="Último mensaje del lead sin responder por el equipo"
+            />
+          )}
           <span className="text-3xs text-muted-foreground ml-auto shrink-0">
             {tiempoRelativo(c.updated_time) ?? ''}
           </span>
@@ -592,6 +660,11 @@ function PanelChat({
   onAnalyze,
   analyzeError,
   analysis,
+  borrador,
+  setBorrador,
+  onEnviar,
+  enviando,
+  errorEnvio,
 }: {
   c: Conv
   platform: Platform
@@ -601,6 +674,11 @@ function PanelChat({
   onAnalyze: () => void
   analyzeError?: string
   analysis?: Analysis
+  borrador: string
+  setBorrador: (v: string) => void
+  onEnviar: () => void
+  enviando: boolean
+  errorEnvio?: string
 }) {
   const nombre = nombreDe(c)
   const canal = canalUi(c.channel)
@@ -678,12 +756,83 @@ function PanelChat({
           ))}
         </div>
       )}
+      {platform === 'ghl' && msgs.length > 0 && (
+        <EstadoComposer
+          disponible={!!c.contactId}
+          enviando={enviando}
+          error={errorEnvio}
+          texto={borrador}
+          onChange={setBorrador}
+          onEnviar={onEnviar}
+        />
+      )}
       {(analyzeError || analysis) && (
         <div className="border-t border-border p-3">
           {analyzeError && <p className="text-red-400 text-xs">{analyzeError}</p>}
           {analysis && <AnalysisCard a={analysis} />}
         </div>
       )}
+    </div>
+  )
+}
+
+// Composer de respuesta (GHL): escribir al lead sin salir de la bandeja. Enter envía,
+// Shift+Enter salta línea. Sin contacto GHL la conversación no es respondible desde aquí
+// (el mensaje saldría a nadie) — se explica en vez de deshabilitar en silencio.
+function EstadoComposer({
+  disponible,
+  enviando,
+  error,
+  texto,
+  onChange,
+  onEnviar,
+}: {
+  disponible: boolean
+  enviando: boolean
+  error?: string
+  texto: string
+  onChange: (v: string) => void
+  onEnviar: () => void
+}) {
+  if (!disponible) {
+    return (
+      <div className="border-t border-border px-3 py-2.5 bg-muted/20">
+        <p className="text-3xs text-muted-foreground flex items-center gap-1.5">
+          <MessageCircle className="w-3 h-3" />
+          Responder desde aquí requiere el contacto de GHL de la conversación. Respóndele desde el móvil de GHL.
+        </p>
+      </div>
+    )
+  }
+  return (
+    <div className="border-t border-border px-3 py-2.5 bg-muted/20">
+      {error && <p className="text-red-400 text-2xs mb-1.5">{error}</p>}
+      <div className="flex items-end gap-2">
+        <textarea
+          value={texto}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              if (!enviando) onEnviar()
+            }
+          }}
+          rows={1}
+          placeholder="Escribe una respuesta… (Enter para enviar)"
+          aria-label="Escribe una respuesta"
+          className="flex-1 resize-none rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
+        />
+        <button
+          onClick={onEnviar}
+          disabled={enviando || !texto.trim()}
+          aria-busy={enviando}
+          title="Enviar respuesta al lead por el canal de la conversación"
+          className="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white rounded-lg px-3 py-1.5 text-2xs font-semibold inline-flex items-center gap-1.5 active:scale-[0.98] transition-transform focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
+        >
+          {enviando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+          Enviar
+        </button>
+      </div>
     </div>
   )
 }
@@ -770,7 +919,7 @@ function ResumenCrossPlataforma({
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 py-3 border-b border-border">
       <TarjetaPlataforma label="Instagram" data={metricas.instagram} />
-      <TarjetaPlataforma label="GHL" data={metricas.ghl} hint="SMS · Facebook · Instagram · WhatsApp · email" />
+      <TarjetaPlataforma label="GHL" data={metricas.ghl} hint="SMS · WhatsApp · email · IG · Facebook · TikTok" />
     </div>
   )
 }
@@ -802,9 +951,19 @@ function TarjetaPlataforma({
             <span className="text-lg font-bold text-foreground">{formatNumber(metrics.totalConversaciones)}</span>
             <span className="text-3xs text-muted-foreground">conversaciones</span>
           </div>
+          {/* Embudo de DM: conversaciones → respondidas → enlace enviado → cita en CRM. */}
+          <div
+            className="flex items-center gap-1 text-3xs text-muted-foreground flex-wrap"
+            title="Embudo de DM: cuántas conversaciones respondió el equipo y cuántas recibieron un enlace de agenda (señal de intención, no un hecho)"
+          >
+            <b className="text-foreground">{formatNumber(metrics.respondidas)}</b> respondidas
+            <ChevronRight className="w-2.5 h-2.5 opacity-50" />
+            <b className="text-foreground">{formatNumber(metrics.conEnlaceAgenda)}</b> con enlace de agenda
+            <ChevronRight className="w-2.5 h-2.5 opacity-50" />
+            <b className="text-emerald-400">{formatNumber(metrics.conAgendaVerificada)}</b> con cita en CRM
+          </div>
           <p className="text-3xs text-muted-foreground">
-            <b className="text-foreground">{formatNumber(metrics.conAgendaVerificada)}</b> con agenda verificada en CRM
-            ({formatPercent(metrics.tasaAgendaSobreVinculados * 100, 0)} de los vinculados) ·{' '}
+            {formatPercent(metrics.tasaAgendaSobreVinculados * 100, 0)} de los vinculados agendó en CRM ·{' '}
             <b className="text-foreground">{formatNumber(metrics.conVentaVerificada)}</b> con venta
           </p>
           <p className="text-3xs text-muted-foreground">

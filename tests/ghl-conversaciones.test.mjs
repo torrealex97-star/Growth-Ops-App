@@ -18,9 +18,12 @@ import {
   cursorMasProfundo,
   descargarConversacionesGhl,
   descargarPaginaConversacionesGhl,
+  enviarMensajeGhl,
   fusionarConversaciones,
+  GhlConversacionesError,
   mapearConversacionGhl,
   mapearMensajesGhl,
+  typeDe,
 } from '../lib/ghl/conversaciones.ts'
 
 const CFG = { token: 'pit-token-de-prueba', locationId: 'loc-1' }
@@ -379,6 +382,59 @@ test('fusionarConversaciones: acumula sin duplicados, lo fresco gana y el tope r
     fusionarConversaciones([], muchas, 4).map((c) => c.id),
     ['conv-0', 'conv-1', 'conv-2', 'conv-3'],
     'el tope recorta las más antiguas'
+  )
+})
+
+test('typeDe: canal de la conversación → tipo de POST /conversations/messages', () => {
+  // Los canales de DM que pasan por GHL salen por su tipo propio.
+  assert.equal(typeDe('instagram'), 'IG')
+  assert.equal(typeDe('facebook'), 'FB')
+  assert.equal(typeDe('whatsapp'), 'WhatsApp')
+  assert.equal(typeDe('email'), 'Email')
+  // SMS y la llamada perdida (respuesta escrita tras ella) salen por SMS.
+  assert.equal(typeDe('sms'), 'SMS')
+  assert.equal(typeDe('call'), 'SMS')
+  // Lo desconocido no revienta: SMS es el tipo por defecto.
+  assert.equal(typeDe(''), 'SMS')
+  assert.equal(typeDe('tiktok'), 'SMS')
+})
+
+test('enviarMensajeGhl: POST al canal del contacto con el texto exacto; error HTTP ruidoso', async () => {
+  const llamadas = []
+  const fetchFalso = async (input, init) => {
+    llamadas.push({ url: String(input), init: init || {} })
+    return new Response(JSON.stringify({ messageId: 'msg-1' }), { status: 201 })
+  }
+  const out = await enviarMensajeGhl(
+    CFG,
+    { conversacionId: 'conv-1', contactId: 'ct-9', canal: 'instagram', texto: '  ¡Hola! Te escribo de IA Winners  ' },
+    fetchFalso
+  )
+  assert.equal(out.messageId, 'msg-1')
+  assert.equal(llamadas.length, 1)
+  assert.equal(llamadas[0].url, 'https://services.leadconnectorhq.com/conversations/messages')
+  assert.equal(llamadas[0].init.method, 'POST')
+  const body = JSON.parse(llamadas[0].init.body)
+  assert.equal(body.type, 'IG')
+  assert.equal(body.contactId, 'ct-9')
+  assert.equal(body.message, '¡Hola! Te escribo de IA Winners') // recortado, sin texto inventado
+  assert.equal(body.status, 'delivered')
+
+  // Error de GHL se propaga con su mensaje real (para la UI y el reintento del usuario).
+  const fetchError = async () => new Response(JSON.stringify({ message: 'Provider not connected' }), { status: 400 })
+  await assert.rejects(
+    () => enviarMensajeGhl(CFG, { conversacionId: 'c', contactId: 'ct', canal: 'sms', texto: 'x' }, fetchError),
+    (e) => e instanceof GhlConversacionesError && /Provider not connected/.test(e.message)
+  )
+  // Sin texto no se llama a GHL (nada de enviar vacío).
+  await assert.rejects(
+    () =>
+      enviarMensajeGhl(
+        CFG,
+        { conversacionId: 'c', contactId: 'ct', canal: 'sms', texto: '   ' },
+        async () => new Response('{}')
+      ),
+    /vacío/
   )
 })
 
