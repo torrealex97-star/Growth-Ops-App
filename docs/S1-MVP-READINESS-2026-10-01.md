@@ -148,6 +148,66 @@ de la sección 5 del encargo evita limpiezas erróneas.
 - `npm test` completo tras el cambio: mismo resultado que el baseline de §3 (1202/1205, los 3
   fallos son de red al sandbox) — nada se rompió.
 
+## 6.2 Fase 4 — Marketing/funnel: filtro de cuentas y orgánico (sin hallazgos nuevos que corregir)
+
+**Objetivo del encargo (§10):** comprobar que solo se usan cuentas de Integraciones seleccionadas en
+todo el pipeline de métricas de marketing, y que el orgánico no fabrica estimaciones.
+
+### Filtro de cuentas de Meta — correcto en los dos consumidores reales
+
+- `app/[tenant]/marketing/adquisicion/campanas/page.tsx`: filtra con `useCuentasMetaActivas` →
+  `cuentas.filtrar(items)` → `displayItems` → los totales de KPI se calculan sobre `displayItems`,
+  nunca sobre `items` sin filtrar. Correcto.
+- `lib/metrics/consulta.ts:143` (`campaign_daily`) es la capa central que alimenta tanto
+  `/metricas/brief` (Dashboard) como la ruta de IA (`app/api/[tenant]/evergreen/ai/agent/route.ts`).
+  Ambos consumidores le pasan `parseAccountIds(cfg.META_AD_ACCOUNT_ID)` — la MISMA fuente
+  (`lib/meta/accounts.ts`) que usa la pantalla de Integraciones. No hay dos definiciones
+  divergentes de "cuenta seleccionada".
+- El caso `cuentasAds.length === 0` (sin selección guardada) cae a "todas las cuentas accesibles
+  por el token" — es una convención **documentada y deliberada** en todo el módulo
+  (`lib/meta/accounts.ts`: *"Lista vacía = todas las cuentas accesibles por el token"*), no un bug:
+  antes de tener una cuenta seleccionada, mostrar 0 habría sido peor que mostrar todo lo accesible.
+  Un tenant con el token ya conectado y una cuenta efectivamente elegida nunca cae en este caso.
+- Esto es un camino DISTINTO al que motivó `campanasFueraDeSeleccion` en
+  `lib/data-health/cross-source.ts` (ese fix era sobre otra vista); no había quedado sin aplicar aquí.
+- **Gap de completitud conocido, no corregido (sería feature nueva):** `campanas/page.tsx` opera a
+  nivel de campaña (con detalle por anuncio), pero no hay granularidad de ad-set explícita. No se
+  construye — contradice "no features nuevas" y el token de Meta ya está roto a nivel externo
+  (ver §8.2).
+
+### Orgánico — solo Instagram vía API oficial, sin fabricar estimaciones (correcto, pero incompleto)
+
+- `lib/social/organic.ts` + `components/os/PanelOrganico.tsx`: toda la cifra viene de
+  `ig_media`/`ig_account_daily`, poblados por `lib/instagram/sync.ts` contra la Graph API oficial.
+  Apify queda reservado exclusivamente a investigación de **terceros** (comentario explícito en el
+  código, verificado). El dashboard nunca llama a Meta/Apify en el render.
+  - Métricas no calculables se devuelven `undefined`, nunca `0` ni una estimación (p. ej.
+    `engagementRate` solo se calcula si hay posts del periodo Y un `reach` o `views` > 0 real).
+  - Estados vacíos honestos: sin credenciales → pide conectar; con credenciales pero sin sync →
+    pide sincronizar. Nunca rellena con ceros falsos.
+- **Hueco real frente al encargo:** el panel solo cubre Instagram. Facebook/YouTube/TikTok NO
+  tienen sync oficial propio implementado (el propio comentario de `organic.ts` lo dice:
+  *"TikTok/YouTube por su sync oficial cuando exista"*) — no se muestran (correctamente, no se
+  fabrican), pero tampoco existen. Construir esos syncs es una feature nueva fuera del alcance de
+  esta fase; se documenta como brecha de cobertura, no como bug.
+
+### Comparabilidad del funnel conectado — ya resuelta en datos y en UI
+
+- `lib/metrics/period-funnel.ts` (`buildPeriodFunnel`) documenta explícitamente en el propio código
+  que sus cifras son "hechos del periodo, NO una cohorte enlazada: no permiten inferir conversiones"
+  — exactamente la distinción Actividad-vs-Cohorte que pide el encargo (§10).
+- `components/os/ConnectedFunnel.tsx:113` traslada esa misma advertencia a la UI: cuando la etapa
+  no es comparable como conversión, el pie de la etapa dice literalmente *"Actividad del periodo; no
+  expresa conversión entre personas"*, en vez de mostrar un % de conversión engañoso entre universos
+  no comparables. Donde SÍ hay cohorte comparable, dice "Conversión respecto a la etapa anterior."
+- No hay funnel falso mezclando denominadores incompatibles sin avisar: el requisito ya está cerrado
+  en código, no solo en intención.
+
+**Veredicto Fase 4 (completa):** sin bugs de código que corregir en el filtro de cuentas, en el
+orgánico ni en la comparabilidad del funnel — las tres piezas ya implementan correctamente lo que
+pedía el encargo. Dos huecos de cobertura conocidos y documentados (ad-set granularity, FB/YT/TikTok
+orgánico) que NO se construyen en esta fase por ser features nuevas.
+
 ## 7. Plan de fases (continuación, no reinicio)
 
 Dado el tamaño real (93 pantallas, 14 fases, 42 secciones del encargo), este es un trabajo
@@ -159,7 +219,8 @@ multi-sesión. Las fases siguientes, en orden:
 | 1    | P0/P1 reales de código del ledger de S0-8                                              | **Hecho — resultado: ya no quedaba ninguno sin decisión previa de Alex** |
 | 2    | Confirmar propósito de las 3 rutas "afiliados"                                         | **Hecho — falso positivo, no hay duplicación** |
 | 3    | Seguridad: advisors de Supabase + `SECURITY DEFINER`/RLS                                | **Hecho — 1 vulnerabilidad real cerrada en producción (ver §6.1)** |
-| 4-14 | Según el orden original del encargo (marketing/funnel, CRM/setting/sales, finanzas, colaboradores, integraciones, Action Center, UX/UI, responsive/accesibilidad, performance, smoke test, regresión final) | Pendiente — multi-sesión |
+| 4    | Marketing/funnel: filtro de cuentas Meta, orgánico, comparabilidad del funnel conectado         | **Hecho — sin bugs; 2 huecos de cobertura documentados, no corregidos (ver §6.2)** |
+| 5-14 | Según el orden original del encargo (CRM/setting/sales, finanzas, colaboradores, integraciones, Action Center, UX/UI, responsive/accesibilidad, performance, smoke test, regresión final) | Pendiente — multi-sesión |
 
 ## 8. Lo que necesito de Alex (no bloquea el resto, se deja documentado)
 
