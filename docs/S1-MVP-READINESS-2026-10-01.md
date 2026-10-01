@@ -453,8 +453,29 @@ backfills, donde procesar secuencialmente es aceptable) en busca del patrón "un
 iteración de un bucle": `appointments/closer-conflicts`, `contacts/[id]`, `sales/[id]`. Las tres
 agrupan y consultan por lotes (`.in(...)`) fuera de cualquier bucle — los bucles que tienen son
 sobre datos ya en memoria, no generan una query por vuelta. Sin hallazgos de N+1 en las rutas
-muestreadas. La medición real (LCP/INP/CLS de producción, tamaño de bundle servido, llamadas
-duplicadas en el navegador) sigue necesitando runtime/navegador — no se inventa aquí.
+muestreadas.
+
+**Web Vitals reales de producción — SÍ se pudieron leer (no necesitaban navegador, solo que
+alguien leyera Sentry; cierra la tarea "Medir LCP/INP/CLS" que llevaba abierta desde que Codex lo
+instrumentó):** el MCP de Sentry reconectó en esta sesión. `components/observability/WebVitalsReporter.tsx`
+envía a `Sentry.metrics.distribution`, y el proyecto real es `javascript-nextjs` en la org
+`scalix-52` (NO `scalix-systems`, que no tiene datos — dos proyectos de Sentry coexisten, hay que
+usar el correcto). Últimos 30 días:
+
+| Métrica | Media | p75 | Muestras | Umbral Google ("Bueno") | Veredicto |
+| --- | --- | --- | --- | --- | --- |
+| LCP | 2.218 s | 1.971 s | 68 | < 2.5 s | **Bueno** |
+| INP | 65,9 ms | 72 ms | 37 | < 200 ms | **Bueno** |
+| CLS | — | — | 48 (cuenta confirmada, agregado no extraído) | < 0.1 | **Sin verificar** — hay 48 muestras pero la consulta de agregado (`avg`/`p75`) devolvió vacío; posible desajuste de unidad en la query del MCP, no necesariamente un problema del dato. Pendiente de abrir el link de Sentry directamente para leer el número. |
+
+Con solo 37-68 muestras en 30 días el tráfico real medido es bajo — los números son reales pero la
+muestra es pequeña; no se puede hablar de "tendencia" todavía, solo de "estos son los valores que
+hay". LCP e INP ya están dentro del rango "Bueno" de Google. Enlace al dashboard real de Sentry
+disponible en el historial de esta sesión si se quiere abrir directamente.
+
+**Lo que SÍ sigue necesitando navegador/runtime** (no esto): tamaño de bundle servido real, llamadas
+de red duplicadas al cargar una pantalla, gráficos lentos al interactuar, tiempo de cambio de tenant
+— nada de esto lo reporta Sentry Web Vitals, hace falta DevTools real.
 
 ## 7. Plan de fases (continuación, no reinicio)
 

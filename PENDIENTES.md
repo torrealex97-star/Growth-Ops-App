@@ -47,8 +47,14 @@ Detalle completo en `docs/S1-MVP-READINESS-2026-10-01.md` — no se duplica aqu�
       `docs/S1-MVP-READINESS-2026-10-01.md` §6.8.
 - [x] Fase 11 (Accesibilidad) y Fase 12 (Performance): intentadas por código. Accesibilidad sin
       resultado fiable (necesita axe-core/navegador, no se inventa un hallazgo). Performance sin
-      N+1 en las rutas interactivas muestreadas (closer-conflicts, contacts/[id], sales/[id]) — la
-      medición real (LCP/INP/CLS, bundle) sigue necesitando runtime. Detalle en §6.8.
+      N+1 en las rutas interactivas muestreadas (closer-conflicts, contacts/[id], sales/[id]).
+      Detalle en §6.8.
+- [x] **Cerrado — "Medir LCP/INP/CLS: instrumentado por Codex, falta leer datos reales".** El MCP
+      de Sentry reconectó en esta sesión: proyecto real es `javascript-nextjs` en la org `scalix-52`
+      (no `scalix-systems`). Últimos 30 días: LCP p75 1,97s (Bueno, <2.5s), INP p75 72ms (Bueno,
+      <200ms), CLS con 48 muestras pero el agregado no se pudo extraer (revisar directamente en
+      Sentry). Muestra pequeña (37-68 datos), no hay tendencia todavía, pero los valores reales son
+      buenos. Detalle en `docs/S1-MVP-READINESS-2026-10-01.md` §6.8.
 - [ ] Fases 13-14 (smoke test visual, regresión final) requieren navegador con sesión autenticada o
       capturas — no se pueden avanzar leyendo solo código sin inventar verificaciones que no se
       hicieron. Pendientes de esa entrada.
