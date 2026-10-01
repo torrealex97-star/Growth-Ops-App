@@ -1,7 +1,18 @@
 'use client'
 import { useTenant } from '@/lib/tenant-context'
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import { Sparkles, Loader2, MessageCircle, ExternalLink, Phone, Mail, SearchX, ChevronDown, CalendarCheck, DollarSign } from 'lucide-react'
+import {
+  Sparkles,
+  Loader2,
+  MessageCircle,
+  ExternalLink,
+  Phone,
+  Mail,
+  SearchX,
+  ChevronDown,
+  CalendarCheck,
+  DollarSign,
+} from 'lucide-react'
 import { formatNumber, formatPercent } from '@/lib/utils'
 import { SearchBox } from '@/components/ui/search-box'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
