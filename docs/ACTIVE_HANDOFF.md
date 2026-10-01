@@ -1,5 +1,19 @@
 # Relevo activo
 
+## Marcas de cita/venta verificada en el inbox (1-oct, Freebuff) — fusionada #305
+
+Petición de Alex («marca visualmente las conversaciones con venta o cita verificada en el CRM»):
+los badges "Cita" (verde, CalendarCheck) y "Venta" (brand, DollarSign) aparecen en cada fila de
+la bandeja cuando la conversación está enlazada a un contacto con cita/venta en BD. Fuente ÚNICA:
+`porConversacion` que **ya devolvía** `/conversations/metrics` para las tarjetas
+(`lib/instagram/conversation-metrics.ts` + `lib/ghl/conversaciones-metricas.ts`) — sin segunda
+definición de "verificado" ni llamadas nuevas; `null` (sin contacto vinculado) NO es marca.
+Helpers puros en `lib/setting-ai/inbox.ts` (`alimentarVerificadas`, `marcaVerificada`) con 2 tests
+nuevos. Fusionada en `8c5b9e8`, CI completo verde y producción READY **verificada por API de
+Vercel con el conector MCP**. Nota: el primer push de la PR falló `format:check` (el TSX quedó
+formateado en el arnés y se devolvió sin devolver — misma lección de #301); corregido en
+`b511688`. Sin acciones pendientes.
+
 ## Bandeja de GHL paginada incremental ("Cargar más") (1-oct, Freebuff) — fusionada #303
 
 Petición de Alex («prepara el inbox para más de 100 conversaciones»): el listado de
