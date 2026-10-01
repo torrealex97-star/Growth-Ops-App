@@ -1,7 +1,7 @@
 'use client'
 import { useTenant } from '@/lib/tenant-context'
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import { Sparkles, Loader2, MessageCircle, ExternalLink, Phone, Mail, SearchX } from 'lucide-react'
+import { Sparkles, Loader2, MessageCircle, ExternalLink, Phone, Mail, SearchX, ChevronDown } from 'lucide-react'
 import { formatNumber, formatPercent } from '@/lib/utils'
 import { SearchBox } from '@/components/ui/search-box'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -72,6 +72,9 @@ type RespuestaConvos = {
   configured?: boolean
   conversations?: Conv[]
   motivo?: string
+  // GHL paginado: total declarado por la API y si queda página siguiente ("Cargar más").
+  total?: number | null
+  hayMas?: boolean
 }
 
 // Presentación del canal: icono y etiqueta legible. Lo que GHL no clasifique queda como
@@ -114,6 +117,12 @@ export default function ConversacionesTab() {
   >({})
   const [busqueda, setBusqueda] = useState('')
   const [canal, setCanal] = useState('todos')
+  // "Cargar más" (GHL): si el servidor declara página siguiente, cuántas quedan del total,
+  // estado de la petición en curso y su error (reintentable; no tumba la bandeja).
+  const [hayMas, setHayMas] = useState(false)
+  const [total, setTotal] = useState<number | null>(null)
+  const [cargandoMas, setCargandoMas] = useState(false)
+  const [errorMas, setErrorMas] = useState('')
   const chatRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -121,6 +130,10 @@ export default function ConversacionesTab() {
     setBusqueda('')
     setCanal('todos')
     setOpenId(null)
+    setHayMas(false)
+    setTotal(null)
+    setCargandoMas(false)
+    setErrorMas('')
     if (platform !== 'instagram' && platform !== 'ghl') {
       setConfigured(false)
       setConversations([])
@@ -150,6 +163,8 @@ export default function ConversacionesTab() {
         setConfigured(!!j.configured)
         setConversations(j.conversations || [])
         setMotivo(j.motivo || '')
+        setHayMas(!!j.hayMas)
+        setTotal(j.total ?? null)
       })
       .catch((e) => {
         if (!cancel) {
@@ -220,6 +235,32 @@ export default function ConversacionesTab() {
     }
   }
 
+  // "Cargar más" (solo GHL): pide la siguiente tanda al POST y muestra lo que el servidor
+  // devuelve YA FUSIONADO con lo anterior (el snapshot del servidor es acumulativo). No toca
+  // filtros ni la conversación abierta: sigue leyendo donde estaba. El cursor vive en servidor,
+  // así que un reintento tras un corte continúa y no duplica filas.
+  async function cargarMas() {
+    if (cargandoMas) return
+    setCargandoMas(true)
+    setErrorMas('')
+    try {
+      const r = await fetch(`/api/${tenant}/evergreen/setting-ai/conversations?platform=ghl`, {
+        method: 'POST',
+      })
+      const j = (await r.json()) as RespuestaConvos
+      if (j.error) throw new Error(j.error)
+      if (j.configured === false) throw new Error(j.motivo || 'GHL no está configurado.')
+      setConversations(j.conversations || [])
+      setMotivo(j.motivo || '')
+      setHayMas(!!j.hayMas)
+      setTotal(j.total ?? null)
+    } catch (e) {
+      setErrorMas((e as Error).message)
+    } finally {
+      setCargandoMas(false)
+    }
+  }
+
   const canales = canalesDisponibles(conversations)
   const visibles = filtrarConversaciones(conversations, busqueda, canal)
   const seleccionada = visibles.find((c) => c.id === openId) ?? null
@@ -258,7 +299,7 @@ export default function ConversacionesTab() {
           )}
           {!loading && !error && configured !== false && conversations.length > 0 && (
             <span className="text-2xs text-muted-foreground">
-              {visibles.length} de {conversations.length} conversaciones
+              {visibles.length} de {total != null && platform === 'ghl' ? total : conversations.length} conversaciones
             </span>
           )}
         </div>
@@ -313,6 +354,39 @@ export default function ConversacionesTab() {
                 />
               </li>
             ))}
+            {platform === 'ghl' && hayMas && (
+              <li>
+                <button
+                  onClick={cargarMas}
+                  disabled={cargandoMas}
+                  aria-busy={cargandoMas}
+                  className="w-full rounded-xl border border-dashed border-border px-3 py-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 flex items-center justify-center gap-2"
+                >
+                  {cargandoMas ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Cargando…
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-4 h-4" />
+                      Cargar más
+                      {total != null && conversations.length < total ? ` (${conversations.length} de ${total})` : ''}
+                    </>
+                  )}
+                </button>
+              </li>
+            )}
+            {errorMas && (
+              <li className="text-2xs text-red-400/90 text-center px-2">
+                {errorMas}{' '}
+                <button
+                  onClick={cargarMas}
+                  className="underline hover:text-red-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
+                >
+                  Reintentar
+                </button>
+              </li>
+            )}
           </ul>
           <div className="hidden lg:block min-h-0">
             {seleccionada ? (

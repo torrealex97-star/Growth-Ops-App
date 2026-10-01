@@ -22,6 +22,14 @@ export type GhConversationMessage = {
   created_time?: string
 }
 
+export type PaginaGhl = {
+  conversaciones: GhConversation[]
+  total: number
+  // Cursor a la SIGUIENTE página: epoch-ms del lastMessageDate de la última fila (sortBy
+  // last_message_date + sort desc, paginación oficial por startAfterDate). undefined = no hay más.
+  cursor?: number
+}
+
 export type GhConversation = {
   id: string
   participant?: string
@@ -165,6 +173,97 @@ export function mapearMensajesGhl(j: Json | null): GhConversationMessage[] {
   )
 }
 
+// ── Listado por páginas (cursor startAfterDate) ────────────────────────────────────
+// El deadline gobierna TODAS las llamadas externas (AGENTS.md): se piden páginas hasta
+// agotar presupuesto o cubrir `objetivo`; lo ya leído se devuelve SIEMPRE con el cursor a
+// la siguiente, para que "Cargar más" continúe donde quedó en vez de empezar de cero.
+// Duplicados por id se eliminan conservando el primero (empates de fecha en el cursor).
+export async function descargarPaginaConversacionesGhl(
+  cfg: GhConversacionesCfg,
+  opts: {
+    pagina?: number
+    cursor?: number
+    objetivo?: number
+    deadlineMs?: number
+    fetchImpl?: typeof fetch
+    transcripciones?: boolean
+  } = {}
+): Promise<PaginaGhl> {
+  const PAGINA = Math.min(Math.max(opts.pagina ?? 25, 1), 100)
+  const objetivo = Math.max(opts.objetivo ?? PAGINA, PAGINA)
+  const deadlineMs = opts.deadlineMs ?? Date.now() + 25_000
+  const doFetch = opts.fetchImpl ?? fetch
+  const pedirTranscripciones = opts.transcripciones ?? true
+  const agotado = () => Date.now() > deadlineMs
+
+  const conversaciones: GhConversation[] = []
+  const vistos = new Set<string>()
+  let cursor = opts.cursor
+  let total = 0
+  let resultado: PaginaGhl = { conversaciones, total: 0, cursor: opts.cursor }
+
+  while (conversaciones.length < objetivo) {
+    if (agotado()) {
+      // Presupuesto agotado ANTES de la primera página: error (nunca una lista vacía que
+      // parezca "no hay conversaciones" — un hueco no es un cero). Con páginas ya leídas:
+      // lo leído se devuelve con su cursor de continuación; el siguiente intento sigue ahí.
+      if (conversaciones.length === 0)
+        throw new GhlConversacionesError('Presupuesto agotado antes de listar conversaciones', 504)
+      resultado = { conversaciones, total, cursor }
+      break
+    }
+    const url = new URL(`${GHL_BASE}/conversations/search`)
+    url.searchParams.set('locationId', cfg.locationId)
+    url.searchParams.set('limit', String(PAGINA))
+    url.searchParams.set('sortBy', 'last_message_date')
+    url.searchParams.set('sort', 'desc')
+    if (cursor !== undefined) url.searchParams.set('startAfterDate', String(cursor))
+
+    const res = await doFetch(url, { headers: ghlHeaders(cfg.token), signal: AbortSignal.timeout(20_000) })
+    const body = (await res.json().catch(() => ({}))) as {
+      conversations?: FilaSearch[]
+      total?: unknown
+      message?: string
+    }
+    if (!res.ok) throw new GhlConversacionesError(body.message || `GHL respondió ${res.status}`, res.status)
+    if (typeof body.total === 'number' && Number.isFinite(body.total)) total = body.total
+
+    const filas = (body.conversations ?? []).map(mapearConversacionGhl).filter((c): c is GhConversation => !!c)
+    if (filas.length === 0) {
+      // Página vacía: fin real del listado, sin cursor — no se ofrece un "cargar más" hueco.
+      resultado = { conversaciones, total, cursor: undefined }
+      break
+    }
+
+    const ultima = filas[filas.length - 1]
+    const nuevoCursor = aIsoFecha(ultima.updated_time) ? Date.parse(ultima.updated_time!) : undefined
+    const sinNuevos = filas.every((c) => vistos.has(c.id))
+    for (const c of filas) {
+      if (vistos.has(c.id)) continue
+      vistos.add(c.id)
+      conversaciones.push(c)
+    }
+    // Página corta (fin real) o página repetida (cursor sin avance): parar sin cursor —
+    // nunca un "cargar más" que vuelva a dar lo mismo.
+    if (filas.length < PAGINA || sinNuevos || nuevoCursor === undefined) {
+      resultado = { conversaciones, total, cursor: undefined }
+      break
+    }
+    cursor = nuevoCursor
+    if (conversaciones.length >= objetivo) {
+      // Objetivo cubierto: hay "cargar más" si el total declarado aún excede lo leído — o si
+      // GHL no declaró total (se descubre en la siguiente petición; una página vacía cierra).
+      const quedan = total === 0 || conversaciones.length < total
+      resultado = { conversaciones, total, cursor: quedan ? cursor : undefined }
+      break
+    }
+  }
+
+  if (pedirTranscripciones && conversaciones.length)
+    await completarTranscripcionesGhl(cfg, conversaciones, { deadlineMs, fetchImpl: doFetch })
+  return resultado
+}
+
 // ── Snapshot stale (respaldo cuando GHL no responde) ────────────────────────────────
 // Misma mecánica que lib/instagram/snapshot.ts: el ÚLTIMO resultado correcto con su edad
 // declarada, nunca presentado como fresco.
@@ -174,6 +273,9 @@ export type SnapshotGhlConversaciones = {
 }
 
 const KEY = 'ghl_conversaciones_snapshot'
+// Posición de paginación persistida junto al snapshot: hasta dónde llegó el usuario cuando
+// la bandeja supera lo que cabe en un primer pull.
+const KEY_CURSOR = 'ghl_conversaciones_cursor'
 
 function cliente(): SupabaseClient {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -218,35 +320,109 @@ export async function leerSnapshotGhl(tenantId: string): Promise<SnapshotGhlConv
   }
 }
 
+// Cursor de paginación del usuario: cuántas filas había ya cargadas y por dónde quedó la
+// descarga (epoch-ms de lastMessageDate). Igual de silencioso que el snapshot: perderlo solo
+// devuelve el "Cargar más" al principio, no rompe nada.
+export async function guardarCursorGhl(
+  tenantId: string,
+  cursor: { cargadas: number; startAfterDate?: number; total?: number }
+): Promise<void> {
+  try {
+    const sb = cliente()
+    await sb
+      .from('integration_settings')
+      .upsert(
+        {
+          tenant_id: tenantId,
+          key: KEY_CURSOR,
+          value: JSON.stringify({ ...cursor, guardado: new Date().toISOString() }),
+          is_secret: false,
+          label:
+            'Posición de paginación de la bandeja de GHL (cuántas conversaciones cargadas y cursor a la siguiente página)',
+        },
+        { onConflict: 'tenant_id,key' }
+      )
+      .select('key')
+  } catch {
+    // Silencioso por diseño: el cursor es una optimización, no un requisito.
+  }
+}
+
+export async function leerCursorGhl(
+  tenantId: string
+): Promise<{ cargadas: number; startAfterDate?: number; total?: number } | null> {
+  try {
+    const sb = cliente()
+    const { data } = await sb
+      .from('integration_settings')
+      .select('value')
+      .eq('tenant_id', tenantId)
+      .eq('key', KEY_CURSOR)
+      .maybeSingle()
+    if (!data?.value) return null
+    const j = JSON.parse((data as { value: string }).value) as {
+      cargadas?: unknown
+      startAfterDate?: unknown
+      total?: unknown
+    }
+    if (typeof j.cargadas !== 'number' || !Number.isFinite(j.cargadas)) return null
+    return {
+      cargadas: j.cargadas,
+      startAfterDate:
+        typeof j.startAfterDate === 'number' && Number.isFinite(j.startAfterDate) ? j.startAfterDate : undefined,
+      total: typeof j.total === 'number' && Number.isFinite(j.total) ? j.total : undefined,
+    }
+  } catch {
+    return null
+  }
+}
+
 // ── Descarga (listado + transcripciones) ────────────────────────────────────────────
-// El deadline corta la FASE, no la calidad: las conversaciones ya listadas se sirven con
-// las transcripciones que hayan llegado; las que falten quedan `messages: []` (la UI lo
-// dice) en vez de mantener la lambda viva hasta que Vercel la mate a mitad de respuesta.
 export async function descargarConversacionesGhl(
   cfg: GhConversacionesCfg,
   opts: { limite?: number; deadlineMs?: number; fetchImpl?: typeof fetch } = {}
 ): Promise<GhConversation[]> {
+  // Contrato legacy de la pestaña: UNA página de `limite` (20) con sus transcripciones —
+  // misma implementación canónica que la paginada: misma URL, mismo deadline, mismo pool.
   const limite = Math.min(Math.max(opts.limite ?? 20, 1), 100)
+  const { conversaciones } = await descargarPaginaConversacionesGhl(cfg, {
+    pagina: limite,
+    objetivo: limite,
+    deadlineMs: opts.deadlineMs,
+    fetchImpl: opts.fetchImpl,
+  })
+  return conversaciones
+}
+
+/** Últimos 50 mensajes de UNA conversación. Lanza solo si GHL responde con error HTTP. */
+async function descargarMensajes(
+  cfg: GhConversacionesCfg,
+  conversationId: string,
+  doFetch: typeof fetch
+): Promise<GhConversationMessage[]> {
+  const res = await doFetch(`${GHL_BASE}/conversations/${encodeURIComponent(conversationId)}/messages?limit=50`, {
+    headers: ghlHeaders(cfg.token),
+    signal: AbortSignal.timeout(15_000),
+  })
+  if (!res.ok) {
+    const j = (await res.json().catch(() => ({}))) as { message?: string }
+    throw new GhlConversacionesError(j.message || `GHL mensajes respondió ${res.status}`, res.status)
+  }
+  return mapearMensajesGhl((await res.json().catch(() => ({}))) as Json)
+}
+
+// Transcripciones de un lote de conversaciones ya listadas: 1 llamada por conversación, en
+// paralelo con pool acotado (igual que el detalle de IG). El deadline se comprueba por
+// trabajo: lo que no llegue queda `messages: []` (la UI lo dice) en vez de mantener la
+// lambda viva hasta que Vercel la mate a mitad de respuesta.
+async function completarTranscripcionesGhl(
+  cfg: GhConversacionesCfg,
+  conversaciones: GhConversation[],
+  opts: { deadlineMs?: number; fetchImpl?: typeof fetch } = {}
+): Promise<void> {
   const deadlineMs = opts.deadlineMs ?? Date.now() + 25_000
   const doFetch = opts.fetchImpl ?? fetch
   const agotado = () => Date.now() > deadlineMs
-
-  const url = new URL(`${GHL_BASE}/conversations/search`)
-  url.searchParams.set('locationId', cfg.locationId)
-  url.searchParams.set('limit', String(limite))
-  url.searchParams.set('sortBy', 'last_message_date')
-  url.searchParams.set('sort', 'desc')
-
-  if (agotado()) throw new GhlConversacionesError('Presupuesto agotado antes de listar conversaciones', 504)
-  const res = await doFetch(url, { headers: ghlHeaders(cfg.token), signal: AbortSignal.timeout(20_000) })
-  const body = (await res.json().catch(() => ({}))) as { conversations?: FilaSearch[]; message?: string }
-  if (!res.ok) throw new GhlConversacionesError(body.message || `GHL respondió ${res.status}`, res.status)
-
-  const conversaciones = (body.conversations ?? []).map(mapearConversacionGhl).filter((c): c is GhConversation => !!c)
-
-  // Transcripciones: 1 llamada por conversación, en paralelo con pool acotado (igual que el
-  // detalle de IG). El deadline se comprueba por trabajo; el slice del pool también acota
-  // cuántas llamadas se lanzan como máximo.
   const CONCURRENCIA = 5
   let cursor = 0
   async function worker() {
@@ -267,25 +443,34 @@ export async function descargarConversacionesGhl(
     }
   }
   await Promise.all(Array.from({ length: Math.min(CONCURRENCIA, conversaciones.length) }, worker))
-
-  return conversaciones
 }
 
-/** Últimos 50 mensajes de UNA conversación. Lanza solo si GHL responde con error HTTP. */
-async function descargarMensajes(
-  cfg: GhConversacionesCfg,
-  conversationId: string,
-  doFetch: typeof fetch
-): Promise<GhConversationMessage[]> {
-  const res = await doFetch(`${GHL_BASE}/conversations/${encodeURIComponent(conversationId)}/messages?limit=50`, {
-    headers: ghlHeaders(cfg.token),
-    signal: AbortSignal.timeout(15_000),
-  })
-  if (!res.ok) {
-    const j = (await res.json().catch(() => ({}))) as { message?: string }
-    throw new GhlConversacionesError(j.message || `GHL mensajes respondió ${res.status}`, res.status)
-  }
-  return mapearMensajesGhl((await res.json().catch(() => ({}))) as Json)
+// ── Fusión de páginas (paginación incremental) ──────────────────────────────────────
+// La bandeja acumula páginas: snapshot previo + filas recién leídas, SIN duplicados (una
+// conversación puede reaparecer en la zona de solape del cursor) y ordenadas por
+// updated_time desc. Las filas FRESCAS ganan sobre las guardadas: unreadCount y último
+// mensaje actualizados. El tope acota el respaldo; recortar las más antiguas no inventa
+// datos — la UI declara siempre lo que hay cargado.
+export function fusionarConversaciones(
+  previas: GhConversation[],
+  nuevas: GhConversation[],
+  tope = 300
+): GhConversation[] {
+  const porId = new Map<string, GhConversation>()
+  for (const c of previas) porId.set(c.id, c)
+  for (const c of nuevas) porId.set(c.id, c)
+  return [...porId.values()]
+    .sort((a, b) => (Date.parse(b.updated_time || '') || 0) - (Date.parse(a.updated_time || '') || 0))
+    .slice(0, tope)
+}
+
+// El cursor que MANDA es el más profundo (la fecha más antigua alcanzada): con sort desc,
+// "más profundo" es el número MENOR. Un refresco que trae páginas más recientes nunca
+// retrocede la posición de "Cargar más".
+export function cursorMasProfundo(a: number | undefined, b: number | undefined): number | undefined {
+  if (a === undefined) return b
+  if (b === undefined) return a
+  return Math.min(a, b)
 }
 
 // ── Vinculación con perfiles (contacts) ─────────────────────────────────────────────
