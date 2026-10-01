@@ -1,5 +1,17 @@
 # Relevo activo
 
+## Avatar del inbox con foto real (1-oct, Freebuff) — fusionado #302
+
+Petición de Alex («usa la foto de perfil real del contacto con fallback a iniciales»): GHL trae
+`profilePhoto` por conversación en `/conversations/search` y ahora se mapea a `contact_photo_url`
+(`null` si no llega o no es string); el componente `Avatar` del inbox la pinta con `onError` que cae
+a iniciales y luego al icono del canal. **Nota:** Instagram no expone foto en el pipeline actual
+(participants de la Graph API solo username/name, sonda 29-sep) — la foto real llega solo vía GHL;
+el Avatar queda genérico por si IG la añade. Fusionado en `1b11a5c` con CI completo verde (Quality
+2m22s, Build 2m4s, Smoke E2E 5m32s) y producción READY **verificada por API de Vercel con el
+conector MCP** — el token del CLI local en `auth.json` expiró el 30-sep: si toca volver a usar el
+script `/tmp/vercel-check.mjs`, primero `vercel login`. Sin acciones pendientes.
+
 ## ✅ GHL verificado en producción (29-sep tarde) — el hallazgo de la credencial huérfana era un artefacto local
 
 **Corrección del hallazgo original de esta sección.** La credencial NUNCA estuvo huérfana: el token
