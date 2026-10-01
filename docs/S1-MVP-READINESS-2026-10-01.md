@@ -127,6 +127,25 @@ de la sección 5 del encargo evita limpiezas erróneas.
 - Tenant isolation / Security: PASS según auditorías FASE 1-3 de `PROJECT_CONTEXT.md` — **pendiente
   de re-verificar con `security-review` en Fase 1**, no asumido sin más
 
+### 6.0.1 Veredicto consolidado tras Fases 0-8 (este corte de sesión)
+
+Sigue siendo **MVP READY WITH BLOCKERS** — no cambia de categoría, pero el contenido detrás mejora:
+
+- **Cerrado en código esta sesión:** 1 vulnerabilidad de seguridad en producción (RPC de atribución
+  de colaboradores sin verificación de llamador, §6.1); 1 hueco de datos real completado (ventas sin
+  `setter_id` en Data Health, §6.3).
+- **Verificado SIN hallazgos nuevos** (Fases 4, 6, 7, 8): filtro de cuentas de marketing, orgánico,
+  comparabilidad del funnel, terminología y veto de comisiones, aislamiento de colaboradores (27/27
+  tests), diseño de Data Health/conectores. Todo correctamente implementado ya antes de esta sesión.
+- **Bloqueado para ESTA sesión, no para el proyecto:** el MCP de Supabase falló por un error de
+  proxy (`ERR_PROXY_TUNNEL`) a mitad de sesión, cortando la posibilidad de verificar con datos reales
+  (recorrido Lead→Cierre, morosidad, conciliación). Fases 9-14 (Action Center, UX/UI, responsive,
+  accesibilidad, performance, smoke test, regresión final) necesitan navegador con sesión autenticada
+  o capturas del Growth Operator — no se pueden completar desde este sandbox sin esa entrada.
+- Nada de lo anterior sube ni baja el veredicto: sigue siendo "con bloqueadores" porque los
+  bloqueadores de Fase 0 (F6, Instagram, RESEND_API_KEY, UTMs de GHL, CRON_SECRET, MONEY.md A5,
+  doble-submit de firma — todos de Alex, §8) no han cambiado.
+
 ## 6.1 Fase 3 — cerrada: hallazgo de seguridad aplicado en producción
 
 **Confirmado por el usuario ("Vale avanza") y aplicado el 2026-10-01**, migración
@@ -305,6 +324,33 @@ RLS/API, no solo en UI". Esto ya estaba cubierto con una profundidad inusual ANT
 **Veredicto Fase 7:** sin hallazgos nuevos — el aislamiento de colaboradores está correctamente
 implementado y probado en los tres niveles que pide el encargo (frontend, RLS, capa de datos).
 
+## 6.6 Fase 8 — Integraciones/Data Health: ya central, sin hallazgos nuevos
+
+El encargo pide que Data Health sea central y avise de syncs obsoletas, fallos de job, huecos
+históricos y mapeos faltantes. Verificado por código (sin acceso a datos reales de ejecución esta
+sesión — mismo bloqueo del proxy de Supabase):
+
+- `lib/data-health/conectores.ts` (`saludDeConector`) deriva el estado del **historial de
+  ejecuciones** (`sync_runs`), no de las filas de las tablas — exactamente la distinción que pide el
+  encargo ("una integración rota 5 días no puede parecer sana porque el cron trae datos viejos").
+  Separa fallo de credenciales de lectura vs webhook, declara si el conector soporta cursor
+  (reanudación) y redacta secretos dos veces antes de llegar a la pantalla.
+- `lib/data-health/cross-source.ts` tiene `sync_obsoleta` con un umbral de 48 h (`STALE_POR_DEFECTO_MS`)
+  sobre la fecha de sync más reciente vista en `meta`/`instagram`/`tracking` — cubre el caso que
+  `saludDeConector` por sí solo no cubriría (un cron que deja de dispararse del todo no generaría
+  ejecuciones fallidas que detectar, pero sí deja de avanzar `synced_at`, y eso sí se detecta aquí).
+  Las dos piezas se complementan; no hay doble definición de "obsoleto" compitiendo.
+- `lib/data-health/webhooks.ts` tiene el mismo patrón para la mitad RECEPTORA (24 h sin recepción con
+  la integración configurada = tiempo real roto), ya revisado en Fase 0 de este documento.
+- Migración a contrato de conectores (F2): `CONECTORES = [ghl, meta, stripe, plantilla]` — el resto
+  del catálogo (Calendly, Fathom, Instagram, YouTube) se declara explícitamente como
+  `pendientesDeMigrar()` y la propia pantalla lo enseña ("X integraciones todavía sin contrato"). Es
+  trabajo en curso ya rastreado, no un hueco oculto — no se migra en esta fase (sería expandir una
+  pieza completa fuera del alcance de "corregir lo existente").
+
+**Veredicto Fase 8:** sin hallazgos nuevos — el diseño de Data Health ya cumple el requisito de ser
+central y de no disfrazar una tubería rota con datos viejos.
+
 ## 7. Plan de fases (continuación, no reinicio)
 
 Dado el tamaño real (93 pantallas, 14 fases, 42 secciones del encargo), este es un trabajo
@@ -320,7 +366,8 @@ multi-sesión. Las fases siguientes, en orden:
 | 5    | CRM/Setting/Sales: terminología, pipeline, asignación de setter                                 | **Parcial — 1 hueco real cerrado (ver §6.3); falta recorrido Lead→Cierre con datos reales (bloqueado por el proxy de Supabase esta sesión)** |
 | 6    | Finanzas/Comisiones: terminología de dinero, veto `pays_commissions` (D9)                       | **Parcial — sin bugs; falta morosidad/socios/conciliación con datos reales (ver §6.4)** |
 | 7    | Colaboradores: aislamiento frontend + RLS                                                       | **Hecho — sin hallazgos nuevos, 27/27 tests de aislamiento pasan (ver §6.5)** |
-| 8-14 | Según el orden original del encargo (integraciones/Data Health, Action Center, UX/UI, responsive/accesibilidad, performance, smoke test, regresión final) | Pendiente — multi-sesión |
+| 8    | Integraciones/Data Health: syncs obsoletas, fallos de job, webhooks                             | **Hecho — sin hallazgos nuevos, diseño ya correcto (ver §6.6)** |
+| 9-14 | Action Center, UX/UI, responsive/accesibilidad, performance, smoke test, regresión final — requieren navegador autenticado/capturas que esta sesión no tiene | **Bloqueado para esta sesión — ver §1** |
 
 ## 8. Lo que necesito de Alex (no bloquea el resto, se deja documentado)
 
