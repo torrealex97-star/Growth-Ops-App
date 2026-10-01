@@ -264,11 +264,23 @@ externas (comentario en el propio código, migración v58) para no confundir amb
 decisión de arquitectura ya tomada y correcta, no un hueco — no se construye una pantalla nueva de
 "Pipeline" que duplicaría esta.
 
-**Pendiente de esta fase para una sesión siguiente:** recorrido Lead→Agenda→Asistencia→Cierre de
-punta a punta con datos reales (requiere Supabase MCP, caído en esta sesión por un error de proxy —
-`ERR_PROXY_TUNNEL`); el scope de colaboradores (frontend + RLS) se deja para la Fase 7, donde el
-encargo lo pide explícitamente y donde ya hay contexto de la Fase 3 (la vulnerabilidad de atribución
-de colaboradores cerrada en §6.1 es del mismo dominio).
+**Recorrido Lead→Agenda→Asistencia→Cierre con datos reales (el MCP de Supabase volvió a conectar
+más tarde en esta misma sesión):** verificado contra el único tenant con datos reales de producción
+(identidad no reproducida aquí — `docs/SECURITY_PRIVACY.md`). Magnitudes internamente coherentes
+(agendas ≤ contactos, cierres ≤ asistidas); la tasa de cierre sobre asistidas no sugiere datos
+corruptos. Sin anomalías.
+
+**Validación con datos reales de la tarjeta "Ventas sin setter" (§6.3):** en ese mismo tenant, tanto
+`salesWithoutSetter` como el equivalente de agendas salieron al 100%. Investigado antes de darlo por
+un bug: el tenant SÍ tiene un setter activo en el roster, pero (a) el 100% de sus agendas llegan por
+reserva directa del lead (sin paso por un setter que agende manualmente), (b) ningún registro de
+atribución de este tenant referencia el código de seguimiento de esa persona, y (c) el ÚNICO
+`participant_type` que aparece en `commissions` para este tenant es `collaborator` (cero
+`setter`/`closer` jamás generados). Conclusión: no es un hueco de asignación roto — es un tenant cuyo
+funnel real no enruta por setter (modelo dirigido por colaboradores/afiliados). La tarjeta de Data
+Health informa el número real correctamente; el 100% no es una alarma falsa, es la foto real de cómo
+opera ese negocio. Se documenta aquí para que no se lea como un fallo del sistema si se ve en
+pantalla — el detalle identificable (qué tenant, qué persona) se comunica aparte, no en este repo.
 
 **Veredicto Fase 5 (parcial):** terminología correcta, hueco de asignación de setter cerrado, pipeline
 interno ya bien diseñado. Sin bugs adicionales encontrados en lo revisado.
@@ -291,10 +303,25 @@ lados que el encargo y `CLAUDE.md` piden explícitamente:
   existieran de antes de marcar la exención — exactamente el caso que el encargo quería cerrado (un
   veto que solo actúa en generación no basta si ya hay filas viejas).
 
-**Pendiente de Fase 6 para una sesión siguiente:** revisión de `docs/MONEY.md` A5 (refunds
-acumulados/clawback) está explícitamente bloqueada por decisión de Alex — no se toca. Queda por
-revisar `finanzas/morosidad`, `finanzas/socios` y la conciliación Stripe↔cobros con datos reales
-(mismo bloqueo del proxy de Supabase que en Fase 5).
+**Conciliación Stripe↔cobros con datos reales (MCP de Supabase reconectó en esta sesión):** el
+control cruzado `pagosSinCobro` de `lib/data-health/cross-source.ts:147-154` (pagos `succeeded` en
+Stripe sin ningún `collections.payment_reference` que los referencie) YA detecta correctamente un
+hueco real y actual en el único tenant con datos de producción:
+
+- Un puñado de pagos de Stripe `succeeded` recientes sin cobro interno correspondiente, por un
+  importe conjunto de varios miles de euros. Verificado que esto NO es un bug de código: el control
+  ya existe, ya corre y ya lo marcaría en la pantalla de Data Health (`crossSummary`) la próxima vez
+  que se abra con ese tenant. Es un hueco de DATOS real y actual, no de implementación.
+- **ACCIÓN REQUERIDA:** reconciliar esos pagos — confirmar si corresponden a cobros que faltan por
+  registrar en `collections` (y registrarlos) o a cargos de Stripe ajenos a una venta de la app (en
+  cuyo caso no hace falta nada). Mientras no se resuelva, el Cash Collected mostrado en Finanzas para
+  ese tenant está subestimado frente a lo que Stripe reporta. Detalle exacto (IDs de pago, fechas,
+  importes) comunicado aparte — no se reproducen aquí por ser datos de negocio de un tenant
+  (`docs/SECURITY_PRIVACY.md` §2).
+
+**Pendiente de Fase 6:** revisión de `docs/MONEY.md` A5 (refunds acumulados/clawback) sigue
+bloqueada por decisión de Alex — no se toca. `finanzas/morosidad` y `finanzas/socios` quedan sin
+revisar con datos reales para una sesión siguiente.
 
 **Veredicto Fase 6 (parcial):** terminología de dinero y veto de comisiones ya correctos en los dos
 lados. Sin bugs encontrados en lo revisado.
@@ -378,5 +405,8 @@ multi-sesión. Las fases siguientes, en orden:
 5. `CRON_SECRET` en Vercel Preview.
 6. Decisión A5 de `docs/MONEY.md` (refunds acumulados/clawback) — no tocar código de refunds sin esto.
 7. Decisión sobre semántica de doble-submit en firma de contratos antes de implementar el CAS.
+8. **Conciliar los pagos de Stripe sin cobro interno correspondiente que detecta `pagosSinCobro`**
+   (ver §6.4) — detalle identificable comunicado aparte, no en este repo. Mientras no se resuelva,
+   el Cash Collected del tenant afectado está subestimado.
 
 Ninguno de estos detiene el resto del trabajo de código (Fases 1-14 siguen sin depender de ellos).

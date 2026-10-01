@@ -21,6 +21,16 @@ Detalle completo en `docs/S1-MVP-READINESS-2026-10-01.md` — no se duplica aqu�
 - [x] Las 3 rutas "afiliados" (`afiliados/registro`, `marketing/afiliados/afiliados`,
       `settings/afiliados`) se leyeron y **no son duplicación**: configuración del programa →
       formulario público de alta → panel de gestión de los ya dados de alta. Nada que tocar.
+- [x] Fases 4 (marketing/funnel), 6 (finanzas/comisiones), 7 (colaboradores) y 8 (integraciones/Data
+      Health) auditadas sin bugs de código nuevos — todo lo revisado ya estaba bien construido.
+- [x] Fase 5 (CRM/setting/sales): 1 hueco real cerrado — Data Health no contaba ventas sin
+      `setter_id`; añadido `integrity.salesWithoutSetter` (mismo patrón que `leadChannelGaps`).
+- [ ] **ACCIÓN REQUERIDA — conciliación Stripe↔cobros en un tenant con datos de producción:** varios
+      pagos de Stripe `succeeded` recientes sin cobro interno (`collections`) correspondiente. El
+      control que ya existe en Data Health (`pagosSinCobro`) lo detecta correctamente; falta que
+      alguien lo revise y los registre (o confirme que no son de una venta de la app). Mientras tanto
+      el Cash Collected de Finanzas para ese tenant está subestimado. Detalle identificable (qué
+      tenant, qué pagos) comunicado aparte — no se reproduce aquí (`docs/SECURITY_PRIVACY.md` §2).
 
 ## Actualización de entrega — 2026-09-28
 
