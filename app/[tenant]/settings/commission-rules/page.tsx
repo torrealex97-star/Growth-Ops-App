@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -313,7 +315,7 @@ export default function CommissionRulesPage() {
       </div>
 
       {loading ? (
-        <div className="h-48 bg-card rounded-lg animate-pulse" />
+        <Skeleton className="h-48" />
       ) : sortedRules.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <Percent className="w-12 h-12 text-muted-foreground mb-4" />
