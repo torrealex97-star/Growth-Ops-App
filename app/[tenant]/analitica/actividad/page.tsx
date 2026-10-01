@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useEffect, useMemo, useState } from 'react'
 import { useTenantId } from '@/lib/tenant-context'
 import { metodoDePlan } from '@/lib/metrics/agregados'
@@ -428,10 +430,10 @@ export default function ProspectingPage() {
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[...Array(8)].map((_, i) => (
-              <div key={i} className="h-32 bg-card border border-border rounded-lg animate-pulse" />
+              <Skeleton key={i} className="h-32 border border-border" />
             ))}
           </div>
-          <div className="h-64 bg-card border border-border rounded-lg animate-pulse" />
+          <Skeleton className="h-64 border border-border" />
         </div>
       ) : !hasData ? (
         <div className="flex flex-col items-center justify-center py-24 text-center bg-card border border-border rounded-lg">
