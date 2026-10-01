@@ -84,6 +84,43 @@ export function ultimoMensaje(msgs: MsgMin[]): MsgMin | null {
   return msgs.length ? (msgs[msgs.length - 1] as MsgMin) : null
 }
 
+// ── Marcas de hecho verificado (cita/venta en el CRM) ─────────────────────────────
+// Fuente ÚNICA: porConversacion de /conversations/metrics — el mismo cálculo que alimentan las
+// tarjetas cross-plataforma (lib/instagram/conversation-metrics.ts): tieneAgenda/tieneVenta solo
+// son true cuando la conversación está enlazada a un contacto real con cita/venta en BD (un hecho,
+// no una suposición leída del texto; sin contacto vinculado → null → sin marca).
+export type VerificacionContacto = {
+  agenda: boolean
+  venta: boolean
+}
+
+/**
+ * conversationId → { agenda, venta } para pintar las marcas del inbox. Solo acepta hechos
+ * (true explícito): una métrica pendiente de verificar (null) NO es un "no" ni una marca.
+ * Lo nuevo de cada plataforma GANA sobre lo previo (la vinculación del contacto puede haber
+ * cambiado desde la última carga), y una plataforma nunca borra lo verificado de la otra.
+ */
+export function alimentarVerificadas(
+  previas: Record<string, VerificacionContacto>,
+  platform: 'instagram' | 'ghl',
+  porConversacion: { conversationId: string; tieneAgenda?: boolean | null; tieneVenta?: boolean | null }[]
+): Record<string, VerificacionContacto> {
+  const resultado = { ...previas }
+  for (const m of porConversacion) {
+    const agenda = m.tieneAgenda === true
+    const venta = m.tieneVenta === true
+    if (!agenda && !venta) continue
+    resultado[`${platform}:${m.conversationId}`] = { agenda, venta }
+  }
+  return resultado
+}
+
+/** Marcas de la fila (o null si no hay hecho verificado que mostrar). */
+export function marcaVerificada(v: VerificacionContacto | null | undefined): VerificacionContacto | null {
+  if (!v || (!v.agenda && !v.venta)) return null
+  return v
+}
+
 /** Vista previa de la fila: los propios llevan el prefijo "Tú:" (convención de bandejas). */
 export function vistaPrevia(m: MsgMin | null): string {
   if (!m) return 'Sin mensajes todavía'

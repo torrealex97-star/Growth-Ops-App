@@ -1,20 +1,34 @@
 'use client'
 import { useTenant } from '@/lib/tenant-context'
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import { Sparkles, Loader2, MessageCircle, ExternalLink, Phone, Mail, SearchX, ChevronDown } from 'lucide-react'
+import {
+  Sparkles,
+  Loader2,
+  MessageCircle,
+  ExternalLink,
+  Phone,
+  Mail,
+  SearchX,
+  ChevronDown,
+  CalendarCheck,
+  DollarSign,
+} from 'lucide-react'
 import { formatNumber, formatPercent } from '@/lib/utils'
 import { SearchBox } from '@/components/ui/search-box'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { canalesDisponibles, filtrarConversaciones } from '@/lib/setting-ai/filtrar-conversaciones'
 import {
+  alimentarVerificadas,
   claveDia,
   etiquetaDia,
   horaDe,
   inicialesDe,
+  marcaVerificada,
   tiempoRelativo,
   ultimoMensaje,
   vistaPrevia,
   type MsgMin,
+  type VerificacionContacto,
 } from '@/lib/setting-ai/inbox'
 
 type ConvMsg = MsgMin & { created_time?: string }
@@ -77,6 +91,16 @@ type RespuestaConvos = {
   hayMas?: boolean
 }
 
+type RespuestaMetricas = {
+  error?: string
+  configured?: boolean
+  resumen?: ResumenMetricas
+  motivo?: string
+  // Por conversación: alimenta las marcas de cita/venta verificada del inbox (misma fuente
+  // que las tarjetas). tieneAgenda/tieneVenta null = sin contacto vinculado, no verificable.
+  porConversacion?: { conversationId: string; tieneAgenda?: boolean | null; tieneVenta?: boolean | null }[]
+}
+
 // Presentación del canal: icono y etiqueta legible. Lo que GHL no clasifique queda como
 // "Chat" (misma política honesta del mapeador: nada inventado).
 const CANAL_UI: Record<string, { label: string; icono: 'sms' | 'call' | 'email' | 'chat' }> = {
@@ -117,6 +141,10 @@ export default function ConversacionesTab() {
   >({})
   const [busqueda, setBusqueda] = useState('')
   const [canal, setCanal] = useState('todos')
+  // Conversaciones con hecho verificado en el CRM (cita/venta del contacto vinculado). La fuente
+  // es la que ya calcula /conversations/metrics para las tarjetas: no se inventa nada en cliente
+  // (un hecho es un hecho; sin contacto vinculado → sin marca).
+  const [verificadas, setVerificadas] = useState<Record<string, VerificacionContacto>>({})
   // "Cargar más" (GHL): si el servidor declara página siguiente, cuántas quedan del total,
   // estado de la petición en curso y su error (reintentable; no tumba la bandeja).
   const [hayMas, setHayMas] = useState(false)
@@ -130,6 +158,7 @@ export default function ConversacionesTab() {
     setBusqueda('')
     setCanal('todos')
     setOpenId(null)
+    setVerificadas({})
     setHayMas(false)
     setTotal(null)
     setCargandoMas(false)
@@ -195,7 +224,7 @@ export default function ConversacionesTab() {
     for (const p of ['instagram', 'ghl'] as const) {
       fetch(`/api/${tenant}/evergreen/setting-ai/conversations/metrics?platform=${p}`)
         .then((r) => r.json())
-        .then((j) => {
+        .then((j: RespuestaMetricas) => {
           if (cancel) return
           setMetricas((m) => ({
             ...m,
@@ -204,6 +233,10 @@ export default function ConversacionesTab() {
                 ? { resumen: j.resumen as ResumenMetricas }
                 : { motivo: j.motivo || j.error || '' },
           }))
+          // Las marcas del inbox se alimentan de la MISMA respuesta (porConversacion) que
+          // alimentan las tarjetas: sin llamadas nuevas y sin una segunda definición de
+          // "verificado". Lo nuevo de cada plataforma gana; la otra plataforma no se toca.
+          setVerificadas((v) => alimentarVerificadas(v, p, j.porConversacion ?? []))
         })
         .catch(() => {
           if (!cancel) setMetricas((m) => ({ ...m, [p]: { motivo: 'No se pudieron calcular las métricas.' } }))
@@ -351,6 +384,7 @@ export default function ConversacionesTab() {
                   c={c}
                   activa={openId === c.id}
                   onClick={() => setOpenId(openId === c.id ? null : c.id)}
+                  verificacion={verificadas[`${platform}:${c.id}`]}
                 />
               </li>
             ))}
@@ -480,11 +514,23 @@ function Avatar({
   )
 }
 
-function FilaConversacion({ c, activa, onClick }: { c: Conv; activa: boolean; onClick: () => void }) {
+function FilaConversacion({
+  c,
+  activa,
+  onClick,
+  verificacion,
+}: {
+  c: Conv
+  activa: boolean
+  onClick: () => void
+  // Hecho verificado en el CRM (cita/venta del contacto vinculado); null = sin hecho que mostrar.
+  verificacion?: VerificacionContacto | null
+}) {
   const nombre = nombreDe(c)
   const canal = canalUi(c.channel)
   const ult = ultimoMensaje(c.messages)
   const sinLeer = c.unread_count > 0
+  const marcas = marcaVerificada(verificacion)
   return (
     <button
       onClick={onClick}
@@ -510,6 +556,26 @@ function FilaConversacion({ c, activa, onClick }: { c: Conv; activa: boolean; on
             <IconoCanal tipo={canal.icono} className="w-2.5 h-2.5" />
             {canal.label}
           </span>
+          {marcas && (
+            <>
+              {marcas.agenda && (
+                <span
+                  className="inline-flex items-center gap-0.5 text-3xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded px-1 py-0.5"
+                  title="Este contacto tiene una cita en el CRM"
+                >
+                  <CalendarCheck className="w-2.5 h-2.5" /> Cita
+                </span>
+              )}
+              {marcas.venta && (
+                <span
+                  className="inline-flex items-center gap-0.5 text-3xs font-semibold text-brand-400 bg-brand-500/10 border border-brand-500/30 rounded px-1 py-0.5"
+                  title="Este contacto tiene una venta en el CRM"
+                >
+                  <DollarSign className="w-2.5 h-2.5" /> Venta
+                </span>
+              )}
+            </>
+          )}
           {c.messages.length > 0 && <span className="text-3xs text-muted-foreground">{c.messages.length} msgs</span>}
         </span>
       </span>
