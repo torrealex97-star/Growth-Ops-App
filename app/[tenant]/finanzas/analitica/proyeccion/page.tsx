@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useEffect, useMemo, useState } from 'react'
 import { useTenantId } from '@/lib/tenant-context'
 import { createClient } from '@/lib/supabase/client'
@@ -161,7 +163,7 @@ export default function ProyeccionPage() {
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-28 bg-card border border-border rounded-lg animate-pulse" />
+            <Skeleton key={i} className="h-28 border border-border" />
           ))}
         </div>
       ) : fuentesEnError.length > 0 ? null : (

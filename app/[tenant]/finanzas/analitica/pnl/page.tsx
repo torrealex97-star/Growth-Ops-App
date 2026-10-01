@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useEffect, useMemo, useState } from 'react'
 import { useTenantId } from '@/lib/tenant-context'
 import { createClient } from '@/lib/supabase/client'
@@ -229,7 +231,7 @@ export default function PnlPage() {
       {loading ? (
         <div className="dashboard-card p-6 space-y-3">
           {Array.from({ length: 14 }).map((_, i) => (
-            <div key={i} className="h-5 bg-muted rounded animate-pulse" style={{ width: `${60 + (i % 5) * 8}%` }} />
+            <Skeleton key={i} className="h-5 bg-muted rounded" style={{ width: `${60 + (i % 5) * 8}%` }} />
           ))}
         </div>
       ) : fuentesEnError.length > 0 ? null : (
