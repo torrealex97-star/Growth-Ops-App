@@ -208,6 +208,35 @@ orgánico ni en la comparabilidad del funnel — las tres piezas ya implementan 
 pedía el encargo. Dos huecos de cobertura conocidos y documentados (ad-set granularity, FB/YT/TikTok
 orgánico) que NO se construyen en esta fase por ser features nuevas.
 
+## 6.3 Fase 5 (en curso) — CRM/Setting/Sales: terminología correcta, un hueco real completado
+
+**Terminología (Agendas/Asistencias/No-show/Cierres):** revisado `app/[tenant]/crm/agendas/page.tsx`
+y `components/appointments/AgendasMetricsView.tsx` — las tablas de Setters y Closers ya usan los
+términos exactos (Agendas/Agendadas/Llamadas atendidas/No asistieron/Tasa de asistencia para
+setters; Asignadas/Agendadas/Cierres/Tasa de cierre para closers) y muestran el CONTEO junto a cada
+tasa (nunca un % aislado sin su denominador) — cumple el requisito del encargo tal cual.
+
+**Hueco real encontrado y completado — ventas sin `setter_id`:** `settings/data-health` ya tenía el
+patrón exacto que pide el encargo para contactos sin canal (`leadChannelGaps`: se cuenta el hueco,
+nunca se inventa el valor) pero NO existía el equivalente para asignación de setter en ventas, pese
+a que `lib/commissions/attribution.ts` intenta resolverlo automáticamente y puede quedarse sin poder
+hacerlo. Verificado con `grep` que no hay ningún control de este tipo en ningún otro sitio del repo
+(cero resultados para `setter_id.*is null` / `setterGaps` / variantes). Completado (no es feature
+nueva: es la misma sección de Data Health, mismo patrón, mismo componente `Metric`):
+
+- `app/api/[tenant]/evergreen/settings/data-health/route.ts`: la query de `sales` ahora trae
+  `setter_id, status, reservation_completed_at, payment_plans(method)`; `integrity.salesWithoutSetter`
+  cuenta las ventas que `cuentaComoVenta()` (MONEY.md D8 — una reserva sin completar no es venta)
+  acepta como venta real Y no tienen `setter_id`. `null` (no `0`) si la query de `sales` falla — "no
+  se pudo comprobar" nunca se disfraza de "cero huecos".
+- `components/settings/DataHealthPanel.tsx`: nueva tarjeta "Ventas sin setter" en la sección
+  "Captura de origen" ya existente, mismo componente `Metric`, mismo criterio de color (`bad` si > 0,
+  `warn` si no se pudo comprobar, `good` si 0).
+- Verificado: `npx tsc --noEmit`, `npx eslint` sobre los dos ficheros y `npm test` completo tras el
+  cambio — mismo 1202/1205 que el baseline (los 3 fallos son de red al sandbox), nada se rompió.
+- Esto da el número concreto que pide el encargo (ej. "38 ventas sin setter_id") en vez de un aviso
+  vago — el Growth Operator ve la cifra real de su tenant la próxima vez que abra Data Health.
+
 ## 7. Plan de fases (continuación, no reinicio)
 
 Dado el tamaño real (93 pantallas, 14 fases, 42 secciones del encargo), este es un trabajo
