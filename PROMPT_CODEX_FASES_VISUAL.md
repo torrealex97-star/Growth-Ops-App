@@ -12,13 +12,59 @@ citados — este prompt asume que ya los leíste.
 10 (adopción de `Skeleton`/`EmptyState`) con su propio plan detallado — hazla primero o en
 paralelo, es independiente de esto.
 
-**Antes de empezar:** pide al usuario credenciales de un tenant de prueba/staging (no uses datos
-de producción reales para clicar a ciegas si existe una alternativa) y confirma qué entorno vas a
-usar (local `npm run dev`, el preview de Vercel de esta rama, o producción). Si solo hay
-producción disponible, pregúntale al usuario antes de tocar nada que pudiera escribir datos (crear,
-editar, borrar) — todo lo de este documento es de LECTURA/observación, pero algún journey de la
-Fase 13 necesita completar un flujo real (ej. una venta) y eso sí requiere su confirmación explícita
-primero.
+## 0. Acceso al tenant de prueba en local — hazlo tú, no hace falta preguntar nada más
+
+El repo YA tiene un tenant QA y el script que lo aprovisiona de forma idempotente
+(`scripts/e2e/setup-tenant.mjs`, el mismo que usa el global-setup de Playwright). No hay que crear
+nada nuevo — solo ejecutarlo. Pasos exactos:
+
+1. **Credenciales reales de Supabase en `.env.local`.** Esta sesión de Claude solo tenía valores
+   de relleno (`placeholder.supabase.co`) a propósito — para no escribir en producción desde un
+   sandbox automatizado. Tú, en local, sí necesitas los reales. Tráelos con el CLI de Vercel
+   (es el patrón que ya usa este repo, ver `docs/ACTIVE_HANDOFF.md`):
+   ```bash
+   vercel login        # si no has iniciado sesión ya
+   vercel link         # vincula esta carpeta al proyecto de Vercel (una vez)
+   vercel env pull .env.local
+   ```
+   Esto trae `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` y el resto de variables reales.
+   **Nunca** copies estos valores a ningún fichero que no sea `.env.local` (ya está en
+   `.gitignore`) ni los pegues en un commit, PR o este tipo de documento.
+2. **Define `E2E_PASSWORD`** en ese mismo `.env.local` — cualquier contraseña fuerte, es solo
+   local, nunca se commitea ni se imprime (así lo hace `global-setup.mjs`, que ya existe en el
+   repo — sigue el mismo criterio).
+3. **Aprovisiona/resetea el tenant QA:**
+   ```bash
+   node scripts/e2e/setup-tenant.mjs
+   ```
+   Esto crea (o resetea si ya existe) el tenant `qa-e2e` con: un usuario admin
+   (`admin@qa-e2e.test`, contraseña = tu `E2E_PASSWORD`), un producto con un plan de reserva (300)
+   y uno de pago completo (3000), dos contactos de prueba, y un colaborador en
+   `pending_contract` con un contrato de equipo enviado. Es idempotente — puedes volver a
+   ejecutarlo cuando quieras un estado limpio (borra la actividad transaccional del tenant antes
+   de recrear los fixtures).
+4. **Levanta la app y entra:**
+   ```bash
+   npm run dev
+   ```
+   Abre `http://localhost:3000/qa-e2e/login` (o el puerto que uses) y entra con
+   `admin@qa-e2e.test` + tu `E2E_PASSWORD`. Ese login tiene rol `admin` en el tenant `qa-e2e` — es
+   el usuario con el que recorrer la mayoría de los journeys de la Fase 13.
+5. **Para el journey de colaborador** (Fase 13, punto 5): el fixture ya crea un perfil de
+   colaborador, pero su usuario (`colaborador@qa-e2e.test`) se genera con una contraseña aleatoria
+   desechable porque ese rol normalmente firma por token, no hace login. Si necesitas probar el
+   login de un colaborador de verdad, crea tú un segundo usuario con rol `collaborator` en el
+   tenant `qa-e2e` desde la pantalla de usuarios de la app (ya logueado como admin) — más simple
+   que tocar el script.
+6. **Si algo del script falla** (p. ej. porque el esquema cambió desde que se escribió), no lo
+   edites a ciegas: lee el error, compara contra el esquema real con las herramientas de Supabase
+   que tengas configuradas, y recién entonces ajusta. Es un fixture compartido con los tests E2E de
+   CI — un cambio roto ahí rompe esa suite también.
+
+No necesitas pedirle nada más al usuario para esto — ya está todo documentado arriba. Solo
+pregúntale si quieres probar contra el preview de Vercel o producción en vez de local, o si algún
+journey de la Fase 13 requiere escribir datos fuera del tenant `qa-e2e` (p. ej. un pago real con
+Stripe) — eso sí necesita su confirmación explícita antes de ejecutarse.
 
 ---
 
