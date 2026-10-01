@@ -413,6 +413,49 @@ cómo se prioriza entre fuentes) que no son mías para decidir unilateralmente.
 **Veredicto Fase 9:** hueco real y confirmado, documentado para una fase de EXTENSIÓN deliberada
 posterior (no esta), una vez cerradas las fases de corrección. No es un bug.
 
+## 6.8 Fases 10-12 — lo que SÍ es auditable por código sin navegador, y dónde se para honestamente
+
+El usuario pidió explícitamente avanzar primero en todo lo que no requiera navegador. Estas fases
+piden mayoritariamente recorrido visual y medición en runtime, pero hay un ángulo de cada una que
+sí se puede comprobar leyendo código. Esto es lo que se hizo y lo que no, sin fingir una
+verificación que no se hizo:
+
+### Fase 10 (UX/UI) — hallazgo real confirmado: Skeleton/EmptyState existen pero casi no se usan
+
+- `components/ui/skeleton.tsx` existe y su propio comentario dice explícitamente que fue creado
+  para "sustituir a los `<div className=\"... animate-pulse\" />` sueltos repetidos por ~20
+  pantallas" (citando una auditoría UX previa) — pero **solo 1 fichero lo importa**. Hay **52
+  ficheros** bajo `app/` con el patrón `animate-pulse` suelto, sin pasar por el componente. El
+  hueco que esa auditoría anterior ya había detectado y para el que ya se construyó la pieza
+  **nunca se terminó de aplicar**.
+- `components/ui/empty-state.tsx` existe pero también lo importa **solo 1 fichero**; hay **49
+  ficheros** con texto de estado vacío escrito a mano ("No hay…", "Aún no hay…") en vez de usar el
+  componente compartido.
+- **No se corrige en esta sesión:** migrar 52 + 49 ficheros sin poder verificar visualmente el
+  resultado (sin navegador) es exactamente el tipo de cambio amplio y no verificable que el encargo
+  pide evitar — el riesgo de romper un layout que no puedo ver compensa de sobra el beneficio de
+  consistencia. Se documenta como tarea bien acotada para cuando haya verificación visual
+  disponible (Fase 10 real, con navegador).
+
+### Fase 11 (Accesibilidad) — intentado por código, sin resultado fiable; se declara, no se finge
+
+Probé un patrón de grep para botones solo-icono sin `aria-label`/`title`. El resultado no es
+fiable: los atributos JSX se reparten en varias líneas y una regex no distingue un botón decorativo
+de uno funcional sin reconstruir el árbol JSX real. Hacerlo bien pide una herramienta real (axe-core
+contra el DOM renderizado, o lectura manual asistida por navegador) — exactamente lo que falta esta
+sesión. No se reporta ningún hallazgo de accesibilidad por no tener confianza suficiente en el
+método; inventar uno para "tener algo que decir" sería peor que no decir nada.
+
+### Fase 12 (Performance) — N+1 muestreado en rutas críticas: sin hallazgos
+
+Se revisaron por código las rutas de API que alimentan pantallas interactivas (no crons/webhooks/
+backfills, donde procesar secuencialmente es aceptable) en busca del patrón "una query de BD por
+iteración de un bucle": `appointments/closer-conflicts`, `contacts/[id]`, `sales/[id]`. Las tres
+agrupan y consultan por lotes (`.in(...)`) fuera de cualquier bucle — los bucles que tienen son
+sobre datos ya en memoria, no generan una query por vuelta. Sin hallazgos de N+1 en las rutas
+muestreadas. La medición real (LCP/INP/CLS de producción, tamaño de bundle servido, llamadas
+duplicadas en el navegador) sigue necesitando runtime/navegador — no se inventa aquí.
+
 ## 7. Plan de fases (continuación, no reinicio)
 
 Dado el tamaño real (93 pantallas, 14 fases, 42 secciones del encargo), este es un trabajo
@@ -430,7 +473,10 @@ multi-sesión. Las fases siguientes, en orden:
 | 7    | Colaboradores: aislamiento frontend + RLS                                                       | **Hecho — sin hallazgos nuevos, 27/27 tests de aislamiento pasan (ver §6.5)** |
 | 8    | Integraciones/Data Health: syncs obsoletas, fallos de job, webhooks                             | **Hecho — sin hallazgos nuevos, diseño ya correcto (ver §6.6)** |
 | 9    | Action Center unificado (9 tipos, escalado por rol)                                              | **Hecho el diagnóstico — hueco real confirmado, NO se construye en esta fase: es feature nueva (ver §6.7)** |
-| 10-14 | UX/UI, responsive/accesibilidad, performance, smoke test, regresión final — requieren navegador autenticado/capturas que esta sesión no tiene | **Bloqueado para esta sesión — ver §1** |
+| 10   | UX/UI: diseño/consistencia                                                                      | **Parcial — hallazgo real por código (Skeleton/EmptyState sin adoptar, ver §6.8); resto necesita navegador** |
+| 11   | Accesibilidad                                                                                    | **Intentado por código, sin resultado fiable — necesita herramienta real (ver §6.8)** |
+| 12   | Performance                                                                                      | **Parcial — sin N+1 en rutas muestreadas (ver §6.8); medición real necesita runtime/navegador** |
+| 13-14 | Smoke test visual, regresión final                                                              | **Bloqueado para esta sesión — ver §1** |
 
 ## 8. Lo que necesito de Alex (no bloquea el resto, se deja documentado)
 
