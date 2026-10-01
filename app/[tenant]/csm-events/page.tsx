@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeUserNamesQuery } from '@/lib/users'
@@ -303,7 +305,7 @@ export default function CsmEventsPage() {
       </div>
 
       {loading ? (
-        <div className="h-64 bg-card rounded-lg animate-pulse" />
+        <Skeleton className="h-64" />
       ) : visibleItems.length === 0 ? (
         <div className="bg-card/50 border border-border rounded-lg p-10 text-center">
           <CalendarCheck className="w-10 h-10 text-muted-foreground mx-auto mb-3" />

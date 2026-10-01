@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeUserNamesQuery } from '@/lib/users'
@@ -910,10 +912,10 @@ export default function ExpensesPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-24 bg-card rounded-lg animate-pulse" />
+              <Skeleton key={i} className="h-24" />
             ))}
           </div>
-          <div className="h-64 bg-card rounded-lg animate-pulse" />
+          <Skeleton className="h-64" />
         </div>
       ) : (
         <>

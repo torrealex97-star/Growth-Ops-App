@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -193,7 +195,7 @@ export default function ActividadPage() {
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="h-12 bg-card border border-border rounded-lg animate-pulse" />
+            <Skeleton key={i} className="h-12 border border-border" />
           ))}
         </div>
       ) : filtered.length === 0 ? (
