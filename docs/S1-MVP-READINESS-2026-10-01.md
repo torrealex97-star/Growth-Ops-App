@@ -237,6 +237,23 @@ nueva: es la misma sección de Data Health, mismo patrón, mismo componente `Met
 - Esto da el número concreto que pide el encargo (ej. "38 ventas sin setter_id") en vez de un aviso
   vago — el Growth Operator ve la cifra real de su tenant la próxima vez que abra Data Health.
 
+**Pipeline/Oportunidades del CRM:** esta app no tiene una pantalla separada llamada "Pipeline" u
+"Oportunidades" — la función la cubre `app/[tenant]/crm/seguimiento/page.tsx`, un kanban con sus
+propias etapas internas (`pendiente_recontacto` / `en_seguimiento_pago` / `reagendado_pendiente` /
+`cerrado` / `descualificado`), explícitamente separadas del `pipeline_stage` de integraciones
+externas (comentario en el propio código, migración v58) para no confundir ambos conceptos. Es una
+decisión de arquitectura ya tomada y correcta, no un hueco — no se construye una pantalla nueva de
+"Pipeline" que duplicaría esta.
+
+**Pendiente de esta fase para una sesión siguiente:** recorrido Lead→Agenda→Asistencia→Cierre de
+punta a punta con datos reales (requiere Supabase MCP, caído en esta sesión por un error de proxy —
+`ERR_PROXY_TUNNEL`); el scope de colaboradores (frontend + RLS) se deja para la Fase 7, donde el
+encargo lo pide explícitamente y donde ya hay contexto de la Fase 3 (la vulnerabilidad de atribución
+de colaboradores cerrada en §6.1 es del mismo dominio).
+
+**Veredicto Fase 5 (parcial):** terminología correcta, hueco de asignación de setter cerrado, pipeline
+interno ya bien diseñado. Sin bugs adicionales encontrados en lo revisado.
+
 ## 7. Plan de fases (continuación, no reinicio)
 
 Dado el tamaño real (93 pantallas, 14 fases, 42 secciones del encargo), este es un trabajo
@@ -249,7 +266,8 @@ multi-sesión. Las fases siguientes, en orden:
 | 2    | Confirmar propósito de las 3 rutas "afiliados"                                         | **Hecho — falso positivo, no hay duplicación** |
 | 3    | Seguridad: advisors de Supabase + `SECURITY DEFINER`/RLS                                | **Hecho — 1 vulnerabilidad real cerrada en producción (ver §6.1)** |
 | 4    | Marketing/funnel: filtro de cuentas Meta, orgánico, comparabilidad del funnel conectado         | **Hecho — sin bugs; 2 huecos de cobertura documentados, no corregidos (ver §6.2)** |
-| 5-14 | Según el orden original del encargo (CRM/setting/sales, finanzas, colaboradores, integraciones, Action Center, UX/UI, responsive/accesibilidad, performance, smoke test, regresión final) | Pendiente — multi-sesión |
+| 5    | CRM/Setting/Sales: terminología, pipeline, asignación de setter                                 | **Parcial — 1 hueco real cerrado (ver §6.3); falta recorrido Lead→Cierre con datos reales (bloqueado por el proxy de Supabase esta sesión)** |
+| 6-14 | Según el orden original del encargo (finanzas, colaboradores, integraciones, Action Center, UX/UI, responsive/accesibilidad, performance, smoke test, regresión final) | Pendiente — multi-sesión |
 
 ## 8. Lo que necesito de Alex (no bloquea el resto, se deja documentado)
 
