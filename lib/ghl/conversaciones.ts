@@ -91,8 +91,17 @@ export function cfgDesdeEnv(env: Record<string, string | undefined>): GhConversa
   return token && locationId ? { token, locationId } : null
 }
 
+// Content-Type SIEMPRE: sin él, fetch envía el body como text/plain y el parser de GHL se
+// queda con el body vacío (verificado en producción 1-oct: POST /conversations/messages devolvió
+// 404 "Contact id not given" con el body perfectamente formado). Los GET no lo necesitan; los
+// POST sin esta cabecera fallan SIEMPRE.
 export function ghlHeaders(token: string): Record<string, string> {
-  return { Authorization: `Bearer ${token}`, Version: GHL_VERSION, Accept: 'application/json' }
+  return {
+    Authorization: `Bearer ${token}`,
+    Version: GHL_VERSION,
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  }
 }
 
 // Mapea el tipo del último mensaje / de la conversación a un canal legible. Sin traducción

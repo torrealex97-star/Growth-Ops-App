@@ -414,6 +414,9 @@ test('enviarMensajeGhl: POST al canal del contacto con el texto exacto; error HT
   assert.equal(llamadas.length, 1)
   assert.equal(llamadas[0].url, 'https://services.leadconnectorhq.com/conversations/messages')
   assert.equal(llamadas[0].init.method, 'POST')
+  // Content-Type JSON obligatorio: sin él GHL no parsea el body (404 "Contact id not given",
+  // visto en producción el 1-oct).
+  assert.equal(llamadas[0].init.headers['Content-Type'], 'application/json')
   const body = JSON.parse(llamadas[0].init.body)
   assert.equal(body.type, 'IG')
   assert.equal(body.contactId, 'ct-9')
