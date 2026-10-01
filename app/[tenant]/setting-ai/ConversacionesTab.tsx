@@ -36,6 +36,7 @@ type GhConversation = IgConversation & {
   contact_name?: string | null
   contact_email?: string | null
   contact_phone?: string | null
+  contact_photo_url?: string | null
   contactoVinculado?: { id: string; full_name: string } | null
   vinculacion?: string | null
 }
@@ -361,6 +362,50 @@ function nombreDe(c: Conv): string {
   return c.contactoVinculado?.full_name || c.contact_name || c.participant || 'Lead sin nombre'
 }
 
+// Avatar del inbox: foto real del contacto (profilePhoto de GHL) cuando llega, con fallback
+// determinista a iniciales y — sin nombre — al icono del canal. onError oculta la foto (las URLs
+// de GHL pueden caducar) y deja el fallback; nunca un hueco roto ni un layout que salte.
+function Avatar({
+  nombre,
+  fotoUrl,
+  icono,
+  resaltado,
+  sm,
+}: {
+  nombre: string
+  fotoUrl?: string | null
+  icono: 'sms' | 'call' | 'email' | 'chat'
+  resaltado?: boolean
+  sm?: boolean
+}) {
+  const [fotoRota, setFotoRota] = useState(false)
+  const tam = sm ? 'w-8 h-8' : 'w-9 h-9'
+  const iniciales = inicialesDe(nombre)
+  return (
+    <span
+      className={`${tam} shrink-0 rounded-full grid place-items-center text-2xs font-bold overflow-hidden ${
+        resaltado ? 'bg-brand-600 text-white' : 'bg-muted text-muted-foreground'
+      }`}
+      aria-hidden
+    >
+      {fotoUrl && !fotoRota ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={fotoUrl}
+          alt=""
+          className="w-full h-full rounded-full object-cover"
+          referrerPolicy="no-referrer"
+          onError={() => setFotoRota(true)}
+        />
+      ) : iniciales ? (
+        iniciales
+      ) : (
+        <IconoCanal tipo={icono} className={sm ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
+      )}
+    </span>
+  )
+}
+
 function FilaConversacion({ c, activa, onClick }: { c: Conv; activa: boolean; onClick: () => void }) {
   const nombre = nombreDe(c)
   const canal = canalUi(c.channel)
@@ -374,23 +419,7 @@ function FilaConversacion({ c, activa, onClick }: { c: Conv; activa: boolean; on
         activa ? 'border-brand-600/60 bg-brand-600/[0.06]' : 'border-border hover:bg-muted/50'
       } ${sinLeer && !activa ? 'bg-brand-600/[0.04]' : ''}`}
     >
-      {inicialesDe(nombre) ? (
-        <span
-          className={`w-9 h-9 shrink-0 rounded-full grid place-items-center text-2xs font-bold ${
-            sinLeer ? 'bg-brand-600 text-white' : 'bg-muted text-muted-foreground'
-          }`}
-          aria-hidden
-        >
-          {inicialesDe(nombre)}
-        </span>
-      ) : (
-        <span
-          className={`w-9 h-9 shrink-0 rounded-full grid place-items-center ${sinLeer ? 'bg-brand-600 text-white' : 'bg-muted text-muted-foreground'}`}
-          aria-hidden
-        >
-          <IconoCanal tipo={canal.icono} className="w-4 h-4" />
-        </span>
-      )}
+      <Avatar nombre={nombre} fotoUrl={c.contact_photo_url} icono={canal.icono} resaltado={sinLeer} />
       <span className="flex-1 min-w-0">
         <span className="flex items-center gap-1.5">
           <span className={`text-sm truncate ${sinLeer ? 'font-bold text-foreground' : 'font-medium text-foreground'}`}>
@@ -439,15 +468,7 @@ function PanelChat({
   return (
     <div className="h-full flex flex-col rounded-xl border border-border bg-background overflow-hidden">
       <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border bg-muted/30">
-        {inicialesDe(nombre) ? (
-          <span className="w-8 h-8 shrink-0 rounded-full grid place-items-center text-2xs font-bold bg-muted text-muted-foreground">
-            {inicialesDe(nombre)}
-          </span>
-        ) : (
-          <span className="w-8 h-8 shrink-0 rounded-full grid place-items-center bg-muted text-muted-foreground">
-            <IconoCanal tipo={canal.icono} className="w-4 h-4" />
-          </span>
-        )}
+        <Avatar nombre={nombre} fotoUrl={c.contact_photo_url} icono={canal.icono} sm />
         <div className="min-w-0">
           <p className="text-sm font-semibold text-foreground truncate leading-tight">{nombre}</p>
           <p className="text-3xs text-muted-foreground leading-tight">

@@ -109,6 +109,21 @@ test('mapearConversacionGhl: firma REAL de producción (epoch ms + TYPE_NO_SHOW/
   assert.equal(e.updated_time, '2025-09-28T18:40:00.000Z')
 })
 
+test('mapearConversacionGhl: profilePhoto llega a contact_photo_url; hueco o basura queda null (no se inventa cadena)', () => {
+  const con = mapearConversacionGhl({
+    id: 'conv-foto',
+    fullName: 'Con Foto',
+    profilePhoto: 'https://services.leadconnectorhq.com/images/contact/foto.jpg',
+  })
+  assert.equal(con.contact_photo_url, 'https://services.leadconnectorhq.com/images/contact/foto.jpg')
+  // La muestra real de la sonda (29-sep) traía profilePhoto null: es un hueco legítimo.
+  const sin = mapearConversacionGhl({ id: 'conv-sin', profilePhoto: null })
+  assert.equal(sin.contact_photo_url, null)
+  // No-string (p. ej. un número) tampoco se convierte en URL.
+  const ruido = mapearConversacionGhl({ id: 'conv-ruido', profilePhoto: 42 })
+  assert.equal(ruido.contact_photo_url, null)
+})
+
 test('mapearMensajesGhl: inbound=lead, el resto=agente, sin texto queda placeholder, más antiguos primero', () => {
   const j = {
     messages: {

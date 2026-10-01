@@ -31,6 +31,9 @@ export type GhConversation = {
   contact_name?: string | null
   contact_email?: string | null
   contact_phone?: string | null
+  // Foto de perfil del contacto en GHL (profilePhoto del listado): la pinta el inbox con
+  // fallback a iniciales. Puede ser null y la URL puede caducar — la UI tolera ambos.
+  contact_photo_url?: string | null
   updated_time?: string
   unread_count: number
   message_count: number
@@ -107,6 +110,7 @@ type FilaSearch = {
   type?: unknown
   unreadCount?: unknown
   lastMessageDate?: unknown
+  profilePhoto?: unknown
 }
 
 // PURO: sobre la respuesta de `GET /conversations/search` (API v2 2021-07-28).
@@ -122,6 +126,7 @@ export function mapearConversacionGhl(row: FilaSearch): GhConversation | null {
     contactId: texto(row.contactId),
     contact_email: texto(row.email) || null,
     contact_phone: texto(row.phone) || null,
+    contact_photo_url: texto(row.profilePhoto) ?? null,
     unread_count: Number(row.unreadCount) || 0,
     message_count: 0,
     updated_time: aIsoFecha(row.lastMessageDate),
