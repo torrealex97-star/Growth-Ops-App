@@ -1,5 +1,30 @@
 # Relevo activo
 
+## Inbox operativo: responder leads + embudo de DM (1-oct, Freebuff) — fusionada #306
+
+Petición de Alex («mejora todo el UX/UI para revisar y escribir a estas personas, todo IG y TikTok
+que pasa por GHL, y ver en esa misma área los KPIs del DM funnel»). Tres piezas, todo en la misma
+área de Conversaciones:
+
+1. **Composer de respuesta (GHL)**: `enviarMensajeGhl` hace POST `/conversations/messages`
+   (doc 2021-07-28) con `typeDe` según el canal de la conversación (instagram→IG, facebook→FB,
+   whatsapp→WhatsApp, email→Email, resto→SMS). La ruta `reply` resuelve la conversación CONTRA
+   el snapshot del tenant (nada del cliente se confía: ni contactId ni canal) — efecto externo
+   irreversible con doble validación. UI: Enter envía, burbuja optimista, error reintentable,
+   auto-scroll al enviar. Sin contacto GHL se explica, nunca falla en silencio.
+2. **Embudo de DM en las tarjetas**: `respondidas` (el equipo contestó tras el último del lead —
+   `respondidoDespuesDelLead` en `lib/instagram/conversation-metrics.ts`, fuente compartida
+   IG/GHL) y `conEnlaceAgenda` (señal declarada, nunca cita). Cadena visible conversaciones →
+   respondidas → enlace enviado → cita en CRM.
+3. **TikTok**: llega como TYPE_TIKTOK, el mapeo genérico ya lo traía; ahora se etiqueta, filtra
+   y se declara en el hint de la tarjeta.
+
+5 tests nuevos (`typeDe`, `enviarMensajeGhl`, `respondidoDespuesDelLead`, embudo en resumen).
+Fusionada en `16e19df` con CI completo verde a la primera y producción READY **verificada por API
+de Vercel con el conector MCP**. Pendiente de verificación en vivo con credenciales reales: el
+envío real a un lead (no probado contra GHL en producción — el token no se toca en tests). Sin
+más acciones pendientes.
+
 ## Marcas de cita/venta verificada en el inbox (1-oct, Freebuff) — fusionada #305
 
 Petición de Alex («marca visualmente las conversaciones con venta o cita verificada en el CRM»):
