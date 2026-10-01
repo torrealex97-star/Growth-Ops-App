@@ -15,6 +15,7 @@ import {
   aIsoFecha,
   canalDe,
   cfgDesdeEnv,
+  cuerpoEnvioGhl,
   cursorMasProfundo,
   descargarConversacionesGhl,
   descargarPaginaConversacionesGhl,
@@ -397,6 +398,18 @@ test('typeDe: canal de la conversación → tipo de POST /conversations/messages
   // Lo desconocido no revienta: SMS es el tipo por defecto.
   assert.equal(typeDe(''), 'SMS')
   assert.equal(typeDe('tiktok'), 'SMS')
+})
+
+test('cuerpoEnvioGhl: Email lleva html con el texto escapado (GHL lo exige); el resto de canales sin html', () => {
+  const email = cuerpoEnvioGhl('email', 'ct-1', 'Hola "mundo" <prueba> & más')
+  assert.equal(email.type, 'Email')
+  assert.equal(email.contactId, 'ct-1')
+  assert.equal(email.status, 'delivered')
+  assert.equal(email.message, 'Hola "mundo" <prueba> & más')
+  assert.equal(email.html, '<p>Hola &quot;mundo&quot; &lt;prueba&gt; &amp; más</p>')
+
+  const sms = cuerpoEnvioGhl('sms', 'ct-2', 'texto plano')
+  assert.deepEqual(Object.keys(sms).sort(), ['contactId', 'message', 'status', 'type'])
 })
 
 test('enviarMensajeGhl: POST al canal del contacto con el texto exacto; error HTTP ruidoso', async () => {
