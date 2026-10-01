@@ -254,6 +254,32 @@ de colaboradores cerrada en §6.1 es del mismo dominio).
 **Veredicto Fase 5 (parcial):** terminología correcta, hueco de asignación de setter cerrado, pipeline
 interno ya bien diseñado. Sin bugs adicionales encontrados en lo revisado.
 
+## 6.4 Fase 6 (parcial) — Finanzas/Comisiones: terminología y veto D9 ya correctos
+
+**Booked/Billed vs Cash vs Refunds vs Expenses vs Profit:** `app/[tenant]/finanzas/analitica/resumen/page.tsx`
+ya distingue cada concepto con su propia tarjeta y etiqueta explícita — "Cash Collected", "Facturación",
+"Gastos totales", "Comisiones plataforma", "Devoluciones del mes", "Resultado neto" (con la fórmula
+citada: *"Mismo cálculo que I&G (Dirección › Métricas): Net Revenue − COGS − OpEx"*, para que no haya
+dos definiciones de beneficio en pantallas distintas). No hay ninguna tarjeta "Revenue" ambigua sin
+definición — el requisito del encargo ya está cumplido.
+
+**`pays_commissions=false` como veto (D9 de MONEY.md):** verificado que el veto se aplica en los DOS
+lados que el encargo y `CLAUDE.md` piden explícitamente:
+- Generación: `lib/commissions/generate.ts` excluye a quien tenga `pays_commissions=false` tanto al
+  generar desde un cobro nuevo como al reconciliar.
+- Lectura: `app/[tenant]/comisiones/page.tsx:141-144` tiene una defensa explícita del lado de lectura
+  ("Defensa en el lado de lectura: quien tenga `pays_commissions = false`… no…") que filtra filas aunque
+  existieran de antes de marcar la exención — exactamente el caso que el encargo quería cerrado (un
+  veto que solo actúa en generación no basta si ya hay filas viejas).
+
+**Pendiente de Fase 6 para una sesión siguiente:** revisión de `docs/MONEY.md` A5 (refunds
+acumulados/clawback) está explícitamente bloqueada por decisión de Alex — no se toca. Queda por
+revisar `finanzas/morosidad`, `finanzas/socios` y la conciliación Stripe↔cobros con datos reales
+(mismo bloqueo del proxy de Supabase que en Fase 5).
+
+**Veredicto Fase 6 (parcial):** terminología de dinero y veto de comisiones ya correctos en los dos
+lados. Sin bugs encontrados en lo revisado.
+
 ## 7. Plan de fases (continuación, no reinicio)
 
 Dado el tamaño real (93 pantallas, 14 fases, 42 secciones del encargo), este es un trabajo
@@ -267,7 +293,8 @@ multi-sesión. Las fases siguientes, en orden:
 | 3    | Seguridad: advisors de Supabase + `SECURITY DEFINER`/RLS                                | **Hecho — 1 vulnerabilidad real cerrada en producción (ver §6.1)** |
 | 4    | Marketing/funnel: filtro de cuentas Meta, orgánico, comparabilidad del funnel conectado         | **Hecho — sin bugs; 2 huecos de cobertura documentados, no corregidos (ver §6.2)** |
 | 5    | CRM/Setting/Sales: terminología, pipeline, asignación de setter                                 | **Parcial — 1 hueco real cerrado (ver §6.3); falta recorrido Lead→Cierre con datos reales (bloqueado por el proxy de Supabase esta sesión)** |
-| 6-14 | Según el orden original del encargo (finanzas, colaboradores, integraciones, Action Center, UX/UI, responsive/accesibilidad, performance, smoke test, regresión final) | Pendiente — multi-sesión |
+| 6    | Finanzas/Comisiones: terminología de dinero, veto `pays_commissions` (D9)                       | **Parcial — sin bugs; falta morosidad/socios/conciliación con datos reales (ver §6.4)** |
+| 7-14 | Según el orden original del encargo (colaboradores, integraciones, Action Center, UX/UI, responsive/accesibilidad, performance, smoke test, regresión final) | Pendiente — multi-sesión |
 
 ## 8. Lo que necesito de Alex (no bloquea el resto, se deja documentado)
 
