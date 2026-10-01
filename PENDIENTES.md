@@ -2,7 +2,7 @@
 
 ## ACCIÓN REQUERIDA — auditoría visual 1-oct
 
-- [ ] **1. Aislar Recursos/Enlaces por tenant.** Tablas `resource_links` y `resource_link_divisions` sin `tenant_id`, políticas basadas solo en rol; lectura cruzada observada con admin QA. Definir asignación de registros existentes antes de migrar; no probar escrituras cruzadas. Evidencia y límites en `docs/S1-MVP-READINESS-2026-10-01.md` §6.8, continuación Codex. Prioridad pendiente de decisión del usuario.
+- [ ] **1. Aislar Recursos/Enlaces por tenant.** Tablas `resource_links` y `resource_link_divisions` sin `tenant_id`, políticas basadas solo en rol; lectura cruzada observada con admin QA. Definir asignación de registros existentes antes de migrar; no probar escrituras cruzadas. Evidencia y límites en `docs/S1-MVP-READINESS-2026-10-01.md` §6.8, continuación Codex. Usuario decide documentar y continuar únicamente pantallas aisladas; no resuelto.
 - [ ] Completar configuración server-side del entorno local antes de evaluar journeys; login QA operativo, API dependientes de configuración privilegiada no verificadas.
 
 ## Actualización de entrega — 2026-10-01

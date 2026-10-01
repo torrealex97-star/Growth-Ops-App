@@ -2,7 +2,7 @@
 
 ## Reclamación Codex — 1-oct: adopción Skeleton/EmptyState
 
-Rama `codex/skeleton-emptystate-adopcion` desde `e09a6a8`. Primer lote: recursos, tareas, afiliados/registro y comisiones; solo JSX de carga. Auditoría visual local con cuenta QA, sin escribir operaciones financieras. Resultados en `docs/S1-MVP-READINESS-2026-10-01.md` y `PENDIENTES.md`. Login QA confirmado; antes de migrar se detectó aislamiento ausente en las dos tablas de Recursos/Enlaces. Sin cambios JSX ni escrituras de negocio; decisión de prioridad solicitada al usuario. No tocar cambios de otros checkouts.
+Rama `codex/skeleton-emptystate-adopcion` desde `e09a6a8`. Primer lote ajustado: tareas, seguimiento y comisiones; solo JSX de carga. Recursos excluido por decisión del usuario tras hallazgo de aislamiento. Auditoría visual local con cuenta QA, sin escribir operaciones financieras. Resultados en `docs/S1-MVP-READINESS-2026-10-01.md` y `PENDIENTES.md`. Login QA confirmado; antes de migrar se detectó aislamiento ausente en las dos tablas de Recursos/Enlaces. Seis sustituciones JSX en tres archivos, con medidas/color/radio idénticos en navegador. Sin escrituras de negocio. Quality y build PASS. Continuar próximos lotes aislados; no cerrar la Fase 10. No tocar cambios de otros checkouts.
 
 ## Avatar del inbox con foto real (1-oct, Freebuff) — fusionado #302
 
