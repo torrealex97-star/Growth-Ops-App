@@ -427,6 +427,26 @@ export async function descargarConversacionesGhl(
 // conversación (typeDe) al contacto de la conversación. Efecto externo IRREVERSIBLE: la ruta
 // del inbox valida auth/tenant; aquí solo el contrato de GHL. Devuelve el messageId (traza
 // para soporte); un error HTTP de GHL se propaga con su mensaje real, nunca en silencio.
+
+// CUERPO DEL POST (422 "There is no message or attachments for this message", producción 1-oct):
+// para type=Email GHL no toma `message` como contenido — el proveedor de email solo envía cuando
+// hay `html` (o attachments), aunque el doc liste `message` como "text content". Con email el
+// mismo texto va como html escapado Y como message (cuerpo de texto plano). El resto de tipos
+// (SMS, WhatsApp, IG, FB) aceptan `message` tal cual.
+export function cuerpoEnvioGhl(canal: string, contactId: string, mensaje: string): Record<string, unknown> {
+  const base: Record<string, unknown> = {
+    type: typeDe(canal),
+    contactId,
+    message: mensaje,
+    status: 'delivered',
+  }
+  if (base.type === 'Email') {
+    const escapado = mensaje.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    base.html = `<p>${escapado}</p>`
+  }
+  return base
+}
+
 export async function enviarMensajeGhl(
   cfg: GhConversacionesCfg,
   params: { conversacionId: string; contactId: string; canal: string; texto: string },
@@ -439,12 +459,7 @@ export async function enviarMensajeGhl(
   const res = await fetchImpl(`${GHL_BASE}/conversations/messages`, {
     method: 'POST',
     headers: ghlHeaders(cfg.token),
-    body: JSON.stringify({
-      type: typeDe(params.canal),
-      contactId: params.contactId,
-      message: mensaje,
-      status: 'delivered',
-    }),
+    body: JSON.stringify(cuerpoEnvioGhl(params.canal, params.contactId, mensaje)),
     signal: AbortSignal.timeout(15_000),
   })
   const body = (await res.json().catch(() => ({}))) as { messageId?: unknown; message?: string }
