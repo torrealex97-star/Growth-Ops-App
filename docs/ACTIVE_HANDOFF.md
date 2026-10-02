@@ -23,6 +23,34 @@ conversación elegida** (canal email, participante `to***@gmail.com`) como mensa
 **Pendiente de Alex:** confirmar que el correo llegó físicamente a la bandeja del contacto
 controlado — la API de GHL ya lo registró en el hilo.
 
+## Censo y ejercicio en vivo de los canales del composer (2-oct tarde, Freebuff) — email ya verificado en #307/#308
+
+Ampliación de la verificación en vivo al resto de canales del composer (SMS, WhatsApp, Instagram,
+Facebook). Censo REAL de la bandeja GHL paginando el POST "Cargar más" con la sonda nueva
+`scripts/sonda-inbox-canales.mjs` (dedupe por id, corte honesto cuando el snapshot deja de crecer,
+nunca imprime PII): **300 de 532 conversaciones únicas** — call=168 · instagram=91 · email=36 ·
+webchat=3 · facebook=2 · **sms=0 · whatsapp=0**. Dos límites estructurales de la bandeja (no
+bugs): el cap duro de 300 deja 232 conversaciones viejas sin alcanzar nunca (el refresco y la
+continuación devuelven siempre las 300 más frescas fusionadas), y "cargadas" se queda en 300
+aunque el total declarado sea mayor.
+
+- **Instagram — pipeline íntegro y regla de Meta confirmada**: había 2 hilos de contacto
+  controlado (QA) sin mensajes; el envío de prueba atravesó toda la cadena (resolución contra
+  snapshot → GHL type IG → Meta) y Meta rechazó con la regla de la ventana de 24 h ("last inbound
+  message earlier than 24 hours ago"): sin DM entrante reciente no se puede abrir conversación.
+  HTTP 400 legible al composer — comportamiento diseñado, no bug. Cerrar el ciclo exige que el
+  contacto controlado escriba primero.
+- **SMS y WhatsApp — sin volumen en la location**: 0 conversaciones en las 532 visibles por la
+  bandeja; no hay con quién probar el envío real. El cuerpo de esos canales ya está cubierto por
+  tests (`cuerpoEnvioGhl`, claves exactas) y la ruta es la misma para todos: solo cambia `typeDe`.
+- **Facebook — solo leads reales** (2 conversaciones, ninguna de prueba): no se envía QA a
+  desconocidos. Misma ruta que IG (type FB) y mismo riesgo de ventana de 24 h.
+
+Usuario QA limpiado tras el ejercicio (0 residuos). **Pendiente de Alex (decisión, no trabajo de
+agente):** crear un contacto controlado de IG que escriba primero — o señalar uno existente con DM
+entrante en las últimas 24 h — para cerrar la verificación del DM; decidir si quiere probar
+SMS/WhatsApp con un teléfono propio tras conectar esos canales en GHL.
+
 ## ✅ Relevo de los carriles codex / Claude Code (2-oct, Freebuff) — «todo lo que les quede»
 
 - **Migración `20260922100000` (prioridad 1 encargada a Claude Code el 25-sep): YA aplicada y
