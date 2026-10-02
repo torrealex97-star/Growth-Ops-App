@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { planCuotasDeVenta } from '../lib/sales/plan-cuotas.ts'
+import { aFechaDia, addDaysUTC, planCuotasDeVenta } from '../lib/sales/plan-cuotas.ts'
 
 // -----------------------------------------------------------------------------
 // PLAN DE CUOTAS DE UNA VENTA (petición del propietario, 22-sep):
@@ -218,12 +218,16 @@ test('PREVISIÓN derivada: los cobros cubren FIFO aunque vengan en desorden', ()
 // -----------------------------------------------------------------------------
 
 test('calendario REAL: un cobro DISPUTED no cubre la cuota — sigue pendiente/impago, no verde', () => {
+  // Vencimiento futuro RELATIVO al reloj real con los helpers UTC del módulo (la cuota
+  // debe seguir 'pending'). Una fecha fija envejece y rompe el test al cruzar el día
+  // (1-oct → 2-oct de 2026: '2026-10-01' dejó de ser futuro y el estado pasó a overdue).
+  const enUnMes = addDaysUTC(aFechaDia(new Date()), 30)
   const cuotas = [
     {
       id: 'q1',
       sale_id: 's1',
       installment_number: 1,
-      due_date: '2026-10-01',
+      due_date: enUnMes,
       expected_gross_amount: 500,
       expected_commissionable_amount: 470,
       status: 'pending',
