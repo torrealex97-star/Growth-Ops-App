@@ -7,9 +7,11 @@
 
 ---
 
-## Sin publicar (pendiente de confirmar)
+## Publicado 29-sep → 2-oct-2026 — composer del inbox y bandeja (deployment READY verificado por API de Vercel en cada merge)
 
-<!-- Añade aquí lo que está pendiente de confirmar -->
+- `[fix]` **Composer del inbox: sin `Content-Type: application/json` GHL ignoraba el body (PR #307)**: `fetch` sin cabecera manda el JSON como `text/plain` y la API lo descarta (404 `Contact id not given` en TODA respuesta del composer). `ghlHeaders()` añade la cabecera + sonda QA reutilizable `scripts/sonda-inbox-envio.mjs` (list/send/cleanup contra las rutas de producción con usuario QA efímero; nunca imprime secretos ni PII).
+- `[fix]` **Composer del inbox: el canal Email exigía `html` (PR #308)**: con solo `message` GHL responde 422 `There is no message or attachments for this message. Skip sending.` — nueva `cuerpoEnvioGhl()` construye el body con `html` escapado solo para Email (SMS/WhatsApp/IG/FB siguen con `message` tal cual). 22 tests.
+- `[mejora]` **Verificación en vivo del envío cerrada (2-oct)**: envío real al contacto controlado (canal email) por la ruta de producción con sesión QA → HTTP 200 `{ok:true, messageId}` y el mensaje confirmado DENTRO de la conversación como mensaje del equipo por read-back; usuario QA limpiado (0 residuos). Deployment production READY en el merge de #308. Pendiente: confirmación humana de la llegada física del correo a la bandeja del contacto.
 
 - `[nuevo]` **Responder leads desde el inbox (GHL: IG, TikTok, Facebook, WhatsApp, SMS, email)**: el chat añade un composer (Enter envía, Shift+Enter salta línea) que envía por `POST /conversations/messages` de GHL al contacto de la conversación, con el tipo de mensaje elegido por su canal (`typeDe`: IG/FB/WhatsApp/Email/SMS). La conversación se resuelve contra el snapshot del tenant (nada del cliente se confía) y la burbuja aparece al instante al enviar; el error de GHL se muestra tal cual con reintentable. Sin contacto GHL, la bandeja lo explica en vez de fallar en silencio.
 - `[nuevo]` **Embudo de DM en las tarjetas cross-plataforma**: cada tarjeta añade la cadena conversaciones → respondidas (el equipo contestó tras el último mensaje del lead) → con enlace de agenda (señal declarada, nunca cita) → con cita en CRM. El punto sin leer de la fila pasa a explicar lo que es: "último mensaje del lead sin responder". Métricas nuevas (`respondidas`, `conEnlaceAgenda`) calculadas en la fuente única `conversation-metrics.ts` compartida por Instagram y GHL.

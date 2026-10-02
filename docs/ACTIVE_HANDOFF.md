@@ -1,5 +1,48 @@
 # Relevo activo
 
+## ✅ Composer del inbox GHL verificado EN VIVO en producción (2-oct, Freebuff) — PRs #307 + #308
+
+La verificación en vivo del envío de respuestas (petición de Alex, contacto controlado) destapó y
+cerró **dos bugs reales del composer** contra la API de GHL, ambos fusionados con CI verde y con
+deployment production READY verificado por API de Vercel:
+
+1. **#307 — sin `Content-Type: application/json` GHL ignoraba el body** (404 `Contact id not
+given`): `fetch` sin cabecera manda el JSON como `text/plain` y la API lo descarta. `ghlHeaders()`
+   añade la cabecera (merge `2560445`).
+2. **#308 — el canal Email exige `html`**: con solo `message`, GHL responde 422 `There is no message
+or attachments for this message. Skip sending.` Nueva función `cuerpoEnvioGhl()` que construye el
+   body con `html` escapado SOLO para Email (merge `2b24e38`, deployment
+   `dpl_SjAgDTc6sdXn81yrDcku3tFgbiGm` READY).
+
+**Resultado de la verificación en vivo (2-oct):** envío real por la ruta de producción
+(`/api/<slug>/evergreen/setting-ai/conversations/reply`) con sesión de un usuario QA efímero →
+**HTTP 200 `{ok:true, messageId}`** y el read-back de la bandeja muestra el mensaje **dentro de la
+conversación elegida** (canal email, participante `to***@gmail.com`) como mensaje del equipo
+(`from=agente`). Usuario QA borrado después (0 residuos). La sonda reutilizable vive en
+`scripts/sonda-inbox-envio.mjs` (list/send/cleanup; nunca imprime secretos ni PII).
+**Pendiente de Alex:** confirmar que el correo llegó físicamente a la bandeja del contacto
+controlado — la API de GHL ya lo registró en el hilo.
+
+## ✅ Relevo de los carriles codex / Claude Code (2-oct, Freebuff) — «todo lo que les quede»
+
+- **Migración `20260922100000` (prioridad 1 encargada a Claude Code el 25-sep): YA aplicada y
+  registrada en producción.** Verificado por SQL el 2-oct: las 9 columnas de `expenses` y los 2
+  índices existen y la versión está en `schema_migrations` (hay migraciones aplicadas hasta
+  `20261001162712`). Las filas del tablero que la pedían quedan cerradas.
+- **Ramas de worktree auditadas una a una — todo su contenido único ya está en `main`:**
+  `cf-custom-fields-pr` (= PR #172 fusionada), `docs/consolidacion-y-relevo` (= PR #173 fusionada),
+  `docs/handoff-clarity` (nota de estado del 22-sep, absorbida por el handoff actual),
+  `fix/f1-raw-events-unique-total` (sustituida por la migración `20260923193000`; el índice TOTAL
+  de `raw_events` está verificado en producción y en `main`) y `feat/money-25sep` (PR #225 cerrada
+  el 1-oct con verificación punto por punto de que sus 5 unidades están en `main`). **Se dejan en
+  disco**: el sandbox actual se cuelga al inspeccionar esos directorios (EPERM) — borrarlas es
+  seguro con esta evidencia.
+- **`docs/DASHBOARD_AUDIT.md` y `docs/DASHBOARD_CORRECTION_PLAN.md` (auditoría de codex del 25-sep)
+  siguen SIN commitear a propósito**: contienen volúmenes e importes reales del tenant y el repo es
+  público; su resumen público vive en este documento y sus puntos ya están cerrados por #269/#273
+  (cash canónico), #278 y #284. No subirlos sin redactar.
+- Basura `route 2.ts` (artefacto de copia de macOS) eliminada del árbol de trabajo.
+
 ## Inbox operativo: responder leads + embudo de DM (1-oct, Freebuff) — fusionada #306
 
 Petición de Alex («mejora todo el UX/UI para revisar y escribir a estas personas, todo IG y TikTok
@@ -21,9 +64,8 @@ que pasa por GHL, y ver en esa misma área los KPIs del DM funnel»). Tres pieza
 
 5 tests nuevos (`typeDe`, `enviarMensajeGhl`, `respondidoDespuesDelLead`, embudo en resumen).
 Fusionada en `16e19df` con CI completo verde a la primera y producción READY **verificada por API
-de Vercel con el conector MCP**. Pendiente de verificación en vivo con credenciales reales: el
-envío real a un lead (no probado contra GHL en producción — el token no se toca en tests). Sin
-más acciones pendientes.
+de Vercel con el conector MCP**. La verificación en vivo quedó **CERRADA el 2-oct** (sección «Composer del inbox GHL verificado EN
+VIVO» de arriba): envío real confirmado contra GHL en producción.
 
 ## Marcas de cita/venta verificada en el inbox (1-oct, Freebuff) — fusionada #305
 
@@ -114,7 +156,6 @@ tests deterministas). Sin cambios de API ni contrato de datos; Instagram y GHL c
 Fusionado en #301 (`b4e1194`) con CI completo verde y producción READY. Nota de diseño: el canal
 NO_SHOW de GHL se presenta como "Llamada" (llamada perdida, ver sección ✅ de arriba); si algún día
 GHL distingue no-show real de llamada, es un cambio puntual en `canalDe`.
-
 
 ## Estado de entrega — 28-sep-2026
 
@@ -1552,11 +1593,9 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Rama           | Toca                                                                                            | Desde  |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
-| Freebuff (Buffy)  | **Tarea de limpieza cerrada (28-sep noche).** Retirada fila obsoleta (#287 fusionada). 🔴 **Vercel en rate limit 24 h**: `main` (`4f83230`) tiene CI verde completo pero SIN deployment de producción — verificar READY cuando se recupere (~20:30Z del 29-sep) antes de afirmar que nada de #271-#287 está publicado. Dependabot #266 rebase pendiente de Alex (el bot no tiene push access: "only users with push access"); #229 bloqueada por `eslint-config-next` (comentario con el bloqueo). Libre para la siguiente tarea | (rama borrada) | —                                                                                               | 28-sep |
-| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI                                                                                                                                   | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
-| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                                                                                                                                                        | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
+| Agente              | Qué                                                                                                                                                                                            | Rama | Toca | Desde |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ---- | ----- |
+| (sin filas activas) | Tablero vacío tras el relevo del 2-oct: migración `20260922100000` ya aplicada (verificado por SQL) y ramas de worktree auditadas — véase «Relevo de los carriles codex / Claude Code» arriba. | —    | —    | 2-oct |
 
 ## Reglas de trabajo (2026-09-21)
 
