@@ -1,5 +1,64 @@
 # PENDIENTES — [tenant] OS
 
+## Actualización de entrega — 2026-10-01
+
+Arranca el ciclo **S1** (auditoría MVP profesional de punta a punta, petición explícita del usuario).
+Detalle completo en `docs/S1-MVP-READINESS-2026-10-01.md` — no se duplica aquí. Resumen:
+
+- [x] Fase 0 (baseline + skills + revalidación del ledger P1/P2 de S0-8): quality gate en verde
+      (1202/1205 tests, 3 fallos son de red al sandbox, no bugs reales); P0 = 0 confirmado.
+- [x] Revalidado: el P2 "índices únicos sin tenant_id (campaigns, ig_media)" de S0-8 **ya estaba
+      resuelto** desde el 14-sep — el ledger de S0-8 quedó desactualizado en ese punto.
+- [x] El "barrido completo del patrón de escrituras sin comprobar error" que esta misma sección
+      daba por pendiente **ya estaba cerrado** desde el 28-sep (PR #268, 29 tests de regresión
+      P0/P1/P2 en `tests/p{0,1,2}-escrituras-sin-comprobar-error.test.mjs`) — corregido aquí.
+- [ ] Único ítem de código genuinamente abierto del ledger de S0-8 que no depende de Alex: CAS en
+      firma concurrente de contratos — pero necesita decidir antes la semántica de doble submit
+      (ver 🧱 Deuda técnica más abajo), no es código libre para tocar ya.
+- [ ] Bloqueos externos sin cambios desde S0-8 (siguen siendo de Alex, no de código): retención F6,
+      Instagram/Meta, rotar `RESEND_API_KEY`, UTMs/setter en GHL, `CRON_SECRET` en Preview, decisión
+      A5 de refunds (`MONEY.md`).
+- [x] Las 3 rutas "afiliados" (`afiliados/registro`, `marketing/afiliados/afiliados`,
+      `settings/afiliados`) se leyeron y **no son duplicación**: configuración del programa →
+      formulario público de alta → panel de gestión de los ya dados de alta. Nada que tocar.
+- [x] Fases 4 (marketing/funnel), 6 (finanzas/comisiones), 7 (colaboradores) y 8 (integraciones/Data
+      Health) auditadas sin bugs de código nuevos — todo lo revisado ya estaba bien construido.
+- [x] Fase 5 (CRM/setting/sales): 1 hueco real cerrado — Data Health no contaba ventas sin
+      `setter_id`; añadido `integrity.salesWithoutSetter` (mismo patrón que `leadChannelGaps`).
+- [ ] **ACCIÓN REQUERIDA — conciliación Stripe↔cobros en un tenant con datos de producción:** varios
+      pagos de Stripe `succeeded` recientes sin cobro interno (`collections`) correspondiente. El
+      control que ya existe en Data Health (`pagosSinCobro`) lo detecta correctamente; falta que
+      alguien lo revise y los registre (o confirme que no son de una venta de la app). Mientras tanto
+      el Cash Collected de Finanzas para ese tenant está subestimado. Detalle identificable (qué
+      tenant, qué pagos) comunicado aparte — no se reproduce aquí (`docs/SECURITY_PRIVACY.md` §2).
+- [ ] **Hueco real confirmado — no existe un Action Center unificado** (Fase 9 del encargo): hoy hay
+      dos piezas correctas pero parciales (kanban de tareas genérico en `/tasks` + alertas de
+      métricas con scope por rol en el Header), no el panel único con 9 tipos de item
+      (TASK/ALERT/DATA ISSUE/FOLLOW-UP/APPROVAL/OPPORTUNITY/REMINDER/AI INSIGHT/SYSTEM) que pide el
+      encargo. NO se construye en esta fase de hardening — es feature nueva, necesita decisión de
+      diseño. Detalle en `docs/S1-MVP-READINESS-2026-10-01.md` §6.7.
+- [ ] **Hallazgo real de Fase 10 (UX/UI) — Skeleton/EmptyState existen pero casi no se usan:**
+      `components/ui/skeleton.tsx` dice en su propio comentario que se construyó para sustituir los
+      `animate-pulse` sueltos de una auditoría anterior, pero solo 1 fichero lo importa — hay 52
+      ficheros con el patrón suelto sin migrar. `components/ui/empty-state.tsx` igual: solo 1
+      fichero lo usa, hay 49 con texto de "sin datos" escrito a mano. No se migra en esta sesión
+      (52+49 ficheros sin poder verificar visualmente el resultado es demasiado riesgo a ciegas) —
+      queda como tarea acotada para cuando haya verificación visual. Detalle en
+      `docs/S1-MVP-READINESS-2026-10-01.md` §6.8.
+- [x] Fase 11 (Accesibilidad) y Fase 12 (Performance): intentadas por código. Accesibilidad sin
+      resultado fiable (necesita axe-core/navegador, no se inventa un hallazgo). Performance sin
+      N+1 en las rutas interactivas muestreadas (closer-conflicts, contacts/[id], sales/[id]).
+      Detalle en §6.8.
+- [x] **Cerrado — "Medir LCP/INP/CLS: instrumentado por Codex, falta leer datos reales".** El MCP
+      de Sentry reconectó en esta sesión: proyecto real es `javascript-nextjs` en la org `scalix-52`
+      (no `scalix-systems`). Últimos 30 días: LCP p75 1,97s (Bueno, <2.5s), INP p75 72ms (Bueno,
+      <200ms), CLS con 48 muestras pero el agregado no se pudo extraer (revisar directamente en
+      Sentry). Muestra pequeña (37-68 datos), no hay tendencia todavía, pero los valores reales son
+      buenos. Detalle en `docs/S1-MVP-READINESS-2026-10-01.md` §6.8.
+- [ ] Fases 13-14 (smoke test visual, regresión final) requieren navegador con sesión autenticada o
+      capturas — no se pueden avanzar leyendo solo código sin inventar verificaciones que no se
+      hicieron. Pendientes de esa entrada.
+
 ## Actualización de entrega — 2026-09-28
 
 Este bloque actualiza únicamente dashboards y registro de cobros; el inventario histórico inferior no se ha revalidado completo. Estado y criterios de aceptación en [ACTIVE_HANDOFF](docs/ACTIVE_HANDOFF.md).
@@ -75,6 +134,8 @@ Feature completo y desplegado: Config → Datos de empresa, plantillas (pega tex
 - [ ] **`campaign_id` en leads/citas** — el embudo de marketing (Unit Economics) atribuye por ahí. Enlazar campañas (webhook GHL o asignación manual).
 
 ## 🔒 Seguridad
+
+- [x] **01-oct: RPC `attribute_ghl_contacts_for_collaborator` explotable sin sesión — CERRADO.** Era `SECURITY DEFINER` ejecutable por `anon`/`authenticated` sin verificar quién llama; con el `tenant_id` (público) y el código de otro colaborador (público por diseño) cualquiera podía robar atribución de comisiones vía `/rest/v1/rpc/` directo, sin pasar por la app. Migración `20261001170000` aplicada en producción (REVOKE a `anon`/`authenticated`, `service_role` conserva acceso); verificado que solo se llama internamente vía `PERFORM` desde otros triggers, nada roto. Mismo REVOKE aplicado a 5 triggers relacionados por higiene. Detalle en `docs/S1-MVP-READINESS-2026-10-01.md` §6.1.
 
 - [~] **Inserts de cuotas silenciosos en otro punto** — REVISIÓN 26-sep (Freebuff): el patrón contado a fondo son **~92 escrituras** `await` sin comprobar `{ error }` en `app/api`+`lib`. Corregidos los más caros (DELETE de cobro/comisiones en `collections/[id]`, las 3 escrituras de cuota en `payments/mark`, upsert de `users` con rollback en `afiliados/registro`, audit_logs de cambios de cobro) y **26-sep: webhook GHL completo** (updates de citas/contacto/lead_status, insert y update de `contact_attributions`, audit_logs de citas y cierre del sobre: ya no responden `ok` con la escritura sin aplicar — `fix/ghl-webhook-silent-writes`). **27-sep: crons `monthly`/`reminders` fail-ruidoso** (PR #238): las lecturas de equipo/plantillas/comisiones y la aprobación de comisiones ya verifican `{ error }`, presupuesto de tiempo y run en rojo si una subcuenta falla — `fix/cron-monthly-reminders-silent-writes`. **27-sep: `sales/delete` compensable y `commissions/future` verificadas** (PR #239): snapshot de auditoría íntegro, borrado del dinero con restauración inversa y las 7 lecturas con guard. **27-sep: `resolverScopeColaborador` fail-closed y motor de comisiones fail-ruidoso** (PR #249): `resolverScopeColaborador` devolvía `{tipo:'none'}` (sin restricción) ante un error de BD — ahora `{tipo:'error'}` degrada a "colaborador sin contactos" en vez de exponer datos de otros reps; `commissions/future` oculta los tramos también en estado de error; `repNetCash`/`loadTramoContext` ya no tragan errores de `collections`/`refunds`/`sales_tramos_config` por dentro. **27-sep: `collections/approve-review` recuperable** (PR #245): la venta se lee antes de mutar el cobro, y si `generateCommissionsForCollection` falla tras limpiar `needs_commission_review`, se revierte el flag en vez de dejar el cobro "aprobado" sin comisión y sin vía de reintento. **27-sep: webhook Calendly + pixel de tracking** (PR #251): el `UPDATE` de estado de cita en cancelación/reprogramación devuelve 500 si falla (Calendly reintenta), y los `audit_logs`/`contacts.update` secundarios ya no se pierden en silencio (logueados). **Queda:** barrido del resto del patrón (recuento exacto pendiente — quedan candidatos en `stripe/route.ts` ya revisados como falso positivo intencional, y otros ficheros de `app/api` sin auditar todavía). Criterio: cualquier escritura de dinero/estado de negocio verifica y fail ruidoso; audit_logs de dinero nunca fire-and-forget; en webhooks, un fallo de estado devuelto como error HTTP hace que GHL/Stripe reintenten la entrega.
 - [ ] **Audit log de DDL aplicado a mano**: la columna `flagged_delinquent` existía en prod sin su migración en el repo — hubo cambios aplicados fuera de git. Inventariar el esquema real vs. migraciones del repo (columnas extra = migraciones perdidas).

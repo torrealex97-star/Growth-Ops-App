@@ -10,6 +10,8 @@ import { saludDeConector } from '@/lib/data-health/conectores'
 import { saludWebhook, type ProveedorWebhook, type SaludWebhook } from '@/lib/data-health/webhooks'
 import { eventosStripe, ultimoEventoEnAudit, type ActaAudit, type RawStripe } from '@/lib/webhooks/entrantes'
 import { lastRunsByJob } from '@/lib/integrations/sync-runs'
+import { cuentaComoVenta } from '@/lib/analytics'
+import { metodoDePlan } from '@/lib/metrics/agregados'
 
 export const runtime = 'nodejs'
 
@@ -93,7 +95,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
     // dejaría la pantalla en blanco por una tabla.
     const [salesResult, stripeResult, attributionsResult, adAccountsResult, pagosResult, cobrosResult] =
       await Promise.all([
-        sb.from('sales').select('id,contact_id').eq('tenant_id', auth.tenantId).limit(10000),
+        sb
+          .from('sales')
+          // Para `salesWithoutSetter` abajo: solo cuenta como venta real lo que cuentaComoVenta()
+          // acepta (D8 de MONEY.md — una reserva sin completar no es venta ni comisiona).
+          .select('id,contact_id,status,setter_id,reservation_completed_at,payment_plans(method)')
+          .eq('tenant_id', auth.tenantId)
+          .limit(10000),
         sb.from('stripe_customers').select('id,contact_id').eq('tenant_id', auth.tenantId).limit(10000),
         sb.from('contact_attributions').select('utm_campaign').eq('tenant_id', auth.tenantId).limit(10000),
         sb.from('campaigns').select('account_id').eq('tenant_id', auth.tenantId).eq('provider', 'meta').limit(10000),
@@ -212,6 +220,19 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
     const ventas = salesResult.error
       ? null
       : (salesResult.data ?? []).map((v) => ({ id: v.id, contactId: v.contact_id }))
+    // Ventas que SÍ cuentan como venta real (no reservas abiertas) y no tienen setter_id: el motor
+    // de atribución (lib/commissions/attribution.ts) ya intenta resolverlo solo; si sigue vacío, es
+    // un hueco real de asignación, no una ausencia estructural — se cuenta, no se inventa el dueño.
+    const salesWithoutSetter = salesResult.error
+      ? null
+      : (salesResult.data ?? []).filter((v) => {
+          const esVenta = cuentaComoVenta({
+            status: v.status,
+            payment_plan_method: metodoDePlan(v),
+            reservation_completed_at: v.reservation_completed_at,
+          })
+          return esVenta && !v.setter_id
+        }).length
     const seleccionadas = new Set(parseAccountIds(cfg.META_AD_ACCOUNT_ID))
     const clientesStripe = stripeResult.error
       ? null
@@ -328,6 +349,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ten
         // fusionados (merged_into) no son personas reales y no cuentan. Un hueco no se rellena con
         // un valor inventado: se cuenta y se corrige en los puntos de captura.
         leadChannelGaps: contacts.filter((item) => !item.lead_channel && !item.merged_into).length,
+        // `null` si `sales` no se pudo leer (no es 0 huecos, es "no se pudo comprobar").
+        salesWithoutSetter,
       },
       // Controles CRUZADOS: no "¿la fuente responde?" sino "¿lo que trajo encaja con el resto?". Cada
       // fuente puede estar verde y el recorrido completo estar roto por la mitad.

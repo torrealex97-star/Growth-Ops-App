@@ -74,6 +74,7 @@ type OperationalHealth = {
     duplicateContactTimes: number
     appointmentsWithoutContact: number
     leadChannelGaps: number
+    salesWithoutSetter: number | null
   }
   saludWebhookGhl?: SaludWebhook
   saludWebhooksEntrantes?: Array<SaludWebhook & { proveedor: 'calendly' | 'stripe' }>
@@ -505,6 +506,26 @@ export function DataHealthPanel() {
                 value={String(operational.integrity.leadChannelGaps)}
                 detail="Sin canal de origen declarado"
                 tone={operational.integrity.leadChannelGaps ? 'warn' : 'good'}
+              />
+              <Metric
+                label="Ventas sin setter"
+                value={
+                  operational.integrity.salesWithoutSetter == null
+                    ? '—'
+                    : String(operational.integrity.salesWithoutSetter)
+                }
+                detail={
+                  operational.integrity.salesWithoutSetter == null
+                    ? 'No se pudo comprobar'
+                    : 'Ventas reales sin setter_id — confirma a quién corresponde cada una'
+                }
+                tone={
+                  operational.integrity.salesWithoutSetter == null
+                    ? 'warn'
+                    : operational.integrity.salesWithoutSetter
+                      ? 'bad'
+                      : 'good'
+                }
               />
             </div>
           </section>
