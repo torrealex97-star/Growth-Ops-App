@@ -7,9 +7,7 @@ const nextConfig = {
   // checking validity of types" entra en thrashing con la carga de tipos actual y muere al cap de
   // 45 min: 5 deployments production ERROR el 28-sep (10:37Z-15:16Z) con BUILD_EXCEEDED_MAXIMUM_TIME
   // y producción congelada en f18e336. En la build de Vercel se salta; en local y CI se mantiene.
-  ...(process.env.VERCEL
-    ? { typescript: { ignoreBuildErrors: true }, eslint: { ignoreDuringBuilds: true } }
-    : {}),
+  ...(process.env.VERCEL ? { typescript: { ignoreBuildErrors: true }, eslint: { ignoreDuringBuilds: true } } : {}),
   // Este repositorio vive dentro de una carpeta que también contiene otro package-lock.
   // Fijar la raíz evita que Next tracee desde /Documents y meta archivos ajenos en el
   // artefacto serverless (más tamaño, I/O y riesgo de un despliegue incompleto).
@@ -80,8 +78,11 @@ const nextConfig = {
 // todavía no hay DSN configurado. Si no hay DSN, exporta el config plano tal cual: sentry.*.config.ts
 // ya quedan inertes sin DSN (ver sentry.client/server/edge.config.ts), así que no perder el wrapper
 // de webpack aquí no cambia el comportamiento en runtime, solo evita el coste de build de más.
+// En @sentry/nextjs 11 el export movió de la raíz al subpath `@sentry/nextjs/config`: require de
+// la raíz devuelve el módulo sin withSentryConfig y la build de producción moría con
+// "TypeError: withSentryConfig is not a function" (dpl_ChrjWf7pEuBxT43H4RsncDDWSYqz).
 if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
-  const { withSentryConfig } = require('@sentry/nextjs')
+  const { withSentryConfig } = require('@sentry/nextjs/config')
   module.exports = withSentryConfig(nextConfig, {
     org: process.env.SENTRY_ORG,
     project: process.env.SENTRY_PROJECT,
