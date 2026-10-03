@@ -1,3 +1,4 @@
+// ReservationRefundRequests regenerado por Supabase generate_typescript_types (2026-10-03).
 // GENERADO — no editar a mano. Fuente: OpenAPI de PostgREST (2026-09-29T08:45:34.501Z).
 // Regenerar con: npm run tipos:bd  (y commitear). El test tests/esquema-tenant-invariante.test.mjs
 // comprueba que este artefacto sigue fresco respecto al esquema vivo.
@@ -7,6 +8,90 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 
 export type EsquemaPublico = {
   Tables: {
+    ReservationRefundRequests: {
+      Row: {
+        amount_cents: number
+        charge_id: string
+        collection_id: string
+        created_at: string
+        id: string
+        refund_id: string | null
+        requested_by: string
+        sale_id: string
+        status: string
+        stripe_account_id: string
+        stripe_refund_id: string | null
+        tenant_id: string
+        updated_at: string
+      }
+      Insert: {
+        amount_cents: number
+        charge_id: string
+        collection_id: string
+        created_at?: string
+        id?: string
+        refund_id?: string | null
+        requested_by: string
+        sale_id: string
+        status?: string
+        stripe_account_id: string
+        stripe_refund_id?: string | null
+        tenant_id: string
+        updated_at?: string
+      }
+      Update: {
+        amount_cents?: number
+        charge_id?: string
+        collection_id?: string
+        created_at?: string
+        id?: string
+        refund_id?: string | null
+        requested_by?: string
+        sale_id?: string
+        status?: string
+        stripe_account_id?: string
+        stripe_refund_id?: string | null
+        tenant_id?: string
+        updated_at?: string
+      }
+      Relationships: [
+        {
+          foreignKeyName: 'reservation_refund_requests_collection_id_fkey'
+          columns: ['collection_id']
+          isOneToOne: false
+          referencedRelation: 'collections'
+          referencedColumns: ['id']
+        },
+        {
+          foreignKeyName: 'reservation_refund_requests_refund_id_fkey'
+          columns: ['refund_id']
+          isOneToOne: false
+          referencedRelation: 'refunds'
+          referencedColumns: ['id']
+        },
+        {
+          foreignKeyName: 'reservation_refund_requests_requested_by_fkey'
+          columns: ['requested_by']
+          isOneToOne: false
+          referencedRelation: 'users'
+          referencedColumns: ['id']
+        },
+        {
+          foreignKeyName: 'reservation_refund_requests_sale_id_fkey'
+          columns: ['sale_id']
+          isOneToOne: false
+          referencedRelation: 'sales'
+          referencedColumns: ['id']
+        },
+        {
+          foreignKeyName: 'reservation_refund_requests_tenant_id_fkey'
+          columns: ['tenant_id']
+          isOneToOne: false
+          referencedRelation: 'tenants'
+          referencedColumns: ['id']
+        },
+      ]
+    }
     Activities: {
       Row: {
         id: string | null
