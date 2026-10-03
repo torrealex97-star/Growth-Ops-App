@@ -1,4 +1,10 @@
-## Estado vigente posterior — acceso QA bloqueado de nuevo (3-oct)
+## Acceso QA recuperado — 3-oct, corrección operativa
+
+A petición expresa del usuario se sincronizó el secreto E2E_PASSWORD de GitHub Actions con la credencial QA acordada y se restauró esa misma credencial en el usuario QA existente. No se cambió rol, membresía ni datos de negocio. Verificado: actualización del secreto confirmada por CLI y metadatos, una sola fila auth actualizada, login real seguido de Dashboard como admin QA. Ningún secreto se incluye en este documento ni en archivos del repo.
+
+El bloqueo inmediato de contraseña queda resuelto. La limpieza transaccional de setup/teardown sigue activa: sincronizar contraseñas NO separa QA manual de CI ni garantiza persistencia de fixtures. No se ejecutó E2E/reset para comprobarlo; no afirmar estabilidad a través de un nuevo run todavía. Para evitar regresión, cualquier ejecución local debe usar la credencial acordada; aislar tenant manual/CI sigue en backlog. Reanudar auditoría desde la sesión autenticada, sin recrear la venta ya probada.
+
+## Histórico — acceso QA bloqueado antes de la sincronización (3-oct)
 
 Continuación completó prueba de teclado del menú móvil y revisión pública de login/recuperación. Nuevos resultados y criterios en última sección S1; tareas en primera sección PENDIENTES. Menú no contiene foco ni cierra con Escape; recuperación falla contraste; login duplica RPC de branding. Sin fixes, por instrucción del usuario.
 

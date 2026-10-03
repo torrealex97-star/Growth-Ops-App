@@ -3,7 +3,7 @@
 - [ ] **P2 · Menú móvil:** abrir con Enter, foco debe entrar en el panel y quedar contenido; Escape cierra y devuelve foco. Actualmente Tab llega a Buscar detrás del overlay y Escape no cierra. Reutilizar Sheet existente; evidencia y archivos en última sección S1.
 - [ ] **P2 · Recuperación:** Button blanco/acento QA da 3,73:1; alcanzar AA sin romper branding. Login requiere anuncio accesible y traducción del error dinámico (verificación con lector pendiente).
 - [ ] **P3 · Login:** deduplicar lectura public_tenant_branding de layout/página, dos 200 en captura limpia; preservar manejo de tenant inexistente y error de red.
-- **BLOQUEO VIGENTE:** sesión QA volvió a login y credencial acordada rechazada. No ejecutar resets ni recrear venta. Reanudar pantallas autenticadas solo con sesión estable; ya se solicitó al usuario. Los resultados anteriores de acceso recuperado son históricos.
+- **ACCESO RECUPERADO:** secreto CI y contraseña QA sincronizados; login y Dashboard verificados el 3-oct. Queda aislar datos de QA manual frente al cleanup de CI. No ejecutar resets ni recrear venta. Ver actualización operativa en ACTIVE_HANDOFF.
 
 ## Resultado posterior — prueba de venta/cobro autorizada
 

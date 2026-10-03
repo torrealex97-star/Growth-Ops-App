@@ -689,3 +689,10 @@ Pruebas posibles sin sesión, sin envío de correo:
 | Login, Network en recarga independiente | Dos respuestas 200 de `public_tenant_branding`, separadas por ~3 ms; captura no truncada, sin HTTP >=400 en esa recarga (sin submit). | P3: compartir resultado entre layout (línea 124) y login (línea 33), conservando diferenciación tenant inexistente/error. Cierre: una solicitud por carga y mismos estados de acceso/branding. No es evidencia de lentitud perceptible. |
 
 Los cuatro ficheros relevantes (Sidebar, login, recover, commissions/future) no difieren entre esta rama y `origin/main` en `2cfd99f`; por tanto no se observó una corrección de estos hallazgos en ese código. Eso no acredita el SHA desplegado. Evidencia local sanitizada `auth-audit-summary.json` y capturas fuera de Git; viewport restaurado. No se modificaron credenciales, datos, roles ni código. No se repitieron Web Vitals.
+
+
+## Acceso QA recuperado — 3-oct, corrección operativa
+
+A petición expresa del usuario se sincronizó el secreto E2E_PASSWORD de GitHub Actions con la credencial QA acordada y se restauró esa misma credencial en el usuario QA existente. No se cambió rol, membresía ni datos de negocio. Verificado: actualización del secreto confirmada por CLI y metadatos, una sola fila auth actualizada, login real seguido de Dashboard como admin QA. Ningún secreto se incluye en este documento ni en archivos del repo.
+
+El bloqueo inmediato de contraseña queda resuelto. La limpieza transaccional de setup/teardown sigue activa: sincronizar contraseñas NO separa QA manual de CI ni garantiza persistencia de fixtures. No se ejecutó E2E/reset para comprobarlo; no afirmar estabilidad a través de un nuevo run todavía. Para evitar regresión, cualquier ejecución local debe usar la credencial acordada; aislar tenant manual/CI sigue en backlog. Reanudar auditoría desde la sesión autenticada, sin recrear la venta ya probada.
