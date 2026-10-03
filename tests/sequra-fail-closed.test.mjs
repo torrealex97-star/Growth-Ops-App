@@ -204,8 +204,9 @@ test('syncSequraDelinquents: con el listado ilegible, el run falla y NINGÚN mor
     return base
   }
 
-  process.env.NEXT_PUBLIC_SUPABASE_URL ??= 'https://placeholder.supabase.co'
-  process.env.SUPABASE_SERVICE_ROLE_KEY ??= 'placeholder-key'
+  // ||= y no ??= (hermeticidad; ver ghl-conversaciones-metricas.test.mjs)
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||= 'https://placeholder.supabase.co'
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'placeholder-key'
   const mock = mockFetchSequra(['ERROR: pagination unavailable'])
   try {
     await assert.rejects(() => syncSequraDelinquents('tenant-qa', ENV), /No se pudo leer el total del listado/)
