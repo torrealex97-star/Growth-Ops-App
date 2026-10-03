@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter, Space_Grotesk } from 'next/font/google'
 import { Toaster } from 'sonner'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import { WebVitalsReporter } from '@/components/observability/WebVitalsReporter'
 import './globals.css'
 
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             (incluidos los de error de la vista de Colaboradores) se tragaban en silencio. */}
         <Toaster position="bottom-right" richColors closeButton />
         {children}
+        <SpeedInsights />
       </body>
     </html>
   )
