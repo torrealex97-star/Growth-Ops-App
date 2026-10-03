@@ -52,12 +52,18 @@ se actualiza al inicio de cada sesión y al fusionar.
   `react/display-name` — requiere actualizar/retirar el plugin antes de fusionar) y #323
   (minor-and-patch con lockfile roto de dependabot: `@typescript-eslint/eslint-plugin@8.71.0` vs
   `parser@8.70.1` — cerrar para que el próximo grupo semanal la regenere sana).
-- **Reclamado 3-oct (Freebuff):** closer automático en la sync por pull de agendas
+- **Fusionado 3-oct (Freebuff, PR #334):** closer automático en la sync por pull de agendas
   (`lib/integrations/citas-sync.ts`): Calendly por dueño del calendario (`event_memberships` →
   email/`calendly_email` + `firstMemberOf`), GHL por `assignedUserId` del calendario → email del
   usuario GHL → usuario de la app acotado a subcuenta; nunca pisa asignación manual ni del webhook
   (misma semántica protectora). Rama `fix/agenda-closer-sync`. Toca además una migración
   (`appointments.ghl_calendar_id`) y tests de regresión.
+- **Reclamado 3-oct (Freebuff):** deadline de la sync de agendas POR EVENTO
+  (`lib/integrations/citas-sync.ts`): el cron calendly-ghl acabó en 504 (FUNCTION_INVOCATION_TIMEOUT)
+  porque el corte solo se comprueba entre páginas — dentro de cada página, cada evento cuesta un
+  fetch de invitees (Calendly) o un contacto perezoso (GHL) de hasta 15-20 s. Añade comprobación de
+  reloj en los bucles de eventos y en la resolución de dueños de calendario de GHL + test de
+  regresión. Rama `fix/citas-sync-deadline`.
 
 ### Claude Code (plan `docs/plan/`)
 
