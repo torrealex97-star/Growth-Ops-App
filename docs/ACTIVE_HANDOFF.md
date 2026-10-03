@@ -10,6 +10,8 @@ Rama `codex/reservation-refunds`, base `8bbf302`. Alcance: reembolso explícito 
 
 ### Implementación local y relevo de reservas
 
+PR en borrador: https://github.com/torrealex97-star/Growth-Ops-App/pull/325. Sin fusionar. CI y previews en curso al cerrar el relevo. Se comprobó mediante consulta booleana que QA no tiene credencial Stripe propia; se pidió conectar Stripe en modo de prueba. No usar fallback de producción para simular un reembolso.
+
 - Botón «Reembolsar» con vista previa de importe/referencia, confirmación explícita y excepción de plazo explícita. Solo admin/director/super-admin. La acción ejecuta Stripe; no es un mero asiento manual.
 - Ledger operacional `reservation_refund_requests`, separado de `refunds` para que lo pendiente no reste caja. Claim persistente antes del POST Stripe, clave estable, recuperación por metadata y bloqueo de reenvíos sin resultado tras 23 h. `finish_reservation_refund` registra refund procesado + venta devuelta + espejo Stripe + auditoría en una transacción. Guards impiden editar/cobrar/comisionar/reembolsar simultáneamente la reserva.
 - Reservas devueltas/canceladas fuera de abiertas; conversiones históricas salen solo con vínculo `converted_from_reservation_id`, plan no reserva y cobro positivo confirmado como `collected`. No se empareja por nombre/email. La conversión usa la misma fila y exige el primer pago registrado.
