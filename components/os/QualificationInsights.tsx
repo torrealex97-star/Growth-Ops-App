@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { ClipboardList, MessageSquareQuote } from 'lucide-react'
 import { extraerRespuestas, tieneRespuestasEstructuradas } from '@/lib/metrics/respuestas-formulario'
 import { labelFor, mapKey } from '@/lib/qualification'
+import { useTenantId } from '@/lib/tenant-context'
 
 // Panel del dashboard: "Qué responde la gente".
 // FUENTE DE VERDAD (2026-09-17): `appointments.raw_payload` — el mismo lugar del que lee el drawer
@@ -39,6 +40,7 @@ function normVal(v: string): string {
 }
 
 export function QualificationInsights() {
+  const tenantId = useTenantId()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<Row[]>([])
@@ -52,6 +54,7 @@ export function QualificationInsights() {
       let query = supabase
         .from('appointments')
         .select('id, source, raw_payload, contacts:contact_id ( full_name )')
+        .eq('tenant_id', tenantId)
         .not('raw_payload', 'is', null)
         .order('created_at', { ascending: false })
         .limit(2000)

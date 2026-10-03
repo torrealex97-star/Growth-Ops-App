@@ -167,7 +167,9 @@ export async function crearContratoEquipo(input: ContratoEquipoInput): Promise<C
     if (input.terms) {
       terms = input.terms
     } else {
-      const { data: rules } = await sb.from('commission_rules').select('*')
+      // Acotado a ESTA subcuenta: `sb` es service-role y se salta RLS, así que sin el filtro las
+      // condiciones del contrato se calculaban con las reglas de comisión de TODAS las subcuentas.
+      const { data: rules } = await sb.from('commission_rules').select('*').eq('tenant_id', tenantId)
       terms = buildDefaultTerms(
         {
           id: member.id,

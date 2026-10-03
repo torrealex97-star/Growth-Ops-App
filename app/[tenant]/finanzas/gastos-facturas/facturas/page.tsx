@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { openSignedStorageFile } from '@/lib/storage/signed-url'
+import { useTenantId } from '@/lib/tenant-context'
 
 type Expense = {
   id: string
@@ -34,6 +35,7 @@ function currentMonth(): string {
 }
 
 export default function FacturasPage() {
+  const tenantId = useTenantId()
   const [items, setItems] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
   const [month, setMonth] = useState(currentMonth())
@@ -45,6 +47,7 @@ export default function FacturasPage() {
     const { data, error } = await supabase
       .from('expenses')
       .select('*')
+      .eq('tenant_id', tenantId)
       .not('invoice_url', 'is', null)
       .order('expense_date', { ascending: false })
     if (error) {

@@ -19,7 +19,7 @@ import {
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { testimonioPitch, type Testimonio } from '@/lib/testimonios-shared'
-import { useSesion, useTenant } from '@/lib/tenant-context'
+import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatCurrency } from '@/lib/utils'
 
@@ -125,6 +125,7 @@ const statusIndex = (s: string) => {
 }
 
 export default function ContentPage() {
+  const tenantId = useTenantId()
   const tenant = useTenant()
   const sesion = useSesion()
   const [items, setItems] = useState<Content[]>([])
@@ -160,8 +161,9 @@ export default function ContentPage() {
       supabase
         .from('content_items')
         .select('*, assignee:assigned_to(full_name)')
+        .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false }),
-      activeUserNamesQuery(supabase),
+      activeUserNamesQuery(supabase, tenantId),
     ])
     setItems((cRes.data as Content[]) || [])
     setUsers((uRes.data as DbUser[]) || [])

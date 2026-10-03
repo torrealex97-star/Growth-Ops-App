@@ -51,7 +51,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   } else {
     // Verifica pertenencia (RLS ya lo impediría, pero un 404 explícito es mejor UX/seguridad
     // que dejar que el insert de abajo falle silenciosamente contra una conversación ajena).
-    const { data: conv } = await sb.from('ai_conversations').select('id').eq('id', conversationId).maybeSingle()
+    // También por subcuenta: RLS valida pertenencia a ALGUNA subcuenta del usuario, y quien está en
+    // varias no debe poder usar en esta una conversación de otra (auditoría F19).
+    const { data: conv } = await sb
+      .from('ai_conversations')
+      .select('id')
+      .eq('id', conversationId)
+      .eq('tenant_id', auth.tenantId)
+      .maybeSingle()
     if (!conv) return NextResponse.json({ error: 'Conversación no encontrada' }, { status: 404 })
   }
 
@@ -62,6 +69,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   const { data: priorMessagesDesc } = await sb
     .from('ai_messages')
     .select('role,content')
+    .eq('tenant_id', auth.tenantId)
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: false })
     .limit(MAX_HISTORY)
@@ -244,6 +252,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     const { data, error } = await sb
       .from('ai_messages')
       .select('id,role,content,evidence,created_at')
+      .eq('tenant_id', auth.tenantId)
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true })
       .limit(200)
@@ -254,6 +263,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   const { data, error } = await sb
     .from('ai_conversations')
     .select('id,title,updated_at')
+    .eq('tenant_id', auth.tenantId)
     .order('updated_at', { ascending: false })
     .limit(20)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
