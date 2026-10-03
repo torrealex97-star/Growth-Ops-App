@@ -290,7 +290,13 @@ export default function TestimoniosPage() {
 
       {!loading && shown.length === 0 && (
         <div className="border border-dashed border-border rounded-xl py-16 text-center">
-          <p className="text-sm text-muted-foreground">No hay testimonios que encajen con ese filtro.</p>
+          {/* Dos situaciones distintas: culpar al filtro cuando la biblioteca está vacía mandaba a
+              probar otros filtros sobre algo que simplemente aún no existe. */}
+          <p className="text-sm text-muted-foreground">
+            {items.length === 0
+              ? 'Todavía no hay ningún testimonio. Añade el primero con «Nuevo testimonio».'
+              : 'No hay testimonios que encajen con ese filtro.'}
+          </p>
         </div>
       )}
     </div>
