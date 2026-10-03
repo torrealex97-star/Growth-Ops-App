@@ -1,3 +1,10 @@
+## Resultado posterior — prueba de venta/cobro autorizada
+
+- **Completado:** una venta y un cobro interno QA de 3.000 EUR; importes consistentes en base de datos, ficha, Dashboard, Visión del negocio y Finanzas. No repetir la creación; comprobar fixture antes de otras pruebas. No hubo cargo externo ni contrato enviado.
+- **P1 · Corregir Comisiones futuras:** API 500 por selección/filtro de `payment_plans.sale_id` inexistente (`app/api/[tenant]/evergreen/commissions/future/route.ts:85`). UI presenta cero/estado vacío pese al error. Resolver relación real y exponer fallo de carga; tests con venta full-pay sin cuotas, venta con cuotas y tenant vacío. Hallazgo confirmado, no corregido.
+- **P2 · Confirmación del wizard:** informar también de generación/envío automático de contrato. Se bloqueó esta petición durante la prueba para respetar la autorización; no asumir que el flujo normal carece de envío.
+- La autorización de venta/cobro ya está resuelta; restantes journeys siguen pendientes por fixtures/rol/email/Stripe. Ver última sección del informe S1.
+
 ## Auditoría runtime 3-oct — acciones concretas para el siguiente agente
 
 1. **P1 · Aislar QA manual de CI:** global setup restablece contraseña y datos, global teardown limpia transacciones. Usar tenant/usuario por ejecución o un QA manual separado; no solucionar con contraseñas hardcodeadas. Validar que ejecutar CI no interrumpe la sesión ni altera fixtures manuales.

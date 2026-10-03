@@ -1,3 +1,11 @@
+## Último resultado — venta/cobro QA ejecutados y verificados (3-oct)
+
+Esta actualización sustituye las notas anteriores de autorización pendiente: usuario autorizó venta + cobro interno por 3.000 EUR. Se completó el wizard como admin QA después de terminar CI; base de datos confirma 1 venta y 1 cobro vinculados de 3.000, y coinciden ficha, Dashboard, Visión del negocio y Finanzas. Fixture conservado, susceptible de limpieza por CI. No hubo cargo externo.
+
+El wizard intenta enviar contrato automáticamente: se interceptó/abortó solo esa petición no autorizada y se retiró luego la intercepción. Ficha confirma contrato no generado. PASS acotado venta→cobro→dashboards, no siete journeys ni flujo sin instrumentación.
+
+**Prioridad nueva P1:** comisiones/future devuelve 500 por `payment_plans.sale_id does not exist` (route.ts:85); UI oculta el fallo como 0 y ausencia de comisiones futuras. Reproducido con captura limpia. Documentado en última sección de S1; corregir después, según instrucción de no tocar código. Falta collaborator QA (usuario no dispone) y fixtures/autorizaciones de VSL, Meta, Stripe test y email. Evidencias de importes guardadas localmente, sin IDs ni datos de personas reales en commits.
+
 ## Estado más reciente — revisión runtime ampliada 3-oct
 
 Continuar en modo auditoría/documentación, sin fixes de código. Se añadieron resultados de 11 rutas revalidadas con axe en producción, responsive a 390/768/1440, teclado/modal/Emails/Finanzas, Network con bytes y duplicaciones, y matriz explícita de los siete journeys en el informe S1 (últimas secciones). No son siete PASS ni cierre de F10–14.
