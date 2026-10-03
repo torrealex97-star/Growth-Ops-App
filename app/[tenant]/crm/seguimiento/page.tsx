@@ -519,19 +519,19 @@ export default function SeguimientoPage() {
                           {a.contacts?.full_name || 'Sin nombre'}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">{a.contacts?.phone || '—'}</p>
-                        <p className="text-[11px] text-muted-foreground mt-1.5">
+                        <p className="text-2xs text-muted-foreground mt-1.5">
                           {STATUS_LABELS_LOCAL[a.status] || a.status}
                         </p>
                         {(a.closer?.full_name || a.setter?.full_name) && (
                           <div className="flex items-center gap-1 mt-1">
                             <UserIcon className="w-3 h-3 text-muted-foreground shrink-0" />
-                            <span className="text-[11px] text-muted-foreground truncate">
+                            <span className="text-2xs text-muted-foreground truncate">
                               {a.closer?.full_name || a.setter?.full_name}
                             </span>
                           </div>
                         )}
-                        {a.notes && <p className="text-[11px] text-muted-foreground mt-1.5 line-clamp-2">{a.notes}</p>}
-                        <p className="text-[11px] text-muted-foreground mt-1.5 flex items-center gap-1">
+                        {a.notes && <p className="text-2xs text-muted-foreground mt-1.5 line-clamp-2">{a.notes}</p>}
+                        <p className="text-2xs text-muted-foreground mt-1.5 flex items-center gap-1">
                           <Clock className="w-3 h-3" /> {timeAgo(a.last_contacted_at)}
                         </p>
                       </button>

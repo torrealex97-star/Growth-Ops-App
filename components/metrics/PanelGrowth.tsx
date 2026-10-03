@@ -1,8 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertTriangle, Activity, Target } from 'lucide-react'
-import { useTenant } from '@/lib/tenant-context'
+import dynamic from 'next/dynamic'
+import Link from 'next/link'
+import { AlertTriangle, Activity, Target, ArrowRight } from 'lucide-react'
+import { useSesion, useTenant } from '@/lib/tenant-context'
 import { esFalloVisible, pedir, type Fallo } from '@/lib/ui/pedir'
 import { EstadoPanel } from '@/components/ui/carga/EstadoPanel'
 import { KpiCard } from '@/components/metrics/KpiCard'
@@ -14,6 +16,12 @@ import type { ObjetivoMedido } from '@/lib/metrics/objetivos'
 import type { Prevision } from '@/lib/metrics/prevision'
 import type { LtgpCacAproximado } from '@/lib/metrics/ltgp-aproximado'
 import { PanelObjetivos } from '@/components/metrics/PanelObjetivos'
+import { AnotacionesInspector } from '@/components/metrics/AnotacionesInspector'
+
+const SalesChart = dynamic(() => import('@/components/os/SalesChart').then((m) => ({ default: m.SalesChart })), {
+  ssr: false,
+  loading: () => <div className="dashboard-card h-72 animate-pulse" />,
+})
 
 // EL PANEL DE GROWTH: la restricción primero, las tarjetas después.
 //
@@ -31,6 +39,8 @@ type Respuesta = {
   prevision: Prevision | null
   ltgpCacAproximado: LtgpCacAproximado
   mediciones: Record<string, Medicion>
+  serieFacturacion: { fecha: string; valor: number }[]
+  serieCash: { fecha: string; valor: number }[]
   salud: SaludNegocio
   procedencia: {
     filasLeidas: Record<string, number>
@@ -38,6 +48,7 @@ type Respuesta = {
     fuentesRecortadas: string[]
     ticketMedioUsado: number | null
     contextoConfigurado: boolean
+    atribucion: { contactos: number; conAtribucion: number }
   }
 }
 
@@ -51,6 +62,7 @@ const COLOR_ETIQUETA: Record<SaludNegocio['etiqueta'], string> = {
 
 export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }) {
   const tenant = useTenant()
+  const sesion = useSesion()
   const [datos, setDatos] = useState<Respuesta | null>(null)
   const [cargando, setCargando] = useState(true)
   const [fallo, setFallo] = useState<Fallo | null>(null)
@@ -104,6 +116,8 @@ export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }
   const { brief, salud, procedencia, objetivos, prevision, ltgpCacAproximado } = datos
   const medidas = medirTodas(datos.mediciones)
   const cobertura = coberturaDeCategoria(medidas)
+  const serieFacturacion = datos.serieFacturacion.map((punto) => ({ date: punto.fecha, amount: punto.valor }))
+  const serieCash = datos.serieCash.map((punto) => ({ date: punto.fecha, cash: punto.valor }))
 
   return (
     <div className="space-y-6">
@@ -114,14 +128,16 @@ export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }
           <div className="min-w-0 space-y-3">
             <div>
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Restricción actual
+                Hipótesis a verificar
               </h2>
               <p className="mt-1 text-base font-medium text-foreground">{brief.restriccion.titular}</p>
             </div>
 
             <dl className="grid gap-3 sm:grid-cols-2">
               <div>
-                <dt className="text-xs uppercase tracking-wide text-muted-foreground">Impacto de arreglarla</dt>
+                <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Impacto estimado si se confirma
+                </dt>
                 {/* Si el motor no pudo estimarlo, se dice. No se pone un número para que la ficha tenga uno. */}
                 <dd className="text-sm text-foreground">{brief.impacto.texto}</dd>
                 {brief.impacto.esEstimacion && (
@@ -150,13 +166,17 @@ export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }
         <section className="dashboard-card p-5">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Salud del negocio</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Índice orientativo de KPIs
+            </h2>
           </div>
-          <p className={`mt-2 text-3xl font-semibold tabular-nums ${COLOR_ETIQUETA[salud.etiqueta]}`}>
+          <p
+            className={`mt-2 text-3xl font-semibold tabular-nums ${salud.fiabilidad === 'baja' ? 'text-muted-foreground' : COLOR_ETIQUETA[salud.etiqueta]}`}
+          >
             {salud.puntuacion === null ? 's/d' : `${salud.puntuacion}`}
             {salud.puntuacion !== null && <span className="text-base text-muted-foreground">/100</span>}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">{salud.titular}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{`Cobertura: ${Math.round(salud.coberturaPeso * 100)}% · Fiabilidad ${salud.fiabilidad}. La comparación con objetivos no confirma por sí sola un problema de negocio.`}</p>
           <ul className="mt-3 space-y-1.5">
             {salud.subscores.map((s) => (
               <li key={s.dimension} className="flex items-baseline justify-between gap-2 text-xs">
@@ -195,11 +215,27 @@ export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }
           )}
           {brief.huecos.length > 0 && (
             <p className="mt-3 text-xs text-muted-foreground/80">
-              Sin medir todavía (es un hueco de medición, no un problema del negocio): {brief.huecos.join(', ')}.
+              Sin medir en el catálogo diagnóstico (hueco de medición, no un problema del negocio; ámbito distinto de
+              las tarjetas): {brief.huecos.join(', ')}.
             </p>
           )}
         </section>
       </div>
+
+      <SalesChart
+        data={serieFacturacion}
+        cashData={serieCash}
+        title="Facturación vs cash cobrado · acumulado del periodo"
+      />
+
+      {/* Mismo rango que el gráfico de arriba: una anotación marca un evento de negocio (lanzamiento,
+          cambio de precio…) para explicar un salto en la serie, no un dato más que medir. */}
+      <AnotacionesInspector
+        desde={datos.periodo.desde}
+        hasta={datos.periodo.hasta}
+        userId={sesion?.userId}
+        puedeGestionarTodas={sesion?.rol === 'admin' || sesion?.rol === 'director'}
+      />
 
       <PanelObjetivos objetivos={objetivos} prevision={prevision} ltgpCacAproximado={ltgpCacAproximado} />
 
@@ -218,6 +254,41 @@ export function PanelGrowth({ desde, hasta }: { desde?: string; hasta?: string }
             <KpiCard key={m.id} metrica={m} onDrilldown={() => setVerCalculo(m.key)} />
           ))}
         </div>
+      </section>
+
+      {/* ENLACES CRUZADOS, no motores duplicados. Cohortes y la calidad de atribución por fuente viven en
+          sus propias pantallas con su propio motor de datos (Finanzas y Marketing respectivamente); traer
+          esos números aquí con un fetch aparte rompería la regla de arriba —todo sale de /metricas/brief—
+          y dos pantallas acabarían diciendo cosas distintas del mismo negocio. Lo único que se puede dar
+          aquí sin recalcular nada es la cobertura de atribución, que YA viaja en esta misma respuesta. */}
+      <section className="grid gap-3 sm:grid-cols-2">
+        <Link
+          href={`/${tenant}/marketing/adquisicion/atribucion`}
+          className="dashboard-card flex items-center justify-between gap-3 p-4 transition-colors hover:border-brand-500/50"
+        >
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-foreground">Calidad por fuente</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {procedencia.atribucion.contactos > 0
+                ? `${procedencia.atribucion.conAtribucion} de ${procedencia.atribucion.contactos} contactos históricos con origen registrado.`
+                : 'Sin contactos históricos que atribuir todavía.'}{' '}
+              Ver el desglose por fuente →
+            </p>
+          </div>
+          <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        </Link>
+        <Link
+          href={`/${tenant}/cohorts`}
+          className="dashboard-card flex items-center justify-between gap-3 p-4 transition-colors hover:border-brand-500/50"
+        >
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-foreground">Cohortes</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Retención y recompra por cohorte de entrada, con su propio motor en Finanzas.
+            </p>
+          </div>
+          <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        </Link>
       </section>
 
       {/* VER CÁLCULO: de dónde sale el número. Sin esto nadie se fía de una cifra que no cuadra con su hoja. */}

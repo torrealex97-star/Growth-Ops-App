@@ -82,29 +82,47 @@ const SUMMARY_LINE_RE = /^\d+\.\s+(\S+)\s+-\s+[\d.]+\s+\S+\s+\([\d-]+\)\s+\[(\w+
 const TOTAL_RE = /of\s+(\d+)\s+total/
 
 // Pagina automáticamente hasta traer todos los pedidos del merchant.
+// Un hueco no es un cero: sin un "of N total" legible no se sabe si el listado
+// está completo, y devolver [] aquí haría que syncDelinquents marcara como
+// 'recuperado' a TODOS los morosos ausentes. Un listado ilegible o truncado
+// falla ruidoso: el cron reintenta la sincronización entera en la siguiente
+// ejecución (idempotente por upsert), en vez de cerrar morosos con datos a medias.
 export async function searchAllOrders(env: SequraEnv, merchantReference: string): Promise<SequraOrderSummary[]> {
   const orders: SequraOrderSummary[] = []
   const limit = 100
   let offset = 0
-  let total = Infinity
+  let total: number | null = null
 
-  while (offset < total) {
+  while (total === null || orders.length < total) {
     const text = await callTool(env, 'search_orders_tool', {
       merchant_reference: merchantReference,
       from_date: '2000-01-01',
       limit,
       offset,
     })
-    const totalMatch = text.match(TOTAL_RE)
-    if (totalMatch) total = Number(totalMatch[1])
-    else total = 0
 
-    for (const line of text.split('\n')) {
-      const m = line.match(SUMMARY_LINE_RE)
-      if (m) orders.push({ reference: m[1], status: m[2] as SequraOrderSummary['status'] })
+    const totalMatch = text.match(TOTAL_RE)
+    if (totalMatch) {
+      total = Number(totalMatch[1])
+    } else if (total === null) {
+      throw new SequraApiError('No se pudo leer el total del listado de pedidos de SeQura (respuesta ilegible)')
     }
 
-    if (total === 0 || orders.length >= total) break
+    let leidos = 0
+    for (const line of text.split('\n')) {
+      const m = line.match(SUMMARY_LINE_RE)
+      if (m) {
+        orders.push({ reference: m[1], status: m[2] as SequraOrderSummary['status'] })
+        leidos++
+      }
+    }
+
+    if (total === 0) break
+    if (orders.length >= total) break
+    // Página corta con más pedidos anunciados: el listado vino truncado.
+    if (leidos < limit) {
+      throw new SequraApiError(`Listado de SeQura truncado: ${orders.length} pedidos leídos de ${total}`)
+    }
     offset += limit
   }
 

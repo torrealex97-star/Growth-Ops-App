@@ -223,7 +223,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         contractId = existing.id
         token = existing.signing_token as string
         if (existing.status !== 'firmado') {
-          await sb
+          const { error: updateErr } = await sb
             .from('contracts')
             .update({
               title,
@@ -237,6 +237,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
             })
             .eq('id', contractId)
             .eq('tenant_id', t.tenantId)
+          // Si falla, terms/body_snapshot se quedan con el precio/plan VIEJO y el email de
+          // firma de abajo mandaría igual el enlace — el firmante firmaría el contrato viejo.
+          if (updateErr) throw new Error(updateErr.message)
         }
       } else {
         token = randomBytes(24).toString('hex')
@@ -289,12 +292,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       })
       emailed = r.ok
       emailError = r.ok ? null : (r.error ?? null)
-      if (r.ok)
-        await sb
+      if (r.ok) {
+        const { error: flagErr } = await sb
           .from('contracts')
           .update({ email_sent_at: nowIso })
           .eq('id', studentContract.contractId)
           .eq('tenant_id', t.tenantId)
+        // El email SÍ se envió; si esto falla la UI mostrará "no enviado" y alguien podría
+        // reenviarlo duplicado.
+        if (flagErr)
+          console.error(
+            `[contracts/student] contrato ${studentContract.contractId}: enviado pero sin marcar email_sent_at:`,
+            flagErr.message
+          )
+      }
     }
 
     // ── Contrato del TOMADOR (si el comprador es distinto del agendador) ──
@@ -326,16 +337,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
             'Estás a punto de aceptar las condiciones como tomador/pagador de la formación.',
         })
         payerEmailed = rp.ok
-        if (rp.ok)
-          await sb
+        if (rp.ok) {
+          const { error: flagErr } = await sb
             .from('contracts')
             .update({ email_sent_at: nowIso })
             .eq('id', payerContract.contractId)
             .eq('tenant_id', t.tenantId)
+          if (flagErr)
+            console.error(
+              `[contracts/student] contrato ${payerContract.contractId}: enviado pero sin marcar email_sent_at:`,
+              flagErr.message
+            )
+        }
       }
     }
 
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       entity_type: 'contract',
       entity_id: studentContract.contractId,
@@ -351,6 +368,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         created_by: me.id,
       },
     })
+    if (auditErr) console.error('[contracts/student] no se pudo registrar audit_logs:', auditErr.message)
 
     return NextResponse.json({
       ok: true,

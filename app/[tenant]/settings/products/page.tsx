@@ -199,17 +199,23 @@ export default function ProductsPage() {
 
   const toggleProductActive = async (p: Product) => {
     const supabase = createClient()
-    await supabase.from('products').update({ is_active: !p.is_active }).eq('id', p.id).eq('tenant_id', tenantId)
+    const { error } = await supabase
+      .from('products')
+      .update({ is_active: !p.is_active })
+      .eq('id', p.id)
+      .eq('tenant_id', tenantId)
+    if (error) toast.error('No se pudo cambiar el estado del producto', { description: error.message })
     fetchData()
   }
 
   const togglePlanActive = async (plan: PaymentPlan) => {
     const supabase = createClient()
-    await supabase
+    const { error } = await supabase
       .from('payment_plans')
       .update({ is_active: !plan.is_active })
       .eq('id', plan.id)
       .eq('tenant_id', tenantId)
+    if (error) toast.error('No se pudo cambiar el estado del plan', { description: error.message })
     fetchData()
   }
 
@@ -274,6 +280,7 @@ export default function ProductsPage() {
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                    aria-label={`Editar producto ${product.name}`}
                     onClick={(e) => {
                       e.stopPropagation()
                       openEditProduct(product)
@@ -331,6 +338,7 @@ export default function ProductsPage() {
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                              aria-label={`Editar plan ${plan.name}`}
                               onClick={() => openEditPlan(plan)}
                             >
                               <Edit2 className="w-3.5 h-3.5" />

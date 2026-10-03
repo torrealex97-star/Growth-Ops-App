@@ -97,17 +97,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
 
-    try {
-      await supabase.from('audit_logs').insert({
-        tenant_id: t.tenantId,
-        action: 'document_verification_register',
-        entity_type: 'sale',
-        entity_id: saleId,
-        new_values: { documentType, timestamp: new Date().toISOString(), actor: t.userId },
-      })
-    } catch {
-      // No fallar si no existe la tabla
-    }
+    const { error: auditErr } = await supabase.from('audit_logs').insert({
+      tenant_id: t.tenantId,
+      actor_user_id: t.userId,
+      action: 'document_verification_register',
+      entity_type: 'sale',
+      entity_id: saleId,
+      new_values: { documentType, timestamp: new Date().toISOString() },
+    })
+    if (auditErr) console.error('[documents/register] no se pudo registrar audit_logs:', auditErr.message)
 
     return NextResponse.json({ success: true })
   } catch (error) {

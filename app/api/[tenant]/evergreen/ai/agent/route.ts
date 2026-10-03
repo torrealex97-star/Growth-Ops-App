@@ -9,6 +9,8 @@ import { entradasDiagnostico, entradasSalud } from '@/lib/metrics/entradas'
 import { calcularSalud } from '@/lib/metrics/salud'
 import { runAgent, type ChatMessage } from '@/lib/ai/agent/gateway'
 import { tenantAiEnv } from '@/lib/ai/provider'
+import { getTenantConfigWithFallback } from '@/lib/config'
+import { parseAccountIds } from '@/lib/meta/accounts'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -53,12 +55,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (!conv) return NextResponse.json({ error: 'Conversación no encontrada' }, { status: 404 })
   }
 
-  const { data: priorMessages } = await sb
+  // `order + limit` con ascending=true trae los MAX_HISTORY mensajes MÁS ANTIGUOS de la
+  // conversación, no los recientes — en una conversación larga el modelo perdía el contexto
+  // justo del turno que el usuario acaba de escribir. Se pide en orden DESCENDENTE (los últimos
+  // N) y se revierte en memoria para mandarlos al modelo en orden cronológico.
+  const { data: priorMessagesDesc } = await sb
     .from('ai_messages')
     .select('role,content')
     .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(MAX_HISTORY)
+  const priorMessages = priorMessagesDesc ? [...priorMessagesDesc].reverse() : priorMessagesDesc
 
   const { error: userMsgErr } = await sb
     .from('ai_messages')
@@ -92,7 +99,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         desde: new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), 1)).toISOString().slice(0, 10),
         hasta: hoy.toISOString().slice(0, 10),
       }
-      const consulta = await consultarMetricas(sb, auth.tenantId, periodo)
+      // El gasto de ads solo cuenta el de las cuentas seleccionadas en Integraciones: el brief y el
+      // agente no pueden mezclar cuentas históricas deseleccionadas en el negocio que se está mirando.
+      const cfg = await getTenantConfigWithFallback(auth.tenantId)
+      const consulta = await consultarMetricas(sb, auth.tenantId, periodo, parseAccountIds(cfg.META_AD_ACCOUNT_ID))
       const config = {
         muestraAlta: 100,
         muestraMinima: 20,
@@ -163,7 +173,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   if (assistantErr) return NextResponse.json({ error: assistantErr.message }, { status: 500 })
 
   if (toolCallLogs.length > 0) {
-    await sb.from('ai_tool_calls').insert(
+    const { error: toolLogErr } = await sb.from('ai_tool_calls').insert(
       toolCallLogs.map((t) => ({
         tenant_id: auth.tenantId,
         conversation_id: conversationId,
@@ -175,6 +185,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         latency_ms: t.latency_ms,
       }))
     )
+    // Es la evidencia de qué herramientas usó el agente para responder — si falla, la respuesta
+    // ya se dio pero queda sin poder auditarse.
+    if (toolLogErr) console.error('[ai/agent] no se pudo registrar ai_tool_calls:', toolLogErr.message)
   }
 
   return NextResponse.json({ conversationId, message: turn.text, evidence: turn.evidence })

@@ -44,11 +44,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       calendlyCanceled = r.ok
     }
 
-    await sb
+    const { error: updateErr } = await sb
       .from('appointments')
       .update({ status: 'cancelled_admin' })
       .eq('id', appointmentId)
       .eq('tenant_id', t.tenantId)
+    // Si esto falla tras cancelar en Calendly, la app se queda mostrando la cita "scheduled"
+    // cuando ya no existe — falsea show-rate/no-show. Se responde error aunque Calendly ya
+    // esté cancelado: el admin necesita saber que hay que reintentar o corregir a mano.
+    if (updateErr) {
+      return NextResponse.json(
+        { error: 'Cancelada en Calendly pero no se pudo actualizar en la app: ' + updateErr.message, calendlyCanceled },
+        { status: 500 }
+      )
+    }
     if (appt.calendly_event_uuid) {
       await notifyCreatuagente(await getTenantConfigWithFallback(t.tenantId), 'cita.cancelada', appt.utm_content, {
         idExternoEvento: appt.calendly_event_uuid,

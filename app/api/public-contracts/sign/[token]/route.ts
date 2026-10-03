@@ -221,7 +221,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       if (sd.dni) patch.dni = sd.dni
       if (sd.address) patch.address = sd.address
       if (sd.phone) patch.phone = sd.phone
-      if (Object.keys(patch).length) await sb.from('users').update(patch).eq('id', c.user_id)
+      if (Object.keys(patch).length) {
+        const { error: datosErr } = await sb.from('users').update(patch).eq('id', c.user_id)
+        // DNI/dirección/teléfono son datos fiscales que se usan después en contratos y pagos —
+        // si no se guardan, el colaborador cree que los aportó y no queda rastro del fallo.
+        if (datosErr)
+          console.error(
+            `[public-contracts/sign] contrato ${c.id}: no se pudieron guardar los datos personales aportados:`,
+            datosErr.message
+          )
+      }
 
       // CIERRE DE LA CADENA DE ALTA (hallazgo E2E 19-sep): el alta del
       // colaborador (admin o registro público) deja su perfil en
@@ -229,12 +238,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       // Solo en contratos de equipo y solo desde estados previos a la firma —
       // las decisiones manuales del admin (suspended/inactive) no se tocan.
       if (c.kind === 'equipo') {
-        await sb
+        const { error: activarErr } = await sb
           .from('collaborator_profiles')
           .update({ status: 'active', updated_at: signedAt })
           .eq('tenant_id', tenantId)
           .eq('user_id', c.user_id)
           .in('status', ['invited', 'pending_contract'])
+        // El contrato YA está firmado (no se puede volver a firmar) — si esto falla, el
+        // colaborador se queda sin activar y sin forma de reintentarlo por su cuenta.
+        if (activarErr)
+          console.error(
+            `[public-contracts/sign] contrato ${c.id} firmado pero no se pudo activar collaborator_profiles (user ${c.user_id}):`,
+            activarErr.message
+          )
       }
     }
 
@@ -257,13 +273,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
       })
     }
 
-    await sb.from('audit_logs').insert({
+    const { error: auditFirmaErr } = await sb.from('audit_logs').insert({
       tenant_id: tenantId,
       entity_type: 'contract',
       entity_id: c.id,
       action: 'update',
       new_values: { status: 'firmado', signer_name: signerName.trim(), hash, ip },
     })
+    if (auditFirmaErr)
+      console.error('[public-contracts/sign] no se pudo registrar audit_logs de la firma:', auditFirmaErr.message)
 
     return NextResponse.json({ ok: true, signedPdfUrl: await freshPdfUrl(sb, c.id, true) })
   } catch (err) {

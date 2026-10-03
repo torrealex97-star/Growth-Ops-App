@@ -241,13 +241,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     try {
       const toque = leerToque(body)
       if (colaboradorId || toqueTieneDatos(toque)) {
-        await registrarToque(sb, tenantId, contact.id, { ...toque, enEl: now, colaboradorId })
+        const r = await registrarToque(sb, tenantId, contact.id, { ...toque, enEl: now, colaboradorId })
+        if (!r.ok) console.warn('[atribucion] no se pudo registrar el toque:', r.error)
       }
     } catch (e) {
       console.warn('[atribucion] no se pudo registrar el toque:', e instanceof Error ? e.message : e)
     }
     if (!resolved.created) {
-      await sb
+      const { error: enriquecimientoErr } = await sb
         .from('contacts')
         .update({
           last_seen_at: now,
@@ -257,6 +258,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         })
         .eq('id', contact.id)
         .eq('tenant_id', tenantId)
+      // Si falla, se pierde el enriquecimiento del CRM (teléfono/instagram/edad del formulario).
+      if (enriquecimientoErr)
+        console.warn(`[calendly] no se pudo enriquecer el contacto ${contact.id}:`, enriquecimientoErr.message)
     }
 
     // --- Cualificación efectiva (arrastre en reprogramaciones) ---
@@ -294,11 +298,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       Array.isArray(effectiveQualification.respuestas) &&
       (effectiveQualification.respuestas as unknown[]).length > 0
     ) {
-      await sb
+      const { error: qualErr } = await sb
         .from('contacts')
         .update({ qualification: effectiveQualification, qualification_updated_at: now })
         .eq('id', contact.id)
         .eq('tenant_id', tenantId)
+      if (qualErr) console.error('[webhooks/calendly] no se pudo volcar la cualificación:', qualErr.message)
     }
 
     // Atribución (UTMs de Calendly)
@@ -324,13 +329,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         .eq('tenant_id', tenantId)
         .eq('is_primary', true)
         .maybeSingle()
-      if (attr)
-        await sb
+      if (attr) {
+        const { error: attrErr } = await sb
           .from('contact_attributions')
           .update({ last_touch_at: now, ...utm, ...lastUtm, source: 'calendly' })
           .eq('id', attr.id)
-      else
-        await sb.from('contact_attributions').insert({
+        if (attrErr) console.error('[webhooks/calendly] no se pudo actualizar contact_attributions:', attrErr.message)
+      } else {
+        const { error: attrErr } = await sb.from('contact_attributions').insert({
           tenant_id: tenantId,
           contact_id: contact.id,
           source: 'calendly',
@@ -341,6 +347,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           last_touch_at: now,
           is_primary: true,
         })
+        if (attrErr) console.error('[webhooks/calendly] no se pudo crear contact_attributions:', attrErr.message)
+      }
     }
 
     // --- VSL: engancha el visionado (incl. anónimo sin optin) y guarda el % visto ---
@@ -360,9 +368,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           .eq('external_id', externalId)
           .eq('tenant_id', tenantId)
           .maybeSingle()
-        await sb.from('appointments').update({ status }).eq('external_id', externalId).eq('tenant_id', tenantId)
+        const { error: updErr } = await sb
+          .from('appointments')
+          .update({ status })
+          .eq('external_id', externalId)
+          .eq('tenant_id', tenantId)
+        // Fail ruidoso: si esta escritura falla, la cita se queda con el estado viejo pero
+        // Calendly ya cree que el webhook se procesó (a menos que devolvamos error). Devolver
+        // 500 hace que Calendly reintente la entrega en vez de perder la cancelación en silencio.
+        if (updErr)
+          return NextResponse.json({ error: `No se pudo cancelar la cita: ${updErr.message}` }, { status: 500 })
         if (canceledAppt) {
-          await sb.from('audit_logs').insert({
+          const { error: auditErr } = await sb.from('audit_logs').insert({
             tenant_id: tenantId,
             entity_type: 'appointment',
             entity_id: canceledAppt.id,
@@ -370,6 +387,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
             old_values: { status: canceledAppt.status },
             new_values: { status },
           })
+          if (auditErr)
+            console.error('[webhooks/calendly] audit_logs de cancelación no se pudo escribir:', auditErr.message)
           // Cancelación real (no reprogramación: esa se notifica como cita.reprogramada
           // en el lado del invitee.created nuevo, donde sí conocemos la hora nueva).
           if (p.rescheduled !== true && eventUuid) {
@@ -473,7 +492,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       // se creaba bajo un calendario distinto (bug: "el crm al reagendar cambia la
       // propiedad del lead", antes no pasaba porque cada reagenda creaba fila nueva).
       const { closer_id: _closerField, setter_id: _setterField, ...apptFieldsNoAssignment } = apptFields
-      await sb
+      const { error: apptUpdateErr } = await sb
         .from('appointments')
         .update({
           ...apptFieldsNoAssignment,
@@ -483,13 +502,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         })
         .eq('id', appt.id)
         .eq('tenant_id', tenantId)
-      await sb.from('contacts').update({ lead_status: 'agendado' }).eq('id', contact.id).eq('tenant_id', tenantId)
+      // Si esto falla en una reprogramación, la fila se queda con el external_id VIEJO: el
+      // próximo webhook no la encuentra y crea una cita duplicada. 500 para que Calendly reintente.
+      if (apptUpdateErr) {
+        return NextResponse.json({ error: 'No se pudo actualizar la cita: ' + apptUpdateErr.message }, { status: 500 })
+      }
+      const { error: leadStatusErr } = await sb
+        .from('contacts')
+        .update({ lead_status: 'agendado' })
+        .eq('id', contact.id)
+        .eq('tenant_id', tenantId)
+      if (leadStatusErr)
+        console.error('[webhooks/calendly] lead_status del contacto no se pudo actualizar:', leadStatusErr.message)
       // Log siempre que la cualificación cambie (además de en cada reprogramación entrante),
       // para poder detectar si un evento sobreescribe respuestas reales del formulario
       // (esto es lo que pasó con la reagenda de Alberto: quedó silencioso hasta ahora).
       const qualificationChanged = JSON.stringify(appt.qualification ?? null) !== JSON.stringify(effectiveQualification)
       if (migratedReschedule || qualificationChanged) {
-        await sb.from('audit_logs').insert({
+        const { error: auditErr } = await sb.from('audit_logs').insert({
           tenant_id: tenantId,
           entity_type: 'appointment',
           entity_id: appt.id,
@@ -501,6 +531,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
             appointment_datetime: apptFields.appointment_datetime,
           },
         })
+        if (auditErr)
+          console.error('[webhooks/calendly] audit_logs de reprogramación no se pudo escribir:', auditErr.message)
       }
       if (migratedReschedule && eventUuid && startTime) {
         await notifyCreatuagente(await getTenantConfigWithFallback(tenantId), 'cita.reprogramada', utm.utm_content, {
@@ -538,8 +570,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       .select('id')
       .single()
     if (aptErr) return NextResponse.json({ error: 'Error creando agenda', detail: aptErr.message }, { status: 500 })
-    await sb.from('contacts').update({ lead_status: 'agendado' }).eq('id', contact.id).eq('tenant_id', tenantId)
-    await sb.from('audit_logs').insert({
+    const { error: leadStatusErr2 } = await sb
+      .from('contacts')
+      .update({ lead_status: 'agendado' })
+      .eq('id', contact.id)
+      .eq('tenant_id', tenantId)
+    if (leadStatusErr2)
+      console.error('[webhooks/calendly] lead_status del contacto no se pudo actualizar:', leadStatusErr2.message)
+    const { error: auditErr2 } = await sb.from('audit_logs').insert({
       tenant_id: tenantId,
       entity_type: 'appointment',
       entity_id: created.id,
@@ -551,6 +589,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         appointment_datetime: apptFields.appointment_datetime,
       },
     })
+    if (auditErr2) console.error('[webhooks/calendly] audit_logs de creación no se pudo escribir:', auditErr2.message)
     if (eventUuid && startTime) {
       await notifyCreatuagente(await getTenantConfigWithFallback(tenantId), 'cita.agendada', utm.utm_content, {
         idExternoEvento: eventUuid,

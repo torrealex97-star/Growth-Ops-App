@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
+import Link from 'next/link'
 import { metodoDePlan } from '@/lib/metrics/agregados'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
@@ -13,9 +14,19 @@ import { DailyQuoteWidget } from '@/components/os/DailyQuoteWidget'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { FunnelStrip } from '@/components/os/FunnelStrip'
 import { MarketingEfficiencyCard } from '@/components/os/MarketingEfficiencyCard'
-import { DEFAULT_PERIOD, getPeriodRange, inPeriod, toDateInputValue, type PeriodPreset } from '@/lib/filters/period'
+import {
+  DEFAULT_PERIOD,
+  PERIOD_LABELS,
+  getPeriodRange,
+  getPreviousPeriodRange,
+  inPeriod,
+  toDateInputValue,
+  type PeriodPreset,
+} from '@/lib/filters/period'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import ColaboradorDashboard from '@/components/collaborators/ColaboradorDashboard'
+import { promedioPrimerPago } from '@/lib/finance/nuevo-vs-recurrente'
+import { canonicalCash, serieCanonicaCash, type StripePaymentRow } from '@/lib/canonical/cash'
 import { resolverScopeColaborador, type ScopeColaborador } from '@/lib/collaborators/scope'
 import { useTenantId } from '@/lib/tenant-context'
 import {
@@ -31,12 +42,10 @@ import {
   Trash2,
 } from 'lucide-react'
 import {
-  lastNMonths,
-  prevMonth,
   monthLabel,
-  monthlyKpis,
+  periodKpis,
+  financialTrend,
   pctDelta,
-  revenueByMonth,
   teamRanking,
   attributionBySource,
   targetCurrentValue,
@@ -52,7 +61,7 @@ import {
 } from '@/lib/analytics'
 import { agendasPorPersona, ventasPorColaborador } from '@/lib/analytics-agendas'
 import { AgendasPorPersona, type PersonaTab } from '@/components/os/AgendasPorPersona'
-import { isCancelled } from '@/lib/unit-economics'
+import { canonicalizeAppointments, canonicalizeLeads } from '@/lib/canonical/dedup'
 import { formatCurrency } from '@/lib/utils'
 import { FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 import type { SavedDashboardView } from '@/lib/types/database'
@@ -147,6 +156,7 @@ function DashboardEquipo() {
   const [userId, setUserId] = useState<string | null>(null)
   const [myRoleKey, setMyRoleKey] = useState<AppRole | ''>('')
   const [sales, setSales] = useState<SaleRow[]>([])
+  const [stripePayments, setStripePayments] = useState<StripePaymentRow[]>([])
   const [collections, setCollections] = useState<CollectionRow[]>([])
   const [commissions, setCommissions] = useState<
     { user_id: string; sale_id: string | null; commission_amount: number | string; direction: string; status: string }[]
@@ -163,12 +173,18 @@ function DashboardEquipo() {
   >([])
   const [users, setUsers] = useState<UserRow[]>([])
   const [roleUsers, setRoleUsers] = useState<RoleUser[]>([])
-  const [contactIds, setContactIds] = useState<string[]>([])
   const [contacts, setContacts] = useState<
-    { id: string; created_at: string | null; first_seen_at: string | null; first_contact_at: string | null }[]
+    {
+      id: string
+      email: string | null
+      phone: string | null
+      created_at: string | null
+      first_seen_at: string | null
+      first_contact_at: string | null
+    }[]
   >([])
   const [attributions, setAttributions] = useState<AttributionRow[]>([])
-  const [appointments, setAppointments] = useState<AppointmentRow[]>([])
+  const [appointments, setAppointments] = useState<(AppointmentRow & { id: string })[]>([])
   const [targets, setTargets] = useState<TargetRow[]>([])
   // Perfiles de colaborador activos de la subcuenta (para el tab Colaboradores de agendas/ventas).
   const [collabProfiles, setCollabProfiles] = useState<{ id: string; name: string }[]>([])
@@ -255,19 +271,20 @@ function DashboardEquipo() {
         viewsRes,
         commRes,
         collabRes,
+        stripeRes,
       ] = await Promise.all([
         supabase
           .from('sales')
           // reservation_completed_at + payment_plans(method): sin ellos una reserva abierta es
           // indistinguible de una venta y vuelve a contarse como facturación (MONEY D8, F03).
           .select(
-            'id, gross_amount, status, sale_date, closer_id, setter_id, affiliate_id, contact_id, reservation_completed_at, payment_plans(method)'
+            'id, gross_amount, status, sale_date, closer_id, setter_id, affiliate_id, contact_id, product_id, reservation_completed_at, payment_plans(method)'
           )
           .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('collections')
-          .select('sale_id, gross_amount, collected_at, status')
+          .select('id, sale_id, gross_amount, collected_at, status, payment_reference')
           .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
@@ -281,7 +298,7 @@ function DashboardEquipo() {
           .eq('is_active', true),
         supabase
           .from('contacts')
-          .select('id, created_at, first_seen_at, first_contact_at')
+          .select('id, email, phone, created_at, first_seen_at, first_contact_at')
           .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
@@ -291,7 +308,7 @@ function DashboardEquipo() {
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('appointments')
-          .select('appointment_datetime, status, setter_id, closer_id, cold_caller_id, affiliate_id, contact_id')
+          .select('id, appointment_datetime, status, setter_id, closer_id, cold_caller_id, affiliate_id, contact_id')
           .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
@@ -318,28 +335,57 @@ function DashboardEquipo() {
           .select('id, name, status')
           .eq('tenant_id', tenantId)
           .eq('status', 'active'),
+        supabase
+          .from('stripe_payments')
+          .select('payment_id, charge_id, amount, refunded_amount, status, paid_at, customer_email')
+          .eq('tenant_id', tenantId)
+          .range(0, FINANCE_QUERY_ROW_CAP),
       ])
 
       if (!mounted) return
-      const fallo = primerError(salesRes, collRes, usersRes, contactsRes, attrRes, apptRes, targetsRes, commRes)
+      const fallo = primerError(
+        salesRes,
+        collRes,
+        usersRes,
+        contactsRes,
+        attrRes,
+        apptRes,
+        targetsRes,
+        commRes,
+        stripeRes
+      )
       setErrorCarga(fallo ? mensajeDeCarga('los datos del panel', fallo) : null)
       // El embed de payment_plans llega anidado: se aplana aquí para que el predicado de venta
       // (cuentaComoVenta) pueda ver si la fila es una reserva todavía abierta.
       setSales(((salesRes.data || []) as SaleRow[]).map((v) => ({ ...v, payment_plan_method: metodoDePlan(v) })))
       setCollections(collRes.data || [])
+      setStripePayments((stripeRes.data || []) as StripePaymentRow[])
       setUsers(usersRes.data || [])
       setRoleUsers((roleUsersRes.data as RoleUser[] | null) || [])
-      setContactIds((contactsRes.data || []).map((c: { id: string }) => c.id))
       setContacts(
         (contactsRes.data as {
           id: string
+          email: string | null
+          phone: string | null
           created_at: string | null
           first_seen_at: string | null
           first_contact_at: string | null
         }[]) || []
       )
       setAttributions(attrRes.data || [])
-      setAppointments(apptRes.data || [])
+      const appointmentRows = apptRes.data || []
+      const appointmentsById = new Map(appointmentRows.map((a) => [a.id, a]))
+      setAppointments(
+        canonicalizeAppointments(
+          appointmentRows.map((a) => ({
+            ...a,
+            contact_id: a.contact_id ?? null,
+            scheduled_at: a.appointment_datetime,
+            calendly_event_id: null,
+            calendar_event_id: null,
+          }))
+        ).appointments.map((a) => appointmentsById.get(a.appointmentId)!)
+      )
       setTargets(targetsRes.data || [])
       setSavedViews((viewsRes.data as SavedDashboardView[] | null) || [])
       setCommissions(commRes.data || [])
@@ -369,6 +415,7 @@ function DashboardEquipo() {
 
   // --- Rango del filtro unificado de periodo ---
   const range = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
+  const previousRange = useMemo(() => getPreviousPeriodRange(range), [range])
 
   // El mes de las tarjetas KPI (este mes vs anterior) sigue al periodo elegido.
   useEffect(() => {
@@ -439,32 +486,83 @@ function DashboardEquipo() {
     return sales.filter((s) => saleMatches(s) && inPeriod(s.sale_date, range))
   }, [sales, saleMatches, range])
 
+  const scopedSaleIds = useMemo(() => new Set(sales.filter(saleMatches).map((sale) => sale.id)), [sales, saleMatches])
   const filteredSaleIds = useMemo(() => new Set(filteredSales.map((s) => s.id)), [filteredSales])
 
   const filteredCollections = useMemo(() => {
     // Sin atajo para 'all': inPeriod ya trata el rango abierto (from/to null) como "todo", y así
     // TODA métrica pasa por el mismo camino — una colección huérfana (venta borrada) no se cuela.
-    return collections.filter((c) => filteredSaleIds.has(c.sale_id) && inPeriod(c.collected_at, range))
-  }, [collections, filteredSaleIds, range])
+    return collections.filter((c) => scopedSaleIds.has(c.sale_id) && inPeriod(c.collected_at, range))
+  }, [collections, scopedSaleIds, range])
 
   const filteredAppointments = useMemo(() => {
-    // Una cancelación NO es una agenda del embudo: la cita no ocurrirá. (Unificado con
-    // buildSalesOverview de unit-economics, que ya excluía canceladas; antes el strip contaba
-    // canceladas y por eso "Agendas" inflaba: 120 en el mes eran 73 vivas + 47 canceladas.)
-    return appointments.filter(
-      (a) => !isCancelled(a.status) && apptMatches(a) && inPeriod(a.appointment_datetime, range)
-    )
+    // Agendas incluye todos los estados; cancelaciones se desglosan aparte, como en Negocio.
+    return appointments.filter((a) => apptMatches(a) && inPeriod(a.appointment_datetime, range))
   }, [appointments, apptMatches, range])
 
-  const cur = useMemo(
-    () => monthlyKpis(filteredSales, filteredCollections, ym),
-    [filteredSales, filteredCollections, ym]
+  const cashInputs = (targetRange: typeof range) => {
+    const internal = collections
+      .filter((c) => inPeriod(c.collected_at, targetRange) && (member === 'all' || scopedSaleIds.has(c.sale_id)))
+      .map((c) => ({
+        id: c.id!,
+        payment_reference: c.payment_reference ?? null,
+        gross_amount: Number(c.gross_amount),
+        status: c.status,
+        collected_at: c.collected_at,
+      }))
+    const references = new Set(internal.map((c) => c.payment_reference).filter(Boolean))
+    const stripe = stripePayments.filter(
+      (p) =>
+        inPeriod(p.paid_at, targetRange) &&
+        (member === 'all' || references.has(p.payment_id) || (!!p.charge_id && references.has(p.charge_id)))
+    )
+    return { internal, stripe }
+  }
+  const currentCashInputs = cashInputs(range)
+  const currentCash = canonicalCash(currentCashInputs.stripe, currentCashInputs.internal)
+  const curBase = periodKpis(filteredSales, filteredCollections)
+  const cur = {
+    ...curBase,
+    cash: currentCash.net,
+    avgCash: promedioPrimerPago(
+      filteredSales.filter(cuentaComoVenta).map((s) => s.id),
+      collections,
+      range.to?.toLocaleDateString('sv-SE')
+    ).promedio,
+  }
+  const previousSales = useMemo(
+    () => sales.filter((sale) => saleMatches(sale) && inPeriod(sale.sale_date, previousRange)),
+    [sales, saleMatches, previousRange]
   )
-  const prev = useMemo(
-    () => monthlyKpis(filteredSales, filteredCollections, prevMonth(ym)),
-    [filteredSales, filteredCollections, ym]
+  const previousCollections = useMemo(
+    () => collections.filter((row) => scopedSaleIds.has(row.sale_id) && inPeriod(row.collected_at, previousRange)),
+    [collections, scopedSaleIds, previousRange]
   )
-  const series = useMemo(() => revenueByMonth(filteredSales, lastNMonths(6, ym)), [filteredSales, ym])
+  const previousCashInputs = cashInputs(previousRange)
+  const previousCash = canonicalCash(previousCashInputs.stripe, previousCashInputs.internal)
+  const prevBase = periodKpis(previousSales, previousCollections)
+  const prev = {
+    ...prevBase,
+    cash: previousCash.net,
+    avgCash: promedioPrimerPago(
+      previousSales.filter(cuentaComoVenta).map((s) => s.id),
+      collections,
+      previousRange.to?.toLocaleDateString('sv-SE')
+    ).promedio,
+  }
+  const trend = financialTrend(
+    filteredSales,
+    filteredCollections,
+    range,
+    new Map(
+      serieCanonicaCash(currentCashInputs.stripe, currentCashInputs.internal, [], 'dia').map((p) => [p.cubo, p.neto])
+    )
+  )
+  const series = trend.points.map(({ date, amount }) => ({ date, amount }))
+  const cashSeries = trend.points.map(({ date, cash }) => ({ date, cash }))
+  // NUEVO vs RECURRENTE (definición canónica de lib/finance/nuevo-vs-recurrente):
+  // cuánto del cash del mes es primer cobro de ventas nuevas y cuánto son cuotas de
+  // ventas de meses pasados (el MRR que sostiene el negocio).
   // roleUsers trae el rol real (roles(key)); necesario para no mezclar puestos en el ranking.
   const usersWithRole = useMemo(
     () => roleUsers.map((u) => ({ id: u.id, full_name: u.full_name, role: u.roles?.key ?? null })),
@@ -478,21 +576,22 @@ function DashboardEquipo() {
     () => teamRanking(filteredSales, filteredCollections, usersWithRole, 'setter'),
     [filteredSales, filteredCollections, usersWithRole]
   )
-  const attribution = useMemo(
-    () => attributionBySource(contactIds, attributions, filteredSales),
-    [contactIds, attributions, filteredSales]
+  const canonicalLeads = useMemo(
+    () => canonicalizeLeads(contacts.map((c) => ({ ...c, created_at: leadDate(c) }))).leads,
+    [contacts]
   )
-  // Leads del periodo = contactos CREADOS en el rango activo (a diferencia de la tabla de
-  // Atribución de más abajo, que usa el histórico completo de contactos — son preguntas de
-  // negocio distintas: "¿qué trajo cada fuente en este periodo?" vs "¿qué trajo cada fuente en
-  // toda la vida de la cuenta?"). No se filtra por rol/persona: un lead no pertenece a un closer.
-  const filteredContactIds = useMemo(() => {
-    // Sin atajo para 'all' (inPeriod con rango abierto = todo): un solo camino de filtrado.
-    // Por FECHA REAL del lead (leadDate = first_seen_at → first_contact_at → created_at), no por
-    // created_at: la importación histórica de GHL estampó todos los created_at el mismo día y
-    // "Este mes" contaba los ~1000 leads importados como si fueran de este mes.
-    return contacts.filter((c) => inPeriod(leadDate(c), range)).map((c) => c.id)
-  }, [contacts, range])
+  const filteredContactIds = useMemo(
+    () => canonicalLeads.filter((c) => inPeriod(c.createdAt, range)).map((c) => c.leadId),
+    [canonicalLeads, range]
+  )
+  const attribution = useMemo(() => {
+    const aliases = new Map(canonicalLeads.flatMap((c) => c.members.map((m) => [m.id, c.leadId] as const)))
+    return attributionBySource(
+      filteredContactIds,
+      attributions.map((a) => ({ ...a, contact_id: aliases.get(a.contact_id) ?? a.contact_id })),
+      filteredSales.map((s) => ({ ...s, contact_id: aliases.get(s.contact_id ?? '') ?? s.contact_id }))
+    )
+  }, [canonicalLeads, filteredContactIds, attributions, filteredSales])
 
   const funnelTotals = useMemo(
     () => aggregateFunnel(funnelBySource(filteredContactIds, attributions, filteredSales, filteredAppointments)),
@@ -565,6 +664,23 @@ function DashboardEquipo() {
       .reduce((s, f) => s + Number(f.amount), 0)
     return { ganada, futura }
   }, [commissions, futureCommissions, filteredSaleIds, member])
+  const selectedMemberName = useMemo(
+    () => (member === 'all' ? null : (users.find((user) => user.id === member)?.full_name ?? 'Persona seleccionada')),
+    [member, users]
+  )
+  const leadershipView = myRoleKey ? isLeadership(myRoleKey) : false
+  const showCommissionSummary = !leadershipView || member !== 'all'
+  const productsInPeriod = useMemo(
+    () =>
+      new Set(
+        filteredSales
+          .filter(cuentaComoVenta)
+          .map((sale) => sale.product_id)
+          .filter(Boolean)
+      ).size,
+    [filteredSales]
+  )
+  const showAverageTicket = productsInPeriod > 1
 
   // COMISIONES FUTURAS POR MES (claridad del colaborador): cada fila de la proyección lleva la
   // fecha de vencimiento de la cuota — agrupo por ese mes para responder "cuánto me caerá cada
@@ -805,30 +921,34 @@ function DashboardEquipo() {
         )}
       </div>
 
-      <div className={`grid grid-cols-1 ${adSpendAllowed ? 'xl:grid-cols-[2fr_1fr]' : ''} gap-4 items-start`}>
+      <div
+        className={`grid grid-cols-1 ${adSpendAllowed && showCommissionSummary ? 'xl:grid-cols-[2fr_1fr]' : ''} gap-4 items-start`}
+      >
         {adSpendAllowed && <FunnelStrip totals={funnelTotals} loading={loading} />}
-        <div className={`grid grid-cols-1 sm:grid-cols-2 ${adSpendAllowed ? 'xl:grid-cols-1' : ''} gap-4`}>
-          <KPICard
-            title="Comisión ganada"
-            value={loading ? '—' : fmt(commissionKpis.ganada)}
-            icon={Coins}
-            loading={loading}
-            description="cash collected · sin liquidar"
-          />
-          <KPICard
-            title="Comisión futura"
-            value={loading ? '—' : fmt(commissionKpis.futura)}
-            icon={Percent}
-            loading={loading}
-            description="esperada · cuotas por cobrar"
-          />
-        </div>
+        {showCommissionSummary && (
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${adSpendAllowed ? 'xl:grid-cols-1' : ''} gap-4`}>
+            <KPICard
+              title="Comisión ganada"
+              value={loading ? '—' : fmt(commissionKpis.ganada)}
+              icon={Coins}
+              loading={loading}
+              description={`${selectedMemberName ? `${selectedMemberName} · ` : ''}cash collected · sin liquidar`}
+            />
+            <KPICard
+              title="Comisión futura"
+              value={loading ? '—' : fmt(commissionKpis.futura)}
+              icon={Percent}
+              loading={loading}
+              description={`${selectedMemberName ? `${selectedMemberName} · ` : ''}esperada · cuotas por cobrar`}
+            />
+          </div>
+        )}
       </div>
 
       {/* Desglose mes a mes de las comisiones futuras: qué ya está cobrado (cash recogido,
           comisión real) y qué depende de que los referidos paguen. Igual para closer, setter y
           afiliado — cada quien ve sus filas respetando los filtros de persona. */}
-      {!loading && futurePorMes.length > 0 && (
+      {showCommissionSummary && !loading && futurePorMes.length > 0 && (
         <div className="dashboard-card p-5">
           <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
             <h3 className="text-sm font-semibold text-foreground">Comisiones a futuro, mes a mes</h3>
@@ -862,10 +982,12 @@ function DashboardEquipo() {
       )}
 
       <div>
-        <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Facturación de {monthLabel(ym)}</h2>
+        <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">
+          Resumen financiero · {PERIOD_LABELS[periodPreset]}
+        </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard
-            title="Facturación bruta"
+            title="Facturación"
             value={loading ? '—' : fmt(cur.gross)}
             icon={TrendingUp}
             loading={loading}
@@ -877,6 +999,11 @@ function DashboardEquipo() {
             value={loading ? '—' : fmt(cur.cash)}
             icon={Wallet}
             loading={loading}
+            description={
+              loading
+                ? 'Libro interno · cobros brutos'
+                : 'Cobros consolidados de Stripe y otros medios; devoluciones descontadas. Incluye ventas anteriores.'
+            }
             compareLabel="vs mes anterior · cobrado real"
             {...delta(cur.cash, prev.cash)}
           />
@@ -889,12 +1016,25 @@ function DashboardEquipo() {
             {...delta(cur.count, prev.count)}
           />
           <KPICard
-            title="Ticket medio"
-            value={loading ? '—' : fmt(cur.avgTicket)}
+            title={showAverageTicket ? 'Ticket medio por cliente' : 'Cash Collected medio'}
+            value={
+              loading || (!showAverageTicket && cur.avgCash === null)
+                ? '—'
+                : fmt(showAverageTicket ? cur.avgTicket : cur.avgCash!)
+            }
             icon={Receipt}
             loading={loading}
-            compareLabel="vs mes anterior · por venta"
-            {...delta(cur.avgTicket, prev.avgTicket)}
+            description={
+              showAverageTicket
+                ? `${productsInPeriod} productos vendidos`
+                : 'Promedio del primer pago confirmado por venta nueva; excluye cuotas posteriores. Sin dato si falta identificar algún primer pago.'
+            }
+            compareLabel="vs periodo anterior"
+            {...(showAverageTicket
+              ? delta(cur.avgTicket, prev.avgTicket)
+              : cur.avgCash !== null && prev.avgCash !== null
+                ? delta(cur.avgCash, prev.avgCash)
+                : {})}
           />
         </div>
       </div>
@@ -902,7 +1042,12 @@ function DashboardEquipo() {
       {/* Evolución + Objetivos */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
         <div className="lg:col-span-2">
-          <SalesChart data={series} title="Facturación últimos 6 meses" className="h-full" />
+          <SalesChart
+            data={series}
+            cashData={cashSeries}
+            title={`Facturación vs Cash Collected · ${PERIOD_LABELS[periodPreset]} · por ${trend.granularity}`}
+            className="h-full"
+          />
         </div>
         <div className="dashboard-card p-5 flex flex-col">
           <div className="flex items-center gap-2 mb-4">
@@ -910,9 +1055,17 @@ function DashboardEquipo() {
             <h3 className="text-sm font-semibold text-foreground">Objetivos de empresa</h3>
           </div>
           {targets.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6 text-center mt-auto mb-auto">
-              No hay objetivos de empresa activos.
-            </p>
+            <div className="py-6 text-center mt-auto mb-auto">
+              <p className="text-sm text-muted-foreground">No hay objetivos de empresa activos.</p>
+              {leadershipView && (
+                <Link
+                  href={`/${tenant}/kpi/templates?tab=objetivos`}
+                  className="mt-3 inline-flex rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                >
+                  Añadir objetivos
+                </Link>
+              )}
+            </div>
           ) : (
             <div className="space-y-4">
               {targets.slice(0, 4).map((t) => {

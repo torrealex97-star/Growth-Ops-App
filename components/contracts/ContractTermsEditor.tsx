@@ -158,6 +158,7 @@ export function ContractTermsEditor({
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 text-muted-foreground hover:text-red-400"
+                    aria-label={`Eliminar tramo ${i + 1}`}
                     onClick={() => removeTier(i)}
                   >
                     <X className="w-3.5 h-3.5" />

@@ -218,7 +218,7 @@ export function GrowthContextForm() {
     <section className="space-y-5 rounded-lg border border-border bg-card/50 p-4 sm:p-6">
       <div className="flex items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--brand-500)/0.1)]">
-          <BrainCircuit className="h-4.5 w-4.5 text-[hsl(var(--brand-500))]" aria-hidden="true" />
+          <BrainCircuit className="h-4 w-4 text-[hsl(var(--brand-500))]" aria-hidden="true" />
         </div>
         <div>
           <h2 className="font-semibold text-foreground">Contexto estratégico del Growth Operator</h2>

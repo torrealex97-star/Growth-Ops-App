@@ -1,6 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useTenantId } from '@/lib/tenant-context'
+import { metodoDePlan } from '@/lib/metrics/agregados'
+import { canonicalizeAppointments } from '@/lib/canonical/dedup'
 import { createClient } from '@/lib/supabase/client'
 import {
   Gauge,
@@ -15,6 +18,7 @@ import {
 } from 'lucide-react'
 import {
   teamRanking,
+  cuentaComoVenta,
   setterAgendaStats,
   targetCurrentValue,
   leadDate,
@@ -124,7 +128,7 @@ function formatMinutes(mins: number | null): string {
 
 function formatDays(days: number | null): string {
   if (days === null) return '—'
-  return `${days.toFixed(1)} días`
+  return `${days.toLocaleString('es-ES', { maximumFractionDigits: 1 })} días`
 }
 
 function KPICardSimple({
@@ -151,6 +155,9 @@ function KPICardSimple({
 }
 
 export default function PipelinePage() {
+  const tenantId = useTenantId()
+  const [loadError, setLoadError] = useState(false)
+  const [retry, setRetry] = useState(0)
   const [loading, setLoading] = useState(true)
   const [contacts, setContacts] = useState<ContactRow[]>([])
   const [appointments, setAppointments] = useState<PipelineAppointmentRow[]>([])
@@ -167,24 +174,79 @@ export default function PipelinePage() {
   useEffect(() => {
     let mounted = true
     async function load() {
+      setLoading(true)
+      setLoadError(false)
       const supabase = createClient()
       const [contactsRes, apptRes, salesRes, collectionsRes, usersRes, usersRolesRes, targetsRes] = await Promise.all([
-        supabase.from('contacts').select('id, created_at, first_seen_at, first_contact_at, lead_status'),
+        supabase
+          .from('contacts')
+          .select('id, created_at, first_seen_at, first_contact_at, lead_status', { count: 'exact' })
+          .eq('tenant_id', tenantId)
+          .range(0, 49999),
         supabase
           .from('appointments')
           .select(
-            'id, status, result, offered, setter_id, closer_id, triager_id, cold_caller_id, appointment_datetime, contact_id'
-          ),
-        supabase.from('sales').select('id, gross_amount, status, sale_date, closer_id, setter_id, contact_id'),
-        supabase.from('collections').select('sale_id, gross_amount, collected_at, status'),
-        supabase.from('users').select('id, full_name').eq('is_active', true),
-        supabase.from('users').select('id, full_name, roles(key)').eq('is_active', true),
-        supabase.from('targets').select('*').eq('is_active', true),
+            'id, status, result, offered, setter_id, closer_id, triager_id, cold_caller_id, appointment_datetime, contact_id',
+            { count: 'exact' }
+          )
+          .eq('tenant_id', tenantId)
+          .range(0, 49999),
+        supabase
+          .from('sales')
+          .select(
+            'id, gross_amount, status, sale_date, closer_id, setter_id, contact_id, reservation_completed_at, payment_plans(method)',
+            { count: 'exact' }
+          )
+          .eq('tenant_id', tenantId)
+          .range(0, 49999),
+        supabase
+          .from('collections')
+          .select('sale_id, gross_amount, collected_at, status', { count: 'exact' })
+          .eq('tenant_id', tenantId)
+          .range(0, 49999),
+        supabase
+          .from('users')
+          .select('id, full_name, tenant_members!inner(tenant_id)', { count: 'exact' })
+          .eq('tenant_members.tenant_id', tenantId)
+          .range(0, 49999)
+          .eq('is_active', true),
+        supabase
+          .from('users')
+          .select('id, full_name, roles(key), tenant_members!inner(tenant_id)', { count: 'exact' })
+          .eq('tenant_members.tenant_id', tenantId)
+          .range(0, 49999)
+          .eq('is_active', true),
+        supabase
+          .from('targets')
+          .select('*', { count: 'exact' })
+          .eq('tenant_id', tenantId)
+          .eq('is_active', true)
+          .range(0, 49999),
       ])
       if (!mounted) return
+      if (
+        [contactsRes, apptRes, salesRes, collectionsRes, usersRes, usersRolesRes, targetsRes].some(
+          (r) => r.error || (r.count ?? 0) > (r.data?.length ?? 0)
+        )
+      ) {
+        setLoadError(true)
+        setLoading(false)
+        return
+      }
       setContacts(contactsRes.data || [])
-      setAppointments(apptRes.data || [])
-      setSales(salesRes.data || [])
+      const rawAppointments = apptRes.data ?? []
+      const byId = new Map(rawAppointments.map((a) => [a.id, a]))
+      setAppointments(
+        canonicalizeAppointments(
+          rawAppointments.map((a) => ({
+            ...a,
+            scheduled_at: a.appointment_datetime,
+            calendly_event_id: null,
+            calendar_event_id: null,
+          }))
+        ).appointments.map((a) => byId.get(a.appointmentId)!)
+      )
+      setSales((salesRes.data ?? []).map((s) => ({ ...s, payment_plan_method: metodoDePlan(s) })))
       setCollections(collectionsRes.data || [])
       setUsers(usersRes.data || [])
       setUsersWithRoles((usersRolesRes.data as unknown as UserWithRoleRow[]) || [])
@@ -195,7 +257,7 @@ export default function PipelinePage() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [tenantId, retry])
 
   const range = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
 
@@ -212,7 +274,9 @@ export default function PipelinePage() {
   const filteredSales = useMemo(() => {
     return sales.filter(
       (s) =>
-        (personId === 'all' || s.closer_id === personId || s.setter_id === personId) && inPeriod(s.sale_date, range)
+        (personId === 'all' || s.closer_id === personId || s.setter_id === personId) &&
+        cuentaComoVenta(s) &&
+        inPeriod(s.sale_date, range)
     )
   }, [sales, personId, range])
 
@@ -409,7 +473,14 @@ export default function PipelinePage() {
         }}
       />
 
-      {loading ? (
+      {loadError ? (
+        <div role="alert" className="dashboard-card p-6">
+          No se pudo cargar la fuente completa. No se muestran totales parciales.
+          <button className="ml-3 underline" onClick={() => setRetry((n) => n + 1)}>
+            Reintentar
+          </button>
+        </div>
+      ) : loading ? (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -432,7 +503,7 @@ export default function PipelinePage() {
             <h2 className="text-xs uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
               <TargetIcon className="w-3.5 h-3.5" /> Objetivos
             </h2>
-            <p className="text-[11px] text-muted-foreground -mt-2 mb-3">
+            <p className="text-2xs text-muted-foreground -mt-2 mb-3">
               Los objetivos miden su propia ventana (hoy/semana/mes), independiente del filtro de periodo de esta
               página. El ranking y las velocidades de abajo SÍ usan el filtro.
             </p>
@@ -530,7 +601,7 @@ export default function PipelinePage() {
                       <tr className="text-left text-muted-foreground text-xs uppercase tracking-wider">
                         <th className="pb-2">Closer</th>
                         <th className="pb-2 text-right">Cierres</th>
-                        <th className="pb-2 text-right">Ingresos</th>
+                        <th className="pb-2 text-right">Facturación</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -597,9 +668,9 @@ export default function PipelinePage() {
                       <tr className="text-left text-muted-foreground text-xs uppercase tracking-wider">
                         <th className="pb-2">Triager</th>
                         <th className="pb-2 text-right">Citas</th>
-                        <th className="pb-2 text-right">Cualificadas</th>
-                        <th className="pb-2 text-right">% Cualif.</th>
-                        <th className="pb-2 text-right">NR</th>
+                        <th className="pb-2 text-right">Asistidas o con oferta</th>
+                        <th className="pb-2 text-right">% sobre citas</th>
+                        <th className="pb-2 text-right">% no show</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -629,9 +700,9 @@ export default function PipelinePage() {
                       <tr className="text-left text-muted-foreground text-xs uppercase tracking-wider">
                         <th className="pb-2">Cold Caller</th>
                         <th className="pb-2 text-right">Citas generadas</th>
-                        <th className="pb-2 text-right">Cualificadas</th>
-                        <th className="pb-2 text-right">% Cualif.</th>
-                        <th className="pb-2 text-right">NR</th>
+                        <th className="pb-2 text-right">Asistidas o con oferta</th>
+                        <th className="pb-2 text-right">% sobre citas</th>
+                        <th className="pb-2 text-right">% no show</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -661,7 +732,7 @@ export default function PipelinePage() {
                     <tr className="text-left text-muted-foreground text-xs uppercase tracking-wider">
                       <th className="pb-2">Setter</th>
                       <th className="pb-2 text-right">Ventas</th>
-                      <th className="pb-2 text-right">Ingresos</th>
+                      <th className="pb-2 text-right">Facturación</th>
                     </tr>
                   </thead>
                   <tbody>

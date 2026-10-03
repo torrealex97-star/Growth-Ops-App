@@ -6,8 +6,8 @@ import {
   dedupeSales,
   canonicalizePayments,
   coveragePct,
-} from '../../lib/canonical/dedup.ts'
-import { resolveByPriority, SOURCE_REGISTRY, confidenceForMatch } from '../../lib/sources/registry.ts'
+} from '../lib/canonical/dedup.ts'
+import { resolveByPriority, SOURCE_REGISTRY, confidenceForMatch } from '../lib/sources/registry.ts'
 
 // ── LEADS CANÓNICOS (§6) ─────────────────────────────────────────────────────
 

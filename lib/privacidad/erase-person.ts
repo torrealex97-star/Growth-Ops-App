@@ -240,17 +240,20 @@ export async function erasePerson(
   // Audit: SOLO el hecho del borrado, con identificador no reversible. Guardar aquí el contact_id o
   // el correo reintroduciría en el sistema justo lo que se acaba de borrar.
   if (!simulacion) {
-    await sb.from('audit_logs').insert({
+    // entity_id es NOT NULL: no puede ir `null` (fallaba SIEMPRE, sin dejar rastro de que el
+    // borrado ocurrió). El hash es no reversible — no reintroduce el contact_id que se acaba de borrar.
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: tenantId,
       action: 'erase_person',
       entity_type: 'contacts',
-      entity_id: null,
+      entity_id: informe.personaHash,
       new_values: {
         persona_hash: informe.personaHash,
         completo: informe.completo,
         pasos: informe.pasos.map((p) => ({ store: p.store, estado: p.estado })),
       },
     })
+    if (auditErr) console.error('[erase-person] no se pudo registrar el borrado en audit_logs:', auditErr.message)
   }
 
   return informe

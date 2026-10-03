@@ -36,10 +36,11 @@ async function syncInstallmentStatus(sb: ReturnType<typeof serviceClient>, insta
     .neq('status', 'reversed')
     .limit(1)
   const hasCollection = !!(remaining && remaining.length > 0)
-  await sb
+  const { error } = await sb
     .from('sale_expected_installments')
     .update({ status: hasCollection ? 'collected' : 'pending' })
     .eq('id', installmentId)
+  if (error) console.error('[collections/[id]] sale_expected_installments no se pudo sincronizar:', error.message)
 }
 
 // PATCH — edita un cobro (importe, comisionable, fecha, método, elegibilidad) y RECONCILIA las
@@ -58,7 +59,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
     const { data: coll } = await sb
       .from('collections')
       .select(
-        'id, sale_id, gross_amount, commissionable_amount, sales!inner(payment_plans(cash_collection_ratio, fee_percent))'
+        'id, sale_id, expected_installment_id, gross_amount, commissionable_amount, sales!inner(payment_plans(cash_collection_ratio, fee_percent))'
       )
       .eq('id', id)
       .eq('tenant_id', t.tenantId)
@@ -115,10 +116,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
     const { error: upErr } = await sb.from('collections').update(update).eq('id', id).eq('tenant_id', t.tenantId)
     if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 })
 
+    // La cuota asociada vuelve a 'pending' si se queda sin cobros vivos (p.ej. este PATCH la pasó
+    // a 'reversed' o 'disputed'); si sigue teniendo uno, queda 'collected'. Antes solo se llamaba
+    // en DELETE: revertir el ÚNICO cobro de una cuota vía PATCH la dejaba 'collected' para
+    // siempre, bloqueada para volver a cobrarse limpiamente.
+    await syncInstallmentStatus(sb, coll.expected_installment_id)
+
     // Reconcilia comisiones (positivas no liquidadas) de la venta con los cobros actuales.
     const recon = await reconcileSaleCommissions(sb, t.tenantId, coll.sale_id)
 
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       actor_user_id: guard.userId,
       entity_type: 'collection',
@@ -127,6 +134,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ te
       old_values: { gross_amount: coll.gross_amount, commissionable_amount: coll.commissionable_amount },
       new_values: update,
     })
+    if (auditErr) {
+      // Cambio en dinero SIN rastro: la auditoría es parte del hecho, no un extra.
+      return NextResponse.json(
+        { error: 'Cobro actualizado pero no se pudo registrar la auditoría: ' + auditErr.message },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json({ ok: true, reconciled: recon })
   } catch (err) {
@@ -168,9 +182,20 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Borra primero las comisiones del cobro (evita conflictos de FK), luego el cobro.
-    await sb.from('commissions').delete().eq('collection_id', id)
-    const { error: delErr } = await sb.from('collections').delete().eq('id', id).eq('tenant_id', t.tenantId)
+    // El delete devuelve el resultado, no lanza: si falla y no se comprueba, quedan comisiones
+    // huérfanas apuntando a un cobro ya borrado — exactamente el invariante que el cash no cruza.
+    const { error: comErr } = await sb.from('commissions').delete().eq('collection_id', id)
+    if (comErr) return NextResponse.json({ error: comErr.message }, { status: 500 })
+    const { data: borradas, error: delErr } = await sb
+      .from('collections')
+      .delete()
+      .eq('id', id)
+      .eq('tenant_id', t.tenantId)
+      .select('id')
     if (delErr) return NextResponse.json({ error: delErr.message }, { status: 500 })
+    if (!borradas || borradas.length === 0) {
+      return NextResponse.json({ error: 'No se pudo eliminar el cobro' }, { status: 500 })
+    }
 
     // La cuota asociada vuelve a 'pending' si se queda sin cobros; si tenía otro (duplicado), 'collected'.
     await syncInstallmentStatus(sb, coll.expected_installment_id)
@@ -178,7 +203,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     // Reconcilia comisiones de la venta con los cobros restantes (recalcula tramos de los reps).
     const recon = await reconcileSaleCommissions(sb, t.tenantId, coll.sale_id)
 
-    await sb.from('audit_logs').insert({
+    const { error: auditDelErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       actor_user_id: guard.userId,
       entity_type: 'collection',
@@ -186,6 +211,13 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       action: 'delete',
       old_values: { sale_id: coll.sale_id, gross_amount: coll.gross_amount },
     })
+    if (auditDelErr) {
+      // Un cobro borrado sin rastro en audit_logs rompe la trazabilidad del cash.
+      return NextResponse.json(
+        { error: 'Cobro eliminado pero no se pudo registrar la auditoría: ' + auditDelErr.message },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json({ ok: true, reconciled: recon })
   } catch (err) {

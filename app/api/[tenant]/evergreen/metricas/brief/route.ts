@@ -9,6 +9,8 @@ import { calcularSalud } from '@/lib/metrics/salud'
 import { construirBrief } from '@/lib/metrics/brief'
 import { alertaCalidadDato, alertaKpi, type Alerta } from '@/lib/metrics/alertas'
 import { cargarContextoNegocio } from '@/lib/ai/agent/contexto'
+import { getTenantConfigWithFallback } from '@/lib/config'
+import { parseAccountIds } from '@/lib/meta/accounts'
 import { medirObjetivos, type EntradaObjetivo, type ObjetivoMedido } from '@/lib/metrics/objetivos'
 import { preverSerie, type Prevision } from '@/lib/metrics/prevision'
 import { avanceDelPeriodo, diaSiguiente } from '@/lib/metrics/series'
@@ -57,7 +59,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
 
   let consulta
   try {
-    consulta = await consultarMetricas(sb, auth.tenantId, periodo)
+    // Solo las cuentas de ads seleccionadas en Integraciones: el gasto de cuentas históricas
+    // deseleccionadas no es gasto del negocio y no puede entrar en el brief.
+    const cfg = await getTenantConfigWithFallback(auth.tenantId)
+    consulta = await consultarMetricas(sb, auth.tenantId, periodo, parseAccountIds(cfg.META_AD_ACCOUNT_ID))
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'No se pudieron leer las métricas', requestId: auth.requestId },
@@ -149,8 +154,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     alertas.push(
       alertaCalidadDato({
         key: 'atribucion_contactos',
-        que: 'el origen de los contactos',
-        detalle: `${conAtribucion} de ${contactos} contactos tienen origen conocido. Sin eso no hay CAC por canal ni se puede separar lo orgánico de los anuncios.`,
+        que: 'el origen de los contactos · histórico',
+        detalle: `${conAtribucion} de ${contactos} contactos históricos tienen un registro de atribución. Esto no garantiza un canal publicitario válido; la cobertura del periodo se consulta en Marketing → Atribución.`,
         comoArreglar:
           'Añadir parámetros UTM a los enlaces de reserva de los anuncios, o instalar el snippet de tracking en la landing. Mientras no lleguen, no hay nada que atribuir.',
       })
@@ -160,10 +165,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   // OBJETIVOS Y PREVISIÓN. Solo se construye un objetivo cuando growth_context TRAE el valor: sin
   // objetivo configurado no hay "cumplido" ni "por detrás" que decir, y un objetivo inventado convertiría
   // el panel en una comparación contra una cifra que nadie decidió (ver lib/ai/agent/contexto.ts).
-  const avance = avanceDelPeriodo(periodo, new Date().toISOString().slice(0, 10))
+  const hoy = new Date().toISOString().slice(0, 10)
+  const avance = avanceDelPeriodo(periodo, hoy)
+  // El filtro natural incluye días futuros, pero no son observaciones de una previsión.
+  const serieFacturacionObservada = consulta.serieFacturacion.filter((p) => p.fecha <= hoy)
+  const serieCashObservada = consulta.serieCash.filter((p) => p.fecha <= hoy)
   const entradasObjetivos: EntradaObjetivo[] = []
   if (contexto?.objetivoFacturacionMensualEur != null) {
-    const ultimaFacturacion = consulta.serieFacturacion.at(-1)?.valor ?? null
+    const ultimaFacturacion = serieFacturacionObservada.at(-1)?.valor ?? null
     entradasObjetivos.push({
       objetivo: {
         key: 'facturacion_objetivo',
@@ -211,7 +220,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   // cerrado no se prevé, se mide.
   const prevision: Prevision | null =
     !avance.cerrado && avance.diasRestantes > 0
-      ? preverSerie(consulta.serieFacturacion, avance.diasRestantes, {
+      ? preverSerie(serieFacturacionObservada, avance.diasRestantes, {
           siguienteFecha: (ultima, paso) => diaSiguiente(ultima, paso),
           noNegativa: true,
         })
@@ -235,6 +244,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     periodo,
   })
 
+  // GROWTH CAPACITY, como tarjeta más: hasta ahora `capacidad.utilizacionVentas` solo alimentaba
+  // evaluarEscalado() y se descartaba antes de llegar a la respuesta — el panel no tenía forma de
+  // enseñarlo. Se añade a las mediciones (ver lib/metrics/registro.ts: sales.capacidad_ventas) en vez
+  // de mandarlo aparte, para que salga por el mismo KpiCard que el resto y no monte un componente
+  // paralelo para un único número.
+  consulta.agregados.capacidad_ventas_pct = {
+    valor: capacidad.utilizacionVentas,
+    muestra: consulta.agregados.agendas?.muestra ?? null,
+    motivo:
+      capacidad.utilizacionVentas === null
+        ? 'Falta declarar la capacidad semanal de llamadas del equipo en el contexto de negocio.'
+        : undefined,
+  }
+
   return NextResponse.json({
     periodo,
     brief,
@@ -245,6 +268,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     // Las mediciones en crudo, para el "ver cálculo" de cada tarjeta: sin esto, la nota de salud vuelve
     // a ser un número que nadie puede discutir.
     mediciones: consulta.agregados,
+    // Las dos series nacen de las mismas filas y el mismo periodo que las tarjetas. El cliente solo
+    // cambia la presentación; no vuelve a consultar ni recalcula dinero.
+    serieFacturacion: serieFacturacionObservada,
+    serieCash: serieCashObservada,
     diagnostico,
     salud,
     procedencia: {

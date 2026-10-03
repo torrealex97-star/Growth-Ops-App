@@ -69,7 +69,12 @@ export function ProductExtrasManager() {
 
   const toggleActive = async (e: ProductExtra) => {
     const supabase = createClient()
-    await supabase.from('product_extras').update({ is_active: !e.is_active }).eq('id', e.id).eq('tenant_id', tenantId)
+    const { error } = await supabase
+      .from('product_extras')
+      .update({ is_active: !e.is_active })
+      .eq('id', e.id)
+      .eq('tenant_id', tenantId)
+    if (error) toast.error('No se pudo cambiar el estado', { description: error.message })
     fetchExtras()
   }
 

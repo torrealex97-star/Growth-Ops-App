@@ -10,6 +10,7 @@ interface KPICardProps {
   suffix?: string
   delta?: number
   deltaType?: 'up' | 'down' | 'neutral'
+  deltaSentiment?: 'positive' | 'negative' | 'neutral'
   icon?: LucideIcon
   loading?: boolean
   description?: string
@@ -64,6 +65,7 @@ export function KPICard({
   suffix,
   delta,
   deltaType,
+  deltaSentiment,
   icon: Icon,
   loading = false,
   description,
@@ -106,9 +108,10 @@ export function KPICard({
                 <span
                   className={cn(
                     'inline-flex items-center gap-1 text-xs font-medium',
-                    deltaType === 'up' && 'text-emerald-400',
-                    deltaType === 'down' && 'text-red-400',
-                    deltaType === 'neutral' && 'text-muted-foreground'
+                    (deltaSentiment ? deltaSentiment === 'positive' : deltaType === 'up') && 'text-emerald-400',
+                    (deltaSentiment ? deltaSentiment === 'negative' : deltaType === 'down') && 'text-red-400',
+                    (deltaSentiment === 'neutral' || (!deltaSentiment && deltaType === 'neutral')) &&
+                      'text-muted-foreground'
                   )}
                 >
                   {deltaType === 'up' && <TrendingUp className="w-3 h-3" />}

@@ -20,7 +20,7 @@
 // primaria), su refund sale con él.
 //
 // Función PURA: recibe filas ya traídas y devuelve el consolidado + diagnóstico.
-// Testeable sin BD (ver tests/canonical/cash.test.mjs).
+// Testeable sin BD (ver tests/cash.test.mjs — junto a la batería de refunds en tests/cash-refunds.test.mjs).
 
 // ── Entradas ────────────────────────────────────────────────────────────────
 
@@ -76,6 +76,8 @@ const num = (x: number | string | null | undefined): number => Number(x ?? 0)
 // (o charge_id) de Stripe. Es la dedupKey que declara el registro (§2):
 // transaction_id/payment_id primero; sin referencia no hay cruce posible y la
 // fila interna entra como dinero propio del fallback.
+const esPagoLiquidado = (sp: StripePaymentRow) => ['succeeded', 'refunded', 'partially_refunded'].includes(sp.status)
+
 function mismaReferenciaStripe(ref: string | null | undefined, sp: StripePaymentRow): boolean {
   if (!ref) return false
   return ref === sp.payment_id || (sp.charge_id != null && ref === sp.charge_id)
@@ -111,7 +113,7 @@ export function canonicalCash(
   // que llegaran por una consulta mal montada).
   const stripeVistos = new Set<string>()
   for (const sp of stripePayments) {
-    if (!sp.payment_id || stripeVistos.has(sp.payment_id)) continue
+    if (!esPagoLiquidado(sp) || !sp.payment_id || stripeVistos.has(sp.payment_id)) continue
     stripeVistos.add(sp.payment_id)
     const bruto = num(sp.amount)
     const devuelto = Math.min(num(sp.refunded_amount), bruto)
@@ -136,7 +138,7 @@ export function canonicalCash(
     const esCobrado = c.status === 'collected'
 
     if (esCobrado) {
-      const cruze = stripePayments.find((sp) => mismaReferenciaStripe(c.payment_reference, sp))
+      const cruze = stripePayments.find((sp) => esPagoLiquidado(sp) && mismaReferenciaStripe(c.payment_reference, sp))
       if (cruze) {
         // EL MISMO dinero: cuenta UNA vez y gana la primaria (§2/§19).
         duplicatedPayments.push(c.id)
@@ -184,4 +186,75 @@ export function canonicalCash(
     duplicatedPayments: duplicatedPayments.length,
     amountConflicts,
   }
+}
+
+/** Punto de la serie temporal: cubo (fecha de la granularidad) → importe neto del cash. */
+export type CashBucket = { cubo: string; neto: number }
+
+/**
+ * Serie temporal del cash canónico (§2), por cubos de la misma granularidad que la sección
+ * Evolución de unit-economics: día = 'YYYY-MM-DD' tal cual; semana = dominio UTC de la semana
+ * (mismo cálculo que la página); mes = 'YYYY-MM'.
+ *
+ * POR QUÉ NO AGREGAR Y REPARTIR: el gráfico dual (facturación vs cash, superpuesto al CAC donde
+ * haya gasto) exige el cash de CADA cubo, no un reparto proporcional del total — repartir
+ * inventaría fechas. Y las reglas de dedup son EXACTAMENTE las de `canonicalCash`: primaria
+ * Stripe (neto de su refunded_amount), cobro interno con referencia cruzada descartado como
+ * duplicado, 'reversed'/'disputed' ni suman ni restan (el reverso es la misma fila que sumó).
+ * Un cubo SIN filas de cash no aparece en la serie: hueco ≠ cero, igual que en Evolución.
+ */
+export function serieCanonicaCash(
+  stripePayments: StripePaymentRow[],
+  collections: InternalCollectionRow[],
+  internalRefunds: InternalRefundRow[] = [],
+  granularidad: 'dia' | 'semana' | 'mes' = 'dia'
+): CashBucket[] {
+  const claveDe = (iso: string): string => {
+    if (granularidad === 'dia') return iso.slice(0, 10)
+    if (granularidad === 'semana') {
+      const dt = new Date(`${iso.slice(0, 10)}T00:00:00Z`)
+      dt.setUTCDate(dt.getUTCDate() - dt.getUTCDay())
+      return dt.toISOString().slice(0, 10)
+    }
+    return iso.slice(0, 7)
+  }
+
+  const porCubo = new Map<string, number>()
+  const bump = (iso: string | null, importe: number) => {
+    if (!iso) return
+    const k = claveDe(iso)
+    porCubo.set(k, (porCubo.get(k) ?? 0) + importe)
+  }
+
+  // 1. Primaria: pago de Stripe una vez, NETO de su propia devolución.
+  const stripeVistos = new Set<string>()
+  for (const sp of stripePayments) {
+    if (!esPagoLiquidado(sp) || !sp.payment_id || stripeVistos.has(sp.payment_id)) continue
+    stripeVistos.add(sp.payment_id)
+    const bruto = num(sp.amount)
+    const devuelto = Math.min(num(sp.refunded_amount), bruto)
+    bump(sp.paid_at, bruto - devuelto)
+  }
+
+  // 2. Fallback: cobro interno 'collected' que Stripe NO ve entra con su fecha.
+  const vivas = new Set<string>()
+  for (const c of collections) {
+    if (c.status !== 'collected') continue
+    const cruze = stripePayments.find((sp) => esPagoLiquidado(sp) && mismaReferenciaStripe(c.payment_reference, sp))
+    if (cruze) continue
+    vivas.add(c.id)
+    bump(c.collected_at, num(c.gross_amount))
+  }
+
+  // 3. Devoluciones internas 'processed' sobre cobros vivos restan en SU fecha.
+  for (const r of internalRefunds) {
+    if (r.status !== 'processed') continue
+    if (r.collection_id && vivas.has(r.collection_id)) {
+      bump(r.refund_date, -num(r.gross_refund_amount))
+    }
+  }
+
+  return [...porCubo.entries()]
+    .map(([cubo, neto]) => ({ cubo, neto }))
+    .sort((a, b) => (a.cubo < b.cubo ? -1 : a.cubo > b.cubo ? 1 : 0))
 }

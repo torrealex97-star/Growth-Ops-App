@@ -36,12 +36,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // podría entrar a NINGÚN tenant (el layout exige una fila en tenant_members
     // o super_admin). onConflict evita degradar a un miembro ya existente.
     const ensureTenantMembership = async (affiliateUserId: string) => {
-      await supabase
+      const { error } = await supabase
         .from('tenant_members')
         .upsert(
           { tenant_id: tenantId, user_id: affiliateUserId, role: 'member' },
           { onConflict: 'tenant_id,user_id', ignoreDuplicates: true }
         )
+      // Sin esta fila el afiliado no puede entrar a NINGÚN tenant: es fatal, no un
+      // detalle a loguear y seguir — quien la llama decide qué responder al cliente.
+      return { ok: !error, error: error?.message }
     }
 
     // 1) Config del programa (campos + % por defecto + mensaje)
@@ -77,12 +80,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Añade (idempotente) un afiliado a la campaña resuelta. `created_by` = null: alta pública.
     const assignToCampaign = async (affiliateId: string, createdBy: string | null = null) => {
       if (!campaign) return
-      await supabase
+      const { error } = await supabase
         .from('affiliate_campaign_members')
         .upsert(
           { campaign_id: campaign.id, affiliate_id: affiliateId, created_by: createdBy, tenant_id: tenantId },
           { onConflict: 'campaign_id,affiliate_id', ignoreDuplicates: true }
         )
+      // El mensaje de éxito dice "quedas asignado a la campaña": si esto falla, no lo es de verdad.
+      if (error) console.error('[afiliados/registro] no se pudo asignar a la campaña:', error.message)
     }
 
     // 2) Validaciones: obligatorios según config + email/nombre siempre
@@ -111,7 +116,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const { data: existing } = await supabase.from('users').select('id').eq('email', email).maybeSingle()
     if (existing) {
       const existingId = (existing as { id: string }).id
-      await ensureTenantMembership(existingId)
+      const membership = await ensureTenantMembership(existingId)
+      if (!membership.ok) {
+        return NextResponse.json(
+          { error: 'No se pudo dar de alta en la subcuenta: ' + membership.error },
+          { status: 500 }
+        )
+      }
       if (campaign) {
         await assignToCampaign(existingId)
         return NextResponse.json({
@@ -138,7 +149,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // 6) Código: affiliate_code == tracking_code para que enlace (utm_content) y atribución casen
     const code = await generateUniqueTrackingCode(supabase)
 
-    await supabase.from('users').upsert(
+    // supabase-js NO lanza en fallo: sin esta comprobación, un upsert fallido dejaría la
+    // identidad de Auth creada (correo enviado) SIN perfil, SIN código de tracking y sin que
+    // nadie se enterara — un colaborador fantasma que nunca recibiría comisiones.
+    const { error: profileErr } = await supabase.from('users').upsert(
       {
         id: invited.user.id,
         email,
@@ -152,6 +166,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       },
       { onConflict: 'id' }
     )
+    if (profileErr) {
+      // La identidad acaba de crearse y el correo puede no haberse enviado aún: se revierte
+      // para no dejar una cuenta huérfana (mismo patrón que la ruta de invitación).
+      await supabase.auth.admin.deleteUser(invited.user.id)
+      return NextResponse.json(
+        { error: 'No se pudo crear el perfil del colaborador: ' + profileErr.message },
+        { status: 500 }
+      )
+    }
 
     // 7) Perfil de afiliado (datos extra del formulario)
     const extra: Record<string, unknown> = {}
@@ -162,7 +185,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       const v = str(k)
       if (v) extra[k] = v
     }
-    await supabase.from('affiliate_profiles').upsert(
+    const { error: affiliateProfileErr } = await supabase.from('affiliate_profiles').upsert(
       {
         user_id: invited.user.id,
         instagram: str('instagram') || null,
@@ -175,12 +198,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       },
       { onConflict: 'user_id' }
     )
+    if (affiliateProfileErr)
+      console.error('[afiliados/registro] no se pudo guardar el perfil de afiliado:', affiliateProfileErr.message)
 
     // 7-c) PERFIL DE COLABORADOR (migración 20260918150000): identidad estructurada
     // del colaborador (UUID + código + estado). Nace 'active' y, si el contrato
     // (7-d) se envía bien, pasa a 'pending_contract' hasta la firma. Idempotente:
     // si ya existía, no se pisa nada.
-    await supabase.from('collaborator_profiles').upsert(
+    // Sin esta fila el afiliado no tiene scope de colaborador (lib/collaborators/scope.ts) ni
+    // carril de ledger correcto: sus ventas se atribuirían al carril equivocado o a ninguno.
+    const { error: collabProfileErr } = await supabase.from('collaborator_profiles').upsert(
       {
         tenant_id: tenantId,
         user_id: invited.user.id,
@@ -191,9 +218,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       },
       { onConflict: 'tenant_id,user_id' }
     )
+    if (collabProfileErr)
+      console.error('[afiliados/registro] no se pudo crear el perfil de colaborador:', collabProfileErr.message)
 
     // 7b) Alta en la subcuenta (sin esto, el afiliado no podría entrar al panel).
-    await ensureTenantMembership(invited.user.id)
+    const membership = await ensureTenantMembership(invited.user.id)
+    if (!membership.ok) {
+      return NextResponse.json(
+        {
+          error:
+            'La cuenta se creó pero no se pudo dar de alta en la subcuenta: ' +
+            membership.error +
+            '. Contacta con soporte antes de reintentar el registro.',
+        },
+        { status: 500 }
+      )
+    }
 
     // 7d) CADENA AUTOMÁTICA DEL CONTRATO (hallazgo E2E 19-sep): el alta pública
     // también deja el contrato de equipo creado y enviado — estado
@@ -213,18 +253,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (contrato.ok) {
       if (contrato.estado === 'enviado' || contrato.estado === 'ya_enviado') {
         contratoEnviado = contrato.estado === 'enviado'
-        await supabase
+        const { error } = await supabase
           .from('collaborator_profiles')
           .update({ status: 'pending_contract' })
           .eq('tenant_id', tenantId)
           .eq('user_id', invited.user.id)
+        if (error) console.error('[afiliados/registro] no se pudo marcar pending_contract:', error.message)
       } else if (contrato.estado === 'ya_firmado') {
         // Ya tiene un contrato firmado: nace directamente activo.
-        await supabase
+        const { error } = await supabase
           .from('collaborator_profiles')
           .update({ status: 'active' })
           .eq('tenant_id', tenantId)
           .eq('user_id', invited.user.id)
+        if (error) console.error('[afiliados/registro] no se pudo marcar active:', error.message)
       }
     }
 

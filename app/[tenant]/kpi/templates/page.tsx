@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { KPITemplateEditor } from '@/components/kpi/KPITemplateEditor'
 import { TargetEditor } from '@/components/kpi/TargetEditor'
@@ -10,6 +11,9 @@ import type { KpiFormTemplate } from '@/lib/types/database'
 import { useTenantId } from '@/lib/tenant-context'
 
 export default function KPITemplatesPage() {
+  const searchParams = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const initialTab = requestedTab === 'objetivos' || requestedTab === 'closer' ? requestedTab : 'setter'
   const tenantId = useTenantId()
   const [setterTemplates, setSetterTemplates] = useState<KpiFormTemplate[]>([])
   const [closerTemplates, setCloserTemplates] = useState<KpiFormTemplate[]>([])
@@ -48,7 +52,7 @@ export default function KPITemplatesPage() {
       {loading ? (
         <div className="h-64 bg-card rounded-lg animate-pulse" />
       ) : (
-        <Tabs defaultValue="setter">
+        <Tabs defaultValue={initialTab}>
           <TabsList className="bg-card border border-border">
             <TabsTrigger value="setter">Setter</TabsTrigger>
             <TabsTrigger value="closer">Closer</TabsTrigger>

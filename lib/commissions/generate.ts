@@ -58,23 +58,31 @@ export async function saleNeedsCommissionReview(
 // para que, si un cliente devuelve y el rep baja de tramo, el % se recalcule a la baja.
 export async function repNetCash(sb: SupabaseClient, tenantId: string, repId: string, role: Role): Promise<number> {
   const col = role === 'setter' ? 'setter_id' : 'closer_id'
-  const { data: colls } = await sb
+  const { data: colls, error: collsError } = await sb
     .from('collections')
     .select(`gross_amount, sales!inner(${col})`)
     .eq('tenant_id', tenantId)
     .eq('status', 'collected')
     .eq(`sales.${col}`, repId)
     .limit(10000)
+  // Fail ruidoso: un error silenciado aquí se leería como "0 cobros" y bajaría al rep de tramo sin
+  // que nadie lo note — exactamente lo que le pasó a `commission_rules` sin tenant_id (ver cabecera).
+  if (collsError) throw new Error(`No se pudo leer el cash collected de ${repId} (${role}): ${collsError.message}`)
   const gross = (colls ?? []).reduce(
     (s: number, c: { gross_amount: number | string }) => s + Number(c.gross_amount || 0),
     0
   )
-  const { data: refs } = await sb
+  const { data: refs, error: refsError } = await sb
     .from('refunds')
     .select(`gross_refund_amount, sales!inner(${col})`)
     .eq('tenant_id', tenantId)
     .eq(`sales.${col}`, repId)
+    // SOLO refunds procesados descuentan del cash del rep (misma regla que el cash canónico):
+    // 'pending' no es dinero devuelto y 'rejected' se denegó — contarlos bajaría artificialmente
+    // el cash del rep, recalcularía sus tramos y podría hundir % de comisiones no liquidadas.
+    .eq('status', 'processed')
     .limit(10000)
+  if (refsError) throw new Error(`No se pudieron leer las devoluciones de ${repId} (${role}): ${refsError.message}`)
   const refunded = (refs ?? []).reduce(
     (s: number, r: { gross_refund_amount: number | string }) => s + Number(r.gross_refund_amount || 0),
     0
@@ -151,6 +159,21 @@ async function usuariosSinComision(sb: SupabaseClient, userIds: (string | null |
   if (!ids.length) return new Set()
   const { data } = await sb.from('users').select('id, pays_commissions').in('id', ids).eq('pays_commissions', false)
   return new Set((data ?? []).map((u) => u.id as string))
+}
+
+/**
+ * Personas EXENTAS de comisión de esta subcuenta (users.pays_commissions=false).
+ * Es la decisión "quién comisiona y quién no" — p.ej. un socio que cierra ventas
+ * pero cuyo beneficio no va por el ledger. Un fallo de lectura NO bloquea el cobro:
+ * degrada a "nadie exento" (comportamiento previo a la exención) y se registra.
+ */
+export async function usuariosExentosDeComision(sb: SupabaseClient, tenantId: string): Promise<Set<string>> {
+  const { data, error } = await sb.from('users').select('id').eq('tenant_id', tenantId).eq('pays_commissions', false)
+  if (error) {
+    console.error('[commissions/generate] exentos de comisión no legibles:', error.message)
+    return new Set()
+  }
+  return new Set(((data ?? []) as { id: string }[]).map((r) => r.id))
 }
 
 /**

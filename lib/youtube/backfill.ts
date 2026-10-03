@@ -23,7 +23,10 @@ async function enqueuePendingReels(sb: SupabaseClient, tenantId: string): Promis
   const toEnqueue = (allReels ?? [])
     .filter((r) => !knownSet.has(r.external_id))
     .map((r) => ({ tenant_id: tenantId, ig_media_external_id: r.external_id, status: 'pending' }))
-  if (toEnqueue.length) await sb.from('youtube_uploads').insert(toEnqueue)
+  if (toEnqueue.length) {
+    const { error } = await sb.from('youtube_uploads').insert(toEnqueue)
+    if (error) console.error('[youtube/backfill] no se pudieron encolar reels pendientes:', error.message)
+  }
 }
 
 async function loadPendingRows(sb: SupabaseClient, tenantId: string): Promise<PendingRow[]> {
@@ -57,6 +60,26 @@ async function uploadOne(
 ): Promise<boolean> {
   const media = row.ig_media
   if (!media) return false
+
+  // CLAIM ATÓMICO pending→uploading: publicar en YouTube es un efecto externo irreversible.
+  // Antes se subía primero y se actualizaba el estado después (ignorando el resultado del
+  // UPDATE): si el UPDATE fallaba, la fila seguía 'pending' y la siguiente pasada la volvía
+  // a seleccionar → vídeo duplicado en YouTube y cuota de API consumida dos veces. Tampoco
+  // había protección contra dos ejecuciones solapadas (cron + sync) tomando la misma fila.
+  // Si el claim falla, la fila queda 'pending' y lo reintenta una pasada posterior.
+  const claimado = await sb
+    .from('youtube_uploads')
+    .update({
+      status: 'uploading' as const,
+      error: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('ig_media_external_id', row.ig_media_external_id)
+    .eq('tenant_id', tenantId)
+    .eq('status', 'pending')
+    .select('ig_media_external_id')
+  if (claimado.error || !claimado.data?.length) return false
+
   try {
     // media_url de IG expira; la refrescamos justo antes de descargar por si el reel es de hace días.
     const freshUrl = (await refreshOwnMediaUrl(cfg, row.ig_media_external_id)) || media.media_url
@@ -64,27 +87,40 @@ async function uploadOne(
     const caption = media.caption || ''
     const title = caption.split('\n')[0]?.slice(0, 90) || 'Nuevo Reel'
     const result = await uploadReelToYoutube(freshUrl, title, `${caption}\n\nOriginal: ${media.permalink ?? ''}`, env)
-    await sb
+    const { error: markUploadedErr } = await sb
       .from('youtube_uploads')
       .update({
         youtube_video_id: result.videoId,
-        status: 'uploaded',
+        status: 'uploaded' as const,
         error: null,
         updated_at: new Date().toISOString(),
       })
       .eq('ig_media_external_id', row.ig_media_external_id)
       .eq('tenant_id', tenantId)
+    // El vídeo YA está en YouTube: si esto falla, la fila se queda 'pending' y el próximo
+    // run la vuelve a subir — un Short público duplicado. Log con contexto para poder
+    // corregir la fila a mano (marcarla 'uploaded' con este video_id) antes del próximo run.
+    if (markUploadedErr)
+      console.error(
+        `[youtube/backfill] AVISO: reel ${row.ig_media_external_id} subido a YouTube (video ${result.videoId}) pero no se pudo marcar 'uploaded' — se reintentará y subirá DUPLICADO:`,
+        markUploadedErr.message
+      )
     return true
   } catch (err) {
-    await sb
+    const { error: markFailedErr } = await sb
       .from('youtube_uploads')
       .update({
-        status: 'failed',
+        status: 'failed' as const,
         error: err instanceof Error ? err.message : String(err),
         updated_at: new Date().toISOString(),
       })
       .eq('ig_media_external_id', row.ig_media_external_id)
       .eq('tenant_id', tenantId)
+    if (markFailedErr)
+      console.error(
+        `[youtube/backfill] no se pudo marcar 'failed' el reel ${row.ig_media_external_id}:`,
+        markFailedErr.message
+      )
     return false
   }
 }
@@ -104,11 +140,13 @@ async function refreshYoutubeStats(sb: SupabaseClient, tenantId: string, env: Yo
     const stats = await fetchVideoStats(ids, env)
     const syncedAt = new Date().toISOString()
     for (const s of stats) {
-      await sb
+      const { error: statsErr } = await sb
         .from('youtube_uploads')
         .update({ views: s.views, likes: s.likes, comments: s.comments, stats_synced_at: syncedAt })
         .eq('youtube_video_id', s.videoId)
         .eq('tenant_id', tenantId)
+      // Best-effort: si falla, las estadísticas se quedan viejas hasta el próximo refresh.
+      if (statsErr) console.warn(`[youtube/backfill] no se pudo refrescar stats de ${s.videoId}:`, statsErr.message)
     }
   } catch {
     /* refresco de métricas opcional */

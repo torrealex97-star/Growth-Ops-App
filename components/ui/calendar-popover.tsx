@@ -93,6 +93,7 @@ export function CalendarPopover({
             variant="ghost"
             size="icon"
             className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            aria-label="Mes anterior"
             onClick={() => setViewMonth((m) => subMonths(m, 1))}
           >
             <ChevronLeft className="w-4 h-4" />
@@ -105,6 +106,7 @@ export function CalendarPopover({
             variant="ghost"
             size="icon"
             className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            aria-label="Mes siguiente"
             onClick={() => setViewMonth((m) => addMonths(m, 1))}
           >
             <ChevronRight className="w-4 h-4" />
@@ -112,7 +114,7 @@ export function CalendarPopover({
         </div>
         <div className="grid grid-cols-7 gap-1 mb-1">
           {WEEKDAY_LABELS.map((w) => (
-            <div key={w} className="text-center text-[10px] text-muted-foreground font-medium py-1">
+            <div key={w} className="text-center text-3xs text-muted-foreground font-medium py-1">
               {w}
             </div>
           ))}
@@ -226,7 +228,7 @@ export function DateRangeCalendarPopover({
         </p>
         <div className="grid grid-cols-7">
           {WEEKDAY_LABELS.map((weekday) => (
-            <div key={weekday} className="py-1 text-center text-[10px] font-medium text-muted-foreground">
+            <div key={weekday} className="py-1 text-center text-3xs font-medium text-muted-foreground">
               {weekday}
             </div>
           ))}

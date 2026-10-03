@@ -47,6 +47,11 @@ export default function HomePage() {
     supabase.auth.getUser().then(({ data }) => setAutenticado(!!data.user))
   }, [])
 
+  // El error de la lectura de subcuentas NO se convierte en lista vacía: un Supabase caído
+  // se presentaría como "no existe ninguna subcuenta" y el operador se volvería loco
+  // buscando un fallo de datos que no existe. Se muestra el error y un botón de reintento.
+  const [errorTenants, setErrorTenants] = useState<string | null>(null)
+  const [reintentos, setReintentos] = useState(0)
   useEffect(() => {
     if (autenticado === null) return
     const supabase = createClient()
@@ -55,8 +60,17 @@ export default function HomePage() {
       .select('slug, name, settings')
       .eq('status', 'active')
       .order('name')
-      .then(({ data }) => setTenants(data ?? []))
-  }, [autenticado])
+      .then(({ data, error }) => {
+        if (error) {
+          setErrorTenants(error.message)
+          setTenants([])
+          return
+        }
+        setErrorTenants(null)
+        setTenants(data ?? [])
+      })
+    // El contador de reintentos re-dispara la lectura cuando Supabase vuelve a responder.
+  }, [autenticado, reintentos])
 
   // Acceso directo sin sesión: el usuario escribe el identificador de su subcuenta y
   // saltamos a su login. NO revela subcuentas (misma privacidad que antes) — solo
@@ -79,7 +93,7 @@ export default function HomePage() {
           loop
           playsInline
           preload="auto"
-          poster="/panel/hero-poster.png"
+          poster="/panel/hero-poster.webp"
           src="/panel/hero.mp4"
         />
       </div>
@@ -115,7 +129,16 @@ export default function HomePage() {
             </div>
           )}
 
-          {tenants !== null && tenants.length === 0 && !autenticado && (
+          {errorTenants && (
+            <div className="go-empty" role="alert">
+              <p>No se pudieron cargar las subcuentas ({errorTenants}).</p>
+              <button type="button" className="go-direct__btn" onClick={() => setReintentos((n) => n + 1)}>
+                Reintentar
+              </button>
+            </div>
+          )}
+
+          {!errorTenants && tenants !== null && tenants.length === 0 && !autenticado && (
             <>
               {ultima && (
                 <div className="go-direct__reciente">
@@ -154,11 +177,11 @@ export default function HomePage() {
             </>
           )}
 
-          {tenants !== null && tenants.length === 0 && autenticado && (
+          {!errorTenants && tenants !== null && tenants.length === 0 && autenticado && (
             <p className="go-empty">No tienes subcuentas asignadas todavía. Pide acceso a tu administrador.</p>
           )}
 
-          {tenants !== null && tenants.length > 0 && (
+          {!errorTenants && tenants !== null && tenants.length > 0 && (
             <div className="go-form">
               {tenants.map((t) => {
                 const branding = resolveTenantBranding(t.settings)

@@ -25,6 +25,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   const { tenant } = await params
   const t = await requireTenant(tenant)
   if ('error' in t) return t.error
+  if (!t.administraTenant) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
 
   const sb = sbAdmin()
   const [{ data: overrides }, company] = await Promise.all([
@@ -59,6 +62,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ tena
   const { tenant } = await params
   const t = await requireTenant(tenant)
   if ('error' in t) return t.error
+  if (!t.administraTenant) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
 
   try {
     const body = await req.json()
@@ -71,7 +77,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ tena
     if (body?.restaurar) {
       const { error } = await sb.from('email_templates').delete().eq('tenant_id', t.tenantId).eq('template_key', key)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      await sb.from('audit_logs').insert({
+      const { error: auditErr } = await sb.from('audit_logs').insert({
         tenant_id: t.tenantId,
         entity_type: 'email_template',
         entity_id: key,
@@ -79,6 +85,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ tena
         actor_user_id: t.userId,
         new_values: { restaurado: true },
       })
+      if (auditErr) console.error(`[email-templates] restauración de ${key} sin auditoría:`, auditErr.message)
       return NextResponse.json({ ok: true, restaurada: true })
     }
 
@@ -105,7 +112,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ tena
     )
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       entity_type: 'email_template',
       entity_id: key,
@@ -116,6 +123,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ tena
         : null,
       new_values: { subject, body_html: bodyHtml },
     })
+    if (auditErr) console.error(`[email-templates] edición de ${key} sin auditoría:`, auditErr.message)
     return NextResponse.json({ ok: true })
   } catch (err) {
     return NextResponse.json(

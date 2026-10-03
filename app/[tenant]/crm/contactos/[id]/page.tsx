@@ -66,6 +66,8 @@ type ContactNote = {
   author?: { full_name: string } | null
 }
 
+type CollaboratorOption = { id: string; code: string; name: string; status: string }
+
 const APPOINTMENT_STATUS_COLORS: Record<string, string> = {
   scheduled: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
   confirmed: 'bg-green-500/20 text-green-400 border-green-500/30',
@@ -163,6 +165,7 @@ export default function ContactDetailPage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
   const sesion = useSesion()
+  const puedeGestionarAtribucion = sesion?.rol === 'admin' || sesion?.rol === 'director'
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [contact, setContact] = useState<Contact | null>(null)
@@ -194,6 +197,13 @@ export default function ContactDetailPage() {
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null)
   const [appointmentDraft, setAppointmentDraft] = useState<{ status: string; notes: string } | null>(null)
   const [savingAppointment, setSavingAppointment] = useState(false)
+  // Atribución de colaborador (afiliado) por contacto: asignar/quitar desde la ficha (§ override
+  // administrativo de app/api/[tenant]/evergreen/colaboradores/attribution).
+  const [colaboradores, setColaboradores] = useState<CollaboratorOption[]>([])
+  const [editingColaborador, setEditingColaborador] = useState(false)
+  const [colaboradorDraft, setColaboradorDraft] = useState<string>('__none__')
+  const [colaboradorReason, setColaboradorReason] = useState('')
+  const [savingColaborador, setSavingColaborador] = useState(false)
 
   // Historial completo del contacto (petición 22-sep): creado, atribución, agendas, grabaciones,
   // transcripciones, ventas, pagos, impagos, CSM, feedback del formulario, notas y contratos —
@@ -250,7 +260,7 @@ export default function ContactDetailPage() {
   const load = async () => {
     const supabase = createClient()
 
-    const [contactRes, attrRes, appRes, csmRes, salesRes, notesRes, activitiesRes, contractsRes, defsRes] =
+    const [contactRes, attrRes, appRes, csmRes, salesRes, notesRes, activitiesRes, contractsRes, defsRes, colabRes] =
       await Promise.all([
         supabase.from('contacts').select('*').eq('id', id).eq('tenant_id', tenantId).single(),
         supabase
@@ -296,6 +306,13 @@ export default function ContactDetailPage() {
           .select('*')
           .eq('tenant_id', tenantId)
           .order('sort_order', { ascending: true }),
+        // Colaboradores activos de la subcuenta, para el selector de atribución (admin/director).
+        supabase
+          .from('collaborator_profiles')
+          .select('id, code, name, status')
+          .eq('tenant_id', tenantId)
+          .in('status', ['active', 'pending_contract'])
+          .order('name'),
       ])
 
     if (sesion) setCurrentUser({ id: sesion.userId })
@@ -363,6 +380,7 @@ export default function ContactDetailPage() {
     setCollectionsContacto((collRes.data as Collection[]) ?? [])
     setCommissionsContacto((comRes.data as Commission[]) ?? [])
     setCsmEvents((csmRes.data as CsmEvent[]) ?? [])
+    setColaboradores((colabRes.data as CollaboratorOption[]) ?? [])
     setLoading(false)
   }
 
@@ -426,6 +444,32 @@ export default function ContactDetailPage() {
         : undefined,
     })
     setContact({ ...contact, ...formData, full_name: fullName })
+  }
+
+  const handleGuardarColaborador = async () => {
+    if (!colaboradorReason.trim()) {
+      toast.error('El motivo es obligatorio')
+      return
+    }
+    setSavingColaborador(true)
+    const collaboratorId = colaboradorDraft === '__none__' ? null : colaboradorDraft
+    const res = await fetch(`/api/${tenant}/evergreen/colaboradores/attribution`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contactId: id, collaboratorId, reason: colaboradorReason.trim() }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setSavingColaborador(false)
+
+    if (!res.ok) {
+      toast.error('No se pudo cambiar la atribución', { description: data?.error })
+      return
+    }
+
+    toast.success(collaboratorId ? 'Colaborador asignado' : 'Atribución de colaborador retirada')
+    setEditingColaborador(false)
+    setColaboradorReason('')
+    await load()
   }
 
   const handleAddNote = async () => {
@@ -928,6 +972,75 @@ export default function ContactDetailPage() {
 
         {/* Atribucion */}
         <TabsContent value="attribution" className="mt-4">
+          {(() => {
+            const atribucionPrincipal = attributions.find((a) => a.is_primary) ?? attributions[0] ?? null
+            const collaboratorId = atribucionPrincipal?.collaborator_id ?? null
+            const colaboradorActual = colaboradores.find((c) => c.id === collaboratorId) ?? null
+            return (
+              <div className="bg-card border border-border rounded-lg p-6 mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-medium text-muted-foreground">Colaborador (afiliado)</h3>
+                  {puedeGestionarAtribucion && !editingColaborador && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setColaboradorDraft(collaboratorId ?? '__none__')
+                        setColaboradorReason('')
+                        setEditingColaborador(true)
+                      }}
+                    >
+                      <Pencil className="w-3.5 h-3.5 mr-1.5" />
+                      {collaboratorId ? 'Cambiar' : 'Asignar'}
+                    </Button>
+                  )}
+                </div>
+
+                {!editingColaborador ? (
+                  <p className="text-sm text-foreground font-medium">
+                    {colaboradorActual
+                      ? `${colaboradorActual.name} (${colaboradorActual.code})`
+                      : 'Directo / Sin colaborador'}
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    <Select value={colaboradorDraft} onValueChange={setColaboradorDraft}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona un colaborador" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Directo / Sin colaborador</SelectItem>
+                        {colaboradores.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name} ({c.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      placeholder="Motivo del cambio (obligatorio)"
+                      value={colaboradorReason}
+                      onChange={(e) => setColaboradorReason(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={handleGuardarColaborador} disabled={savingColaborador}>
+                        {savingColaborador ? 'Guardando…' : 'Guardar'}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditingColaborador(false)}
+                        disabled={savingColaborador}
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
           {attributions.length === 0 ? (
             <div className="bg-card border border-border rounded-lg p-8 text-center">
               <p className="text-muted-foreground text-sm">
@@ -1241,18 +1354,18 @@ export default function ContactDetailPage() {
                 </div>
                 <div className="flex gap-4 text-right">
                   <div>
-                    <p className="text-[10px] text-muted-foreground uppercase">Cobrado</p>
+                    <p className="text-3xs text-muted-foreground uppercase">Cobrado</p>
                     <p className="text-sm font-semibold text-emerald-400">{formatCurrency(plan.cobrado)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] text-muted-foreground uppercase">Por recolectar</p>
+                    <p className="text-3xs text-muted-foreground uppercase">Por recolectar</p>
                     <p className="text-sm font-semibold text-foreground">{formatCurrency(plan.porCobrar)}</p>
                     {plan.proximoVencimiento && (
-                      <p className="text-[10px] text-muted-foreground">vence {formatDate(plan.proximoVencimiento)}</p>
+                      <p className="text-3xs text-muted-foreground">vence {formatDate(plan.proximoVencimiento)}</p>
                     )}
                   </div>
                   <div>
-                    <p className="text-[10px] text-muted-foreground uppercase">Impago</p>
+                    <p className="text-3xs text-muted-foreground uppercase">Impago</p>
                     <p
                       className={`text-sm font-semibold ${plan.impagado > 0 ? 'text-red-400' : 'text-muted-foreground'}`}
                     >
@@ -1295,7 +1408,7 @@ export default function ContactDetailPage() {
                                 ? 'Impago'
                                 : 'Por recolectar'}
                           </span>
-                          {q.morosa && <span className="ml-1 text-[10px] text-red-400">(marcada morosa)</span>}
+                          {q.morosa && <span className="ml-1 text-3xs text-red-400">(marcada morosa)</span>}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1303,7 +1416,7 @@ export default function ContactDetailPage() {
                 </Table>
               </div>
               {plan.fuente === 'prevision' && plan.cuotas.length > 0 && (
-                <p className="text-[10px] text-muted-foreground mt-2">
+                <p className="text-3xs text-muted-foreground mt-2">
                   Previsión según plan de pago y cobros registrados (sin calendario de cuotas materializado).
                 </p>
               )}
@@ -1364,7 +1477,7 @@ export default function ContactDetailPage() {
                                   timeZone: 'UTC',
                                 })
                               : '—'}
-                            <span className="block text-[10px]">generada {formatDate(com.created_at)}</span>
+                            <span className="block text-3xs">generada {formatDate(com.created_at)}</span>
                           </TableCell>
                         </TableRow>
                       ))}

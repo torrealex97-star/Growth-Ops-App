@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeUserNamesQuery } from '@/lib/users'
-import { ListChecks, Plus, Sparkles, X, Loader2, Trash2, Calendar } from 'lucide-react'
+import { ListChecks, Plus, Sparkles, Loader2, Trash2, Calendar } from 'lucide-react'
 import { toast } from 'sonner'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useSesion, useTenant } from '@/lib/tenant-context'
 
 const STAGES = [
@@ -373,9 +374,9 @@ export default function TasksPage() {
                         {t.description && <p className="text-xs text-muted-foreground line-clamp-2">{t.description}</p>}
 
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded border ${prio.badge}`}>{prio.label}</span>
+                          <span className={`text-3xs px-1.5 py-0.5 rounded border ${prio.badge}`}>{prio.label}</span>
                           {t.source === 'ai' && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400">IA</span>
+                            <span className="text-3xs px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400">IA</span>
                           )}
                         </div>
 
@@ -413,20 +414,11 @@ export default function TasksPage() {
       )}
 
       {showNew && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setShowNew(false)}
-        >
-          <div
-            className="bg-card border border-border rounded-xl p-5 w-full max-w-md space-y-3"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-foreground font-semibold">Nueva tarea</h3>
-              <button onClick={() => setShowNew(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+        <Dialog open={showNew} onOpenChange={setShowNew}>
+          <DialogContent className="w-full max-w-md gap-3">
+            <DialogHeader>
+              <DialogTitle>Nueva tarea</DialogTitle>
+            </DialogHeader>
             <Field label="Título">
               <input value={nt.title} onChange={(e) => setNt({ ...nt, title: e.target.value })} className={inputCls} />
             </Field>
@@ -496,27 +488,18 @@ export default function TasksPage() {
                 Crear
               </button>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {showAI && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => !aiCreating && setShowAI(false)}
-        >
-          <div
-            className="bg-card border border-border rounded-xl p-5 w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-foreground font-semibold flex items-center gap-2">
+        <Dialog open={showAI} onOpenChange={(open) => !aiCreating && setShowAI(open)}>
+          <DialogContent className="w-full max-w-2xl max-h-[90vh] gap-4 overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-cyan-400" /> Generar tareas desde transcripción
-              </h3>
-              <button onClick={() => setShowAI(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+              </DialogTitle>
+            </DialogHeader>
 
             {proposals.length === 0 ? (
               <>
@@ -669,8 +652,8 @@ export default function TasksPage() {
                 </div>
               </>
             )}
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

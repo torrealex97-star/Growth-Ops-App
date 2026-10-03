@@ -122,14 +122,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       if (!c) return NextResponse.json({ error: 'Sin contrato de alumno para este contacto' }, { status: 404 })
       // Idempotente: solo grabamos el PRIMER click (no lo pisamos en cada visita).
       if (!c.accesos_abiertos_at) {
-        await sb.from('contracts').update({ accesos_abiertos_at: now }).eq('id', c.id).eq('tenant_id', tenantId)
-        await sb.from('audit_logs').insert({
+        const { error } = await sb
+          .from('contracts')
+          .update({ accesos_abiertos_at: now })
+          .eq('id', c.id)
+          .eq('tenant_id', tenantId)
+        // GHL no reintenta con ok:true aunque falle: el clic quedaría perdido para siempre.
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+        const { error: auditErr } = await sb.from('audit_logs').insert({
           tenant_id: tenantId,
           entity_type: 'contract',
           entity_id: c.id,
           action: 'update',
           new_values: { accesos_abiertos_at: now, via: 'ghl_onboarding_click' },
         })
+        if (auditErr) console.error('[webhooks/onboarding] no se pudo registrar audit_logs (click):', auditErr.message)
       }
       return NextResponse.json({ ok: true, event: 'click', contractId: c.id, contactId: contact.id })
     }
@@ -162,13 +169,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       if (sessionAt) patch.onboarding_session_at = sessionAt
       const { error } = await sb.from('sales').update(patch).eq('id', sale.id).eq('tenant_id', tenantId)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      await sb.from('audit_logs').insert({
+      const { error: auditErr } = await sb.from('audit_logs').insert({
         tenant_id: tenantId,
         entity_type: 'sale',
         entity_id: sale.id,
         action: 'update',
         new_values: { ...patch, via: 'ghl_onboarding_booked' },
       })
+      if (auditErr) console.error('[webhooks/onboarding] no se pudo registrar audit_logs (booked):', auditErr.message)
       return NextResponse.json({ ok: true, event: 'booked', saleId: sale.id, contactId: contact.id, sessionAt })
     }
 
@@ -198,13 +206,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
           .eq('id', sale.id)
           .eq('tenant_id', tenantId)
         if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-        await sb.from('audit_logs').insert({
+        const { error: auditErr } = await sb.from('audit_logs').insert({
           tenant_id: tenantId,
           entity_type: 'sale',
           entity_id: sale.id,
           action: 'update',
           new_values: { onboarding_date: completedAt.slice(0, 10), via: 'ghl_onboarding_completed' },
         })
+        if (auditErr)
+          console.error('[webhooks/onboarding] no se pudo registrar audit_logs (completed):', auditErr.message)
       }
       return NextResponse.json({ ok: true, event: 'completed', saleId: sale.id, contactId: contact.id })
     }

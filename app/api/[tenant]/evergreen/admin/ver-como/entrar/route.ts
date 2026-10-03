@@ -62,26 +62,27 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   // AUDITORÍA. Queda registrado quién entró como quién, en qué subcuenta y cuándo. Sin esto,
   // "ver como" sería indistinguible de una sesión normal en los logs.
-  try {
-    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    })
-    await sb.from('audit_logs').insert({
-      actor_user_id: ticket.ticket.superAdmin.user_id,
-      entity_type: 'ver_como',
-      entity_id: ticket.ticket.objetivo.userId,
-      action: 'entrar',
-      new_values: {
-        tenant,
-        objetivo_email: ticket.ticket.objetivo.email,
-        objetivo_nombre: ticket.ticket.objetivo.nombre,
-        expira: new Date(ticket.ticket.exp).toISOString(),
-      },
-    })
-  } catch {
-    // La auditoría no debe impedir la sesión, pero su fallo queda en los logs del servidor.
-    console.error('[ver-como/entrar] no se pudo registrar en audit_logs')
-  }
+  const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+  // audit_logs.tenant_id es NOT NULL: sin resolver el slug a UUID el insert fallaba SIEMPRE
+  // (y el try/catch de abajo no lo veía — supabase-js no lanza, devuelve { error }).
+  const { data: tenantRow } = await sb.from('tenants').select('id').eq('slug', tenant).maybeSingle()
+  const { error: auditErr } = await sb.from('audit_logs').insert({
+    tenant_id: tenantRow?.id ?? null,
+    actor_user_id: ticket.ticket.superAdmin.user_id,
+    entity_type: 'ver_como',
+    entity_id: ticket.ticket.objetivo.userId,
+    action: 'entrar',
+    new_values: {
+      tenant,
+      objetivo_email: ticket.ticket.objetivo.email,
+      objetivo_nombre: ticket.ticket.objetivo.nombre,
+      expira: new Date(ticket.ticket.exp).toISOString(),
+    },
+  })
+  // La auditoría no debe impedir la sesión, pero su fallo queda en los logs del servidor.
+  if (auditErr) console.error('[ver-como/entrar] no se pudo registrar en audit_logs:', auditErr.message)
 
   return NextResponse.redirect(new URL(`/${tenant}/dashboard`, request.nextUrl.origin))
 }

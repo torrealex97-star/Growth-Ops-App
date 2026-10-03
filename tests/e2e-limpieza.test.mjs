@@ -74,33 +74,67 @@ test('cada tabla del orden es escopable por tenant_id (CREATE, ALTER o bucle mul
 
 // ── COMPORTAMIENTO DEL LIMPIADOR (con fake client, sin BD) ───────────────────
 
-/** Fake de SupabaseClient: encadena .delete().eq() y devuelve conteo por tabla. */
-function fakeSb(contenidoPorTabla, errores = {}) {
+/**
+ * Fake de SupabaseClient: encadena .delete().eq().select() y devuelve conteo por tabla.
+ * La lectura de contratos (purga de Storage) y storage.remove se simulan aparte:
+ *   · opciones.pathsContratos → filas devueltas por la lectura de contracts.
+ *   · errores.storage         → fallo simulado de storage.remove.
+ */
+function fakeSb(contenidoPorTabla, errores = {}, opciones = {}) {
   const llamadas = []
+  const storageRemoves = []
+  const insertsAuditLogs = []
   const sb = {
     from(tabla) {
-      llamadas.push(tabla)
       const chain = {
         delete() {
+          chain.__delete = true
           return chain
         },
         eq() {
           return chain
         },
-        async select(_cols, opts) {
-          if (errores[tabla]) return { count: null, error: { message: errores[tabla] } }
-          const count = contenidoPorTabla[tabla] ?? 0
-          llamadas.push(`__borrado_${tabla}`)
-          return { count: opts?.count === 'exact' ? count : null, error: null }
+        select(_cols, opts) {
+          // Síncrono a propósito: el limpiador llama .select(...).eq(...) sobre la lectura
+          // (y await al final), así que select no puede devolver una Promise plana.
+          if (chain.__delete) {
+            if (errores[tabla]) return { count: null, error: { message: errores[tabla] } }
+            const count = contenidoPorTabla[tabla] ?? 0
+            llamadas.push(tabla, `__borrado_${tabla}`)
+            return { count: opts?.count === 'exact' ? count : null, error: null }
+          }
+          // Lectura (sin .delete() previo): la única que hace el limpiador es la de
+          // contratos para la purga de Storage.
+          llamadas.push(`__read_${tabla}`)
+          if (errores[tabla]) {
+            return { eq: () => Promise.resolve({ data: null, error: { message: errores[tabla] } }) }
+          }
+          const filas = tabla === 'contracts' ? (opciones.pathsContratos ?? []).map((p) => ({ signed_pdf_url: p })) : []
+          return { eq: () => Promise.resolve({ data: filas, error: null }) }
         },
-        async insert() {
+        async insert(payload) {
+          llamadas.push(`__insert_${tabla}`)
+          if (tabla === 'audit_logs') insertsAuditLogs.push(payload)
+          if (errores[tabla]) return { error: { message: errores[tabla] } }
           return { error: null }
         },
       }
       return chain
     },
+    storage: {
+      from(bucket) {
+        return {
+          async remove(paths) {
+            llamadas.push(`__storage_${bucket}`)
+            storageRemoves.push(paths)
+            if (errores.storage) return { error: { message: errores.storage } }
+            return { data: paths.map((p) => ({ path: p })), error: null }
+          },
+        }
+      },
+    },
   }
-  return { sb, llamadas }
+  return { sb, llamadas, storageRemoves, insertsAuditLogs }
 }
 
 test('borra en orden FK y suma el total', async () => {
@@ -130,9 +164,56 @@ test('un fallo en una tabla no aborta la limpieza y marca ok=false', async () =>
   assert.match(falloSales.error, /foreign key/)
 })
 
+test('el cierre de auditoría incluye entity_id (NOT NULL en audit_logs)', async () => {
+  const { sb, insertsAuditLogs } = fakeSb({ collections: 1, sales: 1 })
+  await limpiarActividadTenant(sb, 'tenant-1')
+  assert.equal(insertsAuditLogs.length, 1)
+  // Bug real (PR #279, Smoke E2E): faltaba entity_id, NOT NULL desde
+  // 20260910090000_initial_growth_ops.sql — el insert fallaba en silencio hasta que se comprobó
+  // el error, y entonces rompía el reset del tenant QA con un mensaje vacío.
+  assert.equal(insertsAuditLogs[0].entity_id, 'tenant-1')
+})
+
+test('si el cierre de auditoría falla, el motivo aparece en resultados (no un mensaje vacío)', async () => {
+  const { sb } = fakeSb({ collections: 1 }, { audit_logs: 'null value in column "entity_id" violates not-null' })
+  const { ok, resultados } = await limpiarActividadTenant(sb, 'tenant-1')
+  assert.equal(ok, false)
+  const filaAudit = resultados.find((r) => r.tabla === 'audit_logs')
+  assert.ok(filaAudit, 'el fallo de audit_logs debe aparecer en resultados, no solo en errores')
+  assert.match(filaAudit.error, /entity_id/)
+})
+
 test('tenant ya limpio → 0 filas, ok=true (idempotente)', async () => {
   const { sb } = fakeSb({})
   const { ok, total } = await limpiarActividadTenant(sb, 'tenant-1')
   assert.equal(ok, true)
   assert.equal(total, 0)
+})
+
+test('purga los PDF de contratos en Storage ANTES de borrar las filas', async () => {
+  const { sb, llamadas, storageRemoves } = fakeSb(
+    { contracts: 2, collections: 1, sales: 1 },
+    {},
+    { pathsContratos: ['id-a.pdf', 'id-b.pdf'] }
+  )
+  const { ok, total, resultados } = await limpiarActividadTenant(sb, 'tenant-1')
+
+  assert.equal(ok, true)
+  // Los dos PDF salen en UNA llamada a remove y la purga precede al primer DELETE
+  // (si borrara filas primero, el listado de rutas ya no sería fiable).
+  assert.deepEqual(storageRemoves, [['id-a.pdf', 'id-b.pdf']])
+  assert.ok(llamadas.indexOf('__storage_contratos') < llamadas.indexOf('__borrado_document_verifications'))
+  // La purga se reporta junto al resto y cuenta en el total.
+  assert.ok(resultados.some((r) => r.tabla === 'storage/contratos' && r.filas === 2))
+  assert.equal(total, 2 + 2 + 1 + 1) // pdfs + contracts + collections + sales
+})
+
+test('un fallo de Storage no aborta la limpieza y marca ok=false', async () => {
+  const { sb } = fakeSb({ contracts: 1 }, { storage: 'objeto bloqueado' }, { pathsContratos: ['id-a.pdf'] })
+  const { ok, resultados } = await limpiarActividadTenant(sb, 'tenant-1')
+
+  assert.equal(ok, false)
+  const falloStorage = resultados.find((r) => r.tabla === 'storage/contratos')
+  assert.equal(falloStorage.filas, null)
+  assert.match(falloStorage.error, /bloqueado/)
 })

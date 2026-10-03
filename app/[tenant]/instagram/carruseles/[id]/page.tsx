@@ -130,7 +130,7 @@ export default function CarruselEditorPage() {
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
           className="bg-transparent text-sm font-semibold text-foreground focus:outline-none focus:bg-muted rounded px-2 py-1 min-w-0 flex-1 max-w-xs"
         />
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground bg-muted px-2 py-0.5 rounded">
+        <span className="text-3xs uppercase tracking-wider text-muted-foreground bg-muted px-2 py-0.5 rounded">
           {project.kind === 'flyer' ? 'Flyer' : 'Carrusel'}
         </span>
         <div className="flex-1" />

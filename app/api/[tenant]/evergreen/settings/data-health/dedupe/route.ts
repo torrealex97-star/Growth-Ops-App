@@ -83,7 +83,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         })
         if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       }
-      await sb.from('audit_logs').insert({
+      const { error: auditErr } = await sb.from('audit_logs').insert({
         tenant_id: auth.tenantId,
         actor_user_id: auth.userId,
         entity_type: 'contact',
@@ -91,7 +91,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         action: 'merge_duplicates',
         new_values: { duplicateIds: body.duplicateIds },
       })
-      return NextResponse.json({ ok: true, merged: body.duplicateIds.length })
+      // La fusión es IRREVERSIBLE y ya ocurrió: si la auditoría falla, no queda rastro de qué se
+      // fusionó ni quién lo hizo — se avisa igual con 200, no se puede deshacer la fusión por esto.
+      if (auditErr) console.error('[dedupe] contactos fusionados sin auditoría:', auditErr.message)
+      return NextResponse.json({ ok: true, merged: body.duplicateIds.length, auditWarning: auditErr?.message })
     }
 
     if (body.type === 'appointments') {
@@ -101,7 +104,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         .eq('tenant_id', auth.tenantId)
         .in('id', body.duplicateIds)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-      await sb.from('audit_logs').insert({
+      const { error: auditErr } = await sb.from('audit_logs').insert({
         tenant_id: auth.tenantId,
         actor_user_id: auth.userId,
         entity_type: 'appointment',
@@ -109,7 +112,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         action: 'delete_duplicates',
         new_values: { duplicateIds: body.duplicateIds },
       })
-      return NextResponse.json({ ok: true, deleted: body.duplicateIds.length })
+      // El borrado ya ocurrió y es IRREVERSIBLE: sin auditoría no queda rastro de qué se borró.
+      if (auditErr) console.error('[dedupe] citas borradas sin auditoría:', auditErr.message)
+      return NextResponse.json({ ok: true, deleted: body.duplicateIds.length, auditWarning: auditErr?.message })
     }
 
     return NextResponse.json({ error: 'Tipo de fusión no soportado' }, { status: 400 })

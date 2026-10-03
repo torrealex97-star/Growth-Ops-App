@@ -6,7 +6,8 @@
 // ceros es precisamente lo que haría que esta pantalla mintiera.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/supabase/paginate'
-import { ACTIVE_SALE_STATUSES } from '@/lib/analytics'
+import { buildPeriodFunnel } from '@/lib/metrics/period-funnel'
+import { metodoDePlan } from '@/lib/metrics/agregados'
 import { type FunnelFamily, stagesOf } from '@/lib/funnels/definitions'
 import { type EventMap, namesFor } from '@/lib/funnels/event-map'
 import { errorFuente, fromCount, noConfigurada, type MetricValue } from '@/lib/funnels/types'
@@ -57,21 +58,48 @@ async function countRows(
 // (contacts, appointments y sales existen, tienen tenant_id y fechas fiables)
 
 async function crmStages(sb: SupabaseClient, tenantId: string, range: DateRange) {
-  const [leads, agendas, llamadas, cierres] = await Promise.all([
-    countRows(sb, 'contacts', tenantId, 'first_seen_at', range),
-    countRows(sb, 'appointments', tenantId, 'appointment_datetime', range),
-    // "Llamada realizada" es status 'show'. Mismo criterio que Analítica de ventas: no se cuenta
-    // 'completed' ni 'confirmed', que no significan que la llamada ocurriera.
-    countRows(sb, 'appointments', tenantId, 'appointment_datetime', range, { column: 'status', eq: 'show' }),
-    // Ventas activas según el criterio canónico de lib/analytics (no se cuenta un reembolso
-    // como cierre), para que Funnels no discrepe del resto de la app.
-    countRows(sb, 'sales', tenantId, 'sale_date', range, { column: 'status', in: ACTIVE_SALE_STATUSES }),
+  const [contacts, appointments, sales] = await Promise.all([
+    fetchAllRows(() =>
+      sb
+        .from('contacts')
+        .select('id,email,phone,created_at,first_seen_at,campaign_id')
+        .eq('tenant_id', tenantId)
+        .order('id')
+    ),
+    fetchAllRows(() =>
+      sb
+        .from('appointments')
+        .select('id,contact_id,status,appointment_datetime,offered,result')
+        .eq('tenant_id', tenantId)
+        .order('id')
+    ),
+    fetchAllRows(() =>
+      sb
+        .from('sales')
+        .select('id,contact_id,status,sale_date,gross_amount,reservation_completed_at,payment_plans(method)')
+        .eq('tenant_id', tenantId)
+        .order('id')
+    ),
   ])
+  if ([contacts, appointments, sales].some((r) => r.error || r.truncated)) {
+    throw new Error('No se pudo leer la población completa del CRM')
+  }
+  const result = buildPeriodFunnel(
+    contacts.rows,
+    appointments.rows,
+    sales.rows.map((s) => ({ ...s, payment_plan_method: metodoDePlan(s) })),
+    true,
+    {
+      from: new Date(range.from.length === 10 ? `${range.from}T00:00:00Z` : range.from),
+      to: new Date(range.to.length === 10 ? `${range.to}T23:59:59.999Z` : range.to),
+    }
+  )
+  const activity = (value: number): MetricValue => ({ ...fromCount(value, 'crm'), periodActivity: true })
   return {
-    leads: fromCount(leads.rows, 'crm', { error: leads.error }),
-    agendas: fromCount(agendas.rows, 'crm', { error: agendas.error }),
-    llamadas: fromCount(llamadas.rows, 'crm', { error: llamadas.error }),
-    cierres: fromCount(cierres.rows, 'crm', { error: cierres.error }),
+    leads: activity(result.leads),
+    agendas: activity(result.agendas),
+    llamadas: activity(result.asistencias),
+    cierres: activity(result.cierres),
   }
 }
 
@@ -97,12 +125,24 @@ async function campanasAsignadas(sb: SupabaseClient, tenantId: string, family: F
   }
 }
 
-async function metaStages(sb: SupabaseClient, tenantId: string, range: DateRange, campaignIds: string[] | null) {
+async function metaStages(
+  sb: SupabaseClient,
+  tenantId: string,
+  range: DateRange,
+  campaignIds: string[] | null,
+  // Cuentas de ads seleccionadas en Integraciones (vacío = todas). La tabla conserva históricos de
+  // cuentas ya deseleccionadas: sin este filtro, su gasto inflaba la inversión del funnel.
+  cuentasAds: string[] = []
+) {
   // Paginado: `campaign_daily` tiene una fila por campaña y día, así que unos meses de histórico
   // pasan de las 1.000 filas que devuelve PostgREST como máximo. Sin paginar, el gasto y las
   // impresiones del embudo salían recortados sin ningún aviso — más bajos que los reales.
   const ids = campaignIds && campaignIds.length > 0 ? campaignIds : null
-  const { rows: data, error } = await fetchAllRows<{
+  const {
+    rows: data,
+    error,
+    truncated,
+  } = await fetchAllRows<{
     impressions: number | null
     link_clicks: number | null
     reach: number | null
@@ -118,10 +158,13 @@ async function metaStages(sb: SupabaseClient, tenantId: string, range: DateRange
     // Con asignaciones manuales, las etapas Meta de la familia cuentan SOLO esas campañas.
     // Sin asignación (null) se mantiene el total del tenant: no convertir "sin clasificar" en 0.
     if (ids) q = q.in('campaign_id', ids)
+    // Y SOLO campañas de las cuentas elegidas en Integraciones: el gasto de cuentas históricas
+    // deseleccionadas no es del negocio que se está mirando.
+    if (cuentasAds.length > 0) q = q.in('account_id', cuentasAds)
     return q
   })
-  if (error) {
-    const fail = { rows: null as number | null, error }
+  if (error || truncated) {
+    const fail = { rows: null as number | null, error: error ?? 'Lectura incompleta de Meta' }
     return {
       impresiones: fromCount(fail.rows, 'meta', { error: fail.error }),
       clics: fromCount(fail.rows, 'meta', { error: fail.error }),
@@ -135,7 +178,10 @@ async function metaStages(sb: SupabaseClient, tenantId: string, range: DateRange
   return {
     impresiones: fromCount(sum('impressions'), 'meta'),
     clics: fromCount(sum('link_clicks'), 'meta'),
-    alcance: fromCount(sum('reach'), 'meta'),
+    alcance:
+      rows.length === 1
+        ? fromCount(rows[0].reach, 'meta')
+        : noConfigurada('meta', 'El alcance único del periodo no se obtiene sumando días o campañas.'),
     // La inversión se devuelve aparte: no es una etapa, es el denominador de los costes.
     inversion: rows.length > 0 ? sum('spend') : null,
   }
@@ -215,7 +261,9 @@ export async function loadFunnelCounts(
   range: DateRange,
   // Mapeo de etapa → nombres de evento de esta subcuenta. Vacío por defecto: sin mapeo, las etapas
   // de tracking siguen saliendo como 'no_configurada', que es la verdad.
-  eventMap: EventMap = {}
+  eventMap: EventMap = {},
+  // Cuentas de ads seleccionadas en Integraciones (vacío = todas, el convenio de la app).
+  cuentasAds: string[] = []
 ): Promise<{ counts: Record<string, MetricValue>; inversion: number | null }> {
   const stages = stagesOf(family)
   const needsCrm = stages.some((s) => s.source === 'crm')
@@ -238,7 +286,7 @@ export async function loadFunnelCounts(
     if (!needsMeta) return null
     try {
       const ids = await campanasAsignadas(sb, tenantId, family)
-      return await metaStages(sb, tenantId, range, ids)
+      return await metaStages(sb, tenantId, range, ids, cuentasAds)
     } catch (e) {
       return { error: e instanceof Error ? e.message : 'Error al leer Meta' } as const
     }

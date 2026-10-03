@@ -1,6 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { fetchAllRows } from '@/lib/supabase/paginate'
+import { funnelBySource, leadDate } from '@/lib/analytics'
+import { metodoDePlan } from '@/lib/metrics/agregados'
+import { canonicalizeAppointments, canonicalizeLeads } from '@/lib/canonical/dedup'
 import { createClient } from '@/lib/supabase/client'
 import {
   Megaphone,
@@ -17,7 +21,7 @@ import {
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { KPICard } from '@/components/os/DashboardKPICard'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
-import { DEFAULT_PERIOD, getPeriodRange, type PeriodPreset } from '@/lib/filters/period'
+import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { isPaidSource } from '@/lib/ads/funnel'
 import { AttributionCoverage } from '@/components/os/AttributionCoverage'
 import { QUALIFICATION_KEYS, labelFor, type QualificationAnswer } from '@/lib/qualification'
@@ -98,7 +102,7 @@ function BarList({
   const textMap = {
     violet: 'text-brand-400',
     emerald: 'text-emerald-400',
-    cyan: 'text-cyan-400',
+    cyan: 'text-brand-400',
   }
 
   if (loading) {
@@ -147,10 +151,13 @@ function BarList({
 export default function AttributionPage() {
   const tenant = useTenant()
   const tenantId = useTenantId()
+  const [globalError, setGlobalError] = useState(false)
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<FunnelRow[]>([])
   const [loadingTouch, setLoadingTouch] = useState(true)
   const [touchRows, setTouchRows] = useState<UtmTouchRow[]>([])
+  const [apptError, setApptError] = useState(false)
+  const [qualError, setQualError] = useState(false)
   const [loadingAppts, setLoadingAppts] = useState(true)
   const [apptRows, setApptRows] = useState<AppointmentRow[]>([])
   const [loadingQual, setLoadingQual] = useState(true)
@@ -174,42 +181,97 @@ export default function AttributionPage() {
     let mounted = true
     async function loadGlobal() {
       const supabase = createClient()
-      const [funnelRes, touchRes] = await Promise.all([
-        supabase.rpc('attribution_funnel_for_tenant', { p_tenant_id: tenantId }),
-        supabase
-          .from('contact_attributions')
-          .select(
-            'contact_id, source, first_utm_source, first_utm_campaign, last_utm_source, last_utm_campaign, first_touch_at, last_touch_at, contacts(full_name, phone)'
-          )
-          .order('last_touch_at', { ascending: false })
-          .limit(300),
+      setLoading(true)
+      setGlobalError(false)
+      const [contactsRes, apptsRes, salesRes, touchRes] = await Promise.all([
+        fetchAllRows(() =>
+          supabase
+            .from('contacts')
+            .select('id,email,phone,created_at,first_seen_at', { count: 'exact' })
+            .eq('tenant_id', tenantId)
+            .order('id')
+        ),
+        fetchAllRows(() =>
+          supabase
+            .from('appointments')
+            .select('id,contact_id,status,appointment_datetime,setter_id,closer_id', { count: 'exact' })
+            .eq('tenant_id', tenantId)
+            .order('id')
+        ),
+        fetchAllRows(() =>
+          supabase
+            .from('sales')
+            .select(
+              'id,contact_id,status,sale_date,gross_amount,setter_id,closer_id,reservation_completed_at,payment_plans(method)',
+              { count: 'exact' }
+            )
+            .eq('tenant_id', tenantId)
+            .order('id')
+        ),
+        fetchAllRows(() =>
+          supabase
+            .from('contact_attributions')
+            .select(
+              'contact_id,source,utm_source,utm_campaign,utm_content,is_primary,first_utm_source,first_utm_campaign,last_utm_source,last_utm_campaign,first_touch_at,last_touch_at,contacts(full_name,phone)',
+              { count: 'exact' }
+            )
+            .eq('tenant_id', tenantId)
+            .order('id')
+        ),
       ])
       if (!mounted) return
+      if ([contactsRes, apptsRes, salesRes, touchRes].some((r) => r.error || r.truncated)) {
+        setGlobalError(true)
+        setRows([])
+        setTouchRows([])
+        setLoading(false)
+        setLoadingTouch(false)
+        return
+      }
+      const canonicalLeads = canonicalizeLeads(
+        (contactsRes.rows ?? []).map((c) => ({ ...c, created_at: leadDate(c) }))
+      ).leads
+      const aliases = new Map(canonicalLeads.flatMap((c) => c.members.map((m) => [m.id, c.leadId] as const)))
+      const leadIds = canonicalLeads.filter((c) => inPeriod(c.createdAt, range)).map((c) => c.leadId)
+      const appts = apptsRes.rows ?? []
+      const byId = new Map(appts.map((a) => [a.id, a]))
+      const uniqueAppointments = canonicalizeAppointments(
+        appts.map((a) => ({
+          ...a,
+          scheduled_at: a.appointment_datetime,
+          calendly_event_id: null,
+          calendar_event_id: null,
+        }))
+      )
+        .appointments.map((a) => byId.get(a.appointmentId)!)
+        .filter((a) => inPeriod(a.appointment_datetime, range))
+      const periodSales = (salesRes.rows ?? [])
+        .map((v) => ({ ...v, payment_plan_method: metodoDePlan(v) }))
+        .filter((v) => inPeriod(v.sale_date, range))
       setRows(
-        (funnelRes.data || []).map(
-          (r: { source: string; leads: number; appointments: number; sales: number; gross: number }) => ({
-            source: r.source,
-            leads: Number(r.leads),
-            appointments: Number(r.appointments),
-            sales: Number(r.sales),
-            gross: Number(r.gross),
-          })
+        funnelBySource(
+          leadIds,
+          touchRes.rows.map((a) => ({ ...a, contact_id: aliases.get(a.contact_id) ?? a.contact_id })),
+          periodSales.map((a) => ({ ...a, contact_id: aliases.get(a.contact_id ?? '') ?? a.contact_id })),
+          uniqueAppointments.map((a) => ({ ...a, contact_id: aliases.get(a.contact_id ?? '') ?? a.contact_id }))
         )
       )
       setLoading(false)
       setTouchRows(
-        (touchRes.data || []).map((r: any) => ({
-          contact_id: r.contact_id,
-          contact_name: r.contacts?.full_name || '—',
-          phone: r.contacts?.phone || null,
-          source: r.source,
-          first_utm_source: r.first_utm_source,
-          first_utm_campaign: r.first_utm_campaign,
-          last_utm_source: r.last_utm_source,
-          last_utm_campaign: r.last_utm_campaign,
-          first_touch_at: r.first_touch_at,
-          last_touch_at: r.last_touch_at,
-        }))
+        (touchRes.rows || [])
+          .filter((r) => leadIds.includes(aliases.get(r.contact_id) ?? r.contact_id))
+          .map((r: any) => ({
+            contact_id: r.contact_id,
+            contact_name: r.contacts?.full_name || '—',
+            phone: r.contacts?.phone || null,
+            source: r.source,
+            first_utm_source: r.first_utm_source,
+            first_utm_campaign: r.first_utm_campaign,
+            last_utm_source: r.last_utm_source,
+            last_utm_campaign: r.last_utm_campaign,
+            first_touch_at: r.first_touch_at,
+            last_touch_at: r.last_touch_at,
+          }))
       )
       setLoadingTouch(false)
     }
@@ -217,7 +279,7 @@ export default function AttributionPage() {
     return () => {
       mounted = false
     }
-  }, [tenantId])
+  }, [tenantId, range])
 
   // Agendas — se recargan cuando cambia el rango de fechas (el filtro de campaña/fuente
   // se aplica en cliente sobre lo cargado).
@@ -225,23 +287,37 @@ export default function AttributionPage() {
     let mounted = true
     async function loadAppts() {
       setLoadingAppts(true)
+      setApptError(false)
       const supabase = createClient()
-      let q = supabase
-        .from('appointments')
-        .select('id, source, utm_source, utm_campaign, appointment_datetime')
-        .order('appointment_datetime', { ascending: false })
-      if (rangeFrom) q = q.gte('appointment_datetime', `${rangeFrom}T00:00:00`)
-      if (rangeTo) q = q.lte('appointment_datetime', `${rangeTo}T23:59:59`)
-      const { data } = await q.limit(5000)
+      const makeQuery = () => {
+        let q = supabase
+          .from('appointments')
+          .select('id, contact_id, status, source, utm_source, utm_campaign, appointment_datetime', { count: 'exact' })
+          .eq('tenant_id', tenantId)
+          .order('appointment_datetime', { ascending: false })
+        if (rangeFrom) q = q.gte('appointment_datetime', `${rangeFrom}T00:00:00`)
+        if (rangeTo) q = q.lte('appointment_datetime', `${rangeTo}T23:59:59`)
+        return q.order('id')
+      }
+      const { rows: data, error, truncated } = await fetchAllRows(makeQuery)
       if (!mounted) return
+      if (error || truncated) {
+        setApptError(true)
+        setApptRows([])
+        setLoadingAppts(false)
+        return
+      }
+      const appts = data ?? []
+      const byId = new Map(appts.map((a) => [a.id, a]))
       setApptRows(
-        (data || []).map((r: any) => ({
-          id: r.id,
-          source: r.source,
-          utm_source: r.utm_source,
-          utm_campaign: r.utm_campaign,
-          appointment_datetime: r.appointment_datetime,
-        }))
+        canonicalizeAppointments(
+          appts.map((a) => ({
+            ...a,
+            scheduled_at: a.appointment_datetime,
+            calendly_event_id: null,
+            calendar_event_id: null,
+          }))
+        ).appointments.map((a) => byId.get(a.appointmentId)!)
       )
       setLoadingAppts(false)
     }
@@ -249,42 +325,59 @@ export default function AttributionPage() {
     return () => {
       mounted = false
     }
-  }, [rangeFrom, rangeTo])
+  }, [rangeFrom, rangeTo, tenantId])
 
   // Calidad de leads — respuestas del formulario por contacto (con su fuente primaria).
   useEffect(() => {
     let mounted = true
     async function loadQual() {
       const supabase = createClient()
-      const { data } = await supabase
-        .from('contacts')
-        .select(
-          'id, full_name, qualification, qualification_updated_at, contact_attributions(source, utm_campaign, is_primary)'
-        )
-        .not('qualification', 'is', null)
-        .order('qualification_updated_at', { ascending: false })
-        .limit(500)
+      setLoadingQual(true)
+      setQualError(false)
+      const {
+        rows: data,
+        error,
+        truncated,
+      } = await fetchAllRows(() =>
+        supabase
+          .from('contacts')
+          .select(
+            'id, full_name, created_at, first_seen_at, qualification, qualification_updated_at, contact_attributions(source, utm_campaign, is_primary)'
+          )
+          .eq('tenant_id', tenantId)
+          .not('qualification', 'is', null)
+          .order('qualification_updated_at', { ascending: false })
+          .order('id')
+      )
       if (!mounted) return
+      if (error || truncated) {
+        setQualError(true)
+        setQualRows([])
+        setLoadingQual(false)
+        return
+      }
       setQualRows(
-        (data || []).map((r: any) => {
-          const q = r.qualification || {}
-          const answers: Record<string, string> = {}
-          for (const k of QUALIFICATION_KEYS) {
-            const v = q[k]
-            if (typeof v === 'string' && v.trim()) answers[k] = v.trim()
-          }
-          const attrs = Array.isArray(r.contact_attributions) ? r.contact_attributions : []
-          const primary = attrs.find((a: any) => a.is_primary) || attrs[0] || null
-          return {
-            contact_id: r.id,
-            contact_name: r.full_name || '—',
-            source: primary?.source || null,
-            campaign: primary?.utm_campaign || null,
-            updated_at: r.qualification_updated_at,
-            answers,
-            respuestas: Array.isArray(q.respuestas) ? q.respuestas : [],
-          }
-        })
+        (data || [])
+          .filter((r) => inPeriod(leadDate(r), range))
+          .map((r: any) => {
+            const q = r.qualification || {}
+            const answers: Record<string, string> = {}
+            for (const k of QUALIFICATION_KEYS) {
+              const v = q[k]
+              if (typeof v === 'string' && v.trim()) answers[k] = v.trim()
+            }
+            const attrs = Array.isArray(r.contact_attributions) ? r.contact_attributions : []
+            const primary = attrs.find((a: any) => a.is_primary) || attrs[0] || null
+            return {
+              contact_id: r.id,
+              contact_name: r.full_name || '—',
+              source: primary?.source || null,
+              campaign: primary?.utm_campaign || null,
+              updated_at: r.qualification_updated_at,
+              answers,
+              respuestas: Array.isArray(q.respuestas) ? q.respuestas : [],
+            }
+          })
       )
       setLoadingQual(false)
     }
@@ -292,7 +385,7 @@ export default function AttributionPage() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [tenantId, range])
 
   const qualSources = useMemo(() => Array.from(new Set(qualRows.map((r) => r.source || NO_UTM))).sort(), [qualRows])
   const filteredQual = useMemo(
@@ -432,9 +525,8 @@ export default function AttributionPage() {
     return {
       leads: pctOrNull(attributedLeads, totals.leads),
       sales: pctOrNull(attributedSales, totals.sales),
-      // Revenue: la RPC no separa el revenue atribuido del directo — no se inventa (§39): '—' hasta
-      // que el desglose por fuente lo exponga.
-      revenue: null,
+      // La facturación atribuida se obtiene del mismo desglose y población que el total.
+      revenue: pctOrNull(totals.gross - (directo?.gross ?? 0), totals.gross),
     }
   }, [rows, totals])
 
@@ -442,20 +534,50 @@ export default function AttributionPage() {
     <div className="dashboard-surface space-y-5">
       <div>
         <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground flex items-center gap-2">
-          <Megaphone className="w-6 h-6 text-cyan-400" /> Atribución
+          <Megaphone className="w-6 h-6 text-brand-400" /> Atribución
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
-          De dónde vienen los leads, las agendas y las ventas — por fuente y anuncio
+          Actividad del periodo por fuente registrada y anuncio. Una fuente de importación no demuestra atribución
+          publicitaria. Las ventas excluyen reservas abiertas; los recuentos no representan una cohorte de conversión.
         </p>
       </div>
 
+      <PeriodFilterBar
+        preset={periodPreset}
+        onPresetChange={setPeriodPreset}
+        customFrom={customFrom}
+        customTo={customTo}
+        onCustomFromChange={setCustomFrom}
+        onCustomToChange={setCustomTo}
+      />
+      {globalError && (
+        <p role="alert" className="dashboard-card p-5">
+          No se pudo cargar la fuente completa de atribución. Recarga para reintentar.
+        </p>
+      )}
+      {qualError && <p role="alert">No se pudo cargar la calidad de los contactos del periodo.</p>}
+      {apptError && (
+        <p role="alert" className="text-sm text-muted-foreground">
+          No se pudo cargar el desglose de agendas completo.
+        </p>
+      )}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard title="Leads" value={loading ? '—' : totals.leads} icon={Users} loading={loading} />
-        <KPICard title="Agendas" value={loading ? '—' : totals.appts} icon={Calendar} loading={loading} />
-        <KPICard title="Ventas" value={loading ? '—' : totals.sales} icon={ShoppingCart} loading={loading} />
+        <KPICard title="Leads" value={loading || globalError ? '—' : totals.leads} icon={Users} loading={loading} />
+        <KPICard
+          title="Agendas"
+          value={loading || globalError ? '—' : totals.appts}
+          icon={Calendar}
+          loading={loading}
+        />
+        <KPICard
+          title="Ventas"
+          value={loading || globalError ? '—' : totals.sales}
+          icon={ShoppingCart}
+          loading={loading}
+        />
         <KPICard
           title="Facturación"
-          value={loading ? '—' : formatCurrency(totals.gross)}
+          value={loading || globalError ? '—' : formatCurrency(totals.gross)}
           icon={TrendingUp}
           loading={loading}
         />
@@ -463,7 +585,7 @@ export default function AttributionPage() {
 
       {/* Cobertura de atribución (§21): movida aquí desde Métricas y KPIs — pertenece al panel
           donde se diagnostica la atribución, no al resumen del negocio. */}
-      <AttributionCoverage coverage={coverage} />
+      <AttributionCoverage coverage={globalError ? { leads: null, sales: null, revenue: null } : coverage} />
 
       {/* Top campañas First / Last touch */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -471,15 +593,15 @@ export default function AttributionPage() {
           <h3 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
             <Target className="w-4 h-4 text-brand-400" /> Top anuncios / campañas (First-touch)
           </h3>
-          <p className="text-xs text-muted-foreground mb-4">La campaña que originó cada lead</p>
+          <p className="text-xs text-muted-foreground mb-4">Primer toque registrado de los leads del periodo</p>
           <BarList bars={firstCampaignBars} total={firstCampaignTotal} color="violet" loading={loadingTouch} />
         </div>
 
         <div className="dashboard-card p-5">
           <h3 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
-            <Target className="w-4 h-4 text-cyan-400" /> Top campañas (Last-touch)
+            <Target className="w-4 h-4 text-brand-400" /> Top campañas (Last-touch)
           </h3>
-          <p className="text-xs text-muted-foreground mb-4">La última campaña que tocó al lead</p>
+          <p className="text-xs text-muted-foreground mb-4">Último toque registrado de los leads del periodo</p>
           <BarList bars={lastCampaignBars} total={lastCampaignTotal} color="cyan" loading={loadingTouch} />
         </div>
       </div>
@@ -490,7 +612,9 @@ export default function AttributionPage() {
           <h3 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
             <Layers className="w-4 h-4 text-emerald-400" /> Top fuentes
           </h3>
-          <p className="text-xs text-muted-foreground mb-4">De qué canal vienen los leads</p>
+          <p className="text-xs text-muted-foreground mb-4">
+            Fuentes registradas; una importación no demuestra un canal publicitario
+          </p>
           <BarList bars={sourceBars} total={sourceTotal} color="emerald" loading={loadingTouch} />
         </div>
 
@@ -511,7 +635,7 @@ export default function AttributionPage() {
 
       {/* Embudo por fuente (RPC) */}
       <div className="dashboard-card p-5">
-        <h3 className="text-sm font-semibold text-foreground mb-4">Embudo por fuente / anuncio</h3>
+        <h3 className="text-sm font-semibold text-foreground mb-4">Actividad por fuente / anuncio</h3>
         {loading ? (
           <div className="h-40 animate-pulse bg-muted rounded" />
         ) : rows.length === 0 ? (
@@ -520,18 +644,17 @@ export default function AttributionPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                <tr className="text-2xs uppercase tracking-wider text-muted-foreground border-b border-border">
                   <th className="text-left font-medium py-2">Fuente / Anuncio</th>
                   <th className="text-right font-medium py-2">Leads</th>
                   <th className="text-right font-medium py-2">Agendas</th>
                   <th className="text-right font-medium py-2">Ventas</th>
-                  <th className="text-right font-medium py-2">Lead→Venta</th>
+                  <th className="text-right font-medium py-2">Conversión</th>
                   <th className="text-right font-medium py-2">Facturación</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r) => {
-                  const leadToSale = r.leads ? (r.sales / r.leads) * 100 : 0
                   return (
                     <tr key={r.source} className="border-b border-border/50 last:border-0">
                       <td className="py-2.5 text-foreground max-w-[240px] truncate">{r.source}</td>
@@ -539,8 +662,8 @@ export default function AttributionPage() {
                       <td className="py-2.5 text-right text-foreground">{r.appointments}</td>
                       <td className="py-2.5 text-right text-foreground">{r.sales}</td>
                       <td className="py-2.5 text-right">
-                        <span className={leadToSale >= 15 ? 'text-emerald-400' : 'text-muted-foreground'}>
-                          {leadToSale.toFixed(0)}%
+                        <span title="Requiere una cohorte de leads vinculada a sus ventas, con maduración comparable">
+                          —
                         </span>
                       </td>
                       <td className="py-2.5 text-right font-semibold text-foreground">{formatCurrency(r.gross)}</td>
@@ -559,7 +682,8 @@ export default function AttributionPage() {
           <Calendar className="w-5 h-5 text-emerald-400" /> ¿De dónde vienen las agendas?
         </h2>
         <p className="text-muted-foreground text-sm mt-1">
-          Atribución de las citas agendadas, por fecha, fuente y campaña
+          Citas por fecha, origen de registro y campaña UTM. Calendly o una importación no demuestran un canal
+          publicitario.
         </p>
       </div>
 
@@ -592,7 +716,7 @@ export default function AttributionPage() {
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs text-muted-foreground">Fuente de tráfico</span>
+          <span className="text-xs text-muted-foreground">Fuente u origen de registro</span>
           <select
             value={sourceFilter}
             onChange={(e) => setSourceFilter(e.target.value)}
@@ -611,7 +735,7 @@ export default function AttributionPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="dashboard-card p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-1">Agendas por fuente</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-1">Agendas por origen registrado</h3>
           <p className="text-xs text-muted-foreground mb-4">
             {loadingAppts ? '—' : `${apptSourceTotal} agenda${apptSourceTotal === 1 ? '' : 's'} en total`}
           </p>
@@ -665,7 +789,7 @@ export default function AttributionPage() {
           <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-card">
-                <tr className="text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                <tr className="text-2xs uppercase tracking-wider text-muted-foreground border-b border-border">
                   <th className="text-left font-medium py-2">Contacto</th>
                   <th className="text-left font-medium py-2">First Source</th>
                   <th className="text-left font-medium py-2">First Campaign</th>
@@ -733,7 +857,7 @@ export default function AttributionPage() {
           <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-card z-10">
-                <tr className="text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border">
+                <tr className="text-2xs uppercase tracking-wider text-muted-foreground border-b border-border">
                   <th className="text-left font-medium py-2 pr-3">Contacto</th>
                   <th className="text-left font-medium py-2 pr-3">Fuente</th>
                   {QUALIFICATION_KEYS.map((k) => (

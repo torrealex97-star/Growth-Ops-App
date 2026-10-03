@@ -1,3 +1,7 @@
+import { canonicalizeAppointments } from '@/lib/canonical/dedup'
+import { canonicalCash, serieCanonicaCash, type StripePaymentRow } from '@/lib/canonical/cash'
+import { acumular, serieDiaria } from './series'
+import { protegerFuentes } from './integridad-fuentes'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 import {
@@ -11,7 +15,7 @@ import {
   type FilaVenta,
   type Periodo,
 } from './agregados'
-import { serieCashAcumulada, serieFacturacionAcumulada } from './series-negocio'
+import { serieFacturacionAcumulada } from './series-negocio'
 import type { PuntoSerie } from './prevision'
 
 // LA MITAD DE I/O: leer las filas de una subcuenta y pasarlas al cálculo.
@@ -39,7 +43,7 @@ export type ResultadoConsulta = {
   /** Cuántas filas se leyeron de cada fuente. Va al drill-down de "ver cálculo". */
   filasLeidas: Record<string, number>
   /**
-   * Cuántos contactos del periodo tienen atribución conocida. Es un hueco, no una métrica, y va aparte
+   * Cuántos contactos históricos tienen atribución registrada (no necesariamente publicitaria). Es un hueco, no una métrica, y va aparte
    * para que el panel pueda decirlo en vez de dejarlo invisible.
    */
   atribucion: { contactos: number; conAtribucion: number }
@@ -76,10 +80,15 @@ const r2 = (n: number) => Math.round(n * 100) / 100
 export async function consultarMetricas(
   sb: SupabaseClient,
   tenantId: string,
-  periodo: Periodo
+  periodo: Periodo,
+  // Cuentas de ads seleccionadas en Integraciones. La tabla conserva históricos de cuentas ya
+  // deseleccionadas: sin este filtro, su gasto se sumaba a las métricas del negocio. Vacío = todas
+  // (el convenio de toda la app); el parámetro es opcional para no romper a quienes ya llaman, pero
+  // las dos rutas que consumen esta capa (IA y brief) se lo pasan siempre.
+  cuentasAds: string[] = []
 ): Promise<ResultadoConsulta> {
   // Las lecturas son independientes: en serie serían viajes de red encadenados por nada.
-  const [ventas, cobros, citas, campanas, contactos, gastosCogs] = await Promise.all([
+  const [ventas, cobros, citas, campanas, contactos, gastosCogs, stripe] = await Promise.all([
     fetchAllRows<FilaVenta & { payment_plans: { method: string | null } | { method: string | null }[] | null }>(
       () =>
         sb
@@ -87,45 +96,53 @@ export async function consultarMetricas(
           // payment_plans(method): para excluir reservas sin completar de ventas/clientes (una
           // reserva que solo pagó la seña no es cliente — ver esReservaAbierta en agregados.ts).
           .select(
-            'sale_date, gross_amount, status, closer_id, appointment_id, reservation_completed_at, payment_plans(method)'
+            'contact_id, sale_date, gross_amount, status, closer_id, appointment_id, reservation_completed_at, payment_plans(method)'
           )
           .eq('tenant_id', tenantId)
           .gte('sale_date', periodo.desde)
-          .lte('sale_date', periodo.hasta),
+          .lte('sale_date', periodo.hasta)
+          .order('id'),
       { maxPages: MAX_PAGINAS }
     ),
-    fetchAllRows<FilaCobro>(
+    fetchAllRows<FilaCobro & { id: string; payment_reference: string | null }>(
       () =>
         sb
           .from('collections')
           // `gross_amount`, no `amount`: comprobado contra el esquema. Con el nombre equivocado, el cash
           // collected sale 0 € sin que ninguna consulta falle.
-          .select('collected_at, gross_amount, is_confirmed, status')
+          .select('id, payment_reference, collected_at, gross_amount, is_confirmed, status')
           .eq('tenant_id', tenantId)
           .gte('collected_at', `${periodo.desde}T00:00:00Z`)
-          .lte('collected_at', `${periodo.hasta}T23:59:59Z`),
+          .lte('collected_at', `${periodo.hasta}T23:59:59Z`)
+          .order('id'),
       { maxPages: MAX_PAGINAS }
     ),
-    fetchAllRows<FilaCita>(
+    fetchAllRows<FilaCita & { id: string; contact_id: string | null }>(
       () =>
         sb
           .from('appointments')
           // `raw_payload` es donde están las respuestas del formulario (473 de 559 citas en producción);
           // `qualification` está a 0 y se pide igual por si algún día se rellena.
-          .select('appointment_datetime, status, result, offered, needs_followup, qualification, raw_payload')
+          .select(
+            'id, contact_id, appointment_datetime, status, result, offered, needs_followup, qualification, raw_payload'
+          )
           .eq('tenant_id', tenantId)
           .gte('appointment_datetime', `${periodo.desde}T00:00:00Z`)
-          .lte('appointment_datetime', `${periodo.hasta}T23:59:59Z`),
+          .lte('appointment_datetime', `${periodo.hasta}T23:59:59Z`)
+          .order('id'),
       { maxPages: MAX_PAGINAS }
     ),
     fetchAllRows<FilaCampana>(
-      () =>
-        sb
+      () => {
+        let q = sb
           .from('campaign_daily')
           .select('date, spend, impressions, clicks, leads')
           .eq('tenant_id', tenantId)
           .gte('date', periodo.desde)
-          .lte('date', periodo.hasta),
+          .lte('date', periodo.hasta)
+        if (cuentasAds.length > 0) q = q.in('account_id', cuentasAds)
+        return q.order('id')
+      },
       { maxPages: MAX_PAGINAS }
     ),
     fetchAllRows<FilaContacto>(
@@ -142,7 +159,8 @@ export async function consultarMetricas(
           )
           .or(
             `first_seen_at.lte.${periodo.hasta}T23:59:59Z,and(created_at.lte.${periodo.hasta}T23:59:59Z,first_seen_at.is.null)`
-          ),
+          )
+          .order('id'),
       { maxPages: MAX_PAGINAS }
     ),
     // Solo la categoría 'cogs': es la que la app usa como coste de entrega (ver
@@ -157,7 +175,19 @@ export async function consultarMetricas(
           .eq('tenant_id', tenantId)
           .eq('category', 'cogs')
           .gte('expense_date', periodo.desde)
-          .lte('expense_date', periodo.hasta),
+          .lte('expense_date', periodo.hasta)
+          .order('id'),
+      { maxPages: MAX_PAGINAS }
+    ),
+    fetchAllRows<StripePaymentRow>(
+      () =>
+        sb
+          .from('stripe_payments')
+          .select('payment_id, charge_id, amount, refunded_amount, status, paid_at, customer_email')
+          .eq('tenant_id', tenantId)
+          .gte('paid_at', `${periodo.desde}T00:00:00Z`)
+          .lte('paid_at', `${periodo.hasta}T23:59:59Z`)
+          .order('payment_id'),
       { maxPages: MAX_PAGINAS }
     ),
   ])
@@ -176,7 +206,7 @@ export async function consultarMetricas(
       .eq('is_primary', true),
   ])
 
-  const fuentes = { ventas, cobros, citas, campanas, contactos, gastosCogs }
+  const fuentes = { ventas, cobros, citas, campanas, contactos, gastosCogs, stripe }
   const fuentesConError = Object.entries(fuentes)
     .filter(([, r]) => r.error !== null)
     .map(([fuente, r]) => ({ fuente, error: r.error as string }))
@@ -186,29 +216,79 @@ export async function consultarMetricas(
 
   // Un error de lectura no es un coste de cero: sin poder leer los gastos, el coste de entrega por
   // 'cogs' queda desconocido y la aproximación de LTGP:CAC cae al fallback manual (o al hueco).
-  const costeEntregaCogsPeriodo = gastosCogs.error ? null : r2(gastosCogs.rows.reduce((a, g) => a + num(g.amount), 0))
+  const costeEntregaCogsPeriodo =
+    gastosCogs.error || gastosCogs.truncated ? null : r2(gastosCogs.rows.reduce((a, g) => a + num(g.amount), 0))
 
   // El embed de payment_plans llega anidado (objeto o array según el driver); se aplana aquí para
   // que agregados.ts (puro, sin PostgREST) reciba el mismo `payment_plan_method` que ya usa
   // lib/commissions/tramos.ts para decidir si una reserva sigue abierta.
   const ventasNormalizadas: FilaVenta[] = ventas.rows.map((v) => ({ ...v, payment_plan_method: metodoDePlan(v) }))
 
+  const porId = new Map(citas.rows.map((c) => [c.id, c]))
+  const citasCanonicas = canonicalizeAppointments(
+    citas.rows.map((c) => ({
+      ...c,
+      status: c.status ?? '',
+      scheduled_at: c.appointment_datetime,
+      calendly_event_id: null,
+      calendar_event_id: null,
+    }))
+  ).appointments.map((c) => porId.get(c.appointmentId)!)
+  const internos = cobros.rows.map((c) => ({
+    id: c.id,
+    payment_reference: c.payment_reference,
+    gross_amount: num(c.gross_amount),
+    status: c.status ?? '',
+    collected_at: c.collected_at,
+  }))
+  const cash = canonicalCash(stripe.rows, internos, [])
+  const agregados = calcularAgregados({
+    ventas: ventasNormalizadas,
+    cobros: cobros.rows,
+    citas: citasCanonicas,
+    campanas: campanas.rows,
+    contactos: contactos.rows,
+    periodo,
+  })
+  agregados.agendas = { valor: citasCanonicas.length, muestra: citasCanonicas.length }
+  for (const key of ['close_rate_llamadas', 'close_rate_ofertas']) {
+    agregados[key] = {
+      valor: null,
+      muestra: null,
+      motivo:
+        'Requiere seguir ventas y llamadas de la misma cohorte enlazada y comprobar su madurez; los flujos del periodo no son una conversión.',
+    }
+  }
+  agregados.cash_collected = { valor: cash.net, muestra: stripe.rows.length + internos.length }
+  const facturacion = agregados.contracted_revenue.valor
+  agregados.cash_collection_ratio = {
+    valor: facturacion ? r2((cash.net / facturacion) * 100) : null,
+    muestra: agregados.ventas.muestra,
+    motivo: 'Flujos del periodo; incluye cuotas de ventas anteriores y no mide la deuda de una cohorte.',
+  }
+  agregados.cash_roas = {
+    valor: null,
+    muestra: null,
+    motivo:
+      'Falta enlazar los cobros con clientes atribuidos a anuncios. El cash total / inversión es MER, no Cash ROAS.',
+  }
+  const invalidas = [...fuentesConError.map((f) => f.fuente), ...fuentesRecortadas]
+  const protegidos = protegerFuentes(agregados, invalidas)
+  const cashCompleto = !invalidas.includes('stripe') && !invalidas.includes('cobros')
   return {
-    // Las filas de una fuente que falló llegan vacías, y el cálculo ya distingue "vacío" de "cero"
-    // devolviendo `null` con su motivo. Quien pinta debe mirar `fuentesConError` antes de creerse nada.
-    agregados: calcularAgregados({
-      ventas: ventasNormalizadas,
-      cobros: cobros.rows,
-      citas: citas.rows,
-      campanas: campanas.rows,
-      contactos: contactos.rows,
-      periodo,
-    }),
+    agregados: protegidos,
     fuentesConError,
     fuentesRecortadas,
-    citas: citas.rows,
-    serieFacturacion: serieFacturacionAcumulada(ventasNormalizadas, periodo),
-    serieCash: serieCashAcumulada(cobros.rows, periodo),
+    citas: citasCanonicas,
+    serieFacturacion: invalidas.includes('ventas') ? [] : serieFacturacionAcumulada(ventasNormalizadas, periodo),
+    serieCash: cashCompleto
+      ? acumular(
+          serieDiaria(
+            serieCanonicaCash(stripe.rows, internos).map((p) => ({ fecha: p.cubo, valor: p.neto })),
+            periodo
+          )
+        )
+      : [],
     costeEntregaCogsPeriodo,
     atribucion: { contactos: totalContactos.count ?? 0, conAtribucion: conAtribucion.count ?? 0 },
     filasLeidas: {
@@ -218,6 +298,7 @@ export async function consultarMetricas(
       campanas: campanas.rows.length,
       contactos: contactos.rows.length,
       gastosCogs: gastosCogs.rows.length,
+      stripe: stripe.rows.length,
     },
   }
 }

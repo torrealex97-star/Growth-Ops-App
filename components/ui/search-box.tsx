@@ -3,6 +3,11 @@
 import { Search, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 
+// La lógica pura vive en lib/utils.ts (cargable por node en tests); aquí solo la re-exportamos
+// por compatibilidad con los consumidores existentes.
+import { normalizeText, phoneMatches } from '@/lib/utils'
+export { normalizeText, phoneMatches }
+
 // Caja de búsqueda de texto reutilizable (icono + input) con el estilo del panel.
 export function SearchBox({
   value,
@@ -50,14 +55,5 @@ export function SearchBox({
   )
 }
 
-// Normaliza texto para búsquedas (minúsculas + sin acentos).
-export function normalizeText(s: string): string {
-  return s.toLocaleLowerCase('es-ES').normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '')
-}
-
-// Compara un teléfono ignorando espacios, guiones y prefijo +.
-export function phoneMatches(phone: string | null | undefined, query: string): boolean {
-  const qd = query.replace(/[^\d]/g, '')
-  if (qd.length < 3) return false
-  return (phone ?? '').replace(/[^\d]/g, '').includes(qd)
-}
+// normalizeText y phoneMatches viven en lib/utils.ts (fuente única, cargable por node en tests)
+// y se re-exportan arriba por compatibilidad con los consumidores existentes.

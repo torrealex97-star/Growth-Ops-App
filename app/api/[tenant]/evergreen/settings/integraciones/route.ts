@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { decryptSecret, encryptSecret, invalidateConfigCache, getTenantConfigWithFallback } from '@/lib/config'
+import {
+  decryptSecret,
+  encryptSecret,
+  esIndescifrable,
+  invalidateConfigCache,
+  getTenantConfigWithFallback,
+} from '@/lib/config'
 import { ALL_FIELDS, SECRET_KEYS, isKnownKey, INTEGRATION_ONLY_GROUPS } from '@/lib/integrations-catalog'
 import { assessIntegration, SYNCS_BY_GROUP, type LastCheck } from '@/lib/integrations/health'
 import { SYNC_DEFS } from '@/lib/ops/sync-health'
@@ -134,14 +140,26 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
   // y que la máscara ••••1234 esconde por completo.
   const state: Record<
     string,
-    { source: 'db' | 'env' | 'none'; secret: boolean; preview: string; value?: string; length?: number }
+    {
+      source: 'db' | 'env' | 'none'
+      secret: boolean
+      preview: string
+      value?: string
+      length?: number
+      // Cifrado con una CONFIG_ENC_KEY distinta a la actual (o corrupto): el runtime NO puede leerlo
+      // y todo consumidor ve "faltan credenciales". La UI lo señala en rojo con la acción concreta.
+      indescifrable?: boolean
+    }
   > = {}
   for (const f of ALL_FIELDS) {
     const inDb = dbRows[f.key]?.value
     const inEnv = process.env[f.key]
     if (inDb) {
+      const indescifrable = f.secret && esIndescifrable(inDb)
       state[f.key] = f.secret
-        ? { source: 'db', secret: true, preview: '••••••', length: decryptedLength(inDb) }
+        ? indescifrable
+          ? { source: 'db', secret: true, preview: '••••••', indescifrable: true }
+          : { source: 'db', secret: true, preview: '••••••', length: decryptedLength(inDb) }
         : { source: 'db', secret: false, preview: inDb, value: inDb }
     } else if (inEnv) {
       state[f.key] = f.secret
@@ -173,6 +191,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
     pgCronReady: PG_CRON_READY,
     lastRuns,
   }
+
+  // Claves de BD indescifrables con la CONFIG_ENC_KEY actual: suben en la respuesta para que el
+  // panel avise (banner + badge por campo) en vez de que la integración aparezca "conectada" con un
+  // token muerto — o al revés, "sin configurar" sin explicación.
+  const clavesIndescifrables = Object.entries(state)
+    .filter(([, v]) => v.indescifrable === true)
+    .map(([k]) => k)
+    .sort()
   const health = INTEGRATION_ONLY_GROUPS.map((g) =>
     assessIntegration(
       { id: g.id, required: g.required, requiredAny: g.requiredAny, testable: g.test === true },
@@ -241,6 +267,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ten
     health,
     runs: lastRuns,
     webhooksEntrantes,
+    clavesIndescifrables,
   })
 }
 
@@ -520,19 +547,17 @@ async function saveLastCheck(tenantId: string, group: string, result: ProbeResul
   current[group] = { ok: result.ok, message: result.message, code: result.code, checkedAt: new Date().toISOString() }
   // Un fallo al guardar el estado NO puede tumbar la comprobación: el usuario ya tiene su respuesta,
   // y como máximo la luz seguirá gris ("sin comprobar"), que es lo honesto si no se pudo registrar.
-  await client
-    .from('integration_settings')
-    .upsert(
-      {
-        tenant_id: tenantId,
-        key: HEALTH_KEY,
-        value: JSON.stringify(current),
-        is_secret: false,
-        label: 'Último resultado de comprobación por integración',
-      },
-      { onConflict: 'tenant_id,key' }
-    )
-    .select('key')
+  const { error } = await client.from('integration_settings').upsert(
+    {
+      tenant_id: tenantId,
+      key: HEALTH_KEY,
+      value: JSON.stringify(current),
+      is_secret: false,
+      label: 'Último resultado de comprobación por integración',
+    },
+    { onConflict: 'tenant_id,key' }
+  )
+  if (error) console.warn(`[settings/integraciones] no se pudo guardar el estado de ${group}:`, error.message)
 }
 
 // Habla con la API de cada integración y devuelve un veredicto en claro.

@@ -1,6 +1,19 @@
 'use client'
 
-import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import {
+  Bar,
+  CartesianGrid,
+  Cell,
+  Line,
+  ComposedChart,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 
 const COLORS = [
@@ -50,7 +63,6 @@ export function FinanceBreakdown({
           { label: 'Otros', amount: ordered.slice(MAX_RING_SLICES - 1).reduce((sum, s) => sum + s.amount, 0) },
         ]
       : ordered
-  const restantes = slices.filter((s) => !ringSlices.some((r) => r.label === s.label))
   return (
     <section className="dashboard-card flex h-full flex-col p-5">
       <h2 className="text-sm font-medium text-foreground">{title}</h2>
@@ -109,8 +121,8 @@ export function FinanceBreakdown({
           )
         })}
       </ul>
-      {restantes.length > 0 && (
-        <p className="mt-2 text-[11px] text-muted-foreground">
+      {ordered.length > MAX_RING_SLICES && !hasNegative && (
+        <p className="mt-2 text-2xs text-muted-foreground">
           El anillo muestra el top {Math.min(ringSlices.length, MAX_RING_SLICES - 1)} y agrupa el resto como “Otros”; el
           desglose completo está en la lista.
         </p>
@@ -122,16 +134,23 @@ export function FinanceBreakdown({
 export function FinanceEvolution({
   data,
 }: {
-  data: { ym: string; label: string; cash: number; expenses: number; net: number }[]
+  data: { ym: string; label: string; cash: number; expenses: number; net: number; facturacion?: number }[]
 }) {
+  const conFacturacion = data.some((d) => typeof d.facturacion === 'number')
   return (
     <section className="dashboard-card p-5">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-medium">Evolución de cobros y gastos</h2>
         <div className="flex gap-4 text-xs text-muted-foreground">
+          {conFacturacion && (
+            <span className="flex items-center gap-2">
+              <i className="h-2 w-2 rounded-full bg-emerald-400" />
+              Facturación
+            </span>
+          )}
           <span className="flex items-center gap-2">
             <i className="h-2 w-2 rounded-full bg-brand-500" />
-            Cobros
+            Cash Collected (libro interno)
           </span>
           <span className="flex items-center gap-2">
             <i className="h-2 w-2 rounded-full bg-brand-200" />
@@ -141,7 +160,7 @@ export function FinanceEvolution({
       </div>
       <div className="h-72" aria-hidden="true">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} barGap={6} margin={{ top: 12, right: 4, bottom: 0, left: 0 }}>
+          <ComposedChart data={data} barGap={6} margin={{ top: 12, right: 4, bottom: 0, left: 0 }}>
             <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.4} strokeDasharray="3 6" />
             <XAxis
               dataKey="label"
@@ -164,7 +183,7 @@ export function FinanceEvolution({
             />
             <Bar
               dataKey="cash"
-              name="Cobros"
+              name="Cash Collected (libro interno)"
               fill="hsl(var(--brand-500))"
               radius={[8, 8, 0, 0]}
               maxBarSize={16}
@@ -178,7 +197,20 @@ export function FinanceEvolution({
               maxBarSize={16}
               isAnimationActive={false}
             />
-          </BarChart>
+            {conFacturacion && (
+              // La facturación (ventas contratadas) superpuesta como línea: comparte la misma
+              // unidad (€) y eje, así la brecha vendido-vs-cobrado se ve sin engaños de escala.
+              <Line
+                type="monotone"
+                dataKey="facturacion"
+                name="Facturación"
+                stroke="#34d399"
+                strokeWidth={2}
+                dot={{ r: 2.5, fill: '#34d399' }}
+                isAnimationActive={false}
+              />
+            )}
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
       <details className="mt-5 text-xs">
@@ -189,12 +221,18 @@ export function FinanceEvolution({
           <table className="w-full text-left">
             <caption className="sr-only">Cobros, gastos y resultado neto de los últimos seis meses</caption>
             <thead>
+              {' '}
               <tr className="text-muted-foreground">
                 <th className="py-2 font-medium" scope="col">
                   Mes
                 </th>
+                {conFacturacion && (
+                  <th className="text-right font-medium" scope="col">
+                    Facturación
+                  </th>
+                )}
                 <th className="text-right font-medium" scope="col">
-                  Cobros
+                  Cash Collected (libro interno)
                 </th>
                 <th className="text-right font-medium" scope="col">
                   Gastos
@@ -210,6 +248,7 @@ export function FinanceEvolution({
                   <th scope="row" className="py-2 font-normal">
                     {s.label}
                   </th>
+                  {conFacturacion && <td className="text-right tabular-nums">{formatCurrency(s.facturacion ?? 0)}</td>}
                   <td className="text-right tabular-nums">{formatCurrency(s.cash)}</td>
                   <td className="text-right tabular-nums">{formatCurrency(s.expenses)}</td>
                   <td className="text-right tabular-nums">{formatCurrency(s.net)}</td>
@@ -219,6 +258,118 @@ export function FinanceEvolution({
           </table>
         </div>
       </details>
+    </section>
+  )
+}
+
+// Dual de unidad: facturación y cash son € (comparten eje); el CAC es €/cliente y va en eje
+// propio a la derecha, SOLO si el helper lo considera legible (densidad de cubos con gasto).
+export type DualPoint = { label: string; facturacion: number; cash: number; cac: number | null }
+
+export function FinanceDual({ title, data, showCacAxis }: { title: string; data: DualPoint[]; showCacAxis: boolean }) {
+  // El CAC se mantiene SIEMPRE en los datos: con eje propio cuando hay densidad de gasto, y
+  // sobre el eje de € cuando no (lo verá bajo; pero el tooltip lo muestra — anularlo aquí
+  // dejaría la leyenda prometiendo un CAC que nunca aparece).
+  const conGasto = data.some((d) => d.cac != null)
+  return (
+    <section className="dashboard-card p-5">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-sm font-medium">{title}</h2>
+        <div className="flex gap-4 text-xs text-muted-foreground">
+          <span className="flex items-center gap-2">
+            <i className="h-2 w-2 rounded-full bg-emerald-400" />
+            Facturación
+          </span>
+          <span className="flex items-center gap-2">
+            <i className="h-2 w-2 rounded-full bg-brand-500" />
+            Cash Collected
+          </span>
+          {conGasto && (
+            <span className="flex items-center gap-2">
+              <i className="h-2 w-2 rounded-full" style={{ background: 'hsl(var(--brand-900))' }} />
+              CAC {showCacAxis ? '· €/cliente (eje der.)' : '(solo tooltip)'}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="h-72" aria-hidden="true">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data} barGap={6} margin={{ top: 12, right: 4, bottom: 0, left: 0 }}>
+            <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.4} strokeDasharray="3 6" />
+            <XAxis
+              dataKey="label"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+              tickMargin={12}
+            />
+            <YAxis
+              yAxisId="eur"
+              axisLine={false}
+              tickLine={false}
+              width={52}
+              tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+              tickFormatter={(v: number) => formatNumber(v, { notation: 'compact' })}
+            />
+            {showCacAxis && (
+              <YAxis
+                yAxisId="cac"
+                orientation="right"
+                axisLine={false}
+                tickLine={false}
+                width={44}
+                tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                tickFormatter={(v: number) => formatNumber(v, { notation: 'compact' })}
+              />
+            )}
+            <Tooltip
+              contentStyle={tooltipStyle}
+              cursor={{ fill: 'hsl(var(--muted) / 0.4)' }}
+              formatter={(v, name) => [formatCurrency(Number(v)), name]}
+            />
+            <Legend
+              wrapperStyle={{ fontSize: 11, color: 'hsl(var(--muted-foreground))' }}
+              formatter={(value) => <span style={{ color: 'hsl(var(--muted-foreground))' }}>{value}</span>}
+            />
+            <Bar
+              dataKey="facturacion"
+              name="Facturación"
+              fill="#34d399"
+              radius={[8, 8, 0, 0]}
+              maxBarSize={16}
+              yAxisId="eur"
+              isAnimationActive={false}
+            />
+            <Bar
+              dataKey="cash"
+              name="Cash Collected"
+              fill="hsl(var(--brand-500))"
+              radius={[8, 8, 0, 0]}
+              maxBarSize={16}
+              yAxisId="eur"
+              isAnimationActive={false}
+            />
+            {conGasto && (
+              <Line
+                type="monotone"
+                dataKey="cac"
+                name="CAC"
+                stroke="hsl(var(--brand-900))"
+                strokeWidth={2}
+                strokeDasharray="4 3"
+                connectNulls={false}
+                dot={{ r: 2.5, fill: 'hsl(var(--brand-900))' }}
+                yAxisId={showCacAxis ? 'cac' : 'eur'}
+                isAnimationActive={false}
+              />
+            )}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground">
+        La diferencia entre facturación y cobros del periodo no equivale a deuda pendiente. El CAC solo se traza donde
+        el cubo tuvo gasto publicitario y cierres: sin gasto detrás, un CAC no existe.
+      </p>
     </section>
   )
 }

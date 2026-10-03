@@ -233,6 +233,14 @@ const CONTRATOS: Record<string, Omit<DefinicionVersionada, keyof DefinicionMetri
     muestraMinima: MUESTRA_MINIMA_RATIO,
     lineage: { fuentes: ['appointments'], dependeDe: [] },
   },
+  // Sin ventana ni muestra mínima: es un cociente exacto contra un número declarado a mano (la
+  // capacidad semanal en el contexto de negocio), no una tasa que necesite madurar ni un tamaño de
+  // muestra para significar algo.
+  capacidad_ventas_pct: {
+    version: 1,
+    grain: 'period',
+    lineage: { fuentes: [], dependeDe: ['agendas'] },
+  },
   tasa_concordancia_cualificacion: {
     version: 1,
     grain: 'period',

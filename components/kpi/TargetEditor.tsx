@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Plus, Trash2, Loader2, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { METRICAS_CON_OBJETIVO, valorTarget } from '@/lib/targets/vs-actual'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatNumber } from '@/lib/utils'
 
 type TargetRow = {
   id: string
@@ -82,7 +82,7 @@ const muestraValor = (tipo: string, v: number) =>
   tipo === 'money'
     ? formatCurrency(v)
     : tipo === 'ratio'
-      ? `${v.toLocaleString('es-ES', { maximumFractionDigits: 2 })}x`
+      ? `${formatNumber(v, { maximumFractionDigits: 2 })}x`
       : String(Math.round(v))
 
 export function TargetEditor() {

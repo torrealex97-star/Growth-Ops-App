@@ -25,6 +25,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   const { tenant } = await params
   const t = await requireTenant(tenant)
   if ('error' in t) return t.error
+  if (!t.administraTenant) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
   const sb = sbAdmin()
 
   const [{ data: settings }, cfg] = await Promise.all([
@@ -51,6 +54,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ tena
   const { tenant } = await params
   const t = await requireTenant(tenant)
   if ('error' in t) return t.error
+  if (!t.administraTenant) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
+  }
 
   try {
     const body = await req.json()
@@ -94,7 +100,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ tena
     )
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       entity_type: 'tenant_email_settings',
       entity_id: t.tenantId,
@@ -102,6 +108,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ tena
       actor_user_id: t.userId,
       new_values: { from_name: fromName, from_email: fromEmail, reply_to_email: replyTo },
     })
+    if (auditErr) console.error('[settings/email] cambio de remitente sin auditoría:', auditErr.message)
 
     return NextResponse.json({ ok: true })
   } catch (err) {

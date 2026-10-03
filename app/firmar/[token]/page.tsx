@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { CheckCircle2 } from 'lucide-react'
 import { formatNumber } from '@/lib/utils'
 
 type Tier = { label: string | null; min_cash: number; max_cash: number | null; percent: number }
@@ -35,7 +36,10 @@ const tierText = (t: Tier) =>
   } → ${t.percent}%`
 
 // Sustitución en vivo de las variables del firmante para la vista previa.
-function preview(body: string, sd: Record<string, string>): string {
+function preview(body: string | null | undefined, sd: Record<string, string>): string {
+  // Un contrato sin snapshot (p. ej. creado solo con PDF adjuntado) no debe romper la
+  // página pública de firma: se muestra sin cuerpo en vez de fallar con un 500 opaco.
+  if (!body) return ''
   const dir = [sd.address, sd.postal_code, sd.city].filter(Boolean).join(', ')
   const map: Record<string, string> = {
     dni: sd.dni || '__________',
@@ -65,7 +69,9 @@ export default function FirmarPage() {
       .then((d) => {
         if (d.error) setError(d.error)
         else {
-          setData(d)
+          // Un contrato sin snapshot ni condiciones (PDF externo) no debe romper la página:
+          // se normalizan los campos opcionales para renderizar sin asumir presencia.
+          setData({ ...d, body: d.body ?? '', terms: d.terms ?? {} })
           setName(d.signerName || d.memberName || '')
           const pf = d.signerPrefill || {}
           setSd(Object.fromEntries(Object.entries(pf).map(([k, v]) => [k, (v as string) ?? ''])))
@@ -113,7 +119,7 @@ export default function FirmarPage() {
             <div>
               <span className="text-lg font-bold text-zinc-900">{data.company.name}</span>
               {(data.company.cif || data.company.address) && (
-                <p className="text-[11px] text-zinc-400">
+                <p className="text-2xs text-zinc-400">
                   {[data.company.cif && `CIF ${data.company.cif}`, data.company.address].filter(Boolean).join(' · ')}
                 </p>
               )}
@@ -176,7 +182,10 @@ export default function FirmarPage() {
 
         {done ? (
           <div className="mt-6 bg-emerald-50 border border-emerald-200 rounded-xl p-6 text-center">
-            <p className="text-emerald-800 font-medium">✓ Contrato firmado correctamente</p>
+            {/* Glifo de biblioteca en vez de un check de texto: escala con el tipo y herede el
+                color del estado (verde = éxito; el acento interactivo de la página es zinc-900). */}
+            <CheckCircle2 aria-hidden className="mx-auto mb-2 h-8 w-8 text-emerald-700" />
+            <p className="text-emerald-800 font-medium">Contrato firmado correctamente</p>
             {signedUrl && (
               <a
                 href={signedUrl}
@@ -223,7 +232,7 @@ export default function FirmarPage() {
                 type="checkbox"
                 checked={consent}
                 onChange={(e) => setConsent(e.target.checked)}
-                className="mt-0.5 accent-emerald-600"
+                className="mt-0.5 accent-zinc-900"
               />
               <span>
                 He leído y acepto las condiciones del presente contrato y consiento firmarlo electrónicamente.

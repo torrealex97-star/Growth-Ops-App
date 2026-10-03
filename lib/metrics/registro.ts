@@ -34,7 +34,7 @@ export const METRICAS_GLOBAL: DefinicionMetrica[] = [
     category: 'global',
     subcategory: 'cash',
     unit: 'eur',
-    formula: 'Suma de los cobros confirmados en el periodo',
+    formula: 'Cash consolidado neto: Stripe + cobros internos no duplicados − devoluciones',
     description: 'El dinero que de verdad ha entrado en las cuentas durante el periodo.',
     whyItMatters:
       'Es lo único que paga nóminas y anuncios. Una venta firmada que aún no se ha cobrado no sirve para pagar nada.',
@@ -56,7 +56,7 @@ export const METRICAS_GLOBAL: DefinicionMetrica[] = [
     formula: 'Suma del precio pactado de las ventas activas del periodo',
     description: 'Lo que los clientes se han comprometido a pagar, cobrado o no.',
     whyItMatters:
-      'Mide lo que se ha vendido. Comparada con el cash collected dice cuánto dinero está pendiente de entrar.',
+      'Mide lo vendido en el periodo. Para saber cuánto queda pendiente hay que vincular los cobros a esas mismas ventas; el cash total puede incluir cuotas anteriores.',
     dataSource: 'Ventas registradas (precio del plan contratado)',
     higherIsBetter: true,
     targetType: 'ninguno',
@@ -72,9 +72,10 @@ export const METRICAS_GLOBAL: DefinicionMetrica[] = [
     subcategory: 'cash',
     unit: 'porcentaje',
     formula: 'Cash Collected / Facturación contratada × 100',
-    description: 'Qué parte de lo vendido ya está cobrada.',
+    description:
+      'Relación entre los flujos del periodo. Puede superar el 100% por cuotas de ventas anteriores; no mide deuda de una cohorte.',
     whyItMatters:
-      'Un ratio que baja avisa de que se está vendiendo a plazos más largos o de que hay impagos, antes de que se note en la caja.',
+      'Ayuda a comparar los flujos. Para evaluar deuda o impagos hay que enlazar cada cobro con su venta y vencimiento.',
     dataSource: 'Cobros y ventas',
     higherIsBetter: true,
     targetType: 'ninguno',
@@ -151,7 +152,7 @@ const METRICAS_SALES: DefinicionMetrica[] = [
     shortName: 'CAC',
     category: 'sales',
     unit: 'eur',
-    formula: 'Inversión publicitaria del periodo / Ventas del periodo',
+    formula: 'Inversión publicitaria del periodo / Clientes únicos con venta activa del mismo ámbito y periodo',
     description: 'Cuánto cuesta en publicidad conseguir un cliente que compra.',
     whyItMatters: 'Comparado con lo que deja cada cliente, dice si se puede invertir más mañana sin perder dinero.',
     dataSource: 'Inversión de la plataforma publicitaria + ventas',
@@ -269,6 +270,28 @@ const METRICAS_SALES: DefinicionMetrica[] = [
     target: 5,
     recommendedChart: 'linea',
     timeGranularity: ['dia', 'semana'],
+  }),
+  M({
+    id: 'sales.capacidad_ventas',
+    key: 'capacidad_ventas_pct',
+    name: 'Capacidad de ventas ocupada',
+    shortName: 'Capacidad',
+    category: 'sales',
+    unit: 'porcentaje',
+    formula: 'Agendas del periodo / Capacidad semanal de llamadas declarada × 100',
+    description: 'Qué parte de las llamadas que el equipo puede atender por semana ya está ocupada.',
+    whyItMatters:
+      'Acercarse al 100% es un techo de capacidad, no un resultado de negocio: más leads no sirven de nada si no hay dónde ponerlos. Por eso no lleva objetivo ni semáforo — alto no es "bueno" ni "malo" por sí solo.',
+    dataSource: 'Agendas del periodo + capacidad semanal declarada en el contexto de negocio',
+    // SIN OBJETIVO A PROPÓSITO: es información de capacidad, no un KPI a maximizar ni a minimizar.
+    // La flecha de variación usa `false` porque el uso que este número tiene en evaluarEscalado() es de
+    // aviso (cerca del 100% frena el escalado), no de logro — pero el semáforo (gris, por targetType
+    // 'ninguno') es lo que de verdad evita que se lea como un juicio.
+    higherIsBetter: false,
+    targetType: 'ninguno',
+    recommendedChart: 'linea',
+    timeGranularity: ['semana', 'mes'],
+    calculationDependencies: ['agendas'],
   }),
   M({
     id: 'sales.bamfam_rate',

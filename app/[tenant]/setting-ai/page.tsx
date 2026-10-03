@@ -22,6 +22,7 @@ import {
   GraduationCap,
 } from 'lucide-react'
 import ConversacionesTab from './ConversacionesTab'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 
 type Who = 'lead' | 'agent'
 interface Msg {
@@ -189,10 +190,16 @@ function EntrenamientoTab() {
   // ---------- Persist ----------
   useEffect(() => {
     if (!hydrated) return
-    localStorage.setItem(
-      LS,
-      JSON.stringify({ threads, activeId, corrections, basePrompt, notes, mode, model, autocorrect, persona })
-    )
+    // localStorage puede lanzar (modo privado de Safari/Firefox, cuota agotada): la escritura
+    // sin capturar rompería el efecto en CADA cambio de estado. Si falla, se avisa una vez.
+    try {
+      localStorage.setItem(
+        LS,
+        JSON.stringify({ threads, activeId, corrections, basePrompt, notes, mode, model, autocorrect, persona })
+      )
+    } catch {
+      console.warn('[setting-ai] persistencia local no disponible (navegador privado o cuota llena)')
+    }
   }, [threads, activeId, corrections, basePrompt, notes, mode, model, autocorrect, persona, hydrated])
 
   useEffect(() => {
@@ -473,7 +480,7 @@ function EntrenamientoTab() {
           </div>
           <div>
             <h1 className="text-base font-bold text-foreground leading-tight">Setting AI</h1>
-            <p className="text-[11px] text-muted-foreground leading-tight">
+            <p className="text-2xs text-muted-foreground leading-tight">
               {BRAND} · {BRAND_PERSON}
             </p>
           </div>
@@ -554,13 +561,13 @@ function EntrenamientoTab() {
               </button>
             </div>
             {mode === 'sim' && (
-              <div className="flex gap-1.5 items-end flex-wrap text-[10px] text-muted-foreground">
+              <div className="flex gap-1.5 items-end flex-wrap text-3xs text-muted-foreground">
                 <label className="flex flex-col gap-0.5">
                   Avatar
                   <select
                     value={persona.avatar}
                     onChange={(e) => setPersona({ ...persona, avatar: +e.target.value })}
-                    className="bg-muted border border-border rounded px-1.5 py-1 text-[11px] text-foreground"
+                    className="bg-muted border border-border rounded px-1.5 py-1 text-2xs text-foreground"
                   >
                     <option value={1}>1 · Emprendedor</option>
                     <option value={2}>2 · Agencia</option>
@@ -573,7 +580,7 @@ function EntrenamientoTab() {
                   <select
                     value={persona.registro}
                     onChange={(e) => setPersona({ ...persona, registro: e.target.value })}
-                    className="bg-muted border border-border rounded px-1.5 py-1 text-[11px] text-foreground"
+                    className="bg-muted border border-border rounded px-1.5 py-1 text-2xs text-foreground"
                   >
                     <option value="casual">Casual</option>
                     <option value="serio">Serio</option>
@@ -584,7 +591,7 @@ function EntrenamientoTab() {
                   <select
                     value={persona.dureza}
                     onChange={(e) => setPersona({ ...persona, dureza: e.target.value })}
-                    className="bg-muted border border-border rounded px-1.5 py-1 text-[11px] text-foreground"
+                    className="bg-muted border border-border rounded px-1.5 py-1 text-2xs text-foreground"
                   >
                     <option value="baja">Baja</option>
                     <option value="media">Media</option>
@@ -597,14 +604,14 @@ function EntrenamientoTab() {
                     value={persona.objecion}
                     onChange={(e) => setPersona({ ...persona, objecion: e.target.value })}
                     placeholder="ej: no tengo dinero"
-                    className="bg-muted border border-border rounded px-1.5 py-1 text-[11px] text-foreground w-28"
+                    className="bg-muted border border-border rounded px-1.5 py-1 text-2xs text-foreground w-28"
                   />
                 </label>
               </div>
             )}
             <div className="flex-1" />
             <label
-              className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer"
+              className="flex items-center gap-1.5 text-2xs text-muted-foreground cursor-pointer"
               title="Tras cada respuesta, un crítico la evalúa y añade correcciones"
             >
               <input
@@ -619,14 +626,14 @@ function EntrenamientoTab() {
               onClick={() => {
                 if (conv.length === 0 || confirm('¿Que abra el DM el agente ahora?')) agentReply(conv)
               }}
-              className="text-[11px] px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground"
+              className="text-2xs px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground"
             >
               ▶️ Que abra
             </button>
             {mode === 'sim' && (
               <button
                 onClick={simStep}
-                className="text-[11px] px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground"
+                className="text-2xs px-2 py-1 rounded border border-border text-muted-foreground hover:text-foreground"
               >
                 🤖 Lead escribe
               </button>
@@ -658,7 +665,7 @@ function EntrenamientoTab() {
                   <div className="flex items-center gap-1.5 mt-0.5 mb-1">
                     <button
                       onClick={() => startCorrection(m)}
-                      className="text-[10px] px-2 py-0.5 rounded border border-border text-muted-foreground hover:text-amber-300 hover:border-amber-500/50"
+                      className="text-3xs px-2 py-0.5 rounded border border-border text-muted-foreground hover:text-amber-300 hover:border-amber-500/50"
                     >
                       ✏️ Corregir
                     </button>
@@ -748,18 +755,18 @@ function EntrenamientoTab() {
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                    <div className="text-[11px] text-muted-foreground mb-1.5 border-l-2 border-border pl-2">
+                    <div className="text-2xs text-muted-foreground mb-1.5 border-l-2 border-border pl-2">
                       <b className="text-foreground font-medium">Lead:</b> {c.leadMsg || '—'}
                       <br />
                       <b className="text-foreground font-medium">Agente:</b> {c.agentMsg || '—'}
                     </div>
-                    <p className="text-[10px] text-muted-foreground mb-0.5">¿Qué mejorar? (regla)</p>
+                    <p className="text-3xs text-muted-foreground mb-0.5">¿Qué mejorar? (regla)</p>
                     <textarea
                       value={c.note || ''}
                       onChange={(e) => updateCorr(c.id, 'note', e.target.value)}
                       className="w-full bg-background border border-border rounded-lg p-2 text-xs mb-1.5 min-h-[40px]"
                     />
-                    <p className="text-[10px] text-muted-foreground mb-0.5">Cómo debería haber respondido (opcional)</p>
+                    <p className="text-3xs text-muted-foreground mb-0.5">Cómo debería haber respondido (opcional)</p>
                     <textarea
                       value={c.better || ''}
                       onChange={(e) => updateCorr(c.id, 'better', e.target.value)}
@@ -770,7 +777,7 @@ function EntrenamientoTab() {
               )
             ) : (
               <>
-                <p className="text-[11px] text-muted-foreground mb-2">
+                <p className="text-2xs text-muted-foreground mb-2">
                   Contexto extra de la empresa/voz que quieras dar al motor de mejora del prompt (historia, muletillas,
                   casos, datos). Se guarda solo.
                 </p>
@@ -806,7 +813,7 @@ function EntrenamientoTab() {
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
-            <span className="text-[11px] text-muted-foreground">{status}</span>
+            <span className="text-2xs text-muted-foreground">{status}</span>
           </div>
         </aside>
       </div>
@@ -906,7 +913,7 @@ function EntrenamientoTab() {
           <div className="flex-1 overflow-auto p-4">
             {!atStarted ? (
               <div className="flex gap-4 items-end flex-wrap">
-                <label className="text-[11px] text-muted-foreground flex flex-col gap-1">
+                <label className="text-2xs text-muted-foreground flex flex-col gap-1">
                   Conversaciones
                   <input
                     type="number"
@@ -917,7 +924,7 @@ function EntrenamientoTab() {
                     className="w-24 bg-muted border border-border rounded px-2 py-1.5 text-foreground text-sm"
                   />
                 </label>
-                <label className="text-[11px] text-muted-foreground flex flex-col gap-1">
+                <label className="text-2xs text-muted-foreground flex flex-col gap-1">
                   Turnos c/u
                   <input
                     type="number"
@@ -928,7 +935,7 @@ function EntrenamientoTab() {
                     className="w-24 bg-muted border border-border rounded px-2 py-1.5 text-foreground text-sm"
                   />
                 </label>
-                <label className="text-[11px] text-muted-foreground flex flex-col gap-1">
+                <label className="text-2xs text-muted-foreground flex flex-col gap-1">
                   Personas
                   <select
                     value={atPersonasMode}
@@ -939,7 +946,7 @@ function EntrenamientoTab() {
                     <option value="fixed">La del panel</option>
                   </select>
                 </label>
-                <label className="text-[11px] text-muted-foreground flex flex-col gap-1">
+                <label className="text-2xs text-muted-foreground flex flex-col gap-1">
                   Modelo agente
                   <select
                     value={atModel}
@@ -959,7 +966,7 @@ function EntrenamientoTab() {
                 >
                   <Play className="w-4 h-4" /> Empezar
                 </button>
-                <p className="text-[11px] text-muted-foreground w-full">
+                <p className="text-2xs text-muted-foreground w-full">
                   El lead y el crítico usan Haiku (rápido y barato). El agente usa el modelo elegido.
                 </p>
               </div>
@@ -996,13 +1003,13 @@ function EntrenamientoTab() {
                           e.k === 'h' ? (
                             <div
                               key={i}
-                              className="text-[11px] text-brand-400 font-semibold mt-3 pt-2 border-t border-dashed border-border first:border-0 first:mt-0"
+                              className="text-2xs text-brand-400 font-semibold mt-3 pt-2 border-t border-dashed border-border first:border-0 first:mt-0"
                             >
                               💬 Conversación {(e.convo ?? 0) + 1} · avatar {e.persona?.avatar}, {e.persona?.registro},
                               dureza {e.persona?.dureza}, obj: {e.persona?.objecion}
                             </div>
                           ) : e.k === 'crit' ? (
-                            <div key={i} className="text-[11px] text-muted-foreground my-1">
+                            <div key={i} className="text-2xs text-muted-foreground my-1">
                               {e.ok ? '   ✅ ok' : '   ⚠️ ' + e.issues.map((x) => x.severidad).join(', ')}
                             </div>
                           ) : (
@@ -1102,16 +1109,23 @@ function EntrenamientoTab() {
 
 function Modal({ children, onClose, big }: { children: ReactNode; onClose: () => void; big?: boolean }) {
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className={`bg-card border border-border rounded-2xl flex flex-col ${big ? 'w-[min(1150px,95vw)] h-[min(88vh,900px)]' : 'w-[min(900px,92vw)] h-[min(80vh,760px)]'}`}
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent
+        className={
+          big
+            ? 'w-[min(1150px,95vw)] h-[min(88vh,900px)] max-w-none rounded-2xl gap-0 p-0'
+            : 'w-[min(900px,92vw)] h-[min(80vh,760px)] max-w-none rounded-2xl gap-0 p-0'
+        }
       >
         {children}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 function ModalHead({ title }: { title: ReactNode }) {
-  return <h3 className="px-4 py-3 border-b border-border text-sm text-foreground font-semibold">{title}</h3>
+  return (
+    <DialogTitle className="px-4 py-3 border-b border-border text-sm text-foreground font-semibold">
+      {title}
+    </DialogTitle>
+  )
 }

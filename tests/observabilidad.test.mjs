@@ -67,6 +67,16 @@ test('LCP, INP y CLS se miden en el navegador sin crear otro proveedor', () => {
   assert.match(sinComentarios(leer('app/layout.tsx')), /<WebVitalsReporter \/>/)
 })
 
+// Hallazgo en producción (Sentry, 28-sep): decenas de rutas sin relación reportaban el MISMO valor
+// exacto de CLS, todas "poor" — CLS es acumulativo para toda la pestaña (App Router nunca recarga
+// el documento en una navegación de cliente), así que etiquetarlo con la ruta ACTUAL contamina cada
+// página visitada después de un único salto de layout temprano. Se fija con la ruta de entrada.
+test('CLS se etiqueta con la ruta de entrada de la sesión, no con la ruta actual', () => {
+  const codigo = sinComentarios(leer('components/observability/WebVitalsReporter.tsx'))
+  assert.match(codigo, /const rutaEntrada = useRef\(route\)/)
+  assert.match(codigo, /route: metric\.name === 'CLS' \? rutaEntrada\.current : route/)
+})
+
 test('los límites de error registran la excepción sin exponer el mensaje técnico', () => {
   for (const fichero of ['app/[tenant]/error.tsx', 'app/global-error.tsx']) {
     const codigo = sinComentarios(leer(fichero))

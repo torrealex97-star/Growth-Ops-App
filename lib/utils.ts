@@ -22,13 +22,18 @@ export function formatCurrency(amount: number | null | undefined, currency = 'EU
 
 export function formatDateTime(date: string | Date | null | undefined): string {
   if (!date) return '—'
+  const d = new Date(date)
+  // Intl.DateTimeFormat.format() LANZA RangeError con una Invalid Date en vez de devolver algo
+  // pintable — sin este guard, un valor de fecha malformado tumbaba el render entero en vez de
+  // mostrar un guion, exactamente lo que formatCurrency/formatPercent sí evitan con su null-check.
+  if (Number.isNaN(d.getTime())) return '—'
   return new Intl.DateTimeFormat('es-ES', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(date))
+  }).format(d)
 }
 
 // `.toFixed()` siempre usa punto decimal (es-en), mezclando con el resto de la app que
@@ -87,4 +92,20 @@ export function formatDate(dateStr: string | null | undefined): string {
 function truncate(str: string, maxLen: number): string {
   if (!str || str.length <= maxLen) return str
   return str.slice(0, maxLen) + '…'
+}
+
+// Normaliza texto para búsquedas (minúsculas + sin acentos). Fuente ÚNICA: vive aquí (lib/, node
+// puede cargarlo en tests) y components/ui/search-box.tsx la re-exporta por compatibilidad.
+export function normalizeText(s: string): string {
+  return s
+    .toLocaleLowerCase('es-ES')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
+// Compara un teléfono ignorando espacios, guiones y prefijo +.
+export function phoneMatches(phone: string | null | undefined, query: string): boolean {
+  const qd = query.replace(/[^\d]/g, '')
+  if (qd.length < 3) return false
+  return (phone ?? '').replace(/[^\d]/g, '').includes(qd)
 }

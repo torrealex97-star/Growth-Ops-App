@@ -10,8 +10,23 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { DEFAULT_CONFIG, type VslConfig } from '@/lib/vsl/types'
-import { Plus, Copy, Check, Trash2, Upload, Loader2, Play, Eye, Users, Flag, Percent } from 'lucide-react'
+import { DEFAULT_CONFIG, derivadosDeSource, type VslConfig } from '@/lib/vsl/types'
+import { VslPlayer } from '@/components/vsl/VslPlayer'
+import {
+  Plus,
+  Copy,
+  Check,
+  Trash2,
+  Upload,
+  Loader2,
+  Play,
+  Eye,
+  Users,
+  Flag,
+  Percent,
+  Video,
+  AlertTriangle,
+} from 'lucide-react'
 
 interface Video {
   id: string
@@ -35,6 +50,7 @@ interface Metrics {
     completionRate: number
   }
   retention: { sec: number; viewers: number; pct: number }[]
+  milestones: { pct: number; sessions: number; rate: number }[]
   drops: { sec: number; from: number; to: number; delta: number }[]
   devices: { device: string; n: number }[]
   leads: {
@@ -47,6 +63,18 @@ interface Metrics {
   }[]
   /** Cuántas personas identificadas NO se muestran por permisos. 0 = las ves todas. */
   leadsOcultos?: number
+}
+
+// KPIs agregados de TODOS los vídeos de la subcuenta (criterios idénticos a las métricas por vídeo).
+interface Resumen {
+  videos: number
+  impressions: number
+  plays: number
+  completed: number
+  identified: number
+  playRate: number
+  completionRate: number
+  avgPercent: number
 }
 
 function fmt(sec: number): string {
@@ -65,7 +93,9 @@ export function VslDashboard() {
   const [editing, setEditing] = useState<Partial<Video> | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [metrics, setMetrics] = useState<Metrics | null>(null)
+  const [resumen, setResumen] = useState<Resumen | null>(null)
   const [copied, setCopied] = useState(false)
+  const [previewSlug, setPreviewSlug] = useState<string | null>(null) // hover: preview animado
 
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
 
@@ -82,6 +112,12 @@ export function VslDashboard() {
 
   useEffect(() => {
     loadVideos()
+    // Resumen agregado de la subcuenta (error ≠ vacío: se muestra aviso, no ceros).
+    fetch(`/api/${tenant}/evergreen/vsl/resumen`)
+      .then(async (r) => {
+        if (r.ok) setResumen(await r.json())
+      })
+      .catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadMetrics = useCallback(
@@ -134,22 +170,63 @@ export function VslDashboard() {
         </Button>
       </div>
 
-      {/* Selector de vídeos */}
+      {/* Resumen de la subcuenta: KPIs agregados de todos los VSL (conectado a las métricas) */}
+      {resumen && (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          <Kpi icon={Video} label="Vídeos" value={resumen.videos} />
+          <Kpi icon={Eye} label="Impresiones" value={resumen.impressions} />
+          <Kpi
+            icon={Play}
+            label="Play rate"
+            value={resumen.impressions > 0 ? `${resumen.playRate}%` : '—'}
+            sub={`${resumen.plays} plays`}
+          />
+          <Kpi icon={Percent} label="% medio visto" value={resumen.plays > 0 ? `${resumen.avgPercent}%` : '—'} />
+          <Kpi
+            icon={Flag}
+            label="Completado"
+            value={resumen.plays > 0 ? `${resumen.completionRate}%` : '—'}
+            sub={`${resumen.completed} llegan al final`}
+          />
+        </div>
+      )}
+
+      {/* Selector de vídeos: tarjetas con miniatura y preview animado de Bunny al pasar el ratón */}
       <div className="flex flex-wrap gap-2">
         {loading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
-        {videos.map((v) => (
-          <button
-            key={v.id}
-            onClick={() => setSelected(v.slug)}
-            className={`rounded-lg border px-3 py-2 text-sm transition ${
-              selected === v.slug
-                ? 'border-brand-500 bg-brand-500/15 text-foreground'
-                : 'dashboard-card text-foreground hover:border-white/20'
-            }`}
-          >
-            {v.name}
-          </button>
-        ))}
+        {videos.map((v) => {
+          const d = derivadosDeSource(v.source_url)
+          return (
+            <button
+              key={v.id}
+              onClick={() => setSelected(v.slug)}
+              onMouseEnter={() => d.preview && setPreviewSlug(v.slug)}
+              onMouseLeave={() => setPreviewSlug((s) => (s === v.slug ? null : s))}
+              className={`group relative w-44 overflow-hidden rounded-lg border text-left transition ${
+                selected === v.slug
+                  ? 'border-brand-500 bg-brand-500/15 text-foreground'
+                  : 'dashboard-card text-foreground hover:border-white/20'
+              }`}
+            >
+              <div className="relative aspect-video w-full overflow-hidden bg-black">
+                {d.thumbnail ? (
+                  <img src={d.thumbnail} alt="" loading="lazy" className="h-full w-full object-cover opacity-90" />
+                ) : v.poster_url ? (
+                  <img src={v.poster_url} alt="" loading="lazy" className="h-full w-full object-cover opacity-90" />
+                ) : null}
+                {d.preview && previewSlug === v.slug && (
+                  <img src={d.preview} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                )}
+                {!v.source_url && (
+                  <span className="absolute right-1 top-1 flex items-center gap-1 rounded bg-red-950/90 px-1.5 py-0.5 text-2xs font-medium text-red-300">
+                    <AlertTriangle className="h-3 w-3" /> Sin fuente
+                  </span>
+                )}
+              </div>
+              <div className="truncate px-3 py-2 text-sm">{v.name}</div>
+            </button>
+          )
+        })}
         {!loading && loadError && (
           <p className="text-sm text-destructive">
             No se pudieron cargar los vídeos (error del servidor). Comprueba la conexión a la base de datos e inténtalo
@@ -190,13 +267,26 @@ export function VslDashboard() {
                 >
                   Editar / configurar
                 </Button>
-                <Button size="sm" variant="outline" onClick={copySnippet}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={copySnippet}
+                  disabled={!videos.find((x) => x.slug === selected)?.source_url}
+                >
                   {copied ? <Check className="mr-1 h-4 w-4" /> : <Copy className="mr-1 h-4 w-4" />}
                   {copied ? 'Copiado' : 'Copiar'}
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
+              {!videos.find((x) => x.slug === selected)?.source_url && (
+                <p className="flex items-start gap-2 rounded-lg border border-red-900/50 bg-red-950/30 px-3 py-2 text-sm text-red-300">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  Este vídeo todavía no tiene un archivo de fuente. Si pegas este código ahora, el reproductor mostrará
+                  &quot;Este vídeo aún no tiene fuente configurada&quot;. Pulsa &quot;Editar / configurar&quot; y sube
+                  el vídeo (o pega su URL de Bunny/.mp4) antes de compartir el enlace.
+                </p>
+              )}
               <pre className="overflow-x-auto rounded-lg bg-black/40 p-3 text-xs text-foreground">{snippet}</pre>
             </CardContent>
           </Card>
@@ -207,14 +297,18 @@ export function VslDashboard() {
             <Kpi
               icon={Play}
               label="Play rate"
-              value={`${metrics.totals.playRate}%`}
+              value={metrics.totals.impressions > 0 ? `${metrics.totals.playRate}%` : '—'}
               sub={`${metrics.totals.plays} plays`}
             />
-            <Kpi icon={Percent} label="% medio visto" value={`${metrics.totals.avgPercent}%`} />
+            <Kpi
+              icon={Percent}
+              label="% medio visto"
+              value={metrics.totals.plays > 0 ? `${metrics.totals.avgPercent}%` : '—'}
+            />
             <Kpi
               icon={Flag}
               label="Completado"
-              value={`${metrics.totals.completionRate}%`}
+              value={metrics.totals.plays > 0 ? `${metrics.totals.completionRate}%` : '—'}
               sub={`${metrics.totals.completed} llegan al final`}
             />
           </div>
@@ -225,7 +319,7 @@ export function VslDashboard() {
               <CardTitle className="text-base text-foreground">Retención (cuánta gente sigue viendo)</CardTitle>
             </CardHeader>
             <CardContent>
-              {metrics.retention.length > 1 ? (
+              {metrics.totals.plays > 0 && metrics.retention.length > 1 ? (
                 <ResponsiveContainer width="100%" height={260}>
                   <AreaChart data={metrics.retention} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
                     <defs>
@@ -267,6 +361,25 @@ export function VslDashboard() {
             </CardContent>
           </Card>
 
+          {/* Hitos de visión (25/50/75/95/100 %): paridad de reporting de Vidalytics/Wistia */}
+          <Card className="dashboard-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base text-foreground">Hitos de visión</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                {metrics.milestones.map((m) => (
+                  <div key={m.pct} className="rounded-lg bg-black/30 px-3 py-2 text-center">
+                    <p className="text-lg font-semibold tabular-nums text-foreground">
+                      {metrics.totals.plays > 0 ? `${m.rate}%` : '—'}
+                    </p>
+                    <p className="text-2xs text-muted-foreground">llegan al {m.pct}%</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="grid gap-4 md:grid-cols-2">
             {/* Puntos de caída */}
             <Card className="dashboard-card">
@@ -274,7 +387,13 @@ export function VslDashboard() {
                 <CardTitle className="text-base text-foreground">Mayores caídas</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {metrics.drops.length === 0 && <p className="text-sm text-muted-foreground">Sin caídas relevantes.</p>}
+                {metrics.drops.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    {metrics.totals.plays > 0
+                      ? 'Sin caídas relevantes.'
+                      : 'Sin visionados suficientes para evaluar caídas.'}
+                  </p>
+                )}
                 {metrics.drops.map((d, i) => (
                   <div key={i} className="flex items-center justify-between rounded-lg bg-black/30 px-3 py-2 text-sm">
                     <span className="text-foreground">
@@ -353,7 +472,7 @@ export function VslDashboard() {
                       {metrics.leads.map((l, i) => (
                         <tr key={i} className="border-t border-white/5">
                           <td className="py-2">
-                            <div className="text-[#e2e8f0]">{l.email}</div>
+                            <div className="text-zinc-200">{l.email}</div>
                             {l.name && <div className="text-xs text-muted-foreground">{l.name}</div>}
                           </td>
                           <td className="py-2">
@@ -484,6 +603,17 @@ function VideoForm({
 
   const save = async () => {
     setErr(null)
+    // No es un bloqueo duro (una subida a Bunny puede seguir procesando y aun así conviene guardar
+    // el resto de la configuración), pero sí una confirmación explícita: guardar así deja el vídeo
+    // en un estado en el que su embed público muestra "sin fuente configurada" hasta que se complete.
+    if (
+      !sourceUrl.trim() &&
+      !confirm(
+        'Este vídeo no tiene ningún archivo ni URL de fuente todavía. Si lo guardas así, su código de embed no reproducirá nada hasta que subas el vídeo. ¿Guardar de todas formas?'
+      )
+    ) {
+      return
+    }
     setSaving(true)
     try {
       const r = await fetch(`/api/${tenant}/evergreen/vsl/videos`, {
@@ -581,6 +711,33 @@ function VideoForm({
           </div>
         </div>
 
+        {/* Vista previa en vivo: el mismo VslPlayer que verá quien visite la landing, con la config
+            actual del formulario (colores, CTA, autoplay…) aplicada en tiempo real. `preview` corta
+            toda escritura de tracking/localStorage — mirar el propio vídeo no puede sumar una
+            impresión falsa a sus métricas. Sin esto, la única forma de ver cómo queda era guardar,
+            copiar el embed y pegarlo en otra página. */}
+        <div>
+          <Label className="text-foreground">Vista previa</Label>
+          {sourceUrl.trim() ? (
+            <div className="mt-1 overflow-hidden rounded-lg">
+              <VslPlayer
+                preview
+                video={{
+                  slug: initial.slug || 'preview',
+                  source_url: sourceUrl,
+                  poster_url: posterUrl || null,
+                  duration_seconds: duration,
+                  config,
+                }}
+              />
+            </div>
+          ) : (
+            <div className="mt-1 flex aspect-video items-center justify-center rounded-lg border border-dashed border-white/15 bg-black/20 text-sm text-muted-foreground">
+              Sube o pega la fuente del vídeo para ver aquí la vista previa.
+            </div>
+          )}
+        </div>
+
         {/* Config del reproductor */}
         <div className="grid gap-4 rounded-lg bg-black/20 p-3 md:grid-cols-2">
           <div className="flex items-center gap-3">
@@ -627,6 +784,14 @@ function VideoForm({
           </label>
           <label className="flex items-center gap-2 text-sm text-foreground">
             <Checkbox checked={config.loop} onCheckedChange={(v) => setCfg('loop', !!v)} /> Repetir en bucle al terminar
+          </label>
+          <label className="flex items-center gap-2 text-sm text-foreground">
+            <Checkbox checked={config.showCentralPlay} onCheckedChange={(v) => setCfg('showCentralPlay', !!v)} /> Botón
+            play central al pausar
+          </label>
+          <label className="flex items-center gap-2 text-sm text-foreground">
+            <Checkbox checked={config.showFullscreenBtn} onCheckedChange={(v) => setCfg('showFullscreenBtn', !!v)} />{' '}
+            Botón de pantalla completa
           </label>
 
           {/* Prueba social */}
@@ -688,6 +853,50 @@ function VideoForm({
                 placeholder="Mensaje del gancho…"
                 className="mt-2 bg-black/30 text-sm"
               />
+            )}
+          </div>
+
+          {/* CTA programado (paridad Vidalytics): botón en un % del vídeo con auto-pausa opcional */}
+          <div className="md:col-span-2 border-t border-white/10 pt-3">
+            <label className="flex items-center gap-2 text-sm text-foreground">
+              <Checkbox checked={config.ctaEnabled} onCheckedChange={(v) => setCfg('ctaEnabled', !!v)} /> Mostrar un
+              botón de acción en un momento del vídeo
+            </label>
+            {config.ctaEnabled && (
+              <div className="mt-2 grid gap-2 md:grid-cols-2">
+                <Input
+                  value={config.ctaText}
+                  onChange={(e) => setCfg('ctaText', e.target.value)}
+                  placeholder="Texto del botón (p. ej. Reservar llamada)"
+                  className="bg-black/30 text-sm"
+                />
+                <Input
+                  value={config.ctaUrl}
+                  onChange={(e) => setCfg('ctaUrl', e.target.value)}
+                  placeholder="URL de destino (p. ej. https://… o /calendly/…)"
+                  className="bg-black/30 text-sm"
+                />
+                <label className="flex items-center gap-2 text-sm text-foreground">
+                  <span className="whitespace-nowrap">Aparece en:</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={config.ctaAtPercent}
+                    onChange={(e) => setCfg('ctaAtPercent', Math.min(100, Math.max(0, Number(e.target.value))))}
+                    className="h-8 w-20 bg-black/30"
+                  />
+                  <span className="text-muted-foreground">% del vídeo</span>
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground">
+                  <Checkbox checked={config.ctaPause} onCheckedChange={(v) => setCfg('ctaPause', !!v)} /> Pausar el
+                  vídeo cuando aparece
+                </label>
+                <label className="flex items-center gap-2 text-sm text-foreground">
+                  <Checkbox checked={config.ctaOnce} onCheckedChange={(v) => setCfg('ctaOnce', !!v)} /> Cerrable (si el
+                  usuario lo cierra no vuelve hasta recargar)
+                </label>
+              </div>
             )}
           </div>
         </div>

@@ -56,14 +56,14 @@ export type User = {
   // v12 — afiliado + acceso por departamento
   affiliate_code: string | null
   dept_overrides: string[] | null
+  // Quién comisiona (2026-09-23): false = exento (p.ej. socio) — el motor no genera ni
+  // proyecta comisiones para esta persona en ningún rol (setter/closer/afiliado/colaborador).
+  pays_commissions: boolean
   // v14 — código de tracking para enlaces (utm_term setter / utm_content afiliado)
   tracking_code: string | null
   // v17 — datos personales (se completan al firmar contratos)
   dni: string | null
   address: string | null
-  // Si es false, este usuario NUNCA recibe comisión de closer/setter/afiliado (p.ej. un socio con
-  // reparto de beneficio aparte). Default true: por defecto todos comisionan como hasta ahora.
-  pays_commissions: boolean
   created_at: string
   updated_at: string
 }
@@ -176,6 +176,7 @@ export type ContactAttribution = {
   first_touch_at: string | null
   last_touch_at: string | null
   is_primary: boolean
+  collaborator_id: string | null
   // v7 — UTMs de primer y último contacto
   first_utm_source: string | null
   first_utm_medium: string | null

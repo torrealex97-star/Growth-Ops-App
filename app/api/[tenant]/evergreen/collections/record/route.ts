@@ -97,11 +97,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Antes de insertar: si esta venta no tenía NINGÚN cobro previo, este es el primero
     // (equivale a "venta creada" de cara a creatuagente, que no ve el alta de la venta en sí,
     // solo el cobro).
-    const { count: priorCollections } = await sb
+    const { count: priorCollections, error: priorErr } = await sb
       .from('collections')
       .select('id', { count: 'exact', head: true })
       .eq('tenant_id', t.tenantId)
       .eq('sale_id', saleId)
+    // El count fallido NO se interpreta: "¿es el primer cobro?" con una lectura corrupta sería
+    // reenviar el evento `venta.registrada` a Creatuagente (el count null activaría la rama
+    // isFirstCollection). Fail-ruidoso: el usuario reintenta y el endpoint es idempotente.
+    if (priorErr) {
+      return NextResponse.json(
+        { error: `No se pudo comprobar si es el primer cobro de la venta: ${priorErr.message}` },
+        { status: 500 }
+      )
+    }
     const isFirstCollection = !priorCollections
 
     const { data: coll, error: collErr } = await sb
@@ -148,7 +157,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     // Auditoría del cobro. La hacía la pantalla de "Registrar cobro" por su cuenta y esta ruta no,
     // así que el mismo hecho de negocio quedaba auditado o no según por dónde entrara.
-    await sb.from('audit_logs').insert({
+    const { error: auditErr } = await sb.from('audit_logs').insert({
       tenant_id: t.tenantId,
       actor_user_id: t.userId,
       entity_type: 'collection',
@@ -162,6 +171,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         needs_commission_review: needsReview,
       },
     })
+    if (auditErr) console.error('[collections/record] audit_logs no se pudo escribir:', auditErr.message)
 
     // Fire-and-forget: no debe tumbar el registro del cobro (ya aplicado arriba) si
     // creatuagente está caído o el lead no tiene token. Un solo evento venta.registrada

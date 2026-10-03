@@ -98,6 +98,7 @@ export default function PnlPage() {
   const [refunds, setRefunds] = useState<RefundRow[]>([])
   const [expenses, setExpenses] = useState<ExpenseRow[]>([])
   const [commissions, setCommissions] = useState<CommissionRow[]>([])
+  const [fuentesEnError, setFuentesEnError] = useState<string[]>([])
 
   const monthOptions = useMemo(() => lastNMonths(12, nowYm()).reverse(), [])
 
@@ -136,6 +137,27 @@ export default function PnlPage() {
           .range(0, FINANCE_QUERY_ROW_CAP),
       ])
       if (!mounted) return
+      // Un fallo aislado de lectura NO se convierte en "esa fuente está a cero": el P&L pintaría
+      // ingresos/costes parciales como si fueran el mes completo. Se declara la fuente ilegible
+      // y la UI avisa en vez de mostrar cifras falsas (patrón `primerError` del resumen).
+      const fuentesFallidas = [
+        salesRes.error && 'ventas',
+        collRes.error && 'cobros',
+        refundsRes.error && 'devoluciones',
+        expensesRes.error && 'gastos',
+        commissionsRes.error && 'comisiones',
+      ].filter(Boolean) as string[]
+      if (fuentesFallidas.length) {
+        setFuentesEnError(fuentesFallidas)
+        setSales([])
+        setCollections([])
+        setRefunds([])
+        setExpenses([])
+        setCommissions([])
+        setLoading(false)
+        return
+      }
+      setFuentesEnError([])
       // El embed de payment_plans llega anidado: se aplana aquí para que el predicado de venta
       // (cuentaComoVenta) pueda ver si la fila es una reserva todavía abierta.
       setSales(((salesRes.data || []) as SaleRow[]).map((v) => ({ ...v, payment_plan_method: metodoDePlan(v) })))
@@ -173,7 +195,10 @@ export default function PnlPage() {
             <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">
               I&amp;G — Ingresos y Gastos
             </h1>
-            <p className="text-muted-foreground text-sm mt-1">Cuenta de resultados mensual</p>
+            <p className="text-muted-foreground text-sm mt-1">
+              Cuenta de resultados mensual del libro interno. Incluye cobros de ventas anteriores; no es la caja
+              consolidada con Stripe.
+            </p>
           </div>
         </div>
         <label className="flex items-center gap-2 text-sm">
@@ -192,23 +217,32 @@ export default function PnlPage() {
         </label>
       </div>
 
+      {fuentesEnError.length > 0 && (
+        <div className="dashboard-card p-4 border border-red-500/40 bg-red-500/5" role="alert">
+          <p className="text-sm text-red-400">
+            No se pudieron leer: {fuentesEnError.join(', ')}. Las cifras del P&amp;L NO se muestran porque estarían
+            incompletas. Corrige la fuente fallida y recarga la página.
+          </p>
+        </div>
+      )}
+
       {loading ? (
         <div className="dashboard-card p-6 space-y-3">
           {Array.from({ length: 14 }).map((_, i) => (
             <div key={i} className="h-5 bg-muted rounded animate-pulse" style={{ width: `${60 + (i % 5) * 8}%` }} />
           ))}
         </div>
-      ) : (
+      ) : fuentesEnError.length > 0 ? null : (
         <div className="dashboard-card p-6 divide-y divide-border">
-          <Line label="Contracted Revenue" value={money(pnl.contractedRevenue)} />
-          <Line label="Gross Revenue (Cash Collected, bruto)" value={money(pnl.grossRevenue)} />
-          <PctLine label="Realized CR" value={pct(pnl.realizedCr)} />
+          <Line label="Facturación" value={money(pnl.contractedRevenue)} />
+          <Line label="Cobros brutos (libro interno)" value={money(pnl.grossRevenue)} />
+          <PctLine label="Cobros del periodo / Facturación del periodo" value={pct(pnl.realizedCr)} />
           <Line label="(−) Devoluciones" value={`− ${money(pnl.totalRefunds)}`} negative />
           <Line label="(−) Descuentos" value={`− ${money(pnl.totalDiscounts)}`} negative />
-          <Line label="Net Revenue (neto de devoluciones y descuentos)" value={money(pnl.netRevenue)} bold border />
+          <Line label="Ingresos netos (libro interno)" value={money(pnl.netRevenue)} bold border />
 
-          <Line label="COGS" value={`− ${money(pnl.cogs)}`} negative />
-          <Line label="Gross Profit" value={money(pnl.grossProfit)} bold border />
+          <Line label="Costes directos (COGS)" value={`− ${money(pnl.cogs)}`} negative />
+          <Line label="Margen bruto en euros" value={money(pnl.grossProfit)} bold border />
           <PctLine label="Margen" value={pct(pnl.grossMargin)} />
 
           <Line
@@ -218,13 +252,24 @@ export default function PnlPage() {
             negative={pnl.comisiones >= 0}
           />
           <Line label="Salarios" value={`− ${money(pnl.salarios)}`} indent negative />
-          <Line label="Adspend" value={`− ${money(pnl.adspend)}`} indent negative />
+          <Line label="Inversión publicitaria" value={`− ${money(pnl.adspend)}`} indent negative />
           <Line label="Software" value={`− ${money(pnl.software)}`} indent negative />
           <Line label="Comisiones plataforma" value={`− ${money(pnl.platformFees)}`} indent negative />
           <Line label="Otros" value={`− ${money(pnl.otros)}`} indent negative />
-          <Line label="Total OpEx" value={money(pnl.totalOpex)} bold border />
+          <Line label="Gastos operativos" value={money(pnl.totalOpex)} bold border />
 
-          <Line label="Pre-Tax Profit (ya neto de devoluciones)" value={money(pnl.preTaxProfit)} bold border />
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground">Resultado antes de impuestos · libro interno</p>
+            <p
+              className={`font-display text-2xl font-semibold ${pnl.preTaxProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}
+            >
+              {pnl.preTaxProfit > 0 ? '+' : ''}
+              {money(pnl.preTaxProfit)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {pnl.preTaxProfit > 0 ? 'Positivo' : pnl.preTaxProfit < 0 ? 'Negativo' : 'Equilibrado'}
+            </p>
+          </div>
           <PctLine label="Margen" value={pct(pnl.preTaxMargin)} />
           <PctLine label="ROI" value={pct(pnl.roi)} />
         </div>
