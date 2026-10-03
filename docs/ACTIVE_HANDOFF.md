@@ -1,3 +1,7 @@
+## Bloqueo de despliegue — Sentry 11 (Codex, 3-oct)
+
+PR #330 fusionada en `e4de45f`; migración aplicada y verificada. CI PASS, incluido E2E. La actualización concurrente #315 a Sentry 11 rompió el build con DSN: `withSentryConfig` requiere `@sentry/nextjs/config`. Falló producción también sin caché; corrección en `codex/sentry-build-entry` con regresión que carga configuración con DSN ficticio. No hubo reembolsos reales.
+
 ## Activación de reservas — 3-oct, PR #330
 
 Usuario autorizó la migración explícitamente. Aplicada `20261003135010_reservation_stripe_refunds.sql` en producción. Verificado: RLS activo, RPC solo service_role, cero solicitudes de devolución. No se movió dinero. Archivo realineado al historial de Supabase; CI/fusión/despliegue pendientes. Prueba Stripe real/sandbox excluida a petición del usuario. Las notas anteriores describen el estado previo.
