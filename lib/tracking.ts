@@ -69,3 +69,24 @@ export async function firstMemberOf(sb: SupabaseClient, tenantId: string, userId
   const row = (data ?? [])[0] as { user_id: string } | undefined
   return row?.user_id ?? null
 }
+
+// Resuelve user.id por email: vale el email de login de la app o el calendly_email del usuario
+// (la cuenta de Calendly puede no ser la del login — ver el webhook de Calendly). ACOTADO A LA
+// SUBCUENTA por firstMemberOf, con la misma disciplina que resolveUserIdByTrackingCode: `users`
+// es global y sin el filtro un dueño de otra subcuenta podía quedarse una agenda —y su comisión—.
+// La comparación es insensible a mayúsculas (ilike): los emails no contienen comodines % ni _,
+// así que ilike == igualdad case-insensitive. Devuelve null sin email o sin coincidencia.
+export async function resolveUserIdByEmail(
+  sb: SupabaseClient,
+  email: string | null | undefined,
+  tenantId: string
+): Promise<string | null> {
+  const e = (email ?? '').trim().toLowerCase()
+  if (!e || !tenantId) return null
+  const { data } = await sb.from('users').select('id').or(`email.ilike.${e},calendly_email.ilike.${e}`).limit(20)
+  return firstMemberOf(
+    sb,
+    tenantId,
+    (data ?? []).map((u) => (u as { id: string }).id)
+  )
+}
