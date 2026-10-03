@@ -1,5 +1,17 @@
 # PENDIENTES — [tenant] OS
 
+## Resuelto — aislamiento QA manual vs CI (3-oct, Claude Code)
+
+Responde al "ACCIÓN REQUERIDA · acceso QA" que deja la rama `codex/skeleton-emptystate-adopcion`
+(commit `29bebce`, aún sin mergear a `main` a esta fecha): el login QA volvía a fallar porque QA
+manual y CI comparten `admin@qa-e2e.test`, y el `global-setup` de Playwright resetea su contraseña
+en cada ejecución (misma causa raíz que ya se había parcheado antes en esta auditoría, no un bug
+nuevo). Fix de raíz en `scripts/e2e/setup-tenant.mjs` (slug configurable por `E2E_TENANT_SLUG`, CI
+sigue en `qa-e2e` sin cambios) + tenant `qa-manual` aprovisionado en producción con su propio admin,
+sin escalación de privilegios. Detalle en `docs/ACTIVE_HANDOFF.md` arriba de este fichero. Cuando se
+mergee la rama de Codex, usar `qa-manual` para cualquier verificación manual con navegador en
+adelante — no volver a compartir credenciales con CI.
+
 ## Actualización de entrega — 2026-10-01
 
 Arranca el ciclo **S1** (auditoría MVP profesional de punta a punta, petición explícita del usuario).

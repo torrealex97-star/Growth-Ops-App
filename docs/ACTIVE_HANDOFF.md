@@ -1,5 +1,31 @@
 # Relevo activo
 
+## Desbloqueo QA: tenant manual aislado del que resetea CI — 3-oct (Claude Code)
+
+Respuesta al P1 que la propia auditoría runtime de Codex (rama `codex/skeleton-emptystate-adopcion`,
+commit `29bebce`) dejó documentado en este mismo fichero y en `PENDIENTES.md`: QA manual y CI
+comparten `admin@qa-e2e.test`, y cada `global-setup` de Playwright corre `setup-tenant --reset` con
+su propio `E2E_PASSWORD`, pisando la contraseña que una sesión manual concurrente estaba usando —
+exactamente el mismo síntoma ("Invalid login credentials") que ya había diagnosticado y parcheado a
+mano antes en esta sesión, y que volvió a repetirse por la misma causa de fondo.
+
+**Fix de raíz, no otro parche de contraseña:** `scripts/e2e/setup-tenant.mjs` ahora lee el slug (y
+deriva el email del admin/colaborador) de `E2E_TENANT_SLUG`, con `qa-e2e` como default — CI no define
+esa variable, así que su comportamiento no cambia. Commit `d071764` en
+`claude/app-continuation-lpbupf` (rama reconstruida desde `main` tras el merge de #304).
+
+**Tenant manual aprovisionado ya en producción:** slug `qa-manual`, admin propio, rol `admin`, sin
+escalación (`is_super_admin` null, verificado). Aprovisionado vía SQL directo con el mismo patrón que
+usa el script (tenant + rol + `auth.users`/`auth.identities` + `tenant_members`), confirmado que el
+hash de contraseña verifica. **Credenciales fuera de este documento** — se pasan por chat/terminal,
+igual que `qa-e2e` en su momento.
+
+Para quien siga la auditoría visual/accesibilidad/journeys (Codex u otro agente): usar `qa-manual`
+para cualquier sesión manual con navegador, y dejar `qa-e2e` exclusivamente para lo que dispare CI.
+No hay fixtures de producto/contactos en `qa-manual` todavía — si un journey concreto los necesita,
+correr `E2E_TENANT_SLUG=qa-manual node scripts/e2e/setup-tenant.mjs` con las credenciales reales de
+`.env.local` (`vercel env pull`), nunca con las de `qa-e2e`.
+
 ## Auditoría de dashboards: estado reconciliado y lo que queda — 3-oct (Claude Code)
 
 Origen: Alex pidió continuar la auditoría de Codex (brief de 58 puntos). En vez de repetirla, se
