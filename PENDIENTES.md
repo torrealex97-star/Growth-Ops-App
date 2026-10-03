@@ -11,12 +11,12 @@
 2. **P2 · Accesibilidad:** nombres de filtros (Dashboard 2, Agendas 1, Ventas 5, Cobros 3, Comisiones 6), selects CRM 4 y Vista del Dashboard 1; contraste del acento; 26 ayudas con ARIA inválida y estructura dl en unit-economics; foco de gráfico oculto en Finanzas; scroll de calendario por teclado. Reproducir antes de editar: tabla completa en S1.
 3. **P2 · Devolver foco al cerrar Nueva agenda:** Tab permanece en el modal, pero Escape termina en BODY. Criterio: foco regresa a Nueva agenda en apertura por teclado y ratón.
 4. **P2 · Claridad del wizard:** Crear Venta con plan completo también registra cobro. Confirmación debe dejar explícito ese efecto; no probarlo como si fuera una venta sin cobro.
-5. **ACCIÓN REQUERIDA · Journeys:** cuenta QA collaborator (usuario no dispone), vídeo VSL de prueba, Meta/Stripe test y destinatario email autorizado. Venta/cobro interno a la espera de confirmación específica; comprobar duplicados por actividad concurrente antes de ejecutar.
+5. **ACCIÓN REQUERIDA · Journeys:** cuenta QA collaborator (usuario no dispone), vídeo VSL de prueba, Meta/Stripe test y destinatario email autorizado. Venta/cobro interno ya autorizado, ejecutado y verificado; después eliminado por un proceso externo. No repetirlo automáticamente.
 6. **Pendiente de cierre visual:** jerarquía del Dashboard como Command Center, eje 0k repetido vacío, h1 de Contactos, vocabulario financiero canónico, gráfico poblado/performance con volumen y responsive de rutas no cubiertas. No declarar F10–14 PASS con estados vacíos ni con CI de otro commit.
 
-## ACCIÓN REQUERIDA — acceso QA para terminar auditoría (3-oct)
+## Histórico — acceso QA falló y se recuperó (3-oct)
 
-La cuenta QA suministrada devuelve `Invalid login credentials` en producción. Iniciar sesión con admin QA o facilitar su contraseña vigente; no ejecutar setup-tenant para recuperarla. La sesión que estaba abierta era personal y no sirve para validar permisos del admin QA. Continúan pendientes responsive completo, teclado, rendimiento y journeys; no declararlos aprobados.
+La cuenta QA devolvió `Invalid login credentials`; acceso recuperado y admin QA confirmado en la última revisión. No solicitar de nuevo credenciales por esta nota histórica ni ejecutar setup-tenant para recuperarlas. La sesión que estaba abierta era personal y no sirve para validar permisos del admin QA. Continúan pendientes responsive completo, teclado, rendimiento y journeys; no declararlos aprobados.
 
 # PENDIENTES — [tenant] OS
 

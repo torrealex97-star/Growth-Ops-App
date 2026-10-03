@@ -1,12 +1,18 @@
+## Estado vigente — continuación de lectura 3-oct
+
+Admin QA confirmado en producción. Resumen financiero ya muestra cero facturación/cash tras la limpieza externa. Proyección, I&G y Cohortes cargan: proyección advierte que cero cuotas no acredita ausencia de deuda; I&G distingue libro interno de caja consolidada; Cohortes muestra «Sin datos todavía» y explica fuente y maduración. Estas verificaciones de estado vacío no validan cálculos poblados ni cierran journeys.
+
+Continuar solo auditoría/documentación conforme a la instrucción vigente. No volver a crear la venta ya probada, no resetear QA compartido, no enviar contratos/correos. Los bloqueos y criterios están en PENDIENTES y S1. Main local ha avanzado hasta `ceb18f2` y tiene cambios ajenos sin commit: no tocarlos; esta rama de auditoría no equivale a ese árbol ni confirma sus fixes desplegados. Antes de integrar, conciliar los tres documentos con main preservando ambas auditorías.
+
 ## Último resultado — venta/cobro QA ejecutados y verificados (3-oct)
 
-Esta actualización sustituye las notas anteriores de autorización pendiente: usuario autorizó venta + cobro interno por 3.000 EUR. Se completó el wizard como admin QA después de terminar CI; base de datos confirma 1 venta y 1 cobro vinculados de 3.000, y coinciden ficha, Dashboard, Visión del negocio y Finanzas. Fixture conservado, susceptible de limpieza por CI. No hubo cargo externo.
+Esta actualización sustituye las notas anteriores de autorización pendiente: usuario autorizó venta + cobro interno por 3.000 EUR. Se completó el wizard como admin QA después de terminar CI; base de datos confirma 1 venta y 1 cobro vinculados de 3.000, y coinciden ficha, Dashboard, Visión del negocio y Finanzas. Una comprobación posterior encontró cero ventas y cero cobros: hubo limpieza externa de autor no identificado. No recrear la prueba. No hubo cargo externo.
 
 El wizard intenta enviar contrato automáticamente: se interceptó/abortó solo esa petición no autorizada y se retiró luego la intercepción. Ficha confirma contrato no generado. PASS acotado venta→cobro→dashboards, no siete journeys ni flujo sin instrumentación.
 
 **Prioridad nueva P1:** comisiones/future devuelve 500 por `payment_plans.sale_id does not exist` (route.ts:85); UI oculta el fallo como 0 y ausencia de comisiones futuras. Reproducido con captura limpia. Documentado en última sección de S1; corregir después, según instrucción de no tocar código. Falta collaborator QA (usuario no dispone) y fixtures/autorizaciones de VSL, Meta, Stripe test y email. Evidencias de importes guardadas localmente, sin IDs ni datos de personas reales en commits.
 
-## Estado más reciente — revisión runtime ampliada 3-oct
+## Histórico — revisión runtime anterior a la venta (3-oct)
 
 Continuar en modo auditoría/documentación, sin fixes de código. Se añadieron resultados de 11 rutas revalidadas con axe en producción, responsive a 390/768/1440, teclado/modal/Emails/Finanzas, Network con bytes y duplicaciones, y matriz explícita de los siete journeys en el informe S1 (últimas secciones). No son siete PASS ni cierre de F10–14.
 
@@ -16,7 +22,7 @@ No se creó ninguna venta/cobro/correo por esta revisión. Usuario autorizó una
 
 Evidencia nueva local en /tmp/growthops-audit-oct3 (results.json, network.json y capturas), también copiada al almacenamiento local de visualizaciones de Codex; no commitear imágenes con cuentas/datos. VSL producción carga vacío, no reproduce el 500 local. CI externo SUCCESS en 92e0b1c, no sustituye regresión de esta rama. Pendientes/correcciones detallados en S1 y PENDIENTES.md.
 
-## Reanudación 3-oct — bloqueo de autenticación QA
+## Histórico — bloqueo de autenticación QA, después recuperado (3-oct)
 
 Se intentó continuar en producción, solo lectura. La pestaña estaba en el tenant QA pero el perfil correspondía a la cuenta personal del usuario, no al admin QA; por eso estas observaciones no validan aislamiento ni permisos QA. Se cerró esa sesión y el acceso con la cuenta de prueba suministrada respondió `Invalid login credentials`. Se solicitó al usuario iniciar sesión o aportar la contraseña vigente. No se ejecutó setup-tenant, no se cambiaron credenciales y no se guardaron formularios.
 

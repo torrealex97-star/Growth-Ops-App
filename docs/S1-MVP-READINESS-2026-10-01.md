@@ -663,3 +663,10 @@ La venta/cobro fixture se conserva; no se borró ni se cobró dinero real. Una f
 
 
 **Verificación posterior del mismo 3-oct:** después de capturar 1 venta/1 cobro y los dashboards coincidentes, otra consulta de base de datos devolvió 0 ventas y 0 cobros. El agente no borró esos registros. El QA compartido volvió a ser modificado/limpiado por un proceso externo (autor no identificado en esta última comprobación). No recrear automáticamente la prueba. El PASS acotado describe el estado comprobado inmediatamente después del alta, no persistencia garantizada ni cierre del problema de aislamiento de QA. Finanzas llegó a mostrar facturación anterior con cobros a cero durante este cambio; no usar ese estado para diagnosticar una fórmula incorrecta sin estabilizar las fuentes.
+
+
+### Continuación de lectura — estados financieros vacíos (3-oct)
+
+Entorno: producción, sesión visible admin QA. Tras la limpieza externa, Resumen financiero presenta Facturación y Cash Collected a cero. Se navegaron las pestañas reales a Proyección de caja, I&G y Cohortes, sin guardar formularios ni exportar datos. Proyección muestra 30/60/90 días a cero y aviso de cobertura de planes; I&G explica libro interno, presenta cero y ratios ausentes; Cohortes muestra visualmente «Sin datos todavía» y explica ventanas de maduración y diferencia con retención. PASS limitado a carga/claridad del estado vacío de estas tres vistas; no certifica sus cálculos con datos ni accesibilidad completa. No se detectó un nuevo fallo concluyente en esta comprobación.
+
+El checkout principal ha avanzado a `ceb18f2` con cambios concurrentes sin commit; no se modificó. La auditoría F01–F25 reconciliada en main y estos resultados runtime tienen distinto alcance. Antes de fusionar esta rama, integrar las notas sin sobrescribir el relevo de main y reproducir los defectos sobre el SHA final desplegado. F10–14 siguen parciales: faltan fixtures/roles/integraciones, QA estable y correcciones documentadas. La autorización del subflujo venta/cobro ya fue consumida con éxito; las filas anteriores que la indicaban pendiente son históricas, no una orden para repetirla.
