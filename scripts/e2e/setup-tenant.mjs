@@ -14,6 +14,12 @@
 // SIEMPRE limpia antes la actividad transaccional del tenant (ventas, cobros, comisiones,
 // contratos… FK-safe, ver lib/e2e/limpieza.ts): los specs parten de un tenant sin métricas.
 // Credenciales: SOLO el password viene de env (E2E_PASSWORD); nunca se imprime.
+//
+// Aislamiento QA manual vs CI: el slug (y por tanto el email del admin, derivado de él)
+// se puede sobrescribir con E2E_TENANT_SLUG. CI no la define, así que sigue usando
+// 'qa-e2e' sin cambios; una sesión QA manual concurrente debe exportar su propio slug
+// (p.ej. E2E_TENANT_SLUG=qa-manual) para no compartir usuario/contraseña/datos con el
+// tenant que el pipeline resetea en cada run (hallazgo de la auditoría runtime 3-oct).
 import { createClient } from '@supabase/supabase-js'
 import { randomUUID } from 'node:crypto'
 import { limpiarActividadTenant } from '../../lib/e2e/limpieza.ts'
@@ -27,8 +33,8 @@ if (!url || !serviceKey || !password) {
 }
 const sb = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
 
-const SLUG = 'qa-e2e'
-const EMAIL = 'admin@qa-e2e.test'
+const SLUG = process.env.E2E_TENANT_SLUG ?? 'qa-e2e'
+const EMAIL = process.env.E2E_ADMIN_EMAIL ?? `admin@${SLUG}.test`
 
 // ── 1. TENANT ────────────────────────────────────────────────────────────────
 let tenantId
@@ -248,7 +254,7 @@ let contactDosId
 //     enviado, pendiente de firma': el alta lo deja así y FIRMAR es lo que lo activa).
 //   · contrato de equipo 'E2E Contrato Colaborador' en 'enviado' con signing_token, para
 //     que la UI ofrezca 'Adjuntar firmado' y el enlace de firma nativa.
-const EMAIL_COLAB = 'colaborador@qa-e2e.test'
+const EMAIL_COLAB = process.env.E2E_COLLABORATOR_EMAIL ?? `colaborador@${SLUG}.test`
 let colaboradorId
 let colaboradorPerfilId
 let contratoEquipoId
