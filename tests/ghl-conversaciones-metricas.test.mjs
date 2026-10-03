@@ -7,8 +7,11 @@
 //      su propio proceso, el override no se filtra a otros): snapshot → vinculación fresca →
 //      citas/ventas → resumen; snapshot vacío → null ("abre la pestaña primero"); y el fail-loud:
 //      un error de BD en citas/ventas lanza, NUNCA pinta la tarjeta en cero (un hueco no es un cero).
-process.env.NEXT_PUBLIC_SUPABASE_URL ??= 'http://supafake.local'
-process.env.SUPABASE_SERVICE_ROLE_KEY ??= 'clave-de-test'
+// ||= y no ??=: en PRs de dependabot el secret de CI llega como cadena VACÍA (no nullish) y
+// ??= la conservaría — createClient(url, '') revienta con 'supabaseKey is required'.
+// Con ||= los tests son herméticos: nunca usan la clave real aunque el secret exista.
+process.env.NEXT_PUBLIC_SUPABASE_URL ||= 'http://supafake.local'
+process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'clave-de-test'
 
 import assert from 'node:assert/strict'
 import test from 'node:test'

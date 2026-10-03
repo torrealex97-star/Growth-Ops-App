@@ -5,9 +5,10 @@
 // los delata y el panel los señala. Se prueban las dos piezas:
 //   1. `esIndescifrable` PURO: cifrar con la clave A no es descifrable con la clave B, y sí con la A.
 //   2. El FUENTE del GET: marca `indescifrable` en el estado y lo sube como `clavesIndescifrables`.
-process.env.CONFIG_ENC_KEY ??= 'clave-de-test-para-roundtrip'
-process.env.NEXT_PUBLIC_SUPABASE_URL ??= 'http://supafake.local'
-process.env.SUPABASE_SERVICE_ROLE_KEY ??= 'clave-de-test'
+// ||= y no ??= (hermeticidad; ver ghl-conversaciones-metricas.test.mjs)
+process.env.CONFIG_ENC_KEY ||= 'clave-de-test-para-roundtrip'
+process.env.NEXT_PUBLIC_SUPABASE_URL ||= 'http://supafake.local'
+process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'clave-de-test'
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
