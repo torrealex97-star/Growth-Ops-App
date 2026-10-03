@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { aplicarCustomFieldsGhl } from '@/lib/contacts/custom-fields-ghl'
 import { mapearEstadoExterno } from '@/lib/appointments/status'
+import { resolveUserIdByEmail } from '@/lib/tracking'
 
 // Sincronización de CITAS (Calendly + GHL): la ÚNICA implementación, usada por
 //   · el botón manual de Integraciones › history-sync (ventana completa),
@@ -161,8 +162,35 @@ export function ventana(opts: CitasSyncOpts) {
   return { desde, hasta }
 }
 
-// ── GHL: contactos + eventos de calendario ──────────────────────────────────
-// Los contactos van primero (los eventos referencian contactId; sin contacto previo se saltan).
+/**
+ * BACKFILL DEL DUEÑO POR CALENDARIO (closer-backfill): las citas de GHL ya importadas quedaron sin
+ * closer y sin ghl_calendar_id — el pull no estampaba ni mapeaba. Tras el primer mapeo (la pasada
+ * llena duenaDeCalendario), un UPDATE por (tenant, calendar, closer null) las re-deriva del
+ * calendario: idempotente, sin borrados, nunca pisa asignaciones reales (filtra closer_id null).
+ */
+export async function backfillCloserGhl(
+  sb: SupabaseClient,
+  tenantId: string,
+  mapa: Map<string, string | null>
+): Promise<number> {
+  let total = 0
+  for (const [calendarId, closerId] of mapa) {
+    if (!closerId) continue
+    const result = await sb
+      .from('appointments')
+      .update({ closer_id: closerId })
+      .eq('tenant_id', tenantId)
+      .eq('ghl_calendar_id', calendarId)
+      .is('closer_id', null)
+    if (result.error) {
+      console.warn(`[ghl] backfill closer del calendario ${calendarId.slice(0, 8)}:`, result.error.message)
+      continue
+    }
+    total += result.count ?? 0
+  }
+  return total
+}
+
 export async function syncGhl(
   sb: SupabaseClient,
   tenantId: string,
@@ -186,6 +214,7 @@ export async function syncGhl(
   let updated = 0
   let appointmentsImported = 0
   let appointmentsUpdated = 0
+  let closerBackfill = 0
   let cortado = false
   // En modo soloEventos esta fase NO corre: paginar todos los contactos no cabe en el cron.
   while (pages < 100 && !lazyContacts) {
@@ -228,6 +257,34 @@ export async function syncGhl(
   }
   if (!calendarsResponse.ok)
     throw new Error(calendarsBody.message || `GHL calendarios respondió ${calendarsResponse.status}`)
+  // CLOSER POR CALENDARIO. El evento de GHL no trae usuario asignado (el raw_payload de producción
+  // solo lleva calendarId); el dueño vive en el CALENDARIO (assignedUserId). Se resuelve una vez
+  // por calendario y se cachea: assignedUserId → GET /users/{id} → email → usuario de la app
+  // (resolveUserIdByEmail, acotado a la subcuenta). Sin dueño resuelto la cita queda sin closer:
+  // un hueco no se disimula con una asignación inventada.
+  const duenaDeCalendario = new Map<string, string | null>()
+  for (const calendar of calendarsBody.calendars ?? []) {
+    const cid = text(calendar.id)
+    const assignedUserId = text(calendar.assignedUserId) || text(calendar.userId)
+    if (!cid || !assignedUserId) continue
+    try {
+      const userResponse = await fetch(
+        `https://services.leadconnectorhq.com/users/${encodeURIComponent(assignedUserId)}?locationId=${encodeURIComponent(locationId)}`,
+        { headers, signal: AbortSignal.timeout(15_000) }
+      )
+      const userBody = (await userResponse.json().catch(() => ({}))) as Json
+      if (userResponse.ok) {
+        // El endpoint ha devuelto el objeto directo o envuelto en `user` según versión: se toleran ambas.
+        const user = (
+          text((userBody as Json).email) ? (userBody as Json) : ((userBody.user as Json | undefined) ?? null)
+        ) as Json | null
+        const userId = user ? await resolveUserIdByEmail(sb, text(user.email), tenantId) : null
+        if (userId) duenaDeCalendario.set(cid, userId)
+      }
+    } catch (e) {
+      console.warn('[ghl] no se pudo resolver el dueño del calendario:', e instanceof Error ? e.message : e)
+    }
+  }
   for (const calendar of calendarsBody.calendars ?? []) {
     if (opts.deadlineMs && Date.now() > opts.deadlineMs) {
       cortado = true
@@ -293,15 +350,20 @@ export async function syncGhl(
       const status = mapearEstadoExterno(text(event.appointmentStatus) || text(event.status)) || 'scheduled'
       const end = text(event.endTime)
       const duration = end ? Math.max(1, Math.round((Date.parse(end) - Date.parse(startsAt)) / 60_000)) : null
+      // Closer = dueño del calendario. SOLO se envía si hay usuario resuelto: al ser un update
+      // de values, una pasada sin mapeo nunca pisa una asignación manual ni la del webhook.
+      const closerId = duenaDeCalendario.get(calendarId) ?? null
       const values = {
         tenant_id: tenantId,
         external_source: 'ghl',
         external_id: eventId,
+        ghl_calendar_id: calendarId,
         contact_id: contact.data.id,
         appointment_datetime: new Date(startsAt).toISOString(),
         duration_minutes: duration,
         status,
         source: 'ghl',
+        ...(closerId ? { closer_id: closerId } : {}),
         calendar_name: text(calendar.name) || 'GoHighLevel',
         raw_payload: event,
       }
@@ -317,7 +379,20 @@ export async function syncGhl(
       }
     }
   }
-  return { provider: 'ghl', pages, imported, updated, appointmentsImported, appointmentsUpdated, cortado }
+  // Backfill idempotente: citas ya importadas de estos calendarios sin closer heredan al dueño.
+  if (duenaDeCalendario.size > 0) {
+    closerBackfill = await backfillCloserGhl(sb, tenantId, duenaDeCalendario)
+  }
+  return {
+    provider: 'ghl',
+    pages,
+    imported,
+    updated,
+    appointmentsImported,
+    appointmentsUpdated,
+    cortado,
+    closerBackfill,
+  }
 }
 
 // ── Calendly: scheduled_events + invitees ───────────────────────────────────
@@ -377,6 +452,11 @@ export async function syncCalendly(
           dateAdded: event.created_at,
         })
         if (!contact) continue
+        // Closer = dueño del calendario (event_memberships[0].user_email), igual que el webhook:
+        // resuelto por email o calendly_email y acotado a la subcuenta. SOLO se envía si hay
+        // usuario resuelto: la pasada siguiente nunca pisa una asignación manual.
+        const ownerEmail = text((event.event_memberships as Json[] | undefined)?.[0]?.user_email)
+        const closerId = ownerEmail ? await resolveUserIdByEmail(sb, ownerEmail, tenantId) : null
         const status = event.status === 'canceled' ? 'cancelled' : 'scheduled'
         const values = {
           tenant_id: tenantId,
@@ -386,6 +466,7 @@ export async function syncCalendly(
           appointment_datetime: text(event.start_time) || new Date().toISOString(),
           status,
           source: 'calendly',
+          ...(closerId ? { closer_id: closerId } : {}),
           calendar_name: text(event.name) || 'Calendly',
           meeting_url: text((event.location as Json | undefined)?.join_url),
           reschedule_url: text(invitee.reschedule_url),
