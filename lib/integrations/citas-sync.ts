@@ -264,6 +264,14 @@ export async function syncGhl(
   // un hueco no se disimula con una asignación inventada.
   const duenaDeCalendario = new Map<string, string | null>()
   for (const calendar of calendarsBody.calendars ?? []) {
+    // El reloj también aquí: cada dueño cuesta un GET /users (15 s de presupuesto propio) y
+    // son varios por pasada. Sin corte, resolver 20 calendarios se come el budget SIN escribir
+    // ni una cita (lección #277: el deadline gobierna TODAS las llamadas externas). Lo ya
+    // resuelto queda en el mapa y la pasada sigue al bucle de eventos.
+    if (opts.deadlineMs && Date.now() > opts.deadlineMs) {
+      cortado = true
+      break
+    }
     const cid = text(calendar.id)
     const assignedUserId = text(calendar.assignedUserId) || text(calendar.userId)
     if (!cid || !assignedUserId) continue
@@ -301,6 +309,13 @@ export async function syncGhl(
     const body = (await response.json().catch(() => ({}))) as { events?: Json[]; message?: string }
     if (!response.ok) throw new Error(body.message || `GHL agendas respondió ${response.status}`)
     for (const event of body.events ?? []) {
+      // Reloj ANTES de cada evento (lección #277): el fetch perezoso del contacto cuesta hasta
+      // 15 s, así que entre páginas ya es tarde. El corte abandona el evento SIN escribir —
+      // el upsert es idempotente y la pasada siguiente lo relee y lo guarda.
+      if (opts.deadlineMs && Date.now() > opts.deadlineMs) {
+        cortado = true
+        break
+      }
       if (event.deleted === true || text(event.type) === 'blockedSlot') continue
       const eventId = text(event.id)
       const ghlContactId = text(event.contactId)
@@ -436,6 +451,14 @@ export async function syncCalendly(
     }
     if (!response.ok) throw new Error(body.message || `Calendly respondió ${response.status}`)
     for (const event of body.collection ?? []) {
+      // Reloj ANTES de cada evento (lección #277, cron 504 del 3-oct): el deadline solo
+      // comprueba entre páginas y una página de TODOS los eventos de 14 días la mataba tras
+      // 60 s de función. El corte deja el evento sin escribir; el run siguiente lo relee
+      // (upserts idempotentes por external_id) y continúa donde quedó.
+      if (opts.deadlineMs && Date.now() > opts.deadlineMs) {
+        cortado = true
+        break
+      }
       const uri = text(event.uri)
       if (!uri) continue
       const inviteesResponse = await fetch(`${uri}/invitees?count=100`, {

@@ -64,6 +64,26 @@ test('la backfill del dueño por calendario existe para las citas ya importadas'
   assert.doesNotMatch(bloque, /\.delete\(/)
 })
 
+test('el deadline gobierna TODAS las llamadas externas, no solo la primera paginación', () => {
+  const sync = leer('lib/integrations/citas-sync.ts')
+  // Reloj antes de CADA llamada externa que puede colarse bajo el corte: entre páginas NO basta —
+  // una página puede contener decenas de eventos y cada evento cuesta un fetch (invitees de
+  // Calendly; contacto perezoso de GHL) hasta con 15-20 s de presupuesto propio. Comprobado
+  // en producción el 3-oct: 504 con la fila del run colgada en 'running' y lo ya leído sin
+  // escribir. Es la lección gemela de la sync de pagos Stripe (#277).
+  const relojes = sync.match(/opts\.deadlineMs && Date\.now\(\) > opts\.deadlineMs/g) ?? []
+  assert.ok(relojes.length >= 6, `se esperaban >=6 comprobaciones de reloj, hay ${relojes.length}`)
+  // Concretamente DENTRO del bucle de eventos de Calendly y del de GHL: un corte solo entre
+  // páginas permite procesar una página entera después de haberse pasado del budget.
+  const calendly = sync.slice(sync.indexOf('export async function syncCalendly'))
+  const ghl = sync.slice(sync.indexOf('export async function syncGhl'))
+  assert.match(calendly, /for \(const event of body\.collection \?\? \[\]\) \{[\s\S]*?deadlineMs && Date\.now\(\)/)
+  assert.match(ghl, /for \(const event of body\.events \?\? \[\]\) \{[\s\S]*?deadlineMs && Date\.now\(\)/)
+  // Y en la resolución de dueños de calendario de GHL: varios calendarios × GET /users sin reloj
+  // se come el budget sin escribir ni una cita.
+  assert.match(ghl, /duenaDeCalendario[\s\S]*?deadlineMs && Date\.now\(\)/)
+})
+
 test('la migración crea la columna y su índice parcial, idempotente', () => {
   const files = ['20261003190000_appointments_ghl_calendar_id.sql']
   for (const f of files) {
