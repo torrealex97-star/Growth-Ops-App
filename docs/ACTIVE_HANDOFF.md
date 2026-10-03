@@ -1,5 +1,20 @@
 # Relevo activo
 
+## En curso — reservas y devolución Stripe (Codex, 3-oct)
+
+Rama `codex/reservation-refunds`, base `8bbf302`. Alcance: reembolso explícito de reservas en Stripe, conciliación idempotente y salida de reservas al iniciar el plan definitivo. Reclama página de reservas, rutas de reservas/devolución, alta de venta al completar reserva, helpers Stripe y migración específica con tests. No ejecutar devoluciones reales ni modificar reservas reales durante las pruebas. El PR #322 quedó detenido por indicación del usuario y posteriormente apareció fusionado en main (`45b9ab5`); esta tarea no lo fusionó.
+
+### Implementación local y relevo de reservas
+
+- Botón «Reembolsar» con vista previa de importe/referencia, confirmación explícita y excepción de plazo explícita. Solo admin/director/super-admin. La acción ejecuta Stripe; no es un mero asiento manual.
+- Ledger operacional `reservation_refund_requests`, separado de `refunds` para que lo pendiente no reste caja. Claim persistente antes del POST Stripe, clave estable, recuperación por metadata y bloqueo de reenvíos sin resultado tras 23 h. `finish_reservation_refund` registra refund procesado + venta devuelta + espejo Stripe + auditoría en una transacción. Guards impiden editar/cobrar/comisionar/reembolsar simultáneamente la reserva.
+- Reservas devueltas/canceladas fuera de abiertas; conversiones históricas salen solo con vínculo `converted_from_reservation_id`, plan no reserva y cobro positivo confirmado como `collected`. No se empareja por nombre/email. La conversión usa la misma fila y exige el primer pago registrado.
+- Límite: reembolso completo de una reserva EUR con un único cobro Stripe identificado; reservas con comisiones/devoluciones/conversiones previas requieren conciliación. No modifica la decisión A5 sobre clawbacks. Pendientes Stripe requieren «Comprobar estado»; no se añadió un worker automático. No se hicieron devoluciones reales ni cambios de datos.
+- Pruebas: 6 casos con Stripe simulado; PostgreSQL efímero (PGlite) prueba aislamiento, importes, RLS/EXECUTE, retry, guards y rollback completo si falla auditoría. Replay DDL `BEGIN…ROLLBACK` local correcto. Quality local: formato/tipos sin errores; lint solo avisos existentes; 1233 unitarias PASS + 3 omitidas; 783 métricas PASS. Dead-code ejecutado como informe; build pendiente al escribir esta nota.
+- **Migración `20261003115939_reservation_stripe_refunds.sql` SIN APLICAR.** Antes de desplegar: autorización explícita para producción según AGENTS; `db push --dry-run` y dry-run con esquema completo; registrar la misma versión aplicada; validar con Stripe sandbox y revisar el diálogo autenticado. Sin migración el endpoint falla cerrado (503) y no pide dinero a Stripe.
+- Corregida localmente la conversión prematura: `complete_reservation_with_payment` guarda el primer cobro, el plan definitivo, calendario y auditoría en una transacción, con reintento sin duplicar cobros. Exige que el cobro original exista y coincida con la reserva; ya no inventa cobros históricos para rellenar un hueco. Una entrada cero o un calendario inválido mantienen la reserva abierta. Prueba PostgreSQL cubre rollback y retry; falta ejecución end-to-end en QA.
+- Rollback: si no hay solicitudes, retirar primero ruta/UI y luego triggers, RPCs y ledger mediante migración inversa. Con solicitudes existentes, conservar el ledger y conciliar los resultados de Stripe antes de retirar nada; nunca borrar el historial de solicitudes para permitir un nuevo intento.
+
 ## Auditoría de dashboards: estado reconciliado y lo que queda — 3-oct (Claude Code)
 
 Origen: Alex pidió continuar la auditoría de Codex (brief de 58 puntos). En vez de repetirla, se

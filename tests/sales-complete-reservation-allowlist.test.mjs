@@ -85,20 +85,18 @@ test('la allowlist cubre exactamente los campos que envía la UI (registro/nueva
 
 test('la validación del patch va ANTES del update de sales', () => {
   const idxValidacion = src.indexOf('camposNoPermitidos')
-  const idxUpdate = src.indexOf(".from('sales').update(payload)")
+  const idxUpdate = src.indexOf("sb.rpc('complete_reservation_with_payment'")
   assert.ok(idxValidacion > -1 && idxValidacion < idxUpdate, 'la allowlist debe filtrar antes de escribir')
 })
 
-test('el borrado del calendario de cuotas previo se comprueba antes de insertar el nuevo', () => {
-  // Antes: `await sb.from('sale_expected_installments').delete()...` sin capturar error, seguido
-  // directo del insert — si el delete fallaba, el insert añadía cuotas ENCIMA de las viejas.
-  const idxDel = src.indexOf("sb.from('sale_expected_installments').delete()")
-  const idxCheck = src.indexOf('if (delInstErr)')
-  const idxInsert = src.indexOf(".from('sale_expected_installments').insert(rows)")
-  assert.ok(idxDel > -1, 'el delete del calendario previo debe existir')
-  assert.ok(idxCheck > idxDel, 'el error del borrado se captura')
-  assert.ok(idxInsert > idxCheck, 'el error del borrado se comprueba antes del insert')
-  assert.ok(src.includes('No se pudo limpiar el calendario de cuotas anterior'))
+test('el calendario, el primer cobro y la conversión se ejecutan en la misma transacción', () => {
+  const sql = read('supabase/migrations/20261003115939_reservation_stripe_refunds.sql')
+  const block = sql.slice(sql.indexOf('create function public.complete_reservation_with_payment'))
+  assert.ok(block.includes('delete from public.sale_expected_installments'))
+  assert.ok(block.includes('insert into public.sale_expected_installments'))
+  assert.ok(block.includes('insert into public.collections'))
+  assert.ok(block.includes('p_first_payment<=0'))
+  assert.ok(src.includes("sb.rpc('complete_reservation_with_payment'"))
 })
 
 test('las filas de cuotas también van por allowlist: sin spread del cuerpo del cliente', () => {
@@ -113,7 +111,7 @@ test('las filas de cuotas también van por allowlist: sin spread del cuerpo del 
   // con // dentro sería destruido por limpiar() y la aserción pasaría vacía)
   // sale_id/tenant_id se sellan por servidor, nunca salen del cuerpo.
   const idxFilas = src.indexOf('const rows =')
-  const idxInsert = src.indexOf(".from('sale_expected_installments').insert(rows)")
+  const idxInsert = src.indexOf("sb.rpc('complete_reservation_with_payment'")
   assert.ok(idxFilas > -1 && idxInsert > idxFilas, 'las filas se construyen antes del insert')
   const bloqueFilas = src.slice(idxFilas, idxInsert)
   assert.ok(!bloqueFilas.includes('...'), 'las filas se copian campo a campo, sin spread del cuerpo')

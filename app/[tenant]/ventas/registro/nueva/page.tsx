@@ -707,7 +707,17 @@ export default function NewSalePage() {
         body: JSON.stringify({
           saleId: reservationId,
           patch: updatePayload,
-          installments: buildInstallmentRows(reservationId),
+          firstPayment:
+            Math.round(
+              (isSequra
+                ? gross * ratio - reservationAmountNumber
+                : financeAsInstallments
+                  ? downPaymentNumber
+                  : gross - reservationAmountNumber) * 100
+            ) / 100,
+          installments: buildInstallmentRows(reservationId).filter(
+            (r) => !(isSequra && r.installment_number === 0 && !r.is_monitoring)
+          ),
         }),
       })
       const d = await res.json().catch(() => ({}))
@@ -716,6 +726,7 @@ export default function NewSalePage() {
         setSubmitting(false)
         return
       }
+      if (d.warning) toast.warning(d.warning)
       saleId = reservationId
     } else {
       // ── MODO NUEVA VENTA ──
@@ -807,28 +818,12 @@ export default function NewSalePage() {
     // Al completar una reserva las cuotas ya las insertó el endpoint server-side (RLS). En una venta
     // nueva se insertan aquí desde el cliente. En ambos casos los cobros van por el endpoint server-side.
 
-    if (reservationId) {
-      // La reserva ya pagada cuenta como cash collected. Si aún no hay cobro que la cubra
-      // (reservas antiguas no lo registraban), lo registramos ahora.
-      const { data: existingColls } = await supabase
-        .from('collections')
-        .select('gross_amount')
-        .eq('sale_id', saleId)
-        .eq('tenant_id', tenantId)
-      const alreadyCollected = (existingColls ?? []).reduce(
-        (s, c: { gross_amount: number | string }) => s + Number(c.gross_amount || 0),
-        0
-      )
-      if (alreadyCollected < reservationAmountNumber) {
-        const cobroOk = await recordCollection(reservationAmountNumber - alreadyCollected)
-        if (!cobroOk) ventaConCobroFallido = true
-      }
-    }
+    // Reservation completion already records its first payment and calendar atomically server-side.
+    if (!reservationId) {
+      if (isSequra) {
+        // Sequra: recibimos el cash por adelantado (comisionable, una vez); las cuotas del alumno
+        // con la financiera son solo MONITORIZACIÓN de impago.
 
-    if (isSequra) {
-      // Sequra: recibimos el cash por adelantado (comisionable, una vez); las cuotas del alumno
-      // con la financiera son solo MONITORIZACIÓN de impago.
-      if (!reservationId) {
         const rows = buildInstallmentRows(saleId)
         // El adelanto (cuota #0, no monitorización) es cash que recibimos YA de la financiera:
         // se registra como cobro al momento —igual que un full-pay/entrada— en vez de dejarlo como
@@ -855,19 +850,18 @@ export default function NewSalePage() {
           const cobroOkUpfront = await recordCollection(amt, amt)
           if (!cobroOkUpfront) ventaConCobroFallido = true
         }
-      }
-    } else if (financeAsInstallments) {
-      // Autofinanciado / plan personalizado: reserva ya pagada (venta nueva) + entrada al momento
-      // = cash collected; el resto, cuotas. (Si viene de completar una reserva, ya se registró arriba.)
-      if (!reservationId && reservationAmountNumber > 0) {
-        const cobroOkReserva = await recordCollection(reservationAmountNumber)
-        if (!cobroOkReserva) ventaConCobroFallido = true
-      }
-      if (downPaymentNumber > 0) {
-        const cobroOkEntrada = await recordCollection(downPaymentNumber)
-        if (!cobroOkEntrada) ventaConCobroFallido = true
-      }
-      if (!reservationId) {
+      } else if (financeAsInstallments) {
+        // Autofinanciado / plan personalizado: reserva ya pagada (venta nueva) + entrada al momento
+        // = cash collected; el resto, cuotas. (Si viene de completar una reserva, ya se registró arriba.)
+        if (reservationAmountNumber > 0) {
+          const cobroOkReserva = await recordCollection(reservationAmountNumber)
+          if (!cobroOkReserva) ventaConCobroFallido = true
+        }
+        if (downPaymentNumber > 0) {
+          const cobroOkEntrada = await recordCollection(downPaymentNumber)
+          if (!cobroOkEntrada) ventaConCobroFallido = true
+        }
+
         const rest = buildInstallmentRows(saleId)
         if (rest.length) {
           const { error: instErr } = await supabase
@@ -881,27 +875,18 @@ export default function NewSalePage() {
             )
           }
         }
-      }
-    } else if (isReservaPlan) {
-      // Alta de una reserva: el importe reservado cuenta como cash collected al momento.
-      // Se pasa commissionable explícito (= lo realmente cobrado) para que el endpoint NO
-      // reaplique el cash_collection_ratio del plan de reserva (que es un valor de referencia,
-      // no el % real a comisionar sobre un importe de reserva variable).
-      if (!reservationId) {
+      } else if (isReservaPlan) {
+        // Alta de una reserva: el importe reservado cuenta como cash collected al momento.
+        // Se pasa commissionable explícito (= lo realmente cobrado) para que el endpoint NO
+        // reaplique el cash_collection_ratio del plan de reserva (que es un valor de referencia,
+        // no el % real a comisionar sobre un importe de reserva variable).
+
         const cobroOkReserva = await recordCollection(gross, gross)
         if (!cobroOkReserva) ventaConCobroFallido = true
-      }
-    } else {
-      // Full pay (pago único): el cliente paga el total ahora → se registra como cash collected
-      // para que la venta cuente en Ingresos/Gastos y genere las comisiones (setter/closer/afiliado).
-      if (reservationId) {
-        // Completar una reserva: se cobra el resto pendiente de una vez.
-        const remaining = Math.round((gross - alreadyPaid) * 100) / 100
-        if (remaining > 0) {
-          const cobroOkResto = await recordCollection(remaining)
-          if (!cobroOkResto) ventaConCobroFallido = true
-        }
       } else {
+        // Full pay (pago único): el cliente paga el total ahora → se registra como cash collected
+        // para que la venta cuente en Ingresos/Gastos y genere las comisiones (setter/closer/afiliado).
+
         // Venta nueva full-pay: el cobro es el total bruto (la reserva ya pagada forma parte de él).
         const cobroOk = await recordCollection(gross)
         if (!cobroOk) ventaConCobroFallido = true

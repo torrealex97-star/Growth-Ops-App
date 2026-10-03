@@ -4,14 +4,21 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { CreditCard, Pencil, Plus, Trash2 } from 'lucide-react'
+import { CreditCard, Pencil, Plus, Trash2, RotateCcw } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import type { Contact, PaymentPlan, Product } from '@/lib/types/database'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { toast } from 'sonner'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
@@ -40,6 +47,48 @@ export default function ReservasPage() {
   const sesion = useSesion()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [reload, setReload] = useState(0)
+  const [refundRow, setRefundRow] = useState<ReservationRow | null>(null)
+  const [refundPreview, setRefundPreview] = useState<{
+    status: string
+    amountCents: number
+    paymentReference?: string
+    outsideWindow?: boolean
+  } | null>(null)
+  const [refundError, setRefundError] = useState<string | null>(null)
+  const [refunding, setRefunding] = useState(false)
+  const [allowOutsideWindow, setAllowOutsideWindow] = useState(false)
+  const canRefund = !!sesion && (sesion.isSuperAdmin || ['admin', 'director'].includes(sesion.rol ?? ''))
+
+  async function refundReservation(row: ReservationRow, confirm = false) {
+    setRefunding(true)
+    setRefundError(null)
+    try {
+      const response = await fetch(`/api/${tenant}/evergreen/sales/reservation-refund`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          saleId: row.id,
+          confirm,
+          allowOutsideWindow,
+          amountCents: confirm ? refundPreview?.amountCents : undefined,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'No se pudo comprobar el reembolso.')
+      setRefundPreview(data)
+      if (data.status === 'succeeded') {
+        toast.success('Reserva reembolsada en Stripe y registrada en la app')
+        setRefundRow(null)
+        setReload((n) => n + 1)
+      }
+    } catch (error) {
+      setRefundError(error instanceof Error ? error.message : 'No se pudo confirmar el reembolso.')
+    } finally {
+      setRefunding(false)
+    }
+  }
   const [q, setQ] = useState('')
   const [reservations, setReservations] = useState<ReservationRow[]>([])
   const [completed, setCompleted] = useState<ReservationRow[]>([])
@@ -83,6 +132,7 @@ export default function ReservasPage() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true)
+      setLoadError(null)
       const supabase = createClient()
 
       if (!sesion) {
@@ -101,6 +151,7 @@ export default function ReservasPage() {
         .select(cols.replace('payment_plans(', 'payment_plans!inner('))
         .eq('tenant_id', tenantId)
         .eq('payment_plans.method', 'reserva')
+        .in('status', ['active', 'partial_refund'])
         .is('reservation_completed_at', null)
         .order('sale_date', { ascending: false })
       let completedQuery = supabase
@@ -121,7 +172,27 @@ export default function ReservasPage() {
         supabase.from('products').select('id, name').eq('tenant_id', tenantId).eq('is_active', true).order('name'),
       ])
 
-      const reservationRows = (openRes.data ?? []) as unknown as ReservationRow[]
+      if (openRes.error || completedRes.error || productsRes.error)
+        throw new Error('No se pudieron cargar las reservas.')
+      let reservationRows = (openRes.data ?? []) as unknown as ReservationRow[]
+      // Legacy conversions created a separate, explicitly linked sale. A deposit alone is not a conversion.
+      if (reservationRows.length) {
+        const { data: converted, error } = await supabase
+          .from('sales')
+          .select('converted_from_reservation_id,payment_plans!inner(method),collections!inner(status,gross_amount)')
+          .eq('tenant_id', tenantId)
+          .in(
+            'converted_from_reservation_id',
+            reservationRows.map((r) => r.id)
+          )
+          .in('status', ['active', 'partial_refund'])
+          .neq('payment_plans.method', 'reserva')
+          .eq('collections.status', 'collected')
+          .gt('collections.gross_amount', 0)
+        if (error) throw new Error('No se pudo comprobar qué reservas ya iniciaron su plan de pago.')
+        const started = new Set((converted ?? []).map((r) => r.converted_from_reservation_id))
+        reservationRows = reservationRows.filter((r) => !started.has(r.id))
+      }
       setReservations(reservationRows)
       setCompleted((completedRes.data ?? []) as unknown as ReservationRow[])
       setProducts((productsRes.data ?? []) as Pick<Product, 'id' | 'name'>[])
@@ -132,12 +203,13 @@ export default function ReservasPage() {
       )
 
       if (productIds.length > 0) {
-        const { data: plansData } = await supabase
+        const { data: plansData, error: plansError } = await supabase
           .from('payment_plans')
           .select('*')
           .eq('tenant_id', tenantId)
           .in('product_id', productIds)
 
+        if (plansError) throw new Error('No se pudieron cargar los planes de las reservas.')
         const plans = (plansData ?? []) as PaymentPlan[]
         const refByProduct: Record<string, number> = {}
 
@@ -161,9 +233,13 @@ export default function ReservasPage() {
       setLoading(false)
     }
 
-    fetchData()
+    fetchData().catch((error) => {
+      setLoadError(error instanceof Error ? error.message : 'Error al cargar reservas')
+      setReservations([])
+      setLoading(false)
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sesion, tenantId])
+  }, [sesion, tenantId, reload])
 
   // Búsqueda de contactos para el alta manual (mismo patrón que nueva venta).
   useEffect(() => {
@@ -309,7 +385,7 @@ export default function ReservasPage() {
         </div>
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-foreground">Reservas</h1>
-          <p className="text-sm text-muted-foreground">Ventas con reserva pendientes de completar el pago</p>
+          <p className="text-sm text-muted-foreground">Reservas pendientes de iniciar el plan de pago</p>
         </div>
         <Button
           onClick={() => {
@@ -358,22 +434,31 @@ export default function ReservasPage() {
         </div>
       </div>
 
+      {loadError && (
+        <div role="alert" className="bg-card border border-border rounded-lg p-4">
+          <p>{loadError}</p>
+          <Button variant="outline" onClick={() => setReload((n) => n + 1)}>
+            Reintentar
+          </Button>
+        </div>
+      )}
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-card border border-border rounded-lg p-4">
-          <p className="text-xs text-muted-foreground mb-1">Reservas abiertas</p>
-          <p className="text-2xl font-bold text-foreground">{kpis.count}</p>
+      {!loadError && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-card border border-border rounded-lg p-4">
+            <p className="text-xs text-muted-foreground mb-1">Reservas abiertas</p>
+            <p className="text-2xl font-bold text-foreground">{kpis.count}</p>
+          </div>
+          <div className="bg-card border border-border rounded-lg p-4">
+            <p className="text-xs text-muted-foreground mb-1">Total reservado</p>
+            <p className="text-2xl font-bold text-emerald-400">{formatCurrency(kpis.totalReservado)}</p>
+          </div>
+          <div className="bg-card border border-border rounded-lg p-4">
+            <p className="text-xs text-muted-foreground mb-1">Total pendiente</p>
+            <p className="text-2xl font-bold text-amber-400">{formatCurrency(kpis.totalPendiente)}</p>
+          </div>
         </div>
-        <div className="bg-card border border-border rounded-lg p-4">
-          <p className="text-xs text-muted-foreground mb-1">Total reservado</p>
-          <p className="text-2xl font-bold text-emerald-400">{formatCurrency(kpis.totalReservado)}</p>
-        </div>
-        <div className="bg-card border border-border rounded-lg p-4">
-          <p className="text-xs text-muted-foreground mb-1">Total pendiente</p>
-          <p className="text-2xl font-bold text-amber-400">{formatCurrency(kpis.totalPendiente)}</p>
-        </div>
-      </div>
-
+      )}
       {/* Loading */}
       {loading && (
         <div className="space-y-3">
@@ -384,7 +469,7 @@ export default function ReservasPage() {
       )}
 
       {/* Empty state */}
-      {!loading && openReservations.length === 0 && (
+      {!loading && !loadError && openReservations.length === 0 && (
         <div className="bg-card border border-border rounded-lg p-10 text-center">
           <CreditCard className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
           <p className="text-muted-foreground">No hay reservas abiertas en el periodo seleccionado</p>
@@ -392,7 +477,7 @@ export default function ReservasPage() {
       )}
 
       {/* Open reservations */}
-      {!loading && openReservations.length > 0 && (
+      {!loading && !loadError && openReservations.length > 0 && (
         <div className="space-y-3">
           {openReservations.map((row) => {
             const referencia = getReferencePrice(row)
@@ -403,7 +488,7 @@ export default function ReservasPage() {
             return (
               <div
                 key={row.id}
-                className="bg-card border border-border rounded-lg p-4 flex items-center justify-between gap-4"
+                className="bg-card border border-border rounded-lg p-4 flex flex-wrap items-center justify-between gap-4"
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-foreground font-medium truncate">
@@ -431,6 +516,21 @@ export default function ReservasPage() {
                     <CreditCard className="w-4 h-4 mr-2" />
                     Completar pago
                   </Button>
+                  {canRefund && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setRefundRow(row)
+                        setRefundPreview(null)
+                        setAllowOutsideWindow(false)
+                        void refundReservation(row)
+                      }}
+                    >
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      Reembolsar
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" title="Editar reserva" onClick={() => openEdit(row)}>
                     <Pencil className="w-3.5 h-3.5" />
                   </Button>
@@ -451,7 +551,7 @@ export default function ReservasPage() {
       )}
 
       {/* Completed reservations (secundario, atenuado) */}
-      {!loading && completedReservations.length > 0 && (
+      {!loading && !loadError && completedReservations.length > 0 && (
         <div className="pt-4">
           <h2 className="text-sm font-medium text-muted-foreground mb-3">Reservas ya completadas</h2>
           <div className="space-y-2">
@@ -475,6 +575,79 @@ export default function ReservasPage() {
         </div>
       )}
 
+      <Dialog
+        open={!!refundRow}
+        onOpenChange={(open) => {
+          if (!open && !refunding) {
+            setRefundRow(null)
+            setRefundPreview(null)
+            setRefundError(null)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reembolsar reserva en Stripe</DialogTitle>
+            <DialogDescription>
+              Devuelve el dinero al método de pago original y registra la devolución en la app.
+            </DialogDescription>
+          </DialogHeader>
+          {refunding && <p role="status">Comprobando Stripe…</p>}
+          {refundPreview && (
+            <div className="space-y-2">
+              <p className="text-2xl font-semibold">{formatCurrency(refundPreview.amountCents / 100)}</p>
+              <p className="text-sm text-muted-foreground">Cobro: {refundPreview.paymentReference}</p>
+              <p>
+                {refundPreview.status === 'ready'
+                  ? 'Al confirmar se solicitará la devolución real del dinero. Esta acción no se puede deshacer.'
+                  : refundPreview.status === 'failed'
+                    ? 'Stripe no completó la devolución. Requiere revisión financiera.'
+                    : 'Solicitud enviada. Comprueba el estado para confirmar si Stripe ya la completó.'}
+              </p>
+            </div>
+          )}
+          {refundPreview?.outsideWindow && (
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={allowOutsideWindow}
+                onChange={(e) => setAllowOutsideWindow(e.target.checked)}
+              />
+              Autorizo esta devolución fuera del plazo habitual.
+            </label>
+          )}
+          {refundError && (
+            <p role="alert" className="text-red-400">
+              {refundError}
+            </p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" disabled={refunding} onClick={() => setRefundRow(null)}>
+              Cerrar
+            </Button>
+            {refundPreview && refundPreview.status !== 'failed' && (
+              <Button
+                disabled={refunding || (!!refundPreview.outsideWindow && !allowOutsideWindow)}
+                onClick={() => {
+                  if (refundRow) void refundReservation(refundRow, true)
+                }}
+              >
+                {refundPreview.status === 'ready' ? 'Confirmar reembolso en Stripe' : 'Comprobar estado'}
+              </Button>
+            )}
+            {!refundPreview && refundError && (
+              <Button
+                disabled={refunding}
+                onClick={() => {
+                  if (refundRow) void refundReservation(refundRow)
+                }}
+              >
+                Reintentar comprobación
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* Diálogo de alta manual */}
       <Dialog
         open={newOpen}
