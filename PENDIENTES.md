@@ -1,6 +1,6 @@
 # PENDIENTES — [tenant] OS
 
-- [ ] Activar y verificar el reembolso Stripe de reservas y la conversión con primer pago atómico: [implementación, migración pendiente y pruebas](docs/ACTIVE_HANDOFF.md#implementación-local-y-relevo-de-reservas).
+- [ ] Activar y verificar el reembolso Stripe de reservas y la conversión con primer pago atómico: [implementación, migración pendiente y pruebas](docs/ACTIVE_HANDOFF.md#reservas--alcance-seguro-para-fusionar-codex-3-oct).
 
 ## Actualización de entrega — 2026-10-01
 
