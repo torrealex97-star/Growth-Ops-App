@@ -4,6 +4,56 @@ Rama `codex/payment-inbox-team-visibility`. Petición: admin, closer y setter ve
 
 # Relevo activo
 
+## Reservas — alcance seguro para fusionar (Codex, 3-oct)
+
+PR #325 acotado a la lista de reservas: excluye devueltas/canceladas y conversiones históricas explícitamente vinculadas a un plan definitivo con cobro positivo; distingue errores de lectura de una lista vacía, con reintento. No cambia cobros, comisiones, Stripe ni esquema.
+
+**Implementación financiera conservada, NO activada:** commit `852b25edee924f0d9f59d4e64c31f90ad1dd1191` de este PR contiene el reembolso Stripe con claim persistente, migración `20261003115939_reservation_stripe_refunds.sql`, conversión con primer pago atómico y sus pruebas. El recorte es un commit posterior, no una reescritura ni pérdida de trabajo. Para retomarlo, extraer únicamente esos cambios y revalidar sobre main; no revertir a ciegas el recorte completo.
+
+**Pendiente antes de activar dinero:** Stripe de prueba en QA (se confirmó que no tiene configuración propia), revisión end-to-end, dry-run con esquema completo y autorización de migración. La conversión actual puede promover la reserva antes de registrar el primer cobro; ese cambio sigue pendiente, no se certifica como resuelto en este PR acotado. No hubo reembolsos ni cambios de datos reales.
+
+Validación local del alcance final: formato y lint PASS (avisos existentes); 1.229 pruebas unitarias PASS, 3 omitidas; 783 pruebas de métricas PASS. Build de producción y tipos PASS tras regenerar los artefactos de Next (variables públicas ficticias, sin datos reales). CI del código revisado: calidad, secretos y Build PASS; Vercel omite el preview por Ignored Build Step. **Merge bloqueado:** Smoke E2E cancelado en tres intentos por otros runs; el grupo global `e2e-tenant-qa` tiene `cancel-in-progress: true`. No es un fallo de aserción, pero tampoco un PASS. Siguiente paso: esperar a que QA quede libre, repetir únicamente el job Smoke del PR #325 y fusionar con el SHA final verificado; comprobar después el despliegue y la lectura de reservas. No se ha fusionado ni desplegado esta corrección.
+
+## Carriles activos — qué está trabajando cada agente (3-oct, Freebuff)
+
+Petición de Alex: documentar en paralelo qué está haciendo Claude y Codex en la app. Esta sección
+se actualiza al inicio de cada sesión y al fusionar.
+
+### Freebuff (producto + ops) — sesión 3-oct
+
+- **Fusionadas hoy:** #317 (docs auditoría), #316 (pestañas huérfanas), #304 (S1 MVP baseline +
+  revoke de seguridad, migración realineada a `20261001162712`), #319 (setup E2E sin
+  `listUsers`), #318 (socios F13/F03), #321 (5 migraciones realineadas a producción), #322
+  (bandeja de cobros visible para setter), #324 (tests herméticos: dependabot CI), #326 (exentas
+  de comisión por membresía + índice `audit_logs`), #313 (`@types/node` 26).
+- **Arreglos en producción:** membresía `admin` de una administradora que la tenía como `member`
+  (techo de membresía la recortaba; causa del reporte «admin sin permisos de pagos»); historial de
+  migraciones repo ↔ producción alineado y registrado con la misma versión del fichero.
+- **En vuelo:** #314 (googleapis 182) y #315 (sentry 11) — quality VERDE tras #324, dependabot
+  rebasificando el lockfile; fusionar al ponerse todo verde. #327 (@vercel/speed-insights —
+  métricas reales de velocidad en Vercel) con E2E cancelado por la concurrencia global; relanzar.
+- **Bloqueadas con causa conocida:** #229 (eslint 10: `eslint-plugin-react` revienta en
+  `react/display-name` — requiere actualizar/retirar el plugin antes de fusionar) y #323
+  (minor-and-patch con lockfile roto de dependabot: `@typescript-eslint/eslint-plugin@8.71.0` vs
+  `parser@8.70.1` — cerrar para que el próximo grupo semanal la regenere sana).
+
+### Claude Code (plan `docs/plan/`)
+
+- **#317 fusionada:** auditoría reconciliada F01–F25 contra `main` (tabla viva en
+  `DASHBOARD_AUDIT.md`).
+- **Abierto por prioridad:** F01 (P0 — RLS de colaborador; migración + dry-run + confirmación de
+  Alex), F19 (P0), F13 loaders de otras áreas, F04 (moneda/FX — BUSINESS_DECISION), F08.
+- **USER_ACTION de Alex:** F11 (mapeo de setters/asistencias), F12 (fecha inicial por fuente), F33
+  (cuenta publicitaria de Meta en Integraciones — sin ella no hay CAC/ROAS).
+
+### Codex (producto)
+
+- **#322 fusionada:** la bandeja de cobros pendientes se comparte con setter (lectura sí;
+  registrar el cobro sigue siendo de admin/closer).
+- **#325 abierta (`reservation-refunds`):** quality/build pasan, E2E en rojo — pendiente de su
+  autor; no se toca su carril desde fuera.
+- La auditoría de dashboards de codex (25-sep) quedó absorbida por #317.
+
 ## Auditoría de dashboards: estado reconciliado y lo que queda — 3-oct (Claude Code)
 
 Origen: Alex pidió continuar la auditoría de Codex (brief de 58 puntos). En vez de repetirla, se
@@ -1660,9 +1710,11 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente              | Qué                                                                                                                                                                                            | Rama | Toca | Desde |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ---- | ----- |
-| (sin filas activas) | Tablero vacío tras el relevo del 2-oct: migración `20260922100000` ya aplicada (verificado por SQL) y ramas de worktree auditadas — véase «Relevo de los carriles codex / Claude Code» arriba. | —    | —    | 2-oct |
+| Agente      | Qué                                                                   | Rama                        | Toca                                                         | Desde |
+| ----------- | --------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------ | ----- |
+| Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot   | `package.json`/lock (solo vía dependabot), docs, migraciones | 3-oct |
+| Codex       | PR #325 reservation-refunds (E2E en rojo, su autor continúa)          | `codex/reservation-refunds` | ventas/cobros (según su rama)                                | 3-oct |
+| Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún             | —                           | `docs/plan/`, migraciones RLS                                | 3-oct |
 
 ## Reglas de trabajo (2026-09-21)
 
