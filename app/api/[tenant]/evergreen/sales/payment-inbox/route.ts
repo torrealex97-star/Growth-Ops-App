@@ -4,6 +4,7 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 import { getTenantConfigWithFallback } from '@/lib/config'
 import { stripeGet } from '@/lib/stripe/client'
 import { readPaymentInbox } from '@/lib/sales/payment-inbox'
+import { canViewPaymentInbox } from '@/lib/sales/payment-inbox-access'
 import { firstInvoiceLinePriceId, resolveByPriceId } from '@/lib/sales/priceRecognition'
 
 export const runtime = 'nodejs'
@@ -11,17 +12,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   const { tenant } = await params
   const session = await requireTenant(tenant)
   if ('error' in session) return session.error
-  if (!session.isSuperAdmin && !['admin', 'director', 'closer'].includes(session.role ?? '')) {
+  if (!canViewPaymentInbox(session.role, session.isSuperAdmin)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
   try {
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const rows = await readPaymentInbox(
-      sb,
-      session.tenantId,
-      session.role === 'closer' && !session.isSuperAdmin ? session.userId : null
-    )
     const paymentId = req.nextUrl.searchParams.get('payment')
+    // The shared list does not broaden the existing registration form's write scope.
+    if (paymentId && session.role === 'setter' && !session.isSuperAdmin)
+      return NextResponse.json(
+        { error: 'Puedes consultar la bandeja. Un administrador o closer debe registrar el cobro.' },
+        { status: 403 }
+      )
+    const rows =
+      paymentId && session.role === 'closer' && !session.isSuperAdmin
+        ? await readPaymentInbox(sb, session.tenantId, session.userId)
+        : await readPaymentInbox(sb, session.tenantId, null)
     if (paymentId) {
       const payment = rows.find((r) => r.payment_id === paymentId)
       if (!payment)

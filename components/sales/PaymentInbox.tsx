@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
+import { canViewPaymentInbox } from '@/lib/sales/payment-inbox-access'
 import type { PendingPayment } from '@/lib/sales/payment-inbox'
 
 type Detail = {
@@ -31,7 +32,7 @@ export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; 
   const tenant = useTenant()
   const session = useSesion()
   const router = useRouter()
-  const allowed = !!session && (session.isSuperAdmin || ['admin', 'director', 'closer'].includes(session.rol ?? ''))
+  const allowed = !!session && canViewPaymentInbox(session.rol, session.isSuperAdmin)
   const [rows, setRows] = useState<PendingPayment[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -211,6 +212,8 @@ export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; 
             <Link className="text-xs text-primary underline" href={`/${tenant}/ventas/registro#cobros-pendientes`}>
               Revisar cobro
             </Link>
+          ) : session?.rol === 'setter' && !session.isSuperAdmin ? (
+            <span className="text-xs text-muted-foreground">Registro por administrador o closer</span>
           ) : (
             <Button size="sm" variant="outline" disabled={opening !== null} onClick={() => void open(p.payment_id)}>
               {opening === p.payment_id ? 'Abriendo…' : 'Revisar cobro'}

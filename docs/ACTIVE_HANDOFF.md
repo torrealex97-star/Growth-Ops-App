@@ -1,3 +1,7 @@
+## En curso — visibilidad de cobros pendientes (Codex, 3-oct)
+
+Rama `codex/payment-inbox-team-visibility`. Petición: admin, closer y setter ven toda la bandeja de su tenant en Ventas y notificaciones. Cambios acotados a GET payment-inbox, política de lectura compartida, PaymentInbox, Header y regresiones. No ampliar autorización de escritura ni RLS global. Validación local: formato/lint/tipos PASS; 1.229 unitarias PASS, 3 omitidas; 783 métricas PASS; 7 pruebas específicas de bandeja PASS. Knip informativo ejecutado. Build/CI/despliegue pendientes; no probado con sesión real closer/setter.
+
 # Relevo activo
 
 ## Auditoría de dashboards: estado reconciliado y lo que queda — 3-oct (Claude Code)
