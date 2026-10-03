@@ -166,14 +166,22 @@ async function usuariosSinComision(sb: SupabaseClient, userIds: (string | null |
  * Es la decisión "quién comisiona y quién no" — p.ej. un socio que cierra ventas
  * pero cuyo beneficio no va por el ledger. Un fallo de lectura NO bloquea el cobro:
  * degrada a "nadie exento" (comportamiento previo a la exención) y se registra.
+ *
+ * La subcuenta se filtra por MEMBRESÍA (tenant_members.user_id → users.id): `users`
+ * no tiene tenant_id (identidad global compartida entre subcuentas) y preguntarle
+ * por esa columna era un 42703 que degradaba a "nadie exento" en cada llamada.
  */
 export async function usuariosExentosDeComision(sb: SupabaseClient, tenantId: string): Promise<Set<string>> {
-  const { data, error } = await sb.from('users').select('id').eq('tenant_id', tenantId).eq('pays_commissions', false)
+  const { data, error } = await sb
+    .from('tenant_members')
+    .select('user_id, users!inner(pays_commissions)')
+    .eq('tenant_id', tenantId)
+    .eq('users.pays_commissions', false)
   if (error) {
     console.error('[commissions/generate] exentos de comisión no legibles:', error.message)
     return new Set()
   }
-  return new Set(((data ?? []) as { id: string }[]).map((r) => r.id))
+  return new Set(((data ?? []) as { user_id: string }[]).map((r) => r.user_id))
 }
 
 /**
