@@ -12,7 +12,7 @@ PR #325 acotado a la lista de reservas: excluye devueltas/canceladas y conversio
 
 **Pendiente antes de activar dinero:** Stripe de prueba en QA (se confirmó que no tiene configuración propia), revisión end-to-end, dry-run con esquema completo y autorización de migración. La conversión actual puede promover la reserva antes de registrar el primer cobro; ese cambio sigue pendiente, no se certifica como resuelto en este PR acotado. No hubo reembolsos ni cambios de datos reales.
 
-Validación local del alcance final: formato y lint PASS (avisos existentes); 1.229 pruebas unitarias PASS, 3 omitidas; 783 pruebas de métricas PASS. Build de producción y tipos PASS tras regenerar los artefactos de Next (variables públicas ficticias, sin datos reales). Fusionar solo con CI del SHA final en verde y comprobar después el despliegue y la lectura de reservas.
+Validación local del alcance final: formato y lint PASS (avisos existentes); 1.229 pruebas unitarias PASS, 3 omitidas; 783 pruebas de métricas PASS. Build de producción y tipos PASS tras regenerar los artefactos de Next (variables públicas ficticias, sin datos reales). CI del código revisado: calidad, secretos y Build PASS; Vercel omite el preview por Ignored Build Step. **Merge bloqueado:** Smoke E2E cancelado en tres intentos por otros runs; el grupo global `e2e-tenant-qa` tiene `cancel-in-progress: true`. No es un fallo de aserción, pero tampoco un PASS. Siguiente paso: esperar a que QA quede libre, repetir únicamente el job Smoke del PR #325 y fusionar con el SHA final verificado; comprobar después el despliegue y la lectura de reservas. No se ha fusionado ni desplegado esta corrección.
 
 ## Auditoría de dashboards: estado reconciliado y lo que queda — 3-oct (Claude Code)
 
