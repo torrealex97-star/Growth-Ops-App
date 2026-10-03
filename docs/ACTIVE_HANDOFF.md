@@ -1450,7 +1450,7 @@ migración `20260922100000` como única fila activa (prioridad 1 de Claude Code)
 anterior:
 
 - **#66** — tabla `annotations` (fecha, título, descripción, categoría, autor) para marcar
-  picos/valles en `TrendChart`. Migración `20260924100000_annotations.sql` con RLS calcada de
+  picos/valles en `TrendChart`. Migración `20260924222339_annotations.sql` con RLS calcada de
   `ai_business_facts` (el equipo lee y anota, el autor o admin/director corrige o borra,
   aislamiento por tenant vía `auth_tenant_ids()`). API en `/anotaciones` y `/anotaciones/[id]`,
   componente `AnotacionesInspector`, wiring de ejemplo en `analitica/embudo`.

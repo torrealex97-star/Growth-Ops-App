@@ -28,8 +28,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-    // ¿Es un socio con login vinculado a su propia fila? (partners.user_id, ver migración
-    // 20260925110000_partners_user_id.sql). Si no hay LEAD ni vínculo, no hay nada que ver aquí.
+    // ¿Es un socio con login vinculado a su propia fila? (partners.user_id, ver migración     // 20260925085324_partners_user_id.sql). Si no hay LEAD ni vínculo, no hay nada que ver aquí.
     const role = (t.role as AppRole) || null
     const isLead = !!role && LEAD.includes(role)
     const { data: ownPartnerRow } = await sb
