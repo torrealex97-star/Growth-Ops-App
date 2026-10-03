@@ -9,6 +9,8 @@ const TABS: RouteTab[] = [
   { label: 'Biblioteca', href: '/recursos/biblioteca', match: '/recursos/biblioteca' },
   { label: 'Testimonios', href: '/recursos/testimonios', match: '/recursos/testimonios' },
   { label: 'Contratos', href: '/recursos/contratos-producto', match: '/recursos/contratos-producto' },
+  // Mismo caso que Sin atribuir en CRM: página y entrada de sidebar reales, sin pestaña propia.
+  { label: 'Grabaciones', href: '/recursos/grabaciones', match: '/recursos/grabaciones' },
 ]
 
 export default function RecursosLayout({ children }: { children: React.ReactNode }) {
