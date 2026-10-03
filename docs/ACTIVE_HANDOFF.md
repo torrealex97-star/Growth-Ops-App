@@ -1,3 +1,19 @@
+## Estado más reciente — revisión runtime ampliada 3-oct
+
+Continuar en modo auditoría/documentación, sin fixes de código. Se añadieron resultados de 11 rutas revalidadas con axe en producción, responsive a 390/768/1440, teclado/modal/Emails/Finanzas, Network con bytes y duplicaciones, y matriz explícita de los siete journeys en el informe S1 (últimas secciones). No son siete PASS ni cierre de F10–14.
+
+Hallazgo operativo prioritario: QA manual comparte usuario y datos con CI. Global setup ejecuta setup-tenant --reset y cambia contraseña; teardown borra actividad. Job smoke concurrente explica la coincidencia temporal de restablecimientos/fixtures cambiantes. La contraseña fue recuperada con autorización; nunca incluir su valor. Posteriormente la sesión pasó a la cuenta personal: las comprobaciones de UI posteriores no validan permisos QA. Usuario confirmó no disponer de cuenta collaborator de prueba.
+
+No se creó ninguna venta/cobro/correo por esta revisión. Usuario autorizó una venta QA descrita inicialmente sin cobro; al leer el test se detectó que el plan completo registra cobro automático. Se corrigió la explicación y quedó pendiente autorización específica para venta + cobro interno. Comprobar duplicados y estabilidad antes de ejecutar. No correr setup-tenant ni E2E local sobre QA compartido.
+
+Evidencia nueva local en /tmp/growthops-audit-oct3 (results.json, network.json y capturas), también copiada al almacenamiento local de visualizaciones de Codex; no commitear imágenes con cuentas/datos. VSL producción carga vacío, no reproduce el 500 local. CI externo SUCCESS en 92e0b1c, no sustituye regresión de esta rama. Pendientes/correcciones detallados en S1 y PENDIENTES.md.
+
+## Reanudación 3-oct — bloqueo de autenticación QA
+
+Se intentó continuar en producción, solo lectura. La pestaña estaba en el tenant QA pero el perfil correspondía a la cuenta personal del usuario, no al admin QA; por eso estas observaciones no validan aislamiento ni permisos QA. Se cerró esa sesión y el acceso con la cuenta de prueba suministrada respondió `Invalid login credentials`. Se solicitó al usuario iniciar sesión o aportar la contraseña vigente. No se ejecutó setup-tenant, no se cambiaron credenciales y no se guardaron formularios.
+
+Antes del bloqueo: a 390×844 Dashboard y Agendas dieron `document.scrollWidth=390`; el calendario semanal usa desplazamiento interno. Notificaciones cerró con Escape y devolvió foco al disparador. En Nueva agenda, Shift+Tab desde el primer campo llegó al botón Cerrar; Escape cerró el modal pero el foco observado terminó en el documento, no en Nueva agenda: reproducir con cuenta QA y apertura por teclado antes de clasificar. Con reduced-motion activo, Dashboard no tenía animaciones activas; esto no valida transiciones ni gráficos con datos. Se restauraron las emulaciones de viewport y movimiento. Ningún journey nuevo puede marcarse PASS. No se realizaron correcciones.
+
 # Relevo activo
 
 ## Relevo 3-oct — auditoría solo lectura, sin correcciones nuevas

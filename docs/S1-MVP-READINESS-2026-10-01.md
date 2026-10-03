@@ -580,3 +580,70 @@ multi-sesión. Las fases siguientes, en orden:
    el Cash Collected del tenant afectado está subestimado.
 
 Ninguno de estos detiene el resto del trabajo de código (Fases 1-14 siguen sin depender de ellos).
+
+
+### Reanudación de lectura 3-oct: autenticación bloqueada
+
+Producción: la sesión abierta correspondía a una cuenta personal aunque la ruta era del tenant QA. No equivale a la identidad admin QA de la auditoría anterior. Tras cerrar sesión e introducir las credenciales facilitadas, el login respondió `Invalid login credentials`. No se reseteó ninguna contraseña. Se requiere acceso QA vigente antes de continuar; Fases 10–14 siguen sin cierre.
+
+Comprobaciones parciales previas al logout, limitadas a esa sesión: Dashboard y Agendas a 390×844 sin desbordamiento del documento (390 px); calendario con scroll interno. Escape en notificaciones devuelve foco al disparador. Nueva agenda: recorrido inverso desde primer campo alcanza Cerrar; Escape cierra, pero foco observado en documento (reproducir apertura por teclado con QA). Dashboard con prefers-reduced-motion=reduce no tenía animaciones activas; no demuestra comportamiento de todas las transiciones. Se restauraron ambas emulaciones. No se crearon datos, ventas, cobros ni mensajes y no se modificó código. Los siete journeys no reciben PASS con esta evidencia.
+
+
+### Ampliación runtime 3-oct — F10–12, evidencia nueva y límites
+
+**Entorno y alcance:** producción, tenant de pruebas. Se verificó identidad admin QA al iniciar este bloque; posteriormente la sesión visible pasó a una cuenta personal, por lo que las comprobaciones posteriores de teclado son de UI, **no pruebas de permisos QA**. No se corrigió código. No se crearon ventas, pagos ni correos manualmente. No se visitaron Recursos, excluido por decisión del usuario.
+
+**Interferencia confirmada en infraestructura QA (P1 para fiabilidad de pruebas):** el job `Smoke E2E (Playwright)` de CI estuvo activo durante la inspección. `tests/e2e/global-setup.mjs:29` ejecuta `scripts/e2e/setup-tenant.mjs --reset`; ese script actualiza la contraseña del administrador desde `E2E_PASSWORD` y limpia actividad. `tests/e2e/global-teardown.mjs` vuelve a limpiar transacciones. Se observaron credencial previamente válida que dejó de coincidir y fixtures transaccionales que aparecieron/desaparecieron. El job ejecutó su smoke entre 07:27:30 y 07:29:10 UTC, coincidiendo con el último cambio observado. No atribuir estas variaciones a fórmulas de KPI ni a un bug de persistencia de la app sin aislar primero el entorno. La recuperación de la contraseña solicitada por el usuario fue verificada con login real; no se cambió rol ni se ejecutó setup/reset desde esta revisión. Solución futura: tenant/usuario distintos para QA manual y CI, y aislamiento por ejecución o exclusión mutua para los resets. No guardar ninguna contraseña en documentos o commits.
+
+**Responsive:** mediciones DOM a 390, 768 y 1440 px en las 11 rutas de la tabla; no se detectó desbordamiento horizontal del documento. Esto no significa PASS visual global: CRM y calendario usan scroll interno, tablas pobladas/estados finales no están cubiertos universalmente. Se repitieron capturas con el control viewport del navegador; varias capturas tomadas inmediatamente tras redimensionar mostraron retraso del compositor y no se consideran prueba de layout roto. Capturas estables inspeccionadas: contactos móvil (filtros ocupan gran parte de pantalla y tabla exige scroll), calendario tablet (solo primeros días visibles, requiere scroll), resumen financiero móvil (tarjetas legibles en una columna), notificaciones móvil (panel dentro del ancho), ventas tablet (acciones y filtros legibles). Las pantallas con carga transitoria se revisaron de nuevo donde se indica en los resultados locales.
+
+**Jerarquía:** Dashboard identifica periodo y contexto y presenta finanzas/rankings, pero no constituye todavía un Command Center completo para Setting/Entrega/Salud y priorización de acciones. La atención se encuentra principalmente en el popover de notificaciones. En estado sin actividad, el gráfico del Dashboard repite varias etiquetas `0k`: simplificar eje o presentar vacío explícito. `crm/contactos` no tiene h1 visible en el DOM observado; la pestaña Contactos da contexto, pero conviene añadir encabezado accesible. Finanzas conserva mezcla de terminología española e inglesa (`Total Payments`, `Avg GR/payment`, `Taxes`, etc.); revisar contra catálogo canónico sin cambiar definiciones. No se dedujo fallo de negocio a partir de benchmark ni de datos incompletos.
+
+**axe-core:** segunda ejecución real en 11 rutas, WCAG 2 A/AA + 2.1 AA. Estas evidencias nuevas son de producción; no sustituyen ni convierten en PASS las 50 rutas de la revisión local anterior. Contadores por regla (una violación agrupa varios nodos):
+
+| Ruta sin tenant | Resultado |
+|---|---|
+| `crm/agendas` | `button-name` × 1; `color-contrast` × 5; `scrollable-region-focusable` × 1 |
+| `crm/contactos` | `color-contrast` × 4; `select-name` × 4 |
+| `ventas/registro` | `button-name` × 5; `color-contrast` × 4 |
+| `finanzas/analitica/resumen` | `aria-hidden-focus` × 1; `color-contrast` × 2 |
+| `finanzas/cobros/cobros` | `button-name` × 3; `color-contrast` × 4 |
+| `comisiones` | `button-name` × 6; `color-contrast` × 2 |
+| `marketing/adquisicion/vsl` | `color-contrast` × 3 |
+| `settings/correos` | `color-contrast` × 2 |
+| `dashboard` | `button-name` × 2; `color-contrast` × 3; `select-name` × 1 |
+| `unit-economics` | `aria-prohibited-attr` × 26; `color-contrast` × 4; `definition-list` × 1; `dlitem` × 4 |
+| `marketing/adquisicion/campanas` | `color-contrast` × 4 |
+
+Prioridad de corrección: nombres accesibles de filtros; contraste del acento QA; semántica de ayudas en `unit-economics` y listas de definición (nuevos `definition-list`/`dlitem`); eliminar foco de gráficos marcados `aria-hidden` o exponer una alternativa accesible coherente; hacer el scroll del calendario operable por teclado. Los targets concretos están en la evidencia local, no contienen datos de negocio en este informe.
+
+**Teclado y movimiento (muestras, no PASS de todas las pantallas):**
+- Emails: las pestañas responden a flechas; Plantillas e Historial cargan. No se guardó configuración ni se envió correo.
+- Nueva agenda: apertura por Enter, 15 avances Tab permanecieron dentro del diálogo; Escape lo cerró y el foco final fue `BODY`, no el disparador. FAIL de devolución de foco. Revisar `app/[tenant]/crm/agendas/page.tsx:1914` y gestión de trigger/restauración. Un control nativo de fecha no marcó `:focus-visible` durante la secuencia: requiere inspección específica antes de etiquetarlo como fallo visual.
+- Notificaciones: Enter abre; panel cabe en móvil; Escape cierra. No atribuir a `outline:none` ausencia de foco visual sin revisar box-shadow/ring.
+- Finanzas: selector de mes operativo y tabla alternativa «Ver importes por mes» se abre con Enter. Cambio de selección y encabezado medido en 41 ms incluyendo automatización local; **no es INP ni benchmark de render con volumen**.
+- `prefers-reduced-motion=reduce` verificado por matchMedia. Dashboard sin animaciones activas; tras cambiar mes financiero tampoco hubo animaciones activas en getAnimations. No valida por sí solo animaciones JS/RAF ni todos los gráficos.
+
+**Performance real, sin repetir Web Vitals:** carga de documento con caché desactivada, captura de Network.responseReceived + loadingFinished hasta la muestra observada (pueden existir peticiones posteriores). Dashboard 665.513 bytes / 113 respuestas; CRM Contactos 529.422 bytes / 74; Finanzas Resumen 622.795 bytes / 86. Chunk JS mayor observado: ~106 KB comprimidos en Dashboard/Finanzas y ~104 KB en CRM. Son bytes transferidos, no tamaño descomprimido ni total garantizado hasta network-idle. No hubo status >=400 en esas tres muestras. Únicas URLs exactamente repetidas detectadas: tres envíos de telemetría por muestra; no se clasifican como consulta de negocio duplicada. No comparar estos valores con build de otra revisión: SHA desplegado no fijado durante el ensayo. Perf de gráficos con volumen y cambio entre tenants no cerrados; QA admin solo ofrece el tenant de prueba. No se usó la cuenta personal para validar aislamiento.
+
+VSL en producción carga estado vacío con cero vídeos; el error 500 del entorno local anterior **no se reprodujo en esta lectura de producción**. Sin vídeo fixture no se prueba el reproductor, retención ni enlace a booking.
+
+### Fase 13 — matriz de ejecución manual actualizada (no siete PASS)
+
+| Journey | Estado y evidencia | Falta para cierre |
+|---|---|---|
+| LOGIN → TENANT → DASHBOARD | PARCIAL: login real como admin QA y dashboard visible. Interferencias posteriores de CI y cambio de sesión impiden afirmar estabilidad. | Repetir en QA aislado con consola/red capturadas desde login. |
+| META → LEAD → CRM → BOOKING → SHOW → SALE → PAYMENT | BLOQUEADO/PARCIAL: campañas abiertas, CRM con fixtures y wizard de venta recorrido hasta Confirmar. | Fuente Meta fixture, agenda/show controlados, venta/cobro autorizados y trazabilidad completa. |
+| VSL → VIEW → CONTACT → BOOKING → SALE | BLOQUEADO: VSL carga, pero tiene 0 vídeos. | Vídeo/landing de prueba y resto del recorrido con datos controlados. |
+| CONTACT → OPPORTUNITY → APPOINTMENT → SALE → CASH | PARCIAL: contacto fixture seleccionable; producto/plan/equipo/confirmación navegables; formulario de cobro abierto sin guardar. | Cuenta estable y confirmación de escritura que incluya el cobro automático, después verificar todas las relaciones. |
+| COLLABORATOR → LOGIN → OWN DATA → COMMISSION | BLOQUEADO: usuario indicó que no dispone de cuenta collaborator QA. Fixture existente es closer/firmante, no equivalente. | Cuenta QA del rol correcto y fixture propio/ajeno aislado. No ampliar permisos como atajo. |
+| EMAIL → TEMPLATE → SEND → HISTORY | PARCIAL: Configuración, Plantillas e Historial cargan. | Destinatario de prueba y autorización explícita para enviar; verificar entrega/historial. |
+| STRIPE → PAYMENT → FINANCE | BLOQUEADO: bandeja de cobros pendientes muestra 0. | Evento/pago Stripe de prueba en entorno test y vínculo verificable a finanzas; no ejecutar cobro real. |
+
+**Advertencia funcional descubierta antes de guardar:** el plan de pago completo del wizard no es «venta sin cobro»: `tests/e2e/venta-completa.spec.mjs:56` documenta y comprueba que Crear Venta registra también el cobro completo. Se corrigió la descripción dada al usuario y se pidió autorización específica para venta + cobro interno. No se pulsó Crear Venta durante este bloque. La autorización previa de solo venta no se extiende al cobro implícito. Antes de reintentar, comprobar duplicados: el tenant compartido recibió actividad concurrente que luego fue limpiada por CI.
+
+### Fase 14 — regresión y veredicto de esta ampliación
+
+No se aplicaron fixes de código, por instrucción del usuario. No se relanzó E2E contra el tenant compartido: su setup/teardown destruye la estabilidad de las pruebas manuales. Como evidencia externa, CI del commit `92e0b1c4516be24d2cd0ec2ff1e8a7d60b922928` terminó SUCCESS en Format/Lint/Typecheck/Unit tests, Build, Smoke E2E y Secretos. Esto **no certifica esta rama ni los siete journeys solicitados**; el conjunto de specs de CI cubre otros flujos concretos. La migración local conserva su validación anterior documentada, no una nueva regresión visual completa.
+
+**Veredicto:** mantener bloqueadores; F10–14 NO cerradas globalmente. A11y FAIL en las rutas con violaciones anteriores; E2E parcial/bloqueado según matriz. El próximo paso es estabilizar QA, completar autorizaciones/fixtures y reproducir hallazgos antes de corregir. La inspección no justifica declarar MVP READY.
