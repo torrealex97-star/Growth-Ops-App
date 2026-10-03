@@ -16,7 +16,7 @@ asistencia sobre lo resuelto), #316 (pestañas huérfanas y textos).
 1. **F01 (P0) — RLS de colaborador.** Ninguna migración desde el 25-sep (#304 cierra otro agujero).
    Necesita migración + dry-run `BEGIN…ROLLBACK` + **confirmación de Alex antes de aplicar**.
 2. **F19 restante (P0)** — CRM, alumnos, contenido, selectores y vistas guardadas sin `tenant_id`.
-3. **F13 (P1)** — cohortes aún convierte un error de lectura en lista vacía; revisar proyección y socios.
+3. **F13 (P1)** — cerrado en Finanzas (resumen, P&L, cohortes, proyección y socios; este último en #318). Sin revisar loaders de otras áreas.
 4. **F04 (P1)** — moneda en el cash canónico; **requiere decidir el proveedor de FX** (MONEY D2).
 5. **F08 (P1)** — `evaluarDefinicion` sin consumidores: el diagnóstico sale antes de los gates.
 6. F07, F05, F10 parciales; F14, F16, F18, F21, F22, F23 abiertos (ver tabla).
