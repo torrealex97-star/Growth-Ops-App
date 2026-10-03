@@ -4,14 +4,21 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { CreditCard, Pencil, Plus, Trash2 } from 'lucide-react'
+import { CreditCard, Pencil, Plus, Trash2, RotateCcw } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import type { Contact, PaymentPlan, Product } from '@/lib/types/database'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { toast } from 'sonner'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
@@ -42,6 +49,46 @@ export default function ReservasPage() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [reload, setReload] = useState(0)
+  const [refundRow, setRefundRow] = useState<ReservationRow | null>(null)
+  const [refundPreview, setRefundPreview] = useState<{
+    status: string
+    amountCents: number
+    paymentReference?: string
+    outsideWindow?: boolean
+  } | null>(null)
+  const [refundError, setRefundError] = useState<string | null>(null)
+  const [refunding, setRefunding] = useState(false)
+  const [allowOutsideWindow, setAllowOutsideWindow] = useState(false)
+  const canRefund = !!sesion && (sesion.isSuperAdmin || ['admin', 'director'].includes(sesion.rol ?? ''))
+
+  async function refundReservation(row: ReservationRow, confirm = false) {
+    setRefunding(true)
+    setRefundError(null)
+    try {
+      const response = await fetch(`/api/${tenant}/evergreen/sales/reservation-refund`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          saleId: row.id,
+          confirm,
+          allowOutsideWindow,
+          amountCents: confirm ? refundPreview?.amountCents : undefined,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'No se pudo comprobar el reembolso.')
+      setRefundPreview(data)
+      if (data.status === 'succeeded') {
+        toast.success('Reserva reembolsada en Stripe y registrada en la app')
+        setRefundRow(null)
+        setReload((n) => n + 1)
+      }
+    } catch (error) {
+      setRefundError(error instanceof Error ? error.message : 'No se pudo confirmar el reembolso.')
+    } finally {
+      setRefunding(false)
+    }
+  }
   const [q, setQ] = useState('')
   const [reservations, setReservations] = useState<ReservationRow[]>([])
   const [completed, setCompleted] = useState<ReservationRow[]>([])
@@ -469,6 +516,21 @@ export default function ReservasPage() {
                     <CreditCard className="w-4 h-4 mr-2" />
                     Completar pago
                   </Button>
+                  {canRefund && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setRefundRow(row)
+                        setRefundPreview(null)
+                        setAllowOutsideWindow(false)
+                        void refundReservation(row)
+                      }}
+                    >
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      Reembolsar
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" title="Editar reserva" onClick={() => openEdit(row)}>
                     <Pencil className="w-3.5 h-3.5" />
                   </Button>
@@ -513,6 +575,79 @@ export default function ReservasPage() {
         </div>
       )}
 
+      <Dialog
+        open={!!refundRow}
+        onOpenChange={(open) => {
+          if (!open && !refunding) {
+            setRefundRow(null)
+            setRefundPreview(null)
+            setRefundError(null)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reembolsar reserva en Stripe</DialogTitle>
+            <DialogDescription>
+              Devuelve el dinero al método de pago original y registra la devolución en la app.
+            </DialogDescription>
+          </DialogHeader>
+          {refunding && <p role="status">Comprobando Stripe…</p>}
+          {refundPreview && (
+            <div className="space-y-2">
+              <p className="text-2xl font-semibold">{formatCurrency(refundPreview.amountCents / 100)}</p>
+              <p className="text-sm text-muted-foreground">Cobro: {refundPreview.paymentReference}</p>
+              <p>
+                {refundPreview.status === 'ready'
+                  ? 'Al confirmar se solicitará la devolución real del dinero. Esta acción no se puede deshacer.'
+                  : refundPreview.status === 'failed'
+                    ? 'Stripe no completó la devolución. Requiere revisión financiera.'
+                    : 'Solicitud enviada. Comprueba el estado para confirmar si Stripe ya la completó.'}
+              </p>
+            </div>
+          )}
+          {refundPreview?.outsideWindow && (
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={allowOutsideWindow}
+                onChange={(e) => setAllowOutsideWindow(e.target.checked)}
+              />
+              Autorizo esta devolución fuera del plazo habitual.
+            </label>
+          )}
+          {refundError && (
+            <p role="alert" className="text-red-400">
+              {refundError}
+            </p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" disabled={refunding} onClick={() => setRefundRow(null)}>
+              Cerrar
+            </Button>
+            {refundPreview && refundPreview.status !== 'failed' && (
+              <Button
+                disabled={refunding || (!!refundPreview.outsideWindow && !allowOutsideWindow)}
+                onClick={() => {
+                  if (refundRow) void refundReservation(refundRow, true)
+                }}
+              >
+                {refundPreview.status === 'ready' ? 'Confirmar reembolso en Stripe' : 'Comprobar estado'}
+              </Button>
+            )}
+            {!refundPreview && refundError && (
+              <Button
+                disabled={refunding}
+                onClick={() => {
+                  if (refundRow) void refundReservation(refundRow)
+                }}
+              >
+                Reintentar comprobación
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* Diálogo de alta manual */}
       <Dialog
         open={newOpen}

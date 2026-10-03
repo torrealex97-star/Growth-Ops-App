@@ -1,3 +1,11 @@
+## En curso — reconocimiento de Stripe y reservas (Codex, 3-oct)
+
+Rama `codex/stripe-payment-recognition`. Alcance: bandeja de cobros, lectura de evidencias Stripe, sugerencias verificables, reservas y sus pruebas. No aplicar migraciones ni ejecutar reembolsos reales sin confirmación concreta. PR #325 ya fusionado y verificado en producción; sus cancelaciones E2E anteriores están superadas. El usuario declina probar Stripe en sandbox: implementar y dejar explícito que no hubo ensayo con dinero ni con Stripe test. No ejecutar una devolución real como verificación.
+
+Implementado en la rama: identidad por cliente Stripe con detección de ambigüedades, lectura acotada de factura/Checkout y precio, propuesta de compra existente o nueva, calendario solo cuando el plan y la primera factura lo justifican. Reserva: confirmación de reembolso, identidad persistente e idempotencia, conciliación atómica; primer cobro y conversión en una transacción.
+
+Validación local: 1.246 unitarias PASS (3 omitidas), 783 métricas PASS, tipos y lint PASS (avisos previos). PostgreSQL aislado/PGlite: rollback, aislamiento, permisos, bloqueo de modificaciones y finalización PASS. Se contrastaron columnas y triggers de producción en solo lectura: no sustituye un ensayo end-to-end. Activación bloqueada hasta aprobar y aplicar `20261003115939_reservation_stripe_refunds.sql`; no desplegar la nueva conversión antes del esquema.
+
 ## En curso — visibilidad de cobros pendientes (Codex, 3-oct)
 
 Rama `codex/payment-inbox-team-visibility`. Petición: admin, closer y setter ven toda la bandeja de su tenant en Ventas y notificaciones. Cambios acotados a GET payment-inbox, política de lectura compartida, PaymentInbox, Header y regresiones. No ampliar autorización de escritura ni RLS global. Validación local: formato/lint/tipos PASS; 1.229 unitarias PASS, 3 omitidas; 783 métricas PASS; 7 pruebas específicas de bandeja PASS. Knip informativo ejecutado. Build/CI/despliegue pendientes; no probado con sesión real closer/setter.
@@ -12,7 +20,7 @@ PR #325 acotado a la lista de reservas: excluye devueltas/canceladas y conversio
 
 **Pendiente antes de activar dinero:** Stripe de prueba en QA (se confirmó que no tiene configuración propia), revisión end-to-end, dry-run con esquema completo y autorización de migración. La conversión actual puede promover la reserva antes de registrar el primer cobro; ese cambio sigue pendiente, no se certifica como resuelto en este PR acotado. No hubo reembolsos ni cambios de datos reales.
 
-Validación local del alcance final: formato y lint PASS (avisos existentes); 1.229 pruebas unitarias PASS, 3 omitidas; 783 pruebas de métricas PASS. Build de producción y tipos PASS tras regenerar los artefactos de Next (variables públicas ficticias, sin datos reales). CI del código revisado: calidad, secretos y Build PASS; Vercel omite el preview por Ignored Build Step. **Merge bloqueado:** Smoke E2E cancelado en tres intentos por otros runs; el grupo global `e2e-tenant-qa` tiene `cancel-in-progress: true`. No es un fallo de aserción, pero tampoco un PASS. Siguiente paso: esperar a que QA quede libre, repetir únicamente el job Smoke del PR #325 y fusionar con el SHA final verificado; comprobar después el despliegue y la lectura de reservas. No se ha fusionado ni desplegado esta corrección.
+Validación local del alcance final: formato y lint PASS (avisos existentes); 1.229 pruebas unitarias PASS, 3 omitidas; 783 pruebas de métricas PASS. Build de producción y tipos PASS tras regenerar los artefactos de Next (variables públicas ficticias, sin datos reales). CI del código revisado: calidad, secretos y Build PASS; Vercel omite el preview por Ignored Build Step. **Actualización:** PR #325 fusionada en `7a338fc`, Smoke E2E finalmente PASS y lista de reservas verificada en producción. La implementación financiera se retoma en la rama indicada arriba, todavía sin activar.
 
 ## Carriles activos — qué está trabajando cada agente (3-oct, Freebuff)
 
@@ -50,8 +58,7 @@ se actualiza al inicio de cada sesión y al fusionar.
 
 - **#322 fusionada:** la bandeja de cobros pendientes se comparte con setter (lectura sí;
   registrar el cobro sigue siendo de admin/closer).
-- **#325 abierta (`reservation-refunds`):** quality/build pasan, E2E en rojo — pendiente de su
-  autor; no se toca su carril desde fuera.
+- **#325 fusionada:** lista de reservas verificada. Implementación financiera retomada en `codex/stripe-payment-recognition`, pendiente de migración explícitamente autorizada.
 - La auditoría de dashboards de codex (25-sep) quedó absorbida por #317.
 
 ## Auditoría de dashboards: estado reconciliado y lo que queda — 3-oct (Claude Code)
