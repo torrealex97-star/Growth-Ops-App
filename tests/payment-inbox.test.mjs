@@ -77,7 +77,7 @@ test('all sources are tenant-scoped and a read error is never an empty inbox', a
     },
   }
   await assert.rejects(readPaymentInbox(sb, 'tenant-test', 'closer-test'), /bandeja completa/)
-  assert.equal(scopes.length, 5)
+  assert.equal(scopes.length, 6)
   assert.ok(scopes.every(([, key, value]) => key === 'tenant_id' && value === 'tenant-test'))
 })
 test('payment registration is atomic, serialized and not callable by browser roles', () => {
@@ -92,4 +92,20 @@ test('payment registration is atomic, serialized and not callable by browser rol
   assert.match(sql, /TO service_role/)
   assert.match(sql, /INSERT INTO audit_logs/)
   assert.doesNotMatch(sql, /EXCEPTION WHEN|COMMIT/)
+})
+
+test('customer identity survives changed receipt email but rejects contradictory contacts', () => {
+  const links = [{ stripe_customer_id: 'cus_test', contact_id: 'contact' }]
+  const receipt = { ...payment, customer_id: 'cus_test', customer_email: 'new@example.test' }
+  const resolved = pendingPayments([receipt], [contact], new Set(), null, links)[0]
+  assert.equal(resolved.contactId, 'contact')
+  assert.equal(resolved.identitySource, 'customer')
+  const conflict = pendingPayments(
+    [receipt],
+    [contact, { id: 'other', email: 'new@example.test', full_name: 'Other' }],
+    new Set(),
+    null,
+    links
+  )[0]
+  assert.equal(conflict.contactId, null)
 })

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
 import { canViewPaymentInbox } from '@/lib/sales/payment-inbox-access'
+import type { suggestPayment } from '@/lib/sales/payment-recognition'
 import type { PendingPayment } from '@/lib/sales/payment-inbox'
 
 type Detail = {
@@ -22,7 +23,8 @@ type Detail = {
     number_of_payments: number
     method: string | null
   }[]
-  sales: { id: string; sale_date: string; gross_amount: number; products: { name: string } | null }[]
+  sales: { id: string; sale_date: string; gross_amount: number; collected: number; products: { name: string } | null }[]
+  recognition: ReturnType<typeof suggestPayment>
   suggestedProductId: string | null
   suggestedPaymentPlanId: string | null
 }
@@ -107,13 +109,13 @@ export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; 
       const suggestedPlan = body.suggestedPaymentPlanId
         ? (body.plans as Detail['plans']).find((p) => p.id === body.suggestedPaymentPlanId)
         : null
-      setMode(body.suggestedProductId ? 'new' : '')
-      setSaleId('')
+      setMode(body.recognition?.mode === 'reservation' ? '' : (body.recognition?.mode ?? ''))
+      setSaleId(body.recognition?.saleId ?? '')
       setProduct(body.suggestedProductId ?? '')
       setPlan(body.suggestedPaymentPlanId ?? '')
       setGross(suggestedPlan ? String(suggestedPlan.gross_price) : '')
-      setCount('')
-      setStart('')
+      setCount(body.recognition?.remainingCount == null ? '' : String(body.recognition.remainingCount))
+      setStart(body.recognition?.nextPaymentDate ?? '')
       setDate(body.payment.paid_at?.slice(0, 10) ?? '')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'No se pudo abrir el cobro')
@@ -173,8 +175,8 @@ export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; 
       </div>
       {!compact && (
         <p className="text-sm text-muted-foreground">
-          Revisa los cobros de Stripe sincronizados, de cualquier fecha. Decide si corresponden a una venta nueva o a
-          una cuota. Los cobros manuales se registran desde la venta.
+          Revisa los cobros de Stripe sincronizados. Al abrirlos, comprobamos el producto, el plan y las ventas
+          existentes para proponer su registro sin duplicar ventas.
         </p>
       )}
       {loading && (
@@ -273,6 +275,14 @@ export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; 
               </p>
             ) : (
               <div className="space-y-4">
+                <p className="text-sm text-muted-foreground" role="status">
+                  {detail.recognition.reason}
+                </p>
+                {detail.recognition.mode === 'reservation' && (
+                  <Link className="text-sm text-primary underline" href={`/${tenant}/ventas/reservas`}>
+                    Continuar desde la reserva existente
+                  </Link>
+                )}
                 <label className="block text-sm">
                   ¿A qué corresponde este pago?
                   <select className={selectClass} value={mode} onChange={(e) => setMode(e.target.value)}>
@@ -289,7 +299,8 @@ export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; 
                       {detail.sales.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.products?.name ?? 'Venta'} · {formatDate(s.sale_date)} ·{' '}
-                          {formatCurrency(Number(s.gross_amount))}
+                          {formatCurrency(Number(s.gross_amount))} · Pendiente:{' '}
+                          {formatCurrency(Math.max(0, Number(s.gross_amount) - s.collected))}
                         </option>
                       ))}
                     </select>

@@ -2,7 +2,6 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { reconcileSaleCommissions } from '@/lib/commissions/generate'
-import type { Sale } from '@/lib/types/database'
 
 export const runtime = 'nodejs'
 
@@ -64,14 +63,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     const t = await requireTenant(tenant)
     if ('error' in t) return t.error
 
-    const { saleId, patch, installments } = await req.json()
+    const { saleId, patch, installments, firstPayment } = await req.json()
     if (!saleId || !patch || typeof patch !== 'object') {
       return NextResponse.json({ error: 'Parámetros inválidos' }, { status: 400 })
     }
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
     const role = t.role
-    if (!['admin', 'director', 'manager', 'closer', 'setter', 'cobros'].includes(role || '')) {
+    if (!t.isSuperAdmin && !['admin', 'director', 'manager', 'closer', 'setter', 'cobros'].includes(role || '')) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
@@ -83,97 +82,54 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       )
     }
 
-    const { data: prevData, error: prevErr } = await sb
-      .from('sales')
-      .select('*')
-      .eq('id', saleId)
-      .eq('tenant_id', t.tenantId)
-      .single()
-    if (prevErr || !prevData) return NextResponse.json({ error: 'Venta no encontrada' }, { status: 404 })
-    const prev = prevData as Sale
-
-    const payload = { ...patch, updated_by: t.userId }
-    const { error: updErr } = await sb.from('sales').update(payload).eq('id', saleId).eq('tenant_id', t.tenantId)
-    if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 })
-
-    // Regenera el calendario de cuotas (por si se recompleta): borra las previas e inserta las
-    // nuevas. Si el borrado falla y el insert sigue adelante, el calendario queda DUPLICADO
-    // (viejas cuotas + nuevas) — se comprueba antes de insertar, igual que el resto de escrituras
-    // de dinero de esta ruta.
-    const { error: delInstErr } = await sb.from('sale_expected_installments').delete().eq('sale_id', saleId)
-    if (delInstErr)
+    if (!Number.isFinite(firstPayment) || firstPayment <= 0 || !Array.isArray(installments)) {
       return NextResponse.json(
-        { error: `No se pudo limpiar el calendario de cuotas anterior: ${delInstErr.message}` },
-        { status: 500 }
+        { error: 'Registra el primer pago del plan para completar la reserva.' },
+        { status: 400 }
       )
-    if (Array.isArray(installments) && installments.length > 0) {
-      // Mismo criterio que el patch: el cliente construye filas con campos fijos; cualquier campo
-      // fuera de la allowlist se rechaza antes de tocar la base. sale_id/tenant_id se sellan aquí
-      // (nunca salen del cuerpo).
-      const filasNoPermitidas = [
-        ...new Set(
-          (installments as Record<string, unknown>[]).flatMap((r) =>
-            Object.keys(r).filter((k) => !ALLOWED_INSTALLMENT_FIELDS.has(k))
-          )
-        ),
-      ]
-      if (filasNoPermitidas.length > 0) {
-        return NextResponse.json(
-          { error: `Campos no permitidos en las cuotas: ${filasNoPermitidas.join(', ')}` },
-          { status: 400 }
-        )
-      }
-      const rows = (installments as Record<string, unknown>[]).map((r) => ({
-        sale_id: saleId,
-        tenant_id: t.tenantId,
-        installment_number: r.installment_number,
-        due_date: r.due_date,
-        expected_gross_amount: r.expected_gross_amount,
-        expected_commissionable_amount: r.expected_commissionable_amount,
-        status: r.status,
-        is_monitoring: r.is_monitoring,
-      }))
-      const { error: instErr } = await sb.from('sale_expected_installments').insert(rows)
-      if (instErr) return NextResponse.json({ error: instErr.message }, { status: 500 })
     }
-
-    const { error: auditErr } = await sb.from('audit_logs').insert({
+    if (installments.some((r: unknown) => !r || typeof r !== 'object' || Array.isArray(r))) {
+      return NextResponse.json({ error: 'Cuotas inválidas' }, { status: 400 })
+    }
+    const filasNoPermitidas = installments.flatMap((r: Record<string, unknown>) =>
+      Object.keys(r).filter((k) => !ALLOWED_INSTALLMENT_FIELDS.has(k))
+    )
+    if (filasNoPermitidas.length)
+      return NextResponse.json({ error: 'Campos no permitidos en las cuotas' }, { status: 400 })
+    const rows = (installments as Record<string, unknown>[]).map((r) => ({
+      sale_id: saleId,
       tenant_id: t.tenantId,
-      actor_user_id: t.userId,
-      entity_type: 'sale',
-      entity_id: saleId,
-      action: 'update',
-      old_values: {
-        gross_amount: prev.gross_amount,
-        payment_plan_id: prev.payment_plan_id,
-        payment_method: prev.payment_method,
-        reservation_completed_at: prev.reservation_completed_at,
-      },
-      new_values: { ...payload, _accion: 'completar_reserva' },
+      installment_number: r.installment_number,
+      due_date: r.due_date,
+      expected_gross_amount: r.expected_gross_amount,
+      expected_commissionable_amount: r.expected_commissionable_amount,
+      status: r.status,
+      is_monitoring: r.is_monitoring,
+    }))
+    const { error: completionError } = await sb.rpc('complete_reservation_with_payment', {
+      p_tenant: t.tenantId,
+      p_sale: saleId,
+      p_actor: t.userId,
+      p_patch: patch,
+      p_installments: rows,
+      p_first_payment: firstPayment,
     })
-    // Cambio de dinero (gross_amount/plan) SIN rastro: la auditoría es parte del hecho, no un extra.
-    if (auditErr) console.error('[sales/complete-reservation] no se pudo registrar audit_logs:', auditErr.message)
-
-    // La reserva ya es cliente: el cobro de la reserva (que se dejó sin comisionar a propósito,
-    // ver saleNeedsCommissionReview) ahora sí debe comisionar. Se reabre y se reconcilia junto con
-    // cualquier otro cobro elegible de esta venta, sin tocar nada ya liquidado.
-    const { error: reopenErr } = await sb
-      .from('collections')
-      .update({
-        needs_commission_review: false,
-        is_eligible_for_commission: true,
-        eligible_at: new Date().toISOString(),
-      })
-      .eq('tenant_id', t.tenantId)
-      .eq('sale_id', saleId)
-      .eq('needs_commission_review', true)
-    if (reopenErr) {
+    if (completionError)
       return NextResponse.json(
-        { error: `Reserva completada, pero no se pudo reabrir su cobro para comisionar: ${reopenErr.message}` },
-        { status: 500 }
+        {
+          error:
+            'No se completó la reserva. Comprueba el cobro original, el primer pago y el plan; no se ha guardado una conversión parcial.',
+        },
+        { status: 409 }
       )
+    try {
+      await reconcileSaleCommissions(sb, t.tenantId, saleId)
+    } catch {
+      return NextResponse.json({
+        ok: true,
+        warning: 'Reserva completada y cobro registrado. Las comisiones requieren revisión; no repitas el pago.',
+      })
     }
-    await reconcileSaleCommissions(sb, t.tenantId, saleId)
 
     return NextResponse.json({ ok: true })
   } catch (err) {

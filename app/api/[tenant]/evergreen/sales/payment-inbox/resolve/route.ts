@@ -50,7 +50,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     // Verify the current provider state, including currency, refunds and actual processing fees.
     const cfg = await getTenantConfigWithFallback(session.tenantId, true)
     if (!cfg.STRIPE_SECRET_KEY) return fail('Stripe no está configurado.', 503)
-    const intent = await stripeGet<StripeIntent>(
+    const intent = await stripeGet<StripeIntent & { customer?: string | null }>(
       `payment_intents/${encodeURIComponent(body.paymentId)}`,
       new URLSearchParams([['expand[]', 'latest_charge.balance_transaction']]),
       { secretKey: cfg.STRIPE_SECRET_KEY, accountId: cfg.STRIPE_ACCOUNT_ID }
@@ -71,7 +71,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (!Number.isFinite(amount) || amount <= 0 || fee === null || !Number.isFinite(fee) || fee < 0 || fee > amount)
       return fail('Falta confirmar el importe o la comisión real de Stripe. Reintenta más tarde.')
     const email = (intent.receipt_email || charge.billing_details?.email || '').trim().toLowerCase()
-    if (!email || email !== payment.customer_email?.trim().toLowerCase())
+    const providerCustomer = typeof intent.customer === 'string' ? intent.customer : null
+    const customerMatches =
+      payment.identitySource === 'customer' && !!payment.customer_id && providerCustomer === payment.customer_id
+    if (!customerMatches && (!email || email !== payment.customer_email?.trim().toLowerCase()))
       return fail('La identidad del cobro ha cambiado; revisa el contacto.')
     let newSale: Record<string, unknown> | null = null
     let installments: unknown[] = []
