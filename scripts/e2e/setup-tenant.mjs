@@ -27,6 +27,19 @@ if (!url || !serviceKey || !password) {
 }
 const sb = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
 
+// listUsers puede fallar de forma transitoria (rate limit de GoTrue tras corridas seguidas).
+// Tragar el error (`listed?.users ?? []`) hacía creer que el usuario no existe y el createUser
+// posterior reventaba con "A user with this email address has already been registered".
+// Comprobar { error } y reintentar; si sigue fallando, abortar con la causa real.
+async function listarAuthUsers() {
+  for (let intento = 1; intento <= 3; intento++) {
+    const { data, error } = await sb.auth.admin.listUsers()
+    if (!error) return data?.users ?? []
+    if (intento === 3) throw new Error(`auth.admin.listUsers falló 3 veces: ${error.message}`)
+    await new Promise((resolve) => setTimeout(resolve, 5000 * intento))
+  }
+}
+
 const SLUG = 'qa-e2e'
 const EMAIL = 'admin@qa-e2e.test'
 
@@ -60,8 +73,7 @@ let roleId
 // ── 3. USUARIO auth + users + membership ─────────────────────────────────────
 let userId
 {
-  const { data: listed } = await sb.auth.admin.listUsers()
-  const existing = (listed?.users ?? []).find((u) => u.email === EMAIL)
+  const existing = (await listarAuthUsers()).find((u) => u.email === EMAIL)
   if (existing) {
     userId = existing.id
     await sb.auth.admin.updateUserById(userId, { password, email_confirm: true })
@@ -254,8 +266,7 @@ let colaboradorPerfilId
 let contratoEquipoId
 {
   const { data: rolCloser } = await sb.from('roles').select('id').eq('key', 'closer').single()
-  const { data: listed } = await sb.auth.admin.listUsers()
-  const existing = (listed?.users ?? []).find((u) => u.email === EMAIL_COLAB)
+  const existing = (await listarAuthUsers()).find((u) => u.email === EMAIL_COLAB)
   if (existing) {
     colaboradorId = existing.id
   } else {
