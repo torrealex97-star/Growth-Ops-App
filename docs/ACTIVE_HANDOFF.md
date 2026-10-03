@@ -1,5 +1,28 @@
 # Relevo activo
 
+## F01 (P0 seguridad) CERRADO: afiliados/closers con 'team' ya no leen todo el tenant — 3-oct (Claude Code)
+
+El P0 más antiguo de `DASHBOARD_AUDIT.md` ("Sigue abierto, por orden de prioridad" de la entrada de
+abajo): un colaborador con `data_scope='team'` saltaba por completo el resto de la política RLS en
+`sales`, `appointments`, `activities`, `collections`, `contact_attributions` y `contacts` — el mismo
+patrón `my_data_scope() = 'team'` en las 6 tablas, sin mirar el rol. Confirmado en producción con un
+afiliado real antes del fix: veía 36 ventas/636 citas del tenant completo, no las 21/192 que le
+correspondían por atribución.
+
+Migración `20261003120000_gate_team_scope_to_leadership.sql`: `is_team_scope_allowed()` exige
+`data_scope='team'` Y rol de liderazgo (admin/director/manager — mismo conjunto que `LEADERSHIP` en
+`lib/auth/permissions.ts`). Dry-run (`BEGIN…ROLLBACK`) y aplicación real verificados con el mismo
+afiliado: 36/636 → 21/192 exacto, sin falsos negativos. Admin/director no pierden nada (ya pasan por
+`is_admin_or_director()` en la misma cláusula); no hay ningún usuario con rol `manager` en producción
+hoy, así que no hay regresión posible ahí. Confirmación explícita del usuario antes de aplicar.
+
+**Queda fuera a propósito:** `stripe_payments_select_team` no tiene columna de atribución individual
+y `app/[tenant]/dashboard/page.tsx` la lee en cliente para closer/setter normales (no solo liderazgo);
+restringirla con la misma regla rompería ese dashboard sin ofrecer un camino de datos sustituto. Es
+un hueco real (cualquier miembro del tenant ve todos los pagos de Stripe) pero necesita decisión de
+producto — darle atribución a `stripe_payments` o mover esa lectura a una API acotada — antes de
+tocarlo. Detalle completo en el comentario de la propia migración y en `DASHBOARD_AUDIT.md` (fila F01).
+
 ## Desbloqueo QA: tenant manual aislado del que resetea CI — 3-oct (Claude Code)
 
 Respuesta al P1 que la propia auditoría runtime de Codex (rama `codex/skeleton-emptystate-adopcion`,

@@ -1,5 +1,18 @@
 # PENDIENTES — [tenant] OS
 
+## Resuelto — F01 (P0 seguridad): RLS 'team' acotado a liderazgo (3-oct, Claude Code)
+
+Afiliados/closers/setters con `data_scope='team'` veían ventas, citas, actividades, cobros,
+atribuciones y contactos de TODO el tenant, no solo los suyos — confirmado en producción (un
+afiliado real pasó de 36 ventas/636 citas a 21/192 tras el fix). Migración
+`20261003120000_gate_team_scope_to_leadership.sql`, dry-run + aplicación real verificados, cero
+regresión en admin/director. Detalle en `docs/ACTIVE_HANDOFF.md` y `DASHBOARD_AUDIT.md` (fila F01).
+
+**Sigue abierto, relacionado:** `stripe_payments` no tiene atribución individual — cualquier
+miembro del tenant ve todos los pagos de Stripe. No se tocó en esta migración porque el dashboard
+de closer/setter lo lee en cliente sin rol de liderazgo; necesita decisión de producto antes de
+restringirlo (ver nota en la propia migración).
+
 ## Resuelto — aislamiento QA manual vs CI (3-oct, Claude Code)
 
 Responde al "ACCIÓN REQUERIDA · acceso QA" que deja la rama `codex/skeleton-emptystate-adopcion`
