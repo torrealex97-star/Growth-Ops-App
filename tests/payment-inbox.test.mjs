@@ -2,6 +2,30 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { pendingPayments, readPaymentInbox } from '../lib/sales/payment-inbox.ts'
+import { canViewPaymentInbox } from '../lib/sales/payment-inbox-access.ts'
+
+test('the whole tenant inbox is visible to admins, directors, closers and setters only', () => {
+  for (const role of ['admin', 'director', 'closer', 'setter']) assert.equal(canViewPaymentInbox(role), true)
+  for (const role of [null, undefined, '', 'affiliate', 'marketing', 'csm', 'gestoria'])
+    assert.equal(canViewPaymentInbox(role), false)
+  assert.equal(canViewPaymentInbox(null, true), true)
+})
+
+test('shared inbox reads stay tenant scoped; registration retains assignment restrictions', () => {
+  const list = readFileSync(
+    new URL('../app/api/[tenant]/evergreen/sales/payment-inbox/route.ts', import.meta.url),
+    'utf8'
+  )
+  const resolve = readFileSync(
+    new URL('../app/api/[tenant]/evergreen/sales/payment-inbox/resolve/route.ts', import.meta.url),
+    'utf8'
+  )
+  assert.match(list, /canViewPaymentInbox\(session.role, session.isSuperAdmin\)/)
+  assert.match(list, /readPaymentInbox\(sb, session.tenantId, null\)/)
+  assert.match(resolve, /readPaymentInbox\(sb, session.tenantId, closer\)/)
+  assert.match(resolve, /\['admin', 'director', 'closer'\]/)
+})
+
 const payment = {
   payment_id: 'pi_test',
   charge_id: 'ch_test',
@@ -19,7 +43,7 @@ test('a Stripe receipt creates a pending task, not a sale; both canonical refere
   for (const ref of ['pi_test', 'ch_test'])
     assert.deepEqual(pendingPayments([payment], [contact], new Set([ref]), null), [])
 })
-test('closers only see uniquely identified assigned contacts, administrators retain ambiguous tasks', () => {
+test('assignment-scoped registration only accepts uniquely identified assigned contacts', () => {
   assert.equal(pendingPayments([payment], [contact], new Set(), new Set(['contact'])).length, 1)
   assert.equal(pendingPayments([payment], [contact], new Set(), new Set(['other'])).length, 0)
   const duplicate = { ...contact, id: 'another' }
