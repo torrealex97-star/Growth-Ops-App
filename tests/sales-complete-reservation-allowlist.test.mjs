@@ -90,7 +90,7 @@ test('la validación del patch va ANTES del update de sales', () => {
 })
 
 test('el calendario, el primer cobro y la conversión se ejecutan en la misma transacción', () => {
-  const sql = read('supabase/migrations/20261003115939_reservation_stripe_refunds.sql')
+  const sql = read('supabase/migrations/20261003135010_reservation_stripe_refunds.sql')
   const block = sql.slice(sql.indexOf('create function public.complete_reservation_with_payment'))
   assert.ok(block.includes('delete from public.sale_expected_installments'))
   assert.ok(block.includes('insert into public.sale_expected_installments'))

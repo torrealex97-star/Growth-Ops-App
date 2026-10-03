@@ -1,10 +1,14 @@
+## Activación de reservas — 3-oct, PR #330
+
+Usuario autorizó la migración explícitamente. Aplicada `20261003135010_reservation_stripe_refunds.sql` en producción. Verificado: RLS activo, RPC solo service_role, cero solicitudes de devolución. No se movió dinero. Archivo realineado al historial de Supabase; CI/fusión/despliegue pendientes. Prueba Stripe real/sandbox excluida a petición del usuario. Las notas anteriores describen el estado previo.
+
 ## En curso — reconocimiento de Stripe y reservas (Codex, 3-oct)
 
 Rama `codex/stripe-payment-recognition`. Alcance: bandeja de cobros, lectura de evidencias Stripe, sugerencias verificables, reservas y sus pruebas. No aplicar migraciones ni ejecutar reembolsos reales sin confirmación concreta. PR #325 ya fusionado y verificado en producción; sus cancelaciones E2E anteriores están superadas. El usuario declina probar Stripe en sandbox: implementar y dejar explícito que no hubo ensayo con dinero ni con Stripe test. No ejecutar una devolución real como verificación.
 
 Implementado en la rama: identidad por cliente Stripe con detección de ambigüedades, lectura acotada de factura/Checkout y precio, propuesta de compra existente o nueva, calendario solo cuando el plan y la primera factura lo justifican. Reserva: confirmación de reembolso, identidad persistente e idempotencia, conciliación atómica; primer cobro y conversión en una transacción.
 
-Validación local: 1.246 unitarias PASS (3 omitidas), 783 métricas PASS, tipos y lint PASS (avisos previos). PostgreSQL aislado/PGlite: rollback, aislamiento, permisos, bloqueo de modificaciones y finalización PASS. Se contrastaron columnas y triggers de producción en solo lectura: no sustituye un ensayo end-to-end. Activación bloqueada hasta aprobar y aplicar `20261003115939_reservation_stripe_refunds.sql`; no desplegar la nueva conversión antes del esquema.
+Validación local: 1.246 unitarias PASS (3 omitidas), 783 métricas PASS, tipos y lint PASS (avisos previos). PostgreSQL aislado/PGlite: rollback, aislamiento, permisos, bloqueo de modificaciones y finalización PASS. Se contrastaron columnas y triggers de producción en solo lectura: no sustituye un ensayo end-to-end. Activación bloqueada hasta aprobar y aplicar `20261003135010_reservation_stripe_refunds.sql`; no desplegar la nueva conversión antes del esquema.
 
 ## En curso — visibilidad de cobros pendientes (Codex, 3-oct)
 
@@ -16,7 +20,7 @@ Rama `codex/payment-inbox-team-visibility`. Petición: admin, closer y setter ve
 
 PR #325 acotado a la lista de reservas: excluye devueltas/canceladas y conversiones históricas explícitamente vinculadas a un plan definitivo con cobro positivo; distingue errores de lectura de una lista vacía, con reintento. No cambia cobros, comisiones, Stripe ni esquema.
 
-**Implementación financiera conservada, NO activada:** commit `852b25edee924f0d9f59d4e64c31f90ad1dd1191` de este PR contiene el reembolso Stripe con claim persistente, migración `20261003115939_reservation_stripe_refunds.sql`, conversión con primer pago atómico y sus pruebas. El recorte es un commit posterior, no una reescritura ni pérdida de trabajo. Para retomarlo, extraer únicamente esos cambios y revalidar sobre main; no revertir a ciegas el recorte completo.
+**Implementación financiera conservada, NO activada:** commit `852b25edee924f0d9f59d4e64c31f90ad1dd1191` de este PR contiene el reembolso Stripe con claim persistente, migración `20261003135010_reservation_stripe_refunds.sql`, conversión con primer pago atómico y sus pruebas. El recorte es un commit posterior, no una reescritura ni pérdida de trabajo. Para retomarlo, extraer únicamente esos cambios y revalidar sobre main; no revertir a ciegas el recorte completo.
 
 **Pendiente antes de activar dinero:** Stripe de prueba en QA (se confirmó que no tiene configuración propia), revisión end-to-end, dry-run con esquema completo y autorización de migración. La conversión actual puede promover la reserva antes de registrar el primer cobro; ese cambio sigue pendiente, no se certifica como resuelto en este PR acotado. No hubo reembolsos ni cambios de datos reales.
 

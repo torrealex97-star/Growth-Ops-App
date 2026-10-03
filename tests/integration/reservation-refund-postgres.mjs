@@ -23,7 +23,7 @@ alter table collections add collected_at timestamptz,add payment_method text,add
 create table sale_expected_installments(tenant_id uuid,sale_id uuid,installment_number int,due_date date not null,expected_gross_amount numeric,expected_commissionable_amount numeric,status text,is_monitoring boolean);
 `)
 const migration = readFileSync(
-  new URL('../../supabase/migrations/20261003115939_reservation_stripe_refunds.sql', import.meta.url),
+  new URL('../../supabase/migrations/20261003135010_reservation_stripe_refunds.sql', import.meta.url),
   'utf8'
 )
 await db.exec('begin;' + migration + 'rollback;')
