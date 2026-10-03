@@ -1,5 +1,11 @@
 # PENDIENTES — [tenant] OS
 
+## Relevo de auditoría — 3-oct
+
+- [ ] Reproducir y resolver accesibilidad: nombres de filtros, etiquetas de formularios, tooltips KPI con ARIA inválido, contraste del accent, foco del gráfico financiero y scroll de Agendas. Detalle y aceptación en S1, «Revisión de solo lectura — relevo 3-oct».
+- [ ] Corregir advertencia de hidratación en FinanceEvolution tras reproducirla; no se modificó código en esta pasada.
+- [ ] Completar móvil/tablet, teclado, reduced-motion, F12 y los 7 journeys; no dar por terminada la auditoría por las 50 rutas con axe. Recuperar evidencia: los artefactos temporales anteriores ya no existen.
+
 ## ACCIÓN REQUERIDA — auditoría visual 1-oct
 
 - [ ] **1. Aislar Recursos/Enlaces por tenant.** Tablas `resource_links` y `resource_link_divisions` sin `tenant_id`, políticas basadas solo en rol; lectura cruzada observada con admin QA. Definir asignación de registros existentes antes de migrar; no probar escrituras cruzadas. Evidencia y límites en `docs/S1-MVP-READINESS-2026-10-01.md` §6.8, continuación Codex. Usuario decide documentar y continuar únicamente pantallas aisladas; no resuelto.

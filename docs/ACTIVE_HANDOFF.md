@@ -1,5 +1,11 @@
 # Relevo activo
 
+## Relevo 3-oct — auditoría solo lectura, sin correcciones nuevas
+
+**Instrucción vigente:** documentar los cambios necesarios para el próximo agente; no solucionar código en esta pasada. Revisión NO finalizada: axe ejecutado en 50 rutas, desktop; móvil interrumpido tras Dashboard, tablet/teclado/reduced-motion y siete journeys sin cerrar. Hallazgos, rutas, prioridades y criterios de cierre añadidos en `docs/S1-MVP-READINESS-2026-10-01.md`, «Revisión de solo lectura — relevo 3-oct». Recursos sigue excluido.
+
+Los archivos de evidencia y el checkout bajo `/tmp` desaparecieron entre sesiones. No presentar capturas/JSON como conservados. Git mantiene la migración en `codex/skeleton-emptystate-adopcion`; punto anterior `4f44e10`. Se recuperaron los documentos en `/tmp/growthops-review-handoff` con HEAD separado para no tocar el checkout de otro agente. No asumir que localhost:3101 sigue activo ni que conserva la configuración; no imprimir secretos. Reproducir los hallazgos antes de cerrarlos.
+
 ## Reclamación Codex — 1-oct: adopción Skeleton/EmptyState
 
 Rama `codex/skeleton-emptystate-adopcion` desde `e09a6a8`. Reclamación: adopción acotada de placeholders en páginas aisladas (CRM, ventas, ajustes, finanzas y analítica); solo import + JSX de carga, sin lógica ni diseño. Recursos excluido por decisión explícita del usuario tras hallazgo de aislamiento en `resource_links` y `resource_link_divisions`; no corregido. No ejecutar reset del tenant ni modificar credenciales.

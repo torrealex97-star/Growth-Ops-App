@@ -515,6 +515,35 @@ Metadatos de RLS revisados en solo lectura para continuar las pantallas aisladas
 
 **Configuración local:** el arranque inicial con solo variables públicas produjo 500/503 en varias API server-side. Se restauró la configuración privilegiada existente únicamente en memoria del proceso local; pendiente verificar cada API necesaria para los journeys. Separar esta limitación de entorno de fallos de producción. No usar esta ejecución para concluir que los journeys financieros funcionan o fallan en producción.
 
+### Revisión de solo lectura — relevo 3-oct (NO cierre de auditoría)
+
+El usuario pidió terminar de revisar y **no corregir código**: documentar para el próximo agente. Se ejecutó axe-core en navegador local con admin QA sobre 50 rutas. No se realizaron ventas, cobros, envíos de correo, sincronizaciones ni cambios de contraseña. Las capturas y resultados JSON se guardaron en almacenamiento temporal; al retomar el 3-oct ya no estaban disponibles, igual que el checkout temporal original. Los resultados siguientes proceden de salidas observadas durante la revisión, **no de artefactos adjuntos reproducibles**: repetir antes de cerrar cada hallazgo. La rama y los commits de la migración anterior sí permanecen en Git.
+
+**Cobertura ejecutada (axe WCAG 2 A/AA y 2.1 AA, viewport desktop 1440×1000):** dashboard, unit-economics, crm/{agendas,contactos,seguimiento}, ventas/{registro,pagos,reservas}, analitica/{embudo,ranking,actividad}, finanzas/analitica/{resumen,pnl,cohortes,proyeccion}, finanzas/cobros/{cobros,devoluciones,conciliacion}, finanzas/morosidad, finanzas/gastos-facturas/{gastos,facturas,gestoria}, finanzas/socios, comisiones, marketing/adquisicion/{campanas,atribucion,vsl}, marketing/afiliados/{afiliados,campanas}, marketing/contenido, settings/{data-health,correos,users,products,empresa,commission-rules,tramos,socios,afiliados}, tasks, contratos, contratos/{plantillas,equipo}, drops, csm-events, instagram/{reels,competencia}, actividad, audit y kpi/templates. Esto NO equivale a verificar todas las interacciones ni las 93 rutas. Varias capturas iniciales mostraban carga; se repitieron Métricas, Ventas y VSL. Empresa, Reels, Competencia y Socios financieros agotaron la espera de carga: sus resultados son parciales.
+
+#### Hallazgos que debe corregir el próximo agente
+
+| Prioridad | Hallazgo observado | Corrección propuesta y criterio de cierre |
+| --- | --- | --- |
+| P1 | Recursos/Enlaces sin aislamiento, ya documentado arriba. | Mantener exclusión. Asignar propiedad explícita de registros y migrar RLS con pruebas negativas entre tenants antes de reabrir esa parte. |
+| P2 | `button-name`: Dashboard 2, Registro de ventas 5, Comisiones 6, Seguimiento 4, Cobros 3; también otros filtros. `select-name`: Dashboard 1, Atribución 2, Colaboradores 2, Tramos 2, Socios 1, Contenido 3. | Asociar etiquetas visibles a triggers/selects con id/htmlFor o aria-labelledby, revisar el primitivo compartido. Repetir axe en cada consumidor y teclado; 0 controles sin nombre. No parchear únicamente el selector generado de Radix. |
+| P2 | Métricas: 24 `aria-prohibited-attr`, spans de ayuda con aria-label sin rol permitido. | Revisar los tooltips de KPI; dar semántica y acceso por teclado adecuados sin duplicar etiquetas. Repetir axe y comprobar anuncio del nombre y ayuda. |
+| P2 | Contraste insuficiente recurrente: blanco sobre accent azul QA #0a85f0 ≈3,73:1 en texto pequeño; botones activos de Métricas ≈2,74:1. | Ajustar tokens foreground/background de estados activos respetando branding. Validar AA con diferentes tenants; no extrapolar el color QA al branding de todos. |
+| P2 | Resumen financiero: `aria-hidden-focus` sobre contenedor `.h-72`. Consola de React advierte whitespace bajo `<thead>` en `FinanceEvolution` (`components/finanzas/FinanceCharts.tsx`). | Revisar foco del gráfico/tabla alternativa y quitar nodo de espacio inválido. Confirmar 0 errores de hidratación y ningún foco dentro de aria-hidden. |
+| P2 | Facturas: 1 `label`; configuración de Afiliados: 13 `label`. | Asociar cada campo con su etiqueta visible. Repetir axe con formulario cargado, además de revisión manual de nombres. |
+| P2 | Calendario de Agendas: `scrollable-region-focusable`. | Permitir enfocar y desplazar la región con teclado; comprobar que no atrapa el foco. |
+| Bloqueo local | VSL: GET videos y resumen devuelven 500; la pantalla termina mostrando error de servidor/base de datos. | Revisar configuración local de conexión VSL; no afirmar fallo de producción. Repetir lectura de ambas API antes del journey. No restaurar credenciales ni escribir BD sin autorización aplicable. |
+
+#### Lo que falta probar (no marcar PASS)
+
+- **F10:** responsive y jerarquía completa. Solo Dashboard fue medido a 390×844 sin desbordamiento horizontal (ancho de documento 390); al navegar a Métricas la revisión móvil se interrumpió por timeout y quedó solo el contenedor de notificaciones. No se confirma un bug móvil de la app: reproducir con servidor estable. Tablet no ejecutado. Capturas desktop revisadas visualmente: Dashboard, Métricas, Agendas, Contactos, Resumen financiero, Campañas y VSL; no afirmar inspección visual manual completa de las 50 rutas por haber ejecutado axe.
+- **F11:** repetir hallazgos con evidencia persistente, completar Tab/Shift+Tab/Enter/Escape, focus trap/retorno de modales, reduced-motion y estados interactivos. Axe no sustituye estas pruebas. No hay certificado de accesibilidad.
+- **F12:** en desarrollo se observaron peticiones duplicadas de partners, agendas y API de VSL. No clasificarlas como defecto de producción sin descartar Strict Mode. Falta bundle real en build de producción, métricas de red y gráficos con datos representativos. No repetir Web Vitals de Sentry ya cerradas. No medir cambio de tenant con un admin de una sola subcuenta.
+- **F13:** login/sesión y navegación QA observados; no se cerraron los siete journeys de punta a punta con consola/red limpia. META/VSL/CRM→venta/cobro y Stripe→Finanzas requieren datos y confirmación para las escrituras; EMAIL requiere destinatario QA y autorización explícita de envío; colaborador requiere credenciales del rol y fixtures propios. No usar admin como sustituto del test de colaborador. No ejecutar setup-tenant: resetea la contraseña.
+- **F14:** quality/build de los 40 archivos anteriores PASS (1.202 tests + 783 métricas, 3 SKIP). No se repitieron al ser esta pasada solo lectura; regresión visual/journeys final pendiente. Mantener veredicto con bloqueadores, no MVP READY.
+
+**Orden de continuación:** recuperar rama y entorno QA → confirmar aislamiento de las pantallas a probar → capturas persistentes y reproducción de P2 → corregir por componente con autorización del nuevo encargo → móvil/tablet/teclado/reduced-motion → F12 en build de producción → journeys autorizados → gates y regresión final. Conservar el inventario de 12 candidatos Skeleton y EmptyState pendientes; no mezclar la migración incompleta con el cierre de accesibilidad.
+
 ## 7. Plan de fases (continuación, no reinicio)
 
 Dado el tamaño real (93 pantallas, 14 fases, 42 secciones del encargo), este es un trabajo
