@@ -76,7 +76,7 @@
     "@types/react-dom": "^18",
     "@typescript-eslint/eslint-plugin": "^8.70.0",
     "dotenv": "^18.0.2",
-    "eslint": "^9.39.5",
+    "eslint": "^10.11.0",
     "eslint-config-next": "^16.3.6",
     "knip": "^6.35.1",
     "postcss": "^8",
