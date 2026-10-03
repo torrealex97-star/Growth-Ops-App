@@ -16,12 +16,19 @@ afiliado: 36/636 → 21/192 exacto, sin falsos negativos. Admin/director no pier
 `is_admin_or_director()` en la misma cláusula); no hay ningún usuario con rol `manager` en producción
 hoy, así que no hay regresión posible ahí. Confirmación explícita del usuario antes de aplicar.
 
-**Queda fuera a propósito:** `stripe_payments_select_team` no tiene columna de atribución individual
-y `app/[tenant]/dashboard/page.tsx` la lee en cliente para closer/setter normales (no solo liderazgo);
-restringirla con la misma regla rompería ese dashboard sin ofrecer un camino de datos sustituto. Es
-un hueco real (cualquier miembro del tenant ve todos los pagos de Stripe) pero necesita decisión de
-producto — darle atribución a `stripe_payments` o mover esa lectura a una API acotada — antes de
-tocarlo. Detalle completo en el comentario de la propia migración y en `DASHBOARD_AUDIT.md` (fila F01).
+**Actualización — también cerrado:** `stripe_payments_select_team` no tiene columna de atribución
+propia, pero `collections.payment_reference` coincide con `stripe_payments.payment_id`/`charge_id`
+en la mayoría de pagos reconciliados (61/83 en producción), y
+`app/[tenant]/dashboard/page.tsx:514-517` ya filtraba así en JavaScript para usuarios autoscoped —
+la app ya asumía que RLS hacía este trabajo; no lo hacía, el navegador recibía los 83 pagos
+completos (email y monto de clientes ajenos incluidos) y el filtro ocurría solo al pintar. Migración
+`20261003130000_scope_stripe_payments_to_attribution.sql`: hereda la atribución de la venta ligada
+por `payment_reference`. El mismo afiliado pasó de 83 pagos visibles a 30 (verificado con un JOIN
+directo sales/collections/contact_attributions/collaborator_profiles con service role, mismo
+número); admin conserva 83/83. Los 22 pagos sin `collections` correspondiente (el hueco que
+`pagosSinCobro` de Data Health ya señala) siguen visibles solo para liderazgo — correcto, es
+reconciliación pendiente, no datos de un vendedor concreto. Detalle completo en el comentario de la
+propia migración y en `DASHBOARD_AUDIT.md` (fila F01).
 
 ## Desbloqueo QA: tenant manual aislado del que resetea CI — 3-oct (Claude Code)
 
