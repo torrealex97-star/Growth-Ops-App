@@ -1,4 +1,10 @@
-## Estado vigente — continuación de lectura 3-oct
+## Estado vigente posterior — acceso QA bloqueado de nuevo (3-oct)
+
+Continuación completó prueba de teclado del menú móvil y revisión pública de login/recuperación. Nuevos resultados y criterios en última sección S1; tareas en primera sección PENDIENTES. Menú no contiene foco ni cierra con Escape; recuperación falla contraste; login duplica RPC de branding. Sin fixes, por instrucción del usuario.
+
+Tras navegar desde el menú, QA redirigió al login y rechazó la credencial acordada. No se cambió contraseña, no se creó otra venta, no se enviaron correos. Solicitud de sesión estable pendiente de respuesta. Viewport restaurado. Main observado `2cfd99f`; CI success no sustituye journeys manuales. No marcar F10–14 cerradas. El siguiente paso requiere QA estable para reanudar Analítica comercial, tablas móviles y journeys aún bloqueados por fixtures/rol/integración; evitar otra ronda de reset contra CI.
+
+## Histórico inmediato — continuación de lectura 3-oct
 
 Admin QA confirmado en producción. Resumen financiero ya muestra cero facturación/cash tras la limpieza externa. Proyección, I&G y Cohortes cargan: proyección advierte que cero cuotas no acredita ausencia de deuda; I&G distingue libro interno de caja consolidada; Cohortes muestra «Sin datos todavía» y explica fuente y maduración. Estas verificaciones de estado vacío no validan cálculos poblados ni cierran journeys.
 

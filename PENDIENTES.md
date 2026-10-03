@@ -1,3 +1,10 @@
+## Continuación de auditoría — menú y acceso (3-oct)
+
+- [ ] **P2 · Menú móvil:** abrir con Enter, foco debe entrar en el panel y quedar contenido; Escape cierra y devuelve foco. Actualmente Tab llega a Buscar detrás del overlay y Escape no cierra. Reutilizar Sheet existente; evidencia y archivos en última sección S1.
+- [ ] **P2 · Recuperación:** Button blanco/acento QA da 3,73:1; alcanzar AA sin romper branding. Login requiere anuncio accesible y traducción del error dinámico (verificación con lector pendiente).
+- [ ] **P3 · Login:** deduplicar lectura public_tenant_branding de layout/página, dos 200 en captura limpia; preservar manejo de tenant inexistente y error de red.
+- **BLOQUEO VIGENTE:** sesión QA volvió a login y credencial acordada rechazada. No ejecutar resets ni recrear venta. Reanudar pantallas autenticadas solo con sesión estable; ya se solicitó al usuario. Los resultados anteriores de acceso recuperado son históricos.
+
 ## Resultado posterior — prueba de venta/cobro autorizada
 
 - **Completado:** una venta y un cobro interno QA de 3.000 EUR; importes consistentes en base de datos, ficha, Dashboard, Visión del negocio y Finanzas. No repetir la creación; comprobar fixture antes de otras pruebas. No hubo cargo externo ni contrato enviado.
