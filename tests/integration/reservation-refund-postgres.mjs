@@ -119,7 +119,17 @@ const patch = {
   reservation_amount: 50,
   payment_method: 'transferencia',
 }
-const complete = (payment = 100, installments = [], tid = tenant) =>
+const finalCalendar = [
+  {
+    installment_number: 1,
+    due_date: '2026-11-01',
+    expected_gross_amount: 150,
+    expected_commissionable_amount: 150,
+    status: 'pending',
+    is_monitoring: false,
+  },
+]
+const complete = (payment = 100, installments = finalCalendar, tid = tenant) =>
   db.query('select complete_reservation_with_payment($1,$2,$3,$4,$5,$6)', [
     tid,
     reserve2,
@@ -150,6 +160,36 @@ assert.equal(
   (await db.query('select payment_plan_id from sales where id=$1', [reserve2])).rows[0].payment_plan_id,
   finalPlan
 )
+await assert.rejects(db.query('update sales set tenant_id=$1 where id=$2', [other, sale]), /refund request/)
+// Custom-plan entry preserves the existing commission-review rule after the deposit becomes eligible.
+const customReserve = id(40),
+  customPlan = id(41)
+await db.query("insert into sales(id,tenant_id,payment_plan_id,status,gross_amount) values($1,$2,$3,'active',50)", [
+  customReserve,
+  tenant,
+  plan,
+])
+await db.query(
+  "insert into collections(id,tenant_id,sale_id,gross_amount,commissionable_amount,status,needs_commission_review,is_eligible_for_commission) values($1,$2,$3,50,50,'collected',true,false)",
+  [id(42), tenant, customReserve]
+)
+await db.query("insert into payment_plans values($1,$2,'custom',$3,1)", [customPlan, tenant, product])
+await db.query('select complete_reservation_with_payment($1,$2,$3,$4,$5,100)', [
+  tenant,
+  customReserve,
+  actor,
+  JSON.stringify({ ...patch, payment_plan_id: customPlan }),
+  JSON.stringify(finalCalendar),
+])
+const cash = (
+  await db.query(
+    'select gross_amount,is_eligible_for_commission,needs_commission_review from collections where sale_id=$1 order by gross_amount',
+    [customReserve]
+  )
+).rows
+assert.equal(cash[0].is_eligible_for_commission, true)
+assert.equal(cash[1].is_eligible_for_commission, false)
+assert.equal(cash[1].needs_commission_review, true)
 await db.exec('set role authenticated')
 await assert.rejects(db.query('select * from reservation_refund_requests'), /permission denied/)
 await assert.rejects(claim(), /permission denied/)

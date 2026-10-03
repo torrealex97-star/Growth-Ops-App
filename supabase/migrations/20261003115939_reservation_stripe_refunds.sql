@@ -88,8 +88,7 @@ begin
     -- Atomic finalizer records the exact refund and closes the sale after setting succeeded.
     if tg_table_name='refunds' and tg_op='INSERT' and r.status='succeeded' and new.id=r.refund_id then return new; end if;
     if tg_table_name='sales' and tg_op='UPDATE' and r.status='succeeded' then
-      if new.status='refunded' and new.payment_plan_id is not distinct from old.payment_plan_id
-         and new.gross_amount=old.gross_amount and new.reservation_completed_at is not distinct from old.reservation_completed_at
+      if new.status='refunded' and (to_jsonb(new)-array['status','updated_by','updated_at']) = (to_jsonb(old)-array['status','updated_by','updated_at'])
       then return new; end if;
     end if;
     raise exception 'Reservation has a Stripe refund request; reconcile it before changing the sale';
@@ -154,6 +153,11 @@ begin
      or target.reservation_amount is distinct from s.gross_amount then raise exception 'A first payment is required'; end if;
   select coalesce(sum(gross_amount),0) into collected from public.collections where tenant_id=p_tenant and sale_id=p_sale and status='collected';
   if collected<>s.gross_amount or exists(select 1 from public.refunds where tenant_id=p_tenant and sale_id=p_sale) then raise exception 'Reconcile the original deposit before conversion'; end if;
+  if plan.method='sequra' then
+    if p_first_payment<>round(target.gross_amount*coalesce(plan.cash_collection_ratio,1)-s.gross_amount,2) then raise exception 'Invalid financing payout'; end if;
+  elsif coalesce((select sum((value->>'expected_gross_amount')::numeric) from jsonb_array_elements(p_installments) where not coalesce((value->>'is_monitoring')::boolean,false)),0)<>target.gross_amount-s.gross_amount-p_first_payment then
+    raise exception 'Installment calendar does not match the outstanding amount';
+  end if;
   -- No financial fields are copied from untrusted JSON beyond this explicit list.
   update public.sales set appointment_id=target.appointment_id, product_id=target.product_id,payment_plan_id=target.payment_plan_id,
     sale_date=target.sale_date,refund_deadline_at=target.refund_deadline_at,gross_amount=target.gross_amount,
