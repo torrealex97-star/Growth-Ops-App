@@ -40,6 +40,8 @@ export default function ReservasPage() {
   const sesion = useSesion()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [reload, setReload] = useState(0)
   const [q, setQ] = useState('')
   const [reservations, setReservations] = useState<ReservationRow[]>([])
   const [completed, setCompleted] = useState<ReservationRow[]>([])
@@ -83,6 +85,7 @@ export default function ReservasPage() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true)
+      setLoadError(null)
       const supabase = createClient()
 
       if (!sesion) {
@@ -101,6 +104,7 @@ export default function ReservasPage() {
         .select(cols.replace('payment_plans(', 'payment_plans!inner('))
         .eq('tenant_id', tenantId)
         .eq('payment_plans.method', 'reserva')
+        .in('status', ['active', 'partial_refund'])
         .is('reservation_completed_at', null)
         .order('sale_date', { ascending: false })
       let completedQuery = supabase
@@ -121,7 +125,27 @@ export default function ReservasPage() {
         supabase.from('products').select('id, name').eq('tenant_id', tenantId).eq('is_active', true).order('name'),
       ])
 
-      const reservationRows = (openRes.data ?? []) as unknown as ReservationRow[]
+      if (openRes.error || completedRes.error || productsRes.error)
+        throw new Error('No se pudieron cargar las reservas.')
+      let reservationRows = (openRes.data ?? []) as unknown as ReservationRow[]
+      // Legacy conversions created a separate, explicitly linked sale. A deposit alone is not a conversion.
+      if (reservationRows.length) {
+        const { data: converted, error } = await supabase
+          .from('sales')
+          .select('converted_from_reservation_id,payment_plans!inner(method),collections!inner(status,gross_amount)')
+          .eq('tenant_id', tenantId)
+          .in(
+            'converted_from_reservation_id',
+            reservationRows.map((r) => r.id)
+          )
+          .in('status', ['active', 'partial_refund'])
+          .neq('payment_plans.method', 'reserva')
+          .eq('collections.status', 'collected')
+          .gt('collections.gross_amount', 0)
+        if (error) throw new Error('No se pudo comprobar qué reservas ya iniciaron su plan de pago.')
+        const started = new Set((converted ?? []).map((r) => r.converted_from_reservation_id))
+        reservationRows = reservationRows.filter((r) => !started.has(r.id))
+      }
       setReservations(reservationRows)
       setCompleted((completedRes.data ?? []) as unknown as ReservationRow[])
       setProducts((productsRes.data ?? []) as Pick<Product, 'id' | 'name'>[])
@@ -132,12 +156,13 @@ export default function ReservasPage() {
       )
 
       if (productIds.length > 0) {
-        const { data: plansData } = await supabase
+        const { data: plansData, error: plansError } = await supabase
           .from('payment_plans')
           .select('*')
           .eq('tenant_id', tenantId)
           .in('product_id', productIds)
 
+        if (plansError) throw new Error('No se pudieron cargar los planes de las reservas.')
         const plans = (plansData ?? []) as PaymentPlan[]
         const refByProduct: Record<string, number> = {}
 
@@ -161,9 +186,13 @@ export default function ReservasPage() {
       setLoading(false)
     }
 
-    fetchData()
+    fetchData().catch((error) => {
+      setLoadError(error instanceof Error ? error.message : 'Error al cargar reservas')
+      setReservations([])
+      setLoading(false)
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sesion, tenantId])
+  }, [sesion, tenantId, reload])
 
   // Búsqueda de contactos para el alta manual (mismo patrón que nueva venta).
   useEffect(() => {
@@ -309,7 +338,7 @@ export default function ReservasPage() {
         </div>
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-foreground">Reservas</h1>
-          <p className="text-sm text-muted-foreground">Ventas con reserva pendientes de completar el pago</p>
+          <p className="text-sm text-muted-foreground">Reservas pendientes de iniciar el plan de pago</p>
         </div>
         <Button
           onClick={() => {
@@ -358,22 +387,31 @@ export default function ReservasPage() {
         </div>
       </div>
 
+      {loadError && (
+        <div role="alert" className="bg-card border border-border rounded-lg p-4">
+          <p>{loadError}</p>
+          <Button variant="outline" onClick={() => setReload((n) => n + 1)}>
+            Reintentar
+          </Button>
+        </div>
+      )}
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-card border border-border rounded-lg p-4">
-          <p className="text-xs text-muted-foreground mb-1">Reservas abiertas</p>
-          <p className="text-2xl font-bold text-foreground">{kpis.count}</p>
+      {!loading && !loadError && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-card border border-border rounded-lg p-4">
+            <p className="text-xs text-muted-foreground mb-1">Reservas abiertas</p>
+            <p className="text-2xl font-bold text-foreground">{kpis.count}</p>
+          </div>
+          <div className="bg-card border border-border rounded-lg p-4">
+            <p className="text-xs text-muted-foreground mb-1">Total reservado</p>
+            <p className="text-2xl font-bold text-emerald-400">{formatCurrency(kpis.totalReservado)}</p>
+          </div>
+          <div className="bg-card border border-border rounded-lg p-4">
+            <p className="text-xs text-muted-foreground mb-1">Total pendiente</p>
+            <p className="text-2xl font-bold text-amber-400">{formatCurrency(kpis.totalPendiente)}</p>
+          </div>
         </div>
-        <div className="bg-card border border-border rounded-lg p-4">
-          <p className="text-xs text-muted-foreground mb-1">Total reservado</p>
-          <p className="text-2xl font-bold text-emerald-400">{formatCurrency(kpis.totalReservado)}</p>
-        </div>
-        <div className="bg-card border border-border rounded-lg p-4">
-          <p className="text-xs text-muted-foreground mb-1">Total pendiente</p>
-          <p className="text-2xl font-bold text-amber-400">{formatCurrency(kpis.totalPendiente)}</p>
-        </div>
-      </div>
-
+      )}
       {/* Loading */}
       {loading && (
         <div className="space-y-3">
@@ -384,7 +422,7 @@ export default function ReservasPage() {
       )}
 
       {/* Empty state */}
-      {!loading && openReservations.length === 0 && (
+      {!loading && !loadError && openReservations.length === 0 && (
         <div className="bg-card border border-border rounded-lg p-10 text-center">
           <CreditCard className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
           <p className="text-muted-foreground">No hay reservas abiertas en el periodo seleccionado</p>
@@ -392,7 +430,7 @@ export default function ReservasPage() {
       )}
 
       {/* Open reservations */}
-      {!loading && openReservations.length > 0 && (
+      {!loading && !loadError && openReservations.length > 0 && (
         <div className="space-y-3">
           {openReservations.map((row) => {
             const referencia = getReferencePrice(row)
@@ -403,7 +441,7 @@ export default function ReservasPage() {
             return (
               <div
                 key={row.id}
-                className="bg-card border border-border rounded-lg p-4 flex items-center justify-between gap-4"
+                className="bg-card border border-border rounded-lg p-4 flex flex-wrap items-center justify-between gap-4"
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-foreground font-medium truncate">
@@ -451,7 +489,7 @@ export default function ReservasPage() {
       )}
 
       {/* Completed reservations (secundario, atenuado) */}
-      {!loading && completedReservations.length > 0 && (
+      {!loading && !loadError && completedReservations.length > 0 && (
         <div className="pt-4">
           <h2 className="text-sm font-medium text-muted-foreground mb-3">Reservas ya completadas</h2>
           <div className="space-y-2">

@@ -4,6 +4,16 @@ Rama `codex/payment-inbox-team-visibility`. Petición: admin, closer y setter ve
 
 # Relevo activo
 
+## Reservas — alcance seguro para fusionar (Codex, 3-oct)
+
+PR #325 acotado a la lista de reservas: excluye devueltas/canceladas y conversiones históricas explícitamente vinculadas a un plan definitivo con cobro positivo; distingue errores de lectura de una lista vacía, con reintento. No cambia cobros, comisiones, Stripe ni esquema.
+
+**Implementación financiera conservada, NO activada:** commit `852b25edee924f0d9f59d4e64c31f90ad1dd1191` de este PR contiene el reembolso Stripe con claim persistente, migración `20261003115939_reservation_stripe_refunds.sql`, conversión con primer pago atómico y sus pruebas. El recorte es un commit posterior, no una reescritura ni pérdida de trabajo. Para retomarlo, extraer únicamente esos cambios y revalidar sobre main; no revertir a ciegas el recorte completo.
+
+**Pendiente antes de activar dinero:** Stripe de prueba en QA (se confirmó que no tiene configuración propia), revisión end-to-end, dry-run con esquema completo y autorización de migración. La conversión actual puede promover la reserva antes de registrar el primer cobro; ese cambio sigue pendiente, no se certifica como resuelto en este PR acotado. No hubo reembolsos ni cambios de datos reales.
+
+Validación local del alcance final: formato y lint PASS (avisos existentes); 1.229 pruebas unitarias PASS, 3 omitidas; 783 pruebas de métricas PASS. Build de producción y tipos PASS tras regenerar los artefactos de Next (variables públicas ficticias, sin datos reales). CI del código revisado: calidad, secretos y Build PASS; Vercel omite el preview por Ignored Build Step. **Merge bloqueado:** Smoke E2E cancelado en tres intentos por otros runs; el grupo global `e2e-tenant-qa` tiene `cancel-in-progress: true`. No es un fallo de aserción, pero tampoco un PASS. Siguiente paso: esperar a que QA quede libre, repetir únicamente el job Smoke del PR #325 y fusionar con el SHA final verificado; comprobar después el despliegue y la lectura de reservas. No se ha fusionado ni desplegado esta corrección.
+
 ## Carriles activos — qué está trabajando cada agente (3-oct, Freebuff)
 
 Petición de Alex: documentar en paralelo qué está haciendo Claude y Codex en la app. Esta sección
