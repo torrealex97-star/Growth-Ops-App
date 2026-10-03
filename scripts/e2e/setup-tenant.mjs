@@ -17,6 +17,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { randomUUID } from 'node:crypto'
 import { limpiarActividadTenant } from '../../lib/e2e/limpieza.ts'
+import { buscarIdAuth } from '../../lib/e2e/usuario-auth.ts'
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -60,10 +61,9 @@ let roleId
 // ── 3. USUARIO auth + users + membership ─────────────────────────────────────
 let userId
 {
-  const { data: listed } = await sb.auth.admin.listUsers()
-  const existing = (listed?.users ?? []).find((u) => u.email === EMAIL)
-  if (existing) {
-    userId = existing.id
+  const existenteId = await buscarIdAuth(sb, EMAIL)
+  if (existenteId) {
+    userId = existenteId
     await sb.auth.admin.updateUserById(userId, { password, email_confirm: true })
   } else {
     const { data: created, error } = await sb.auth.admin.createUser({ email: EMAIL, password, email_confirm: true })
@@ -254,10 +254,9 @@ let colaboradorPerfilId
 let contratoEquipoId
 {
   const { data: rolCloser } = await sb.from('roles').select('id').eq('key', 'closer').single()
-  const { data: listed } = await sb.auth.admin.listUsers()
-  const existing = (listed?.users ?? []).find((u) => u.email === EMAIL_COLAB)
-  if (existing) {
-    colaboradorId = existing.id
+  const existenteColabId = await buscarIdAuth(sb, EMAIL_COLAB)
+  if (existenteColabId) {
+    colaboradorId = existenteColabId
   } else {
     // Password del firmante: el colaborador NO se autentica en la app (la firma es por token),
     // se genera desechable. email_confirm true para que no quede pendiente de verificación.
