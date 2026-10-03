@@ -1,5 +1,40 @@
 # Relevo activo
 
+## Auditoría de dashboards: estado reconciliado y lo que queda — 3-oct (Claude Code)
+
+Origen: Alex pidió continuar la auditoría de Codex (brief de 58 puntos). En vez de repetirla, se
+contrastaron los 25 hallazgos F01–F25 con el código actual de `main`: la tabla vive en
+[`DASHBOARD_AUDIT.md`](../DASHBOARD_AUDIT.md) › «Estado de los hallazgos a 3-oct». **Límite:** es
+verificación contra código y PRs, no re-medición de producción (sin credenciales de BD en esa sesión).
+
+**Fusionado desde el 25-sep (mío):** #218 (acota por subcuenta, CTR, conteo de la IA), #219 (F02),
+#220 (F24/F25/F17), #221 (F03), #222 (claves de lectura vs webhook en Salud de datos), #223 (% de
+asistencia sobre lo resuelto), #316 (pestañas huérfanas y textos).
+
+**Sigue abierto, por orden de prioridad:**
+
+1. **F01 (P0) — RLS de colaborador.** Ninguna migración desde el 25-sep (#304 cierra otro agujero).
+   Necesita migración + dry-run `BEGIN…ROLLBACK` + **confirmación de Alex antes de aplicar**.
+2. **F19 restante (P0)** — CRM, alumnos, contenido, selectores y vistas guardadas sin `tenant_id`.
+3. **F13 (P1)** — cerrado en Finanzas (resumen, P&L, cohortes, proyección y socios; este último en #318). Sin revisar loaders de otras áreas.
+4. **F04 (P1)** — moneda en el cash canónico; **requiere decidir el proveedor de FX** (MONEY D2).
+5. **F08 (P1)** — `evaluarDefinicion` sin consumidores: el diagnóstico sale antes de los gates.
+6. F07, F05, F10 parciales; F14, F16, F18, F21, F22, F23 abiertos (ver tabla).
+
+**USER_ACTION de Alex:** F11 (mapeo de setters y asistencias provisionales), F12 (fecha inicial
+esperada por fuente) y F33 — comprobar en Integraciones que Meta tiene **cuenta publicitaria
+elegida**: tras D10 sin selección no se sincroniza, y sin gasto no hay CAC ni ROAS reales.
+
+**BUSINESS_DECISION:** F04 (FX) y F32 (la tabla de atribución mezcla leads históricos con ventas del
+periodo).
+
+**Concurrencia:** el tablero estaba vacío al empezar; la reclamación de Codex sobre estos documentos
+era del 28-sep y sin commits posteriores. No se tocó código de otros carriles.
+
+**Nota de entorno:** el script `npm test` usa `--experimental-transform-types`, que **Node 26 ya no
+acepta** (la CI usa Node 24). En local con Node 26 se ejecuta la misma suite sin ese flag; el único
+fallo conocido es `apify-retry-scenario`.
+
 ## ✅ Composer del inbox GHL verificado EN VIVO en producción (2-oct, Freebuff) — PRs #307 + #308
 
 La verificación en vivo del envío de respuestas (petición de Alex, contacto controlado) destapó y
