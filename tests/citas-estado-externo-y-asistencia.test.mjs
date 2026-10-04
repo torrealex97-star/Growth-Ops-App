@@ -75,7 +75,8 @@ test('una decisión ya tomada no se pisa', () => {
 })
 
 test('al emparejar la grabación, la asistencia se escribe aparte y solo sobre lo no resuelto', () => {
-  const ruta = leer('app/api/[tenant]/evergreen/settings/integraciones/history-sync/route.ts')
+  // La ingesta canónica (histórico + webhook) vive en lib/fathom/ingesta.ts.
+  const ruta = leer('lib/fathom/ingesta.ts')
   const bloque = ruta.slice(ruta.indexOf('LA GRABACIÓN PRUEBA'))
   assert.match(bloque, /update\(\{ status: 'show' \}\)/)
   assert.match(bloque, /\.in\('status', ESTADOS_SIN_RESOLVER\)/, 'sin este filtro se pisarían decisiones humanas')
