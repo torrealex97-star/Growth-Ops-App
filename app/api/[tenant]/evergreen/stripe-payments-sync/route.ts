@@ -4,6 +4,7 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 import { getTenantConfigWithFallback } from '@/lib/config'
 import { recordSyncRun, SyncBusyError } from '@/lib/integrations/sync-runs'
 import { syncStripePayments } from '@/lib/finance/stripePaymentsSync'
+import { syncReservationRefunds } from '@/lib/finance/reservationRefundSync'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -61,7 +62,23 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ te
         },
       })
     )
-    return NextResponse.json({ ok: true, ...result })
+    // Misma absorción que el cron: al pulsar Sincronizar en Integraciones, las devoluciones hechas
+    // directamente en Stripe sobre reservas entran a la app (ver lib/finance/reservationRefundSync).
+    // Fallo blando: se informa, no se tumba la respuesta del sync del dinero.
+    let avisoReservas: string | null = null
+    let absorcion: { absorbed: number; flagged: number; scanned: number } | null = null
+    try {
+      absorcion = await syncReservationRefunds(sb, auth.tenantId)
+    } catch (e) {
+      avisoReservas = `Devoluciones de reserva sin absorber: ${e instanceof Error ? e.message : 'error'}. Reintenta.`
+    }
+    return NextResponse.json({
+      ok: true,
+      ...result,
+      reservas_devueltas_absorbidas: absorcion?.absorbed ?? null,
+      reservas_para_revision: absorcion?.flagged ?? null,
+      aviso_reservas: avisoReservas,
+    })
   } catch (e) {
     if (e instanceof SyncBusyError) {
       return NextResponse.json(

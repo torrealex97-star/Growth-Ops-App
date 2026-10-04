@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { syncStripePayments } from '@/lib/finance/stripePaymentsSync'
+import { syncReservationRefunds } from '@/lib/finance/reservationRefundSync'
 import { getTenantConfigWithFallback } from '@/lib/config'
 import { recordSyncRun, SyncBusyError } from '@/lib/integrations/sync-runs'
 
@@ -79,6 +80,22 @@ export async function GET(req: NextRequest) {
           // Otra ejecución ya estaba en marcha: no es un fallo, es el candado funcionando.
           omitida: e instanceof SyncBusyError,
         }
+        continue
+      }
+      // ABSORCIÓN de devoluciones de reserva hechas directamente en Stripe: si el espejo acaba de
+      // ver refunded_amount > 0 sobre una reserva abierta, la app la registra (fila en refunds,
+      // venta 'refunded', fuera de la bandeja de reservas). FUERA de recordSyncRun y con fallo
+      // blando: una absorción caída no marca la pasada como avería ni tumba el sync del dinero
+      // (el espejo ya es verdad; la siguiente pasada reintenta idempotente).
+      try {
+        const absorbed = await syncReservationRefunds(sb, tn.id)
+        const resumen = porSubcuenta[tn.slug] as Record<string, unknown>
+        resumen.reservas_devueltas_absorbidas = absorbed.absorbed
+        resumen.reservas_para_revision = absorbed.flagged
+      } catch (e) {
+        ;(porSubcuenta[tn.slug] as Record<string, unknown>).aviso_reservas = `Devoluciones de reserva sin absorber: ${
+          e instanceof Error ? e.message : 'error'
+        }; se reintenta en la siguiente pasada.`
       }
     }
     return NextResponse.json({ ok: true, tenants: porSubcuenta })
