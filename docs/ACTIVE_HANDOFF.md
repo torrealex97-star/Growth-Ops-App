@@ -66,6 +66,37 @@ las 12:16, 0 variables de entorno, sin dominio) que reconstruye cada push y dupl
 Storage; **producción es `growthops-preview-3003`** (dominio + 14 variables). **Pendiente de Alex:** decidir
 borrar `growth-ops-app`; mientras exista, la purga vuelve a llenarse. No lo he borrado: es un proyecto entero.
 
+## Cobros como reserva + errores accionables al completar reserva + grafía de nombres — 4-oct (Freebuff, PR #350)
+
+**Fusionado en `main` (78ffcc3).** Los 4 síntomas que reportó Alex cerrados:
+
+1. **La bandeja no identificaba cobros que son solo reserva** — causa medida: `stripe_price_map` de la
+   subcuenta está VACÍO (la UI de mapeo nunca se usó), así que `suggestPayment` no mapeaba nada y el plan
+   de reserva (50 €) estaba bloqueado en recognition y en resolve. Ahora: modo `reservation` propuesto
+   cuando el Price ID mapea al plan de reserva, o cuando (sin mapeo) hay un ÚNICO plan de reserva activo
+   con importe exacto al cobro — sugerencia que el usuario confirma, nunca registro automático.
+2. **No había opción de registrar el cobro como reserva** — el selector de la bandeja ofrece "Una reserva
+   (el anticipo)": el resolve registra la venta con plan reserva, total pactado = cobro recibido, sin
+   cuotas (el RPC `resolve_payment_inbox` ya lo soportaba: `needs_commission_review=true` y el registro
+   es recuperable). Con reservas abiertas del contacto, se puede añadir el cobro a una existente.
+3. **Error genérico al "completar la compra" desde la reserva** — `complete-reservation` traduce ahora los
+   mensajes del RPC a acciones concretas (p. ej. haber elegido el plan de reserva como plan final, o el
+   anticipo sin conciliar). Causa más probable cerrada en la UI: al completar NO se ofrece el plan de
+   reserva como plan final y el importe de reserva es readonly (el RPC exige `reservation_amount == gross`
+   de la reserva).
+4. **Nombres en minúsculas** — medido: 553 contactos almacenados en minúsculas, 550 con `ghl_contact_id` y
+   546 con `first_name` (vía API de GHL); NINGÚN punto del código lowercaneaba nombres (auditoría de
+   webhooks, SQL, CSS y arreglos viejos). Ahora la app muestra la grafía capitalizada (`capitalizeName`
+   compartida: bandeja, reservas, CRM) y la ingesta adopta la mejor grafía del mismo nombre (`mejorNombre`
+   en citas-sync y webhook GHL): los arreglos hechos en GHL/Calendly se propagan al reingestar.
+
+Validación: 36/36 tests nuevos+ampliados, suites afectadas en verde, `tsc` verde, prettier del repo verde,
+CI del PR en verde (Build + E2E + calidad) con el árbol final. Nota de arnés: un `prettier` plano en /tmp
+(3.9.9) aceptaba 2 ficheros que la 3.9.6 del repo rechaza — reindento con la salida canónica del repo.
+Pendiente para Alex: probar la bandeja (el cobro de 50 € del plan de reserva ahora sale como sugerencia)
+y completar una reserva real; los 553 nombres históricos se ven capitalizados pero el dato almacenado solo
+corrige cuando la plataforma reenvíe una grafía mejor.
+
 ## F35 cerrado en producción + la sincronización borraba las asistencias — 4-oct (Claude Code)
 
 **F35 (P0, fuga entre subcuentas) — APLICADO con OK de Alex y verificado:** migración
@@ -1868,7 +1899,6 @@ fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo 
 
 | Agente      | Qué                                                                   | Rama                        | Toca                                                         | Desde |
 | ----------- | --------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------ | ----- |
-| Freebuff    | Cobros como reserva (bandeja), error al completar reserva, nombres en minúsculas | `fix/reservas-cobros-nombres` | `lib/sales/payment-*`, `components/sales/PaymentInbox.tsx`, `app/api/[tenant]/evergreen/sales/{payment-inbox/resolve,complete-reservation}`, `app/[tenant]/ventas/{reservas,registro/nueva}`, `lib/contacts/*`, `lib/integrations/citas-sync.ts`, tests asociados | 4-oct |
 | Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot   | `package.json`/lock (solo vía dependabot), docs, migraciones | 3-oct |
 | Codex       | PR #325 reservation-refunds (E2E en rojo, su autor continúa)          | `codex/reservation-refunds` | ventas/cobros (según su rama)                                | 3-oct |
 | Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún             | —                           | `docs/plan/`, migraciones RLS                                | 3-oct |
