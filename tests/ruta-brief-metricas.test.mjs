@@ -113,8 +113,9 @@ test('las alertas salen de las mismas métricas que el diagnóstico, no de un se
   const codigo = sinComentarios(leer(RUTA))
   assert.match(codigo, /for \(const m of metricas\)/)
   // Si se recalcularan aquí, el panel podría avisar de algo que el diagnóstico no ve.
-  assert.match(codigo, /const metricas = entradasDiagnostico\(consulta\.agregados\)/)
-  assert.ok(codigo.indexOf('const metricas =') < codigo.indexOf('for (const m of metricas)'))
+  // Y solo de las que se pueden juzgar: pasan por depurarPorFiabilidad (F08) sin recalcularse.
+  assert.match(codigo, /depurarPorFiabilidad\(\s*entradasDiagnostico\(consulta\.agregados\)/)
+  assert.ok(codigo.indexOf('fiables: metricas') < codigo.indexOf('for (const m of metricas)'))
 })
 
 // El aviso que más vale hoy: 328 citas pasadas sin marcar en producción.
