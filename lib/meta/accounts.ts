@@ -49,3 +49,13 @@ export function toggleAccountId(raw: string | undefined | null, accountId: strin
   const siguientes = actuales.includes(id) ? actuales.filter((a) => a !== id) : [...actuales, id]
   return serializeAccountIds(siguientes)
 }
+
+/**
+ * La cuenta publicitaria a seleccionar sola al conectar: solo si el token ve EXACTAMENTE UNA cuenta
+ * activa (account_status 1). Con varias, elegir es una decisión del usuario (D10: nunca «todas» por
+ * defecto); con ninguna, no hay nada que elegir.
+ */
+export function cuentaUnicaActiva(cuentas: readonly { id: string; status?: number }[]): string | null {
+  const activas = cuentas.filter((c) => c.status === undefined || c.status === 1)
+  return activas.length === 1 ? normalizeAccountId(activas[0].id) : null
+}

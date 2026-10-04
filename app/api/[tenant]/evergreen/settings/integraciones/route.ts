@@ -13,6 +13,7 @@ import { SYNC_DEFS } from '@/lib/ops/sync-health'
 import { lastRunsByJob } from '@/lib/integrations/sync-runs'
 import { PG_CRON_READY, VERCEL_CRON_ROUTES } from '@/lib/ops/vercel-crons'
 import { fetchAdAccounts } from '@/lib/meta/client'
+import { cuentaUnicaActiva, parseAccountIds } from '@/lib/meta/accounts'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { configBunny, faltaEnConfigBunny, probarBunny } from '@/lib/vsl/bunny'
 import { isDeprecatedMetaVersion, META_API_VERSION } from '@/lib/meta/api-version'
@@ -346,6 +347,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
   const updates = body.updates || {}
   const clear = body.clear || []
+
+  // F33 · Al guardar un token de Meta nuevo en una subcuenta SIN cuenta publicitaria elegida, si el
+  // token ve exactamente una cuenta activa se selecciona sola: sin selección no se sincroniza
+  // gasto (D10) y la pantalla se quedaba en «conectada pero sin sincronizar». Con varias cuentas
+  // no se elige nada: lo decide la persona.
+  if (updates.META_ACCESS_TOKEN?.trim() && !updates.META_AD_ACCOUNT_ID?.trim()) {
+    try {
+      const cfgActual = await getTenantConfigWithFallback(auth.tenantId, true)
+      if (parseAccountIds(cfgActual.META_AD_ACCOUNT_ID).length === 0) {
+        const unica = cuentaUnicaActiva(
+          await fetchAdAccounts(
+            updates.META_ACCESS_TOKEN.trim(),
+            cfgActual.META_API_VERSION || META_API_VERSION,
+            (updates.META_APP_SECRET || cfgActual.META_APP_SECRET || '').trim() || undefined
+          )
+        )
+        if (unica) updates.META_AD_ACCOUNT_ID = unica
+      }
+    } catch {
+      // Best-effort: si Meta no responde, se guarda el token y la selección queda para la persona.
+    }
+  }
   const client = svc()
   const rows: { key: string; tenant_id: string; value: string; is_secret: boolean; updated_by: string }[] = []
   const needsEnc = ALL_FIELDS.some((f) => f.secret && updates[f.key])
