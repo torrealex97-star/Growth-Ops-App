@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { ipDe, limitar } from '@/lib/security/rate-limit'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
 import { buildStudentContractPdf } from '@/lib/contracts/pdf-student'
@@ -64,6 +65,12 @@ async function uploadSignedPdf(sb: SupabaseClient, contractId: string, bytes: Ui
 // GET — datos del contrato de alumno para la página pública de firma.
 // Además marca la primera apertura (read_at) para el tracking del closer.
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  const lim = limitar(`firma:${ipDe(_req.headers)}`, 60, 10 * 60_000)
+  if (!lim.ok)
+    return NextResponse.json(
+      { error: 'Demasiados intentos. Espera unos minutos.' },
+      { status: 429, headers: { 'Retry-After': String(lim.reintentarEnSeg) } }
+    )
   const { token } = await params
   const sb = service()
   const { data } = await sb
@@ -144,6 +151,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
 // POST — el alumno acepta las condiciones: genera PDF, marca firmado, envía copia
 // y dispara el webhook de onboarding a GoHighLevel para darle los accesos.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  const lim = limitar(`firma:${ipDe(req.headers)}`, 60, 10 * 60_000)
+  if (!lim.ok)
+    return NextResponse.json(
+      { error: 'Demasiados intentos. Espera unos minutos.' },
+      { status: 429, headers: { 'Retry-After': String(lim.reintentarEnSeg) } }
+    )
   try {
     const { token } = await params
     const { signerName, consent, signerData } = (await req.json()) as {

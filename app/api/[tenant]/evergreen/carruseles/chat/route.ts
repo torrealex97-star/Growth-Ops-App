@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { esUrlPublicaSegura } from '@/lib/security/safe-url'
 import Anthropic from '@anthropic-ai/sdk'
 import { getCarruselUser } from '@/lib/carruseles/auth'
 import { requireTenant } from '@/lib/auth/requireTenant'
@@ -121,8 +122,12 @@ interface FetchedImage {
 // para el mensaje del usuario. En vez de descartarla en silencio cuando falla, devuelve un
 // aviso legible para poder informar al usuario (SVG no soportado por el modelo, >4MB, etc).
 async function fetchImageBlock(url: string, name: string): Promise<FetchedImage> {
+  // El servidor solo descarga URLs públicas por https: una URL guardada que apunte a localhost o a la
+  // red interna convertiría esta función en un puente hacia ella (SSRF).
+  if (!esUrlPublicaSegura(url))
+    return { block: null, warning: `"${name}" no es una URL pública https y no se descarga.` }
   try {
-    const res = await fetch(url)
+    const res = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(15000) })
     if (!res.ok) return { block: null, warning: `No se pudo descargar "${name}" (${res.status}).` }
     const ct = res.headers.get('content-type') || ''
     if (ct.includes('svg')) {

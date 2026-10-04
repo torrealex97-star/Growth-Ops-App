@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { ipDe, limitar } from '@/lib/security/rate-limit'
 import { createClient } from '@supabase/supabase-js'
 import { getCompanyProfile } from '@/lib/contracts/company'
 import { sendRecoveryEmail, resendConfigured } from '@/lib/email/resend'
@@ -19,6 +20,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       .toLowerCase()
       .trim()
     if (!email) return NextResponse.json({ error: 'Falta el email' }, { status: 400 })
+
+    // Anti-bombardeo: este endpoint es público y manda un correo a cualquier dirección. Mismo aviso
+    // neutro que el caso normal, para no distinguir «bloqueado» de «enviado» a un atacante.
+    const lim = limitar(`recover:ip:${ipDe(req.headers)}`, 10, 15 * 60_000)
+    const limEmail = limitar(`recover:email:${tenant}:${email}`, 3, 15 * 60_000)
+    if (!lim.ok || !limEmail.ok) return NextResponse.json({ ok: true, fallback: false })
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
       auth: { autoRefreshToken: false, persistSession: false },
