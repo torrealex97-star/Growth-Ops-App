@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { AlertTriangle, CheckCircle2, ExternalLink, Inbox, Loader2, Mic } from 'lucide-react'
+import { PAGINA_LISTA, useMostrarMas } from '@/lib/hooks/useMostrarMas'
 import { useTenant } from '@/lib/tenant-context'
 import { formatDateTime } from '@/lib/utils'
 
@@ -66,6 +67,7 @@ export default function FathomRevisionPage() {
   const [feedback, setFeedback] = useState<{ id: string; ok: boolean; text: string } | null>(null)
   // Cita elegida por caso. Sin valor por defecto A PROPÓSITO: preseleccionar una candidata sería
   // volver a elegir por la persona, que es lo que el matcher se niega a hacer.
+  const { visibles, restantes, mostrarMas } = useMostrarMas(data?.items ?? [], status)
   const [choice, setChoice] = useState<Record<string, string>>({})
 
   const load = useCallback(async () => {
@@ -169,7 +171,7 @@ export default function FathomRevisionPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {data.items.map((item) => (
+          {visibles.map((item) => (
             <article key={item.id} className="border-border bg-card space-y-4 rounded-xl border p-4">
               <header className="flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-1">
@@ -275,6 +277,15 @@ export default function FathomRevisionPage() {
               ) : null}
             </article>
           ))}
+          {restantes > 0 && (
+            <button
+              type="button"
+              onClick={mostrarMas}
+              className="border-border text-foreground hover:bg-muted w-full rounded-lg border py-2 text-sm"
+            >
+              Mostrar {Math.min(restantes, PAGINA_LISTA)} más ({restantes} sin mostrar)
+            </button>
+          )}
         </div>
       )}
     </div>
