@@ -64,9 +64,10 @@ test('la sync RELLENA huecos y NUNCA reasigna: closer_id solo si la fila no ten�
   // pull reenviaba el dueño del calendario y pisaba la asignación real en cada pasada).
   const envios = sync.match(/\.\.\.\(closerId && !yaTeniaCloser \? \{ closer_id: closerId \} : \{\}\)/g) ?? []
   assert.equal(envios.length, 2, 'GHL y Calendly: rellenar solo si la fila no tenía closer')
-  // Para poder decidir, el select de la fila existente trae closer_id.
-  assert.match(sync, /select\('id, contact_id, closer_id'\)/)
-  assert.match(sync, /select\('id, closer_id'\)/)
+  // Para poder decidir, el select de la fila existente trae closer_id (y, desde que la pasada no
+  // retrocede una asistencia marcada, también el estado actual).
+  assert.match(sync, /select\('id, contact_id, closer_id, status'\)/)
+  assert.match(sync, /select\('id, closer_id, status'\)/)
   // Y nunca un closer_id fijo dentro de values.
   assert.doesNotMatch(sync, /^\s+closer_id: /m)
 })
