@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
+import { createServerClient } from '@supabase/ssr'
 import { abrirTicket, cookieNombre } from '@/lib/auth/ver-como'
 
 export const runtime = 'nodejs'
@@ -63,25 +63,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
   })
   if (auditErr) console.error('[ver-como/salir] no se pudo registrar en audit_logs:', auditErr.message)
 
-  const ref = process.env.NEXT_PUBLIC_SUPABASE_URL!.replace(/^https:\/\//, '').split('.')[0]
-  const payload = {
-    access_token: s.access_token,
-    token_type: 'bearer',
-    expires_in: s.expires_in ?? 3600,
-    expires_at: s.expires_at ?? Math.floor(Date.now() / 1000) + 3600,
-    refresh_token: s.refresh_token,
-    user: s.user,
-  }
-  const valor = `base64-${Buffer.from(JSON.stringify(payload)).toString('base64')}`
+  // La sesión se escribe con el adaptador SSR canónico de @supabase/ssr, el MISMO que lee el cliente
+  // del navegador. Antes se fabricaba a mano una cookie única y HttpOnly: el navegador no podía leerla,
+  // la UI creía que no había sesión y devolvía al login (F21). El adaptador además parte la sesión en
+  // trozos `.0`, `.1`… si es grande y borra los trozos de la sesión anterior (getAll les da la cookie
+  // actual del "ver como" para que setAll sepa cuáles retirar).
   const res = NextResponse.json({ ok: true })
-  // Las dos cookies que @supabase/ssr mira: la de sesión y la del code verifier (se deja vacía).
-  res.cookies.set(`sb-${ref}-auth-token`, valor, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    maxAge: 60 * 60 * 24 * 7,
+  const ssr = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    cookies: {
+      getAll: () => req.cookies.getAll(),
+      setAll: (aEscribir) => aEscribir.forEach(({ name, value, options }) => res.cookies.set(name, value, options)),
+    },
   })
+  const { error: sessionErr } = await ssr.auth.setSession({
+    access_token: s.access_token,
+    refresh_token: s.refresh_token,
+  })
+  if (sessionErr) {
+    const fallo = NextResponse.json(
+      { error: 'No se pudo restaurar tu sesión. Entra de nuevo con tu usuario.', motivo: 'sesion_no_escrita' },
+      { status: 400 }
+    )
+    fallo.cookies.delete(cookieNombre())
+    return fallo
+  }
   res.cookies.delete(cookieNombre())
   return res
 }
