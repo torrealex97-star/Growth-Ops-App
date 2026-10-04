@@ -55,6 +55,7 @@ Rama `codex/skeleton-emptystate-adopcion` desde `e09a6a8`. Reclamación: adopci�
 Avance 2-oct: 40 páginas con Skeleton y dos EmptyState. Lotes 1–9 con gates y comparación de medidas/radio/fondo sin cambios; lote 10 con comparación visual correcta y gates PASS al repetir tras carrera de generación de `.next/types`. Último commit: `ca7d1d7`. No modificar tipos generados. Capturas fuera de Git. Quality completo de las 40 páginas PASS (1.202 tests + 783 métricas, 3 SKIP); build conjunta PASS; dev QA restaurado en puerto 3101. Detalle por lote en S1 §6.8. No tocar cambios de otros checkouts.
 
 Pendiente: terminar candidatos aislados y clasificación EmptyState; verificar APIs del entorno local tras restaurar configuración server-side solo en memoria; continuar F10–14 según los prompts. No marcar auditoría finalizada, no repetir Web Vitals ya cerradas. Los journeys con venta/cobro requieren confirmación explícita y falta cuenta QA colaborador. Evidencia acumulada en `docs/S1-MVP-READINESS-2026-10-01.md` §6.8.
+
 ## Limpieza de Vercel — 4-oct (Claude Code, con OK de Alex)
 
 **Resultado:** 423 despliegues → **52** (370 borrados, 0 fallos, ninguno con dominio propio). Producción
@@ -2207,5 +2208,14 @@ Codex, misma rama/PR: Cash Collected medio por ventas del periodo, gráfico dual
 
 El usuario aclara que Cash Collected medio debe medir la primera transacción de la venta nueva, no el cash total del periodo. Helper compartido `promedioPrimerPago` en `lib/finance/nuevo-vs-recurrente.ts`, consumido por Negocio/Ventas y dashboard principal. Historial completo de cobros, una primera transacción por venta activa del periodo, sin cuotas posteriores ni ventas antiguas; corte a fin del periodo y ausencia explícita si falta un pago o el primero es ambiguo. Documento METRICS actualizado con la definición corregida. Quality PASS (1133 unit, 3 skip; 774 métricas), build PASS y dead-code informativo. Smoke autenticado confirma que el promedio corregido coincide entre Unit Economics y dashboard principal. Local 3100 activo, sesión 19536. No cambia cobros ni cash total. Producción pendiente de PR #278.
 
-
 **Verificación posterior del mismo 3-oct:** después de capturar 1 venta/1 cobro y los dashboards coincidentes, otra consulta de base de datos devolvió 0 ventas y 0 cobros. El agente no borró esos registros. El QA compartido volvió a ser modificado/limpiado por un proceso externo (autor no identificado en esta última comprobación). No recrear automáticamente la prueba. El PASS acotado describe el estado comprobado inmediatamente después del alta, no persistencia garantizada ni cierre del problema de aislamiento de QA. Finanzas llegó a mostrar facturación anterior con cobros a cero durante este cambio; no usar ese estado para diagnosticar una fórmula incorrecta sin estabilizar las fuentes.
+
+## 2026-10-04 · Cierre de la auditoría F-series (parte 2)
+
+- Fusionados: #345 (F22/F18/F23), #346 (F08), #347 (F15), #348 (F14/F16), #349 (F21).
+- Aprendizaje CI: `npm test` y `npm run test:metrics` son dos suites; el CI corre en UTC, así que los
+  tests de fechas deben fijar zona/`now`. Los E2E cancelados por la concurrencia global se relanzan
+  con la cola vacía (`gh run rerun --failed`).
+- Pendiente de usuario: F04 (tipo de cambio), F11/F12 (mapeo de setters, histórico esperado por fuente).
+- SIGUIENTE: migraciones F01 `20261003120000` y `20261003130000` (en prod, solo en la rama
+  `claude/app-continuation-lpbupf`) → traerlas a `main` verificando que coinciden con prod.
