@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -207,7 +209,7 @@ export default function PlantillasPage() {
       </div>
 
       {loading ? (
-        <div className="h-48 bg-card rounded-lg animate-pulse" />
+        <Skeleton className="h-48" />
       ) : templates.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <FileText className="w-12 h-12 text-muted-foreground mb-4" />

@@ -1,3 +1,60 @@
+## Acceso QA recuperado — 3-oct, corrección operativa
+
+A petición expresa del usuario se sincronizó el secreto E2E_PASSWORD de GitHub Actions con la credencial QA acordada y se restauró esa misma credencial en el usuario QA existente. No se cambió rol, membresía ni datos de negocio. Verificado: actualización del secreto confirmada por CLI y metadatos, una sola fila auth actualizada, login real seguido de Dashboard como admin QA. Ningún secreto se incluye en este documento ni en archivos del repo.
+
+El bloqueo inmediato de contraseña queda resuelto. La limpieza transaccional de setup/teardown sigue activa: sincronizar contraseñas NO separa QA manual de CI ni garantiza persistencia de fixtures. No se ejecutó E2E/reset para comprobarlo; no afirmar estabilidad a través de un nuevo run todavía. Para evitar regresión, cualquier ejecución local debe usar la credencial acordada; aislar tenant manual/CI sigue en backlog. Reanudar auditoría desde la sesión autenticada, sin recrear la venta ya probada.
+
+## Histórico — acceso QA bloqueado antes de la sincronización (3-oct)
+
+Continuación completó prueba de teclado del menú móvil y revisión pública de login/recuperación. Nuevos resultados y criterios en última sección S1; tareas en primera sección PENDIENTES. Menú no contiene foco ni cierra con Escape; recuperación falla contraste; login duplica RPC de branding. Sin fixes, por instrucción del usuario.
+
+Tras navegar desde el menú, QA redirigió al login y rechazó la credencial acordada. No se cambió contraseña, no se creó otra venta, no se enviaron correos. Solicitud de sesión estable pendiente de respuesta. Viewport restaurado. Main observado `2cfd99f`; CI success no sustituye journeys manuales. No marcar F10–14 cerradas. El siguiente paso requiere QA estable para reanudar Analítica comercial, tablas móviles y journeys aún bloqueados por fixtures/rol/integración; evitar otra ronda de reset contra CI.
+
+## Histórico inmediato — continuación de lectura 3-oct
+
+Admin QA confirmado en producción. Resumen financiero ya muestra cero facturación/cash tras la limpieza externa. Proyección, I&G y Cohortes cargan: proyección advierte que cero cuotas no acredita ausencia de deuda; I&G distingue libro interno de caja consolidada; Cohortes muestra «Sin datos todavía» y explica fuente y maduración. Estas verificaciones de estado vacío no validan cálculos poblados ni cierran journeys.
+
+Continuar solo auditoría/documentación conforme a la instrucción vigente. No volver a crear la venta ya probada, no resetear QA compartido, no enviar contratos/correos. Los bloqueos y criterios están en PENDIENTES y S1. Main local ha avanzado hasta `ceb18f2` y tiene cambios ajenos sin commit: no tocarlos; esta rama de auditoría no equivale a ese árbol ni confirma sus fixes desplegados. Antes de integrar, conciliar los tres documentos con main preservando ambas auditorías.
+
+## Último resultado — venta/cobro QA ejecutados y verificados (3-oct)
+
+Esta actualización sustituye las notas anteriores de autorización pendiente: usuario autorizó venta + cobro interno por 3.000 EUR. Se completó el wizard como admin QA después de terminar CI; base de datos confirma 1 venta y 1 cobro vinculados de 3.000, y coinciden ficha, Dashboard, Visión del negocio y Finanzas. Una comprobación posterior encontró cero ventas y cero cobros: hubo limpieza externa de autor no identificado. No recrear la prueba. No hubo cargo externo.
+
+El wizard intenta enviar contrato automáticamente: se interceptó/abortó solo esa petición no autorizada y se retiró luego la intercepción. Ficha confirma contrato no generado. PASS acotado venta→cobro→dashboards, no siete journeys ni flujo sin instrumentación.
+
+**Prioridad nueva P1:** comisiones/future devuelve 500 por `payment_plans.sale_id does not exist` (route.ts:85); UI oculta el fallo como 0 y ausencia de comisiones futuras. Reproducido con captura limpia. Documentado en última sección de S1; corregir después, según instrucción de no tocar código. Falta collaborator QA (usuario no dispone) y fixtures/autorizaciones de VSL, Meta, Stripe test y email. Evidencias de importes guardadas localmente, sin IDs ni datos de personas reales en commits.
+
+## Histórico — revisión runtime anterior a la venta (3-oct)
+
+Continuar en modo auditoría/documentación, sin fixes de código. Se añadieron resultados de 11 rutas revalidadas con axe en producción, responsive a 390/768/1440, teclado/modal/Emails/Finanzas, Network con bytes y duplicaciones, y matriz explícita de los siete journeys en el informe S1 (últimas secciones). No son siete PASS ni cierre de F10–14.
+
+Hallazgo operativo prioritario: QA manual comparte usuario y datos con CI. Global setup ejecuta setup-tenant --reset y cambia contraseña; teardown borra actividad. Job smoke concurrente explica la coincidencia temporal de restablecimientos/fixtures cambiantes. La contraseña fue recuperada con autorización; nunca incluir su valor. Posteriormente la sesión pasó a la cuenta personal: las comprobaciones de UI posteriores no validan permisos QA. Usuario confirmó no disponer de cuenta collaborator de prueba.
+
+No se creó ninguna venta/cobro/correo por esta revisión. Usuario autorizó una venta QA descrita inicialmente sin cobro; al leer el test se detectó que el plan completo registra cobro automático. Se corrigió la explicación y quedó pendiente autorización específica para venta + cobro interno. Comprobar duplicados y estabilidad antes de ejecutar. No correr setup-tenant ni E2E local sobre QA compartido.
+
+Evidencia nueva local en /tmp/growthops-audit-oct3 (results.json, network.json y capturas), también copiada al almacenamiento local de visualizaciones de Codex; no commitear imágenes con cuentas/datos. VSL producción carga vacío, no reproduce el 500 local. CI externo SUCCESS en 92e0b1c, no sustituye regresión de esta rama. Pendientes/correcciones detallados en S1 y PENDIENTES.md.
+
+## Histórico — bloqueo de autenticación QA, después recuperado (3-oct)
+
+Se intentó continuar en producción, solo lectura. La pestaña estaba en el tenant QA pero el perfil correspondía a la cuenta personal del usuario, no al admin QA; por eso estas observaciones no validan aislamiento ni permisos QA. Se cerró esa sesión y el acceso con la cuenta de prueba suministrada respondió `Invalid login credentials`. Se solicitó al usuario iniciar sesión o aportar la contraseña vigente. No se ejecutó setup-tenant, no se cambiaron credenciales y no se guardaron formularios.
+
+Antes del bloqueo: a 390×844 Dashboard y Agendas dieron `document.scrollWidth=390`; el calendario semanal usa desplazamiento interno. Notificaciones cerró con Escape y devolvió foco al disparador. En Nueva agenda, Shift+Tab desde el primer campo llegó al botón Cerrar; Escape cerró el modal pero el foco observado terminó en el documento, no en Nueva agenda: reproducir con cuenta QA y apertura por teclado antes de clasificar. Con reduced-motion activo, Dashboard no tenía animaciones activas; esto no valida transiciones ni gráficos con datos. Se restauraron las emulaciones de viewport y movimiento. Ningún journey nuevo puede marcarse PASS. No se realizaron correcciones.
+
+# Relevo activo
+
+## Relevo 3-oct — auditoría solo lectura, sin correcciones nuevas
+
+**Instrucción vigente:** documentar los cambios necesarios para el próximo agente; no solucionar código en esta pasada. Revisión NO finalizada: axe ejecutado en 50 rutas, desktop; móvil interrumpido tras Dashboard, tablet/teclado/reduced-motion y siete journeys sin cerrar. Hallazgos, rutas, prioridades y criterios de cierre añadidos en `docs/S1-MVP-READINESS-2026-10-01.md`, «Revisión de solo lectura — relevo 3-oct». Recursos sigue excluido.
+
+Los archivos de evidencia y el checkout bajo `/tmp` desaparecieron entre sesiones. No presentar capturas/JSON como conservados. Git mantiene la migración en `codex/skeleton-emptystate-adopcion`; punto anterior `4f44e10`. Se recuperaron los documentos en `/tmp/growthops-review-handoff` con HEAD separado para no tocar el checkout de otro agente. No asumir que localhost:3101 sigue activo ni que conserva la configuración; no imprimir secretos. Reproducir los hallazgos antes de cerrarlos.
+
+## Reclamación Codex — 1-oct: adopción Skeleton/EmptyState
+
+Rama `codex/skeleton-emptystate-adopcion` desde `e09a6a8`. Reclamación: adopción acotada de placeholders en páginas aisladas (CRM, ventas, ajustes, finanzas y analítica); solo import + JSX de carga, sin lógica ni diseño. Recursos excluido por decisión explícita del usuario tras hallazgo de aislamiento en `resource_links` y `resource_link_divisions`; no corregido. No ejecutar reset del tenant ni modificar credenciales.
+
+Avance 2-oct: 40 páginas con Skeleton y dos EmptyState. Lotes 1–9 con gates y comparación de medidas/radio/fondo sin cambios; lote 10 con comparación visual correcta y gates PASS al repetir tras carrera de generación de `.next/types`. Último commit: `ca7d1d7`. No modificar tipos generados. Capturas fuera de Git. Quality completo de las 40 páginas PASS (1.202 tests + 783 métricas, 3 SKIP); build conjunta PASS; dev QA restaurado en puerto 3101. Detalle por lote en S1 §6.8. No tocar cambios de otros checkouts.
+
+Pendiente: terminar candidatos aislados y clasificación EmptyState; verificar APIs del entorno local tras restaurar configuración server-side solo en memoria; continuar F10–14 según los prompts. No marcar auditoría finalizada, no repetir Web Vitals ya cerradas. Los journeys con venta/cobro requieren confirmación explícita y falta cuenta QA colaborador. Evidencia acumulada en `docs/S1-MVP-READINESS-2026-10-01.md` §6.8.
 ## Limpieza de Vercel — 4-oct (Claude Code, con OK de Alex)
 
 **Resultado:** 423 despliegues → **52** (370 borrados, 0 fallos, ninguno con dominio propio). Producción
@@ -2118,3 +2175,6 @@ Codex, misma rama/PR: Cash Collected medio por ventas del periodo, gráfico dual
 ## Aclaración del primer pago medio (28-sep)
 
 El usuario aclara que Cash Collected medio debe medir la primera transacción de la venta nueva, no el cash total del periodo. Helper compartido `promedioPrimerPago` en `lib/finance/nuevo-vs-recurrente.ts`, consumido por Negocio/Ventas y dashboard principal. Historial completo de cobros, una primera transacción por venta activa del periodo, sin cuotas posteriores ni ventas antiguas; corte a fin del periodo y ausencia explícita si falta un pago o el primero es ambiguo. Documento METRICS actualizado con la definición corregida. Quality PASS (1133 unit, 3 skip; 774 métricas), build PASS y dead-code informativo. Smoke autenticado confirma que el promedio corregido coincide entre Unit Economics y dashboard principal. Local 3100 activo, sesión 19536. No cambia cobros ni cash total. Producción pendiente de PR #278.
+
+
+**Verificación posterior del mismo 3-oct:** después de capturar 1 venta/1 cobro y los dashboards coincidentes, otra consulta de base de datos devolvió 0 ventas y 0 cobros. El agente no borró esos registros. El QA compartido volvió a ser modificado/limpiado por un proceso externo (autor no identificado en esta última comprobación). No recrear automáticamente la prueba. El PASS acotado describe el estado comprobado inmediatamente después del alta, no persistencia garantizada ni cierre del problema de aislamiento de QA. Finanzas llegó a mostrar facturación anterior con cobros a cero durante este cambio; no usar ese estado para diagnosticar una fórmula incorrecta sin estabilizar las fuentes.

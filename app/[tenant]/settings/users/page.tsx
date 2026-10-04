@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useCallback, useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -605,7 +607,7 @@ export default function UsersPage() {
       </p>
 
       {loading ? (
-        <div className="h-48 bg-card rounded-lg animate-pulse" />
+        <Skeleton className="h-48" />
       ) : users.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <Users className="w-12 h-12 text-muted-foreground mb-4" />

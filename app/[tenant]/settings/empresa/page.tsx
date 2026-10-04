@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -88,7 +90,7 @@ export default function EmpresaSettingsPage() {
     </div>
   )
 
-  if (loading) return <div className="h-64 bg-card rounded-lg animate-pulse" />
+  if (loading) return <Skeleton className="h-64" />
 
   return (
     <div className="space-y-6 max-w-2xl">

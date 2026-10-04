@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeUserNamesQuery } from '@/lib/users'
@@ -329,7 +331,7 @@ export default function TasksPage() {
       </div>
 
       {loading ? (
-        <div className="h-64 bg-card rounded-lg animate-pulse" />
+        <Skeleton className="h-64" />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           {STAGES.map((col) => {

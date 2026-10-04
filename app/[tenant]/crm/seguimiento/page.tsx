@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -482,7 +484,7 @@ export default function SeguimientoPage() {
       {loading ? (
         <div className="space-y-3">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-12 bg-card rounded-lg animate-pulse" />
+            <Skeleton key={i} className="h-12" />
           ))}
         </div>
       ) : view === 'kanban' ? (

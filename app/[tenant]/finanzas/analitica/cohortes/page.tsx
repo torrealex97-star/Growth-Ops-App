@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useEffect, useMemo, useState } from 'react'
 import { useTenantId } from '@/lib/tenant-context'
 import { createClient } from '@/lib/supabase/client'
@@ -91,7 +93,7 @@ export default function CohortsPage() {
         ) : loading ? (
           <div className="p-5 space-y-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-8 bg-muted rounded animate-pulse" />
+              <Skeleton key={i} className="h-8 bg-muted rounded" />
             ))}
           </div>
         ) : cohorts.length === 0 ? (

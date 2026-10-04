@@ -1,5 +1,42 @@
+## Continuación de auditoría — menú y acceso (3-oct)
+
+- [ ] **P2 · Menú móvil:** abrir con Enter, foco debe entrar en el panel y quedar contenido; Escape cierra y devuelve foco. Actualmente Tab llega a Buscar detrás del overlay y Escape no cierra. Reutilizar Sheet existente; evidencia y archivos en última sección S1.
+- [ ] **P2 · Recuperación:** Button blanco/acento QA da 3,73:1; alcanzar AA sin romper branding. Login requiere anuncio accesible y traducción del error dinámico (verificación con lector pendiente).
+- [ ] **P3 · Login:** deduplicar lectura public_tenant_branding de layout/página, dos 200 en captura limpia; preservar manejo de tenant inexistente y error de red.
+- **ACCESO RECUPERADO:** secreto CI y contraseña QA sincronizados; login y Dashboard verificados el 3-oct. Queda aislar datos de QA manual frente al cleanup de CI. No ejecutar resets ni recrear venta. Ver actualización operativa en ACTIVE_HANDOFF.
+
+## Resultado posterior — prueba de venta/cobro autorizada
+
+- **Completado:** una venta y un cobro interno QA de 3.000 EUR; importes consistentes en base de datos, ficha, Dashboard, Visión del negocio y Finanzas. No repetir la creación; comprobar fixture antes de otras pruebas. No hubo cargo externo ni contrato enviado.
+- **P1 · Corregir Comisiones futuras:** API 500 por selección/filtro de `payment_plans.sale_id` inexistente (`app/api/[tenant]/evergreen/commissions/future/route.ts:85`). UI presenta cero/estado vacío pese al error. Resolver relación real y exponer fallo de carga; tests con venta full-pay sin cuotas, venta con cuotas y tenant vacío. Hallazgo confirmado, no corregido.
+- **P2 · Confirmación del wizard:** informar también de generación/envío automático de contrato. Se bloqueó esta petición durante la prueba para respetar la autorización; no asumir que el flujo normal carece de envío.
+- La autorización de venta/cobro ya está resuelta; restantes journeys siguen pendientes por fixtures/rol/email/Stripe. Ver última sección del informe S1.
+
+## Auditoría runtime 3-oct — acciones concretas para el siguiente agente
+
+1. **P1 · Aislar QA manual de CI:** global setup restablece contraseña y datos, global teardown limpia transacciones. Usar tenant/usuario por ejecución o un QA manual separado; no solucionar con contraseñas hardcodeadas. Validar que ejecutar CI no interrumpe la sesión ni altera fixtures manuales.
+2. **P2 · Accesibilidad:** nombres de filtros (Dashboard 2, Agendas 1, Ventas 5, Cobros 3, Comisiones 6), selects CRM 4 y Vista del Dashboard 1; contraste del acento; 26 ayudas con ARIA inválida y estructura dl en unit-economics; foco de gráfico oculto en Finanzas; scroll de calendario por teclado. Reproducir antes de editar: tabla completa en S1.
+3. **P2 · Devolver foco al cerrar Nueva agenda:** Tab permanece en el modal, pero Escape termina en BODY. Criterio: foco regresa a Nueva agenda en apertura por teclado y ratón.
+4. **P2 · Claridad del wizard:** Crear Venta con plan completo también registra cobro. Confirmación debe dejar explícito ese efecto; no probarlo como si fuera una venta sin cobro.
+5. **ACCIÓN REQUERIDA · Journeys:** cuenta QA collaborator (usuario no dispone), vídeo VSL de prueba, Meta/Stripe test y destinatario email autorizado. Venta/cobro interno ya autorizado, ejecutado y verificado; después eliminado por un proceso externo. No repetirlo automáticamente.
+6. **Pendiente de cierre visual:** jerarquía del Dashboard como Command Center, eje 0k repetido vacío, h1 de Contactos, vocabulario financiero canónico, gráfico poblado/performance con volumen y responsive de rutas no cubiertas. No declarar F10–14 PASS con estados vacíos ni con CI de otro commit.
+
+## Histórico — acceso QA falló y se recuperó (3-oct)
+
+La cuenta QA devolvió `Invalid login credentials`; acceso recuperado y admin QA confirmado en la última revisión. No solicitar de nuevo credenciales por esta nota histórica ni ejecutar setup-tenant para recuperarlas. La sesión que estaba abierta era personal y no sirve para validar permisos del admin QA. Continúan pendientes responsive completo, teclado, rendimiento y journeys; no declararlos aprobados.
+
 # PENDIENTES — [tenant] OS
 
+## Relevo de auditoría — 3-oct
+
+- [ ] Reproducir y resolver accesibilidad: nombres de filtros, etiquetas de formularios, tooltips KPI con ARIA inválido, contraste del accent, foco del gráfico financiero y scroll de Agendas. Detalle y aceptación en S1, «Revisión de solo lectura — relevo 3-oct».
+- [ ] Corregir advertencia de hidratación en FinanceEvolution tras reproducirla; no se modificó código en esta pasada.
+- [ ] Completar móvil/tablet, teclado, reduced-motion, F12 y los 7 journeys; no dar por terminada la auditoría por las 50 rutas con axe. Recuperar evidencia: los artefactos temporales anteriores ya no existen.
+
+## ACCIÓN REQUERIDA — auditoría visual 1-oct
+
+- [ ] **1. Aislar Recursos/Enlaces por tenant.** Tablas `resource_links` y `resource_link_divisions` sin `tenant_id`, políticas basadas solo en rol; lectura cruzada observada con admin QA. Definir asignación de registros existentes antes de migrar; no probar escrituras cruzadas. Evidencia y límites en `docs/S1-MVP-READINESS-2026-10-01.md` §6.8, continuación Codex. Usuario decide documentar y continuar únicamente pantallas aisladas; no resuelto.
+- [ ] Completar configuración server-side del entorno local antes de evaluar journeys; login QA operativo, API dependientes de configuración privilegiada no verificadas.
 - [ ] Migración de reservas autorizada y aplicada (20261003135010); completar CI, fusión y despliegue de PR #330. Código y pruebas aisladas preparados; el usuario declina sandbox, no se certifica el flujo real: [implementación, migración pendiente y pruebas](docs/ACTIVE_HANDOFF.md#reservas--alcance-seguro-para-fusionar-codex-3-oct).
 
 ## Actualización de entrega — 2026-10-01
@@ -39,14 +76,7 @@ Detalle completo en `docs/S1-MVP-READINESS-2026-10-01.md` — no se duplica aqu�
       (TASK/ALERT/DATA ISSUE/FOLLOW-UP/APPROVAL/OPPORTUNITY/REMINDER/AI INSIGHT/SYSTEM) que pide el
       encargo. NO se construye en esta fase de hardening — es feature nueva, necesita decisión de
       diseño. Detalle en `docs/S1-MVP-READINESS-2026-10-01.md` §6.7.
-- [ ] **Hallazgo real de Fase 10 (UX/UI) — Skeleton/EmptyState existen pero casi no se usan:**
-      `components/ui/skeleton.tsx` dice en su propio comentario que se construyó para sustituir los
-      `animate-pulse` sueltos de una auditoría anterior, pero solo 1 fichero lo importa — hay 52
-      ficheros con el patrón suelto sin migrar. `components/ui/empty-state.tsx` igual: solo 1
-      fichero lo usa, hay 49 con texto de "sin datos" escrito a mano. No se migra en esta sesión
-      (52+49 ficheros sin poder verificar visualmente el resultado es demasiado riesgo a ciegas) —
-      queda como tarea acotada para cuando haya verificación visual. Detalle en
-      `docs/S1-MVP-READINESS-2026-10-01.md` §6.8.
+- [ ] **Fase 10 — adopción Skeleton/EmptyState en curso:** 40 páginas con Skeleton y 2 estados vacíos migrados en lotes pequeños, con comparación visual antes/después y gates por lote sin regresiones. Inventario inicial: 52 archivos con pulse y 48 con textos de vacío; no todos son candidatos. Recursos excluido por decisión del usuario ante el fallo de aislamiento. Resto de EmptyState pendiente de equivalencia visual; PageSkeleton no aplicado por introducir temporización/espaciado distintos. Faltan candidatos restantes y quality/build finales. Evidencia en `docs/S1-MVP-READINESS-2026-10-01.md` §6.8.
 - [x] Fase 11 (Accesibilidad) y Fase 12 (Performance): intentadas por código. Accesibilidad sin
       resultado fiable (necesita axe-core/navegador, no se inventa un hallazgo). Performance sin
       N+1 en las rutas interactivas muestreadas (closer-conflicts, contacts/[id], sales/[id]).
@@ -220,3 +250,6 @@ Pendiente:
 **20-sep**: **auditoría de columnas fantasma** — 5 queries rotas corregidas (PR #89): dashboard del colaborador sin citas/revenue (`start_time`/`amount`), audit de documentos que nunca se registró en `audit_logs` (columnas inexistentes tragadas por try/catch), backfill Stripe roto (`users.tenant_id`) · fix `calendly_event_id` en unit-economics (PR #86: el Funnel del negocio quedaba vacío en silencio) · cadena del `provider_message_id` de Resend + webhook idempotente con exención de middleware (PR #79/#82). Hallazgo estructural: clientes de Supabase sin tipar → nueva sección 🧱 Deuda técnica.
 **19-sep**: skills ventas/marketing + system prompts + esquemas RAG + reglas CLAUDE.md (#71) · protección de rama main con CI required (#70) · RAG: knowledge_chunks + tool searchKnowledge + endpoint + ingesta (#73) · fee_percent en UI de planes (base neta de comisiones) · sync Stripe con stripe_fee real + reconcile-all verificado al céntimo.
 Anteriores: Arquitectura por departamentos + RBAC · webhook GHL (matching por ID, customData) · IA facturas + análisis de llamadas (Groq+Claude) · Morosidad + rol Cobros · gastos recurrentes/sueldos (crons) · devoluciones · agendas (calendario + duración + métricas equipo + análisis IA) · biblioteca de facturas · dashboards del sheet antiguo (Company, Calls_Sales, Marketing funnel, Prospección, CSM, Leaderboards por rol) · recuperación de contraseña + invitaciones.
+
+
+**Verificación posterior del mismo 3-oct:** después de capturar 1 venta/1 cobro y los dashboards coincidentes, otra consulta de base de datos devolvió 0 ventas y 0 cobros. El agente no borró esos registros. El QA compartido volvió a ser modificado/limpiado por un proceso externo (autor no identificado en esta última comprobación). No recrear automáticamente la prueba. El PASS acotado describe el estado comprobado inmediatamente después del alta, no persistencia garantizada ni cierre del problema de aislamiento de QA. Finanzas llegó a mostrar facturación anterior con cobros a cero durante este cambio; no usar ese estado para diagnosticar una fórmula incorrecta sin estabilizar las fuentes.

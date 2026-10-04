@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -50,7 +52,7 @@ export default function KPITemplatesPage() {
       </div>
 
       {loading ? (
-        <div className="h-64 bg-card rounded-lg animate-pulse" />
+        <Skeleton className="h-64" />
       ) : (
         <Tabs defaultValue={initialTab}>
           <TabsList className="bg-card border border-border">
