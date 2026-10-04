@@ -204,6 +204,71 @@ export async function backfillCloserGhl(
   return total
 }
 
+/**
+ * BACKFILL DEL DUEÑO DE CALENDLY (closer-backfill): las citas SIN closer no esperan a que el
+ * bucle general (asc, con su corte por presupuesto) llegue a la cola — la cola NUEVA era
+ * precisamente la que nunca entraba y dejaba ventas sin closer de referencia. Un GET del evento
+ * (trae memberships, no hace falta invitees) por cada cita sin closer, dueño resuelto con la
+ * MISMA memoria de emails y UPDATE filtrando closer_id null: idempotente, nunca reasigna, y el
+ * presupuesto que quede en la pasada se dedica a la cola en vez de a repetir la cabeza.
+ */
+export async function backfillCloserCalendly(
+  sb: SupabaseClient,
+  tenantId: string,
+  headers: { Authorization: string; Accept: string },
+  duenaPorEmail: Map<string, string | null>,
+  opts: CitasSyncOpts = {}
+): Promise<number> {
+  let total = 0
+  for (let page = 0; page < 10; page++) {
+    if (opts.deadlineMs && Date.now() > opts.deadlineMs) break
+    const pendientes = await sb
+      .from('appointments')
+      .select('id, external_id')
+      .eq('tenant_id', tenantId)
+      .eq('external_source', 'calendly')
+      .is('closer_id', null)
+      .order('appointment_datetime', { ascending: false })
+      .range(page * 50, page * 50 + 49)
+    if (pendientes.error) {
+      console.warn('[calendly] backfill closer: no se pudo leer la cola sin closer:', pendientes.error.message)
+      return total
+    }
+    if (!pendientes.data?.length) break
+    let avanzado = 0
+    for (const cita of pendientes.data) {
+      if (opts.deadlineMs && Date.now() > opts.deadlineMs) break
+      const uri = (cita as { external_id: string | null }).external_id
+      if (!uri) continue
+      const eventoResponse = await fetch(uri, { headers, signal: AbortSignal.timeout(10_000) })
+      const eventoBody = (await eventoResponse.json().catch(() => ({}))) as {
+        resource?: { event_memberships?: Json[] }
+      }
+      if (!eventoResponse.ok) continue
+      avanzado++
+      const ownerEmail = text(eventoBody.resource?.event_memberships?.[0]?.user_email)
+      if (!ownerEmail) continue
+      if (!duenaPorEmail.has(ownerEmail))
+        duenaPorEmail.set(ownerEmail, await resolveUserIdByEmail(sb, ownerEmail, tenantId))
+      const closerId = duenaPorEmail.get(ownerEmail) ?? null
+      if (!closerId) continue
+      const result = await sb
+        .from('appointments')
+        .update({ closer_id: closerId }, { count: 'exact' })
+        .eq('tenant_id', tenantId)
+        .eq('id', (cita as { id: string }).id)
+        .is('closer_id', null)
+      if (result.error) {
+        console.warn('[calendly] backfill closer de una cita:', result.error.message)
+        continue
+      }
+      total += result.count ?? 0
+    }
+    if (!avanzado) break
+  }
+  return total
+}
+
 export async function syncGhl(
   sb: SupabaseClient,
   tenantId: string,
@@ -443,6 +508,16 @@ export async function syncCalendly(
   const me = (await meResponse.json().catch(() => ({}))) as { resource?: { uri?: string }; message?: string }
   if (!meResponse.ok || !me.resource?.uri) throw new Error(me.message || 'Calendly no devolvió el usuario')
 
+  // DUEÑO POR MEMBERSHIP, CON MEMORIA. Resolver el email del host eran 2 queries por EVENTO (dos
+  // ilike con escape) — la mitad del coste de la pasada, repetido para el mismo host en cada
+  // evento. El mapa por email resuelve una vez por host DISTINTO y los demás eventos reutilizan:
+  // la semántica por evento no cambia (memberships[0] manda, igual que el webhook), solo deja de
+  // repetirse. Es lo que permite que la pasada del cron recorra la ventana completa y llegue a
+  // la cola NUEVA — las citas recientes sin closer eran precisamente las que el corte por
+  // presupuesto dejaba atrás siempre (asc: re-procesaba la misma cabeza antigua, la cola no
+  // entraba nunca y sus ventas quedaban sin closer de referencia).
+  const duenaPorEmail = new Map<string, string | null>()
+
   const { desde, hasta } = ventana(opts)
   let pageToken = ''
   let pages = 0
@@ -480,6 +555,12 @@ export async function syncCalendly(
       }
       const uri = text(event.uri)
       if (!uri) continue
+      // Reloj ANTES del fetch de invitees (gemelo del guard de antes del bucle): sin esto un
+      // corte gastaba hasta 15 s en un evento que de todos modos no iba a procesarse.
+      if (opts.deadlineMs && Date.now() > opts.deadlineMs) {
+        cortado = true
+        break
+      }
       const inviteesResponse = await fetch(`${uri}/invitees?count=100`, {
         headers,
         signal: AbortSignal.timeout(15_000),
@@ -498,7 +579,12 @@ export async function syncCalendly(
         // resuelto por email o calendly_email y acotado a la subcuenta. SOLO se envía si hay
         // usuario resuelto: la pasada siguiente nunca pisa una asignación manual.
         const ownerEmail = text((event.event_memberships as Json[] | undefined)?.[0]?.user_email)
-        const closerId = ownerEmail ? await resolveUserIdByEmail(sb, ownerEmail, tenantId) : null
+        let closerId: string | null = null
+        if (ownerEmail) {
+          if (!duenaPorEmail.has(ownerEmail))
+            duenaPorEmail.set(ownerEmail, await resolveUserIdByEmail(sb, ownerEmail, tenantId))
+          closerId = duenaPorEmail.get(ownerEmail) ?? null
+        }
         const status = event.status === 'canceled' ? 'cancelled' : 'scheduled'
         const existing = await sb
           .from('appointments')
@@ -543,5 +629,9 @@ export async function syncCalendly(
     pageToken = body.pagination?.next_page_token || ''
     if (!pageToken) break
   }
-  return { provider: 'calendly', pages, imported, updated, cortado }
+  // La cola SIN closer se repara AQUÍ, no esperando a que el bucle general (asc) la alcance:
+  // cada pasada dedica su presupuesto restante a las citas recientes sin dueño (la venta nueva
+  // del contacto sale con closer de referencia en cuanto su cita se repara).
+  const closerBackfill = await backfillCloserCalendly(sb, tenantId, headers, duenaPorEmail, opts)
+  return { provider: 'calendly', pages, imported, updated, cortado, closerBackfill }
 }
