@@ -118,9 +118,10 @@ test('salir restaura con el refresh token del ticket y audita la salida', () => 
   assert.match(route, /t\.superAdmin\.refresh_token/)
   assert.match(route, /action: 'salir'/)
   assert.match(route, /res\.cookies\.delete\(cookieNombre\(\)\)/, 'borra el ticket al salir')
-  // La cookie que se reescribe es la de sesión de Supabase, con base64- (formato @supabase/ssr).
-  assert.match(route, /sb-\$\{ref\}-auth-token/)
-  assert.match(route, /base64-/)
+  // La sesión se escribe con el adaptador SSR (cookies legibles por el navegador, troceadas si hace
+  // falta), no con una cookie HttpOnly fabricada a mano (F21).
+  assert.match(route, /createServerClient/)
+  assert.match(route, /auth\.setSession/)
 })
 
 test('estado no filtra tokens y dice si el que llama es super admin', () => {

@@ -411,40 +411,44 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   // Bloqueo total por contrato sin firmar (closer/setter/afiliado).
   if (contractGate) {
     const handleLogout = () => performLogout(`/${tenant}/login`)
+    // El banner de «Ver como» envuelve también este bloqueo: si no, quien entró como otra persona
+    // sin contrato firmado se quedaba sin botón de retorno (F21).
     return (
-      <div className="dark flex min-h-screen items-center justify-center bg-background px-4">
-        <div className="max-w-md w-full text-center">
-          <div className="w-20 h-20 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto mb-6">
-            <FileSignature className="w-10 h-10 text-amber-400" />
-          </div>
-          <h1 className="text-3xl font-bold text-foreground mb-3">Te falta firmar el contrato</h1>
-          <p className="text-muted-foreground text-base leading-relaxed mb-2">
-            Hola {user.full_name?.split(' ')[0] || ''}, para poder acceder a tu cuenta primero necesitas{' '}
-            <span className="text-foreground font-medium">firmar tu contrato</span>.
-          </p>
-          <p className="text-muted-foreground text-sm mb-8">
-            {contractGate.pendingToken
-              ? 'Tienes un contrato pendiente de firma. Púlsalo para revisarlo y firmarlo — también te lo hemos enviado por email.'
-              : 'Aún no tienes ningún contrato asignado. Contacta con administración para que te lo envíen.'}
-          </p>
-          <div className="flex flex-col gap-3">
-            {contractGate.pendingToken && (
-              <a
-                href={`/firmar/${contractGate.pendingToken}`}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold py-3.5 transition-colors"
+      <VerComoShim tenant={tenant}>
+        <div className="dark flex min-h-screen items-center justify-center bg-background px-4">
+          <div className="max-w-md w-full text-center">
+            <div className="w-20 h-20 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto mb-6">
+              <FileSignature className="w-10 h-10 text-amber-400" />
+            </div>
+            <h1 className="text-3xl font-bold text-foreground mb-3">Te falta firmar el contrato</h1>
+            <p className="text-muted-foreground text-base leading-relaxed mb-2">
+              Hola {user.full_name?.split(' ')[0] || ''}, para poder acceder a tu cuenta primero necesitas{' '}
+              <span className="text-foreground font-medium">firmar tu contrato</span>.
+            </p>
+            <p className="text-muted-foreground text-sm mb-8">
+              {contractGate.pendingToken
+                ? 'Tienes un contrato pendiente de firma. Púlsalo para revisarlo y firmarlo — también te lo hemos enviado por email.'
+                : 'Aún no tienes ningún contrato asignado. Contacta con administración para que te lo envíen.'}
+            </p>
+            <div className="flex flex-col gap-3">
+              {contractGate.pendingToken && (
+                <a
+                  href={`/firmar/${contractGate.pendingToken}`}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold py-3.5 transition-colors"
+                >
+                  <FileSignature className="w-5 h-5" /> Revisar y firmar mi contrato
+                </a>
+              )}
+              <button
+                onClick={handleLogout}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:border-border py-3 text-sm transition-colors"
               >
-                <FileSignature className="w-5 h-5" /> Revisar y firmar mi contrato
-              </a>
-            )}
-            <button
-              onClick={handleLogout}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:border-border py-3 text-sm transition-colors"
-            >
-              <LogOut className="w-4 h-4" /> Cerrar sesión
-            </button>
+                <LogOut className="w-4 h-4" /> Cerrar sesión
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </VerComoShim>
     )
   }
 
