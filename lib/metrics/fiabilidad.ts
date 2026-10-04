@@ -9,11 +9,7 @@ import type { EntradaMetrica } from './cuello-botella'
 import { MUESTRA_MINIMA } from './razon'
 
 /** Métricas cuyo denominador es "personas que aparecieron": dependen de que alguien marque asistencia. */
-export const DEPENDEN_DE_ASISTENCIA: ReadonlySet<string> = new Set([
-  'show_rate',
-  'pitch_rate',
-  'close_rate_llamadas',
-])
+export const DEPENDEN_DE_ASISTENCIA: ReadonlySet<string> = new Set(['show_rate', 'pitch_rate', 'close_rate_llamadas'])
 
 /** Por debajo de esta fracción de citas pasadas resueltas, las métricas de asistencia no son fiables. */
 export const COBERTURA_MINIMA_MARCADO = 0.8
@@ -26,8 +22,7 @@ export function depurarPorFiabilidad(
 ): { fiables: EntradaMetrica[]; provisionales: Provisional[] } {
   const fiables: EntradaMetrica[] = []
   const provisionales: Provisional[] = []
-  const marcadoInsuficiente =
-    marcado.pasadasSinMarcar > 0 && (marcado.fraccionResuelta ?? 0) < COBERTURA_MINIMA_MARCADO
+  const marcadoInsuficiente = marcado.pasadasSinMarcar > 0 && (marcado.fraccionResuelta ?? 0) < COBERTURA_MINIMA_MARCADO
   for (const m of metricas) {
     if (m.valor === null) {
       fiables.push(m)

@@ -87,10 +87,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
 
   const marcado = coberturaMarcado(consulta.citas, periodo)
   // Lo provisional (asistencia sin marcar, muestra mínima) no se diagnostica ni alerta: se dice aparte.
-  const { fiables: metricas, provisionales } = depurarPorFiabilidad(
-    entradasDiagnostico(consulta.agregados),
-    marcado
-  )
+  const { fiables: metricas, provisionales } = depurarPorFiabilidad(entradasDiagnostico(consulta.agregados), marcado)
   const diagnostico = diagnosticarCuelloBotella(metricas, config)
   const salud = calcularSalud(entradasSalud(consulta.agregados))
 
