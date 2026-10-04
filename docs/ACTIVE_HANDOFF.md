@@ -58,12 +58,21 @@ se actualiza al inicio de cada sesión y al fusionar.
   usuario GHL → usuario de la app acotado a subcuenta; nunca pisa asignación manual ni del webhook
   (misma semántica protectora). Rama `fix/agenda-closer-sync`. Toca además una migración
   (`appointments.ghl_calendar_id`) y tests de regresión.
-- **Reclamado 3-oct (Freebuff):** deadline de la sync de agendas POR EVENTO
+- **Fusionado 3-4-oct (Freebuff, PR #335):** deadline de la sync de agendas POR EVENTO
   (`lib/integrations/citas-sync.ts`): el cron calendly-ghl acabó en 504 (FUNCTION_INVOCATION_TIMEOUT)
   porque el corte solo se comprueba entre páginas — dentro de cada página, cada evento cuesta un
   fetch de invitees (Calendly) o un contacto perezoso (GHL) de hasta 15-20 s. Añade comprobación de
   reloj en los bucles de eventos y en la resolución de dueños de calendario de GHL + test de
-  regresión. Rama `fix/citas-sync-deadline`.
+  regresión. Rama `fix/citas-sync-deadline`. Verificado en producción: Calendly 51→18 sin closer
+  (33 asignadas); GHL asigna solo vía webhook (el calendario no resuelve dueño en esta location).
+- **Reclamado 4-oct (Freebuff):** búsqueda de bugs en la zona citas/atribución
+  (`lib/tracking.ts`, `lib/integrations/citas-sync.ts`, webhook GHL): (1) `resolveUserIdByEmail`
+  usaba `.or(email.ilike.<email>)` SIN escapar comodines — el '_' de `ana_perez@x.com` matcheaba
+  `ana-perez@x.com` y la comisión podía caer en otro usuario; además la coma del dato rompía
+  PostgREST. (2) El pull de citas reenviaba el closer del calendario en cada pasada y pisaba
+  asignaciones manuales/del webhook (el webhook de Calendly SÍ se protegía en reagenda);
+  ahora rellena solo si la fila no tiene closer. (3) El `userIdByEmail` del webhook GHL era
+  `.eq` case-sensitive. Rama `fix/closer-no-reasigna-email`.
 
 ### Claude Code (plan `docs/plan/`)
 
