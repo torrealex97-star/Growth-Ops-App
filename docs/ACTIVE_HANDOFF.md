@@ -67,6 +67,26 @@ las 12:16, 0 variables de entorno, sin dominio) que reconstruye cada push y dupl
 Storage; **producción es `growthops-preview-3003`** (dominio + 14 variables). **Pendiente de Alex:** decidir
 borrar `growth-ops-app`; mientras exista, la purga vuelve a llenarse. No lo he borrado: es un proyecto entero.
 
+## Citas de Calendly sin closer: la pasada repara la cola — 4-oct (Freebuff, PR #353)
+
+**Fusionado en `main` (f05aed4), despliegue READY.** Síntoma de Alex: ventas sin closer de Claudia cuando
+el contacto viene de GHL/Calendly. Medido: Claudia ya es closer en **616 citas** y 39 ventas (la resolución
+funciona); quedaban **18 citas de Calendly sin closer, todas recientes** (29-sep→09-oct) y **1 venta real
+sin closer** (1997 € desde la bandeja, fallback de cita sin dueño; las otras 3 eran fixtures E2E). Causa:
+el cron recorre la ventana ASC con corte por presupuesto y repetía siempre la cabeza antigua — la cola
+nueva no entraba nunca (el backlog del 3-oct también corrompía la atribución de ventas nuevas).
+
+Fix en `lib/integrations/citas-sync.ts`: (1) `backfillCloserCalendly` — cada pasada dedica el presupuesto
+restante a la cola (citas de Calendly sin closer, más recientes primero; GET del evento → memberships →
+dueño → UPDATE filtrando `closer_id null`: idempotente, nunca reasigna); (2) resolución del dueño memorizada
+por email (antes 2 queries por evento); (3) guard de reloj antes del fetch de invitees. Test de regresión
+`tests/citas-closer-backfill-calendly.test.mjs` (4) + suites gemelas de citas 19/19, tsc y prettier verdes,
+CI del PR en verde (E2E requirió 2 reruns por cancelaciones de concurrencia, no fallos).
+
+**Pendiente humano:** con el deploy vivo, la pasada nocturna (o Integraciones → history-sync) repara la
+cola automáticamente. Verificar que las citas recientes quedan con Claudia y corregir a mano la venta de
+1997 € si procede. Las 4 de GHL sin closer siguen siendo por diseño (dueño solo vía webhook closerEmail).
+
 ## Cobros como reserva + errores accionables al completar reserva + grafía de nombres — 4-oct (Freebuff, PR #350)
 
 **Fusionado en `main` (78ffcc3).** Los 4 síntomas que reportó Alex cerrados:
@@ -1900,7 +1920,6 @@ fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo 
 
 | Agente      | Qué                                                                   | Rama                        | Toca                                                         | Desde |
 | ----------- | --------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------ | ----- |
-| Freebuff    | Ventas sin closer de Claudia (backfill Calendly + memoria de dueños) | `fix/citas-closer-convergencia` | `lib/integrations/citas-sync.ts`, `tests/citas-closer-backfill-calendly.test.mjs` | 4-oct |
 | Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot   | `package.json`/lock (solo vía dependabot), docs, migraciones | 3-oct |
 | Codex       | PR #325 reservation-refunds (E2E en rojo, su autor continúa)          | `codex/reservation-refunds` | ventas/cobros (según su rama)                                | 3-oct |
 | Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún             | —                           | `docs/plan/`, migraciones RLS                                | 3-oct |
