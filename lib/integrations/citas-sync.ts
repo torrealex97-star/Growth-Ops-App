@@ -326,7 +326,7 @@ export async function syncGhl(
       // perezosamente con un fetch individual — nunca paginando todos los contactos.
       const existing = await sb
         .from('appointments')
-        .select('id, contact_id')
+        .select('id, contact_id, closer_id')
         .eq('tenant_id', tenantId)
         .eq('external_id', eventId)
         .maybeSingle()
@@ -368,6 +368,11 @@ export async function syncGhl(
       // Closer = dueño del calendario. SOLO se envía si hay usuario resuelto: al ser un update
       // de values, una pasada sin mapeo nunca pisa una asignación manual ni la del webhook.
       const closerId = duenaDeCalendario.get(calendarId) ?? null
+      // RELLENA huecos, nunca reasigna: si la fila ya tenía closer (manual o del webhook), el
+      // update no toca la columna — misma protección que el webhook de Calendly aplica en
+      // reagenda ("el crm al reagendar cambia la propiedad del lead"): sin ella, la pasada
+      // diaria del cron revertía cualquier corrección manual sobre citas de la ventana.
+      const yaTeniaCloser = Boolean((existing.data as { closer_id?: string | null } | null)?.closer_id)
       const values = {
         tenant_id: tenantId,
         external_source: 'ghl',
@@ -378,7 +383,7 @@ export async function syncGhl(
         duration_minutes: duration,
         status,
         source: 'ghl',
-        ...(closerId ? { closer_id: closerId } : {}),
+        ...(closerId && !yaTeniaCloser ? { closer_id: closerId } : {}),
         calendar_name: text(calendar.name) || 'GoHighLevel',
         raw_payload: event,
       }
@@ -481,6 +486,15 @@ export async function syncCalendly(
         const ownerEmail = text((event.event_memberships as Json[] | undefined)?.[0]?.user_email)
         const closerId = ownerEmail ? await resolveUserIdByEmail(sb, ownerEmail, tenantId) : null
         const status = event.status === 'canceled' ? 'cancelled' : 'scheduled'
+        const existing = await sb
+          .from('appointments')
+          .select('id, closer_id')
+          .eq('tenant_id', tenantId)
+          .eq('external_id', uri)
+          .maybeSingle()
+        // RELLENA huecos, nunca reasigna (misma protección que el webhook en reagenda y que la
+        // vía GHL): un closer ya puesto —manual o del webhook— no se toca en el update.
+        const yaTeniaCloser = Boolean((existing.data as { closer_id?: string | null } | null)?.closer_id)
         const values = {
           tenant_id: tenantId,
           external_source: 'calendly',
@@ -489,18 +503,12 @@ export async function syncCalendly(
           appointment_datetime: text(event.start_time) || new Date().toISOString(),
           status,
           source: 'calendly',
-          ...(closerId ? { closer_id: closerId } : {}),
+          ...(closerId && !yaTeniaCloser ? { closer_id: closerId } : {}),
           calendar_name: text(event.name) || 'Calendly',
           meeting_url: text((event.location as Json | undefined)?.join_url),
           reschedule_url: text(invitee.reschedule_url),
           raw_payload: { event, invitee },
         }
-        const existing = await sb
-          .from('appointments')
-          .select('id')
-          .eq('tenant_id', tenantId)
-          .eq('external_id', uri)
-          .maybeSingle()
         if (existing.data) {
           const result = await sb
             .from('appointments')

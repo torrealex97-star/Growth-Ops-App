@@ -81,7 +81,15 @@ const mapStatus = mapearEstadoExterno
 // caer en el closer de otra subcuenta.
 async function userIdByEmail(sb: SupabaseClient, tenantId: string, email?: string | null): Promise<string | null> {
   if (!email) return null
-  const { data } = await sb.from('users').select('id').eq('email', email.toLowerCase().trim()).limit(20)
+  // ilike CON ESCAPE (no .eq): 'John@X.com' no encontraba a 'john@x.com' por mayúsculas, y sin
+  // escapar un '_' del email actúa de comodín y matchea emails vecinos. Mismo criterio que
+  // resolveUserIdByEmail en lib/tracking.ts.
+  const patron = email
+    .toLowerCase()
+    .trim()
+    .replace(/[\\%_]/g, (c) => `\\${c}`)
+  const { data, error } = await sb.from('users').select('id').ilike('email', patron).limit(20)
+  if (error) throw error
   return firstMemberOf(
     sb,
     tenantId,

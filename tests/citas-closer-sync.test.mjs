@@ -26,6 +26,16 @@ test('la resolución por email es un punto único, acotado a subcuenta y con cal
   assert.match(bloque, /calendly_email/)
   // Normalización del email antes de comparar.
   assert.match(bloque, /toLowerCase/)
+  // Escape de comodines LIKE: sin él, ana_perez@x.com también matcheaba ana-perez@x.com (el '_'
+  // es comodín de un carácter en ilike) — la agenda y su comisión podían caer en otro usuario.
+  assert.match(bloque, /replace\(\/\[\\\\%_\]\/g/)
+  // Y sin interpolación en .or(): una coma en el dato rompía la sintaxis de PostgREST.
+  assert.doesNotMatch(bloque, /\.or\(/)
+  // El webhook de GHL resuelve el email del dueño con la misma disciplina (sin mayúsculas ni
+  // comodines): .eq era case-sensitive y un email guardado con mayúsculas no resolvía nunca.
+  const ghlWebhook = leer('app/api/[tenant]/evergreen/webhooks/ghl/route.ts')
+  assert.match(ghlWebhook, /ilike\('email', patron\)/)
+  assert.doesNotMatch(ghlWebhook, /\.eq\('email', email/)
 })
 
 test('GHL: el closer sale del dueño del calendario (assignedUserId), no del evento', () => {
@@ -46,11 +56,17 @@ test('Calendly: el closer sale de event_memberships como en el webhook', () => {
   assert.match(sync, /resolveUserIdByEmail\(sb, ownerEmail, tenantId\)/)
 })
 
-test('la sync NUNCA pisa una asignación: closer_id solo se envía si hay usuario resuelto', () => {
+test('la sync RELLENA huecos y NUNCA reasigna: closer_id solo si la fila no tenía y hay usuario', () => {
   const sync = leer('lib/integrations/citas-sync.ts')
-  // Spread condicional (la clave no existe → el update/insert no toca la columna).
-  const envios = sync.match(/\.\.\.\(closerId \? \{ closer_id: closerId \} : \{\}\)/g) ?? []
-  assert.equal(envios.length, 2, 'GHL y Calendly deben usar el spread condicional (una vez cada uno)')
+  // Spread condicional doble (la clave no existe → el update/insert no toca la columna) Y
+  // condicionado a que la fila no trajera ya un closer: la pasada diaria del cron no puede
+  // revertir una corrección manual ni el rep puesto por el webhook (bug del 4-oct: la vía
+  // pull reenviaba el dueño del calendario y pisaba la asignación real en cada pasada).
+  const envios = sync.match(/\.\.\.\(closerId && !yaTeniaCloser \? \{ closer_id: closerId \} : \{\}\)/g) ?? []
+  assert.equal(envios.length, 2, 'GHL y Calendly: rellenar solo si la fila no tenía closer')
+  // Para poder decidir, el select de la fila existente trae closer_id.
+  assert.match(sync, /select\('id, contact_id, closer_id'\)/)
+  assert.match(sync, /select\('id, closer_id'\)/)
   // Y nunca un closer_id fijo dentro de values.
   assert.doesNotMatch(sync, /^\s+closer_id: /m)
 })
