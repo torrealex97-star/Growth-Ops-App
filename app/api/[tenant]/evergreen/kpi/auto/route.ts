@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { addDaysYmd, businessStartOfDay } from '@/lib/dates/business'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import type { KpiAutoMetrics } from '@/lib/kpi/auto'
@@ -32,10 +33,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
       if (['admin', 'director', 'manager'].includes(role || '')) targetId = asked
     }
 
-    const start = `${date}T00:00:00`
-    const nextDay = new Date(`${date}T00:00:00Z`)
-    nextDay.setUTCDate(nextDay.getUTCDate() + 1)
-    const end = nextDay.toISOString()
+    // El día es el del negocio: `T00:00:00` sin zona se leía en UTC y el día de Madrid empieza 1-2 h antes.
+    const start = (businessStartOfDay(date) ?? new Date(`${date}T00:00:00Z`)).toISOString()
+    const end = (businessStartOfDay(addDaysYmd(date, 1)) ?? new Date(`${date}T00:00:00Z`)).toISOString()
 
     const SHOW = ['show', 'completed']
 

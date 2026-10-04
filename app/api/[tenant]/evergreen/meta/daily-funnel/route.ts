@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { businessEndOfDay, businessStartOfDay } from '@/lib/dates/business'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { getTenantConfigWithFallback } from '@/lib/config'
@@ -100,8 +101,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
         .from('appointments')
         .select('appointment_datetime, source, utm_source, utm_campaign')
         .eq('tenant_id', t.tenantId)
-      if (from) q = q.gte('appointment_datetime', `${from}T00:00:00`)
-      if (to) q = q.lte('appointment_datetime', `${to}T23:59:59`)
+      if (from) q = q.gte('appointment_datetime', businessStartOfDay(from)?.toISOString() ?? from)
+      if (to) q = q.lte('appointment_datetime', businessEndOfDay(to)?.toISOString() ?? to)
       const { data, error } = await q.range(offset, offset + PAGE - 1)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       const rows = (data ?? []) as Array<Record<string, unknown>>

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { businessToday } from '../../lib/dates/business.ts'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import {
@@ -14,8 +15,9 @@ import {
 import { nextSearchParams, readEnum } from '../../lib/filters/url-state.ts'
 
 const dias = (r) => Math.round((r.to.getTime() - r.from.getTime() + 1) / 86_400_000)
-const ymd = (d) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+// Las fronteras de periodo son las del NEGOCIO (Madrid), no las de la zona de la máquina (F14).
+const ymd = (d) => businessToday(d)
+const añoNegocio = (d) => Number(businessToday(d).slice(0, 4))
 
 test('el brief pide estos presets y todos tienen etiqueta', () => {
   for (const p of ['7d', '30d', '90d', 'ytd', 'launch', 'custom']) {
@@ -41,12 +43,12 @@ test('las ventanas móviles duran exactamente lo que dice su nombre y acaban hoy
 test('ytd va del 1 de enero a HOY, no al 31 de diciembre', () => {
   const hoy = new Date()
   const r = getPeriodRange('ytd', '', '')
-  assert.equal(ymd(r.from), `${hoy.getFullYear()}-01-01`)
+  assert.equal(ymd(r.from), `${añoNegocio(hoy)}-01-01`)
   assert.equal(ymd(r.to), ymd(hoy))
   // Y por eso no es lo mismo que 'year': ese llega a diciembre, así que su duración incluye meses
   // que aún no han pasado y el periodo anterior comparativo sale mal.
   const año = getPeriodRange('year', '', '')
-  assert.equal(ymd(año.to), `${hoy.getFullYear()}-12-31`)
+  assert.equal(ymd(año.to), `${añoNegocio(hoy)}-12-31`)
   assert.ok(r.to <= año.to)
 })
 

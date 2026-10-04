@@ -1,6 +1,8 @@
 // Filtro de periodo reutilizable para todos los dashboards.
 // Día / Semana / Mes / Trimestre / Año / Personalizado, + helpers de rango y CSV.
 
+import { addDaysYmd, businessEndOfDay, businessStartOfDay, businessToday, parseYmd } from '@/lib/dates/business'
+
 export type PeriodPreset =
   | 'all'
   | 'today'
@@ -87,27 +89,26 @@ export const PERIOD_PRESETS_STANDARD: PeriodPreset[] = [
 
 export type PeriodRange = { from: Date | null; to: Date | null }
 
-const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0)
-const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
+// TODAS LAS FRONTERAS SON LAS DEL NEGOCIO (Europe/Madrid), no las del navegador ni las del servidor.
+// Con la zona local, quien abre el panel desde otra zona (o un render en UTC) veía «hoy», «esta
+// semana» o «este mes» desplazados horas respecto a lo que la empresa llama hoy. Los rangos se
+// construyen sobre fechas del calendario (YYYY-MM-DD) y solo al final pasan a instantes.
+const startOfDay = (ymd: string) => businessStartOfDay(ymd) as Date
+const endOfDay = (ymd: string) => businessEndOfDay(ymd) as Date
 
-// Los inputs date entregan YYYY-MM-DD. Construir la fecha por partes evita que
-// JavaScript la interprete como UTC y desplace el día según la zona horaria.
-function parseDateInput(value: string): Date | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
-  if (!match) return null
-  const year = Number(match[1])
-  const month = Number(match[2])
-  const day = Number(match[3])
-  const date = new Date(year, month - 1, day)
-  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null
-  return date
+function ymdParts(ymd: string) {
+  return parseYmd(ymd) as { y: number; m: number; d: number }
+}
+const ymdOf = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d)).toISOString().slice(0, 10)
+
+// Los inputs date entregan YYYY-MM-DD. Se validan como día real del calendario.
+function parseDateInput(value: string): string | null {
+  return parseYmd(value) ? value : null
 }
 
+/** Fecha YYYY-MM-DD del instante dado, en la zona del negocio. */
 export function toDateInputValue(date = new Date()): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  return businessToday(date)
 }
 
 export function isDateRangeInvalid(from: string, to: string): boolean {
@@ -135,48 +136,49 @@ export function getCustomDateRange(fromValue: string, toValue: string): PeriodRa
  */
 export type PeriodOptions = { launchDate?: Date | string | null }
 
-function asDate(value: Date | string | null | undefined): Date | null {
+// Fecha del calendario (YYYY-MM-DD, zona del negocio) de lo que llegue como fecha de arranque.
+function asYmd(value: Date | string | null | undefined): string | null {
   if (!value) return null
-  if (value instanceof Date) return isNaN(value.getTime()) ? null : value
-  const parsed = parseDateInput(value) ?? new Date(value)
-  return isNaN(parsed.getTime()) ? null : parsed
+  if (value instanceof Date) return isNaN(value.getTime()) ? null : businessToday(value)
+  if (parseYmd(value)) return value
+  const parsed = new Date(value)
+  return isNaN(parsed.getTime()) ? null : businessToday(parsed)
 }
 
 // Ventana móvil de N días que TERMINA hoy. Incluye hoy, así que '7d' son hoy y los seis anteriores:
 // contar 7 días hacia atrás Y además hoy daría ocho días de datos bajo una etiqueta que dice siete.
-function rollingWindow(now: Date, days: number): PeriodRange {
-  const from = new Date(now)
-  from.setDate(now.getDate() - (days - 1))
-  return { from: startOfDay(from), to: endOfDay(now) }
+function rollingWindow(today: string, days: number): PeriodRange {
+  return { from: startOfDay(addDaysYmd(today, -(days - 1))), to: endOfDay(today) }
 }
 
 export function getPeriodRange(
   preset: PeriodPreset,
   customFrom: string,
   customTo: string,
-  opts: PeriodOptions = {}
+  opts: PeriodOptions = {},
+  now: Date = new Date()
 ): PeriodRange {
-  const now = new Date()
+  const today = businessToday(now)
+  const { y, m } = ymdParts(today)
   switch (preset) {
     case '3d':
-      return rollingWindow(now, 3)
+      return rollingWindow(today, 3)
     case '7d':
-      return rollingWindow(now, 7)
+      return rollingWindow(today, 7)
     case '30d':
-      return rollingWindow(now, 30)
+      return rollingWindow(today, 30)
     case '90d':
-      return rollingWindow(now, 90)
+      return rollingWindow(today, 90)
     case 'ytd':
-      return { from: startOfDay(new Date(now.getFullYear(), 0, 1)), to: endOfDay(now) }
+      return { from: startOfDay(ymdOf(y, 1, 1)), to: endOfDay(today) }
     case 'launch': {
-      const desde = asDate(opts.launchDate)
-      return { from: desde ? startOfDay(desde) : null, to: endOfDay(now) }
+      const desde = asYmd(opts.launchDate)
+      return { from: desde ? startOfDay(desde) : null, to: endOfDay(today) }
     }
     case 'today':
-      return { from: startOfDay(now), to: endOfDay(now) }
+      return { from: startOfDay(today), to: endOfDay(today) }
     case 'yesterday': {
-      const yesterday = new Date(now)
-      yesterday.setDate(yesterday.getDate() - 1)
+      const yesterday = addDaysYmd(today, -1)
       return { from: startOfDay(yesterday), to: endOfDay(yesterday) }
     }
     case 'day': {
@@ -186,29 +188,19 @@ export function getPeriodRange(
       return { from: startOfDay(d), to: endOfDay(d) }
     }
     case 'week': {
-      const day = now.getDay() === 0 ? 7 : now.getDay() // lunes = inicio de semana
-      const monday = new Date(now)
-      monday.setDate(now.getDate() - day + 1)
-      const sunday = new Date(monday)
-      sunday.setDate(monday.getDate() + 6)
-      return { from: startOfDay(monday), to: endOfDay(sunday) }
+      // lunes = inicio de semana. Día de la semana del calendario (0 = domingo).
+      const dow = new Date(Date.UTC(y, m - 1, ymdParts(today).d)).getUTCDay()
+      const monday = addDaysYmd(today, -((dow === 0 ? 7 : dow) - 1))
+      return { from: startOfDay(monday), to: endOfDay(addDaysYmd(monday, 6)) }
     }
-    case 'month': {
-      const from = new Date(now.getFullYear(), now.getMonth(), 1)
-      const to = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-      return { from: startOfDay(from), to: endOfDay(to) }
-    }
+    case 'month':
+      return { from: startOfDay(ymdOf(y, m, 1)), to: endOfDay(ymdOf(y, m + 1, 0)) }
     case 'quarter': {
-      const q = Math.floor(now.getMonth() / 3)
-      const from = new Date(now.getFullYear(), q * 3, 1)
-      const to = new Date(now.getFullYear(), q * 3 + 3, 0)
-      return { from: startOfDay(from), to: endOfDay(to) }
+      const q = Math.floor((m - 1) / 3)
+      return { from: startOfDay(ymdOf(y, q * 3 + 1, 1)), to: endOfDay(ymdOf(y, q * 3 + 4, 0)) }
     }
-    case 'year': {
-      const from = new Date(now.getFullYear(), 0, 1)
-      const to = new Date(now.getFullYear(), 11, 31)
-      return { from: startOfDay(from), to: endOfDay(to) }
-    }
+    case 'year':
+      return { from: startOfDay(ymdOf(y, 1, 1)), to: endOfDay(ymdOf(y, 12, 31)) }
     case 'custom': {
       return getCustomDateRange(customFrom, customTo)
     }
@@ -232,7 +224,8 @@ export function getPreviousPeriodRange(range: PeriodRange): PeriodRange {
 export function inPeriod(date: string | Date | null | undefined, range: PeriodRange): boolean {
   if (range.from == null && range.to == null) return true
   if (!date) return false
-  const d = typeof date === 'string' ? (parseDateInput(date) ?? new Date(date)) : date
+  // Una fecha sin hora (columna DATE) es ese día en la zona del negocio, no un instante UTC.
+  const d = typeof date === 'string' ? (businessStartOfDay(date) ?? new Date(date)) : date
   if (isNaN(d.getTime())) return false
   if (range.from && d < range.from) return false
   if (range.to && d > range.to) return false
