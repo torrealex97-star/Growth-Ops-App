@@ -248,6 +248,7 @@ test('sin datos en ninguna fuente el neto es 0 y el desglose por fuente también
     bySource: { stripe: 0, internal: 0 },
     duplicatedPayments: 0,
     devolucionesSinFecha: 0,
+    noConvertidos: [],
     amountConflicts: [],
   })
 })

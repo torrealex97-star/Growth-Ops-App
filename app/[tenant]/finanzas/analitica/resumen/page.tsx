@@ -134,7 +134,7 @@ export default function FinanzasPage() {
           .eq('is_active', true),
         supabase
           .from('stripe_payments')
-          .select('payment_id, charge_id, amount, refunded_amount, refunded_at, status, paid_at, customer_email')
+          .select('payment_id, charge_id, amount, refunded_amount, refunded_at, currency, fx_rate_to_eur, status, paid_at, customer_email')
           .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
       ])

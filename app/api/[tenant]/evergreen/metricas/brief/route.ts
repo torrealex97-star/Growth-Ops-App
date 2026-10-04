@@ -123,6 +123,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
       })
     )
   }
+  for (const nc of consulta.cashNoConvertido) {
+    alertas.push(
+      alertaCalidadDato({
+        key: `moneda_${nc.moneda}`,
+        que: `cobros en ${nc.moneda.toUpperCase()} sin tipo de cambio`,
+        detalle: `${nc.pagos} pago(s) por ${nc.importe} ${nc.moneda.toUpperCase()} no entran en el cash porque no hay tipo de cambio del BCE guardado: no se cuentan como euros.`,
+        comoArreglar:
+          'Volver a sincronizar los pagos de Stripe; si el tipo sigue sin llegar, revisar la conexión con el proveedor de tipos.',
+      })
+    )
+  }
   for (const f of consulta.fuentesRecortadas) {
     alertas.push(
       alertaCalidadDato({
