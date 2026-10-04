@@ -33,3 +33,56 @@ export function businessToday(now = new Date()): string {
 export function businessYm(now = new Date()): string {
   return formatInBusinessZone(now).slice(0, 7)
 }
+
+/** Fecha (YYYY-MM-DD) → partes numéricas, o `null` si no es un día real del calendario. */
+export function parseYmd(value: string): { y: number; m: number; d: number } | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return null
+  const y = Number(match[1])
+  const m = Number(match[2])
+  const d = Number(match[3])
+  const check = new Date(Date.UTC(y, m - 1, d))
+  if (check.getUTCFullYear() !== y || check.getUTCMonth() !== m - 1 || check.getUTCDate() !== d) return null
+  return { y, m, d }
+}
+
+/** Suma `dias` a una fecha YYYY-MM-DD en el calendario (sin horas: no hay saltos de DST que valgan). */
+export function addDaysYmd(value: string, dias: number): string {
+  const p = parseYmd(value)
+  if (!p) return value
+  return new Date(Date.UTC(p.y, p.m - 1, p.d + dias)).toISOString().slice(0, 10)
+}
+
+// Desfase (ms) de la zona del negocio respecto a UTC en un instante dado.
+function businessOffsetMs(at: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: BUSINESS_TIMEZONE,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(at)
+  const g = (t: string) => Number(parts.find((p) => p.type === t)?.value)
+  const asUtc = Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute'), g('second'))
+  return asUtc - Math.floor(at.getTime() / 1000) * 1000
+}
+
+/** El instante en que EMPIEZA ese día (00:00) en la zona del negocio. */
+export function businessStartOfDay(value: string): Date | null {
+  const p = parseYmd(value)
+  if (!p) return null
+  const guess = Date.UTC(p.y, p.m - 1, p.d)
+  let instant = guess - businessOffsetMs(new Date(guess))
+  // Segunda pasada: el desfase puede cambiar entre la estimación y el instante real (cambio de hora).
+  instant = guess - businessOffsetMs(new Date(instant))
+  return new Date(instant)
+}
+
+/** El último milisegundo de ese día en la zona del negocio (el día siguiente empieza 1 ms después). */
+export function businessEndOfDay(value: string): Date | null {
+  const next = businessStartOfDay(addDaysYmd(value, 1))
+  return next ? new Date(next.getTime() - 1) : null
+}
