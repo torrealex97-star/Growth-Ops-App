@@ -5,7 +5,7 @@ import { leerToque, registrarToque, toqueTieneDatos } from '@/lib/contacts/atrib
 import { attributionDateBeforeCutoff, resolverRefColaborador } from '@/lib/collaborators/ref-signal'
 import { firstMemberOf, resolveUserIdByTrackingCode } from '@/lib/tracking'
 import { isValidWebhookSecret, diagnosticoCabeceras } from '@/lib/webhooks/verifySecret'
-import { mapearEstadoExterno } from '@/lib/appointments/status'
+import { estadoAlSincronizar, mapearEstadoExterno } from '@/lib/appointments/status'
 import { NORMALIZADOR_GHL, idEventoGhl, sobreCrudoGhl, tipoEventoGhl } from '@/lib/eventos/ghl'
 import { hechoDesdeSobre } from '@/lib/eventos/canonico'
 import { getTenantConfigWithFallback } from '@/lib/config'
@@ -81,7 +81,15 @@ const mapStatus = mapearEstadoExterno
 // caer en el closer de otra subcuenta.
 async function userIdByEmail(sb: SupabaseClient, tenantId: string, email?: string | null): Promise<string | null> {
   if (!email) return null
-  const { data } = await sb.from('users').select('id').eq('email', email.toLowerCase().trim()).limit(20)
+  // ilike CON ESCAPE (no .eq): 'John@X.com' no encontraba a 'john@x.com' por mayúsculas, y sin
+  // escapar un '_' del email actúa de comodín y matchea emails vecinos. Mismo criterio que
+  // resolveUserIdByEmail en lib/tracking.ts.
+  const patron = email
+    .toLowerCase()
+    .trim()
+    .replace(/[\\%_]/g, (c) => `\\${c}`)
+  const { data, error } = await sb.from('users').select('id').ilike('email', patron).limit(20)
+  if (error) throw error
   return firstMemberOf(
     sb,
     tenantId,
@@ -611,11 +619,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     }
 
     // --- 5) Upsert idempotente de la agenda ---
-    let appt: { id: string } | null = null
+    let appt: { id: string; status?: string | null } | null = null
     if (externalId) {
       const { data } = await sb
         .from('appointments')
-        .select('id')
+        .select('id, status')
         .eq('external_id', externalId)
         .eq('tenant_id', tenantId)
         .maybeSingle()
@@ -625,7 +633,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (!appt && status && !aptRaw) {
       const { data } = await sb
         .from('appointments')
-        .select('id')
+        .select('id, status')
         .eq('contact_id', contact.id)
         .eq('tenant_id', tenantId)
         .order('appointment_datetime', { ascending: false })
@@ -636,7 +644,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
 
     if (appt) {
       const upd: Record<string, unknown> = { updated_at: now }
-      if (status) upd.status = status
+      // Un reenvío con estado «sin resolver» no borra una asistencia ya marcada (ver estadoAlSincronizar):
+      // GHL sí informa de show/no show/cancelación, y esos SÍ se aplican.
+      if (status) upd.status = estadoAlSincronizar(appt.status, status)
       if (aptRaw) upd.appointment_datetime = new Date(aptRaw).toISOString()
       if (closerId) upd.closer_id = closerId
       if (setterId) upd.setter_id = setterId

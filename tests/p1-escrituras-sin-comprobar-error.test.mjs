@@ -55,7 +55,7 @@ test('colaboradores/attribution: si el audit_logs del override falla, la respues
 
 test('rutas de dinero/auditoría: sales, students, documents, users, tenants — el insert de audit_logs comprueba error', () => {
   const casos = [
-    ['app/api/[tenant]/evergreen/sales/complete-reservation/route.ts', 'auditErr'],
+    ['app/api/[tenant]/evergreen/sales/complete-reservation/route.ts', 'completionError'],
     ['app/api/[tenant]/evergreen/sales/[id]/route.ts', 'auditErr'],
     ['app/api/[tenant]/evergreen/students/course-access/route.ts', 'auditErr'],
     ['app/api/[tenant]/evergreen/documents/override/route.ts', 'auditErr'],

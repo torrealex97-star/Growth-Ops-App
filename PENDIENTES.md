@@ -1,5 +1,7 @@
 # PENDIENTES — [tenant] OS
 
+- [ ] Migración de reservas autorizada y aplicada (20261003135010); completar CI, fusión y despliegue de PR #330. Código y pruebas aisladas preparados; el usuario declina sandbox, no se certifica el flujo real: [implementación, migración pendiente y pruebas](docs/ACTIVE_HANDOFF.md#reservas--alcance-seguro-para-fusionar-codex-3-oct).
+
 ## Actualización de entrega — 2026-10-01
 
 Arranca el ciclo **S1** (auditoría MVP profesional de punta a punta, petición explícita del usuario).

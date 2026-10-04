@@ -169,3 +169,28 @@ export const ESTADOS_SIN_RESOLVER = ['scheduled', 'confirmed', 'rescheduled'] as
 export function debeMarcarAsistencia(estadoActual: string | null | undefined): boolean {
   return !estadoActual || (ESTADOS_SIN_RESOLVER as readonly string[]).includes(estadoActual)
 }
+
+/** Estados que alguien (o una evidencia) ya decidió: la cita sucedió o no sucedió. */
+export const ESTADOS_RESUELTOS = ['show', 'completed', 'no_show'] as const
+
+/**
+ * Estado con el que queda una cita cuando una SINCRONIZACIÓN la relee del proveedor.
+ *
+ * EL FALLO QUE CIERRA. Las sincronizaciones de Calendly y GHL hacían `update(values)` con el estado
+ * que el proveedor da a la cita —`scheduled` (Calendly, para todo lo no cancelado) o `confirmed`
+ * (GHL)— sin mirar lo que ya había. Calendly NO sabe si el lead se presentó, así que cada pasada
+ * diaria convertía en «programada» una cita que alguien ya había marcado como asistida. Medido en
+ * producción el 4-oct: 53 de las 249 asistencias marcadas el 22-sep habían vuelto a «sin resolver»
+ * (43 de Calendly y 10 de GHL), todas tocadas por la sincronización. Marcar la asistencia a mano no
+ * servía de nada: la pasada siguiente la borraba.
+ *
+ * REGLA. Una sincronización nunca retrocede de resuelto a sin resolver: el proveedor que solo dice
+ * «está en el calendario» no desmiente que la reunión ocurriera. Sí se respeta lo que SÍ puede saber:
+ * una cancelación es autoritativa (una reunión cancelada no se celebra) y un estado resuelto nuevo
+ * (GHL sí informa de show/no show) sustituye al anterior.
+ */
+export function estadoAlSincronizar(existente: string | null | undefined, entrante: string): string {
+  const yaResuelto = !!existente && (ESTADOS_RESUELTOS as readonly string[]).includes(existente)
+  const entranteSinResolver = (ESTADOS_SIN_RESOLVER as readonly string[]).includes(entrante)
+  return yaResuelto && entranteSinResolver ? (existente as string) : entrante
+}

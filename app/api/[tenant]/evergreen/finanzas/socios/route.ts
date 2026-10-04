@@ -4,6 +4,7 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 import { computeMonthlyPnl, FINANCE_QUERY_ROW_CAP } from '@/lib/finance/pnl'
 import { calcularRepartoSocios } from '@/lib/finance/socios'
 import type { AppRole } from '@/lib/auth/permissions'
+import { metodoDePlan } from '@/lib/metrics/agregados'
 
 export const runtime = 'nodejs'
 
@@ -27,8 +28,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
 
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-    // ¿Es un socio con login vinculado a su propia fila? (partners.user_id, ver migración
-    // 20260925110000_partners_user_id.sql). Si no hay LEAD ni vínculo, no hay nada que ver aquí.
+    // ¿Es un socio con login vinculado a su propia fila? (partners.user_id, ver migración     // 20260925085324_partners_user_id.sql). Si no hay LEAD ni vínculo, no hay nada que ver aquí.
     const role = (t.role as AppRole) || null
     const isLead = !!role && LEAD.includes(role)
     const { data: ownPartnerRow } = await sb
@@ -45,7 +45,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     const [salesRes, collRes, refundsRes, expensesRes, commissionsRes, partnersRes] = await Promise.all([
       sb
         .from('sales')
-        .select('gross_amount, discount, status, sale_date')
+        // reservation_completed_at + payment_plans(method): `computeMonthlyPnl` excluye las reservas
+        // abiertas con `cuentaComoVenta`, pero solo si la fila trae estos datos. Sin ellos el
+        // descuento de una reserva sin completar rebajaba el beneficio que se reparte (MONEY D8).
+        .select('gross_amount, discount, status, sale_date, reservation_completed_at, payment_plans(method)')
         .eq('tenant_id', t.tenantId)
         .range(0, FINANCE_QUERY_ROW_CAP),
       sb
@@ -71,8 +74,33 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
       sb.from('partners').select('id, name, profit_percent, user_id').eq('tenant_id', t.tenantId).eq('is_active', true),
     ])
 
+    // UNA LECTURA FALLIDA NO ES UNA TABLA VACÍA. Aquí se repartía dinero entre socios con `data ?? []`
+    // sin mirar el error: si una de las seis lecturas fallaba, el beneficio salía de lo que hubiera
+    // llegado y se publicaba como el reparto del mes (auditoría F13). Sin gastos, por ejemplo, el
+    // beneficio sale inflado y cada socio ve una cifra falsa que parece buena.
+    const fuentesEnError = (
+      [
+        [salesRes.error, 'ventas'],
+        [collRes.error, 'cobros'],
+        [refundsRes.error, 'devoluciones'],
+        [expensesRes.error, 'gastos'],
+        [commissionsRes.error, 'comisiones'],
+        [partnersRes.error, 'socios'],
+      ] as const
+    )
+      .filter(([error]) => !!error)
+      .map(([, nombre]) => nombre)
+    if (fuentesEnError.length > 0) {
+      return NextResponse.json(
+        {
+          error: `No se pudieron leer: ${fuentesEnError.join(', ')}. El reparto NO se calcula porque estaría incompleto; vuelve a intentarlo.`,
+        },
+        { status: 503 }
+      )
+    }
+
     const pnl = computeMonthlyPnl(ym, {
-      sales: salesRes.data ?? [],
+      sales: (salesRes.data ?? []).map((v) => ({ ...v, payment_plan_method: metodoDePlan(v) })),
       collections: collRes.data ?? [],
       refunds: refundsRes.data ?? [],
       expenses: expensesRes.data ?? [],

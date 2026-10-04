@@ -1,8 +1,10 @@
 import crypto from 'crypto'
 
-import { isDeprecatedMetaVersion, META_API_VERSION } from '@/lib/meta/api-version'
+import { graphUrl, isDeprecatedMetaVersion, META_API_VERSION } from '@/lib/meta/api-version'
 import { fetchAdAccounts, parseAccountIds, type MetaEnv } from '@/lib/meta/client'
 import { classifyMetaError } from '@/lib/meta/errors'
+import { inspeccionarToken } from '@/lib/meta/token'
+import { veredictoDeToken } from '@/lib/meta/token-salud'
 
 // COMPROBACIÓN DE SALUD DE META, EN UN SOLO SITIO.
 //
@@ -49,7 +51,7 @@ export function metaProof(token: string, appSecret?: string): string {
 async function conectaSinFirma(token: string, version: string): Promise<boolean> {
   try {
     const r = await fetch(
-      `https://graph.facebook.com/${version}/me/adaccounts?limit=1&access_token=${encodeURIComponent(token.trim())}`,
+      `${graphUrl(version, 'me/adaccounts')}?limit=1&access_token=${encodeURIComponent(token.trim())}`,
       { signal: AbortSignal.timeout(TIMEOUT_MS) }
     )
     const j = (await r.json().catch(() => ({}))) as { error?: unknown }
@@ -57,6 +59,23 @@ async function conectaSinFirma(token: string, version: string): Promise<boolean>
   } catch {
     return false
   }
+}
+
+/**
+ * Una vez que las cuentas responden, se le pregunta a Meta cómo es el token: si es de usuario (caduca)
+ * o de System User (no caduca), cuándo muere y qué permisos tiene de verdad. Solo AÑADE información, o
+ * convierte un «ok» en fallo si Meta dice explícitamente que el token no vale o que falta un permiso
+ * obligatorio. No poder inspeccionarlo nunca empeora el veredicto.
+ */
+async function enriquecer(cfg: MetaEnv, version: string, token: string, base: VeredictoMeta): Promise<VeredictoMeta> {
+  const inspeccion = await inspeccionarToken(token, {
+    version,
+    appSecret: cfg.META_APP_SECRET,
+    appId: cfg.META_APP_ID,
+  })
+  const v = veredictoDeToken(inspeccion, 'meta')
+  if (!v.ok) return { ok: false, message: `${base.message} ${v.mensaje}`, code: v.code }
+  return v.mensaje ? { ...base, message: `${base.message} ${v.mensaje}` } : base
 }
 
 /**
@@ -87,7 +106,7 @@ export async function comprobarSaludMeta(cfg: MetaEnv): Promise<VeredictoMeta> {
   // que más veces bloquea esta integración, y disfrazado de "cuenta desconocida".
   if (proof) {
     const conFirma = await fetch(
-      `https://graph.facebook.com/${ver}/me/adaccounts?limit=1&access_token=${encodeURIComponent(token.trim())}${proofQs}`,
+      `${graphUrl(ver, 'me/adaccounts')}?limit=1&access_token=${encodeURIComponent(token.trim())}${proofQs}`,
       { signal: AbortSignal.timeout(TIMEOUT_MS) }
     )
     const cuerpo = (await conFirma.json().catch(() => ({}))) as { error?: { message?: string } }
@@ -111,7 +130,10 @@ export async function comprobarSaludMeta(cfg: MetaEnv): Promise<VeredictoMeta> {
       if (all.length === 0) {
         return { ok: false, message: 'El token es válido pero no ve ninguna cuenta publicitaria.', code: 'sin_cuentas' }
       }
-      return { ok: true, message: `${all.length} cuenta(s) detectada(s): ${all.map((a) => a.name).join(', ')}` }
+      return enriquecer(cfg, ver, token, {
+        ok: true,
+        message: `${all.length} cuenta(s) detectada(s): ${all.map((a) => a.name).join(', ')}`,
+      })
     } catch (e) {
       // El código lo pone el clasificador (lib/meta/errors.ts). Fijarlo a 'token_invalido' hacía que
       // un rate limit o una firma mal calculada propusieran "genera un token nuevo".
@@ -125,7 +147,7 @@ export async function comprobarSaludMeta(cfg: MetaEnv): Promise<VeredictoMeta> {
   // Probar cada cuenta explícita; reportar OK solo si todas responden.
   const results = await Promise.all(
     accounts.map(async (acc) => {
-      const url = `https://graph.facebook.com/${ver}/${acc}?fields=name,account_status&access_token=${encodeURIComponent(token)}${proofQs}`
+      const url = `${graphUrl(ver, acc)}?fields=name,account_status&access_token=${encodeURIComponent(token)}${proofQs}`
       const r = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_CUENTA_MS) })
       const j = await r.json()
       return { acc, ok: r.ok && !j.error, name: j.name as string | undefined, body: j, status: r.status }
@@ -139,8 +161,8 @@ export async function comprobarSaludMeta(cfg: MetaEnv): Promise<VeredictoMeta> {
     return { ok: false, message: `Cuenta ${failed.map((f) => f.acc).join(', ')}: ${causa.message}`, code: causa.code }
   }
   const names = results.map((r) => r.name || r.acc)
-  return {
+  return enriquecer(cfg, ver, token, {
     ok: true,
     message: results.length === 1 ? `Cuenta: ${names[0]}` : `${results.length} cuentas OK: ${names.join(', ')}`,
-  }
+  })
 }

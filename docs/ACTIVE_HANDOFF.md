@@ -1,4 +1,120 @@
+## F01 cerrado en producción + fuga entre subcuentas detectada — 4-oct (Claude Code)
+
+**Hecho (aplicado con confirmación de Alex, medido en producción):** migración
+`20261004100000_scope_stripe_customers_to_contact_visibility.sql` — `stripe_customers` era lo último de
+F01 sin cerrar: un colaborador y el setter leían los 32 clientes de Stripe (correo y nombre). Ahora lo
+hereda de la visibilidad del contacto: colaborador con atribuciones **16** (exactamente los suyos),
+sin atribuciones **0**, admin **32**. Registrada en `schema_migrations` con la versión de su fichero.
+
+**⚠ Desfase repositorio ↔ producción que NO es mío:** las migraciones `20261003120000`
+(`is_team_scope_allowed()` y seis políticas) y `20261003130000` (`stripe_payments`) están **aplicadas
+en producción pero solo existen en la rama `claude/app-continuation-lpbupf`**, sin fusionar a `main`.
+Quien la fusione debe comprobar que siguen coincidiendo con producción; mi migración depende de
+`is_team_scope_allowed()`. Mi primera versión de F01 (rama local descartada) habría **sobrescrito**
+su política de `stripe_payments` con la versión vieja: se detectó al releer producción antes de aplicar.
+Lección: **releer las políticas vivas justo antes de aplicar RLS**, no fiarse de una lectura de horas antes.
+
+**PREPARADA, NO APLICADA — requiere OK de Alex:** `20261004100100_aislamiento_entre_subcuentas_stripe_payments_y_knowledge_chunks.sql`
+(rama `fix/aislamiento-entre-subcuentas`, PR en borrador). Un `admin` que no es miembro de una subcuenta
+lee sus 83 pagos de Stripe (medido); `stripe_payments_all` es de lectura y ESCRITURA y `kc_*` de
+`knowledge_chunks` igual. Son las únicas dos tablas con `tenant_id` sin política restrictiva de
+aislamiento. Añade la misma `RESTRICTIVE` que usan las demás; 180 filas de `knowledge_chunks`, ninguna
+sin subcuenta, así que no esconde conocimiento global.
+
+**Decisión de negocio ya tomada (por la otra sesión):** `team` solo vale para admin/director/manager,
+así que closers, setters y CSM ven solo lo suyo.
+
+## Bloqueo de despliegue — Sentry 11 (Codex, 3-oct)
+
+PR #330 fusionada en `e4de45f`; migración aplicada y verificada. CI PASS, incluido E2E. La actualización concurrente #315 a Sentry 11 rompió el build con DSN: `withSentryConfig` requiere `@sentry/nextjs/config`. Falló producción también sin caché; corrección en `codex/sentry-build-entry` con regresión que carga configuración con DSN ficticio. No hubo reembolsos reales.
+
+## Activación de reservas — 3-oct, PR #330
+
+Usuario autorizó la migración explícitamente. Aplicada `20261003135010_reservation_stripe_refunds.sql` en producción. Verificado: RLS activo, RPC solo service_role, cero solicitudes de devolución. No se movió dinero. Archivo realineado al historial de Supabase; CI/fusión/despliegue pendientes. Prueba Stripe real/sandbox excluida a petición del usuario. Las notas anteriores describen el estado previo.
+
+## En curso — reconocimiento de Stripe y reservas (Codex, 3-oct)
+
+Rama `codex/stripe-payment-recognition`. Alcance: bandeja de cobros, lectura de evidencias Stripe, sugerencias verificables, reservas y sus pruebas. No aplicar migraciones ni ejecutar reembolsos reales sin confirmación concreta. PR #325 ya fusionado y verificado en producción; sus cancelaciones E2E anteriores están superadas. El usuario declina probar Stripe en sandbox: implementar y dejar explícito que no hubo ensayo con dinero ni con Stripe test. No ejecutar una devolución real como verificación.
+
+Implementado en la rama: identidad por cliente Stripe con detección de ambigüedades, lectura acotada de factura/Checkout y precio, propuesta de compra existente o nueva, calendario solo cuando el plan y la primera factura lo justifican. Reserva: confirmación de reembolso, identidad persistente e idempotencia, conciliación atómica; primer cobro y conversión en una transacción.
+
+Validación local: 1.246 unitarias PASS (3 omitidas), 783 métricas PASS, tipos y lint PASS (avisos previos). PostgreSQL aislado/PGlite: rollback, aislamiento, permisos, bloqueo de modificaciones y finalización PASS. Se contrastaron columnas y triggers de producción en solo lectura: no sustituye un ensayo end-to-end. Activación bloqueada hasta aprobar y aplicar `20261003135010_reservation_stripe_refunds.sql`; no desplegar la nueva conversión antes del esquema.
+
+## En curso — visibilidad de cobros pendientes (Codex, 3-oct)
+
+Rama `codex/payment-inbox-team-visibility`. Petición: admin, closer y setter ven toda la bandeja de su tenant en Ventas y notificaciones. Cambios acotados a GET payment-inbox, política de lectura compartida, PaymentInbox, Header y regresiones. No ampliar autorización de escritura ni RLS global. Validación local: formato/lint/tipos PASS; 1.229 unitarias PASS, 3 omitidas; 783 métricas PASS; 7 pruebas específicas de bandeja PASS. Knip informativo ejecutado. Build/CI/despliegue pendientes; no probado con sesión real closer/setter.
+
 # Relevo activo
+
+## Reservas — alcance seguro para fusionar (Codex, 3-oct)
+
+PR #325 acotado a la lista de reservas: excluye devueltas/canceladas y conversiones históricas explícitamente vinculadas a un plan definitivo con cobro positivo; distingue errores de lectura de una lista vacía, con reintento. No cambia cobros, comisiones, Stripe ni esquema.
+
+**Implementación financiera conservada, NO activada:** commit `852b25edee924f0d9f59d4e64c31f90ad1dd1191` de este PR contiene el reembolso Stripe con claim persistente, migración `20261003135010_reservation_stripe_refunds.sql`, conversión con primer pago atómico y sus pruebas. El recorte es un commit posterior, no una reescritura ni pérdida de trabajo. Para retomarlo, extraer únicamente esos cambios y revalidar sobre main; no revertir a ciegas el recorte completo.
+
+**Pendiente antes de activar dinero:** Stripe de prueba en QA (se confirmó que no tiene configuración propia), revisión end-to-end, dry-run con esquema completo y autorización de migración. La conversión actual puede promover la reserva antes de registrar el primer cobro; ese cambio sigue pendiente, no se certifica como resuelto en este PR acotado. No hubo reembolsos ni cambios de datos reales.
+
+Validación local del alcance final: formato y lint PASS (avisos existentes); 1.229 pruebas unitarias PASS, 3 omitidas; 783 pruebas de métricas PASS. Build de producción y tipos PASS tras regenerar los artefactos de Next (variables públicas ficticias, sin datos reales). CI del código revisado: calidad, secretos y Build PASS; Vercel omite el preview por Ignored Build Step. **Actualización:** PR #325 fusionada en `7a338fc`, Smoke E2E finalmente PASS y lista de reservas verificada en producción. La implementación financiera se retoma en la rama indicada arriba, todavía sin activar.
+
+## Carriles activos — qué está trabajando cada agente (3-oct, Freebuff)
+
+Petición de Alex: documentar en paralelo qué está haciendo Claude y Codex en la app. Esta sección
+se actualiza al inicio de cada sesión y al fusionar.
+
+### Freebuff (producto + ops) — sesión 3-oct
+
+- **Fusionadas hoy:** #317 (docs auditoría), #316 (pestañas huérfanas), #304 (S1 MVP baseline +
+  revoke de seguridad, migración realineada a `20261001162712`), #319 (setup E2E sin
+  `listUsers`), #318 (socios F13/F03), #321 (5 migraciones realineadas a producción), #322
+  (bandeja de cobros visible para setter), #324 (tests herméticos: dependabot CI), #326 (exentas
+  de comisión por membresía + índice `audit_logs`), #313 (`@types/node` 26).
+- **Arreglos en producción:** membresía `admin` de una administradora que la tenía como `member`
+  (techo de membresía la recortaba; causa del reporte «admin sin permisos de pagos»); historial de
+  migraciones repo ↔ producción alineado y registrado con la misma versión del fichero.
+- **En vuelo:** #314 (googleapis 182) y #315 (sentry 11) — quality VERDE tras #324, dependabot
+  rebasificando el lockfile; fusionar al ponerse todo verde. #327 (@vercel/speed-insights —
+  métricas reales de velocidad en Vercel) con E2E cancelado por la concurrencia global; relanzar.
+- **Bloqueadas con causa conocida:** #229 (eslint 10: `eslint-plugin-react` revienta en
+  `react/display-name` — requiere actualizar/retirar el plugin antes de fusionar) y #323
+  (minor-and-patch con lockfile roto de dependabot: `@typescript-eslint/eslint-plugin@8.71.0` vs
+  `parser@8.70.1` — cerrar para que el próximo grupo semanal la regenere sana).
+- **Fusionado 3-oct (Freebuff, PR #334):** closer automático en la sync por pull de agendas
+  (`lib/integrations/citas-sync.ts`): Calendly por dueño del calendario (`event_memberships` →
+  email/`calendly_email` + `firstMemberOf`), GHL por `assignedUserId` del calendario → email del
+  usuario GHL → usuario de la app acotado a subcuenta; nunca pisa asignación manual ni del webhook
+  (misma semántica protectora). Rama `fix/agenda-closer-sync`. Toca además una migración
+  (`appointments.ghl_calendar_id`) y tests de regresión.
+- **Fusionado 3-4-oct (Freebuff, PR #335):** deadline de la sync de agendas POR EVENTO
+  (`lib/integrations/citas-sync.ts`): el cron calendly-ghl acabó en 504 (FUNCTION_INVOCATION_TIMEOUT)
+  porque el corte solo se comprueba entre páginas — dentro de cada página, cada evento cuesta un
+  fetch de invitees (Calendly) o un contacto perezoso (GHL) de hasta 15-20 s. Añade comprobación de
+  reloj en los bucles de eventos y en la resolución de dueños de calendario de GHL + test de
+  regresión. Rama `fix/citas-sync-deadline`. Verificado en producción: Calendly 51→18 sin closer
+  (33 asignadas); GHL asigna solo vía webhook (el calendario no resuelve dueño en esta location).
+- **Reclamado 4-oct (Freebuff):** búsqueda de bugs en la zona citas/atribución
+  (`lib/tracking.ts`, `lib/integrations/citas-sync.ts`, webhook GHL): (1) `resolveUserIdByEmail`
+  usaba `.or(email.ilike.<email>)` SIN escapar comodines — el '_' de `ana_perez@x.com` matcheaba
+  `ana-perez@x.com` y la comisión podía caer en otro usuario; además la coma del dato rompía
+  PostgREST. (2) El pull de citas reenviaba el closer del calendario en cada pasada y pisaba
+  asignaciones manuales/del webhook (el webhook de Calendly SÍ se protegía en reagenda);
+  ahora rellena solo si la fila no tiene closer. (3) El `userIdByEmail` del webhook GHL era
+  `.eq` case-sensitive. Rama `fix/closer-no-reasigna-email`.
+
+### Claude Code (plan `docs/plan/`)
+
+- **#317 fusionada:** auditoría reconciliada F01–F25 contra `main` (tabla viva en
+  `DASHBOARD_AUDIT.md`).
+- **Abierto por prioridad:** F01 (P0 — RLS de colaborador; migración + dry-run + confirmación de
+  Alex), F19 (P0), F13 loaders de otras áreas, F04 (moneda/FX — BUSINESS_DECISION), F08.
+- **USER_ACTION de Alex:** F11 (mapeo de setters/asistencias), F12 (fecha inicial por fuente), F33
+  (cuenta publicitaria de Meta en Integraciones — sin ella no hay CAC/ROAS).
+
+### Codex (producto)
+
+- **#322 fusionada:** la bandeja de cobros pendientes se comparte con setter (lectura sí;
+  registrar el cobro sigue siendo de admin/closer).
+- **#325 fusionada:** lista de reservas verificada. Implementación financiera retomada en `codex/stripe-payment-recognition`, pendiente de migración explícitamente autorizada.
+- La auditoría de dashboards de codex (25-sep) quedó absorbida por #317.
 
 ## Auditoría de dashboards: estado reconciliado y lo que queda — 3-oct (Claude Code)
 
@@ -1450,7 +1566,7 @@ migración `20260922100000` como única fila activa (prioridad 1 de Claude Code)
 anterior:
 
 - **#66** — tabla `annotations` (fecha, título, descripción, categoría, autor) para marcar
-  picos/valles en `TrendChart`. Migración `20260924100000_annotations.sql` con RLS calcada de
+  picos/valles en `TrendChart`. Migración `20260924222339_annotations.sql` con RLS calcada de
   `ai_business_facts` (el equipo lee y anota, el autor o admin/director corrige o borra,
   aislamiento por tenant vía `auth_tenant_ids()`). API en `/anotaciones` y `/anotaciones/[id]`,
   componente `AnotacionesInspector`, wiring de ejemplo en `analitica/embudo`.
@@ -1656,9 +1772,11 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente              | Qué                                                                                                                                                                                            | Rama | Toca | Desde |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ---- | ----- |
-| (sin filas activas) | Tablero vacío tras el relevo del 2-oct: migración `20260922100000` ya aplicada (verificado por SQL) y ramas de worktree auditadas — véase «Relevo de los carriles codex / Claude Code» arriba. | —    | —    | 2-oct |
+| Agente      | Qué                                                                   | Rama                        | Toca                                                         | Desde |
+| ----------- | --------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------ | ----- |
+| Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot   | `package.json`/lock (solo vía dependabot), docs, migraciones | 3-oct |
+| Codex       | PR #325 reservation-refunds (E2E en rojo, su autor continúa)          | `codex/reservation-refunds` | ventas/cobros (según su rama)                                | 3-oct |
+| Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún             | —                           | `docs/plan/`, migraciones RLS                                | 3-oct |
 
 ## Reglas de trabajo (2026-09-21)
 

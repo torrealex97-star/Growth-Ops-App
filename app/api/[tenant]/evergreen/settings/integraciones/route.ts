@@ -17,7 +17,9 @@ import { requireTenant } from '@/lib/auth/requireTenant'
 import { configBunny, faltaEnConfigBunny, probarBunny } from '@/lib/vsl/bunny'
 import { isDeprecatedMetaVersion, META_API_VERSION } from '@/lib/meta/api-version'
 import { classifyMetaError } from '@/lib/meta/errors'
-import { comprobarSaludMeta, metaProof } from '@/lib/meta/salud'
+import { comprobarSaludMeta } from '@/lib/meta/salud'
+import { guardarComprobacion, HEALTH_KEY, parseLastChecks } from '@/lib/integrations/comprobaciones'
+import { comprobarSaludInstagram } from '@/lib/instagram/salud'
 import { exchangeCode } from '@/lib/google/oauth'
 import { stripeGet } from '@/lib/stripe/client'
 import { listarModelos, ModelosError, resolverModelo } from '@/lib/ai/modelos'
@@ -56,30 +58,8 @@ function svc(): SupabaseClient {
 // Clave donde vive el último veredicto de cada integración. Va en integration_settings (no secreta)
 // porque es configuración/estado por subcuenta, que es justo lo que guarda esa tabla: no hace falta
 // tabla nueva ni migración para algo que se sobrescribe entero en cada comprobación.
-const HEALTH_KEY = 'INTEGRATION_HEALTH'
 
 /** Lee el estado guardado siendo tolerante: un JSON corrupto deja las luces en gris, no rompe nada. */
-function parseLastChecks(raw: string | null | undefined): Record<string, LastCheck> {
-  if (!raw) return {}
-  try {
-    const parsed = JSON.parse(raw)
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
-    const out: Record<string, LastCheck> = {}
-    for (const [group, value] of Object.entries(parsed as Record<string, unknown>)) {
-      const v = value as Partial<LastCheck>
-      if (typeof v?.ok !== 'boolean' || typeof v?.checkedAt !== 'string') continue
-      out[group] = {
-        ok: v.ok,
-        message: typeof v.message === 'string' ? v.message : '',
-        checkedAt: v.checkedAt,
-        code: typeof v.code === 'string' ? v.code : undefined,
-      }
-    }
-    return out
-  } catch {
-    return {}
-  }
-}
 
 /**
  * Cuenta las filas de las tablas que alimentan las integraciones, para poder decir "conectada pero
@@ -529,35 +509,8 @@ function codeFromStatus(status: number): string {
  */
 async function runTest(group: string, tenantId: string): Promise<NextResponse> {
   const result = await probeGroup(group, tenantId)
-  await saveLastCheck(tenantId, group, result)
+  await guardarComprobacion(svc(), tenantId, group, result)
   return NextResponse.json({ ...result, checkedAt: new Date().toISOString() })
-}
-
-/** Historial mínimo por integración: el último veredicto y cuándo se obtuvo. */
-async function saveLastCheck(tenantId: string, group: string, result: ProbeResult): Promise<void> {
-  if (!group) return
-  const client = svc()
-  const { data } = await client
-    .from('integration_settings')
-    .select('value')
-    .eq('tenant_id', tenantId)
-    .eq('key', HEALTH_KEY)
-    .maybeSingle()
-  const current = parseLastChecks((data as { value: string | null } | null)?.value)
-  current[group] = { ok: result.ok, message: result.message, code: result.code, checkedAt: new Date().toISOString() }
-  // Un fallo al guardar el estado NO puede tumbar la comprobación: el usuario ya tiene su respuesta,
-  // y como máximo la luz seguirá gris ("sin comprobar"), que es lo honesto si no se pudo registrar.
-  const { error } = await client.from('integration_settings').upsert(
-    {
-      tenant_id: tenantId,
-      key: HEALTH_KEY,
-      value: JSON.stringify(current),
-      is_secret: false,
-      label: 'Último resultado de comprobación por integración',
-    },
-    { onConflict: 'tenant_id,key' }
-  )
-  if (error) console.warn(`[settings/integraciones] no se pudo guardar el estado de ${group}:`, error.message)
 }
 
 // Habla con la API de cada integración y devuelve un veredicto en claro.
@@ -574,29 +527,9 @@ async function probeGroup(group: string, tenantId: string): Promise<ProbeResult>
       return comprobarSaludMeta(cfg)
     }
     if (group === 'instagram') {
-      const token = cfg.INSTAGRAM_ACCESS_TOKEN || cfg.META_ACCESS_TOKEN
-      if (!token) return { ok: false, message: 'Falta el token de Instagram/Meta.' }
-      const ver = cfg.META_API_VERSION || META_API_VERSION
-      const proof = metaProof(token, cfg.META_APP_SECRET)
-      const qs = `&access_token=${encodeURIComponent(token.trim())}${proof ? `&appsecret_proof=${proof}` : ''}`
-      // Se comprueba la CUENTA que se va a sincronizar (IG_USER_ID), no solo que el token exista.
-      // Antes bastaba con que `/me/accounts` respondiera: con un IG_USER_ID equivocado la pantalla
-      // decía "Token válido" y luego no llegaba ni una publicación, sin que nadie supiera por qué.
-      const objetivo = cfg.IG_USER_ID
-        ? `${encodeURIComponent(cfg.IG_USER_ID.trim())}?fields=username,media_count`
-        : `me/accounts?fields=name`
-      const r = await probeFetch(`https://graph.facebook.com/${ver}/${objetivo}${qs}`)
-      const j = (await r.json()) as { username?: string; media_count?: number; error?: unknown }
-      if (!r.ok || j.error) {
-        const causa = classifyMetaError(j, r.status)
-        return { ok: false, message: causa.message, code: causa.code }
-      }
-      return {
-        ok: true,
-        message: j.username
-          ? `Cuenta @${j.username} conectada (${j.media_count ?? 0} publicaciones).`
-          : 'El token vale, pero falta IG_USER_ID: sin él no se sabe qué cuenta sincronizar.',
-      }
+      // La comprobación vive en `lib/instagram/salud.ts`: los crons guardan el mismo veredicto que esta
+      // pantalla, y no pueden importar una función que vive dentro de una ruta.
+      return comprobarSaludInstagram(cfg)
     }
     if (group === 'apify') {
       // §4/§12: comprobar conexión con /users/me (no gasta plataforma) y avisar si falta
