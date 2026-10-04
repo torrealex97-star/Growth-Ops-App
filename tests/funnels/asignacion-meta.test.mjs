@@ -34,5 +34,5 @@ test('la lectura de asignaciones es tolerante a fallo y a tabla ausente', () => 
 
 test('metaSafe pide las asignaciones antes de calcular las etapas Meta', () => {
   assert.match(src, /const ids = await campanasAsignadas\(sb, tenantId, family\)/)
-  assert.match(src, /metaStages\(sb, tenantId, range, ids\)/)
+  assert.match(src, /metaStages\(sb, tenantId, range, ids(, cuentasAds)?\)/)
 })

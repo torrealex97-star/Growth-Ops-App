@@ -52,7 +52,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     const cfg = await getTenantConfig(session.tenantId)
     const eventMap = parseEventMap(cfg[EVENT_MAP_KEY])
 
-    const { counts, inversion } = await loadFunnelCounts(
+    const { counts, inversion, cohorte } = await loadFunnelCounts(
       sb,
       session.tenantId,
       family,
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
       // La inversión del funnel solo cuenta las cuentas de ads elegidas en Integraciones.
       parseAccountIds(cfg.META_AD_ACCOUNT_ID)
     )
-    return NextResponse.json({ ...computeFunnel({ family, counts, inversion }), range: { from, to } })
+    return NextResponse.json({ ...computeFunnel({ family, counts, inversion }), cohorte, range: { from, to } })
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'No se pudo calcular el funnel' },

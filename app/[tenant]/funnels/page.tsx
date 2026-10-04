@@ -7,6 +7,7 @@ import { useTenant } from '@/lib/tenant-context'
 import { FUNNEL_DEFS, FUNNEL_FAMILIES, type FunnelFamily } from '@/lib/funnels/definitions'
 import { STATUS_LABELS, type MetricStatus } from '@/lib/funnels/types'
 import type { FunnelResult } from '@/lib/funnels/compute'
+import type { Cohorte } from '@/lib/funnels/cohorte'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import { FunnelChart } from '@/components/os/FunnelChart'
 import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
@@ -14,7 +15,7 @@ import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
 // La respuesta ES el FunnelResult que calcula `lib/funnels/compute.ts`, más el rango que se pidió.
 // Antes esta pantalla mantenía su propia copia de los tipos, con `source: string` en vez del union
 // de fuentes: una copia que se desincroniza en silencio del módulo que de verdad calcula el funnel.
-type FunnelResponse = FunnelResult & { range: { from: string; to: string } }
+type FunnelResponse = FunnelResult & { range: { from: string; to: string }; cohorte: Cohorte | null }
 
 // Los cuatro estados se pintan DISTINTO a propósito. Si "sin datos" y "no se pudo leer" se vieran
 // igual, toda la capa canónica que los distingue no serviría de nada en pantalla.
@@ -218,6 +219,39 @@ export default function FunnelsPage() {
               </tbody>
             </table>
           </div>
+
+          {data.cohorte && data.cohorte.leads > 0 && (
+            <section className="rounded-lg border border-border p-4" aria-label="Cohorte de leads del periodo">
+              <h3 className="text-sm font-semibold text-foreground">
+                Cohorte: qué ha pasado con los leads que entraron
+              </h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Sigue a las {num(data.cohorte.leads)} personas que entraron en el periodo, sea cuando sea que agendaron
+                o compraron. La tabla de arriba cuenta hechos del periodo y no es comparable con esto.
+                {data.cohorte.enMaduracion
+                  ? ' Cohorte en maduración: los últimos leads aún no han tenido 30 días, así que estas tasas irán subiendo y no deben juzgarse todavía.'
+                  : ''}
+              </p>
+              <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {[
+                  ['Con agenda', data.cohorte.conAgenda],
+                  ['Con llamada celebrada', data.cohorte.conAsistencia],
+                  ['Con venta', data.cohorte.conVenta],
+                  ['Sin atribuir (sin campaña)', data.cohorte.sinAtribuir],
+                ].map(([etiqueta, n]) => (
+                  <div key={etiqueta as string}>
+                    <dt className="text-xs text-muted-foreground">{etiqueta}</dt>
+                    <dd className="font-mono text-lg text-foreground">
+                      {num(n as number)}
+                      <span className="ml-1 text-xs text-muted-foreground">
+                        {pctText(((n as number) / (data.cohorte as Cohorte).leads) * 100)} de {num((data.cohorte as Cohorte).leads)}
+                      </span>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          )}
 
           <p className="flex items-start gap-2 text-xs text-muted-foreground">
             <Filter className="mt-0.5 h-3.5 w-3.5 shrink-0" />

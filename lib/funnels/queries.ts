@@ -4,6 +4,7 @@
 // que existe.** Donde no hay fuente conectada o falta un mapeo, se devuelve `no_configurada` con el
 // motivo, no un 0 y tampoco un error rojo. Inventar un vocabulario de eventos o rellenar huecos con
 // ceros es precisamente lo que haría que esta pantalla mintiera.
+import { cohorteDeLeads, type Cohorte } from '@/lib/funnels/cohorte'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/lib/supabase/paginate'
 import { buildPeriodFunnel } from '@/lib/metrics/period-funnel'
@@ -95,7 +96,12 @@ async function crmStages(sb: SupabaseClient, tenantId: string, range: DateRange)
     }
   )
   const activity = (value: number): MetricValue => ({ ...fromCount(value, 'crm'), periodActivity: true })
+  const cohorte = cohorteDeLeads(contacts.rows, appointments.rows, sales.rows, {
+    from: new Date(range.from.length === 10 ? `${range.from}T00:00:00Z` : range.from),
+    to: new Date(range.to.length === 10 ? `${range.to}T23:59:59.999Z` : range.to),
+  })
   return {
+    cohorte,
     leads: activity(result.leads),
     agendas: activity(result.agendas),
     llamadas: activity(result.asistencias),
@@ -264,7 +270,7 @@ export async function loadFunnelCounts(
   eventMap: EventMap = {},
   // Cuentas de ads seleccionadas en Integraciones (vacío = todas, el convenio de la app).
   cuentasAds: string[] = []
-): Promise<{ counts: Record<string, MetricValue>; inversion: number | null }> {
+): Promise<{ counts: Record<string, MetricValue>; inversion: number | null; cohorte: Cohorte | null }> {
   const stages = stagesOf(family)
   const needsCrm = stages.some((s) => s.source === 'crm')
   const needsMeta = stages.some((s) => s.source === 'meta')
@@ -306,7 +312,13 @@ export async function loadFunnelCounts(
   const isSourceError = (v: unknown): v is { error: string } =>
     v !== null && typeof v === 'object' && 'error' in v && typeof (v as { error: unknown }).error === 'string'
 
-  type CrmStages = { leads: MetricValue; agendas: MetricValue; llamadas: MetricValue; cierres: MetricValue }
+  type CrmStages = {
+    cohorte: Cohorte
+    leads: MetricValue
+    agendas: MetricValue
+    llamadas: MetricValue
+    cierres: MetricValue
+  }
   type Ga4Stages = { sesiones: MetricValue }
   type MetaStages = { impresiones: MetricValue; clics: MetricValue; alcance: MetricValue; inversion: number | null }
 
@@ -382,7 +394,8 @@ export async function loadFunnelCounts(
 
   // inversion solo se extrae si meta funcionó (no si devolvió { error }).
   const inversion = meta && !isSourceError(meta) ? (meta as unknown as MetaStages).inversion : null
-  return { counts, inversion }
+  const cohorte = crm && !isSourceError(crm) ? (crm as unknown as CrmStages).cohorte : null
+  return { counts, inversion, cohorte }
 }
 
 // ── Etapas de VSL desde vsl_sessions (tracking propio del player) ──────────
