@@ -20,6 +20,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { stripeList } from '@/lib/stripe/client'
 import { fetchStripeFeesForChargeIds } from './stripeFees'
+import { ultimaDevolucionPorPago, type StripeRefundLite } from './refundDates'
 
 export type StripePaymentsSyncResult = {
   /** Pagos vistos en esta pasada (los que entraron o se refrescaron). */
@@ -170,16 +171,45 @@ export async function syncStripePayments(
     return fila
   })
 
+  // FECHA DE LA DEVOLUCIÓN (F05). Solo se pide la lista de refunds si hay algún pago devuelto. Si la
+  // lectura falla o queda recortada, `refunded_at` NO se incluye en la fila (PostgREST no toca la
+  // columna): se conserva lo que ya hubiera en el espejo en vez de pisarlo con null.
+  let fechasDevolucion: Map<string, string> | null = null
+  if (filas.some((f) => f.refunded_amount > 0)) {
+    try {
+      const refundsRes = await stripeList<StripeRefundLite>(
+        'refunds',
+        new URLSearchParams({ limit: '100' }),
+        { secretKey: stripeSecretKey, accountId: stripeAccountId },
+        { maxPages: 10, deadline: opts.deadline }
+      )
+      if (!refundsRes.truncated) fechasDevolucion = ultimaDevolucionPorPago(refundsRes.items)
+    } catch {
+      fechasDevolucion = null
+    }
+  }
+  const filasConFecha = filas.map((f) => {
+    if (!fechasDevolucion) return f
+    if (f.refunded_amount <= 0) return { ...f, refunded_at: null as string | null }
+    const cuando = fechasDevolucion.get(f.payment_id)
+    return cuando ? { ...f, refunded_at: cuando } : f
+  })
+
   // UPSERT por (tenant_id, payment_id): reejecutar nunca duplica; refresca refunded_amount/status
   // por si la devolución llegó entre ejecuciones y el webhook no pudo escribir el espejo.
   let written = 0
   const CHUNK = 200
-  for (let i = 0; i < filas.length; i += CHUNK) {
-    const lote = filas.slice(i, i + CHUNK)
-    if (lote.length === 0) continue
-    const { error } = await sb.from('stripe_payments').upsert(lote, { onConflict: 'tenant_id,payment_id' })
-    if (error) throw new Error(error.message)
-    written += lote.length
+  // Filas con y sin `refunded_at` van en upserts SEPARADOS: en un upsert masivo, una clave ausente en
+  // unas filas y presente en otras se rellena con null y pisaría la fecha que el espejo ya tiene.
+  const grupos = [filasConFecha.filter((f) => 'refunded_at' in f), filasConFecha.filter((f) => !('refunded_at' in f))]
+  for (const grupo of grupos) {
+    for (let i = 0; i < grupo.length; i += CHUNK) {
+      const lote = grupo.slice(i, i + CHUNK)
+      if (lote.length === 0) continue
+      const { error } = await sb.from('stripe_payments').upsert(lote, { onConflict: 'tenant_id,payment_id' })
+      if (error) throw new Error(error.message)
+      written += lote.length
+    }
   }
 
   return {

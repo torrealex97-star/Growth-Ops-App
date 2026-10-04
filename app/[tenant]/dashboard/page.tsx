@@ -337,7 +337,7 @@ function DashboardEquipo() {
           .eq('status', 'active'),
         supabase
           .from('stripe_payments')
-          .select('payment_id, charge_id, amount, refunded_amount, status, paid_at, customer_email')
+          .select('payment_id, charge_id, amount, refunded_amount, refunded_at, status, paid_at, customer_email')
           .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
       ])
@@ -511,15 +511,22 @@ function DashboardEquipo() {
         collected_at: c.collected_at,
       }))
     const references = new Set(internal.map((c) => c.payment_reference).filter(Boolean))
-    const stripe = stripePayments.filter(
-      (p) =>
-        inPeriod(p.paid_at, targetRange) &&
-        (member === 'all' || references.has(p.payment_id) || (!!p.charge_id && references.has(p.charge_id)))
+    const delMiembro = (p: StripePaymentRow) =>
+      member === 'all' || references.has(p.payment_id) || (!!p.charge_id && references.has(p.charge_id))
+    const stripe = stripePayments.filter((p) => inPeriod(p.paid_at, targetRange) && delMiembro(p))
+    // Devoluciones que OCURRIERON en el periodo (MONEY D5), aunque su cobro sea de otro mes.
+    const devoluciones = stripePayments.filter(
+      (p) => !!p.refunded_at && inPeriod(p.refunded_at, targetRange) && delMiembro(p)
     )
-    return { internal, stripe }
+    return { internal, stripe, devoluciones }
   }
   const currentCashInputs = cashInputs(range)
-  const currentCash = canonicalCash(currentCashInputs.stripe, currentCashInputs.internal)
+  const currentCash = canonicalCash(
+    currentCashInputs.stripe,
+    currentCashInputs.internal,
+    [],
+    currentCashInputs.devoluciones
+  )
   const curBase = periodKpis(filteredSales, filteredCollections)
   const cur = {
     ...curBase,
@@ -539,7 +546,12 @@ function DashboardEquipo() {
     [collections, scopedSaleIds, previousRange]
   )
   const previousCashInputs = cashInputs(previousRange)
-  const previousCash = canonicalCash(previousCashInputs.stripe, previousCashInputs.internal)
+  const previousCash = canonicalCash(
+    previousCashInputs.stripe,
+    previousCashInputs.internal,
+    [],
+    previousCashInputs.devoluciones
+  )
   const prevBase = periodKpis(previousSales, previousCollections)
   const prev = {
     ...prevBase,
@@ -555,7 +567,13 @@ function DashboardEquipo() {
     filteredCollections,
     range,
     new Map(
-      serieCanonicaCash(currentCashInputs.stripe, currentCashInputs.internal, [], 'dia').map((p) => [p.cubo, p.neto])
+      serieCanonicaCash(
+        currentCashInputs.stripe,
+        currentCashInputs.internal,
+        [],
+        'dia',
+        currentCashInputs.devoluciones
+      ).map((p) => [p.cubo, p.neto])
     )
   )
   const series = trend.points.map(({ date, amount }) => ({ date, amount }))

@@ -382,7 +382,7 @@ export default function UnitEconomicsPage() {
           // fuente lo deja visible en vez de suponer que Stripe está al día.
           supabase
             .from('stripe_payments')
-            .select('payment_id, charge_id, amount, refunded_amount, status, paid_at, customer_email')
+            .select('payment_id, charge_id, amount, refunded_amount, refunded_at, status, paid_at, customer_email')
             .eq('tenant_id', tenantId)
             .range(0, FINANCE_QUERY_ROW_CAP),
           // email/phone entran para la consolidación canónica de leads (dedup por persona, §6/§17).
@@ -526,7 +526,9 @@ export default function UnitEconomicsPage() {
             status: c.status,
             collected_at: c.collected_at,
           })),
-        []
+        [],
+        // Devoluciones que OCURRIERON en el periodo (MONEY D5), aunque su cobro sea de otro mes.
+        stripePagos.filter((p) => !!p.refunded_at && (!hayPeriodo || inPeriod(p.refunded_at, rango)))
       ),
     [stripePagos, collections, hayPeriodo, rango]
   )

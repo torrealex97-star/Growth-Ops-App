@@ -33,6 +33,12 @@ export type StripePaymentRow = {
   status: string
   paid_at: string | null
   customer_email: string | null
+  /**
+   * Fecha de la última devolución (F05 · MONEY D5). Con valor, la devolución se resta en ESE periodo
+   * y no en el del cobro; NULL con `refunded_amount > 0` = devolución sin fecha (resta en el periodo
+   * del cobro, como antes, y se contabiliza en `devolucionesSinFecha`).
+   */
+  refunded_at?: string | null
 }
 
 /** Fila de collections (fallback) ya recortada a lo que el cash necesita. */
@@ -66,6 +72,8 @@ export type CashBreakdown = {
   bySource: { stripe: number; internal: number }
   /** Diagnóstico de calidad (§19/§20/§38): nada silencioso. */
   duplicatedPayments: number
+  /** Importe de devoluciones de Stripe sin fecha conocida (restadas en el periodo del cobro). */
+  devolucionesSinFecha: number
   /** Cobros internos que Stripe también vio, con importe DISTINTO: la primaria gana, pero queda registrado. */
   amountConflicts: { paymentId: string; stripe: number; internal: number }[]
 }
@@ -102,11 +110,18 @@ function mismaReferenciaStripe(ref: string | null | undefined, sp: StripePayment
 export function canonicalCash(
   stripePayments: StripePaymentRow[],
   collections: InternalCollectionRow[],
-  internalRefunds: InternalRefundRow[] = []
+  internalRefunds: InternalRefundRow[] = [],
+  /**
+   * Pagos de Stripe cuya DEVOLUCIÓN ocurrió dentro del periodo (`refunded_at` en rango), estén o no
+   * sus cobros en `stripePayments`. Si se pasa, las devoluciones con fecha se restan aquí y no por
+   * el cobro; sin él, todo se resta por el cobro (comportamiento anterior).
+   */
+  devolucionesFechadas?: StripePaymentRow[]
 ): CashBreakdown {
   let grossStripe = 0
   let netStripe = 0
   let refundStripe = 0
+  let devolucionesSinFecha = 0
 
   // 1. Primaria: cada pago de Stripe cuenta una vez (la tabla ya es unique por
   // (tenant, payment_id); el merge defensivo por payment_id cubre dobles filas
@@ -117,9 +132,23 @@ export function canonicalCash(
     stripeVistos.add(sp.payment_id)
     const bruto = num(sp.amount)
     const devuelto = Math.min(num(sp.refunded_amount), bruto)
+    // Con la lista de devoluciones fechadas, una devolución CON fecha no se resta por el cobro: la
+    // resta su propio periodo (más abajo). Sin fecha, se mantiene en el cobro y se declara.
+    const restaAqui = devolucionesFechadas === undefined || !sp.refunded_at ? devuelto : 0
+    if (devuelto > 0 && !sp.refunded_at) devolucionesSinFecha += devuelto
     grossStripe += bruto
-    refundStripe += devuelto
-    netStripe += bruto - devuelto
+    refundStripe += restaAqui
+    netStripe += bruto - restaAqui
+  }
+  if (devolucionesFechadas) {
+    const fechadasVistas = new Set<string>()
+    for (const sp of devolucionesFechadas) {
+      if (!sp.payment_id || !sp.refunded_at || fechadasVistas.has(sp.payment_id)) continue
+      fechadasVistas.add(sp.payment_id)
+      const devuelto = Math.min(num(sp.refunded_amount), num(sp.amount))
+      refundStripe += devuelto
+      netStripe -= devuelto
+    }
   }
 
   // 2. Fallback: cobros internos. Los que cruzan con Stripe se descartan como
@@ -184,6 +213,7 @@ export function canonicalCash(
       internal: grossInternal - refundInternal,
     },
     duplicatedPayments: duplicatedPayments.length,
+    devolucionesSinFecha,
     amountConflicts,
   }
 }
@@ -207,7 +237,9 @@ export function serieCanonicaCash(
   stripePayments: StripePaymentRow[],
   collections: InternalCollectionRow[],
   internalRefunds: InternalRefundRow[] = [],
-  granularidad: 'dia' | 'semana' | 'mes' = 'dia'
+  granularidad: 'dia' | 'semana' | 'mes' = 'dia',
+  /** Igual que en `canonicalCash`: devoluciones con fecha restan en SU cubo, no en el del cobro. */
+  devolucionesFechadas?: StripePaymentRow[]
 ): CashBucket[] {
   const claveDe = (iso: string): string => {
     if (granularidad === 'dia') return iso.slice(0, 10)
@@ -233,7 +265,16 @@ export function serieCanonicaCash(
     stripeVistos.add(sp.payment_id)
     const bruto = num(sp.amount)
     const devuelto = Math.min(num(sp.refunded_amount), bruto)
-    bump(sp.paid_at, bruto - devuelto)
+    const restaAqui = devolucionesFechadas === undefined || !sp.refunded_at ? devuelto : 0
+    bump(sp.paid_at, bruto - restaAqui)
+  }
+  if (devolucionesFechadas) {
+    const vistas = new Set<string>()
+    for (const sp of devolucionesFechadas) {
+      if (!sp.payment_id || !sp.refunded_at || vistas.has(sp.payment_id)) continue
+      vistas.add(sp.payment_id)
+      bump(sp.refunded_at, -Math.min(num(sp.refunded_amount), num(sp.amount)))
+    }
   }
 
   // 2. Fallback: cobro interno 'collected' que Stripe NO ve entra con su fecha.
