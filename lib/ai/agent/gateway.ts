@@ -326,7 +326,7 @@ async function callTool(
         period: { from: input.from as string, to: input.to as string },
         nameContains: input.nameContains as string | undefined,
       })
-      return { result: r, summary: `${r.length} campaña(s) analizadas` }
+      return { result: r, summary: `${r.campanas.length} campaña(s) analizadas` }
     }
     case 'getContacts': {
       const r = await tools.getContacts(ctx, String(input.query || ''), Number(input.limit) || 10)

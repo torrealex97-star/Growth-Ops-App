@@ -6,6 +6,7 @@
 // negocio ya canónicas — no hay una capa de datos paralela.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { computeAdFunnel, perCampaign, type AdFunnel } from '@/lib/ads/funnel'
+import { campanasDelPeriodo, type FilaDiaria } from '@/lib/ads/campanas-periodo'
 import { buildContactTimeline, type TimelineEvent } from '@/lib/contact-timeline'
 import { cuentaComoVenta } from '@/lib/analytics'
 import { parseAccountIds } from '@/lib/meta/accounts'
@@ -223,6 +224,30 @@ function conMetodo<T extends { status: string }>(v: T) {
   return { ...v, payment_plan_method: metodoDePlan(v as { payment_plans?: unknown }) }
 }
 
+/**
+ * Actividad diaria de campañas del periodo (campaign_daily): la fuente que suman las pantallas. `null`
+ * si no se pudo leer — entonces quien llama mantiene el comportamiento anterior y lo avisa.
+ */
+async function leerDiariasDelPeriodo(
+  sb: SupabaseClient,
+  tenantId: string,
+  period: Period
+): Promise<FilaDiaria[] | null> {
+  if (!period.from && !period.to) return []
+  const { data, error } = await sb
+    .from('campaign_daily')
+    .select('campaign_id,date,spend,impressions,clicks,leads,reach,link_clicks,landing_views')
+    .eq('tenant_id', tenantId)
+    .gte('date', period.from || '1970-01-01')
+    .lte('date', period.to || '2999-12-31')
+    .limit(20000)
+  if (error) return null
+  return (data as FilaDiaria[]) || []
+}
+
+const AVISO_DIARIAS_NO_LEIDAS =
+  'No se pudo leer la actividad diaria de campañas: las cifras de campañas son acumulados de toda su vida, no del periodo.'
+
 export async function getBusinessOverview({ tenantId, sb, env }: ToolContext, period: Period) {
   const cuentasAds = cuentasAdsDeContexto(env)
   const [{ data: campaigns, error: campaignsErr }, { data: sales, error: salesErr }, { count: contactCount }] =
@@ -242,9 +267,16 @@ export async function getBusinessOverview({ tenantId, sb, env }: ToolContext, pe
 
   // Solo campañas de las cuentas elegidas en Integraciones: el gasto de cuentas históricas
   // deseleccionadas no es del negocio (mismo convenio que la pantalla de Campañas).
-  const periodCampaigns = campanasDeCuentas((campaigns as Campaign[]) || [], cuentasAds).filter(
-    (c) => !period.from || !c.start_date || inPeriod(c.start_date, period) || !c.end_date
-  )
+  const diarias = await leerDiariasDelPeriodo(sb, tenantId, period)
+  const delPeriodo = diarias
+    ? campanasDelPeriodo(campanasDeCuentas((campaigns as Campaign[]) || [], cuentasAds), diarias, period)
+    : {
+        campaigns: campanasDeCuentas((campaigns as Campaign[]) || [], cuentasAds).filter(
+          (c) => !period.from || !c.start_date || inPeriod(c.start_date, period) || !c.end_date
+        ),
+        aviso: AVISO_DIARIAS_NO_LEIDAS,
+      }
+  const periodCampaigns = delPeriodo.campaigns
   const funnel = computeAdFunnel(periodCampaigns)
   const activeSales = (sales || []).filter((s) => cuentaComoVenta(conMetodo(s)))
   const revenue = activeSales.reduce((sum, s) => sum + (s.gross_amount || 0), 0)
@@ -278,6 +310,7 @@ export async function getBusinessOverview({ tenantId, sb, env }: ToolContext, pe
     campanas_activas: campaignsErr ? null : periodCampaigns.filter((c) => c.status === 'activa').length,
     ...(error ? { error } : {}),
     ...(aviso ? { aviso_datos: aviso } : {}),
+    ...(delPeriodo.aviso ? { aviso_periodo: delPeriodo.aviso } : {}),
   }
 }
 
@@ -288,21 +321,30 @@ export async function getBusinessOverview({ tenantId, sb, env }: ToolContext, pe
 export async function getFunnel(
   { tenantId, sb, env }: ToolContext,
   period: Period
-): Promise<Partial<AdFunnel> & { aviso_datos?: string; error?: string }> {
+): Promise<Partial<AdFunnel> & { aviso_datos?: string; aviso_periodo?: string; error?: string }> {
   const { data, error: campaignsErr } = await sb.from('campaigns').select('*').eq('tenant_id', tenantId).limit(500)
   // Un fallo de lectura NO es un cero: si `campaigns` no se pudo leer, ROAS/CAC en null (no en
   // 0/inventado) — detectAnomalies compara este resultado contra el del periodo anterior y un
   // 0 falso aquí anunciaría una caída de ROAS que nunca ocurrió.
   if (campaignsErr) return { error: `campañas: ${campaignsErr.message}` }
   // Solo cuentas seleccionadas en Integraciones (mismo convenio que la pantalla de Campañas).
-  const campaigns = campanasDeCuentas((data as Campaign[]) || [], cuentasAdsDeContexto(env)).filter(
-    (c) => !period.from || !c.start_date || inPeriod(c.start_date, period)
-  )
-  const funnel = computeAdFunnel(campaigns)
+  const deCuentas = campanasDeCuentas((data as Campaign[]) || [], cuentasAdsDeContexto(env))
+  const diarias = await leerDiariasDelPeriodo(sb, tenantId, period)
+  const delPeriodo = diarias
+    ? campanasDelPeriodo(deCuentas, diarias, period)
+    : {
+        campaigns: deCuentas.filter((c) => !period.from || !c.start_date || inPeriod(c.start_date, period)),
+        aviso: AVISO_DIARIAS_NO_LEIDAS,
+      }
+  const funnel = computeAdFunnel(delPeriodo.campaigns)
   // El funnel entero se alimenta de campaigns: si esa tabla está vacía, TODO lo de abajo es 0/null
   // por falta de datos, no porque el funnel vaya mal.
   const aviso = await emptySourceWarning({ tenantId, sb }, [{ label: 'campañas / ads', table: 'campaigns' }])
-  return aviso ? { ...funnel, aviso_datos: aviso } : funnel
+  return {
+    ...funnel,
+    ...(aviso ? { aviso_datos: aviso } : {}),
+    ...(delPeriodo.aviso ? { aviso_periodo: delPeriodo.aviso } : {}),
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -317,13 +359,23 @@ export async function getCampaignPerformance(
   // Solo cuentas seleccionadas en Integraciones: el rendimiento por campaña no debe listar
   // campañas de cuentas que el usuario ya quitó del negocio.
   let campaigns = campanasDeCuentas((data as Campaign[]) || [], cuentasAdsDeContexto(env))
-  if (opts.period)
-    campaigns = campaigns.filter((c) => !opts.period!.from || !c.start_date || inPeriod(c.start_date, opts.period!))
+  let aviso_periodo: string | null = null
+  if (opts.period) {
+    const diarias = await leerDiariasDelPeriodo(sb, tenantId, opts.period)
+    if (diarias) {
+      const r = campanasDelPeriodo(campaigns, diarias, opts.period)
+      campaigns = r.campaigns
+      aviso_periodo = r.aviso
+    } else {
+      campaigns = campaigns.filter((c) => !opts.period!.from || !c.start_date || inPeriod(c.start_date, opts.period!))
+      aviso_periodo = AVISO_DIARIAS_NO_LEIDAS
+    }
+  }
   if (opts.nameContains) {
     const q = opts.nameContains.toLowerCase()
     campaigns = campaigns.filter((c) => c.name.toLowerCase().includes(q))
   }
-  return perCampaign(campaigns.slice(0, 100))
+  return { campanas: perCampaign(campaigns.slice(0, 100)), ...(aviso_periodo ? { aviso_periodo } : {}) }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
