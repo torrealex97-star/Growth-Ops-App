@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { aplicarCustomFieldsGhl } from '@/lib/contacts/custom-fields-ghl'
+import { mejorNombre } from '@/lib/contacts/resolve'
 import { estadoAlSincronizar, mapearEstadoExterno } from '@/lib/appointments/status'
 import { resolveUserIdByEmail } from '@/lib/tracking'
 
@@ -54,29 +55,41 @@ export async function findOrCreateContact(
   const firstName = text(source.firstName) || text(source.first_name)
   const lastName = text(source.lastName) || text(source.last_name)
   const fullName = text(source.name) || [firstName, lastName].filter(Boolean).join(' ') || 'Sin nombre'
-  let row: { id: string } | null = null
+  let row: { id: string; full_name: string | null; first_name: string | null; last_name: string | null } | null = null
   if (externalId) {
     const found = await sb
       .from('contacts')
-      .select('id')
+      .select('id, full_name, first_name, last_name')
       .eq('tenant_id', tenantId)
       .eq('ghl_contact_id', externalId)
       .maybeSingle()
     row = found.data
   }
   if (!row && email) {
-    const found = await sb.from('contacts').select('id').eq('tenant_id', tenantId).eq('email', email).maybeSingle()
+    const found = await sb
+      .from('contacts')
+      .select('id, full_name, first_name, last_name')
+      .eq('tenant_id', tenantId)
+      .eq('email', email)
+      .maybeSingle()
     row = found.data
   }
   if (!row && phone) {
-    const found = await sb.from('contacts').select('id').eq('tenant_id', tenantId).eq('phone', phone).maybeSingle()
+    const found = await sb
+      .from('contacts')
+      .select('id, full_name, first_name, last_name')
+      .eq('tenant_id', tenantId)
+      .eq('phone', phone)
+      .maybeSingle()
     row = found.data
   }
 
   const values: Record<string, unknown> = {
-    full_name: fullName,
-    first_name: firstName,
-    last_name: lastName,
+    // La plataforma manda, salvo dos casos (ver mejorNombre): el hueco no pisa un nombre real y
+    // la misma grafía en mejor mayúscula gana (los arreglos hechos en GHL se propagan).
+    full_name: mejorNombre(row?.full_name, fullName) ?? fullName,
+    first_name: mejorNombre(row?.first_name, firstName),
+    last_name: mejorNombre(row?.last_name, lastName),
     email,
     phone,
     country: text(source.country),

@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { CreditCard, Pencil, Plus, Trash2, RotateCcw } from 'lucide-react'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, capitalizeName } from '@/lib/utils'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { isLeadership, type AppRole } from '@/lib/auth/permissions'
 import type { Contact, PaymentPlan, Product } from '@/lib/types/database'
@@ -484,7 +484,7 @@ export default function ReservasPage() {
           {openReservations.map((row) => {
             const referencia = getReferencePrice(row)
             const pendiente = getPending(row)
-            const nombrePersona = row.contacts?.full_name || 'Sin nombre'
+            const nombrePersona = capitalizeName(row.contacts?.full_name || 'Sin nombre')
             const nombreProducto = row.products?.name || 'Producto desconocido'
 
             return (
@@ -564,8 +564,8 @@ export default function ReservasPage() {
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-muted-foreground text-sm truncate">
-                    {row.contacts?.full_name || 'Sin nombre'} · {row.products?.name || 'Producto desconocido'} ·{' '}
-                    {formatCurrency(row.gross_amount)}
+                    {capitalizeName(row.contacts?.full_name || 'Sin nombre')} ·{' '}
+                    {row.products?.name || 'Producto desconocido'} · {formatCurrency(row.gross_amount)}
                   </p>
                 </div>
                 <span className="text-xs text-muted-foreground">
@@ -732,7 +732,7 @@ export default function ReservasPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Editar reserva — {editRow?.contacts?.full_name}</DialogTitle>
+            <DialogTitle>Editar reserva — {capitalizeName(editRow?.contacts?.full_name ?? '')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
@@ -773,7 +773,8 @@ export default function ReservasPage() {
             <DialogTitle>¿Eliminar esta reserva?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Se eliminará la reserva de <span className="text-foreground">{deleteRow?.contacts?.full_name}</span> (
+            Se eliminará la reserva de{' '}
+            <span className="text-foreground">{capitalizeName(deleteRow?.contacts?.full_name ?? '')}</span> (
             {deleteRow ? formatCurrency(deleteRow.gross_amount) : ''}) junto con sus cobros y comisiones asociados. Esta
             acción no se puede deshacer.
           </p>

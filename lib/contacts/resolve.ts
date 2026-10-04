@@ -1,5 +1,29 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
+// ── Grafías de nombres ─────────────────────────────────────────────────────────────
+// Las plataformas devuelven muchos nombres todo en minúsculas aunque en SU interfaz se vean
+// capitalizados, y los arreglos de mayúsculas hechos en la plataforma no se propagaban (el
+// webhook solo rellenaba el nombre si estaba vacío y una re-ingesta rebajaba "Maria Garcia" a
+// "maria garcia"). Regla: "Sin nombre" y vacío son un HUECO, no un dato; y si es el MISMO
+// nombre con distinta grafía, gana la mejor escrita.
+
+/** 'Sin nombre' y vacío son un hueco de captura, nunca un nombre real que pise a otro. */
+export function esNombreHueco(valor: string | null | undefined): boolean {
+  return !valor || !valor.trim() || valor.trim().toLowerCase() === 'sin nombre'
+}
+
+function mayusculas(valor: string): number {
+  return (valor.match(/\p{Lu}/gu) ?? []).length
+}
+
+/** Elige entre el nombre guardado y el entrante de la plataforma. */
+export function mejorNombre(guardado: string | null | undefined, entrante: string | null | undefined): string | null {
+  if (esNombreHueco(entrante)) return (guardado ?? '').trim() || null
+  if (esNombreHueco(guardado)) return entrante!.trim()
+  if (guardado!.trim().toLowerCase() !== entrante!.trim().toLowerCase()) return entrante!.trim()
+  return mayusculas(entrante!) >= mayusculas(guardado!) ? entrante!.trim() : guardado!.trim()
+}
+
 // Resolver-o-crear contacto. Toda la lógica vive en la función de base de datos
 // `contacts_get_or_create` (ver supabase/migrations/20260914150000_contacts_get_or_create.sql):
 // los webhooks hacían SELECT y luego INSERT en dos viajes, así que dos entregas concurrentes del

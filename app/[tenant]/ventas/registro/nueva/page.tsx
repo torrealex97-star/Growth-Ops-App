@@ -1156,32 +1156,37 @@ export default function NewSalePage() {
               <div>
                 <Label className="mb-3 block">Plan de Pago</Label>
                 <div className="grid grid-cols-1 gap-3">
-                  {paymentPlans.map((plan) => (
-                    <button
-                      key={plan.id}
-                      onClick={() => setSelectedPlan(plan)}
-                      className={`p-4 rounded-lg border text-left transition-colors ${
-                        selectedPlan?.id === plan.id
-                          ? 'border-brand-500 bg-brand-600/10'
-                          : 'border-border hover:border-border bg-muted/50'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-medium text-foreground">{plan.name}</p>
-                          {plan.financing_provider && (
-                            <p className="text-xs text-muted-foreground mt-0.5">{plan.financing_provider}</p>
-                          )}
+                  {/* Al completar una reserva el plan de reserva NO puede ser el plan final: el
+                      RPC lo rechaza ('Invalid final payment plan') y el importe total sería el
+                      mismo anticipo → error sin salida. Solo se ofrecen planes de pago real. */}
+                  {paymentPlans
+                    .filter((plan) => !reservationId || plan.method !== 'reserva')
+                    .map((plan) => (
+                      <button
+                        key={plan.id}
+                        onClick={() => setSelectedPlan(plan)}
+                        className={`p-4 rounded-lg border text-left transition-colors ${
+                          selectedPlan?.id === plan.id
+                            ? 'border-brand-500 bg-brand-600/10'
+                            : 'border-border hover:border-border bg-muted/50'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium text-foreground">{plan.name}</p>
+                            {plan.financing_provider && (
+                              <p className="text-xs text-muted-foreground mt-0.5">{plan.financing_provider}</p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-foreground">{formatCurrency(plan.gross_price)}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {plan.number_of_payments} pago{plan.number_of_payments > 1 ? 's' : ''}
+                            </p>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-bold text-foreground">{formatCurrency(plan.gross_price)}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {plan.number_of_payments} pago{plan.number_of_payments > 1 ? 's' : ''}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    ))}
                 </div>
               </div>
             )}
@@ -1525,44 +1530,50 @@ export default function NewSalePage() {
               <div className="space-y-2">
                 <Label>Reserva personalizada (€)</Label>
                 <div className="space-y-2">
+                  {/* Al completar una reserva el importe lo fija la venta: el RPC exige
+                      reservation_amount === gross_amount de la reserva; editarlo aquí solo
+                      produce el error "A first payment is required" sin explicación. */}
                   <Input
                     type="number"
                     min="0"
                     step="0.01"
                     value={reservationAmount}
                     onChange={(e) => setReservationAmount(e.target.value)}
+                    readOnly={!!reservationId}
                     className="bg-muted border-border"
                     placeholder="Escribe el importe exacto"
                   />
-                  <div className="flex gap-2 flex-wrap">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="whitespace-nowrap"
-                      onClick={() => setReservationAmount('200')}
-                    >
-                      200€
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="whitespace-nowrap"
-                      onClick={() => setReservationAmount('300')}
-                    >
-                      300€
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="whitespace-nowrap"
-                      onClick={() => setReservationAmount('500')}
-                    >
-                      500€
-                    </Button>
-                  </div>
+                  {!reservationId && (
+                    <div className="flex gap-2 flex-wrap">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="whitespace-nowrap"
+                        onClick={() => setReservationAmount('200')}
+                      >
+                        200€
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="whitespace-nowrap"
+                        onClick={() => setReservationAmount('300')}
+                      >
+                        300€
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="whitespace-nowrap"
+                        onClick={() => setReservationAmount('500')}
+                      >
+                        500€
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 {selectedPlan && reservationAmountNumber > 0 && !isReservaPlanSelected && (
                   <p className="text-xs text-muted-foreground">

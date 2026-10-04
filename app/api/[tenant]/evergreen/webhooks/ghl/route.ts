@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { getOrCreateContact } from '@/lib/contacts/resolve'
+import { getOrCreateContact, mejorNombre } from '@/lib/contacts/resolve'
 import { leerToque, registrarToque, toqueTieneDatos } from '@/lib/contacts/atribucion'
 import { attributionDateBeforeCutoff, resolverRefColaborador } from '@/lib/collaborators/ref-signal'
 import { firstMemberOf, resolveUserIdByTrackingCode } from '@/lib/tracking'
@@ -471,11 +471,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
     if (!resolved.created) {
       // "Última vez visto" no es un dato de negocio: si falla, la entrega sigue siendo válida y
       // GHL reintentando no lo arregla. Se registra y se sigue — igual que el sobre y el hecho.
+      // GHL manda para contactos con su ID: el nombre se adopta si llega mejor escrito (mismo
+      // nombre capitalizado — los arreglos hechos en GHL se propagan) o si el guardado estaba
+      // vacío. "Sin nombre" y vacío no pisan un nombre real (ver mejorNombre).
+      const nombreDesdeGhl = mejorNombre(contact.full_name, fullName)
       const { error: errorLastSeen } = await sb
         .from('contacts')
         .update({
           last_seen_at: now,
-          ...(fullName && !contact.full_name ? { full_name: fullName } : {}),
+          ...(nombreDesdeGhl && nombreDesdeGhl !== contact.full_name ? { full_name: nombreDesdeGhl } : {}),
           ...(phone ? { phone } : {}),
           // Backfill del ID de GHL si aún no lo teníamos
           ...(ghlContactId && !contact.ghl_contact_id ? { ghl_contact_id: ghlContactId } : {}),

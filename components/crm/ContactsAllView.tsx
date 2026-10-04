@@ -38,7 +38,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { LEAD_STATUSES, leadStatusMeta, type LeadStatus } from '@/lib/lead-status'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
-import { formatDate } from '@/lib/utils'
+import { formatDate, capitalizeName } from '@/lib/utils'
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -186,14 +186,7 @@ const colsKeyFor = (tenant: string) => `tenant:${tenant}:contacts_unified_cols`
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Capitaliza la primera letra de cada palabra: "maria garcia" → "Maria Garcia" */
-function capitalizeName(name: string | null): string {
-  if (!name) return '—'
-  return name
-    .split(/\s+/)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(' ')
-}
+// `capitalizeName` vive en lib/utils.ts (compartida con bandeja de cobros y reservas).
 
 function lastActivityAt(l: ContactRow, appts: ApptLite[]): number | null {
   const times: number[] = []
