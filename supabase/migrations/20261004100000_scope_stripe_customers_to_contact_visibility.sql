@@ -1,4 +1,4 @@
--- SEGURIDAD P0 — resto de F01 (ver 20261003120000 y 20261003130000, ya aplicadas en producción).
+-- SEGURIDAD P0 — resto de F01 (ver 20261003082207 y 20261003122304, ya aplicadas en producción).
 --
 -- QUÉ QUEDABA. Esas dos migraciones cerraron sales, appointments, contacts, collections,
 -- contact_attributions, activities y stripe_payments para quien no es liderazgo. `stripe_customers`
