@@ -1,3 +1,23 @@
+## F35 cerrado en producción + la sincronización borraba las asistencias — 4-oct (Claude Code)
+
+**F35 (P0, fuga entre subcuentas) — APLICADO con OK de Alex y verificado:** migración
+`20261004100100_aislamiento_entre_subcuentas_stripe_payments_y_knowledge_chunks.sql`. Un `admin` que no era
+miembro de una subcuenta leía sus 83 pagos de Stripe; `stripe_payments` y `knowledge_chunks` eran las únicas
+tablas con `tenant_id` sin política restrictiva. Resultado medido: admin miembro 83/90 (sin pérdida), no
+miembro 0/0, super admin 83/180. Releída la política viva justo antes de aplicar (lección de F01).
+
+**Bug encontrado al medir la regla de asistencia de Alex (PR #339):** las pasadas de Calendly y GHL
+reescribían `status` con `scheduled`/`confirmed` en cada ejecución, **borrando las asistencias marcadas**:
+53 de las 249 marcadas el 22-sep habían vuelto a «sin resolver». `estadoAlSincronizar` (función pura): una
+sincronización nunca retrocede de resuelto a sin resolver; la cancelación y un estado resuelto nuevo sí se
+aplican. **Las marcas de asistencia por evidencia (Fathom / compra) y la recuperación de esas 53 se escriben
+DESPUÉS de que #339 esté desplegado**, o la pasada de la noche las borraría otra vez.
+
+**Setter Diana (aplicado con regla de Alex):** 228 citas de Calendly reservadas desde el 2026-08-04 (fecha de
+reserva real del `invitee`, no `created_at`, que es la fecha de importación), con una fila de auditoría por
+cita (`action = 'setter_backfill'`, valor anterior null). Las citas nuevas **no** llevan setter por defecto:
+Alex le dará su enlace de colaborador y el setter saldrá de ahí.
+
 ## F01 cerrado en producción + fuga entre subcuentas detectada — 4-oct (Claude Code)
 
 **Hecho (aplicado con confirmación de Alex, medido en producción):** migración
