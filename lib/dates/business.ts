@@ -15,13 +15,18 @@ const BUSINESS_TIMEZONE = 'Europe/Madrid'
 
 // en-CA formatea como YYYY-MM-DD, así que la fecha ya convertida a la zona sale lista para comparar
 // con una columna DATE de Postgres y para cortarla por caracteres.
+// Los `Intl.DateTimeFormat` se construyen UNA vez: crearlos cuesta decenas de microsegundos y estas
+// funciones se llaman por cada fila en los filtros de periodo (miles de filas × varios filtros). Con un
+// formateador nuevo por llamada, las pantallas con muchos datos se quedaban colgadas varios segundos.
+const FORMATO_DIA = new Intl.DateTimeFormat('en-CA', {
+  timeZone: BUSINESS_TIMEZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
 function formatInBusinessZone(now: Date): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: BUSINESS_TIMEZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(now)
+  return FORMATO_DIA.format(now)
 }
 
 /** Fecha de hoy (YYYY-MM-DD) en la zona del negocio. */
@@ -54,24 +59,38 @@ export function addDaysYmd(value: string, dias: number): string {
 }
 
 // Desfase (ms) de la zona del negocio respecto a UTC en un instante dado.
+const FORMATO_PARTES = new Intl.DateTimeFormat('en-US', {
+  timeZone: BUSINESS_TIMEZONE,
+  hourCycle: 'h23',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+})
+
 function businessOffsetMs(at: Date): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: BUSINESS_TIMEZONE,
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).formatToParts(at)
+  const parts = FORMATO_PARTES.formatToParts(at)
   const g = (t: string) => Number(parts.find((p) => p.type === t)?.value)
   const asUtc = Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute'), g('second'))
   return asUtc - Math.floor(at.getTime() / 1000) * 1000
 }
 
 /** El instante en que EMPIEZA ese día (00:00) en la zona del negocio. */
+// Caché por fecha: el inicio de un día no cambia, y un filtro de periodo lo pide por cada fila.
+const INICIO_DE_DIA = new Map<string, Date | null>()
+
 export function businessStartOfDay(value: string): Date | null {
+  const hit = INICIO_DE_DIA.get(value)
+  if (hit !== undefined) return hit === null ? null : new Date(hit.getTime())
+  const calculado = calcularInicioDeDia(value)
+  if (INICIO_DE_DIA.size > 5000) INICIO_DE_DIA.clear()
+  INICIO_DE_DIA.set(value, calculado)
+  return calculado === null ? null : new Date(calculado.getTime())
+}
+
+function calcularInicioDeDia(value: string): Date | null {
   const p = parseYmd(value)
   if (!p) return null
   const guess = Date.UTC(p.y, p.m - 1, p.d)
