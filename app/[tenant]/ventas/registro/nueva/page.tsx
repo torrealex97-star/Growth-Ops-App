@@ -1162,31 +1162,31 @@ export default function NewSalePage() {
                   {paymentPlans
                     .filter((plan) => !reservationId || plan.method !== 'reserva')
                     .map((plan) => (
-                    <button
-                      key={plan.id}
-                      onClick={() => setSelectedPlan(plan)}
-                      className={`p-4 rounded-lg border text-left transition-colors ${
-                        selectedPlan?.id === plan.id
-                          ? 'border-brand-500 bg-brand-600/10'
-                          : 'border-border hover:border-border bg-muted/50'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-medium text-foreground">{plan.name}</p>
-                          {plan.financing_provider && (
-                            <p className="text-xs text-muted-foreground mt-0.5">{plan.financing_provider}</p>
-                          )}
+                      <button
+                        key={plan.id}
+                        onClick={() => setSelectedPlan(plan)}
+                        className={`p-4 rounded-lg border text-left transition-colors ${
+                          selectedPlan?.id === plan.id
+                            ? 'border-brand-500 bg-brand-600/10'
+                            : 'border-border hover:border-border bg-muted/50'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium text-foreground">{plan.name}</p>
+                            {plan.financing_provider && (
+                              <p className="text-xs text-muted-foreground mt-0.5">{plan.financing_provider}</p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-foreground">{formatCurrency(plan.gross_price)}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {plan.number_of_payments} pago{plan.number_of_payments > 1 ? 's' : ''}
+                            </p>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-bold text-foreground">{formatCurrency(plan.gross_price)}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {plan.number_of_payments} pago{plan.number_of_payments > 1 ? 's' : ''}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    ))}
                 </div>
               </div>
             )}

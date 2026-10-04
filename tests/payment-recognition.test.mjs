@@ -100,9 +100,7 @@ test('a reservation-plan receipt proposes a reservation, new or attached to an o
 // permitida sin Price ID: un ÚNICO plan de reserva activo con importe EXACTO. Nunca se registra
 // solo: la UI exige confirmar producto y plan.
 test('an exact-amount match against a single active reservation plan suggests it without a mapped price', () => {
-  const soloReserva = [
-    { id: 'pr', product_id: 'prod', gross_price: 50, number_of_payments: 1, method: 'reserva' },
-  ]
+  const soloReserva = [{ id: 'pr', product_id: 'prod', gross_price: 50, number_of_payments: 1, method: 'reserva' }]
   const r = suggestPayment(base, null, [], soloReserva, 50, '2026-10-01')
   assert.equal(r.mode, 'reservation')
   assert.equal(r.productId, 'prod')
