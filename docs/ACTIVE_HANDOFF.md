@@ -1900,6 +1900,7 @@ fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo 
 
 | Agente      | Qué                                                                   | Rama                        | Toca                                                         | Desde |
 | ----------- | --------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------ | ----- |
+| Freebuff    | Ventas sin closer de Claudia (backfill Calendly + memoria de dueños) | `fix/citas-closer-convergencia` | `lib/integrations/citas-sync.ts`, `tests/citas-closer-backfill-calendly.test.mjs` | 4-oct |
 | Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot   | `package.json`/lock (solo vía dependabot), docs, migraciones | 3-oct |
 | Codex       | PR #325 reservation-refunds (E2E en rojo, su autor continúa)          | `codex/reservation-refunds` | ventas/cobros (según su rama)                                | 3-oct |
 | Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún             | —                           | `docs/plan/`, migraciones RLS                                | 3-oct |
