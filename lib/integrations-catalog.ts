@@ -325,15 +325,27 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
   {
     id: 'fathom',
     title: 'Fathom',
-    description: 'Importa reuniones, grabaciones, resúmenes y transcripciones; incluye el servidor MCP oficial.',
+    description:
+      'Importa reuniones, grabaciones, resúmenes y transcripciones en tiempo real; incluye el servidor MCP oficial.',
     category: 'ia',
     test: true,
     required: ['FATHOM_API_KEY'],
+    webhookPath: '/api/{tenant}/evergreen/webhooks/fathom',
     pasos: [
       {
         titulo: 'Genera la API Key en Fathom',
         detalle:
           'En la configuración de tu cuenta de Fathom, apartado de API o integraciones, crea una clave nueva con acceso a las grabaciones y transcripciones de las reuniones del equipo.',
+      },
+      {
+        titulo: 'Crea el webhook en Fathom → Settings → API Access → Add Webhook',
+        detalle:
+          'Pega la dirección de arriba como Destination URL, elige que dispare con tus reuniones nuevas (y las compartidas contigo, si quieres) y marca incluir summary, transcript y action items en el payload. Así cada reunión entra en cuanto Fathom la procesa, sin esperar al botón de histórico.',
+      },
+      {
+        titulo: 'Guarda aquí el Webhook signing secret que te da Fathom',
+        detalle:
+          'Fathom lo genera al crear el webhook y empieza por whsec_. Sin él el webhook rechaza todo por seguridad: es lo que prueba que la entrega viene de Fathom y no ha sido alterada.',
       },
       {
         titulo: 'Comprueba que las reuniones llevan invitado con correo',
@@ -348,6 +360,13 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         type: 'password',
         secret: true,
         help: 'Se genera en Fathom → Settings → API Access. Solo accede a reuniones visibles para ese usuario/equipo.',
+      },
+      {
+        key: 'FATHOM_WEBHOOK_SECRET',
+        label: 'Webhook signing secret',
+        type: 'password',
+        secret: true,
+        help: 'El que Fathom muestra al crear el webhook (empieza por whsec_). Verifica la firma de cada entrega; si lo dejas vacío, el webhook queda desactivado.',
       },
       {
         key: 'FATHOM_MCP_URL',
