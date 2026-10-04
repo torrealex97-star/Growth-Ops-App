@@ -36,6 +36,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { PAGINA_LISTA, useMostrarMas } from '@/lib/hooks/useMostrarMas'
 import { LEAD_STATUSES, leadStatusMeta, type LeadStatus } from '@/lib/lead-status'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { formatDate, capitalizeName } from '@/lib/utils'
@@ -479,6 +480,11 @@ export function ContactsAllView() {
     })
   }, [leads, statusFilter, followupFilter, channelFilter, followupByLead, q, hotOnly, sortByVsl, customFilterId])
 
+  const { visibles, restantes, mostrarMas } = useMostrarMas(
+    filtered,
+    `${q}|${statusFilter}|${followupFilter}|${channelFilter}|${hotOnly}|${sortByVsl}|${customFilterId}`
+  )
+
   const counts = useMemo(() => {
     const c: Record<string, number> = {}
     leads.forEach((l) => {
@@ -788,7 +794,7 @@ export function ContactsAllView() {
                 </td>
               </tr>
             ) : (
-              filtered.map((l) => {
+              visibles.map((l) => {
                 const lNote = latestNote(l)
                 const fu = followupByLead.get(l.id) ?? { bucket: 'sin_contacto' as FollowupBucket, days: null }
                 const fuMeta = followupMeta(fu.bucket)
@@ -1004,6 +1010,17 @@ export function ContactsAllView() {
               })
             )}
           </tbody>
+          {restantes > 0 && (
+            <tfoot>
+              <tr>
+                <td colSpan={colCount} className="p-3 text-center">
+                  <Button variant="outline" size="sm" onClick={mostrarMas}>
+                    Mostrar {Math.min(restantes, PAGINA_LISTA)} más ({restantes} sin mostrar)
+                  </Button>
+                </td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 
