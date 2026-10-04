@@ -55,6 +55,17 @@ export function getInitials(name: string): string {
     .toUpperCase()
 }
 
+// Las plataformas (GHL, Calendly) devuelven muchos nombres todo en minúsculas aunque en SU interfaz
+// se vean capitalizados. Se capitaliza SOLO EN PANTALLA (el dato almacenado es el de la fuente):
+// "maria garcia" → "Maria Garcia". Mismo criterio que ya aplicaba el listado del CRM.
+export function capitalizeName(name: string | null | undefined): string {
+  if (!name) return '—'
+  return name
+    .split(/\s+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ')
+}
+
 function slugify(text: string): string {
   return text
     .toLowerCase()

@@ -40,7 +40,25 @@ export function suggestPayment(
     nextPaymentDate: evidence.nextPaymentDate,
     reason: evidence.warning ?? 'No hay evidencia suficiente para identificar la compra. Revisa las opciones.',
   }
-  if (evidence.warning || !mapped) return result
+  if (evidence.warning) return result
+  if (!mapped) {
+    // Sin Price ID mapeado no se inventa producto. Única excepción honesta: un ÚNICO plan de
+    // reserva activo cuyo importe coincide exactamente con el cobro — se SUGIERE y el usuario
+    // confirma producto y plan antes de guardar; nunca se registra solo.
+    if (!evidence.recurring && sales.length === 0) {
+      const reservas = plans.filter(
+        (p) => (p.method ?? '') === 'reserva' && Math.abs(Number(p.gross_price) - amount) <= 0.01
+      )
+      if (reservas.length === 1) {
+        result.mode = 'reservation'
+        result.productId = reservas[0].product_id
+        result.planId = reservas[0].id
+        result.reason =
+          'El importe coincide exactamente con un plan de reserva activo. Se sugiere registrarlo como reserva: confirma producto y plan.'
+      }
+    }
+    return result
+  }
   const plan = plans.find((p) => p.id === mapped.paymentPlanId && p.product_id === mapped.productId)
   if (!plan) return result
   result.productId = mapped.productId
@@ -59,14 +77,25 @@ export function suggestPayment(
       'Producto y plan reconocidos en Stripe. Hay una venta compatible con saldo pendiente: confirma que corresponde a esta compra.'
     return result
   }
+  if ((plan.method ?? '') === 'reserva') {
+    // Un cobro cuyo Price ID apunta al plan de reserva ES un anticipo: se propone como reserva
+    // (nueva o de una reserva abierta que elige la UI), nunca como venta nueva ni cuota. Va antes
+    // del guard de "ya tiene ventas": que el contacto haya comprado antes no cambia que ESTE cobro
+    // esté identificado como reserva por su Price ID.
+    result.mode = 'reservation'
+    result.reason = evidence.recurring
+      ? 'El Price ID corresponde al plan de reserva. Confirma que este cobro recurrente es el anticipo de una reserva.'
+      : 'Plan de reserva reconocido en Stripe. Puedes registrarlo como reserva nueva o añadirlo a una reserva abierta del contacto.'
+    return result
+  }
   if (sales.length || evidence.recurring) {
     result.reason = evidence.recurring
       ? 'Stripe identifica un cobro recurrente. Vincúlalo a la compra original; no se propone una venta nueva.'
       : 'El contacto ya tiene ventas. Confirma la compra para evitar registrar una cuota como venta nueva.'
     return result
   }
-  if (['reserva', 'sequra'].includes(plan.method ?? '')) {
-    result.reason = 'Plan reconocido. Las reservas y la financiación externa requieren su flujo específico.'
+  if ((plan.method ?? '') === 'sequra') {
+    result.reason = 'Plan reconocido. La financiación externa requiere su flujo específico.'
     return result
   }
   if (Number(plan.gross_price) < amount - 0.01) {

@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useSesion, useTenant } from '@/lib/tenant-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, capitalizeName } from '@/lib/utils'
 import { toast } from 'sonner'
 import { canViewPaymentInbox } from '@/lib/sales/payment-inbox-access'
 import type { suggestPayment } from '@/lib/sales/payment-recognition'
@@ -23,7 +23,14 @@ type Detail = {
     number_of_payments: number
     method: string | null
   }[]
-  sales: { id: string; sale_date: string; gross_amount: number; collected: number; products: { name: string } | null }[]
+  sales: {
+    id: string
+    sale_date: string
+    gross_amount: number
+    collected: number
+    method: string | null
+    products: { name: string } | null
+  }[]
   recognition: ReturnType<typeof suggestPayment>
   suggestedProductId: string | null
   suggestedPaymentPlanId: string | null
@@ -109,11 +116,17 @@ export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; 
       const suggestedPlan = body.suggestedPaymentPlanId
         ? (body.plans as Detail['plans']).find((p) => p.id === body.suggestedPaymentPlanId)
         : null
-      setMode(body.recognition?.mode === 'reservation' ? '' : (body.recognition?.mode ?? ''))
+      setMode(body.recognition?.mode ?? '')
       setSaleId(body.recognition?.saleId ?? '')
-      setProduct(body.suggestedProductId ?? '')
-      setPlan(body.suggestedPaymentPlanId ?? '')
-      setGross(suggestedPlan ? String(suggestedPlan.gross_price) : '')
+      setProduct(body.suggestedProductId ?? body.recognition?.productId ?? '')
+      setPlan(body.suggestedPaymentPlanId ?? body.recognition?.planId ?? '')
+      setGross(
+        suggestedPlan
+          ? String(suggestedPlan.gross_price)
+          : body.recognition?.mode === 'reservation'
+            ? String(Number(body.payment.amount))
+            : ''
+      )
       setCount(body.recognition?.remainingCount == null ? '' : String(body.recognition.remainingCount))
       setStart(body.recognition?.nextPaymentDate ?? '')
       setDate(body.payment.paid_at?.slice(0, 10) ?? '')
@@ -126,28 +139,44 @@ export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; 
   async function save() {
     if (!detail) return
     setSaving(true)
+    const esReserva = mode === 'reservation'
     try {
       const res = await fetch(`/api/${tenant}/evergreen/sales/payment-inbox/resolve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           paymentId: detail.payment.payment_id,
-          ...(mode === 'existing'
+          ...(mode === 'existing' || (esReserva && saleId)
             ? { saleId }
-            : {
-                productId: product,
-                planId: plan,
-                grossAmount: Number(gross),
-                saleDate: date,
-                restCount: Number(count),
-                ...(start ? { startDate: start } : {}),
-              }),
+            : esReserva
+              ? // Una reserva se registra POR SU ANTICIPO: el total pactado es el cobro recibido.
+                {
+                  productId: product,
+                  planId: plan,
+                  grossAmount: Number(detail.payment.amount),
+                  saleDate: date,
+                }
+              : {
+                  productId: product,
+                  planId: plan,
+                  grossAmount: Number(gross),
+                  saleDate: date,
+                  restCount: Number(count),
+                  ...(start ? { startDate: start } : {}),
+                }),
         }),
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error)
       if (body.warning) toast.warning(body.warning)
-      else toast.success(mode === 'existing' ? 'Cobro añadido a la venta' : 'Venta y cobro registrados')
+      else
+        toast.success(
+          mode === 'existing' || (esReserva && saleId)
+            ? 'Cobro añadido a la venta'
+            : esReserva
+              ? 'Reserva registrada con su anticipo'
+              : 'Venta y cobro registrados'
+        )
       setDetail(null)
       window.dispatchEvent(new Event(changed))
       router.push(`/${tenant}/ventas/registro/${body.saleId}`)
@@ -201,7 +230,7 @@ export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; 
         >
           <div className="min-w-0">
             <p className="text-sm font-medium break-words">
-              {p.contactName || p.customer_email || 'Contacto por identificar'}
+              {p.contactName ? capitalizeName(p.contactName) : p.customer_email || 'Contacto por identificar'}
             </p>
             <p className="text-xs text-muted-foreground">
               Stripe · {p.paid_at ? formatDate(p.paid_at) : 'Sin fecha'} ·{' '}
@@ -256,8 +285,10 @@ export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; 
             <div>
               <h3 className="font-semibold">Registrar cobro recibido</h3>
               <p className="text-sm text-muted-foreground">
-                {detail.payment.contactName || detail.payment.customer_email} ·{' '}
-                {formatCurrency(Number(detail.payment.amount))} recibidos
+                {detail.payment.contactName
+                  ? capitalizeName(detail.payment.contactName)
+                  : detail.payment.customer_email}{' '}
+                · {formatCurrency(Number(detail.payment.amount))} recibidos
               </p>
             </div>
             <Button variant="ghost" size="sm" disabled={saving} onClick={() => setDetail(null)}>
@@ -278,19 +309,42 @@ export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; 
                 <p className="text-sm text-muted-foreground" role="status">
                   {detail.recognition.reason}
                 </p>
-                {detail.recognition.mode === 'reservation' && (
-                  <Link className="text-sm text-primary underline" href={`/${tenant}/ventas/reservas`}>
-                    Continuar desde la reserva existente
-                  </Link>
-                )}
                 <label className="block text-sm">
                   ¿A qué corresponde este pago?
                   <select className={selectClass} value={mode} onChange={(e) => setMode(e.target.value)}>
                     <option value="">Seleccionar…</option>
                     <option value="new">Una venta nueva</option>
                     <option value="existing">Una venta ya registrada / cuota</option>
+                    <option value="reservation">Una reserva (el anticipo)</option>
                   </select>
                 </label>
+                {mode === 'reservation' && (
+                  <>
+                    {detail.sales.some((s) => s.method === 'reserva') && (
+                      <label className="block text-sm">
+                        Reserva
+                        <select className={selectClass} value={saleId} onChange={(e) => setSaleId(e.target.value)}>
+                          <option value="">Reserva nueva con este cobro…</option>
+                          {detail.sales
+                            .filter((s) => s.method === 'reserva')
+                            .map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.products?.name ?? 'Reserva'} · {formatDate(s.sale_date)} ·{' '}
+                                {formatCurrency(Number(s.gross_amount))} · Pendiente:{' '}
+                                {formatCurrency(Math.max(0, Number(s.gross_amount) - s.collected))}
+                              </option>
+                            ))}
+                        </select>
+                      </label>
+                    )}
+                    {!saleId && (
+                      <p className="text-sm text-muted-foreground">
+                        La reserva se registra por el anticipo recibido ({formatCurrency(Number(detail.payment.amount))}
+                        ). El producto, el plan final y el primer pago se eligen al completar el pago desde Reservas.
+                      </p>
+                    )}
+                  </>
+                )}
                 {mode === 'existing' && (
                   <label className="block text-sm">
                     Venta
@@ -403,15 +457,64 @@ export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; 
                     </p>
                   </>
                 )}
+                {mode === 'reservation' && !saleId && (
+                  <>
+                    <label className="block text-sm">
+                      Producto
+                      <select
+                        className={selectClass}
+                        value={product}
+                        onChange={(e) => {
+                          setProduct(e.target.value)
+                          setPlan('')
+                        }}
+                      >
+                        <option value="">Seleccionar…</option>
+                        {detail.products.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-sm">
+                      Plan de reserva
+                      <select className={selectClass} value={plan} onChange={(e) => setPlan(e.target.value)}>
+                        <option value="">Seleccionar…</option>
+                        {detail.plans
+                          .filter((p) => p.product_id === product && p.method !== 'sequra')
+                          .map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name} · {formatCurrency(Number(p.gross_price))}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <label className="block text-sm">
+                      Fecha de la reserva
+                      <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                    </label>
+                  </>
+                )}
                 <Button
-                  disabled={saving || !mode || (mode === 'existing' ? !saleId : !product || !plan || !gross || !date)}
+                  disabled={
+                    saving ||
+                    !mode ||
+                    (mode === 'existing' && !saleId) ||
+                    (mode === 'reservation' && (!saleId ? !product || !plan || !date : !saleId)) ||
+                    (mode === 'new' && (!product || !plan || !gross || !date))
+                  }
                   onClick={() => void save()}
                 >
                   {saving
                     ? 'Registrando…'
-                    : mode === 'existing'
-                      ? 'Añadir cobro a esta venta'
-                      : 'Registrar venta nueva'}
+                    : mode === 'reservation'
+                      ? saleId
+                        ? 'Añadir cobro a esta reserva'
+                        : 'Registrar reserva'
+                      : mode === 'existing'
+                        ? 'Añadir cobro a esta venta'
+                        : 'Registrar venta nueva'}
                 </Button>
               </div>
             ))}

@@ -105,8 +105,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
         .maybeSingle()
       if (error) throw error
       if (!plan || plan.product_id !== body.productId) return fail('El plan no corresponde al producto.')
-      if (['sequra', 'reserva'].includes(plan.method ?? ''))
-        return fail('Las reservas y la financiación externa se completan desde el registro habitual de ventas.')
+      if ((plan.method ?? '') === 'sequra')
+        return fail('La financiación externa (Sequra) se completa desde el registro habitual de ventas.')
+      if ((plan.method ?? '') === 'reserva') {
+        // Una reserva se registra POR SU ANTICIPO: el total pactado es exactamente el cobro recibido
+        // (la reserva no lleva cuotas; el plan final y el primer pago se eligen al completarla).
+        if (Math.abs(body.grossAmount - amount) > 0.01)
+          return fail('La reserva se registra por el anticipo recibido; el plan final se elige al completar el pago.')
+        if (body.restCount > 0 || body.startDate)
+          return fail('Una reserva no lleva cuotas: el resto del plan se configura al completar el pago.')
+      }
       const validDate = (s: string) => !Number.isNaN(Date.parse(s)) && new Date(s).toISOString().slice(0, 10) === s
       if (!validDate(body.saleDate) || body.saleDate > new Date().toISOString().slice(0, 10))
         return fail('Fecha de venta inválida.')

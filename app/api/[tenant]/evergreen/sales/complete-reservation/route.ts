@@ -114,14 +114,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ten
       p_installments: rows,
       p_first_payment: firstPayment,
     })
-    if (completionError)
+    if (completionError) {
+      // El RPC valida con mensajes propios y cortos: se traducen a una acción concreta en vez del
+      // error genérico, que ocultaba CUÁL invariante falló (p.ej. elegir el plan de reserva como
+      // plan final, o la entrada vacía con un plan a plazos).
+      const causa = (completionError.message ?? '').trim()
+      const accion: Record<string, string> = {
+        'Reservation not found': 'La reserva ya no existe (¿se eliminó?). Actualiza la página.',
+        'Reservation already converted': 'Esta reserva ya está completada. Actualiza la página.',
+        'Not an open reservation': 'Esta venta ya no es una reserva abierta. Actualiza la página.',
+        'Invalid final payment plan':
+          'El plan final no corresponde al producto de la reserva (ni puede ser el plan de reserva). Revisa producto y plan en el paso 2.',
+        'Invalid appointment': 'La cita vinculada ya no existe. Revisa el paso de la cita.',
+        'Invalid team member': 'El setter, closer o colaborador elegido no pertenece a esta subcuenta.',
+        'A first payment is required':
+          'El primer pago no encaja: revisa el importe total del plan, la reserva ya pagada y la entrada (no puede ser 0 en un plan a plazos).',
+        'Reconcile the original deposit before conversion':
+          'El anticipo de la reserva no está cuadrado en la app (falta, sobra o está reembolsado). Revísalo en la venta antes de completar.',
+        'Invalid installment': 'Hay cuotas inválidas en el calendario del plan. Revisa entrada y número de cuotas.',
+        'Installment calendar does not match the outstanding amount':
+          'El calendario de cuotas no suma el importe pendiente. Revisa la entrada y el número de cuotas.',
+        'Invalid financing payout': 'El desembolso de la financiación no coincide con el plan (Sequra).',
+      }
       return NextResponse.json(
         {
           error:
+            accion[causa] ??
             'No se completó la reserva. Comprueba el cobro original, el primer pago y el plan; no se ha guardado una conversión parcial.',
         },
         { status: 409 }
       )
+    }
     try {
       await reconcileSaleCommissions(sb, t.tenantId, saleId)
     } catch {
