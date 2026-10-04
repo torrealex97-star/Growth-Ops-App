@@ -34,19 +34,19 @@ Fuentes: [precios de Supabase](https://supabase.com/pricing) y
 
 ## Cambios aplicados y límite que protegen
 
-| Cambio | Protección |
-| --- | --- |
-| `fluid: true` y `maxDuration: 60` global para `app/api/**` | Tope conservador de tiempo y CPU por invocación |
-| Declaraciones de 120/300 s reducidas a 60 s | Evita que una ruta contradiga el presupuesto global |
-| Webhook de Stripe limitado a 10 s | Mantiene rápida la ingesta y permite que Stripe reintente fallos transitorios |
-| Anthropic, DeepSeek, Groq, GA4 y YouTube con timeout ≤45 s | Reserva tiempo para responder limpiamente antes del límite de la Function |
-| Pruebas de conectividad de Integraciones con timeout de 10 s | Una API caída no bloquea toda la pantalla |
-| Máximo un reintento del SDK de Anthropic | Evita retry storms y consumo multiplicado dentro de una invocación |
-| Caché privada de 60 s para cuentas activas | Reduce lecturas/configuración repetidas sin compartir datos autenticados |
-| Caché pública de 7 días para CSS de fuentes | Reduce invocaciones y transferencia de un recurso casi estático |
-| `git.deploymentEnabled` desactiva Dependabot | Evita despliegues automáticos que no se quieren publicar |
-| Preview de solo documentación omite el build | Ahorra CPU de build; producción nunca se omite |
-| `POSTGRES_URL` documentada para Supavisor transaction pooler | Evita agotar conexiones directas desde serverless |
+| Cambio                                                       | Protección                                                                    |
+| ------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| `fluid: true` y `maxDuration: 60` global para `app/api/**`   | Tope conservador de tiempo y CPU por invocación                               |
+| Declaraciones de 120/300 s reducidas a 60 s                  | Evita que una ruta contradiga el presupuesto global                           |
+| Webhook de Stripe limitado a 10 s                            | Mantiene rápida la ingesta y permite que Stripe reintente fallos transitorios |
+| Anthropic, DeepSeek, Groq, GA4 y YouTube con timeout ≤45 s   | Reserva tiempo para responder limpiamente antes del límite de la Function     |
+| Pruebas de conectividad de Integraciones con timeout de 10 s | Una API caída no bloquea toda la pantalla                                     |
+| Máximo un reintento del SDK de Anthropic                     | Evita retry storms y consumo multiplicado dentro de una invocación            |
+| Caché privada de 60 s para cuentas activas                   | Reduce lecturas/configuración repetidas sin compartir datos autenticados      |
+| Caché pública de 7 días para CSS de fuentes                  | Reduce invocaciones y transferencia de un recurso casi estático               |
+| `git.deploymentEnabled` desactiva Dependabot                 | Evita despliegues automáticos que no se quieren publicar                      |
+| Preview de solo documentación omite el build                 | Ahorra CPU de build; producción nunca se omite                                |
+| `POSTGRES_URL` documentada para Supavisor transaction pooler | Evita agotar conexiones directas desde serverless                             |
 
 `ignoreCommand` no evita que una creación de deployment cuente en todos los casos: un build
 cancelado puede seguir contando. Por eso Dependabot se bloquea además en `git.deploymentEnabled`.
@@ -55,17 +55,17 @@ y [Ignored Build Step](https://vercel.com/docs/project-configuration/project-set
 
 ## Inventario de cron jobs
 
-| Ruta | Frecuencia |
-| --- | --- |
-| `cron/meta-ads` | diaria, 02:00 UTC |
-| `cron/instagram` | diaria, 02:30 UTC |
-| `cron/meta` | diaria, 03:00 UTC |
-| `cron/meta-daily` | diaria, 03:30 UTC |
-| `cron/analyze-calls` | diaria, 04:00 UTC |
-| `cron/ai-insights` | diaria, 05:00 UTC |
-| `cron/reminders` | diaria, 07:00 UTC |
-| `cron/sequra-morosos` | semanal |
-| `cron/monthly` | mensual |
+| Ruta                  | Frecuencia        |
+| --------------------- | ----------------- |
+| `cron/meta-ads`       | diaria, 02:00 UTC |
+| `cron/instagram`      | diaria, 02:30 UTC |
+| `cron/meta`           | diaria, 03:00 UTC |
+| `cron/meta-daily`     | diaria, 03:30 UTC |
+| `cron/analyze-calls`  | diaria, 04:00 UTC |
+| `cron/ai-insights`    | diaria, 05:00 UTC |
+| `cron/reminders`      | diaria, 07:00 UTC |
+| `cron/sequra-morosos` | semanal           |
+| `cron/monthly`        | mensual           |
 
 Los nueve cumplen el plan actual. No se consolidan: juntar proveedores no reduce el CPU real y hace
 que un timeout o fallo de una integración impida ejecutar las demás. Las sincronizaciones que
@@ -144,3 +144,32 @@ sería complejidad y otro servicio sin carga real que la justifique.
 - El keepalive depende de que un cron diario funcione; revisar alertas de ejecución.
 - No hay backup automático ni retención automática: son tareas operativas deliberadas para evitar
   pérdida de datos silenciosa.
+
+## Limpieza de despliegues de Vercel (4-oct-2026)
+
+**Por qué.** El 26-sep, Function Storage (10 GB) de Vercel llegó al límite y un despliegue bloqueado acabó
+tumbando producción. Cada push construye un despliegue por proyecto vinculado al repositorio, y Vercel no
+borra los viejos: el 4-oct había **423** (375 en `growthops-preview-3003`, 48 en `growth-ops-app`).
+
+**Qué proyecto es cuál (comprobado el 4-oct).**
+
+- `growthops-preview-3003` — **es producción**: sirve `app.scalixsystems.com`, tiene **14 variables de entorno**.
+  A pesar del nombre.
+- `growth-ops-app` — **proyecto duplicado**, creado el 3-oct a las 12:16 por la primera rama de Codex
+  (`codex/reservation-refunds`). **0 variables de entorno**, sin dominio. Reconstruye cada push y duplica el
+  consumo. Pendiente de que Alex decida borrarlo (`vercel project rm growth-ops-app --scope app-b1af`).
+
+**Política de purga** (ejecutada con OK de Alex el 4-oct; baja de 423 a 52 despliegues):
+
+1. Nunca el despliegue que sirve el dominio propio (`vercel inspect app.scalixsystems.com`).
+2. Nunca algo en construcción, ni creado hace menos de 1 hora.
+3. Se conservan las **5 últimas de producción** (rollback) y el **último preview de cada rama que siga
+   existiendo en el remoto**: «lo que se está trabajando», con o sin PR.
+4. Se borra el resto: `CANCELED`/`ERROR`, producción antigua y previews superados o de ramas ya fusionadas.
+5. **No tocar variables de entorno**: borrarlas es lo que tumbó producción el 26-sep.
+
+**Cómo.** `vercel remove <dpl_id> --safe --yes --scope app-b1af` (`--safe` se niega a borrar algo con alias).
+Los alias de rama (`*.vercel.app`) los retira Vercel solo al borrar: para esos, comprobar antes que ningún
+alias sea de dominio propio y repetir sin `--safe`. La API genérica `vercel api -X DELETE` exige
+`--dangerously-skip-permissions`: no usarla, `vercel remove` ya trae su propia confirmación.
+Listar con `vercel api "/v6/deployments?app=<proyecto>&limit=100&teamId=app-b1af"` (paginar con `until`).
