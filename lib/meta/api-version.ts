@@ -15,6 +15,18 @@
 export const META_API_VERSION = 'v25.0'
 
 /**
+ * Dirección base de la Graph API, definida UNA vez. Estaba escrita a mano en cuatro ficheros (cliente
+ * de Meta, de Instagram, la comprobación de salud y la ruta de Integraciones): cambiarla —por ejemplo
+ * para apuntar a un servidor de pruebas— exigía acordarse de los cuatro.
+ */
+export const GRAPH_BASE = 'https://graph.facebook.com'
+
+/** `https://graph.facebook.com/<versión>/<ruta>` con una única barra entre las partes. */
+export function graphUrl(version: string, ruta: string): string {
+  return `${GRAPH_BASE}/${version.replace(/^\/+|\/+$/g, '')}/${ruta.replace(/^\/+/, '')}`
+}
+
+/**
  * Versiones que Meta ya ha deprecado para Marketing API. Si una subcuenta tiene una de estas
  * escrita a mano, la pantalla lo avisa en vez de dejar que las llamadas empiecen a fallar solas.
  */

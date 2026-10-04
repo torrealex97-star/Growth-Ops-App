@@ -6,7 +6,7 @@
 // que el nº de llamadas NO crece con el nº de campañas (paginación incluida).
 
 import { createHmac } from 'crypto'
-import { META_API_VERSION } from '@/lib/meta/api-version'
+import { GRAPH_BASE, META_API_VERSION } from '@/lib/meta/api-version'
 import { classifyMetaError, MetaError } from '@/lib/meta/errors'
 import { isRetryableCode } from '@/lib/integrations/sync-runs'
 import { parseAccountIds } from '@/lib/meta/accounts'
@@ -76,7 +76,7 @@ export type MetaAd = {
   campaign_id?: string
 }
 
-const GRAPH = 'https://graph.facebook.com'
+const GRAPH = GRAPH_BASE
 
 // Presets válidos de Meta para date_preset. 'maximum' = histórico completo.
 export type MetaDatePreset = 'maximum' | 'this_month' | 'last_month' | 'today' | 'this_year' | 'last_90d' | 'last_30d'
@@ -101,6 +101,8 @@ export type MetaEnv = {
   META_APP_SECRET?: string
   META_AD_ACCOUNT_ID?: string
   META_AD_ACCOUNTS_ALL?: string
+  /** Id de la app de Meta (opcional): permite inspeccionar el token con el token de aplicación. */
+  META_APP_ID?: string
 }
 
 // Lista TODAS las cuentas publicitarias a las que el token tiene acceso, con su
