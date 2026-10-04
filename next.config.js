@@ -14,6 +14,34 @@ const nextConfig = {
   // Fijar la raíz evita que Next tracee desde /Documents y meta archivos ajenos en el
   // artefacto serverless (más tamaño, I/O y riesgo de un despliegue incompleto).
   outputFileTracingRoot: __dirname,
+  // CABECERAS DE SEGURIDAD en todas las rutas. `/embed` (reproductor VSL incrustado en landings y GHL)
+  // queda fuera de las que impiden el enmarcado: tiene que poder verse dentro de páginas de terceros.
+  // No se impone aquí una CSP de scripts: la app carga Meta, Stripe, vídeo y fuentes de varios orígenes y
+  // una CSP a ciegas rompería pantallas; se introduce aparte en modo «solo informe».
+  async headers() {
+    const comunes = [
+      { key: 'X-Content-Type-Options', value: 'nosniff' },
+      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+      { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
+      { key: 'X-DNS-Prefetch-Control', value: 'off' },
+    ]
+    return [
+      { source: '/:path*', headers: comunes },
+      {
+        // Todo salvo /embed y los scripts públicos de tracking.
+        source: '/((?!embed|tracker\\.js).*)',
+        headers: [
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          {
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'",
+          },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()' },
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
+        ],
+      },
+    ]
+  },
   async redirects() {
     // Reorganización de la sección "Ventas" (CRM / Ventas & Cobros / Analítica / Comisiones /
     // Recursos de venta). Redirects 301 desde cada ruta vieja para no romper enlaces ni bookmarks.

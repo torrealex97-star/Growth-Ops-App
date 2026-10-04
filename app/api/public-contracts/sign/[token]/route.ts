@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { ipDe, limitar } from '@/lib/security/rate-limit'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { createHash } from 'crypto'
 import { buildContractPdf } from '@/lib/contracts/pdf'
@@ -61,6 +62,12 @@ async function uploadSignedPdf(sb: SupabaseClient, contractId: string, bytes: Ui
 
 // GET — datos del contrato para la página pública de firma (por token).
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  const lim = limitar(`firma:${ipDe(_req.headers)}`, 60, 10 * 60_000)
+  if (!lim.ok)
+    return NextResponse.json(
+      { error: 'Demasiados intentos. Espera unos minutos.' },
+      { status: 429, headers: { 'Retry-After': String(lim.reintentarEnSeg) } }
+    )
   const { token } = await params
   const sb = service()
   const { data } = await sb
@@ -118,6 +125,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
 // POST — el colaborador firma: valida consentimiento, genera el PDF (con la
 // firma fija de la empresa), lo guarda en Blob y marca el contrato como firmado.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  const lim = limitar(`firma:${ipDe(req.headers)}`, 60, 10 * 60_000)
+  if (!lim.ok)
+    return NextResponse.json(
+      { error: 'Demasiados intentos. Espera unos minutos.' },
+      { status: 429, headers: { 'Retry-After': String(lim.reintentarEnSeg) } }
+    )
   try {
     const { token } = await params
     const { signerName, consent, signerData } = (await req.json()) as {

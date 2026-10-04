@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { rutaInternaSegura } from '@/lib/security/redirect'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import type { EmailOtpType } from '@supabase/supabase-js'
@@ -14,7 +15,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const code = searchParams.get('code')
     const tokenHash = searchParams.get('token_hash')
     const type = (searchParams.get('type') as EmailOtpType | null) ?? undefined
-    const next = searchParams.get('next') ?? `/${tenant}/dashboard`
+    // Solo rutas de esta app: `next` llega por la URL y `${origin}${next}` era una redirección abierta.
+    const next = rutaInternaSegura(searchParams.get('next'), `/${tenant}/dashboard`)
 
     const cookieStore = await cookies()
     const supabase = createServerClient(
