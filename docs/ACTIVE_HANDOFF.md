@@ -1,3 +1,29 @@
+## F01 cerrado en producción + fuga entre subcuentas detectada — 4-oct (Claude Code)
+
+**Hecho (aplicado con confirmación de Alex, medido en producción):** migración
+`20261004100000_scope_stripe_customers_to_contact_visibility.sql` — `stripe_customers` era lo último de
+F01 sin cerrar: un colaborador y el setter leían los 32 clientes de Stripe (correo y nombre). Ahora lo
+hereda de la visibilidad del contacto: colaborador con atribuciones **16** (exactamente los suyos),
+sin atribuciones **0**, admin **32**. Registrada en `schema_migrations` con la versión de su fichero.
+
+**⚠ Desfase repositorio ↔ producción que NO es mío:** las migraciones `20261003120000`
+(`is_team_scope_allowed()` y seis políticas) y `20261003130000` (`stripe_payments`) están **aplicadas
+en producción pero solo existen en la rama `claude/app-continuation-lpbupf`**, sin fusionar a `main`.
+Quien la fusione debe comprobar que siguen coincidiendo con producción; mi migración depende de
+`is_team_scope_allowed()`. Mi primera versión de F01 (rama local descartada) habría **sobrescrito**
+su política de `stripe_payments` con la versión vieja: se detectó al releer producción antes de aplicar.
+Lección: **releer las políticas vivas justo antes de aplicar RLS**, no fiarse de una lectura de horas antes.
+
+**PREPARADA, NO APLICADA — requiere OK de Alex:** `20261004100100_aislamiento_entre_subcuentas_stripe_payments_y_knowledge_chunks.sql`
+(rama `fix/aislamiento-entre-subcuentas`, PR en borrador). Un `admin` que no es miembro de una subcuenta
+lee sus 83 pagos de Stripe (medido); `stripe_payments_all` es de lectura y ESCRITURA y `kc_*` de
+`knowledge_chunks` igual. Son las únicas dos tablas con `tenant_id` sin política restrictiva de
+aislamiento. Añade la misma `RESTRICTIVE` que usan las demás; 180 filas de `knowledge_chunks`, ninguna
+sin subcuenta, así que no esconde conocimiento global.
+
+**Decisión de negocio ya tomada (por la otra sesión):** `team` solo vale para admin/director/manager,
+así que closers, setters y CSM ven solo lo suyo.
+
 ## Bloqueo de despliegue — Sentry 11 (Codex, 3-oct)
 
 PR #330 fusionada en `e4de45f`; migración aplicada y verificada. CI PASS, incluido E2E. La actualización concurrente #315 a Sentry 11 rompió el build con DSN: `withSentryConfig` requiere `@sentry/nextjs/config`. Falló producción también sin caché; corrección en `codex/sentry-build-entry` con regresión que carga configuración con DSN ficticio. No hubo reembolsos reales.
