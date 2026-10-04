@@ -7,6 +7,7 @@ import { entradasDiagnostico, entradasSalud } from '@/lib/metrics/entradas'
 import { diagnosticarCuelloBotella, evaluarEscalado } from '@/lib/metrics/cuello-botella'
 import { calcularSalud } from '@/lib/metrics/salud'
 import { construirBrief } from '@/lib/metrics/brief'
+import { depurarPorFiabilidad } from '@/lib/metrics/fiabilidad'
 import { alertaCalidadDato, alertaKpi, type Alerta } from '@/lib/metrics/alertas'
 import { cargarContextoNegocio } from '@/lib/ai/agent/contexto'
 import { getTenantConfigWithFallback } from '@/lib/config'
@@ -84,7 +85,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     volumenBase: consulta.agregados.agendas?.valor ?? null,
   }
 
-  const metricas = entradasDiagnostico(consulta.agregados)
+  const marcado = coberturaMarcado(consulta.citas, periodo)
+  // Lo provisional (asistencia sin marcar, muestra mínima) no se diagnostica ni alerta: se dice aparte.
+  const { fiables: metricas, provisionales } = depurarPorFiabilidad(
+    entradasDiagnostico(consulta.agregados),
+    marcado
+  )
   const diagnostico = diagnosticarCuelloBotella(metricas, config)
   const salud = calcularSalud(entradasSalud(consulta.agregados))
 
@@ -134,7 +140,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
   // EL AVISO QUE MÁS VALE HOY. Comprobado en producción: 328 citas ya pasadas siguen en `scheduled` o
   // `confirmed`, y solo 3 están marcadas. Mientras eso siga así, el show rate, el pitch rate y el close
   // rate sobre llamadas no se pueden calcular con nada, y decirlo vale más que cualquier número del panel.
-  const marcado = coberturaMarcado(consulta.citas, periodo)
   if (marcado.pasadasSinMarcar > 0) {
     alertas.push(
       alertaCalidadDato({
@@ -272,6 +277,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
     // cambia la presentación; no vuelve a consultar ni recalcula dinero.
     serieFacturacion: serieFacturacionObservada,
     serieCash: serieCashObservada,
+    provisionales,
     diagnostico,
     salud,
     procedencia: {
