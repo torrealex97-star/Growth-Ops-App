@@ -244,7 +244,8 @@ export default function FunnelsPage() {
                     <dd className="font-mono text-lg text-foreground">
                       {num(n as number)}
                       <span className="ml-1 text-xs text-muted-foreground">
-                        {pctText(((n as number) / (data.cohorte as Cohorte).leads) * 100)} de {num((data.cohorte as Cohorte).leads)}
+                        {pctText(((n as number) / (data.cohorte as Cohorte).leads) * 100)} de{' '}
+                        {num((data.cohorte as Cohorte).leads)}
                       </span>
                     </dd>
                   </div>
