@@ -147,7 +147,8 @@ test('la columna queda nullable a propósito y con su motivo escrito', () => {
 })
 
 test('el sync nuevo vincula al insertar, y no crea fichas por un correo suelto', () => {
-  const ruta = 'app/api/[tenant]/evergreen/settings/integraciones/history-sync/route.ts'
+  // La ingesta canónica (histórico + webhook) vive en lib/fathom/ingesta.ts.
+  const ruta = 'lib/fathom/ingesta.ts'
   const src = readFileSync(join(root, ruta), 'utf8')
   assert.match(src, /buscarContactoPorEmail\(sb, tenantId, email\)/)
   assert.match(src, /contact_id: contactId/)

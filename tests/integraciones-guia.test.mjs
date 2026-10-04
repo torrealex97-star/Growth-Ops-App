@@ -119,7 +119,7 @@ test('las guías escritas cumplen el mínimo de utilidad', () => {
 
 test('las integraciones con webhook entrante enseñan su dirección', () => {
   // Componer la URL a mano es donde se coló la errata que dejó GHL sin funcionar una semana.
-  for (const id of ['ghl', 'calendly', 'stripe']) {
+  for (const id of ['ghl', 'calendly', 'stripe', 'fathom']) {
     const g = INTEGRATION_GROUPS.find((x) => x.id === id)
     assert.ok(g.webhookPath, `${id} recibe webhooks: su dirección tiene que estar a la vista`)
   }

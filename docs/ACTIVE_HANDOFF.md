@@ -71,8 +71,14 @@ se actualiza al inicio de cada sesión y al fusionar.
   `ana-perez@x.com` y la comisión podía caer en otro usuario; además la coma del dato rompía
   PostgREST. (2) El pull de citas reenviaba el closer del calendario en cada pasada y pisaba
   asignaciones manuales/del webhook (el webhook de Calendly SÍ se protegía en reagenda);
-  ahora rellena solo si la fila no tiene closer. (3) El `userIdByEmail` del webhook GHL era
+  ahora rellena solo si la fila no tiene closer.  (3) El `userIdByEmail` del webhook GHL era
   `.eq` case-sensitive. Rama `fix/closer-no-reasigna-email`.
+- **Reclamado 4-oct (Freebuff):** webhook entrante de Fathom en Integraciones
+  (`app/api/[tenant]/evergreen/webhooks/fathom/route.ts`, Svix fail-closed con
+  `FATHOM_WEBHOOK_SECRET`): ingesta EN TIEMPO REAL de reuniones (hasta ahora solo pull del botón).
+  La lógica por-reunión se extrae a `lib/fathom/ingesta.ts` (única implementación para el botón y
+  el webhook); catálogo con `webhookPath` + paso de alta; tests de regresión. Rama
+  `feat/fathom-webhook`.
 
 ### Claude Code (plan `docs/plan/`)
 
