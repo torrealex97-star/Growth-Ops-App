@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -197,7 +199,7 @@ export default function ContratosPage() {
       </div>
 
       {loading ? (
-        <div className="h-64 bg-card rounded-lg animate-pulse" />
+        <Skeleton className="h-64" />
       ) : filtered.length === 0 ? (
         <div className="bg-card border border-border rounded-lg p-10 text-center">
           <FileText className="w-10 h-10 text-muted-foreground mx-auto mb-3" />

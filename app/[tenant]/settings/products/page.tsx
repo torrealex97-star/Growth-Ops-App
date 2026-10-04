@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -237,7 +239,7 @@ export default function ProductsPage() {
       {loading ? (
         <div className="space-y-3">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-16 bg-card rounded-lg animate-pulse" />
+            <Skeleton key={i} className="h-16" />
           ))}
         </div>
       ) : products.length === 0 ? (

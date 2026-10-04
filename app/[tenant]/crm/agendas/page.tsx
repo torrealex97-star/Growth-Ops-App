@@ -1,4 +1,6 @@
 'use client'
+
+import { Skeleton } from '@/components/ui/skeleton'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -1414,7 +1416,7 @@ export default function AppointmentsPage() {
           {loading ? (
             <div className="space-y-3">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-12 bg-card rounded-lg animate-pulse" />
+                <Skeleton key={i} className="h-12" />
               ))}
             </div>
           ) : (

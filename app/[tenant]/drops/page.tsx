@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { UserMinus, Plus, X, Download } from 'lucide-react'
@@ -377,7 +379,7 @@ export default function DropsPage() {
       </div>
 
       {loading ? (
-        <div className="h-64 bg-card rounded-lg animate-pulse" />
+        <Skeleton className="h-64" />
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">

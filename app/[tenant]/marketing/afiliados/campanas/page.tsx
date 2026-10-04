@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -277,7 +279,7 @@ export default function CampanasAfiliadosPage() {
     fetchAll()
   }
 
-  if (loading) return <div className="h-48 bg-card rounded-lg animate-pulse" />
+  if (loading) return <Skeleton className="h-48" />
 
   if (!canManage) {
     return (

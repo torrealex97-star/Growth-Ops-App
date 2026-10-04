@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -416,7 +418,7 @@ export default function SalesPage() {
       {loading ? (
         <div className="space-y-3">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-12 bg-card rounded-lg animate-pulse" />
+            <Skeleton key={i} className="h-12" />
           ))}
         </div>
       ) : sales.length === 0 ? (
