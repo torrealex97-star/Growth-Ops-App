@@ -52,3 +52,13 @@ test('ninguna consulta de citas corta el día con una hora sin zona (se leería 
     assert.doesNotMatch(s, /const start = `\$\{date\}T00:00:00`/, f)
   }
 })
+
+test('inPeriod con fechas sin hora es barato: 50k filas en menos de 1,5 s (regresión de rendimiento)', () => {
+  const r = getPeriodRange('30d', '', '', {}, new Date('2026-09-30T12:00:00Z'))
+  const filas = Array.from({ length: 50_000 }, (_, i) => `2026-09-${String(1 + (i % 28)).padStart(2, '0')}`)
+  const t = performance.now()
+  let dentro = 0
+  for (const f of filas) if (inPeriod(f, r)) dentro++
+  assert.ok(dentro > 0)
+  assert.ok(performance.now() - t < 1500, 'inPeriod construye formateadores por llamada: las pantallas se cuelgan')
+})
