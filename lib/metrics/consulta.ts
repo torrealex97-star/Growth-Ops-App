@@ -88,7 +88,7 @@ export async function consultarMetricas(
   cuentasAds: string[] = []
 ): Promise<ResultadoConsulta> {
   // Las lecturas son independientes: en serie serían viajes de red encadenados por nada.
-  const [ventas, cobros, citas, campanas, contactos, gastosCogs, stripe] = await Promise.all([
+  const [ventas, cobros, citas, campanas, contactos, gastosCogs, stripe, devolucionesStripe] = await Promise.all([
     fetchAllRows<FilaVenta & { payment_plans: { method: string | null } | { method: string | null }[] | null }>(
       () =>
         sb
@@ -183,10 +183,22 @@ export async function consultarMetricas(
       () =>
         sb
           .from('stripe_payments')
-          .select('payment_id, charge_id, amount, refunded_amount, status, paid_at, customer_email')
+          .select('payment_id, charge_id, amount, refunded_amount, refunded_at, status, paid_at, customer_email')
           .eq('tenant_id', tenantId)
           .gte('paid_at', `${periodo.desde}T00:00:00Z`)
           .lte('paid_at', `${periodo.hasta}T23:59:59Z`)
+          .order('payment_id'),
+      { maxPages: MAX_PAGINAS }
+    ),
+    // Devoluciones que OCURRIERON en el periodo (MONEY D5), aunque su cobro sea de otro mes.
+    fetchAllRows<StripePaymentRow>(
+      () =>
+        sb
+          .from('stripe_payments')
+          .select('payment_id, charge_id, amount, refunded_amount, refunded_at, status, paid_at, customer_email')
+          .eq('tenant_id', tenantId)
+          .gte('refunded_at', `${periodo.desde}T00:00:00Z`)
+          .lte('refunded_at', `${periodo.hasta}T23:59:59Z`)
           .order('payment_id'),
       { maxPages: MAX_PAGINAS }
     ),
@@ -206,7 +218,7 @@ export async function consultarMetricas(
       .eq('is_primary', true),
   ])
 
-  const fuentes = { ventas, cobros, citas, campanas, contactos, gastosCogs, stripe }
+  const fuentes = { ventas, cobros, citas, campanas, contactos, gastosCogs, stripe, devolucionesStripe }
   const fuentesConError = Object.entries(fuentes)
     .filter(([, r]) => r.error !== null)
     .map(([fuente, r]) => ({ fuente, error: r.error as string }))
@@ -241,7 +253,7 @@ export async function consultarMetricas(
     status: c.status ?? '',
     collected_at: c.collected_at,
   }))
-  const cash = canonicalCash(stripe.rows, internos, [])
+  const cash = canonicalCash(stripe.rows, internos, [], devolucionesStripe.rows ?? [])
   const agregados = calcularAgregados({
     ventas: ventasNormalizadas,
     cobros: cobros.rows,
@@ -274,7 +286,8 @@ export async function consultarMetricas(
   }
   const invalidas = [...fuentesConError.map((f) => f.fuente), ...fuentesRecortadas]
   const protegidos = protegerFuentes(agregados, invalidas)
-  const cashCompleto = !invalidas.includes('stripe') && !invalidas.includes('cobros')
+  const cashCompleto =
+    !invalidas.includes('stripe') && !invalidas.includes('devolucionesStripe') && !invalidas.includes('cobros')
   return {
     agregados: protegidos,
     fuentesConError,
@@ -284,7 +297,10 @@ export async function consultarMetricas(
     serieCash: cashCompleto
       ? acumular(
           serieDiaria(
-            serieCanonicaCash(stripe.rows, internos).map((p) => ({ fecha: p.cubo, valor: p.neto })),
+            serieCanonicaCash(stripe.rows, internos, [], 'dia', devolucionesStripe.rows ?? []).map((p) => ({
+              fecha: p.cubo,
+              valor: p.neto,
+            })),
             periodo
           )
         )

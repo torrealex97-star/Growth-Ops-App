@@ -13,6 +13,7 @@ const DEPENDENCIAS: Record<string, string[]> = {
   ],
   cobros: ['cash_collected', 'cash_collection_ratio', 'cash_roas'],
   stripe: ['cash_collected', 'cash_collection_ratio', 'cash_roas'],
+  devolucionesStripe: ['cash_collected', 'cash_collection_ratio', 'cash_roas'],
   campanas: ['ad_spend', 'cash_roas', 'cac', 'ctr', 'cpc', 'cpm', 'cpqbc'],
   citas: [
     'agendas',

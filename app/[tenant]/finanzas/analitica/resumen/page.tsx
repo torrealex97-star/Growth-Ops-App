@@ -134,7 +134,7 @@ export default function FinanzasPage() {
           .eq('is_active', true),
         supabase
           .from('stripe_payments')
-          .select('payment_id, charge_id, amount, refunded_amount, status, paid_at, customer_email')
+          .select('payment_id, charge_id, amount, refunded_amount, refunded_at, status, paid_at, customer_email')
           .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
       ])
@@ -229,7 +229,10 @@ export default function FinanzasPage() {
           .map((c) => ({
             ...c,
             gross_amount: num(c.gross_amount),
-          }))
+          })),
+        [],
+        // Devoluciones que OCURRIERON este mes (MONEY D5), aunque su cobro sea de otro mes.
+        stripePayments.filter((p) => !!p.refunded_at && ymOf(p.refunded_at) === ym)
       ),
     [stripePayments, collections, ym]
   )
