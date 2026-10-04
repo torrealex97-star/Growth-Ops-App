@@ -40,3 +40,16 @@ propias del proyecto. Sin nombres de subcuentas ni credenciales (ver `docs/SECUR
 5. **Extensiones en `public`** (`vector`, `pg_trgm`): aviso de bajo riesgo; moverlas a `extensions` exige
    recrear dependencias, hacerlo en una ventana con prueba.
 6. Rotar cualquier secreto que haya pasado por chats o capturas, y mantener `gitleaks` activo en CI.
+
+## SQL pendiente de aplicar (sin cambios de datos; decisión del propietario)
+
+Revoca EXECUTE de una función de trigger a roles externos (los triggers siguen disparando: el permiso se
+comprueba al crear el trigger) y fija `search_path` en dos funciones. Aplicar como migración nueva cuando se
+confirme:
+
+```sql
+REVOKE EXECUTE ON FUNCTION public.guard_reservation_refund() FROM PUBLIC, anon, authenticated;
+
+ALTER FUNCTION public.contacts_normalize_lead_channel(text) SET search_path = public, pg_temp;
+ALTER FUNCTION public.contacts_normalize_lead_channel_trigger() SET search_path = public, pg_temp;
+```
