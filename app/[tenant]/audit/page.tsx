@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useState, useEffect, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -174,7 +176,7 @@ export default function AuditPage() {
       {loading ? (
         <div className="space-y-3">
           {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-12 bg-card rounded-lg animate-pulse" />
+            <Skeleton key={i} className="h-12" />
           ))}
         </div>
       ) : filtered.length === 0 ? (

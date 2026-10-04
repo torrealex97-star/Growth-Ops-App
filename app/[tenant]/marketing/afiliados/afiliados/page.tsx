@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 // VISTA ADMIN DE COLABORADORES (§45-46) — la gestión sobre la ENTIDAD ESTRUCTURADA.
 //
 // Antes este ranking vivía de textos (users.affiliate_code + utm_content); ahora lista
@@ -505,13 +507,13 @@ export default function AfiliadosPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="h-8 w-56 bg-muted rounded animate-pulse" />
+        <Skeleton className="h-8 w-56 bg-muted rounded" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-28 bg-card border border-border rounded-lg animate-pulse" />
+            <Skeleton key={i} className="h-28 border border-border" />
           ))}
         </div>
-        <div className="h-64 bg-card border border-border rounded-lg animate-pulse" />
+        <Skeleton className="h-64 border border-border" />
       </div>
     )
   }

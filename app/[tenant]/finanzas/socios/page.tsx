@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useEffect, useMemo, useState } from 'react'
 import { Handshake } from 'lucide-react'
 import { lastNMonths, monthLabel } from '@/lib/analytics'
@@ -90,7 +92,7 @@ export default function SociosGananciasPage() {
       {loading ? (
         <div className="dashboard-card p-6 space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-8 bg-muted rounded animate-pulse" style={{ width: `${50 + (i % 3) * 15}%` }} />
+            <Skeleton key={i} className="h-8 bg-muted rounded" style={{ width: `${50 + (i % 3) * 15}%` }} />
           ))}
         </div>
       ) : error ? (

@@ -5,8 +5,14 @@
 // ninguna tarjeta se entera: los conectores ven su propio pull, no la recepción. Este control mira
 // la EVIDENCIA DE RECEPCIÓN REAL de cada webhook (sobres en `raw_events`, o actas en `audit_logs`
 // para el que aún no escribe sobre), que es lo único que prueba que la llamada entró: si la
-// integración está configurada y no llega nada en 24h, el tiempo real está roto aunque el cron
-// disimule los síntomas trayendo datos viejos.
+// integración está configurada y no llega nada en 24h, hay un SILENCIO que hay que mirar aunque el
+// cron disimule los síntomas trayendo datos viejos.
+//
+// SILENCIO NO ES ROTURA DEMOSTRADA (auditoría F23). Que no llegue nada en 24 h puede ser que el
+// proveedor no haya tenido nada que avisar (un fin de semana sin citas) o que sus envíos fallen. Lo
+// primero no es una avería, y esta señal por sí sola no distingue ambas cosas: por eso el mensaje dice
+// «comprueba» en vez de «está roto», y la pantalla lo pinta en ámbar, no en rojo. Un fallo CONFIRMADO
+// (firma rechazada, error HTTP del proveedor) es otra señal y es la que justifica el rojo.
 //
 // DOS REGLAS del resto del módulo también gobiernan aquí:
 //  · Un hueco no es un cero: si la evidencia no se pudo leer, el estado es `desconocido`, nunca
@@ -81,7 +87,7 @@ export function saludWebhook(input: {
   if (!input.ultimoSobre) {
     return {
       estado: 'silencio',
-      mensaje: `${etiqueta} está configurado pero el webhook nunca ha recibido un sobre: ${ALTA_SIN_RECIBIR[input.proveedor]}.`,
+      mensaje: `${etiqueta} está configurado pero el webhook nunca ha recibido un sobre. Comprueba el envío: ${ALTA_SIN_RECIBIR[input.proveedor]}.`,
       ultimoSobre: null,
       horasDesde: null,
     }
@@ -99,7 +105,7 @@ export function saludWebhook(input: {
   if (ahora - t >= umbral) {
     return {
       estado: 'silencio',
-      mensaje: `Sin recepciones de ${etiqueta} desde hace ${Math.round(horas)} h (umbral 24 h): el tiempo real está roto, aunque el cron siga trayendo datos.`,
+      mensaje: `Sin recepciones de ${etiqueta} desde hace ${Math.round(horas)} h (umbral 24 h). No prueba que esté roto —puede no haber habido actividad—: comprueba en el panel del proveedor si hay envíos fallidos; el cron sigue trayendo datos mientras tanto.`,
       ultimoSobre: input.ultimoSobre,
       horasDesde: horas,
     }

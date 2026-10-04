@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -177,7 +179,7 @@ export default function SociosSettingsPage() {
         </div>
 
         {loading ? (
-          <div className="h-20 bg-muted/50 rounded-lg animate-pulse" />
+          <Skeleton className="h-20 bg-muted/50" />
         ) : partners.length === 0 ? (
           <p className="text-sm text-muted-foreground">Aún no hay socios. Añade el primero abajo.</p>
         ) : (

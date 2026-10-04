@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { fetchAllRows } from '@/lib/supabase/paginate'
 
 import { ConnectedFunnel } from '@/components/os/ConnectedFunnel'
@@ -534,10 +536,10 @@ export default function VentasMetricasPage() {
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="h-24 animate-pulse bg-card rounded-lg" />
+              <Skeleton key={i} className="h-24" />
             ))}
           </div>
-          <div className="h-64 animate-pulse bg-card rounded-lg" />
+          <Skeleton className="h-64" />
         </div>
       ) : loadError ? (
         <div role="alert" className="dashboard-card p-6">

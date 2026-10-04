@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { activeUserNamesQuery } from '@/lib/users'
@@ -10,7 +12,8 @@ import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset } from '@/l
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useSesion, useTenantId } from '@/lib/tenant-context'
-import { formatDateTime } from '@/lib/utils'
+import { formatDateTime, formatPercent } from '@/lib/utils'
+import { detalleMuestra, promedio, razon } from '@/lib/metrics/razon'
 
 const STATUSES = [
   { value: 'agendado', label: 'Agendado' },
@@ -160,12 +163,11 @@ export default function CsmEventsPage() {
     // casualidad de vocabulario, pero es otra entidad y otro ciclo de vida. NO usar aquí `isNoShow()`
     // de lib/appointments/status: unificarlo ataría el cálculo de CSM a la semántica de las citas.
     const noShows = filteredItems.filter((e) => e.status === 'no_show')
-    const showRate =
-      completados.length + noShows.length > 0 ? (completados.length / (completados.length + noShows.length)) * 100 : 0
-    const gradesArr = completados.filter((e) => e.grade != null).map((e) => e.grade as number)
-    const avgGrade = gradesArr.length > 0 ? gradesArr.reduce((a, b) => a + b, 0) / gradesArr.length : 0
+    // Sin muestra NO es 0 %: con ningún evento resuelto, el show rate es «sin dato» (F22).
+    const showRate = razon(completados.length, completados.length + noShows.length)
+    const avgGrade = promedio(completados.filter((e) => e.grade != null).map((e) => e.grade as number))
     const exitosos = completados.filter((e) => e.success === 'si')
-    const successRate = completados.length > 0 ? (exitosos.length / completados.length) * 100 : 0
+    const successRate = razon(exitosos.length, completados.length)
     return {
       thisMonth: thisMonth.length,
       showRate,
@@ -183,22 +185,21 @@ export default function CsmEventsPage() {
     const canceladosAdmin = filteredItems.filter((e) => e.status === 'cancelado_admin').length
     const canceladosAlumno = filteredItems.filter((e) => e.status === 'cancelado_alumno').length
     const canceladosTotal = canceladosAdmin + canceladosAlumno
-    const pctCancelTotal = booked > 0 ? (canceladosTotal / booked) * 100 : 0
-    const pctCancelAdmin = booked > 0 ? (canceladosAdmin / booked) * 100 : 0
-    const pctCancelAlumno = booked > 0 ? (canceladosAlumno / booked) * 100 : 0
+    const pctCancelTotal = razon(canceladosTotal, booked)
+    const pctCancelAdmin = razon(canceladosAdmin, booked)
+    const pctCancelAlumno = razon(canceladosAlumno, booked)
 
     const noShows = filteredItems.filter((e) => e.status === 'no_show').length
-    const pctShowRate = live + noShows > 0 ? (live / (live + noShows)) * 100 : 0
+    const pctShowRate = razon(live, live + noShows)
 
     const agendados = filteredItems.filter((e) => e.status === 'agendado').length
     const confirmados = filteredItems.filter((e) => e.status === 'confirmado').length
-    const pctConfirm = agendados > 0 ? (confirmados / agendados) * 100 : 0
+    const pctConfirm = razon(confirmados, agendados)
 
-    const gradesArr = completados.filter((e) => e.grade != null).map((e) => e.grade as number)
-    const avgEventGrade = gradesArr.length > 0 ? gradesArr.reduce((a, b) => a + b, 0) / gradesArr.length : 0
+    const avgEventGrade = promedio(completados.filter((e) => e.grade != null).map((e) => e.grade as number))
 
     const exitososEnCompletados = completados.filter((e) => e.success === 'si').length
-    const pctLiveToSuccess = live > 0 ? (exitososEnCompletados / live) * 100 : 0
+    const pctLiveToSuccess = razon(exitososEnCompletados, live)
 
     return {
       booked,
@@ -257,15 +258,20 @@ export default function CsmEventsPage() {
         </div>
         <div className="bg-card/50 border border-border rounded-lg p-4">
           <p className="text-xs text-muted-foreground">Show Rate</p>
-          <p className="text-2xl font-bold text-foreground mt-1">{kpis.showRate.toFixed(0)}%</p>
+          <p className="text-2xl font-bold text-foreground mt-1">{formatPercent(kpis.showRate.valor, 0)}</p>
+          <p className="text-3xs text-muted-foreground mt-1">{detalleMuestra(kpis.showRate)}</p>
         </div>
         <div className="bg-card/50 border border-border rounded-lg p-4">
           <p className="text-xs text-muted-foreground">Grade medio</p>
-          <p className="text-2xl font-bold text-foreground mt-1">{kpis.avgGrade.toFixed(1)}</p>
+          <p className="text-2xl font-bold text-foreground mt-1">
+            {kpis.avgGrade === null ? '—' : kpis.avgGrade.toFixed(1)}
+          </p>
+          {kpis.avgGrade === null ? <p className="text-3xs text-muted-foreground mt-1">sin notas</p> : null}
         </div>
         <div className="bg-card/50 border border-border rounded-lg p-4">
           <p className="text-xs text-muted-foreground">% Éxito</p>
-          <p className="text-2xl font-bold text-foreground mt-1">{kpis.successRate.toFixed(0)}%</p>
+          <p className="text-2xl font-bold text-foreground mt-1">{formatPercent(kpis.successRate.valor, 0)}</p>
+          <p className="text-3xs text-muted-foreground mt-1">{detalleMuestra(kpis.successRate)}</p>
         </div>
       </div>
 
@@ -286,32 +292,42 @@ export default function CsmEventsPage() {
           </div>
           <div className="bg-card/50 border border-border rounded-lg p-4">
             <p className="text-xs text-muted-foreground">%Cancel(E)</p>
-            <p className="text-2xl font-bold text-foreground mt-1">{funnelKpis.pctCancelTotal.toFixed(0)}%</p>
+            <p className="text-2xl font-bold text-foreground mt-1">
+              {formatPercent(funnelKpis.pctCancelTotal.valor, 0)}
+            </p>
             <p className="text-3xs text-muted-foreground mt-1">
-              Admin {funnelKpis.pctCancelAdmin.toFixed(0)}% · Alumno {funnelKpis.pctCancelAlumno.toFixed(0)}%
+              Admin {formatPercent(funnelKpis.pctCancelAdmin.valor, 0)} · Alumno{' '}
+              {formatPercent(funnelKpis.pctCancelAlumno.valor, 0)} · {detalleMuestra(funnelKpis.pctCancelTotal)}
             </p>
           </div>
           <div className="bg-card/50 border border-border rounded-lg p-4">
             <p className="text-xs text-muted-foreground">%Show Rate(E)</p>
-            <p className="text-2xl font-bold text-foreground mt-1">{funnelKpis.pctShowRate.toFixed(0)}%</p>
+            <p className="text-2xl font-bold text-foreground mt-1">{formatPercent(funnelKpis.pctShowRate.valor, 0)}</p>
+            <p className="text-3xs text-muted-foreground mt-1">{detalleMuestra(funnelKpis.pctShowRate)}</p>
           </div>
           <div className="bg-card/50 border border-border rounded-lg p-4">
             <p className="text-xs text-muted-foreground">%Confirm(E)</p>
-            <p className="text-2xl font-bold text-foreground mt-1">{funnelKpis.pctConfirm.toFixed(0)}%</p>
+            <p className="text-2xl font-bold text-foreground mt-1">{formatPercent(funnelKpis.pctConfirm.valor, 0)}</p>
+            <p className="text-3xs text-muted-foreground mt-1">{detalleMuestra(funnelKpis.pctConfirm)}</p>
           </div>
           <div className="bg-card/50 border border-border rounded-lg p-4">
             <p className="text-xs text-muted-foreground">Avg Event Grade</p>
-            <p className="text-2xl font-bold text-foreground mt-1">{funnelKpis.avgEventGrade.toFixed(1)}</p>
+            <p className="text-2xl font-bold text-foreground mt-1">
+              {funnelKpis.avgEventGrade === null ? '—' : funnelKpis.avgEventGrade.toFixed(1)}
+            </p>
           </div>
           <div className="bg-card/50 border border-border rounded-lg p-4">
             <p className="text-xs text-muted-foreground">%Live(E)→Success</p>
-            <p className="text-2xl font-bold text-foreground mt-1">{funnelKpis.pctLiveToSuccess.toFixed(0)}%</p>
+            <p className="text-2xl font-bold text-foreground mt-1">
+              {formatPercent(funnelKpis.pctLiveToSuccess.valor, 0)}
+            </p>
+            <p className="text-3xs text-muted-foreground mt-1">{detalleMuestra(funnelKpis.pctLiveToSuccess)}</p>
           </div>
         </div>
       </div>
 
       {loading ? (
-        <div className="h-64 bg-card rounded-lg animate-pulse" />
+        <Skeleton className="h-64" />
       ) : visibleItems.length === 0 ? (
         <div className="bg-card/50 border border-border rounded-lg p-10 text-center">
           <CalendarCheck className="w-10 h-10 text-muted-foreground mx-auto mb-3" />

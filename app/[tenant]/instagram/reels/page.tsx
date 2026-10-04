@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import {
@@ -205,7 +207,7 @@ export default function ReelsDelDiaPage() {
       </div>
 
       {loading ? (
-        <div className="h-64 bg-card rounded-lg animate-pulse" />
+        <Skeleton className="h-64" />
       ) : sorted.length === 0 ? (
         <div className="rounded-xl border border-border bg-card/50 p-6 text-sm text-muted-foreground">
           No hay reels para este filtro. El cron corre una vez al día; si aún no ha corrido hoy, prueba a cambiar el

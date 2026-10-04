@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -712,14 +714,14 @@ export default function CommissionsPage() {
 
         <TabsContent value="pending" className="mt-4">
           {loading ? (
-            <div className="h-48 bg-card rounded-lg animate-pulse" />
+            <Skeleton className="h-48" />
           ) : (
             <CommissionsTable commissions={pending} canApprove={canApprove} onApprove={handleApprove} />
           )}
         </TabsContent>
         <TabsContent value="approved" className="mt-4">
           {loading ? (
-            <div className="h-48 bg-card rounded-lg animate-pulse" />
+            <Skeleton className="h-48" />
           ) : (
             <CommissionsTable
               commissions={approved}
@@ -730,11 +732,7 @@ export default function CommissionsPage() {
           )}
         </TabsContent>
         <TabsContent value="liquidated" className="mt-4">
-          {loading ? (
-            <div className="h-48 bg-card rounded-lg animate-pulse" />
-          ) : (
-            <CommissionsTable commissions={liquidated} canApprove={false} />
-          )}
+          {loading ? <Skeleton className="h-48" /> : <CommissionsTable commissions={liquidated} canApprove={false} />}
         </TabsContent>
         <TabsContent value="future" className="mt-4">
           <p className="text-xs text-muted-foreground mb-2">
@@ -853,11 +851,7 @@ export default function CommissionsPage() {
           </div>
         </TabsContent>
         <TabsContent value="negative" className="mt-4">
-          {loading ? (
-            <div className="h-48 bg-card rounded-lg animate-pulse" />
-          ) : (
-            <CommissionsTable commissions={negative} canApprove={false} />
-          )}
+          {loading ? <Skeleton className="h-48" /> : <CommissionsTable commissions={negative} canApprove={false} />}
         </TabsContent>
       </Tabs>
 

@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -191,7 +193,7 @@ export default function TramosSettingsPage() {
       <div className="bg-card border border-border rounded-lg p-5 space-y-4">
         <h2 className="text-sm font-semibold text-foreground">Niveles</h2>
         {loading ? (
-          <div className="h-20 bg-muted/50 rounded-lg animate-pulse" />
+          <Skeleton className="h-20 bg-muted/50" />
         ) : tramos.length === 0 ? (
           <p className="text-sm text-muted-foreground">Aún no hay tramos. Crea el primero abajo.</p>
         ) : (

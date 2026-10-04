@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { FileText, ExternalLink, ClipboardCopy } from 'lucide-react'
@@ -130,10 +132,10 @@ export default function FacturasPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[0, 1].map((i) => (
-              <div key={i} className="h-24 bg-card rounded-lg animate-pulse" />
+              <Skeleton key={i} className="h-24" />
             ))}
           </div>
-          <div className="h-64 bg-card rounded-lg animate-pulse" />
+          <Skeleton className="h-64" />
         </div>
       ) : (
         <>

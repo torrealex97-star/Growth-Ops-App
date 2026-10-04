@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { GraduationCap, ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'sonner'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, formatPercent } from '@/lib/utils'
+import { detalleMuestra, razon, type Razon } from '@/lib/metrics/razon'
 import { addMonthsUTC, parseFechaDia } from '@/lib/sales/plan-cuotas'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
@@ -201,6 +202,11 @@ function TrackDot({ on, label }: { on: boolean; label: string }) {
   )
 }
 
+/** Subtítulo de una razón del embudo: «66 % de enviados · 2 de 3», o «sin muestra» si no hay base (F22). */
+function subRazon(r: Razon, base: string): string {
+  return r.valor === null ? `sin ${base}` : `${formatPercent(r.valor, 0)} de ${base} · ${detalleMuestra(r)}`
+}
+
 export default function StudentsPage() {
   const tenantId = useTenantId()
   const tenant = useTenant()
@@ -384,16 +390,16 @@ export default function StudentsPage() {
     const agendados = periodRows.filter((r) => r.onboarding_scheduled_at).length
     const onboarded = periodRows.filter((r) => r.onboarding_date).length
     const sinClick = periodRows.filter((r) => matchesOnbView(r, 'sin_click')).length
-    const pct = (n: number, base: number) => (base ? Math.round((n / base) * 100) : 0)
     return {
       enviados,
       clicks,
       agendados,
       onboarded,
       sinClick,
-      clickPct: pct(clicks, enviados),
-      agendadoPct: pct(agendados, enviados),
-      onboardedPct: pct(onboarded, agendados),
+      // Sin accesos enviados no hay % que calcular: «0 %» se leía como que nadie hizo click (F22).
+      clickPct: razon(clicks, enviados),
+      agendadoPct: razon(agendados, enviados),
+      onboardedPct: razon(onboarded, agendados),
     }
   }, [periodRows])
 
@@ -425,8 +431,8 @@ export default function StudentsPage() {
     })
     return {
       total,
-      onboardedPct: total ? Math.round((onboarded / total) * 100) : 0,
-      graduadosPct: total ? Math.round((graduados / total) * 100) : 0,
+      onboardedPct: razon(onboarded, total),
+      graduadosPct: razon(graduados, total),
       npsAvg,
       engagementCounts,
     }
@@ -472,11 +478,13 @@ export default function StudentsPage() {
         </div>
         <div className="bg-card border border-border rounded-lg p-4">
           <p className="text-xs text-muted-foreground">% Onboarded</p>
-          <p className="text-2xl font-bold text-brand-400 mt-1">{kpis.onboardedPct}%</p>
+          <p className="text-2xl font-bold text-brand-400 mt-1">{formatPercent(kpis.onboardedPct.valor, 0)}</p>
+          <p className="text-3xs text-muted-foreground mt-1">{detalleMuestra(kpis.onboardedPct)}</p>
         </div>
         <div className="bg-card border border-border rounded-lg p-4">
           <p className="text-xs text-muted-foreground">% Graduados</p>
-          <p className="text-2xl font-bold text-emerald-400 mt-1">{kpis.graduadosPct}%</p>
+          <p className="text-2xl font-bold text-emerald-400 mt-1">{formatPercent(kpis.graduadosPct.valor, 0)}</p>
+          <p className="text-3xs text-muted-foreground mt-1">{detalleMuestra(kpis.graduadosPct)}</p>
         </div>
         <div className="bg-card border border-border rounded-lg p-4">
           <p className="text-xs text-muted-foreground">NPS medio</p>
@@ -512,19 +520,19 @@ export default function StudentsPage() {
           <FunnelStat
             label="Han hecho click"
             value={funnel.clicks}
-            sub={`${funnel.clickPct}% de enviados`}
+            sub={subRazon(funnel.clickPct, 'enviados')}
             tone="sky"
           />
           <FunnelStat
             label="Onboarding agendado"
             value={funnel.agendados}
-            sub={`${funnel.agendadoPct}% de enviados`}
+            sub={subRazon(funnel.agendadoPct, 'enviados')}
             tone="amber"
           />
           <FunnelStat
             label="Onboarded"
             value={funnel.onboarded}
-            sub={`${funnel.onboardedPct}% de agendados`}
+            sub={subRazon(funnel.onboardedPct, 'agendados')}
             tone="brand"
           />
         </div>

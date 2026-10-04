@@ -216,7 +216,9 @@ function MetricWebhook({ label, salud }: { label: string; salud: SaludWebhook })
               : 'sin recepciones'
       }
       detail={salud.mensaje}
-      tone={salud.estado === 'silencio' ? 'bad' : salud.estado === 'al_dia' ? 'good' : 'warn'}
+      // Ámbar, no rojo: el silencio no demuestra una avería (puede no haber actividad). El rojo se reserva
+      // para un fallo confirmado.
+      tone={salud.estado === 'al_dia' ? 'good' : 'warn'}
     />
   )
 }
@@ -538,7 +540,7 @@ export function DataHealthPanel() {
               <h2 className="font-semibold text-foreground">Webhooks entrantes</h2>
               <p className="mb-4 text-sm text-muted-foreground">
                 Evidencia de recepción real (capa de eventos en bruto o actas de auditoría); si nada llega en 24 h con
-                la integración configurada, el tiempo real está roto.
+                la integración configurada, hay que comprobar el envío: puede ser que no haya habido actividad.
               </p>
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
                 <MetricWebhook label="Webhook de GHL" salud={operational.saludWebhookGhl} />

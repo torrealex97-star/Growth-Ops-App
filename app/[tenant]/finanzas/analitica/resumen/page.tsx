@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useEffect, useMemo, useState } from 'react'
 import { useTenantId } from '@/lib/tenant-context'
 import { createClient } from '@/lib/supabase/client'
@@ -402,12 +404,12 @@ export default function FinanzasPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="dashboard-card p-6 space-y-2">
-                <div className="h-4 w-24 bg-muted animate-pulse rounded" />
-                <div className="h-8 w-32 bg-muted animate-pulse rounded" />
+                <Skeleton className="h-4 w-24 bg-muted rounded" />
+                <Skeleton className="h-8 w-32 bg-muted rounded" />
               </div>
             ))}
           </div>
-          <div className="h-64 animate-pulse bg-card rounded-lg" />
+          <Skeleton className="h-64" />
         </div>
       ) : (
         <>
