@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { aplicarCustomFieldsGhl } from '@/lib/contacts/custom-fields-ghl'
-import { mapearEstadoExterno } from '@/lib/appointments/status'
+import { estadoAlSincronizar, mapearEstadoExterno } from '@/lib/appointments/status'
 import { resolveUserIdByEmail } from '@/lib/tracking'
 
 // Sincronización de CITAS (Calendly + GHL): la ÚNICA implementación, usada por
@@ -326,7 +326,7 @@ export async function syncGhl(
       // perezosamente con un fetch individual — nunca paginando todos los contactos.
       const existing = await sb
         .from('appointments')
-        .select('id, contact_id, closer_id')
+        .select('id, contact_id, closer_id, status')
         .eq('tenant_id', tenantId)
         .eq('external_id', eventId)
         .maybeSingle()
@@ -381,7 +381,8 @@ export async function syncGhl(
         contact_id: contact.data.id,
         appointment_datetime: new Date(startsAt).toISOString(),
         duration_minutes: duration,
-        status,
+        // Una pasada nunca retrocede una asistencia ya marcada a «sin resolver» (ver estadoAlSincronizar).
+        status: estadoAlSincronizar((existing.data as { status?: string | null } | null)?.status, status),
         source: 'ghl',
         ...(closerId && !yaTeniaCloser ? { closer_id: closerId } : {}),
         calendar_name: text(calendar.name) || 'GoHighLevel',
@@ -488,7 +489,7 @@ export async function syncCalendly(
         const status = event.status === 'canceled' ? 'cancelled' : 'scheduled'
         const existing = await sb
           .from('appointments')
-          .select('id, closer_id')
+          .select('id, closer_id, status')
           .eq('tenant_id', tenantId)
           .eq('external_id', uri)
           .maybeSingle()
@@ -501,7 +502,8 @@ export async function syncCalendly(
           external_id: uri,
           contact_id: contact.id,
           appointment_datetime: text(event.start_time) || new Date().toISOString(),
-          status,
+          // Calendly no sabe si el lead se presentó: nunca retrocede una asistencia ya marcada.
+          status: estadoAlSincronizar((existing.data as { status?: string | null } | null)?.status, status),
           source: 'calendly',
           ...(closerId && !yaTeniaCloser ? { closer_id: closerId } : {}),
           calendar_name: text(event.name) || 'Calendly',
