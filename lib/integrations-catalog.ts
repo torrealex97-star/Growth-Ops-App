@@ -71,9 +71,9 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
           'En business.facebook.com, junto al nombre de la cuenta publicitaria verás un número largo precedido de act_. Ese es el Ad Account ID. Si gestionas varias, puedes pegarlas separadas por comas.',
       },
       {
-        titulo: 'Genera el Access Token en Meta for Developers',
+        titulo: 'Genera un token de System User (el del Explorador caduca en horas)',
         detalle:
-          'En developers.facebook.com, abre una app de tipo Business y usa el Explorador de la API Graph pidiendo los permisos ads_read y read_insights. El token corto caduca en horas: conviértelo en uno de larga duración antes de pegarlo, o habrá que repetirlo cada día.',
+          'En business.facebook.com › Configuración del negocio › Usuarios del sistema: crea uno (rol Administrador), asígnale la cuenta publicitaria, la Página y la cuenta de Instagram, y pulsa «Generar token» eligiendo tu app y los permisos que necesites (como mínimo ads_read para el gasto; para Instagram, instagram_basic, instagram_manage_insights, pages_show_list y pages_read_engagement). Ese token NO caduca ni se invalida al cambiar una contraseña. El token del Explorador de la API Graph sirve para probar, pero muere en horas y la sincronización se detiene.',
       },
       {
         titulo: 'Prueba la conexión',
@@ -113,6 +113,14 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         secret: false,
         placeholder: 'v25.0 (recomendada)',
         help: 'Déjalo vacío salvo que sepas lo que haces. Meta retira versiones por calendario: todas las anteriores a v24.0 están deprecadas desde junio de 2026.',
+      },
+      {
+        key: 'META_APP_ID',
+        advanced: true,
+        label: 'ID de la app de Meta',
+        type: 'text',
+        secret: false,
+        help: 'Opcional. Con él y el App Secret, la comprobación pregunta a Meta cuándo caduca el token y qué permisos tiene realmente.',
       },
       {
         key: 'META_AD_ACCOUNTS_ALL',

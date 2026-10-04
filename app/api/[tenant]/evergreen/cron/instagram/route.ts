@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js'
 import { runInstagramSync } from '@/lib/instagram/sync'
 import { getTenantConfigWithFallback } from '@/lib/config'
 import { recordSyncRun, SyncBusyError, SyncOmitidaError } from '@/lib/integrations/sync-runs'
+import { comprobarYGuardar } from '@/lib/integrations/comprobaciones'
+import { comprobarSaludInstagram } from '@/lib/instagram/salud'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -37,6 +39,12 @@ export async function GET(req: NextRequest) {
       // borraba las anteriores, así que en este mismo bucle una subcuenta sin token de Instagram
       // heredaba el de la anterior y se llenaba con SU contenido, estampado con su propio tenant_id.
       const cfg = await getTenantConfigWithFallback(tn.id, true)
+      // El veredicto de «Comprobar ahora» se guarda ANTES de sincronizar: si la función se corta por
+      // tiempo a mitad de la sincronización, el estado ya está registrado. Sin esto, «Sin comprobar»
+      // duraba hasta que alguien pulsaba «Probar». Solo si hay credenciales (si no, no hay nada que decir).
+      if ((cfg.INSTAGRAM_ACCESS_TOKEN || cfg.META_ACCESS_TOKEN) && cfg.IG_USER_ID) {
+        await comprobarYGuardar(sb, tn.id, 'instagram', () => comprobarSaludInstagram(cfg), 8_000)
+      }
       try {
         perTenant[tn.slug] = await recordSyncRun(
           sb,
