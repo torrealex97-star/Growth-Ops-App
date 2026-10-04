@@ -1,3 +1,14 @@
+## Limpieza de Vercel — 4-oct (Claude Code, con OK de Alex)
+
+**Resultado:** 423 despliegues → **52** (370 borrados, 0 fallos, ninguno con dominio propio). Producción
+verificada tras la purga: `app.scalixsystems.com` y el login responden 200, y el despliegue que sirve el
+dominio no se tocó. Política y comandos en `docs/FREE_TIER_OPERATIONS.md` › «Limpieza de despliegues de Vercel».
+
+**Hallazgo que decide el siguiente paso:** el proyecto **`growth-ops-app` es un duplicado** (creado el 3-oct a
+las 12:16, 0 variables de entorno, sin dominio) que reconstruye cada push y duplica el consumo de Function
+Storage; **producción es `growthops-preview-3003`** (dominio + 14 variables). **Pendiente de Alex:** decidir
+borrar `growth-ops-app`; mientras exista, la purga vuelve a llenarse. No lo he borrado: es un proyecto entero.
+
 ## F35 cerrado en producción + la sincronización borraba las asistencias — 4-oct (Claude Code)
 
 **F35 (P0, fuga entre subcuentas) — APLICADO con OK de Alex y verificado:** migración
@@ -117,7 +128,7 @@ se actualiza al inicio de cada sesión y al fusionar.
   `ana-perez@x.com` y la comisión podía caer en otro usuario; además la coma del dato rompía
   PostgREST. (2) El pull de citas reenviaba el closer del calendario en cada pasada y pisaba
   asignaciones manuales/del webhook (el webhook de Calendly SÍ se protegía en reagenda);
-  ahora rellena solo si la fila no tiene closer.  (3) El `userIdByEmail` del webhook GHL era
+  ahora rellena solo si la fila no tiene closer. (3) El `userIdByEmail` del webhook GHL era
   `.eq` case-sensitive. Rama `fix/closer-no-reasigna-email`.
 - **Reclamado 4-oct (Freebuff):** webhook entrante de Fathom en Integraciones
   (`app/api/[tenant]/evergreen/webhooks/fathom/route.ts`, Svix fail-closed con
