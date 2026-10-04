@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { canViewPaymentInbox } from '@/lib/sales/payment-inbox-access'
 import type { suggestPayment } from '@/lib/sales/payment-recognition'
 import type { PendingPayment } from '@/lib/sales/payment-inbox'
+import { loadPaymentInbox, invalidatePaymentInbox } from '@/lib/sales/payment-inbox-client'
 
 type Detail = {
   payment: PendingPayment
@@ -41,6 +42,9 @@ export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; 
   const tenant = useTenant()
   const session = useSesion()
   const router = useRouter()
+  const userId = session?.userId
+  const role = session?.rol ?? null
+  const isSuperAdmin = !!session?.isSuperAdmin
   const allowed = !!session && canViewPaymentInbox(session.rol, session.isSuperAdmin)
   const [rows, setRows] = useState<PendingPayment[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -64,13 +68,11 @@ export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; 
 
   const refresh = useCallback(
     async (signal?: AbortSignal) => {
-      if (!allowed) return
+      if (!allowed || !userId) return
       setLoading(true)
       setError(null)
       try {
-        const res = await fetch(`/api/${tenant}/evergreen/sales/payment-inbox`, { signal, cache: 'no-store' })
-        const body = await res.json()
-        if (!res.ok) throw new Error(body.error)
+        const body = await loadPaymentInbox({ tenant, userId, role, isSuperAdmin })
         if (signal?.aborted) return
         setRows(body.rows)
         onCount?.(body.total)
@@ -85,7 +87,7 @@ export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; 
         if (!signal?.aborted) setLoading(false)
       }
     },
-    [allowed, tenant, onCount]
+    [allowed, tenant, onCount, userId, role, isSuperAdmin]
   )
   useEffect(() => {
     const controller = new AbortController()
@@ -178,6 +180,7 @@ export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; 
               : 'Venta y cobro registrados'
         )
       setDetail(null)
+      if (userId) invalidatePaymentInbox({ tenant, userId, role, isSuperAdmin })
       window.dispatchEvent(new Event(changed))
       router.push(`/${tenant}/ventas/registro/${body.saleId}`)
     } catch (e) {

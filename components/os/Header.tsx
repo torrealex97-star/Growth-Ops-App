@@ -20,6 +20,7 @@ import { esFalloVisible, pedir } from '@/lib/ui/pedir'
 import { toast } from 'sonner'
 import { canViewPaymentInbox } from '@/lib/sales/payment-inbox-access'
 import { PaymentInbox } from '@/components/sales/PaymentInbox'
+import { loadPaymentInbox } from '@/lib/sales/payment-inbox-client'
 
 interface HeaderProps {
   user: User & { roles: { key: string; name: string } }
@@ -57,12 +58,7 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
     const controller = new AbortController()
     const refreshPayments = async () => {
       try {
-        const response = await fetch(`/api/${tenant}/evergreen/sales/payment-inbox`, {
-          signal: controller.signal,
-          cache: 'no-store',
-        })
-        if (!response.ok) return
-        const body = await response.json()
+        const body = await loadPaymentInbox({ tenant, userId: user.id, role, isSuperAdmin: !!isSuperAdmin })
         if (!controller.signal.aborted) setPaymentCount(body.total)
       } catch {
         /* The opened inbox displays read failures and a retry action. */
@@ -79,7 +75,7 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
       window.removeEventListener('focus', onFocus)
       window.removeEventListener('growthops:payment-inbox-changed', onFocus)
     }
-  }, [tenant, role, isSuperAdmin])
+  }, [tenant, user.id, role, isSuperAdmin])
 
   // Alerta de obligación: agendas ASISTIDAS (show) SIN enlace de llamada (recording_url). El closer
   // debe añadirlo. Liderazgo ve todas; el resto solo las suyas (además la RLS por scope las acota).

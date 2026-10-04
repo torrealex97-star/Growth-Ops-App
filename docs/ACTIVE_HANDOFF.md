@@ -1,3 +1,11 @@
+## Reclamación Codex — rendimiento de bandeja, 4-oct
+
+Rama `codex/runtime-performance`. Alcance: `components/os/Header.tsx`, `components/sales/PaymentInbox.tsx`, lector cliente compartido y tests. En producción se observan dos GET simultáneos de payment-inbox (1,83 y 2,02 s) al cargar Ventas. Sin errores de consola ni bloqueo de CPU en esa muestra. Eliminar duplicación en vuelo y acotar esperas con el helper canónico. No tocar fechas/filtros de PR #361 ni datos financieros.
+
+Implementado: lectura compartida solo en vuelo por tenant/usuario/rol/super-admin, timeout canónico de 15 s, limpieza al resolver/fallar e invalidación tras registro. Header y página conservan guardas de desmontaje. Cinco pruebas de comportamiento nuevas: deduplicación, separación de identidades, reintento, invalidación y timeout. Quality PASS (1.372 unit + 783 métricas, 3 skip); knip informativo sin referencias a los nuevos exports.
+
+Incidente separado pendiente de atribución: una pestaña dejó de responder a CDP tras intentar abrir menú; proceso renderer cerca de 99% CPU y 1,4 GB footprint. Pestaña nueva carga Ventas y Negocio (0,14 s de ScriptDuration acumulado en navegación de muestra). Esto NO demuestra la causa de todos los bloqueos ni que la mejora de red lo resuelva. No se cerró ni mató el proceso del usuario. Confirmar si ocurre fuera del navegador integrado y capturar perfil JS cuando sea reproducible. No repetir sin evidencia las auditorías completas de dashboards.
+
 ## Acceso QA recuperado — 3-oct, corrección operativa
 
 A petición expresa del usuario se sincronizó el secreto E2E_PASSWORD de GitHub Actions con la credencial QA acordada y se restauró esa misma credencial en el usuario QA existente. No se cambió rol, membresía ni datos de negocio. Verificado: actualización del secreto confirmada por CLI y metadatos, una sola fila auth actualizada, login real seguido de Dashboard como admin QA. Ningún secreto se incluye en este documento ni en archivos del repo.
