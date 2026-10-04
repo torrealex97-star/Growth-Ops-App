@@ -20,6 +20,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { stripeList } from '@/lib/stripe/client'
 import { fetchStripeFeesForChargeIds } from './stripeFees'
+import { esMonedaBase, obtenerTasaAEur, type TasaAEur } from './fx'
 import { ultimaDevolucionPorPago, type StripeRefundLite } from './refundDates'
 
 export type StripePaymentsSyncResult = {
@@ -188,20 +189,46 @@ export async function syncStripePayments(
       fechasDevolucion = null
     }
   }
-  const filasConFecha = filas.map((f) => {
+  const filasConDevolucion = filas.map((f) => {
     if (!fechasDevolucion) return f
     if (f.refunded_amount <= 0) return { ...f, refunded_at: null as string | null }
     const cuando = fechasDevolucion.get(f.payment_id)
     return cuando ? { ...f, refunded_at: cuando } : f
   })
 
+  // TIPO DE CAMBIO (F04 · MONEY D2): los pagos en otra moneda guardan el tipo del BCE a la fecha del
+  // cobro y su fecha. Una consulta por (moneda, día); sin tipo, la columna NO se incluye y el pago se
+  // reporta como no convertido en vez de contarse como EUR.
+  const tasas = new Map<string, TasaAEur | null>()
+  const filasConFecha: ((typeof filasConDevolucion)[number] & { fx_rate_to_eur?: number; fx_rate_date?: string })[] = []
+  for (const f of filasConDevolucion) {
+    if (esMonedaBase(f.currency) || !f.paid_at) {
+      filasConFecha.push(f)
+      continue
+    }
+    const dia = f.paid_at.slice(0, 10)
+    const clave = `${f.currency}|${dia}`
+    if (!tasas.has(clave)) tasas.set(clave, await obtenerTasaAEur(f.currency, dia))
+    const t = tasas.get(clave)
+    filasConFecha.push(t ? { ...f, fx_rate_to_eur: t.rate, fx_rate_date: t.date } : f)
+  }
+
   // UPSERT por (tenant_id, payment_id): reejecutar nunca duplica; refresca refunded_amount/status
   // por si la devolución llegó entre ejecuciones y el webhook no pudo escribir el espejo.
   let written = 0
   const CHUNK = 200
-  // Filas con y sin `refunded_at` van en upserts SEPARADOS: en un upsert masivo, una clave ausente en
-  // unas filas y presente en otras se rellena con null y pisaría la fecha que el espejo ya tiene.
-  const grupos = [filasConFecha.filter((f) => 'refunded_at' in f), filasConFecha.filter((f) => !('refunded_at' in f))]
+  // Las filas se agrupan por el CONJUNTO de columnas que llevan (con/sin `refunded_at`, con/sin tipo de
+  // cambio…): en un upsert masivo, una clave ausente en unas filas y presente en otras se rellena con
+  // null y pisaría el dato que el espejo ya tiene.
+  const grupos = [
+    ...filasConFecha
+      .reduce((m, f) => {
+        const firma = Object.keys(f).sort().join(',')
+        m.set(firma, [...(m.get(firma) ?? []), f])
+        return m
+      }, new Map<string, typeof filasConFecha>())
+      .values(),
+  ]
   for (const grupo of grupos) {
     for (let i = 0; i < grupo.length; i += CHUNK) {
       const lote = grupo.slice(i, i + CHUNK)

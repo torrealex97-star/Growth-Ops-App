@@ -39,6 +39,10 @@ export type StripePaymentRow = {
    * del cobro, como antes, y se contabiliza en `devolucionesSinFecha`).
    */
   refunded_at?: string | null
+  /** Moneda del pago (minúsculas). Ausente o 'eur' = moneda base. */
+  currency?: string | null
+  /** EUR por 1 unidad de `currency`, BCE a la fecha del cobro (MONEY D2). NULL = sin tipo. */
+  fx_rate_to_eur?: number | string | null
 }
 
 /** Fila de collections (fallback) ya recortada a lo que el cash necesita. */
@@ -74,11 +78,45 @@ export type CashBreakdown = {
   duplicatedPayments: number
   /** Importe de devoluciones de Stripe sin fecha conocida (restadas en el periodo del cobro). */
   devolucionesSinFecha: number
+  /** Pagos en otra moneda SIN tipo de cambio: no entran en el neto y se reportan aparte (MONEY D2). */
+  noConvertidos: { moneda: string; importe: number; pagos: number }[]
   /** Cobros internos que Stripe también vio, con importe DISTINTO: la primaria gana, pero queda registrado. */
   amountConflicts: { paymentId: string; stripe: number; internal: number }[]
 }
 
 const num = (x: number | string | null | undefined): number => Number(x ?? 0)
+
+/**
+ * Lleva los pagos a la moneda base (EUR) con el tipo guardado en cada fila. Un pago en otra moneda
+ * SIN tipo no se cuenta como EUR (MONEY D2: una cantidad en otra moneda no es una cantidad en la
+ * base): sale de la lista y se devuelve en `noConvertidos`.
+ */
+export function aMonedaBase(rows: StripePaymentRow[]): {
+  rows: StripePaymentRow[]
+  noConvertidos: CashBreakdown['noConvertidos']
+} {
+  const out: StripePaymentRow[] = []
+  const faltan = new Map<string, { importe: number; pagos: number }>()
+  for (const r of rows) {
+    const moneda = (r.currency ?? 'eur').trim().toLowerCase()
+    if (moneda === 'eur' || moneda === '') {
+      out.push(r)
+      continue
+    }
+    const tipo = Number(r.fx_rate_to_eur)
+    if (!Number.isFinite(tipo) || tipo <= 0) {
+      const previo = faltan.get(moneda) ?? { importe: 0, pagos: 0 }
+      faltan.set(moneda, { importe: previo.importe + num(r.amount), pagos: previo.pagos + 1 })
+      continue
+    }
+    const aEur = (x: number | string | null | undefined) => Math.round(num(x) * tipo * 100) / 100
+    out.push({ ...r, amount: aEur(r.amount), refunded_amount: aEur(r.refunded_amount) })
+  }
+  return {
+    rows: out,
+    noConvertidos: [...faltan].map(([moneda, v]) => ({ moneda, importe: v.importe, pagos: v.pagos })),
+  }
+}
 
 // El mismo dinero entre fuentes: payment_reference de collections == payment_id
 // (o charge_id) de Stripe. Es la dedupKey que declara el registro (§2):
@@ -108,7 +146,7 @@ function mismaReferenciaStripe(ref: string | null | undefined, sp: StripePayment
  *     el cash, y `collections` 'reversed') restan del total.
  */
 export function canonicalCash(
-  stripePayments: StripePaymentRow[],
+  stripeCrudos: StripePaymentRow[],
   collections: InternalCollectionRow[],
   internalRefunds: InternalRefundRow[] = [],
   /**
@@ -116,8 +154,10 @@ export function canonicalCash(
    * sus cobros en `stripePayments`. Si se pasa, las devoluciones con fecha se restan aquí y no por
    * el cobro; sin él, todo se resta por el cobro (comportamiento anterior).
    */
-  devolucionesFechadas?: StripePaymentRow[]
+  devolucionesCrudas?: StripePaymentRow[]
 ): CashBreakdown {
+  const { rows: stripePayments, noConvertidos } = aMonedaBase(stripeCrudos)
+  const devolucionesFechadas = devolucionesCrudas && aMonedaBase(devolucionesCrudas).rows
   let grossStripe = 0
   let netStripe = 0
   let refundStripe = 0
@@ -214,6 +254,7 @@ export function canonicalCash(
     },
     duplicatedPayments: duplicatedPayments.length,
     devolucionesSinFecha,
+    noConvertidos,
     amountConflicts,
   }
 }
@@ -234,13 +275,15 @@ export type CashBucket = { cubo: string; neto: number }
  * Un cubo SIN filas de cash no aparece en la serie: hueco ≠ cero, igual que en Evolución.
  */
 export function serieCanonicaCash(
-  stripePayments: StripePaymentRow[],
+  stripeCrudos: StripePaymentRow[],
   collections: InternalCollectionRow[],
   internalRefunds: InternalRefundRow[] = [],
   granularidad: 'dia' | 'semana' | 'mes' = 'dia',
   /** Igual que en `canonicalCash`: devoluciones con fecha restan en SU cubo, no en el del cobro. */
-  devolucionesFechadas?: StripePaymentRow[]
+  devolucionesCrudas?: StripePaymentRow[]
 ): CashBucket[] {
+  const stripePayments = aMonedaBase(stripeCrudos).rows
+  const devolucionesFechadas = devolucionesCrudas && aMonedaBase(devolucionesCrudas).rows
   const claveDe = (iso: string): string => {
     if (granularidad === 'dia') return iso.slice(0, 10)
     if (granularidad === 'semana') {

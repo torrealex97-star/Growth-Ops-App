@@ -40,6 +40,8 @@ export type ResultadoConsulta = {
   fuentesConError: { fuente: string; error: string }[]
   /** Qué fuentes se leyeron recortadas por el tope de páginas: sus sumas pueden faltar datos. */
   fuentesRecortadas: string[]
+  /** Pagos en otra moneda sin tipo de cambio: fuera del cash, avisados aparte (MONEY D2). */
+  cashNoConvertido: { moneda: string; importe: number; pagos: number }[]
   /** Cuántas filas se leyeron de cada fuente. Va al drill-down de "ver cálculo". */
   filasLeidas: Record<string, number>
   /**
@@ -183,7 +185,9 @@ export async function consultarMetricas(
       () =>
         sb
           .from('stripe_payments')
-          .select('payment_id, charge_id, amount, refunded_amount, refunded_at, status, paid_at, customer_email')
+          .select(
+            'payment_id, charge_id, amount, refunded_amount, refunded_at, currency, fx_rate_to_eur, status, paid_at, customer_email'
+          )
           .eq('tenant_id', tenantId)
           .gte('paid_at', `${periodo.desde}T00:00:00Z`)
           .lte('paid_at', `${periodo.hasta}T23:59:59Z`)
@@ -195,7 +199,9 @@ export async function consultarMetricas(
       () =>
         sb
           .from('stripe_payments')
-          .select('payment_id, charge_id, amount, refunded_amount, refunded_at, status, paid_at, customer_email')
+          .select(
+            'payment_id, charge_id, amount, refunded_amount, refunded_at, currency, fx_rate_to_eur, status, paid_at, customer_email'
+          )
           .eq('tenant_id', tenantId)
           .gte('refunded_at', `${periodo.desde}T00:00:00Z`)
           .lte('refunded_at', `${periodo.hasta}T23:59:59Z`)
@@ -292,6 +298,7 @@ export async function consultarMetricas(
     agregados: protegidos,
     fuentesConError,
     fuentesRecortadas,
+    cashNoConvertido: cash.noConvertidos,
     citas: citasCanonicas,
     serieFacturacion: invalidas.includes('ventas') ? [] : serieFacturacionAcumulada(ventasNormalizadas, periodo),
     serieCash: cashCompleto

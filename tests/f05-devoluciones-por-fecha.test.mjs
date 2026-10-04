@@ -78,6 +78,7 @@ test('ultimaDevolucionPorPago toma la última devolución exitosa de cada pago',
 
 test('el sync no pisa refunded_at con null cuando no lo conoce', () => {
   const s = readFileSync(new URL('../lib/finance/stripePaymentsSync.ts', import.meta.url), 'utf8')
-  assert.match(s, /'refunded_at' in f/)
+  // Los upserts se agrupan por el conjunto de columnas de cada fila: nunca mezclan filas con y sin la clave.
+  assert.match(s, /Object\.keys\(f\)\.sort\(\)\.join/)
   assert.match(s, /if \(!refundsRes\.truncated\)/)
 })
