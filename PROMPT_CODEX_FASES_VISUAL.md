@@ -12,13 +12,39 @@ citados — este prompt asume que ya los leíste.
 10 (adopción de `Skeleton`/`EmptyState`) con su propio plan detallado — hazla primero o en
 paralelo, es independiente de esto.
 
-**Antes de empezar:** pide al usuario credenciales de un tenant de prueba/staging (no uses datos
-de producción reales para clicar a ciegas si existe una alternativa) y confirma qué entorno vas a
-usar (local `npm run dev`, el preview de Vercel de esta rama, o producción). Si solo hay
-producción disponible, pregúntale al usuario antes de tocar nada que pudiera escribir datos (crear,
-editar, borrar) — todo lo de este documento es de LECTURA/observación, pero algún journey de la
-Fase 13 necesita completar un flujo real (ej. una venta) y eso sí requiere su confirmación explícita
-primero.
+## 0. Acceso al tenant de prueba en local
+
+Claude ya dejó el tenant QA (`qa-e2e`) aprovisionado y con login funcionando (vía el MCP de
+Supabase, con acceso real al proyecto). **Las credenciales no van en este documento** — el
+usuario te las pasa directamente en el chat/terminal al arrancar esta tarea (email + contraseña
+de un usuario sintético con rol `admin`, solo en el tenant `qa-e2e`, sin ningún privilegio de
+super-admin — ya verificado). Pasos:
+
+1. **`.env.local`** — necesitas la URL del proyecto y la clave `anon`/publishable (son las claves
+   PÚBLICAS del proyecto — las mismas que ya viajan en el bundle del navegador de la app
+   desplegada). Pídeselas al usuario si no las tienes ya, o tráelas tú con
+   `vercel env pull .env.local` si tienes el proyecto vinculado.
+2. **Levanta la app:** `npm run dev`
+3. **Entra** en `http://localhost:3000/qa-e2e/login` (o el puerto que uses) con el email y
+   contraseña que te pasó el usuario. El tenant tiene rol `admin`, un producto con plan de
+   reserva (300) y pago completo (3000), y dos contactos de prueba.
+4. **Si necesitas RESETEAR el tenant** (volver a un estado limpio, o ejecutar
+   `scripts/e2e/setup-tenant.mjs` directamente) necesitas `SUPABASE_SERVICE_ROLE_KEY` — esa es la
+   llave maestra de TODO el proyecto (incluye tenants reales con datos reales), no solo de
+   `qa-e2e`, así que no se escribe en ningún documento. Sácala tú con:
+   ```bash
+   vercel login && vercel link && vercel env pull .env.local
+   ```
+   y pídele al usuario confirmación antes de ejecutar nada que escriba fuera del tenant `qa-e2e`.
+5. **Para el journey de colaborador** (Fase 13, punto 5): el fixture ya tiene un perfil de
+   colaborador, pero su usuario (`colaborador@qa-e2e.test`) se generó con una contraseña aleatoria
+   porque ese rol normalmente firma por token, no hace login. Si necesitas probar el login de un
+   colaborador de verdad, crea un segundo usuario con rol `collaborator` desde la pantalla de
+   usuarios de la app (ya logueado como admin) — más simple que tocar contraseñas a mano.
+
+Solo pregúntale al usuario si quieres probar contra el preview de Vercel o producción en vez de
+local, o si algún journey de la Fase 13 requiere escribir datos fuera del tenant `qa-e2e` (p. ej.
+un pago real con Stripe) — eso sí necesita su confirmación explícita antes de ejecutarse.
 
 ---
 

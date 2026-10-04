@@ -3,6 +3,8 @@ import { getTenantConfigWithFallback } from '@/lib/config'
 import { createClient } from '@supabase/supabase-js'
 import { runMetaSync } from '@/lib/meta/sync'
 import { recordSyncRun, SyncBusyError, SyncOmitidaError } from '@/lib/integrations/sync-runs'
+import { comprobarYGuardar } from '@/lib/integrations/comprobaciones'
+import { comprobarSaludMeta } from '@/lib/meta/salud'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -30,6 +32,11 @@ export async function GET(req: NextRequest) {
       // credenciales en process.env y no borra las anteriores: en este mismo bucle, la subcuenta sin
       // token propio heredaba el de la anterior y se llenaba con SUS campañas.
       const cfg = await getTenantConfigWithFallback(tn.id, true)
+      // Guarda el veredicto de «Comprobar ahora» ANTES de sincronizar (ver cron/instagram): queda
+      // registrado aunque la sincronización se corte por tiempo, y la pantalla deja de decir «Sin comprobar».
+      if (cfg.META_ACCESS_TOKEN) {
+        await comprobarYGuardar(sb, tn.id, 'meta', () => comprobarSaludMeta(cfg), 8_000)
+      }
       try {
         perTenant[tn.slug] = await recordSyncRun(
           sb,

@@ -8,6 +8,7 @@ import { Receipt, ExternalLink, Download } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { lastNMonths, monthLabel } from '@/lib/analytics'
 import { computeMonthlyPnl, FINANCE_QUERY_ROW_CAP, type PnlSaleRow, type PnlCommissionRow } from '@/lib/finance/pnl'
+import { useTenantId } from '@/lib/tenant-context'
 
 type CollectionRow = {
   id: string
@@ -93,6 +94,7 @@ function downloadCsv(filename: string, rows: string[][]) {
 }
 
 export default function GestoriaPage() {
+  const tenantId = useTenantId()
   const [loading, setLoading] = useState(true)
   const [ym, setYm] = useState(nowYm())
   const [collections, setCollections] = useState<CollectionRow[]>([])
@@ -113,16 +115,27 @@ export default function GestoriaPage() {
         supabase
           .from('collections')
           .select('id, sale_id, gross_amount, processing_fee, vat, collected_at, status')
+          .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('expenses')
           .select('id, concept, category, amount, expense_date, counterparty, invoice_url')
+          .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
-        supabase.from('refunds').select('gross_refund_amount, refund_date').range(0, FINANCE_QUERY_ROW_CAP),
-        supabase.from('sales').select('gross_amount, discount, sale_date, status').range(0, FINANCE_QUERY_ROW_CAP),
+        supabase
+          .from('refunds')
+          .select('gross_refund_amount, refund_date')
+          .eq('tenant_id', tenantId)
+          .range(0, FINANCE_QUERY_ROW_CAP),
+        supabase
+          .from('sales')
+          .select('gross_amount, discount, sale_date, status')
+          .eq('tenant_id', tenantId)
+          .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('commissions')
           .select('commission_amount, direction, collection_id, liquidation_month')
+          .eq('tenant_id', tenantId)
           .range(0, FINANCE_QUERY_ROW_CAP),
       ])
       if (!mounted) return

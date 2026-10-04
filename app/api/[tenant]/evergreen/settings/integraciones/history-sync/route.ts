@@ -6,20 +6,17 @@ import { getTenantConfigWithFallback } from '@/lib/config'
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-import { decideMatch } from '@/lib/fathom/match'
 import { recordSyncRun, SyncBusyError } from '@/lib/integrations/sync-runs'
 import { HISTORY_CAPABILITIES } from '@/lib/integrations/history'
-// La implementación de las sincronizaciones de citas vive en lib/integrations/citas-sync: la usa
-// también el cron diario (cron/calendly-ghl). Aquí solo quedan Fathom y el enrutado de proveedores —
-// tener DOS copias de estas funciones (una por el botón, otra por el cron) es exactamente la deriva
-// que dejó la ingesta de agendas muerta durante días sin que nadie lo viera.
-import { serviceClient, syncCalendly, syncGhl, text } from '@/lib/integrations/citas-sync'
+// La implementación de las sincronizaciones de citas vive en lib/integrations/citas-sync y la
+// ingesta por-reunión de Fathom en lib/fathom/ingesta: las usan también el cron diario y el
+// webhook entrante. Aquí solo queda el enrutado de proveedores y la paginación del histórico —
+// tener DOS copias de estas funciones (una por el botón, otra por el webhook) es exactamente la
+// deriva que dejó la ingesta de agendas muerta durante días sin que nadie la viera.
+import { serviceClient, syncCalendly, syncGhl } from '@/lib/integrations/citas-sync'
 import { runMetaAdsSync, runMetaDailySync, runMetaSync } from '@/lib/meta/sync'
-import { fetchMeetingsPage, meetingId, meetingSummary, meetingTranscript } from '@/lib/fathom/meetings'
-import { buscarContactoPorEmail } from '@/lib/contacts/buscar'
-import { ESTADOS_SIN_RESOLVER } from '@/lib/appointments/status'
-
-type Json = Record<string, unknown>
+import { fetchMeetingsPage, meetingId } from '@/lib/fathom/meetings'
+import { procesarMeetingFathom } from '@/lib/fathom/ingesta'
 
 async function requireAdmin(tenant: string) {
   const t = await requireTenant(tenant)
@@ -65,124 +62,26 @@ async function syncFathom(
         continue
       }
 
-      // Si ya está en la cola de revisión, no se vuelve a anotar ni se reprocesa: el humano manda.
-      const enRevision = await sb
-        .from('fathom_match_review')
-        .select('id,status')
-        .eq('tenant_id', tenantId)
-        .eq('fathom_meeting_id', fathomMeetingId)
-        .maybeSingle()
-      if (enRevision.data) {
-        // Una vez en la cola, manda la persona: no se reprocesa ni se reabre si ya la resolvió.
-        stats.ya_en_revision++
-        continue
-      }
-
-      const invitees = Array.isArray(meeting.calendar_invitees) ? (meeting.calendar_invitees as Json[]) : []
-      const external = invitees.find((i) => i.is_external === true) || invitees[0]
-      const email = text(external?.email)?.toLowerCase() ?? null
-      const startedAt = text(meeting.scheduled_start_time) || text(meeting.recording_start_time)
-
-      // Candidatas: las citas de ese contacto alrededor de la hora de la reunión. Se consulta una
-      // ventana holgada y es el matcher quien aplica la ventana estricta — así la regla vive en un
-      // solo sitio y se puede probar sin base de datos.
-      let candidates: Array<{ id: string; appointmentDatetime: string; fathomMeetingId?: string | null }> = []
-      if (email && startedAt) {
-        const contact = await sb
-          .from('contacts')
-          .select('id')
-          .eq('tenant_id', tenantId)
-          .eq('email', email)
-          .maybeSingle()
-        if (contact.data) {
-          const wide = 12 * 60 * 60 * 1000
-          const { data, error } = await sb
-            .from('appointments')
-            .select('id,appointment_datetime,fathom_meeting_id')
-            .eq('tenant_id', tenantId)
-            .eq('contact_id', (contact.data as { id: string }).id)
-            .gte('appointment_datetime', new Date(new Date(startedAt).getTime() - wide).toISOString())
-            .lte('appointment_datetime', new Date(new Date(startedAt).getTime() + wide).toISOString())
-          if (error) throw error
-          candidates = (data ?? []).map((a) => {
-            const row = a as { id: string; appointment_datetime: string; fathom_meeting_id: string | null }
-            return {
-              id: row.id,
-              appointmentDatetime: row.appointment_datetime,
-              fathomMeetingId: row.fathom_meeting_id,
-            }
-          })
-        }
-      }
-
-      const decision = decideMatch({ fathomMeetingId, startedAt, email }, candidates)
-
-      if (decision.kind === 'ya_importada') {
-        stats.ya_importadas++
-        continue
-      }
-
-      if (decision.kind === 'match') {
+      const resultado = await procesarMeetingFathom(sb, tenantId, meeting, { dryRun })
+      // Los contadores y las escrituras los lleva la ingesta por reunión (misma lógica que usa el
+      // webhook entrante): aquí solo se anotan, con el porqué en la muestra cuando el caso acaba
+      // en la cola de revisión.
+      if (resultado.kind === 'ya_en_revision') stats.ya_en_revision++
+      if (resultado.kind === 'ya_importadas') stats.ya_importadas++
+      if (resultado.kind === 'emparejadas') {
         stats.emparejadas++
-        if (muestra.length < 20) muestra.push({ reunion: fathomMeetingId, decision: `emparejada (${decision.via})` })
-        if (dryRun) continue
-        const transcript = meetingTranscript(meeting)
-        // .select() para no dar por escrito lo que RLS o un id obsoleto pudieron dejar en 0 filas.
-        const { data: updated, error } = await sb
-          .from('appointments')
-          .update({
-            recording_url: fathomMeetingId,
-            ai_summary: meetingSummary(meeting),
-            transcript,
-            transcript_status: transcript ? 'listo' : 'no_aplica',
-            fathom_meeting_id: fathomMeetingId,
-          })
-          .eq('tenant_id', tenantId)
-          .eq('id', decision.appointmentId)
-          .select('id')
-        if (error) throw error
-
-        // LA GRABACIÓN PRUEBA QUE LA LLAMADA OCURRIÓ: la cita pasa a "asistió".
-        //
-        // Va en una escritura APARTE y acotada a los estados sin resolver (ver debeMarcarAsistencia):
-        // así nunca pisa una decisión humana —un "no asistió" puesto a mano, una cita cancelada— y si
-        // esta segunda escritura fallara, la grabación y la transcripción ya están guardadas.
-        const { error: errorAsistencia } = await sb
-          .from('appointments')
-          .update({ status: 'show' })
-          .eq('tenant_id', tenantId)
-          .eq('id', decision.appointmentId)
-          .in('status', ESTADOS_SIN_RESOLVER)
-        if (errorAsistencia) {
-          // No se interrumpe la importación por esto: el dato principal ya entró.
-          console.warn('[fathom] no se pudo marcar la asistencia:', errorAsistencia.message)
-        }
-        if (!updated || updated.length === 0) {
-          // La cita existía al consultar y no se pudo escribir: no se cuenta como emparejada.
-          stats.emparejadas--
-          stats.a_revision_sin_candidatos++
-          if (!dryRun)
-            await anotarRevision(sb, tenantId, fathomMeetingId, meeting, email, startedAt, {
-              kind: 'sin_candidatos',
-              reason: 'La cita elegida no se pudo actualizar (0 filas afectadas).',
-              candidateIds: [decision.appointmentId],
-            })
-        }
-        continue
+        if (muestra.length < 20)
+          muestra.push({ reunion: fathomMeetingId, decision: `emparejada (${resultado.via ?? 'via'})` })
       }
-
-      // Ambigua o sin candidatos: a la cola, nunca una escritura a ciegas.
-      if (decision.kind === 'ambigua') stats.a_revision_ambiguas++
-      else stats.a_revision_sin_candidatos++
-      if (muestra.length < 20) {
-        muestra.push({ reunion: fathomMeetingId, decision: decision.kind, detalle: decision.reason })
+      if (resultado.kind === 'a_revision_ambiguas') {
+        stats.a_revision_ambiguas++
+        if (muestra.length < 20)
+          muestra.push({ reunion: fathomMeetingId, decision: 'ambigua', detalle: resultado.razon })
       }
-      if (!dryRun) {
-        await anotarRevision(sb, tenantId, fathomMeetingId, meeting, email, startedAt, {
-          kind: decision.kind,
-          reason: decision.reason,
-          candidateIds: decision.kind === 'ambigua' ? decision.candidateIds : [],
-        })
+      if (resultado.kind === 'a_revision_sin_candidatos') {
+        stats.a_revision_sin_candidatos++
+        if (muestra.length < 20)
+          muestra.push({ reunion: fathomMeetingId, decision: 'sin_candidatos', detalle: resultado.razon })
       }
     }
 
@@ -192,38 +91,6 @@ async function syncFathom(
   }
 
   return { provider: 'fathom', dryRun, pages, ...stats, muestra }
-}
-
-// Anota un caso dudoso en la cola. Idempotente por (tenant_id, fathom_meeting_id): un re-sync no
-// añade duplicados, y si la entrada ya estaba resuelta no se reabre.
-async function anotarRevision(
-  sb: SupabaseClient,
-  tenantId: string,
-  fathomMeetingId: string,
-  meeting: Json,
-  email: string | null,
-  startedAt: string | null,
-  info: { kind: 'ambigua' | 'sin_candidatos'; reason: string; candidateIds: string[] }
-) {
-  // El correo del asistente es PII. Se vincula al contacto si esa persona ya tiene ficha, para que
-  // `erase_person` alcance la fila; si no la tiene, queda a NULL y NO se crea una ficha por un
-  // correo que solo apareció en una reunión. Ver `docs/F6-MAPA-PII.md` §1.2.
-  const contactId = await buscarContactoPorEmail(sb, tenantId, email)
-  const { error } = await sb.from('fathom_match_review').upsert(
-    {
-      tenant_id: tenantId,
-      fathom_meeting_id: fathomMeetingId,
-      meeting_started_at: startedAt,
-      invitee_email: email,
-      contact_id: contactId,
-      recording_url: text(meeting.share_url) || text(meeting.url),
-      candidate_appointment_ids: info.candidateIds,
-      reason_kind: info.kind,
-      reason: info.reason,
-    },
-    { onConflict: 'tenant_id,fathom_meeting_id', ignoreDuplicates: true }
-  )
-  if (error) throw error
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {

@@ -22,6 +22,17 @@ export function detectarEnlaceAgendaEnMensajes(mensajes: { text?: string }[]): b
   return mensajes.some((m) => !!m.text && PATRON_ENLACE_AGENDA.test(m.text))
 }
 
+/** ¿Contestó el equipo tras el último mensaje del lead? (embudo de DM: respondido vs ignorado). */
+export function respondidoDespuesDelLead(mensajes: { from: string }[]): boolean {
+  for (let i = mensajes.length - 1; i >= 0; i--) {
+    const m = mensajes[i]
+    if (!m) continue
+    if (m.from === 'agente') return true
+    if (m.from === 'lead') return false
+  }
+  return false
+}
+
 export function detectarEnlaceAgendaEnTexto(conv: IgConversation): boolean {
   return detectarEnlaceAgendaEnMensajes(conv.messages)
 }
@@ -56,6 +67,7 @@ export type MetricaConversacion = {
   tieneVenta: boolean | null
   enlaceAgendaEnTexto: boolean
   messageCount: number
+  respondido?: boolean // el equipo contestó tras el último mensaje del lead (embudo de DM)
 }
 
 export type ResumenMetricas = {
@@ -67,6 +79,11 @@ export type ResumenMetricas = {
   sinContactoConEnlaceAgenda: number // señal débil, nunca contada como agenda real
   tasaVinculacion: number // 0-1
   tasaAgendaSobreVinculados: number // 0-1, solo entre los que sí se pudieron verificar
+  // Embudo de DM (petición de Alex, 1-oct): respuesta del equipo (al menos un mensaje propio
+  // tras el último del lead) y enlace de agenda enviado por el equipo (señal de intención,
+  // declarada como tal, nunca contada como cita real).
+  respondidas: number
+  conEnlaceAgenda: number
 }
 
 // Agregación COMPARTIDA (Instagram y GHL): una sola implementación del resumen para que las
@@ -86,6 +103,8 @@ export function resumir(porConversacion: MetricaConversacion[], total: number): 
     sinContactoConEnlaceAgenda: sinContacto.filter((m) => m.enlaceAgendaEnTexto).length,
     tasaVinculacion: total > 0 ? conContactoVinculado / total : 0,
     tasaAgendaSobreVinculados: conContactoVinculado > 0 ? conAgendaVerificada / conContactoVinculado : 0,
+    respondidas: porConversacion.filter((m) => m.respondido).length,
+    conEnlaceAgenda: porConversacion.filter((m) => m.enlaceAgendaEnTexto).length,
   }
 }
 
@@ -106,6 +125,7 @@ export function calcularMetricas(
       tieneVenta: matchedContactId ? contactIdsConVenta.has(matchedContactId) : null,
       enlaceAgendaEnTexto: detectarEnlaceAgendaEnTexto(conv),
       messageCount: conv.message_count,
+      respondido: respondidoDespuesDelLead(conv.messages),
     }
   })
 

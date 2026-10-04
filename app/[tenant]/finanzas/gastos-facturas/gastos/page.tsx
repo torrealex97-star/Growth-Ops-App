@@ -258,8 +258,8 @@ export default function ExpensesPage() {
     setLoading(true)
     const supabase = createClient()
     const [eRes, uRes] = await Promise.all([
-      supabase.from('expenses').select('*').order('expense_date', { ascending: false }),
-      activeUserNamesQuery(supabase),
+      supabase.from('expenses').select('*').eq('tenant_id', tenantId).order('expense_date', { ascending: false }),
+      activeUserNamesQuery(supabase, tenantId),
     ])
     // Sin esto, un fallo de RLS al cargar gastos dejaba la pantalla vacía en silencio,
     // indistinguible de "no hay gastos este mes" (módulo de dinero, alto impacto si pasa

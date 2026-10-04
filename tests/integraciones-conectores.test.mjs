@@ -16,15 +16,21 @@ const HISTORY = 'lib/integrations/history.ts'
 // volvería a "configurada" y el usuario no sabría nunca si su integración funciona de verdad.
 test('cada comprobación se guarda, y una comprobación es una llamada real a la API', () => {
   const route = sinComentarios(read(ROUTE))
-  assert.match(route, /await saveLastCheck\(tenantId, group, result\)/)
-  assert.match(route, /HEALTH_KEY = 'INTEGRATION_HEALTH'/)
-  assert.match(route, /onConflict: 'tenant_id,key'/, 'el estado debe guardarse por subcuenta')
+  // El guardado vive en lib/integrations/comprobaciones.ts desde que los crons también lo usan: la
+  // pantalla y los crons guardan el veredicto con la MISMA función.
+  assert.match(route, /await guardarComprobacion\(svc\(\), tenantId, group, result\)/)
+  const lib = sinComentarios(read('lib/integrations/comprobaciones.ts'))
+  assert.match(lib, /HEALTH_KEY = 'INTEGRATION_HEALTH'/)
+  assert.match(lib, /onConflict: 'tenant_id,key'/, 'el estado debe guardarse por subcuenta')
   // probeGroup delega en un fetch REAL con timeout: una comprobación que solo mire si el campo está
   // relleno sería el "conectado" mentiroso que esto viene a quitar.
   const probe = route.slice(route.indexOf('async function probeGroup'))
   assert.match(route, /return fetch\(input,/)
   assert.match(route, /AbortSignal\.timeout\(PROBE_TIMEOUT_MS\)/)
-  assert.ok([...probe.matchAll(/await probeFetch\(/g)].length >= 8, 'faltan comprobaciones reales contra APIs')
+  // Instagram y Meta salieron de la ruta (lib/*/salud.ts) y hacen su propia llamada real con timeout.
+  assert.ok([...probe.matchAll(/await probeFetch\(/g)].length >= 7, 'faltan comprobaciones reales contra APIs')
+  assert.match(read('lib/instagram/salud.ts'), /AbortSignal\.timeout\(/)
+  assert.match(read('lib/instagram/salud.ts'), /await fetch\(graphUrl\(/)
 })
 
 // El mensaje lo escribe la API externa y cambia sin avisar; el código lo ponemos nosotros y es lo

@@ -81,7 +81,7 @@ const nextConfig = {
 // ya quedan inertes sin DSN (ver sentry.client/server/edge.config.ts), así que no perder el wrapper
 // de webpack aquí no cambia el comportamiento en runtime, solo evita el coste de build de más.
 if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
-  const { withSentryConfig } = require('@sentry/nextjs')
+  const { withSentryConfig } = require('@sentry/nextjs/config')
   module.exports = withSentryConfig(nextConfig, {
     org: process.env.SENTRY_ORG,
     project: process.env.SENTRY_PROJECT,

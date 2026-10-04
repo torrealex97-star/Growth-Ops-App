@@ -71,9 +71,9 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
           'En business.facebook.com, junto al nombre de la cuenta publicitaria verás un número largo precedido de act_. Ese es el Ad Account ID. Si gestionas varias, puedes pegarlas separadas por comas.',
       },
       {
-        titulo: 'Genera el Access Token en Meta for Developers',
+        titulo: 'Genera un token de System User (el del Explorador caduca en horas)',
         detalle:
-          'En developers.facebook.com, abre una app de tipo Business y usa el Explorador de la API Graph pidiendo los permisos ads_read y read_insights. El token corto caduca en horas: conviértelo en uno de larga duración antes de pegarlo, o habrá que repetirlo cada día.',
+          'En business.facebook.com › Configuración del negocio › Usuarios del sistema: crea uno (rol Administrador), asígnale la cuenta publicitaria, la Página y la cuenta de Instagram, y pulsa «Generar token» eligiendo tu app y los permisos que necesites (como mínimo ads_read para el gasto; para Instagram, instagram_basic, instagram_manage_insights, pages_show_list y pages_read_engagement). Ese token NO caduca ni se invalida al cambiar una contraseña. El token del Explorador de la API Graph sirve para probar, pero muere en horas y la sincronización se detiene.',
       },
       {
         titulo: 'Prueba la conexión',
@@ -113,6 +113,14 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         secret: false,
         placeholder: 'v25.0 (recomendada)',
         help: 'Déjalo vacío salvo que sepas lo que haces. Meta retira versiones por calendario: todas las anteriores a v24.0 están deprecadas desde junio de 2026.',
+      },
+      {
+        key: 'META_APP_ID',
+        advanced: true,
+        label: 'ID de la app de Meta',
+        type: 'text',
+        secret: false,
+        help: 'Opcional. Con él y el App Secret, la comprobación pregunta a Meta cuándo caduca el token y qué permisos tiene realmente.',
       },
       {
         key: 'META_AD_ACCOUNTS_ALL',
@@ -317,15 +325,27 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
   {
     id: 'fathom',
     title: 'Fathom',
-    description: 'Importa reuniones, grabaciones, resúmenes y transcripciones; incluye el servidor MCP oficial.',
+    description:
+      'Importa reuniones, grabaciones, resúmenes y transcripciones en tiempo real; incluye el servidor MCP oficial.',
     category: 'ia',
     test: true,
     required: ['FATHOM_API_KEY'],
+    webhookPath: '/api/{tenant}/evergreen/webhooks/fathom',
     pasos: [
       {
         titulo: 'Genera la API Key en Fathom',
         detalle:
           'En la configuración de tu cuenta de Fathom, apartado de API o integraciones, crea una clave nueva con acceso a las grabaciones y transcripciones de las reuniones del equipo.',
+      },
+      {
+        titulo: 'Crea el webhook en Fathom → Settings → API Access → Add Webhook',
+        detalle:
+          'Pega la dirección de arriba como Destination URL, elige que dispare con tus reuniones nuevas (y las compartidas contigo, si quieres) y marca incluir summary, transcript y action items en el payload. Así cada reunión entra en cuanto Fathom la procesa, sin esperar al botón de histórico.',
+      },
+      {
+        titulo: 'Guarda aquí el Webhook signing secret que te da Fathom',
+        detalle:
+          'Fathom lo genera al crear el webhook y empieza por whsec_. Sin él el webhook rechaza todo por seguridad: es lo que prueba que la entrega viene de Fathom y no ha sido alterada.',
       },
       {
         titulo: 'Comprueba que las reuniones llevan invitado con correo',
@@ -340,6 +360,13 @@ export const INTEGRATION_GROUPS: IntegrationGroup[] = [
         type: 'password',
         secret: true,
         help: 'Se genera en Fathom → Settings → API Access. Solo accede a reuniones visibles para ese usuario/equipo.',
+      },
+      {
+        key: 'FATHOM_WEBHOOK_SECRET',
+        label: 'Webhook signing secret',
+        type: 'password',
+        secret: true,
+        help: 'El que Fathom muestra al crear el webhook (empieza por whsec_). Verifica la firma de cada entrega; si lo dejas vacío, el webhook queda desactivado.',
       },
       {
         key: 'FATHOM_MCP_URL',

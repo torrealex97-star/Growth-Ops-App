@@ -11,7 +11,7 @@ import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { useSesion } from '@/lib/tenant-context'
+import { useSesion, useTenantId } from '@/lib/tenant-context'
 import { formatDateTime } from '@/lib/utils'
 
 const STATUSES = [
@@ -53,6 +53,7 @@ type DbUser = { id: string; full_name: string }
 type DbContact = { id: string; full_name: string }
 
 export default function CsmEventsPage() {
+  const tenantId = useTenantId()
   const sesion = useSesion()
   const [items, setItems] = useState<CsmEventRow[]>([])
   const [contacts, setContacts] = useState<DbContact[]>([])
@@ -84,8 +85,9 @@ export default function CsmEventsPage() {
       supabase
         .from('csm_events')
         .select('*, contacts(full_name), csm:csm_id(full_name)')
+        .eq('tenant_id', tenantId)
         .order('event_datetime', { ascending: false }),
-      activeUserNamesQuery(supabase),
+      activeUserNamesQuery(supabase, tenantId),
     ])
     setItems((eRes.data as CsmEventRow[]) || [])
     setCsmUsers((uRes.data as DbUser[]) || [])
@@ -93,10 +95,16 @@ export default function CsmEventsPage() {
     let { data: cData } = await supabase
       .from('contacts')
       .select('id, full_name')
+      .eq('tenant_id', tenantId)
       .eq('lead_status', 'cliente')
       .order('full_name')
     if (!cData || cData.length === 0) {
-      const fallback = await supabase.from('contacts').select('id, full_name').order('full_name').limit(200)
+      const fallback = await supabase
+        .from('contacts')
+        .select('id, full_name')
+        .eq('tenant_id', tenantId)
+        .order('full_name')
+        .limit(200)
       cData = fallback.data
     }
     setContacts((cData as DbContact[]) || [])

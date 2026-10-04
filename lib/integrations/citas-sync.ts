@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { aplicarCustomFieldsGhl } from '@/lib/contacts/custom-fields-ghl'
-import { mapearEstadoExterno } from '@/lib/appointments/status'
+import { estadoAlSincronizar, mapearEstadoExterno } from '@/lib/appointments/status'
+import { resolveUserIdByEmail } from '@/lib/tracking'
 
 // Sincronización de CITAS (Calendly + GHL): la ÚNICA implementación, usada por
 //   · el botón manual de Integraciones › history-sync (ventana completa),
@@ -161,8 +162,35 @@ export function ventana(opts: CitasSyncOpts) {
   return { desde, hasta }
 }
 
-// ── GHL: contactos + eventos de calendario ──────────────────────────────────
-// Los contactos van primero (los eventos referencian contactId; sin contacto previo se saltan).
+/**
+ * BACKFILL DEL DUEÑO POR CALENDARIO (closer-backfill): las citas de GHL ya importadas quedaron sin
+ * closer y sin ghl_calendar_id — el pull no estampaba ni mapeaba. Tras el primer mapeo (la pasada
+ * llena duenaDeCalendario), un UPDATE por (tenant, calendar, closer null) las re-deriva del
+ * calendario: idempotente, sin borrados, nunca pisa asignaciones reales (filtra closer_id null).
+ */
+export async function backfillCloserGhl(
+  sb: SupabaseClient,
+  tenantId: string,
+  mapa: Map<string, string | null>
+): Promise<number> {
+  let total = 0
+  for (const [calendarId, closerId] of mapa) {
+    if (!closerId) continue
+    const result = await sb
+      .from('appointments')
+      .update({ closer_id: closerId })
+      .eq('tenant_id', tenantId)
+      .eq('ghl_calendar_id', calendarId)
+      .is('closer_id', null)
+    if (result.error) {
+      console.warn(`[ghl] backfill closer del calendario ${calendarId.slice(0, 8)}:`, result.error.message)
+      continue
+    }
+    total += result.count ?? 0
+  }
+  return total
+}
+
 export async function syncGhl(
   sb: SupabaseClient,
   tenantId: string,
@@ -186,6 +214,7 @@ export async function syncGhl(
   let updated = 0
   let appointmentsImported = 0
   let appointmentsUpdated = 0
+  let closerBackfill = 0
   let cortado = false
   // En modo soloEventos esta fase NO corre: paginar todos los contactos no cabe en el cron.
   while (pages < 100 && !lazyContacts) {
@@ -228,6 +257,42 @@ export async function syncGhl(
   }
   if (!calendarsResponse.ok)
     throw new Error(calendarsBody.message || `GHL calendarios respondió ${calendarsResponse.status}`)
+  // CLOSER POR CALENDARIO. El evento de GHL no trae usuario asignado (el raw_payload de producción
+  // solo lleva calendarId); el dueño vive en el CALENDARIO (assignedUserId). Se resuelve una vez
+  // por calendario y se cachea: assignedUserId → GET /users/{id} → email → usuario de la app
+  // (resolveUserIdByEmail, acotado a la subcuenta). Sin dueño resuelto la cita queda sin closer:
+  // un hueco no se disimula con una asignación inventada.
+  const duenaDeCalendario = new Map<string, string | null>()
+  for (const calendar of calendarsBody.calendars ?? []) {
+    // El reloj también aquí: cada dueño cuesta un GET /users (15 s de presupuesto propio) y
+    // son varios por pasada. Sin corte, resolver 20 calendarios se come el budget SIN escribir
+    // ni una cita (lección #277: el deadline gobierna TODAS las llamadas externas). Lo ya
+    // resuelto queda en el mapa y la pasada sigue al bucle de eventos.
+    if (opts.deadlineMs && Date.now() > opts.deadlineMs) {
+      cortado = true
+      break
+    }
+    const cid = text(calendar.id)
+    const assignedUserId = text(calendar.assignedUserId) || text(calendar.userId)
+    if (!cid || !assignedUserId) continue
+    try {
+      const userResponse = await fetch(
+        `https://services.leadconnectorhq.com/users/${encodeURIComponent(assignedUserId)}?locationId=${encodeURIComponent(locationId)}`,
+        { headers, signal: AbortSignal.timeout(15_000) }
+      )
+      const userBody = (await userResponse.json().catch(() => ({}))) as Json
+      if (userResponse.ok) {
+        // El endpoint ha devuelto el objeto directo o envuelto en `user` según versión: se toleran ambas.
+        const user = (
+          text((userBody as Json).email) ? (userBody as Json) : ((userBody.user as Json | undefined) ?? null)
+        ) as Json | null
+        const userId = user ? await resolveUserIdByEmail(sb, text(user.email), tenantId) : null
+        if (userId) duenaDeCalendario.set(cid, userId)
+      }
+    } catch (e) {
+      console.warn('[ghl] no se pudo resolver el dueño del calendario:', e instanceof Error ? e.message : e)
+    }
+  }
   for (const calendar of calendarsBody.calendars ?? []) {
     if (opts.deadlineMs && Date.now() > opts.deadlineMs) {
       cortado = true
@@ -244,6 +309,13 @@ export async function syncGhl(
     const body = (await response.json().catch(() => ({}))) as { events?: Json[]; message?: string }
     if (!response.ok) throw new Error(body.message || `GHL agendas respondió ${response.status}`)
     for (const event of body.events ?? []) {
+      // Reloj ANTES de cada evento (lección #277): el fetch perezoso del contacto cuesta hasta
+      // 15 s, así que entre páginas ya es tarde. El corte abandona el evento SIN escribir —
+      // el upsert es idempotente y la pasada siguiente lo relee y lo guarda.
+      if (opts.deadlineMs && Date.now() > opts.deadlineMs) {
+        cortado = true
+        break
+      }
       if (event.deleted === true || text(event.type) === 'blockedSlot') continue
       const eventId = text(event.id)
       const ghlContactId = text(event.contactId)
@@ -254,7 +326,7 @@ export async function syncGhl(
       // perezosamente con un fetch individual — nunca paginando todos los contactos.
       const existing = await sb
         .from('appointments')
-        .select('id, contact_id')
+        .select('id, contact_id, closer_id, status')
         .eq('tenant_id', tenantId)
         .eq('external_id', eventId)
         .maybeSingle()
@@ -293,15 +365,26 @@ export async function syncGhl(
       const status = mapearEstadoExterno(text(event.appointmentStatus) || text(event.status)) || 'scheduled'
       const end = text(event.endTime)
       const duration = end ? Math.max(1, Math.round((Date.parse(end) - Date.parse(startsAt)) / 60_000)) : null
+      // Closer = dueño del calendario. SOLO se envía si hay usuario resuelto: al ser un update
+      // de values, una pasada sin mapeo nunca pisa una asignación manual ni la del webhook.
+      const closerId = duenaDeCalendario.get(calendarId) ?? null
+      // RELLENA huecos, nunca reasigna: si la fila ya tenía closer (manual o del webhook), el
+      // update no toca la columna — misma protección que el webhook de Calendly aplica en
+      // reagenda ("el crm al reagendar cambia la propiedad del lead"): sin ella, la pasada
+      // diaria del cron revertía cualquier corrección manual sobre citas de la ventana.
+      const yaTeniaCloser = Boolean((existing.data as { closer_id?: string | null } | null)?.closer_id)
       const values = {
         tenant_id: tenantId,
         external_source: 'ghl',
         external_id: eventId,
+        ghl_calendar_id: calendarId,
         contact_id: contact.data.id,
         appointment_datetime: new Date(startsAt).toISOString(),
         duration_minutes: duration,
-        status,
+        // Una pasada nunca retrocede una asistencia ya marcada a «sin resolver» (ver estadoAlSincronizar).
+        status: estadoAlSincronizar((existing.data as { status?: string | null } | null)?.status, status),
         source: 'ghl',
+        ...(closerId && !yaTeniaCloser ? { closer_id: closerId } : {}),
         calendar_name: text(calendar.name) || 'GoHighLevel',
         raw_payload: event,
       }
@@ -317,7 +400,20 @@ export async function syncGhl(
       }
     }
   }
-  return { provider: 'ghl', pages, imported, updated, appointmentsImported, appointmentsUpdated, cortado }
+  // Backfill idempotente: citas ya importadas de estos calendarios sin closer heredan al dueño.
+  if (duenaDeCalendario.size > 0) {
+    closerBackfill = await backfillCloserGhl(sb, tenantId, duenaDeCalendario)
+  }
+  return {
+    provider: 'ghl',
+    pages,
+    imported,
+    updated,
+    appointmentsImported,
+    appointmentsUpdated,
+    cortado,
+    closerBackfill,
+  }
 }
 
 // ── Calendly: scheduled_events + invitees ───────────────────────────────────
@@ -361,6 +457,14 @@ export async function syncCalendly(
     }
     if (!response.ok) throw new Error(body.message || `Calendly respondió ${response.status}`)
     for (const event of body.collection ?? []) {
+      // Reloj ANTES de cada evento (lección #277, cron 504 del 3-oct): el deadline solo
+      // comprueba entre páginas y una página de TODOS los eventos de 14 días la mataba tras
+      // 60 s de función. El corte deja el evento sin escribir; el run siguiente lo relee
+      // (upserts idempotentes por external_id) y continúa donde quedó.
+      if (opts.deadlineMs && Date.now() > opts.deadlineMs) {
+        cortado = true
+        break
+      }
       const uri = text(event.uri)
       if (!uri) continue
       const inviteesResponse = await fetch(`${uri}/invitees?count=100`, {
@@ -377,26 +481,36 @@ export async function syncCalendly(
           dateAdded: event.created_at,
         })
         if (!contact) continue
+        // Closer = dueño del calendario (event_memberships[0].user_email), igual que el webhook:
+        // resuelto por email o calendly_email y acotado a la subcuenta. SOLO se envía si hay
+        // usuario resuelto: la pasada siguiente nunca pisa una asignación manual.
+        const ownerEmail = text((event.event_memberships as Json[] | undefined)?.[0]?.user_email)
+        const closerId = ownerEmail ? await resolveUserIdByEmail(sb, ownerEmail, tenantId) : null
         const status = event.status === 'canceled' ? 'cancelled' : 'scheduled'
+        const existing = await sb
+          .from('appointments')
+          .select('id, closer_id, status')
+          .eq('tenant_id', tenantId)
+          .eq('external_id', uri)
+          .maybeSingle()
+        // RELLENA huecos, nunca reasigna (misma protección que el webhook en reagenda y que la
+        // vía GHL): un closer ya puesto —manual o del webhook— no se toca en el update.
+        const yaTeniaCloser = Boolean((existing.data as { closer_id?: string | null } | null)?.closer_id)
         const values = {
           tenant_id: tenantId,
           external_source: 'calendly',
           external_id: uri,
           contact_id: contact.id,
           appointment_datetime: text(event.start_time) || new Date().toISOString(),
-          status,
+          // Calendly no sabe si el lead se presentó: nunca retrocede una asistencia ya marcada.
+          status: estadoAlSincronizar((existing.data as { status?: string | null } | null)?.status, status),
           source: 'calendly',
+          ...(closerId && !yaTeniaCloser ? { closer_id: closerId } : {}),
           calendar_name: text(event.name) || 'Calendly',
           meeting_url: text((event.location as Json | undefined)?.join_url),
           reschedule_url: text(invitee.reschedule_url),
           raw_payload: { event, invitee },
         }
-        const existing = await sb
-          .from('appointments')
-          .select('id')
-          .eq('tenant_id', tenantId)
-          .eq('external_id', uri)
-          .maybeSingle()
         if (existing.data) {
           const result = await sb
             .from('appointments')

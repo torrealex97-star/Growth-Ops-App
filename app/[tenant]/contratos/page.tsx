@@ -12,7 +12,7 @@ import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AttachSignedContractButton } from '@/components/contracts/AttachSignedContractButton'
 import { SignedContractPdfButton } from '@/components/contracts/SignedContractPdfButton'
-import { useSesion, useTenant } from '@/lib/tenant-context'
+import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 
 const STATUSES = [
   { value: 'pendiente', label: 'Pendiente' },
@@ -45,6 +45,7 @@ type Contract = {
 }
 
 export default function ContratosPage() {
+  const tenantId = useTenantId()
   const tenant = useTenant()
   const sesion = useSesion()
   const [contracts, setContracts] = useState<Contract[]>([])
@@ -57,8 +58,12 @@ export default function ContratosPage() {
   const load = async () => {
     const supabase = createClient()
     const [cRes, contactsRes] = await Promise.all([
-      supabase.from('contracts').select('*, contacts(full_name), sales(id)').order('created_at', { ascending: false }),
-      supabase.from('contacts').select('id, full_name').order('full_name'),
+      supabase
+        .from('contracts')
+        .select('*, contacts(full_name), sales(id)')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false }),
+      supabase.from('contacts').select('id, full_name').eq('tenant_id', tenantId).order('full_name'),
     ])
     setContracts((cRes.data as Contract[]) || [])
     setContacts((contactsRes.data as Contact[]) || [])

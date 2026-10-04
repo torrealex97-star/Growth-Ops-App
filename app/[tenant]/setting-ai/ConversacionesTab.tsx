@@ -1,20 +1,36 @@
 'use client'
 import { useTenant } from '@/lib/tenant-context'
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import { Sparkles, Loader2, MessageCircle, ExternalLink, Phone, Mail, SearchX } from 'lucide-react'
+import {
+  Sparkles,
+  Loader2,
+  MessageCircle,
+  ExternalLink,
+  Phone,
+  Mail,
+  SearchX,
+  ChevronDown,
+  ChevronRight,
+  CalendarCheck,
+  DollarSign,
+  Send,
+} from 'lucide-react'
 import { formatNumber, formatPercent } from '@/lib/utils'
 import { SearchBox } from '@/components/ui/search-box'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { canalesDisponibles, filtrarConversaciones } from '@/lib/setting-ai/filtrar-conversaciones'
 import {
+  alimentarVerificadas,
   claveDia,
   etiquetaDia,
   horaDe,
   inicialesDe,
+  marcaVerificada,
   tiempoRelativo,
   ultimoMensaje,
   vistaPrevia,
   type MsgMin,
+  type VerificacionContacto,
 } from '@/lib/setting-ai/inbox'
 
 type ConvMsg = MsgMin & { created_time?: string }
@@ -58,6 +74,8 @@ type ResumenMetricas = {
   sinContactoConEnlaceAgenda: number
   tasaVinculacion: number
   tasaAgendaSobreVinculados: number
+  respondidas: number
+  conEnlaceAgenda: number
 }
 
 const PLATFORMS = [
@@ -72,6 +90,19 @@ type RespuestaConvos = {
   configured?: boolean
   conversations?: Conv[]
   motivo?: string
+  // GHL paginado: total declarado por la API y si queda página siguiente ("Cargar más").
+  total?: number | null
+  hayMas?: boolean
+}
+
+type RespuestaMetricas = {
+  error?: string
+  configured?: boolean
+  resumen?: ResumenMetricas
+  motivo?: string
+  // Por conversación: alimenta las marcas de cita/venta verificada del inbox (misma fuente
+  // que las tarjetas). tieneAgenda/tieneVenta null = sin contacto vinculado, no verificable.
+  porConversacion?: { conversationId: string; tieneAgenda?: boolean | null; tieneVenta?: boolean | null }[]
 }
 
 // Presentación del canal: icono y etiqueta legible. Lo que GHL no clasifique queda como
@@ -114,6 +145,20 @@ export default function ConversacionesTab() {
   >({})
   const [busqueda, setBusqueda] = useState('')
   const [canal, setCanal] = useState('todos')
+  // Conversaciones con hecho verificado en el CRM (cita/venta del contacto vinculado). La fuente
+  // es la que ya calcula /conversations/metrics para las tarjetas: no se inventa nada en cliente
+  // (un hecho es un hecho; sin contacto vinculado → sin marca).
+  const [verificadas, setVerificadas] = useState<Record<string, VerificacionContacto>>({})
+  // "Cargar más" (GHL): si el servidor declara página siguiente, cuántas quedan del total,
+  // estado de la petición en curso y su error (reintentable; no tumba la bandeja).
+  const [hayMas, setHayMas] = useState(false)
+  const [total, setTotal] = useState<number | null>(null)
+  const [cargandoMas, setCargandoMas] = useState(false)
+  const [errorMas, setErrorMas] = useState('')
+  // Composer de respuesta (GHL): borrador, envío en curso y su error (reintentable).
+  const [borrador, setBorrador] = useState('')
+  const [enviando, setEnviando] = useState<string | null>(null)
+  const [errorEnvio, setErrorEnvio] = useState('')
   const chatRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -121,6 +166,14 @@ export default function ConversacionesTab() {
     setBusqueda('')
     setCanal('todos')
     setOpenId(null)
+    setVerificadas({})
+    setHayMas(false)
+    setTotal(null)
+    setCargandoMas(false)
+    setErrorMas('')
+    setBorrador('')
+    setEnviando(null)
+    setErrorEnvio('')
     if (platform !== 'instagram' && platform !== 'ghl') {
       setConfigured(false)
       setConversations([])
@@ -150,6 +203,8 @@ export default function ConversacionesTab() {
         setConfigured(!!j.configured)
         setConversations(j.conversations || [])
         setMotivo(j.motivo || '')
+        setHayMas(!!j.hayMas)
+        setTotal(j.total ?? null)
       })
       .catch((e) => {
         if (!cancel) {
@@ -166,11 +221,7 @@ export default function ConversacionesTab() {
     }
   }, [platform, tenant])
 
-  // Al abrir una conversación, el chat se lee desde el final (última réplica): así se lee
-  // cualquier bandeja; además deja visible la burbuja más reciente sin scroll manual.
-  useEffect(() => {
-    if (openId && chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
-  }, [openId])
+  // (El auto-scroll del chat vive junto a `seleccionada`, más abajo: también baja al enviar.)
 
   // Resumen cross-plataforma (Instagram y GHL: las dos con datos reales hoy). Independiente del
   // tab activo — se ve aunque estés en el placeholder de Facebook/TikTok: comparar de un vistazo
@@ -180,7 +231,7 @@ export default function ConversacionesTab() {
     for (const p of ['instagram', 'ghl'] as const) {
       fetch(`/api/${tenant}/evergreen/setting-ai/conversations/metrics?platform=${p}`)
         .then((r) => r.json())
-        .then((j) => {
+        .then((j: RespuestaMetricas) => {
           if (cancel) return
           setMetricas((m) => ({
             ...m,
@@ -189,6 +240,10 @@ export default function ConversacionesTab() {
                 ? { resumen: j.resumen as ResumenMetricas }
                 : { motivo: j.motivo || j.error || '' },
           }))
+          // Las marcas del inbox se alimentan de la MISMA respuesta (porConversacion) que
+          // alimentan las tarjetas: sin llamadas nuevas y sin una segunda definición de
+          // "verificado". Lo nuevo de cada plataforma gana; la otra plataforma no se toca.
+          setVerificadas((v) => alimentarVerificadas(v, p, j.porConversacion ?? []))
         })
         .catch(() => {
           if (!cancel) setMetricas((m) => ({ ...m, [p]: { motivo: 'No se pudieron calcular las métricas.' } }))
@@ -220,9 +275,76 @@ export default function ConversacionesTab() {
     }
   }
 
+  // "Cargar más" (solo GHL): pide la siguiente tanda al POST y muestra lo que el servidor
+  // devuelve YA FUSIONADO con lo anterior (el snapshot del servidor es acumulativo). No toca
+  // filtros ni la conversación abierta: sigue leyendo donde estaba. El cursor vive en servidor,
+  // así que un reintento tras un corte continúa y no duplica filas.
+  // Enviar respuesta al lead desde el inbox (solo GHL: el servidor resuelve la conversación
+  // contra el snapshot y envía por su canal). Al volver ok, la burbuja se añade localmente
+  // (optimista, marcada pendiente hasta el próximo refresco de la bandeja).
+  async function enviarRespuesta() {
+    if (!seleccionada || enviando) return
+    const texto = borrador.trim()
+    if (!texto) return
+    setEnviando(seleccionada.id)
+    setErrorEnvio('')
+    try {
+      const r = await fetch(`/api/${tenant}/evergreen/setting-ai/conversations/reply`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ conversationId: seleccionada.id, texto }),
+      })
+      const j = (await r.json()) as { ok?: boolean; error?: string }
+      if (!r.ok || j.error) throw new Error(j.error || `El servidor respondió ${r.status}`)
+      setConversations((cs) =>
+        cs.map((c) =>
+          c.id === seleccionada.id
+            ? {
+                ...c,
+                messages: [...c.messages, { from: 'agente', text: texto, created_time: new Date().toISOString() }],
+              }
+            : c
+        )
+      )
+      setBorrador('')
+    } catch (e) {
+      setErrorEnvio((e as Error).message)
+    } finally {
+      setEnviando(null)
+    }
+  }
+
+  async function cargarMas() {
+    if (cargandoMas) return
+    setCargandoMas(true)
+    setErrorMas('')
+    try {
+      const r = await fetch(`/api/${tenant}/evergreen/setting-ai/conversations?platform=ghl`, {
+        method: 'POST',
+      })
+      const j = (await r.json()) as RespuestaConvos
+      if (j.error) throw new Error(j.error)
+      if (j.configured === false) throw new Error(j.motivo || 'GHL no está configurado.')
+      setConversations(j.conversations || [])
+      setMotivo(j.motivo || '')
+      setHayMas(!!j.hayMas)
+      setTotal(j.total ?? null)
+    } catch (e) {
+      setErrorMas((e as Error).message)
+    } finally {
+      setCargandoMas(false)
+    }
+  }
+
   const canales = canalesDisponibles(conversations)
   const visibles = filtrarConversaciones(conversations, busqueda, canal)
   const seleccionada = visibles.find((c) => c.id === openId) ?? null
+
+  // Al abrir una conversación, el chat se lee desde el final (última réplica); al enviar una
+  // respuesta, baja a mostrarla. Mismo efecto para ambos casos, sin scroll manual.
+  useEffect(() => {
+    if (openId && chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight
+  }, [openId, seleccionada?.messages.length])
 
   return (
     <div className="flex flex-col h-[calc(100vh-6.5rem)] text-foreground">
@@ -258,7 +380,7 @@ export default function ConversacionesTab() {
           )}
           {!loading && !error && configured !== false && conversations.length > 0 && (
             <span className="text-2xs text-muted-foreground">
-              {visibles.length} de {conversations.length} conversaciones
+              {visibles.length} de {total != null && platform === 'ghl' ? total : conversations.length} conversaciones
             </span>
           )}
         </div>
@@ -309,10 +431,48 @@ export default function ConversacionesTab() {
                 <FilaConversacion
                   c={c}
                   activa={openId === c.id}
-                  onClick={() => setOpenId(openId === c.id ? null : c.id)}
+                  onClick={() => {
+                    setOpenId(openId === c.id ? null : c.id)
+                    setBorrador('')
+                    setErrorEnvio('')
+                  }}
+                  verificacion={verificadas[`${platform}:${c.id}`]}
                 />
               </li>
             ))}
+            {platform === 'ghl' && hayMas && (
+              <li>
+                <button
+                  onClick={cargarMas}
+                  disabled={cargandoMas}
+                  aria-busy={cargandoMas}
+                  className="w-full rounded-xl border border-dashed border-border px-3 py-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 flex items-center justify-center gap-2"
+                >
+                  {cargandoMas ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Cargando…
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-4 h-4" />
+                      Cargar más
+                      {total != null && conversations.length < total ? ` (${conversations.length} de ${total})` : ''}
+                    </>
+                  )}
+                </button>
+              </li>
+            )}
+            {errorMas && (
+              <li className="text-2xs text-red-400/90 text-center px-2">
+                {errorMas}{' '}
+                <button
+                  onClick={cargarMas}
+                  className="underline hover:text-red-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
+                >
+                  Reintentar
+                </button>
+              </li>
+            )}
           </ul>
           <div className="hidden lg:block min-h-0">
             {seleccionada ? (
@@ -326,6 +486,11 @@ export default function ConversacionesTab() {
                 onAnalyze={() => analyze(seleccionada)}
                 analyzeError={analyzeError[seleccionada.id]}
                 analysis={analyses[seleccionada.id]}
+                borrador={borrador}
+                setBorrador={setBorrador}
+                onEnviar={enviarRespuesta}
+                enviando={enviando === seleccionada.id}
+                errorEnvio={errorEnvio}
               />
             ) : (
               <div className="h-full rounded-xl border border-dashed border-border flex flex-col items-center justify-center text-center text-muted-foreground text-sm gap-1.5 p-6">
@@ -349,6 +514,11 @@ export default function ConversacionesTab() {
                 onAnalyze={() => analyze(seleccionada)}
                 analyzeError={analyzeError[seleccionada.id]}
                 analysis={analyses[seleccionada.id]}
+                borrador={borrador}
+                setBorrador={setBorrador}
+                onEnviar={enviarRespuesta}
+                enviando={enviando === seleccionada.id}
+                errorEnvio={errorEnvio}
               />
             )}
           </div>
@@ -406,11 +576,23 @@ function Avatar({
   )
 }
 
-function FilaConversacion({ c, activa, onClick }: { c: Conv; activa: boolean; onClick: () => void }) {
+function FilaConversacion({
+  c,
+  activa,
+  onClick,
+  verificacion,
+}: {
+  c: Conv
+  activa: boolean
+  onClick: () => void
+  // Hecho verificado en el CRM (cita/venta del contacto vinculado); null = sin hecho que mostrar.
+  verificacion?: VerificacionContacto | null
+}) {
   const nombre = nombreDe(c)
   const canal = canalUi(c.channel)
   const ult = ultimoMensaje(c.messages)
   const sinLeer = c.unread_count > 0
+  const marcas = marcaVerificada(verificacion)
   return (
     <button
       onClick={onClick}
@@ -425,7 +607,13 @@ function FilaConversacion({ c, activa, onClick }: { c: Conv; activa: boolean; on
           <span className={`text-sm truncate ${sinLeer ? 'font-bold text-foreground' : 'font-medium text-foreground'}`}>
             {nombre}
           </span>
-          {sinLeer && <span className="w-2 h-2 shrink-0 rounded-full bg-brand-500" aria-label="Sin leer" />}
+          {sinLeer && (
+            <span
+              className="w-2 h-2 shrink-0 rounded-full bg-brand-500"
+              aria-label="Sin leer"
+              title="Último mensaje del lead sin responder por el equipo"
+            />
+          )}
           <span className="text-3xs text-muted-foreground ml-auto shrink-0">
             {tiempoRelativo(c.updated_time) ?? ''}
           </span>
@@ -436,6 +624,26 @@ function FilaConversacion({ c, activa, onClick }: { c: Conv; activa: boolean; on
             <IconoCanal tipo={canal.icono} className="w-2.5 h-2.5" />
             {canal.label}
           </span>
+          {marcas && (
+            <>
+              {marcas.agenda && (
+                <span
+                  className="inline-flex items-center gap-0.5 text-3xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded px-1 py-0.5"
+                  title="Este contacto tiene una cita en el CRM"
+                >
+                  <CalendarCheck className="w-2.5 h-2.5" /> Cita
+                </span>
+              )}
+              {marcas.venta && (
+                <span
+                  className="inline-flex items-center gap-0.5 text-3xs font-semibold text-brand-400 bg-brand-500/10 border border-brand-500/30 rounded px-1 py-0.5"
+                  title="Este contacto tiene una venta en el CRM"
+                >
+                  <DollarSign className="w-2.5 h-2.5" /> Venta
+                </span>
+              )}
+            </>
+          )}
           {c.messages.length > 0 && <span className="text-3xs text-muted-foreground">{c.messages.length} msgs</span>}
         </span>
       </span>
@@ -452,6 +660,11 @@ function PanelChat({
   onAnalyze,
   analyzeError,
   analysis,
+  borrador,
+  setBorrador,
+  onEnviar,
+  enviando,
+  errorEnvio,
 }: {
   c: Conv
   platform: Platform
@@ -461,6 +674,11 @@ function PanelChat({
   onAnalyze: () => void
   analyzeError?: string
   analysis?: Analysis
+  borrador: string
+  setBorrador: (v: string) => void
+  onEnviar: () => void
+  enviando: boolean
+  errorEnvio?: string
 }) {
   const nombre = nombreDe(c)
   const canal = canalUi(c.channel)
@@ -538,12 +756,83 @@ function PanelChat({
           ))}
         </div>
       )}
+      {platform === 'ghl' && msgs.length > 0 && (
+        <EstadoComposer
+          disponible={!!c.contactId}
+          enviando={enviando}
+          error={errorEnvio}
+          texto={borrador}
+          onChange={setBorrador}
+          onEnviar={onEnviar}
+        />
+      )}
       {(analyzeError || analysis) && (
         <div className="border-t border-border p-3">
           {analyzeError && <p className="text-red-400 text-xs">{analyzeError}</p>}
           {analysis && <AnalysisCard a={analysis} />}
         </div>
       )}
+    </div>
+  )
+}
+
+// Composer de respuesta (GHL): escribir al lead sin salir de la bandeja. Enter envía,
+// Shift+Enter salta línea. Sin contacto GHL la conversación no es respondible desde aquí
+// (el mensaje saldría a nadie) — se explica en vez de deshabilitar en silencio.
+function EstadoComposer({
+  disponible,
+  enviando,
+  error,
+  texto,
+  onChange,
+  onEnviar,
+}: {
+  disponible: boolean
+  enviando: boolean
+  error?: string
+  texto: string
+  onChange: (v: string) => void
+  onEnviar: () => void
+}) {
+  if (!disponible) {
+    return (
+      <div className="border-t border-border px-3 py-2.5 bg-muted/20">
+        <p className="text-3xs text-muted-foreground flex items-center gap-1.5">
+          <MessageCircle className="w-3 h-3" />
+          Responder desde aquí requiere el contacto de GHL de la conversación. Respóndele desde el móvil de GHL.
+        </p>
+      </div>
+    )
+  }
+  return (
+    <div className="border-t border-border px-3 py-2.5 bg-muted/20">
+      {error && <p className="text-red-400 text-2xs mb-1.5">{error}</p>}
+      <div className="flex items-end gap-2">
+        <textarea
+          value={texto}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              if (!enviando) onEnviar()
+            }
+          }}
+          rows={1}
+          placeholder="Escribe una respuesta… (Enter para enviar)"
+          aria-label="Escribe una respuesta"
+          className="flex-1 resize-none rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
+        />
+        <button
+          onClick={onEnviar}
+          disabled={enviando || !texto.trim()}
+          aria-busy={enviando}
+          title="Enviar respuesta al lead por el canal de la conversación"
+          className="bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white rounded-lg px-3 py-1.5 text-2xs font-semibold inline-flex items-center gap-1.5 active:scale-[0.98] transition-transform focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
+        >
+          {enviando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+          Enviar
+        </button>
+      </div>
     </div>
   )
 }
@@ -630,7 +919,7 @@ function ResumenCrossPlataforma({
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 py-3 border-b border-border">
       <TarjetaPlataforma label="Instagram" data={metricas.instagram} />
-      <TarjetaPlataforma label="GHL" data={metricas.ghl} hint="SMS · Facebook · Instagram · WhatsApp · email" />
+      <TarjetaPlataforma label="GHL" data={metricas.ghl} hint="SMS · WhatsApp · email · IG · Facebook · TikTok" />
     </div>
   )
 }
@@ -662,9 +951,19 @@ function TarjetaPlataforma({
             <span className="text-lg font-bold text-foreground">{formatNumber(metrics.totalConversaciones)}</span>
             <span className="text-3xs text-muted-foreground">conversaciones</span>
           </div>
+          {/* Embudo de DM: conversaciones → respondidas → enlace enviado → cita en CRM. */}
+          <div
+            className="flex items-center gap-1 text-3xs text-muted-foreground flex-wrap"
+            title="Embudo de DM: cuántas conversaciones respondió el equipo y cuántas recibieron un enlace de agenda (señal de intención, no un hecho)"
+          >
+            <b className="text-foreground">{formatNumber(metrics.respondidas)}</b> respondidas
+            <ChevronRight className="w-2.5 h-2.5 opacity-50" />
+            <b className="text-foreground">{formatNumber(metrics.conEnlaceAgenda)}</b> con enlace de agenda
+            <ChevronRight className="w-2.5 h-2.5 opacity-50" />
+            <b className="text-emerald-400">{formatNumber(metrics.conAgendaVerificada)}</b> con cita en CRM
+          </div>
           <p className="text-3xs text-muted-foreground">
-            <b className="text-foreground">{formatNumber(metrics.conAgendaVerificada)}</b> con agenda verificada en CRM
-            ({formatPercent(metrics.tasaAgendaSobreVinculados * 100, 0)} de los vinculados) ·{' '}
+            {formatPercent(metrics.tasaAgendaSobreVinculados * 100, 0)} de los vinculados agendó en CRM ·{' '}
             <b className="text-foreground">{formatNumber(metrics.conVentaVerificada)}</b> con venta
           </p>
           <p className="text-3xs text-muted-foreground">

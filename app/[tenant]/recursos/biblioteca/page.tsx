@@ -96,7 +96,7 @@ export default function BibliotecaPage() {
     const sb = createClient()
     const [{ data: rps }, { data: us }] = await Promise.all([
       sb.from('roleplays').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }),
-      activeUserNamesQuery(sb),
+      activeUserNamesQuery(sb, tenantId),
     ])
     setRoleplays((rps as Roleplay[]) ?? [])
     setTeamUsers((us as TeamUser[]) ?? [])

@@ -18,6 +18,7 @@ import type { AppointmentStatus, User } from '@/lib/types/database'
 import type { Alerta } from '@/lib/metrics/alertas'
 import { esFalloVisible, pedir } from '@/lib/ui/pedir'
 import { toast } from 'sonner'
+import { canViewPaymentInbox } from '@/lib/sales/payment-inbox-access'
 import { PaymentInbox } from '@/components/sales/PaymentInbox'
 
 interface HeaderProps {
@@ -52,7 +53,7 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
   // Receipts become visible tasks before the notification popover is opened.
   useEffect(() => {
     setPaymentCount(0)
-    if (!isSuperAdmin && !['admin', 'director', 'closer'].includes(role)) return
+    if (!canViewPaymentInbox(role, isSuperAdmin)) return
     const controller = new AbortController()
     const refreshPayments = async () => {
       try {

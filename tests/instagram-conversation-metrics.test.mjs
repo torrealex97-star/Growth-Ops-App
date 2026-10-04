@@ -4,6 +4,7 @@ import {
   normalizarUsuarioIg,
   detectarEnlaceAgendaEnTexto,
   emparejarConConTactos,
+  respondidoDespuesDelLead,
   calcularMetricas,
 } from '../lib/instagram/conversation-metrics.ts'
 
@@ -86,6 +87,12 @@ test('calcularMetricas: solo cuenta agenda/venta cuando hay contacto vinculado c
   assert.equal(resumen.sinContactoConEnlaceAgenda, 1)
   assert.equal(resumen.tasaVinculacion, 2 / 3)
   assert.equal(resumen.tasaAgendaSobreVinculados, 1 / 2)
+  // Embudo de DM: c1 y c3 acaban en mensaje del equipo (respondidas), c2 no tiene mensajes;
+  // el enlace de agenda se cuenta donde se envió (vinculado o no), como señal declarada.
+  assert.equal(resumen.respondidas, 2)
+  assert.equal(resumen.conEnlaceAgenda, 2)
+  assert.equal(porConversacion.find((m) => m.conversationId === 'c1').respondido, true)
+  assert.equal(porConversacion.find((m) => m.conversationId === 'c2').respondido, false)
 
   const c2 = porConversacion.find((m) => m.conversationId === 'c2')
   // pedro está vinculado pero NO tiene cita: false (verificado, no null) — muy distinto de "sin evidencia".
@@ -102,4 +109,26 @@ test('calcularMetricas: sin conversaciones no revienta y devuelve ceros, no NaN'
   assert.equal(resumen.totalConversaciones, 0)
   assert.equal(resumen.tasaVinculacion, 0)
   assert.equal(resumen.tasaAgendaSobreVinculados, 0)
+  assert.equal(resumen.respondidas, 0)
+  assert.equal(resumen.conEnlaceAgenda, 0)
+})
+
+test('respondidoDespuesDelLead: responde solo si el equipo habló tras el último del lead', () => {
+  // Lead escribió y el equipo contestó: respondido.
+  assert.equal(respondidoDespuesDelLead([{ from: 'lead' }, { from: 'agente' }]), true)
+  // Lead escribió y nadie contestó: pendiente (el caso que el embudo destapa).
+  assert.equal(respondidoDespuesDelLead([{ from: 'agente' }, { from: 'lead' }]), false)
+  assert.equal(respondidoDespuesDelLead([{ from: 'lead' }]), false)
+  // Bandeja vacía o iniciada por el equipo: nada pendiente del equipo.
+  assert.equal(respondidoDespuesDelLead([]), false)
+  assert.equal(respondidoDespuesDelLead([{ from: 'agente' }]), true)
+  // Hilo largo: mirar hacia atrás hasta el primer mensaje de cualquiera de los dos.
+  assert.equal(
+    respondidoDespuesDelLead([{ from: 'lead' }, { from: 'agente' }, { from: 'lead' }, { from: 'agente' }]),
+    true
+  )
+  assert.equal(
+    respondidoDespuesDelLead([{ from: 'agente' }, { from: 'lead' }, { from: 'agente' }, { from: 'lead' }]),
+    false
+  )
 })

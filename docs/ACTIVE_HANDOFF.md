@@ -55,6 +55,322 @@ Rama `codex/skeleton-emptystate-adopcion` desde `e09a6a8`. Reclamación: adopci�
 Avance 2-oct: 40 páginas con Skeleton y dos EmptyState. Lotes 1–9 con gates y comparación de medidas/radio/fondo sin cambios; lote 10 con comparación visual correcta y gates PASS al repetir tras carrera de generación de `.next/types`. Último commit: `ca7d1d7`. No modificar tipos generados. Capturas fuera de Git. Quality completo de las 40 páginas PASS (1.202 tests + 783 métricas, 3 SKIP); build conjunta PASS; dev QA restaurado en puerto 3101. Detalle por lote en S1 §6.8. No tocar cambios de otros checkouts.
 
 Pendiente: terminar candidatos aislados y clasificación EmptyState; verificar APIs del entorno local tras restaurar configuración server-side solo en memoria; continuar F10–14 según los prompts. No marcar auditoría finalizada, no repetir Web Vitals ya cerradas. Los journeys con venta/cobro requieren confirmación explícita y falta cuenta QA colaborador. Evidencia acumulada en `docs/S1-MVP-READINESS-2026-10-01.md` §6.8.
+## Limpieza de Vercel — 4-oct (Claude Code, con OK de Alex)
+
+**Resultado:** 423 despliegues → **52** (370 borrados, 0 fallos, ninguno con dominio propio). Producción
+verificada tras la purga: `app.scalixsystems.com` y el login responden 200, y el despliegue que sirve el
+dominio no se tocó. Política y comandos en `docs/FREE_TIER_OPERATIONS.md` › «Limpieza de despliegues de Vercel».
+
+**Hallazgo que decide el siguiente paso:** el proyecto **`growth-ops-app` es un duplicado** (creado el 3-oct a
+las 12:16, 0 variables de entorno, sin dominio) que reconstruye cada push y duplica el consumo de Function
+Storage; **producción es `growthops-preview-3003`** (dominio + 14 variables). **Pendiente de Alex:** decidir
+borrar `growth-ops-app`; mientras exista, la purga vuelve a llenarse. No lo he borrado: es un proyecto entero.
+
+## F35 cerrado en producción + la sincronización borraba las asistencias — 4-oct (Claude Code)
+
+**F35 (P0, fuga entre subcuentas) — APLICADO con OK de Alex y verificado:** migración
+`20261004100100_aislamiento_entre_subcuentas_stripe_payments_y_knowledge_chunks.sql`. Un `admin` que no era
+miembro de una subcuenta leía sus 83 pagos de Stripe; `stripe_payments` y `knowledge_chunks` eran las únicas
+tablas con `tenant_id` sin política restrictiva. Resultado medido: admin miembro 83/90 (sin pérdida), no
+miembro 0/0, super admin 83/180. Releída la política viva justo antes de aplicar (lección de F01).
+
+**Bug encontrado al medir la regla de asistencia de Alex (PR #339):** las pasadas de Calendly y GHL
+reescribían `status` con `scheduled`/`confirmed` en cada ejecución, **borrando las asistencias marcadas**:
+53 de las 249 marcadas el 22-sep habían vuelto a «sin resolver». `estadoAlSincronizar` (función pura): una
+sincronización nunca retrocede de resuelto a sin resolver; la cancelación y un estado resuelto nuevo sí se
+aplican. **Las marcas de asistencia por evidencia (Fathom / compra) y la recuperación de esas 53 se escriben
+DESPUÉS de que #339 esté desplegado**, o la pasada de la noche las borraría otra vez.
+
+**Setter Diana (aplicado con regla de Alex):** 228 citas de Calendly reservadas desde el 2026-08-04 (fecha de
+reserva real del `invitee`, no `created_at`, que es la fecha de importación), con una fila de auditoría por
+cita (`action = 'setter_backfill'`, valor anterior null). Las citas nuevas **no** llevan setter por defecto:
+Alex le dará su enlace de colaborador y el setter saldrá de ahí.
+
+## F01 cerrado en producción + fuga entre subcuentas detectada — 4-oct (Claude Code)
+
+**Hecho (aplicado con confirmación de Alex, medido en producción):** migración
+`20261004100000_scope_stripe_customers_to_contact_visibility.sql` — `stripe_customers` era lo último de
+F01 sin cerrar: un colaborador y el setter leían los 32 clientes de Stripe (correo y nombre). Ahora lo
+hereda de la visibilidad del contacto: colaborador con atribuciones **16** (exactamente los suyos),
+sin atribuciones **0**, admin **32**. Registrada en `schema_migrations` con la versión de su fichero.
+
+**⚠ Desfase repositorio ↔ producción que NO es mío:** las migraciones `20261003120000`
+(`is_team_scope_allowed()` y seis políticas) y `20261003130000` (`stripe_payments`) están **aplicadas
+en producción pero solo existen en la rama `claude/app-continuation-lpbupf`**, sin fusionar a `main`.
+Quien la fusione debe comprobar que siguen coincidiendo con producción; mi migración depende de
+`is_team_scope_allowed()`. Mi primera versión de F01 (rama local descartada) habría **sobrescrito**
+su política de `stripe_payments` con la versión vieja: se detectó al releer producción antes de aplicar.
+Lección: **releer las políticas vivas justo antes de aplicar RLS**, no fiarse de una lectura de horas antes.
+
+**PREPARADA, NO APLICADA — requiere OK de Alex:** `20261004100100_aislamiento_entre_subcuentas_stripe_payments_y_knowledge_chunks.sql`
+(rama `fix/aislamiento-entre-subcuentas`, PR en borrador). Un `admin` que no es miembro de una subcuenta
+lee sus 83 pagos de Stripe (medido); `stripe_payments_all` es de lectura y ESCRITURA y `kc_*` de
+`knowledge_chunks` igual. Son las únicas dos tablas con `tenant_id` sin política restrictiva de
+aislamiento. Añade la misma `RESTRICTIVE` que usan las demás; 180 filas de `knowledge_chunks`, ninguna
+sin subcuenta, así que no esconde conocimiento global.
+
+**Decisión de negocio ya tomada (por la otra sesión):** `team` solo vale para admin/director/manager,
+así que closers, setters y CSM ven solo lo suyo.
+
+## Bloqueo de despliegue — Sentry 11 (Codex, 3-oct)
+
+PR #330 fusionada en `e4de45f`; migración aplicada y verificada. CI PASS, incluido E2E. La actualización concurrente #315 a Sentry 11 rompió el build con DSN: `withSentryConfig` requiere `@sentry/nextjs/config`. Falló producción también sin caché; corrección en `codex/sentry-build-entry` con regresión que carga configuración con DSN ficticio. No hubo reembolsos reales.
+
+## Activación de reservas — 3-oct, PR #330
+
+Usuario autorizó la migración explícitamente. Aplicada `20261003135010_reservation_stripe_refunds.sql` en producción. Verificado: RLS activo, RPC solo service_role, cero solicitudes de devolución. No se movió dinero. Archivo realineado al historial de Supabase; CI/fusión/despliegue pendientes. Prueba Stripe real/sandbox excluida a petición del usuario. Las notas anteriores describen el estado previo.
+
+## En curso — reconocimiento de Stripe y reservas (Codex, 3-oct)
+
+Rama `codex/stripe-payment-recognition`. Alcance: bandeja de cobros, lectura de evidencias Stripe, sugerencias verificables, reservas y sus pruebas. No aplicar migraciones ni ejecutar reembolsos reales sin confirmación concreta. PR #325 ya fusionado y verificado en producción; sus cancelaciones E2E anteriores están superadas. El usuario declina probar Stripe en sandbox: implementar y dejar explícito que no hubo ensayo con dinero ni con Stripe test. No ejecutar una devolución real como verificación.
+
+Implementado en la rama: identidad por cliente Stripe con detección de ambigüedades, lectura acotada de factura/Checkout y precio, propuesta de compra existente o nueva, calendario solo cuando el plan y la primera factura lo justifican. Reserva: confirmación de reembolso, identidad persistente e idempotencia, conciliación atómica; primer cobro y conversión en una transacción.
+
+Validación local: 1.246 unitarias PASS (3 omitidas), 783 métricas PASS, tipos y lint PASS (avisos previos). PostgreSQL aislado/PGlite: rollback, aislamiento, permisos, bloqueo de modificaciones y finalización PASS. Se contrastaron columnas y triggers de producción en solo lectura: no sustituye un ensayo end-to-end. Activación bloqueada hasta aprobar y aplicar `20261003135010_reservation_stripe_refunds.sql`; no desplegar la nueva conversión antes del esquema.
+
+## En curso — visibilidad de cobros pendientes (Codex, 3-oct)
+
+Rama `codex/payment-inbox-team-visibility`. Petición: admin, closer y setter ven toda la bandeja de su tenant en Ventas y notificaciones. Cambios acotados a GET payment-inbox, política de lectura compartida, PaymentInbox, Header y regresiones. No ampliar autorización de escritura ni RLS global. Validación local: formato/lint/tipos PASS; 1.229 unitarias PASS, 3 omitidas; 783 métricas PASS; 7 pruebas específicas de bandeja PASS. Knip informativo ejecutado. Build/CI/despliegue pendientes; no probado con sesión real closer/setter.
+
+# Relevo activo
+
+## Reservas — alcance seguro para fusionar (Codex, 3-oct)
+
+PR #325 acotado a la lista de reservas: excluye devueltas/canceladas y conversiones históricas explícitamente vinculadas a un plan definitivo con cobro positivo; distingue errores de lectura de una lista vacía, con reintento. No cambia cobros, comisiones, Stripe ni esquema.
+
+**Implementación financiera conservada, NO activada:** commit `852b25edee924f0d9f59d4e64c31f90ad1dd1191` de este PR contiene el reembolso Stripe con claim persistente, migración `20261003135010_reservation_stripe_refunds.sql`, conversión con primer pago atómico y sus pruebas. El recorte es un commit posterior, no una reescritura ni pérdida de trabajo. Para retomarlo, extraer únicamente esos cambios y revalidar sobre main; no revertir a ciegas el recorte completo.
+
+**Pendiente antes de activar dinero:** Stripe de prueba en QA (se confirmó que no tiene configuración propia), revisión end-to-end, dry-run con esquema completo y autorización de migración. La conversión actual puede promover la reserva antes de registrar el primer cobro; ese cambio sigue pendiente, no se certifica como resuelto en este PR acotado. No hubo reembolsos ni cambios de datos reales.
+
+Validación local del alcance final: formato y lint PASS (avisos existentes); 1.229 pruebas unitarias PASS, 3 omitidas; 783 pruebas de métricas PASS. Build de producción y tipos PASS tras regenerar los artefactos de Next (variables públicas ficticias, sin datos reales). CI del código revisado: calidad, secretos y Build PASS; Vercel omite el preview por Ignored Build Step. **Actualización:** PR #325 fusionada en `7a338fc`, Smoke E2E finalmente PASS y lista de reservas verificada en producción. La implementación financiera se retoma en la rama indicada arriba, todavía sin activar.
+
+## Carriles activos — qué está trabajando cada agente (3-oct, Freebuff)
+
+Petición de Alex: documentar en paralelo qué está haciendo Claude y Codex en la app. Esta sección
+se actualiza al inicio de cada sesión y al fusionar.
+
+### Freebuff (producto + ops) — sesión 3-oct
+
+- **Fusionadas hoy:** #317 (docs auditoría), #316 (pestañas huérfanas), #304 (S1 MVP baseline +
+  revoke de seguridad, migración realineada a `20261001162712`), #319 (setup E2E sin
+  `listUsers`), #318 (socios F13/F03), #321 (5 migraciones realineadas a producción), #322
+  (bandeja de cobros visible para setter), #324 (tests herméticos: dependabot CI), #326 (exentas
+  de comisión por membresía + índice `audit_logs`), #313 (`@types/node` 26).
+- **Arreglos en producción:** membresía `admin` de una administradora que la tenía como `member`
+  (techo de membresía la recortaba; causa del reporte «admin sin permisos de pagos»); historial de
+  migraciones repo ↔ producción alineado y registrado con la misma versión del fichero.
+- **En vuelo:** #314 (googleapis 182) y #315 (sentry 11) — quality VERDE tras #324, dependabot
+  rebasificando el lockfile; fusionar al ponerse todo verde. #327 (@vercel/speed-insights —
+  métricas reales de velocidad en Vercel) con E2E cancelado por la concurrencia global; relanzar.
+- **Bloqueadas con causa conocida:** #229 (eslint 10: `eslint-plugin-react` revienta en
+  `react/display-name` — requiere actualizar/retirar el plugin antes de fusionar) y #323
+  (minor-and-patch con lockfile roto de dependabot: `@typescript-eslint/eslint-plugin@8.71.0` vs
+  `parser@8.70.1` — cerrar para que el próximo grupo semanal la regenere sana).
+- **Fusionado 3-oct (Freebuff, PR #334):** closer automático en la sync por pull de agendas
+  (`lib/integrations/citas-sync.ts`): Calendly por dueño del calendario (`event_memberships` →
+  email/`calendly_email` + `firstMemberOf`), GHL por `assignedUserId` del calendario → email del
+  usuario GHL → usuario de la app acotado a subcuenta; nunca pisa asignación manual ni del webhook
+  (misma semántica protectora). Rama `fix/agenda-closer-sync`. Toca además una migración
+  (`appointments.ghl_calendar_id`) y tests de regresión.
+- **Fusionado 3-4-oct (Freebuff, PR #335):** deadline de la sync de agendas POR EVENTO
+  (`lib/integrations/citas-sync.ts`): el cron calendly-ghl acabó en 504 (FUNCTION_INVOCATION_TIMEOUT)
+  porque el corte solo se comprueba entre páginas — dentro de cada página, cada evento cuesta un
+  fetch de invitees (Calendly) o un contacto perezoso (GHL) de hasta 15-20 s. Añade comprobación de
+  reloj en los bucles de eventos y en la resolución de dueños de calendario de GHL + test de
+  regresión. Rama `fix/citas-sync-deadline`. Verificado en producción: Calendly 51→18 sin closer
+  (33 asignadas); GHL asigna solo vía webhook (el calendario no resuelve dueño en esta location).
+- **Reclamado 4-oct (Freebuff):** búsqueda de bugs en la zona citas/atribución
+  (`lib/tracking.ts`, `lib/integrations/citas-sync.ts`, webhook GHL): (1) `resolveUserIdByEmail`
+  usaba `.or(email.ilike.<email>)` SIN escapar comodines — el '_' de `ana_perez@x.com` matcheaba
+  `ana-perez@x.com` y la comisión podía caer en otro usuario; además la coma del dato rompía
+  PostgREST. (2) El pull de citas reenviaba el closer del calendario en cada pasada y pisaba
+  asignaciones manuales/del webhook (el webhook de Calendly SÍ se protegía en reagenda);
+  ahora rellena solo si la fila no tiene closer. (3) El `userIdByEmail` del webhook GHL era
+  `.eq` case-sensitive. Rama `fix/closer-no-reasigna-email`.
+- **Reclamado 4-oct (Freebuff):** webhook entrante de Fathom en Integraciones
+  (`app/api/[tenant]/evergreen/webhooks/fathom/route.ts`, Svix fail-closed con
+  `FATHOM_WEBHOOK_SECRET`): ingesta EN TIEMPO REAL de reuniones (hasta ahora solo pull del botón).
+  La lógica por-reunión se extrae a `lib/fathom/ingesta.ts` (única implementación para el botón y
+  el webhook); catálogo con `webhookPath` + paso de alta; tests de regresión. Rama
+  `feat/fathom-webhook`.
+
+### Claude Code (plan `docs/plan/`)
+
+- **#317 fusionada:** auditoría reconciliada F01–F25 contra `main` (tabla viva en
+  `DASHBOARD_AUDIT.md`).
+- **Abierto por prioridad:** F01 (P0 — RLS de colaborador; migración + dry-run + confirmación de
+  Alex), F19 (P0), F13 loaders de otras áreas, F04 (moneda/FX — BUSINESS_DECISION), F08.
+- **USER_ACTION de Alex:** F11 (mapeo de setters/asistencias), F12 (fecha inicial por fuente), F33
+  (cuenta publicitaria de Meta en Integraciones — sin ella no hay CAC/ROAS).
+
+### Codex (producto)
+
+- **#322 fusionada:** la bandeja de cobros pendientes se comparte con setter (lectura sí;
+  registrar el cobro sigue siendo de admin/closer).
+- **#325 fusionada:** lista de reservas verificada. Implementación financiera retomada en `codex/stripe-payment-recognition`, pendiente de migración explícitamente autorizada.
+- La auditoría de dashboards de codex (25-sep) quedó absorbida por #317.
+
+## Auditoría de dashboards: estado reconciliado y lo que queda — 3-oct (Claude Code)
+
+Origen: Alex pidió continuar la auditoría de Codex (brief de 58 puntos). En vez de repetirla, se
+contrastaron los 25 hallazgos F01–F25 con el código actual de `main`: la tabla vive en
+[`DASHBOARD_AUDIT.md`](../DASHBOARD_AUDIT.md) › «Estado de los hallazgos a 3-oct». **Límite:** es
+verificación contra código y PRs, no re-medición de producción (sin credenciales de BD en esa sesión).
+
+**Fusionado desde el 25-sep (mío):** #218 (acota por subcuenta, CTR, conteo de la IA), #219 (F02),
+#220 (F24/F25/F17), #221 (F03), #222 (claves de lectura vs webhook en Salud de datos), #223 (% de
+asistencia sobre lo resuelto), #316 (pestañas huérfanas y textos).
+
+**Sigue abierto, por orden de prioridad:**
+
+1. **F01 (P0) — RLS de colaborador.** Ninguna migración desde el 25-sep (#304 cierra otro agujero).
+   Necesita migración + dry-run `BEGIN…ROLLBACK` + **confirmación de Alex antes de aplicar**.
+2. **F19 restante (P0)** — CRM, alumnos, contenido, selectores y vistas guardadas sin `tenant_id`.
+3. **F13 (P1)** — cerrado en Finanzas (resumen, P&L, cohortes, proyección y socios; este último en #318). Sin revisar loaders de otras áreas.
+4. **F04 (P1)** — moneda en el cash canónico; **requiere decidir el proveedor de FX** (MONEY D2).
+5. **F08 (P1)** — `evaluarDefinicion` sin consumidores: el diagnóstico sale antes de los gates.
+6. F07, F05, F10 parciales; F14, F16, F18, F21, F22, F23 abiertos (ver tabla).
+
+**USER_ACTION de Alex:** F11 (mapeo de setters y asistencias provisionales), F12 (fecha inicial
+esperada por fuente) y F33 — comprobar en Integraciones que Meta tiene **cuenta publicitaria
+elegida**: tras D10 sin selección no se sincroniza, y sin gasto no hay CAC ni ROAS reales.
+
+**BUSINESS_DECISION:** F04 (FX) y F32 (la tabla de atribución mezcla leads históricos con ventas del
+periodo).
+
+**Concurrencia:** el tablero estaba vacío al empezar; la reclamación de Codex sobre estos documentos
+era del 28-sep y sin commits posteriores. No se tocó código de otros carriles.
+
+**Nota de entorno:** el script `npm test` usa `--experimental-transform-types`, que **Node 26 ya no
+acepta** (la CI usa Node 24). En local con Node 26 se ejecuta la misma suite sin ese flag; el único
+fallo conocido es `apify-retry-scenario`.
+
+## ✅ Composer del inbox GHL verificado EN VIVO en producción (2-oct, Freebuff) — PRs #307 + #308
+
+La verificación en vivo del envío de respuestas (petición de Alex, contacto controlado) destapó y
+cerró **dos bugs reales del composer** contra la API de GHL, ambos fusionados con CI verde y con
+deployment production READY verificado por API de Vercel:
+
+1. **#307 — sin `Content-Type: application/json` GHL ignoraba el body** (404 `Contact id not
+given`): `fetch` sin cabecera manda el JSON como `text/plain` y la API lo descarta. `ghlHeaders()`
+   añade la cabecera (merge `2560445`).
+2. **#308 — el canal Email exige `html`**: con solo `message`, GHL responde 422 `There is no message
+or attachments for this message. Skip sending.` Nueva función `cuerpoEnvioGhl()` que construye el
+   body con `html` escapado SOLO para Email (merge `2b24e38`, deployment
+   `dpl_SjAgDTc6sdXn81yrDcku3tFgbiGm` READY).
+
+**Resultado de la verificación en vivo (2-oct):** envío real por la ruta de producción
+(`/api/<slug>/evergreen/setting-ai/conversations/reply`) con sesión de un usuario QA efímero →
+**HTTP 200 `{ok:true, messageId}`** y el read-back de la bandeja muestra el mensaje **dentro de la
+conversación elegida** (canal email, participante `to***@gmail.com`) como mensaje del equipo
+(`from=agente`). Usuario QA borrado después (0 residuos). La sonda reutilizable vive en
+`scripts/sonda-inbox-envio.mjs` (list/send/cleanup; nunca imprime secretos ni PII).
+**Pendiente de Alex:** confirmar que el correo llegó físicamente a la bandeja del contacto
+controlado — la API de GHL ya lo registró en el hilo.
+
+## Censo y ejercicio en vivo de los canales del composer (2-oct tarde, Freebuff) — email ya verificado en #307/#308
+
+Ampliación de la verificación en vivo al resto de canales del composer (SMS, WhatsApp, Instagram,
+Facebook). Censo REAL de la bandeja GHL paginando el POST "Cargar más" con la sonda nueva
+`scripts/sonda-inbox-canales.mjs` (dedupe por id, corte honesto cuando el snapshot deja de crecer,
+nunca imprime PII): **300 de 532 conversaciones únicas** — call=168 · instagram=91 · email=36 ·
+webchat=3 · facebook=2 · **sms=0 · whatsapp=0**. Dos límites estructurales de la bandeja (no
+bugs): el cap duro de 300 deja 232 conversaciones viejas sin alcanzar nunca (el refresco y la
+continuación devuelven siempre las 300 más frescas fusionadas), y "cargadas" se queda en 300
+aunque el total declarado sea mayor.
+
+- **Instagram — pipeline íntegro y regla de Meta confirmada**: había 2 hilos de contacto
+  controlado (QA) sin mensajes; el envío de prueba atravesó toda la cadena (resolución contra
+  snapshot → GHL type IG → Meta) y Meta rechazó con la regla de la ventana de 24 h ("last inbound
+  message earlier than 24 hours ago"): sin DM entrante reciente no se puede abrir conversación.
+  HTTP 400 legible al composer — comportamiento diseñado, no bug. Cerrar el ciclo exige que el
+  contacto controlado escriba primero.
+- **SMS y WhatsApp — sin volumen en la location**: 0 conversaciones en las 532 visibles por la
+  bandeja; no hay con quién probar el envío real. El cuerpo de esos canales ya está cubierto por
+  tests (`cuerpoEnvioGhl`, claves exactas) y la ruta es la misma para todos: solo cambia `typeDe`.
+- **Facebook — solo leads reales** (2 conversaciones, ninguna de prueba): no se envía QA a
+  desconocidos. Misma ruta que IG (type FB) y mismo riesgo de ventana de 24 h.
+
+Usuario QA limpiado tras el ejercicio (0 residuos). **Pendiente de Alex (decisión, no trabajo de
+agente):** crear un contacto controlado de IG que escriba primero — o señalar uno existente con DM
+entrante en las últimas 24 h — para cerrar la verificación del DM; decidir si quiere probar
+SMS/WhatsApp con un teléfono propio tras conectar esos canales en GHL.
+
+## ✅ Relevo de los carriles codex / Claude Code (2-oct, Freebuff) — «todo lo que les quede»
+
+- **Migración `20260922100000` (prioridad 1 encargada a Claude Code el 25-sep): YA aplicada y
+  registrada en producción.** Verificado por SQL el 2-oct: las 9 columnas de `expenses` y los 2
+  índices existen y la versión está en `schema_migrations` (hay migraciones aplicadas hasta
+  `20261001162712`). Las filas del tablero que la pedían quedan cerradas.
+- **Ramas de worktree auditadas una a una — todo su contenido único ya está en `main`:**
+  `cf-custom-fields-pr` (= PR #172 fusionada), `docs/consolidacion-y-relevo` (= PR #173 fusionada),
+  `docs/handoff-clarity` (nota de estado del 22-sep, absorbida por el handoff actual),
+  `fix/f1-raw-events-unique-total` (sustituida por la migración `20260923193000`; el índice TOTAL
+  de `raw_events` está verificado en producción y en `main`) y `feat/money-25sep` (PR #225 cerrada
+  el 1-oct con verificación punto por punto de que sus 5 unidades están en `main`). **Se dejan en
+  disco**: el sandbox actual se cuelga al inspeccionar esos directorios (EPERM) — borrarlas es
+  seguro con esta evidencia.
+- **`docs/DASHBOARD_AUDIT.md` y `docs/DASHBOARD_CORRECTION_PLAN.md` (auditoría de codex del 25-sep)
+  siguen SIN commitear a propósito**: contienen volúmenes e importes reales del tenant y el repo es
+  público; su resumen público vive en este documento y sus puntos ya están cerrados por #269/#273
+  (cash canónico), #278 y #284. No subirlos sin redactar.
+- Basura `route 2.ts` (artefacto de copia de macOS) eliminada del árbol de trabajo.
+
+## Inbox operativo: responder leads + embudo de DM (1-oct, Freebuff) — fusionada #306
+
+Petición de Alex («mejora todo el UX/UI para revisar y escribir a estas personas, todo IG y TikTok
+que pasa por GHL, y ver en esa misma área los KPIs del DM funnel»). Tres piezas, todo en la misma
+área de Conversaciones:
+
+1. **Composer de respuesta (GHL)**: `enviarMensajeGhl` hace POST `/conversations/messages`
+   (doc 2021-07-28) con `typeDe` según el canal de la conversación (instagram→IG, facebook→FB,
+   whatsapp→WhatsApp, email→Email, resto→SMS). La ruta `reply` resuelve la conversación CONTRA
+   el snapshot del tenant (nada del cliente se confía: ni contactId ni canal) — efecto externo
+   irreversible con doble validación. UI: Enter envía, burbuja optimista, error reintentable,
+   auto-scroll al enviar. Sin contacto GHL se explica, nunca falla en silencio.
+2. **Embudo de DM en las tarjetas**: `respondidas` (el equipo contestó tras el último del lead —
+   `respondidoDespuesDelLead` en `lib/instagram/conversation-metrics.ts`, fuente compartida
+   IG/GHL) y `conEnlaceAgenda` (señal declarada, nunca cita). Cadena visible conversaciones →
+   respondidas → enlace enviado → cita en CRM.
+3. **TikTok**: llega como TYPE_TIKTOK, el mapeo genérico ya lo traía; ahora se etiqueta, filtra
+   y se declara en el hint de la tarjeta.
+
+5 tests nuevos (`typeDe`, `enviarMensajeGhl`, `respondidoDespuesDelLead`, embudo en resumen).
+Fusionada en `16e19df` con CI completo verde a la primera y producción READY **verificada por API
+de Vercel con el conector MCP**. La verificación en vivo quedó **CERRADA el 2-oct** (sección «Composer del inbox GHL verificado EN
+VIVO» de arriba): envío real confirmado contra GHL en producción.
+
+## Marcas de cita/venta verificada en el inbox (1-oct, Freebuff) — fusionada #305
+
+Petición de Alex («marca visualmente las conversaciones con venta o cita verificada en el CRM»):
+los badges "Cita" (verde, CalendarCheck) y "Venta" (brand, DollarSign) aparecen en cada fila de
+la bandeja cuando la conversación está enlazada a un contacto con cita/venta en BD. Fuente ÚNICA:
+`porConversacion` que **ya devolvía** `/conversations/metrics` para las tarjetas
+(`lib/instagram/conversation-metrics.ts` + `lib/ghl/conversaciones-metricas.ts`) — sin segunda
+definición de "verificado" ni llamadas nuevas; `null` (sin contacto vinculado) NO es marca.
+Helpers puros en `lib/setting-ai/inbox.ts` (`alimentarVerificadas`, `marcaVerificada`) con 2 tests
+nuevos. Fusionada en `8c5b9e8`, CI completo verde y producción READY **verificada por API de
+Vercel con el conector MCP**. Nota: el primer push de la PR falló `format:check` (el TSX quedó
+formateado en el arnés y se devolvió sin devolver — misma lección de #301); corregido en
+`b511688`. Sin acciones pendientes.
+
+## Bandeja de GHL paginada incremental ("Cargar más") (1-oct, Freebuff) — fusionada #303
+
+Petición de Alex («prepara el inbox para más de 100 conversaciones»): el listado de
+`/conversations/search` se pide por páginas con el cursor oficial `startAfterDate` (doc
+2021-07-28, `sortBy=last_message_date&sort=desc`) hasta cubrir el objetivo o agotar el deadline
+(20 s) — lo leído se devuelve SIEMPRE con cursor de continuación (nunca una lista vacía
+disfrazada ni un "más" que repita página). El cursor (`ghl_conversaciones_cursor` en
+`integration_settings`) y la fusión (sin duplicados, lo fresco gana, tope 300, tope en
+`cursorMasProfundo` para que un refresco nunca retroceda la bandeja) viven en servidor; el inbox
+añade el botón "Cargar más" (spinner, contador "125 de 530", error reintentable) y la ruta un
+`POST` de continuación (efecto externo con presupuesto: el GET sirve snapshot y refresca en
+`after()`, así un prefetch no gasta páginas). 6 tests nuevos (multi-página, continuación
+idempotente, deadline con cursor, página repetida, fusión, cursorMasProfundo). Fusionada en
+`4e56ebd` con CI completo verde y producción READY **verificada por API de Vercel con el conector
+MCP**. Nota operativa: la concurrencia del CI es global — los pushes en ráfaga de la rama
+`audit/mvp-phase0-baseline` (carril plan) cancelaron 3 veces el Smoke E2E; re-lanzado en ventana
+estable (3 min sin runs en curso) salió en verde a la primera. Sin acciones pendientes.
 
 ## Avatar del inbox con foto real (1-oct, Freebuff) — fusionado #302
 
@@ -113,7 +429,6 @@ tests deterministas). Sin cambios de API ni contrato de datos; Instagram y GHL c
 Fusionado en #301 (`b4e1194`) con CI completo verde y producción READY. Nota de diseño: el canal
 NO_SHOW de GHL se presenta como "Llamada" (llamada perdida, ver sección ✅ de arriba); si algún día
 GHL distingue no-show real de llamada, es un cambio puntual en `canalDe`.
-
 
 ## Estado de entrega — 28-sep-2026
 
@@ -1345,7 +1660,7 @@ migración `20260922100000` como única fila activa (prioridad 1 de Claude Code)
 anterior:
 
 - **#66** — tabla `annotations` (fecha, título, descripción, categoría, autor) para marcar
-  picos/valles en `TrendChart`. Migración `20260924100000_annotations.sql` con RLS calcada de
+  picos/valles en `TrendChart`. Migración `20260924222339_annotations.sql` con RLS calcada de
   `ai_business_facts` (el equipo lee y anota, el autor o admin/director corrige o borra,
   aislamiento por tenant vía `auth_tenant_ids()`). API en `/anotaciones` y `/anotaciones/[id]`,
   componente `AnotacionesInspector`, wiring de ejemplo en `analitica/embudo`.
@@ -1551,11 +1866,11 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente            | Qué                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Rama           | Toca                                                                                            | Desde  |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------- | ------ |
-| Freebuff (Buffy)  | **Tarea de limpieza cerrada (28-sep noche).** Retirada fila obsoleta (#287 fusionada). 🔴 **Vercel en rate limit 24 h**: `main` (`4f83230`) tiene CI verde completo pero SIN deployment de producción — verificar READY cuando se recupere (~20:30Z del 29-sep) antes de afirmar que nada de #271-#287 está publicado. Dependabot #266 rebase pendiente de Alex (el bot no tiene push access: "only users with push access"); #229 bloqueada por `eslint-config-next` (comentario con el bloqueo). Libre para la siguiente tarea | (rama borrada) | —                                                                                               | 28-sep |
-| Claude Code       | **🔴 PRIORIDAD 1 absoluta (encargo de Alex, 25-sep): aplicar la migración `20260922100000` en producción ANTES que cualquier otra tarea.** Pasos exactos en la sección «Lote facturas IA…» de más abajo: dry-run `BEGIN…ROLLBACK` (9 columnas en `expenses` + 2 índices parciales), aplicar, registrar versión en `schema_migrations`, regenerar tipos y verificar crear/marcar gasto en la UI                                                                                                                                   | (por reclamar) | `supabase/migrations/20260922100000_*.sql`, tabla `expenses`, `lib/types/database-generated.ts` | 25-sep |
-| Freebuff 7a08c143 | **Facturas IA + comisiones lote + contratos externos**: fusionado en #190/#191/#192. 🔴 Pendiente: aplicar migración `20260922100000` en producción (ver sección arriba; bloqueada por red IPv6 desde local) y regenerar tipos — **25-sep: Alex lo encargó a Claude Code como prioridad 1 (ver su fila)**                                                                                                                                                                                                                        | (fusionadas)   | solo `expenses` vía migración pendiente; nada en código                                         | 23-sep |
+| Agente      | Qué                                                                   | Rama                        | Toca                                                         | Desde |
+| ----------- | --------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------ | ----- |
+| Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot   | `package.json`/lock (solo vía dependabot), docs, migraciones | 3-oct |
+| Codex       | PR #325 reservation-refunds (E2E en rojo, su autor continúa)          | `codex/reservation-refunds` | ventas/cobros (según su rama)                                | 3-oct |
+| Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún             | —                           | `docs/plan/`, migraciones RLS                                | 3-oct |
 
 ## Reglas de trabajo (2026-09-21)
 

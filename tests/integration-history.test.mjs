@@ -15,7 +15,11 @@ test('Fathom figura en el catálogo con API y MCP oficial', async () => {
 test('la carga histórica está limitada al tenant autenticado', async () => {
   const route = await read('app/api/[tenant]/evergreen/settings/integraciones/history-sync/route.ts')
   assert.match(route, /requireTenant\(tenant\)/)
-  assert.match(route, /\.eq\('tenant_id', tenantId\)/)
+  // El tenantId SIEMPRE sale de la sesión (requireTenant), nunca del cliente; cada consulta de la
+  // ingesta canónica llega acotada a esa subcuenta.
+  assert.match(route, /auth\.tenantId/)
+  const ingesta = await read('lib/fathom/ingesta.ts')
+  assert.match(ingesta, /\.eq\('tenant_id', tenantId\)/)
   assert.match(route, /provider === 'ghl'/)
   assert.match(route, /provider === 'calendly'/)
   assert.match(route, /provider === 'fathom'/)
@@ -24,7 +28,9 @@ test('la carga histórica está limitada al tenant autenticado', async () => {
 test('los imports actualizan o insertan sin borrar históricos', async () => {
   const route = await read('app/api/[tenant]/evergreen/settings/integraciones/history-sync/route.ts')
   assert.doesNotMatch(route, /\.delete\(/)
-  assert.match(route, /transcript_status: transcript \? 'listo' : 'no_aplica'/)
+  // La escritura de la transcripción vive en la ingesta canónica (histórico + webhook).
+  const ingesta = await read('lib/fathom/ingesta.ts')
+  assert.match(ingesta, /transcript_status: transcript \? 'listo' : 'no_aplica'/)
   // La implementación de citas (Calendly/GHL) vive en la lib compartida con el cron: los
   // invariantes de upsert idempotente se comprueban donde está el código.
   const citas = await read('lib/integrations/citas-sync.ts')

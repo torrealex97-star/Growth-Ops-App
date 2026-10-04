@@ -15,9 +15,16 @@ import {
   aIsoFecha,
   canalDe,
   cfgDesdeEnv,
+  cuerpoEnvioGhl,
+  cursorMasProfundo,
   descargarConversacionesGhl,
+  descargarPaginaConversacionesGhl,
+  enviarMensajeGhl,
+  fusionarConversaciones,
+  GhlConversacionesError,
   mapearConversacionGhl,
   mapearMensajesGhl,
+  typeDe,
 } from '../lib/ghl/conversaciones.ts'
 
 const CFG = { token: 'pit-token-de-prueba', locationId: 'loc-1' }
@@ -234,4 +241,224 @@ test('descargarConversacionesGhl: presupuesto agotado ANTES del listado lanza si
     /Presupuesto agotado/
   )
   assert.equal(llamadas, 0)
+})
+
+// ── Paginación incremental (cursor startAfterDate, doc oficial 2021-07-28) ─────────
+// Bandejas con >100 conversaciones: el listado se pide por páginas hasta cubrir el objetivo o
+// agotar presupuesto; lo leído se devuelve SIEMPRE con el cursor a la siguiente página para
+// que "Cargar más" continúe donde quedó en vez de empezar de cero.
+
+const TOTAL = 60
+const fechaDe = (i) => 1_750_000_000_000 - i * 1_000
+const filaDe = (i) => ({
+  id: `conv-${i}`,
+  fullName: `Lead ${i}`,
+  lastMessageType: 'TYPE_SMS',
+  lastMessageDate: fechaDe(i),
+  unreadCount: i,
+})
+// Simulacro del listado GHL: filas estrictamente por debajo del cursor (exclusive), páginas de 25.
+const fetchListado = async (input) => {
+  const url = new URL(String(input))
+  const start = Number(url.searchParams.get('startAfterDate') || 0)
+  const desde = start ? Math.round((fechaDe(0) - start) / 1_000) + 1 : 0
+  const filas = Array.from({ length: Math.min(25, TOTAL - desde) }, (_, k) => filaDe(desde + k))
+  return new Response(JSON.stringify({ conversations: filas, total: TOTAL }), { status: 200 })
+}
+
+const fetchSoloListado = (registrador) => async (input) => {
+  if (String(input).includes('/conversations/search')) {
+    registrador?.(String(input))
+    return fetchListado(input)
+  }
+  throw new Error('no deberían pedirse transcripciones')
+}
+
+test('descargarPaginaConversacionesGhl: varias páginas hasta el objetivo y cierre por fin real', async () => {
+  let llamadasSearch = 0
+  const out = await descargarPaginaConversacionesGhl(CFG, {
+    objetivo: 60,
+    transcripciones: false,
+    fetchImpl: fetchSoloListado(() => llamadasSearch++),
+  })
+  // 60 filas = 3 páginas (25/25/10); la página corta es el fin real del listado.
+  assert.equal(out.conversaciones.length, 60)
+  assert.deepEqual(out.conversaciones.map((c) => c.id).slice(0, 3), ['conv-0', 'conv-1', 'conv-2'])
+  assert.equal(out.total, TOTAL)
+  // Fin real: sin cursor — no un "Cargar más" que devolvería una página vacía.
+  assert.equal(out.cursor, undefined)
+  assert.equal(llamadasSearch, 3)
+})
+
+test('descargarPaginaConversacionesGhl: continuación con cursor e idempotencia al repetirlo', async () => {
+  const urls = []
+  const pag1 = await descargarPaginaConversacionesGhl(CFG, {
+    transcripciones: false,
+    fetchImpl: fetchSoloListado((u) => urls.push(u)),
+  })
+  assert.equal(pag1.conversaciones.length, 25)
+  assert.equal(pag1.cursor, fechaDe(24), 'el cursor es la fecha de la última fila')
+
+  // "Cargar más": la siguiente tanda empieza DESPUÉS del cursor, sin repetir filas.
+  const pag2 = await descargarPaginaConversacionesGhl(CFG, {
+    cursor: pag1.cursor,
+    transcripciones: false,
+    fetchImpl: fetchSoloListado((u) => urls.push(u)),
+  })
+  assert.ok(urls[1].includes(`startAfterDate=${fechaDe(24)}`))
+  assert.deepEqual(
+    pag2.conversaciones.map((c) => c.id),
+    Array.from({ length: 25 }, (_, i) => `conv-${25 + i}`)
+  )
+
+  // Doble clic / reintento con el MISMO cursor: mismas filas — la fusión no duplica.
+  const pag2bis = await descargarPaginaConversacionesGhl(CFG, {
+    cursor: pag1.cursor,
+    transcripciones: false,
+    fetchImpl: fetchSoloListado(),
+  })
+  const fusion = fusionarConversaciones(pag1.conversaciones, pag2.conversaciones)
+  const fusionTrasReintento = fusionarConversaciones(fusion, pag2bis.conversaciones)
+  assert.equal(fusion.length, 50)
+  assert.equal(fusionTrasReintento.length, 50, 'el solape del cursor no duplica filas')
+  // Orden desc por updated_time: lo más nuevo primero.
+  assert.equal(fusionTrasReintento[0].id, 'conv-0')
+  assert.equal(fusionTrasReintento[49].id, 'conv-49')
+})
+
+test('descargarPaginaConversacionesGhl: presupuesto agotado a mitad devuelve lo leído CON cursor (nunca lista vacía)', async () => {
+  const fetchFalso = async (input) => {
+    if (String(input).includes('/conversations/search')) {
+      await new Promise((r) => setTimeout(r, 40))
+      return fetchListado(input)
+    }
+    throw new Error('no deberían pedirse transcripciones')
+  }
+  // La página 1 tarda 40 ms; con deadline 20 ms el presupuesto vence antes de la segunda
+  // petición: lo leído se devuelve con su cursor de continuación, sin error.
+  const out = await descargarPaginaConversacionesGhl(CFG, {
+    objetivo: 50,
+    deadlineMs: Date.now() + 20,
+    transcripciones: false,
+    fetchImpl: fetchFalso,
+  })
+  assert.equal(out.conversaciones.length, 25, 'lo ya leído se conserva')
+  assert.equal(out.cursor, fechaDe(24), 'el cursor permite continuar en el siguiente intento')
+})
+
+test('descargarPaginaConversacionesGhl: página repetida (cursor sin avance) corta sin cursor', async () => {
+  // GHL devolviendo siempre las mismas 25 filas no debe colgar el bucle ni ofrecer un
+  // "Cargar más" infinito que vuelva a dar lo mismo.
+  const fijas = Array.from({ length: 25 }, (_, i) => filaDe(i))
+  let llamadas = 0
+  const fetchFalso = async (input) => {
+    if (String(input).includes('/conversations/search')) {
+      llamadas++
+      return new Response(JSON.stringify({ conversations: fijas, total: 99 }), { status: 200 })
+    }
+    throw new Error('no deberían pedirse transcripciones')
+  }
+  const out = await descargarPaginaConversacionesGhl(CFG, {
+    objetivo: 100,
+    transcripciones: false,
+    fetchImpl: fetchFalso,
+  })
+  assert.equal(llamadas, 2)
+  assert.equal(out.conversaciones.length, 25)
+  assert.equal(out.cursor, undefined)
+})
+
+test('fusionarConversaciones: acumula sin duplicados, lo fresco gana y el tope recorta lo más antiguo', () => {
+  const iso = (i) => new Date(fechaDe(i)).toISOString()
+  const vieja = { ...filaDe(0), unread_count: 7, updated_time: iso(0) }
+  const fresca = { ...filaDe(0), unread_count: 0, updated_time: iso(0) }
+  const resto = Array.from({ length: 5 }, (_, i) => ({ ...filaDe(i + 1), updated_time: iso(i + 1) }))
+  const fusion = fusionarConversaciones([vieja, ...resto], [fresca])
+  assert.equal(fusion.length, 6, 'la fila repetida (conv-0) no se duplica')
+  assert.equal(fusion.find((c) => c.id === 'conv-0').unread_count, 0, 'la fila fresca gana')
+  assert.equal(fusion[0].id, 'conv-0', 'orden desc por updated_time')
+
+  const muchas = Array.from({ length: 10 }, (_, i) => ({ ...filaDe(i), updated_time: iso(i) }))
+  assert.deepEqual(
+    fusionarConversaciones([], muchas, 4).map((c) => c.id),
+    ['conv-0', 'conv-1', 'conv-2', 'conv-3'],
+    'el tope recorta las más antiguas'
+  )
+})
+
+test('typeDe: canal de la conversación → tipo de POST /conversations/messages', () => {
+  // Los canales de DM que pasan por GHL salen por su tipo propio.
+  assert.equal(typeDe('instagram'), 'IG')
+  assert.equal(typeDe('facebook'), 'FB')
+  assert.equal(typeDe('whatsapp'), 'WhatsApp')
+  assert.equal(typeDe('email'), 'Email')
+  // SMS y la llamada perdida (respuesta escrita tras ella) salen por SMS.
+  assert.equal(typeDe('sms'), 'SMS')
+  assert.equal(typeDe('call'), 'SMS')
+  // Lo desconocido no revienta: SMS es el tipo por defecto.
+  assert.equal(typeDe(''), 'SMS')
+  assert.equal(typeDe('tiktok'), 'SMS')
+})
+
+test('cuerpoEnvioGhl: Email lleva html con el texto escapado (GHL lo exige); el resto de canales sin html', () => {
+  const email = cuerpoEnvioGhl('email', 'ct-1', 'Hola "mundo" <prueba> & más')
+  assert.equal(email.type, 'Email')
+  assert.equal(email.contactId, 'ct-1')
+  assert.equal(email.status, 'delivered')
+  assert.equal(email.message, 'Hola "mundo" <prueba> & más')
+  assert.equal(email.html, '<p>Hola &quot;mundo&quot; &lt;prueba&gt; &amp; más</p>')
+
+  const sms = cuerpoEnvioGhl('sms', 'ct-2', 'texto plano')
+  assert.deepEqual(Object.keys(sms).sort(), ['contactId', 'message', 'status', 'type'])
+})
+
+test('enviarMensajeGhl: POST al canal del contacto con el texto exacto; error HTTP ruidoso', async () => {
+  const llamadas = []
+  const fetchFalso = async (input, init) => {
+    llamadas.push({ url: String(input), init: init || {} })
+    return new Response(JSON.stringify({ messageId: 'msg-1' }), { status: 201 })
+  }
+  const out = await enviarMensajeGhl(
+    CFG,
+    { conversacionId: 'conv-1', contactId: 'ct-9', canal: 'instagram', texto: '  ¡Hola! Te escribo de IA Winners  ' },
+    fetchFalso
+  )
+  assert.equal(out.messageId, 'msg-1')
+  assert.equal(llamadas.length, 1)
+  assert.equal(llamadas[0].url, 'https://services.leadconnectorhq.com/conversations/messages')
+  assert.equal(llamadas[0].init.method, 'POST')
+  // Content-Type JSON obligatorio: sin él GHL no parsea el body (404 "Contact id not given",
+  // visto en producción el 1-oct).
+  assert.equal(llamadas[0].init.headers['Content-Type'], 'application/json')
+  const body = JSON.parse(llamadas[0].init.body)
+  assert.equal(body.type, 'IG')
+  assert.equal(body.contactId, 'ct-9')
+  assert.equal(body.message, '¡Hola! Te escribo de IA Winners') // recortado, sin texto inventado
+  assert.equal(body.status, 'delivered')
+
+  // Error de GHL se propaga con su mensaje real (para la UI y el reintento del usuario).
+  const fetchError = async () => new Response(JSON.stringify({ message: 'Provider not connected' }), { status: 400 })
+  await assert.rejects(
+    () => enviarMensajeGhl(CFG, { conversacionId: 'c', contactId: 'ct', canal: 'sms', texto: 'x' }, fetchError),
+    (e) => e instanceof GhlConversacionesError && /Provider not connected/.test(e.message)
+  )
+  // Sin texto no se llama a GHL (nada de enviar vacío).
+  await assert.rejects(
+    () =>
+      enviarMensajeGhl(
+        CFG,
+        { conversacionId: 'c', contactId: 'ct', canal: 'sms', texto: '   ' },
+        async () => new Response('{}')
+      ),
+    /vacío/
+  )
+})
+
+test('cursorMasProfundo: el cursor de la bandeja nunca retrocede con un refresco más reciente', () => {
+  assert.equal(cursorMasProfundo(undefined, 500), 500)
+  assert.equal(cursorMasProfundo(500, undefined), 500)
+  assert.equal(cursorMasProfundo(undefined, undefined), undefined)
+  // Con sort desc, "más profundo" es el número MENOR: la fecha más antigua alcanzada.
+  assert.equal(cursorMasProfundo(500, 900), 500)
+  assert.equal(cursorMasProfundo(900, 500), 500)
 })

@@ -14,6 +14,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { leerSnapshotGhl, vincularConContactos } from '@/lib/ghl/conversaciones'
 import {
   detectarEnlaceAgendaEnMensajes,
+  respondidoDespuesDelLead,
   resumir,
   type MetricaConversacion,
   type ResumenMetricas,
@@ -53,6 +54,7 @@ export async function calcularMetricasGhl(
       tieneVenta: matchedContactId ? ventaSet.has(matchedContactId) : null,
       enlaceAgendaEnTexto: detectarEnlaceAgendaEnMensajes(c.messages),
       messageCount: c.message_count,
+      respondido: respondidoDespuesDelLead(c.messages),
     }
   })
 

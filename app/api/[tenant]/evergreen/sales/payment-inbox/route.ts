@@ -2,26 +2,34 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireTenant } from '@/lib/auth/requireTenant'
 import { getTenantConfigWithFallback } from '@/lib/config'
-import { stripeGet } from '@/lib/stripe/client'
+import { readPaymentEvidence } from '@/lib/stripe/payment-evidence'
+import { suggestPayment, type PaymentEvidence } from '@/lib/sales/payment-recognition'
 import { readPaymentInbox } from '@/lib/sales/payment-inbox'
-import { firstInvoiceLinePriceId, resolveByPriceId } from '@/lib/sales/priceRecognition'
+import { canViewPaymentInbox } from '@/lib/sales/payment-inbox-access'
+import { resolveByPriceId } from '@/lib/sales/priceRecognition'
 
 export const runtime = 'nodejs'
+export const maxDuration = 60
 export async function GET(req: NextRequest, { params }: { params: Promise<{ tenant: string }> }) {
   const { tenant } = await params
   const session = await requireTenant(tenant)
   if ('error' in session) return session.error
-  if (!session.isSuperAdmin && !['admin', 'director', 'closer'].includes(session.role ?? '')) {
+  if (!canViewPaymentInbox(session.role, session.isSuperAdmin)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
   try {
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const rows = await readPaymentInbox(
-      sb,
-      session.tenantId,
-      session.role === 'closer' && !session.isSuperAdmin ? session.userId : null
-    )
     const paymentId = req.nextUrl.searchParams.get('payment')
+    // The shared list does not broaden the existing registration form's write scope.
+    if (paymentId && session.role === 'setter' && !session.isSuperAdmin)
+      return NextResponse.json(
+        { error: 'Puedes consultar la bandeja. Un administrador o closer debe registrar el cobro.' },
+        { status: 403 }
+      )
+    const rows =
+      paymentId && session.role === 'closer' && !session.isSuperAdmin
+        ? await readPaymentInbox(sb, session.tenantId, session.userId)
+        : await readPaymentInbox(sb, session.tenantId, null)
     if (paymentId) {
       const payment = rows.find((r) => r.payment_id === paymentId)
       if (!payment)
@@ -44,7 +52,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
         payment.contactId
           ? sb
               .from('sales')
-              .select('id,sale_date,gross_amount,closer_id,products(name)')
+              .select(
+                'id,sale_date,gross_amount,closer_id,product_id,payment_plan_id,products(name),payment_plans(method),collections(gross_amount,status)'
+              )
               .eq('tenant_id', session.tenantId)
               .eq('contact_id', payment.contactId)
               .eq('status', 'active')
@@ -58,46 +68,63 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
           ? (sales.data ?? []).filter((s) => s.closer_id === session.userId)
           : (sales.data ?? [])
 
-      // RECONOCIMIENTO POR PRICE ID (best-effort): si el cobro viene de una factura (suscripción/
-      // plan de cuotas), su Price ID puede estar mapeado a un producto/plan en Integraciones. Un
-      // Payment Link de un solo pago sin factura no trae esta señal, y un fallo aquí NUNCA rompe
-      // la bandeja — el admin sigue pudiendo elegir a mano, igual que hoy.
-      let suggestion: { productId: string; paymentPlanId: string } | null = null
-      try {
-        const cfg = await getTenantConfigWithFallback(session.tenantId, true)
-        if (cfg.STRIPE_SECRET_KEY) {
-          const intent = await stripeGet<{ invoice?: unknown }>(
-            `payment_intents/${encodeURIComponent(paymentId)}`,
-            new URLSearchParams([['expand[]', 'invoice']]),
-            { secretKey: cfg.STRIPE_SECRET_KEY, accountId: cfg.STRIPE_ACCOUNT_ID }
-          )
-          const priceId = firstInvoiceLinePriceId(intent.invoice)
-          if (priceId) {
-            const { data: mapRows } = await sb
-              .from('stripe_price_map')
-              .select('stripe_price_id, product_id, payment_plan_id')
-              .eq('tenant_id', session.tenantId)
-              .eq('stripe_price_id', priceId)
-              .limit(1)
-            suggestion = resolveByPriceId(
-              priceId,
-              (mapRows ?? []).map((r) => ({
-                stripePriceId: r.stripe_price_id,
-                productId: r.product_id,
-                paymentPlanId: r.payment_plan_id,
-              }))
-            )
-          }
-        }
-      } catch {
-        // Best-effort: sin sugerencia, la bandeja funciona exactamente igual que antes de esto.
+      let evidence: PaymentEvidence = {
+        priceId: null,
+        subscriptionId: null,
+        recurring: false,
+        firstPayment: false,
+        nextPaymentDate: null,
+        warning: 'Stripe no está configurado para reconocer este cobro.',
       }
+      const cfg = await getTenantConfigWithFallback(session.tenantId, true)
+      if (cfg.STRIPE_SECRET_KEY)
+        evidence = await readPaymentEvidence(paymentId, {
+          secretKey: cfg.STRIPE_SECRET_KEY,
+          accountId: cfg.STRIPE_ACCOUNT_ID,
+        })
+      let suggestion: { productId: string; paymentPlanId: string } | null = null
+      if (evidence.priceId) {
+        const { data: mapRows, error: mapError } = await sb
+          .from('stripe_price_map')
+          .select('stripe_price_id,product_id,payment_plan_id')
+          .eq('tenant_id', session.tenantId)
+          .eq('stripe_price_id', evidence.priceId)
+          .limit(2)
+        if (mapError) evidence.warning = 'No se pudo consultar la correspondencia de productos. Reintenta.'
+        else if (mapRows?.length === 1)
+          suggestion = resolveByPriceId(
+            evidence.priceId,
+            mapRows.map((r) => ({
+              stripePriceId: r.stripe_price_id,
+              productId: r.product_id,
+              paymentPlanId: r.payment_plan_id,
+            }))
+          )
+      }
+      const enrichedSales = visibleSales.map((s) => ({
+        ...s,
+        collected: (s.collections ?? [])
+          .filter((c) => c.status === 'collected')
+          .reduce((sum, c) => sum + Number(c.gross_amount), 0),
+        method:
+          (Array.isArray(s.payment_plans) ? s.payment_plans[0] : (s.payment_plans as { method: string | null } | null))
+            ?.method ?? null,
+      }))
+      const recognition = suggestPayment(
+        evidence,
+        suggestion,
+        enrichedSales,
+        plans.data ?? [],
+        Number(payment.amount),
+        payment.paid_at
+      )
 
       return NextResponse.json({
         payment,
         products: products.data,
         plans: plans.data,
-        sales: visibleSales,
+        sales: enrichedSales,
+        recognition,
         suggestedProductId: suggestion?.productId ?? null,
         suggestedPaymentPlanId: suggestion?.paymentPlanId ?? null,
       })

@@ -14,7 +14,7 @@ const sinComentarios = (s) => s.replace(/--[^\n]*/g, '').replace(/\/\/[^\n]*/g, 
 // usuario, no service_role), así que estas pruebas verifican la migración tanto como la ruta.
 // ---------------------------------------------------------------------------------------------
 
-const migracion = () => sinComentarios(leer('supabase/migrations/20260924100000_annotations.sql'))
+const migracion = () => sinComentarios(leer('supabase/migrations/20260924222339_annotations.sql'))
 
 test('la tabla annotations tiene RLS habilitada y aislamiento por tenant', () => {
   const sql = migracion()

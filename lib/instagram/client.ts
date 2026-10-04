@@ -9,7 +9,7 @@
 // métrica no soportada no tumba toda la sincronización).
 
 import { createHmac } from 'crypto'
-import { META_API_VERSION } from '@/lib/meta/api-version'
+import { GRAPH_BASE, META_API_VERSION } from '@/lib/meta/api-version'
 
 export type IgConfig = {
   token: string
@@ -20,7 +20,7 @@ export type IgConfig = {
   enableDmSync?: boolean // requiere acceso avanzado a instagram_manage_messages
 }
 
-const GRAPH = 'https://graph.facebook.com'
+const GRAPH = GRAPH_BASE
 
 export type InstagramErrorCode = 'token_caducado' | 'token_invalido' | 'sin_permisos' | 'limite_de_uso' | 'timeout'
 

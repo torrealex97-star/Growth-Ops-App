@@ -62,20 +62,57 @@ function headers(auth: StripeAuth): Record<string, string> {
 }
 
 /** Una petición GET a Stripe. Lanza `StripeError` con código si no responde bien. */
-export async function stripeGet<T>(path: string, params: URLSearchParams, auth: StripeAuth): Promise<T> {
+export async function stripeGet<T>(
+  path: string,
+  params: URLSearchParams,
+  auth: StripeAuth,
+  timeoutMs = TIMEOUT_MS
+): Promise<T> {
   const qs = params.toString()
   let res: Response
   try {
     res = await fetch(`${API}/${path}${qs ? `?${qs}` : ''}`, {
       headers: headers(auth),
       cache: 'no-store',
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(Math.max(1, Math.min(TIMEOUT_MS, timeoutMs))),
     })
   } catch (err) {
     if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
       throw new StripeError({ code: 'timeout', message: 'Stripe tardó demasiado en responder.' })
     }
     throw new StripeError({ code: 'red', message: 'No se pudo conectar con Stripe.' })
+  }
+  const json = (await res.json().catch(() => ({}))) as T & { error?: unknown }
+  if (!res.ok) throw new StripeError(classifyStripeError(res.status, json))
+  return json
+}
+
+/** POST financiero: el llamador debe persistir el claim y reutilizar su clave de idempotencia. */
+export async function stripePost<T>(
+  path: string,
+  body: URLSearchParams,
+  auth: StripeAuth,
+  idempotencyKey: string,
+  timeoutMs = TIMEOUT_MS
+): Promise<T> {
+  let res: Response
+  try {
+    res = await fetch(`${API}/${path}`, {
+      method: 'POST',
+      headers: {
+        ...headers(auth),
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Idempotency-Key': idempotencyKey,
+      },
+      body: body.toString(),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(Math.max(1, Math.min(TIMEOUT_MS, timeoutMs))),
+    })
+  } catch {
+    throw new StripeError({
+      code: 'red',
+      message: 'No se pudo confirmar el resultado en Stripe. Revisa el estado de la solicitud.',
+    })
   }
   const json = (await res.json().catch(() => ({}))) as T & { error?: unknown }
   if (!res.ok) throw new StripeError(classifyStripeError(res.status, json))

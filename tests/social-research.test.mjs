@@ -237,7 +237,10 @@ test('no hay scraping ni navegación automatizada contra Instagram en la infraes
   }
   // lib/instagram sigue siendo solo Graph API oficial
   const igClient = read('lib/instagram/client.ts').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
-  assert.ok(igClient.includes('graph.facebook.com'))
+  // La dirección vive desde F2 en lib/meta/api-version.ts (GRAPH_BASE): el cliente la importa en vez
+  // de escribirla, y sigue hablando solo con la Graph API oficial.
+  assert.ok(igClient.includes('GRAPH_BASE'))
+  assert.ok(read('lib/meta/api-version.ts').includes('https://graph.facebook.com'))
   assert.ok(!/puppeteer|selenium|playwright|sessionid/i.test(igClient))
 })
 

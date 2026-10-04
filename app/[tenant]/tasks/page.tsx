@@ -9,7 +9,7 @@ import { ListChecks, Plus, Sparkles, Loader2, Trash2, Calendar } from 'lucide-re
 import { toast } from 'sonner'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { useSesion, useTenant } from '@/lib/tenant-context'
+import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 
 const STAGES = [
   { value: 'backlog', label: 'Sin empezar' },
@@ -61,6 +61,7 @@ type Task = {
 type DbUser = { id: string; full_name: string }
 
 export default function TasksPage() {
+  const tenantId = useTenantId()
   const tenant = useTenant()
   const sesion = useSesion()
   const [tasks, setTasks] = useState<Task[]>([])
@@ -104,8 +105,12 @@ export default function TasksPage() {
   const load = async () => {
     const supabase = createClient()
     const [tRes, uRes] = await Promise.all([
-      supabase.from('tasks').select('*, assignee:assignee_id(full_name)').order('created_at', { ascending: false }),
-      activeUserNamesQuery(supabase),
+      supabase
+        .from('tasks')
+        .select('*, assignee:assignee_id(full_name)')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false }),
+      activeUserNamesQuery(supabase, tenantId),
     ])
     setTasks((tRes.data as Task[]) || [])
     setUsers((uRes.data as DbUser[]) || [])

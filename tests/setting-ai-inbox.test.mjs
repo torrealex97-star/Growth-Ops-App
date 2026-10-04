@@ -5,10 +5,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  alimentarVerificadas,
   claveDia,
   etiquetaDia,
   horaDe,
   inicialesDe,
+  marcaVerificada,
   tiempoRelativo,
   ultimoMensaje,
   vistaPrevia,
@@ -73,4 +75,36 @@ test('ultimoMensaje + vistaPrevia: el último del orden cronológico y prefijo "
   assert.equal(ultimoMensaje([]), null)
   assert.equal(vistaPrevia(null), 'Sin mensajes todavía')
   assert.equal(vistaPrevia({ from: 'agente' }), '—')
+})
+
+test('alimentarVerificadas: solo hechos (true) crean marca; lo nuevo gana y la otra plataforma no se toca', () => {
+  const previas = alimentarVerificadas({}, 'ghl', [
+    { conversationId: 'a', tieneAgenda: true, tieneVenta: false },
+    { conversationId: 'b', tieneAgenda: null, tieneVenta: true },
+    { conversationId: 'c', tieneAgenda: false, tieneVenta: false },
+  ])
+  assert.deepEqual(previas['ghl:a'], { agenda: true, venta: false })
+  assert.deepEqual(previas['ghl:b'], { agenda: false, venta: true })
+  // null (sin contacto vinculado) y false NO son marcas: no hay entrada.
+  assert.equal(previas['ghl:c'], undefined)
+
+  // La misma conversación llega re-verificada (contacto vinculado después, dato nuevo): gana lo
+  // nuevo — pasar de venta a sin venta también se refleja.
+  const actualizadas = alimentarVerificadas(previas, 'ghl', [
+    { conversationId: 'b', tieneAgenda: true, tieneVenta: false },
+  ])
+  assert.deepEqual(actualizadas['ghl:b'], { agenda: true, venta: false })
+
+  // La otra plataforma no se toca: claves por plataforma, nunca colisión por id compartido.
+  const dos = alimentarVerificadas(previas, 'instagram', [{ conversationId: 'a', tieneVenta: true }])
+  assert.deepEqual(dos['instagram:a'], { agenda: false, venta: true })
+  assert.deepEqual(dos['ghl:a'], { agenda: true, venta: false })
+})
+
+test('marcaVerificada: entrada sin hecho → null; con cita o venta → la verificación', () => {
+  assert.equal(marcaVerificada(undefined), null)
+  assert.equal(marcaVerificada(null), null)
+  assert.equal(marcaVerificada({ agenda: false, venta: false }), null)
+  assert.deepEqual(marcaVerificada({ agenda: true, venta: false }), { agenda: true, venta: false })
+  assert.deepEqual(marcaVerificada({ agenda: false, venta: true }), { agenda: false, venta: true })
 })

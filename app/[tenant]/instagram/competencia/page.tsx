@@ -31,7 +31,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import type { Testimonio } from '@/lib/testimonios-shared'
 import { createClient } from '@/lib/supabase/client'
 import { useScriptQueue } from '@/components/os/ScriptQueue'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { formatNumber, formatDateTime } from '@/lib/utils'
 
 type Competitor = {
@@ -83,6 +83,7 @@ const fecha = (s: string | null) =>
 const normUrl = (u: string | null) => (u || '').split('?')[0].split('#')[0].replace(/\/$/, '').toLowerCase()
 
 export default function CompetenciaPage() {
+  const tenantId = useTenantId()
   const tenant = useTenant()
   const { enqueue } = useScriptQueue()
   const [competitors, setCompetitors] = useState<Competitor[]>([])
@@ -131,6 +132,7 @@ export default function CompetenciaPage() {
     const { data } = await supabase
       .from('content_items')
       .select('reference_reel_url')
+      .eq('tenant_id', tenantId)
       .not('reference_reel_url', 'is', null)
     setIdeaUrls(
       new Set(

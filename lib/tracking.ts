@@ -69,3 +69,30 @@ export async function firstMemberOf(sb: SupabaseClient, tenantId: string, userId
   const row = (data ?? [])[0] as { user_id: string } | undefined
   return row?.user_id ?? null
 }
+
+// Resuelve user.id por email: vale el email de login de la app o el calendly_email del usuario
+// (la cuenta de Calendly puede no ser la del login — ver el webhook de Calendly). ACOTADO A LA
+// SUBCUENTA por firstMemberOf, con la misma disciplina que resolveUserIdByTrackingCode: `users`
+// es global y sin el filtro un dueño de otra subcuenta podía quedarse una agenda —y su comisión—.
+// Insensible a mayúsculas con ESCAPE de comodines: en un ilike, '_' y '%' son comodines (y '\'
+// el escape) — sin escapar, ana_perez@x.com también matcheaba ana-perez@x.com y la agenda (y su
+// comisión) podía caer en el usuario equivocado. Dos filtros planos en vez de .or() interpolado:
+// una coma en el dato rompía la sintaxis de PostgREST. Devuelve null sin email o sin coincidencia.
+export async function resolveUserIdByEmail(
+  sb: SupabaseClient,
+  email: string | null | undefined,
+  tenantId: string
+): Promise<string | null> {
+  const e = (email ?? '').trim().toLowerCase()
+  if (!e || !tenantId) return null
+  const patron = e.replace(/[\\%_]/g, (c) => `\\${c}`)
+  const porLogin = await sb.from('users').select('id').ilike('email', patron).limit(20)
+  if (porLogin.error) throw porLogin.error
+  const porCalendly = await sb.from('users').select('id').ilike('calendly_email', patron).limit(20)
+  if (porCalendly.error) throw porCalendly.error
+  const ids = [
+    ...(porLogin.data ?? []).map((u) => (u as { id: string }).id),
+    ...(porCalendly.data ?? []).map((u) => (u as { id: string }).id),
+  ]
+  return firstMemberOf(sb, tenantId, ids)
+}

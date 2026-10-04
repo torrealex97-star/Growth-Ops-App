@@ -9,7 +9,7 @@ import { addMonthsUTC, parseFechaDia } from '@/lib/sales/plan-cuotas'
 import { PeriodFilterBar } from '@/components/os/PeriodFilterBar'
 import { DEFAULT_PERIOD, getPeriodRange, inPeriod, type PeriodPreset } from '@/lib/filters/period'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 import { StripePendientesAviso } from '@/components/os/StripePendientesAviso'
 import { AttachSignedContractButton } from '@/components/contracts/AttachSignedContractButton'
 
@@ -202,6 +202,7 @@ function TrackDot({ on, label }: { on: boolean; label: string }) {
 }
 
 export default function StudentsPage() {
+  const tenantId = useTenantId()
   const tenant = useTenant()
   const [rows, setRows] = useState<StudentRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -227,10 +228,12 @@ export default function StudentsPage() {
           .select(
             'id, sale_date, gross_amount, onboarding_date, onboarding_scheduled_at, onboarding_session_at, first_coaching_date, graduation_date, status, course_access_granted_at, course_access_revoked_at, contacts(id, full_name, email, engagement_score, ttfv_date, nps, promise_fulfilled), products(name, duration_months), payment_plans(method, name)'
           )
+          .eq('tenant_id', tenantId)
           .order('sale_date', { ascending: false }),
         supabase
           .from('contracts')
           .select('id, sale_id, contact_id, accesos_enviados_at, accesos_abiertos_at, signed_at, signed_pdf_url')
+          .eq('tenant_id', tenantId)
           .eq('kind', 'venta')
           .neq('contract_party', 'tomador')
           .eq('is_reservation', false),
