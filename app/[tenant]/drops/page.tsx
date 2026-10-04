@@ -6,7 +6,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { UserMinus, Plus, X, Download } from 'lucide-react'
 import { toast } from 'sonner'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, formatPercent } from '@/lib/utils'
+import { detalleMuestra, razon } from '@/lib/metrics/razon'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -237,9 +238,13 @@ export default function DropsPage() {
       return rd.getFullYear() === now.getFullYear() && rd.getMonth() === now.getMonth()
     }).length
 
-    const total = filteredItems.length
+    // La tasa se mide sobre las solicitudes RESUELTAS (perdida o recuperada). Dividir entre todas contaba
+    // como «no recuperada» a cada solicitud todavía en proceso o pausada, y con ninguna resuelta daba un
+    // 0 % que se leía como «no recuperamos ninguna» cuando todavía no hay ninguna cerrada (F18, F22).
     const recuperadas = filteredItems.filter((d) => d.result === 'recuperada').length
-    const recoveryRate = total > 0 ? (recuperadas / total) * 100 : 0
+    const perdidas = filteredItems.filter((d) => d.result === 'perdida').length
+    const recoveryRate = razon(recuperadas, recuperadas + perdidas)
+    const abiertas = filteredItems.filter((d) => d.result === 'en_proceso' || d.result === 'pausada').length
 
     const totalRefunds = filteredItems.reduce((sum, d) => sum + (d.refund_amount || 0), 0)
 
@@ -249,7 +254,7 @@ export default function DropsPage() {
       byReason[key] = (byReason[key] || 0) + 1
     }
 
-    return { thisMonth, recoveryRate, totalRefunds, byReason }
+    return { thisMonth, recoveryRate, abiertas, totalRefunds, byReason }
   }, [filteredItems])
 
   const updateResult = async (id: string, result: string) => {
@@ -307,7 +312,7 @@ export default function DropsPage() {
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <UserMinus className="w-6 h-6 text-brand-400" /> Cancelaciones
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">Bajas, motivos, retención y churn</p>
+          <p className="text-muted-foreground text-sm mt-1">Bajas, motivos y recuperación de solicitudes</p>
         </div>
         <div className="flex items-center gap-3">
           <SearchBox value={q} onChange={setQ} placeholder="Buscar alumno..." className="w-64" />
@@ -389,7 +394,11 @@ export default function DropsPage() {
             </div>
             <div className="bg-card/50 border border-border rounded-lg p-4">
               <p className="text-xs text-muted-foreground">Tasa de recuperación</p>
-              <p className="text-2xl font-bold text-emerald-400 mt-1">{kpis.recoveryRate.toFixed(1)}%</p>
+              <p className="text-2xl font-bold text-emerald-400 mt-1">{formatPercent(kpis.recoveryRate.valor, 1)}</p>
+              <p className="text-3xs text-muted-foreground mt-1">
+                {detalleMuestra(kpis.recoveryRate)} resueltas
+                {kpis.abiertas > 0 ? ` · ${kpis.abiertas} sin cerrar` : ''}
+              </p>
             </div>
             <div className="bg-card/50 border border-border rounded-lg p-4">
               <p className="text-xs text-muted-foreground">Total refunds</p>
