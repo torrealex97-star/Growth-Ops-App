@@ -26,7 +26,7 @@ test('solo reescribe la política de lectura abierta a todos los miembros', () =
 test('liderazgo conserva todo; el resto hereda la visibilidad del contacto', () => {
   assert.match(codigo, /is_super_admin\(\)/)
   assert.match(codigo, /is_admin_or_director\(\)/)
-  // Reutiliza el helper de la migración 20261003120000 en vez de inventar otra regla de «equipo».
+  // Reutiliza el helper de la migración 20261003082207 en vez de inventar otra regla de «equipo».
   assert.match(codigo, /is_team_scope_allowed\(\)/)
   assert.match(codigo, /EXISTS \(SELECT 1 FROM public\.contacts c WHERE c\.id = stripe_customers\.contact_id\)/)
 })

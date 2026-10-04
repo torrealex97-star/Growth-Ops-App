@@ -1898,11 +1898,12 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente      | Qué                                                                   | Rama                        | Toca                                                         | Desde |
-| ----------- | --------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------ | ----- |
-| Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot   | `package.json`/lock (solo vía dependabot), docs, migraciones | 3-oct |
-| Codex       | PR #325 reservation-refunds (E2E en rojo, su autor continúa)          | `codex/reservation-refunds` | ventas/cobros (según su rama)                                | 3-oct |
-| Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún             | —                           | `docs/plan/`, migraciones RLS                                | 3-oct |
+| Agente      | Qué                                                                   | Rama                            | Toca                                                                              | Desde |
+| ----------- | --------------------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------- | ----- |
+| Freebuff    | Ventas sin closer de Claudia (backfill Calendly + memoria de dueños)  | `fix/citas-closer-convergencia` | `lib/integrations/citas-sync.ts`, `tests/citas-closer-backfill-calendly.test.mjs` | 4-oct |
+| Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot       | `package.json`/lock (solo vía dependabot), docs, migraciones                      | 3-oct |
+| Codex       | PR #325 reservation-refunds (E2E en rojo, su autor continúa)          | `codex/reservation-refunds`     | ventas/cobros (según su rama)                                                     | 3-oct |
+| Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún             | —                               | `docs/plan/`, migraciones RLS                                                     | 3-oct |
 
 ## Reglas de trabajo (2026-09-21)
 
@@ -2219,3 +2220,13 @@ El usuario aclara que Cash Collected medio debe medir la primera transacción de
 - Pendiente de usuario: F04 (tipo de cambio), F11/F12 (mapeo de setters, histórico esperado por fuente).
 - SIGUIENTE: migraciones F01 `20261003120000` y `20261003130000` (en prod, solo en la rama
   `claude/app-continuation-lpbupf`) → traerlas a `main` verificando que coinciden con prod.
+
+## 2026-10-04 · Migraciones F01 traídas a `main`
+
+- `20261003082207_gate_team_scope_to_leadership.sql` y `20261003122304_scope_stripe_payments_to_attribution.sql`
+  (copiadas de la rama `claude/app-continuation-lpbupf`, commits e24e856 y d04849c) con la versión con la
+  que están REGISTRADAS en producción. Verificado contra `pg_policies` vivo: las 8 políticas y
+  `is_team_scope_allowed()` coinciden con lo que dicen los archivos. No se ha ejecutado nada en la base.
+- Deriva de historial preexistente (no tocada): varias migraciones del repo no figuran en
+  `supabase_migrations.schema_migrations` y otras están registradas con otra versión. Reconciliarla es
+  un trabajo aparte y requiere `supabase migration repair` (cambia el registro de prod: pedir confirmación).
