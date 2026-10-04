@@ -87,6 +87,29 @@ CI del PR en verde (E2E requirió 2 reruns por cancelaciones de concurrencia, no
 cola automáticamente. Verificar que las citas recientes quedan con Claudia y corregir a mano la venta de
 1997 € si procede. Las 4 de GHL sin closer siguen siendo por diseño (dueño solo vía webhook closerEmail).
 
+## Devoluciones de Stripe sobre reservas: absorbedor automático — 4-oct (Freebuff, PR #355)
+
+**Fusionado en `main` (4ae8ff7).** Petición de Alex: las devoluciones de reservas deben identificarse y no
+salir en reservas como si el dinero siguiera en cuenta. Medido: la reserva del 14-sep estaba devuelta en
+Stripe (`refunded_amount=50`) y en la app llevaba 20 días como `active` con cobro `collected` — el flujo
+propio de la app concilia, pero el dinero devuelto FUERA de la app nunca entraba.
+
+Fix: `lib/finance/reservationRefundSync.ts` cruza el espejo `stripe_payments` con las reservas abiertas y
+**absorbe** la devolución completa: fila en `refunds` (fecha de Stripe, `created_by NULL` — sin actor humano
+al que atribuirla), `audit_logs` con `source: 'stripe_sync'`, venta `refunded` (solo si sigue active) →
+fuera de la bandeja de reservas y de las sugerencias. Idempotente. Con **comisiones ya generadas o
+devolución parcial NO absorbe**: marca el cobro `needs_commission_review` — revisión financiera, no
+se inventa la negativa ni un estado que la UI no representa. Conectado al cron `stripe-payments` y al sync
+manual de Integraciones (fallo blando, fuera de `recordSyncRun`; expone `reservas_devueltas_absorbidas`).
+
+Validación: 6 tests nuevos (`tests/reservas-devoluciones-sync.test.mjs` con stub thenable de PostgREST,
+embed `!inner` como array — fallo real cazado: en producción el embed llega como array, no objeto) +
+suites vecinas 30/30, `tsc` verde, prettier verde, CI del PR en verde. Nota: los builds de Vercel
+estuvieron rate-limited 24 h por los merges paralelos del día; el CI de GitHub (gate de calidad) pasó
+completo y el merge no se apoyó en los previews. Efecto sobre datos: la siguiente pasada del cron
+(o Integraciones → Sincronizar Stripe) absorbe la devolución pendiente — reserva del 14-sep sale de la
+bandeja, queda en Devoluciones y deja de contar en caja.
+
 ## Cobros como reserva + errores accionables al completar reserva + grafía de nombres — 4-oct (Freebuff, PR #350)
 
 **Fusionado en `main` (78ffcc3).** Los 4 síntomas que reportó Alex cerrados:
@@ -1920,7 +1943,6 @@ fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo 
 
 | Agente      | Qué                                                                   | Rama                                 | Toca                                                                              | Desde |
 | ----------- | --------------------------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------- | ----- |
-| Freebuff    | Devoluciones de Stripe sobre reservas no sincronizadas (absorbedor)   | `fix/reservas-devoluciones-sync`     | `lib/finance/reservationRefundSync.ts` (nuevo), crons stripe-payments (cron+manual), tests | 4-oct |
 | Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot            | `package.json`/lock (solo vía dependabot), docs, migraciones                      | 3-oct |
 | Codex       | PR #325 reservation-refunds (E2E en rojo, su autor continúa)          | `codex/reservation-refunds`          | ventas/cobros (según su rama)                                                     | 3-oct |
 | Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún             | —                                    | `docs/plan/`, migraciones RLS                                                     | 3-oct |
