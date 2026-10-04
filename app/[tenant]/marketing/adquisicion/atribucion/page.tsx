@@ -68,10 +68,6 @@ const NO_UTM = 'Directo/Sin UTM'
 // Etiqueta que la RPC attribution_funnel_for_tenant usa para leads sin fuente ni UTM.
 const DIRECTO_RPC = 'Directo / Sin atribuir'
 
-// Fecha local → YYYY-MM-DD (para los límites de la consulta, sin desfase de zona).
-const ymdLocal = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-
 function buildBars(map: Map<string, number>, limit = 10): { bars: BarItem[]; total: number } {
   const total = Array.from(map.values()).reduce((a, b) => a + b, 0)
   const bars = Array.from(map.entries())
@@ -173,8 +169,10 @@ export default function AttributionPage() {
   const [sourceFilter, setSourceFilter] = useState<string>('all')
 
   const range = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
-  const rangeFrom = useMemo(() => (range.from ? ymdLocal(range.from) : null), [range.from])
-  const rangeTo = useMemo(() => (range.to ? ymdLocal(range.to) : null), [range.to])
+  // Instantes ISO (frontera del día en la zona del negocio): `YYYY-MM-DDT00:00:00` sin zona lo
+  // interpreta Postgres en UTC y desplaza el corte 1-2 h; el `23:59:59` pierde el último segundo.
+  const rangeFrom = useMemo(() => (range.from ? range.from.toISOString() : null), [range.from])
+  const rangeTo = useMemo(() => (range.to ? range.to.toISOString() : null), [range.to])
 
   // Funnel por fuente (RPC) + first/last touch — globales, se cargan una vez.
   useEffect(() => {
@@ -295,8 +293,8 @@ export default function AttributionPage() {
           .select('id, contact_id, status, source, utm_source, utm_campaign, appointment_datetime', { count: 'exact' })
           .eq('tenant_id', tenantId)
           .order('appointment_datetime', { ascending: false })
-        if (rangeFrom) q = q.gte('appointment_datetime', `${rangeFrom}T00:00:00`)
-        if (rangeTo) q = q.lte('appointment_datetime', `${rangeTo}T23:59:59`)
+        if (rangeFrom) q = q.gte('appointment_datetime', rangeFrom)
+        if (rangeTo) q = q.lte('appointment_datetime', rangeTo)
         return q.order('id')
       }
       const { rows: data, error, truncated } = await fetchAllRows(makeQuery)
