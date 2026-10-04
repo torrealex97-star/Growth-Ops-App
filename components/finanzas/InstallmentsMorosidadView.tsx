@@ -133,13 +133,15 @@ export function InstallmentsMorosidadView() {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10)
 
-    const overdue = filteredRows.filter((r) => isOverdue(r, today))
-    const thisMonth = filteredRows.filter(
+    // DEUDA TOTAL, no del periodo: una cuota vencida hace meses sigue debiéndose aunque el filtro
+    // de fechas mire este mes. El periodo solo acota la pestaña «Todas».
+    const overdue = rows.filter((r) => isOverdue(r, today))
+    const thisMonth = rows.filter(
       (r) => r.status === 'pending' && r.due_date && r.due_date >= monthStart && r.due_date <= monthEnd
     )
-    const upcoming = filteredRows.filter((r) => r.status === 'pending' && r.due_date && r.due_date > monthEnd)
+    const upcoming = rows.filter((r) => r.status === 'pending' && r.due_date && r.due_date > monthEnd)
     const overdueAmount = overdue.reduce((sum, r) => sum + (r.expected_gross_amount || 0), 0)
-    const flaggedCount = filteredRows.filter((r) => r.flagged_delinquent).length
+    const flaggedCount = rows.filter((r) => r.flagged_delinquent).length
 
     return {
       overdueRows: overdue,
@@ -152,7 +154,7 @@ export function InstallmentsMorosidadView() {
         flaggedCount,
       },
     }
-  }, [filteredRows, today])
+  }, [rows, today])
 
   const visibleRows = useMemo(() => {
     let base: InstallmentRow[]
@@ -251,11 +253,11 @@ export function InstallmentsMorosidadView() {
         <>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-card/50 border border-border rounded-lg p-4">
-              <p className="text-xs text-muted-foreground">Cuotas vencidas</p>
+              <p className="text-xs text-muted-foreground">Cuotas vencidas (deuda total)</p>
               <p className="text-2xl font-bold text-orange-400 mt-1">{kpis.overdueCount}</p>
             </div>
             <div className="bg-card/50 border border-border rounded-lg p-4">
-              <p className="text-xs text-muted-foreground">Importe vencido</p>
+              <p className="text-xs text-muted-foreground">Importe vencido (deuda total)</p>
               <p className="text-2xl font-bold text-foreground mt-1">{formatCurrency(kpis.overdueAmount)}</p>
             </div>
             <div className="bg-card/50 border border-border rounded-lg p-4">

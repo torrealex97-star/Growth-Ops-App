@@ -47,9 +47,12 @@ export default function ProyeccionPage() {
       const [instRes, commRes] = await Promise.all([
         supabase
           .from('sale_expected_installments')
-          .select('id, due_date, expected_gross_amount, status, sales(contacts(full_name))')
+          .select('id, due_date, expected_gross_amount, status, is_monitoring, sales(contacts(full_name))')
           .eq('tenant_id', tenantId)
-          .neq('status', 'collected')
+          // Ni cobradas ni canceladas son por cobrar; las de monitoring son cuotas del alumno con la
+          // financiera (no es cash nuestro) y se excluyen aquí.
+          .not('status', 'in', '(collected,cancelled)')
+          .eq('is_monitoring', false)
           .order('due_date'),
         supabase
           .from('commissions')
