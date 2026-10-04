@@ -290,7 +290,11 @@ export default function CampaignsPage() {
 
   const load = useCallback(async () => {
     const supabase = createClient()
-    const { data, error } = await supabase.from('campaigns').select('*').order('created_at', { ascending: false })
+    const { data, error } = await supabase
+      .from('campaigns')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: false })
     if (error) toast.error('Error al cargar campañas', { description: error.message })
     const campaigns = (data as Campaign[]) || []
     setItems(campaigns)
@@ -301,6 +305,7 @@ export default function CampaignsPage() {
       const { data: exps, error: expErr } = await supabase
         .from('expenses')
         .select('auto_source')
+        .eq('tenant_id', tenantId)
         .eq('period', period)
         .in('auto_source', sources)
       if (!expErr && exps) {

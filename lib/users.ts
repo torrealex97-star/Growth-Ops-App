@@ -15,8 +15,19 @@ export const isAffiliateRoleKey = (roleKey: string | null | undefined) => roleKe
 // de carga inicial. Devuelve el query builder (thenable) sin await para que siga componiendo
 // igual que la llamada inline que reemplaza — cero cambio de comportamiento, solo un sitio menos
 // donde mantener la misma query si cambia el shape de `users`.
-export function activeUserNamesQuery(supabase: ReturnType<typeof createClient>) {
-  return supabase.from('users').select('id, full_name').eq('is_active', true).order('full_name')
+//
+// ACOTADA A UNA SUBCUENTA (auditoría F19). Antes leía `users` entero: un admin con acceso a varias
+// subcuentas veía en los desplegables —tareas, gastos, contenido, CSM, biblioteca— a las personas de
+// TODAS ellas. `users` no tiene `tenant_id`; la pertenencia vive en `tenant_members`, así que el
+// filtro pasa por esa unión (misma forma que ya usa el Dashboard). `tenantId` es obligatorio a
+// propósito: con un parámetro opcional, olvidarlo devolvía a todo el mundo sin que nada fallara.
+export function activeUserNamesQuery(supabase: ReturnType<typeof createClient>, tenantId: string) {
+  return supabase
+    .from('users')
+    .select('id, full_name, tenant_members!inner(tenant_id)')
+    .eq('tenant_members.tenant_id', tenantId)
+    .eq('is_active', true)
+    .order('full_name')
 }
 
 // Nombres de los usuarios activos de UNA subcuenta, para dárselos como contexto a la IA (extraer

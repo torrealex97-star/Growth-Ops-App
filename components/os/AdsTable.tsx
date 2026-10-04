@@ -7,6 +7,7 @@ import type { Campaign, CampaignAd } from '@/lib/types/database'
 import { Megaphone, X } from 'lucide-react'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
 import { Button } from '@/components/ui/button'
+import { useTenantId } from '@/lib/tenant-context'
 
 const div = (a: number, b: number): number | null => (b > 0 ? a / b : null)
 
@@ -26,6 +27,7 @@ type Props = {
 // cuenta, por campaña y buscar por nombre. Muestra gasto, leads, seguidores y coste
 // por seguidor de cada anuncio.
 export function AdsTable({ campaigns, accounts, version }: Props) {
+  const tenantId = useTenantId()
   const [ads, setAds] = useState<CampaignAd[]>([])
   const [loading, setLoading] = useState(true)
   const [accountFilter, setAccountFilter] = useState('all')
@@ -46,6 +48,7 @@ export function AdsTable({ campaigns, accounts, version }: Props) {
     supabase
       .from('campaign_ads')
       .select('*')
+      .eq('tenant_id', tenantId)
       .order('spend', { ascending: false })
       .then(({ data }) => {
         if (!cancel) {

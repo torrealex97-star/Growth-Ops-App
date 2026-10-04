@@ -395,6 +395,7 @@ export function ContactsAllView() {
           contact_notes(note, created_at)
         `
           )
+          .eq('tenant_id', tenantId)
           .is('merged_into', null)
           .order('created_at', { ascending: false })
 
@@ -403,7 +404,10 @@ export function ContactsAllView() {
           .from('appointments')
           .select('contact_id, appointment_datetime, created_at, status')
           .in('contact_id', contactIds)
-      : supabase.from('appointments').select('contact_id, appointment_datetime, created_at, status')
+      : supabase
+          .from('appointments')
+          .select('contact_id, appointment_datetime, created_at, status')
+          .eq('tenant_id', tenantId)
 
     const [contactsRes, apptRes, defsRes] = await Promise.all([
       contactsQuery,

@@ -19,6 +19,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { ArrowRight, Info } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useTenantId } from '@/lib/tenant-context'
 
 type Props = {
   tenant: string
@@ -27,6 +28,7 @@ type Props = {
 }
 
 export function StripePendientesAviso({ tenant, contexto }: Props) {
+  const tenantId = useTenantId()
   const [pendientes, setPendientes] = useState<number | null>(null)
 
   useEffect(() => {
@@ -38,6 +40,7 @@ export function StripePendientesAviso({ tenant, contexto }: Props) {
       const { count, error } = await sb
         .from('stripe_customers')
         .select('id', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
         .not('contact_id', 'is', null)
       // Si la consulta falla no se inventa un 0: simplemente no se muestra el aviso.
       if (vivo) setPendientes(error ? null : (count ?? 0))

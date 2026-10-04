@@ -6,7 +6,7 @@ import { formatCurrency, formatDate } from '@/lib/utils'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
-import { useTenant } from '@/lib/tenant-context'
+import { useTenant, useTenantId } from '@/lib/tenant-context'
 
 type StatusKey = 'pendiente' | 'contactado' | 'recuperado' | 'incobrable'
 
@@ -43,6 +43,7 @@ const STATUS_BADGE: Record<StatusKey, string> = {
 }
 
 export function SequraMorosidadView() {
+  const tenantId = useTenantId()
   const tenant = useTenant()
   const [rows, setRows] = useState<DelinquentRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -57,6 +58,7 @@ export function SequraMorosidadView() {
     const { data, error } = await supabase
       .from('sequra_delinquent_customers')
       .select('*')
+      .eq('tenant_id', tenantId)
       .order('overdue_days', { ascending: false })
     if (error) {
       toast.error('Error al cargar morosos', { description: error.message })
