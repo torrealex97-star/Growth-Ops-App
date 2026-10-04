@@ -1918,11 +1918,17 @@ Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente      | Qué                                                                   | Rama                        | Toca                                                         | Desde |
-| ----------- | --------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------ | ----- |
-| Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot   | `package.json`/lock (solo vía dependabot), docs, migraciones | 3-oct |
-| Codex       | PR #325 reservation-refunds (E2E en rojo, su autor continúa)          | `codex/reservation-refunds` | ventas/cobros (según su rama)                                | 3-oct |
-| Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún             | —                           | `docs/plan/`, migraciones RLS                                | 3-oct |
+| Agente      | Qué                                                                   | Rama                            | Toca                                                                              | Desde |
+| ----------- | --------------------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------- | ----- |
+| Freebuff    | Ventas sin closer de Claudia (backfill Calendly + memoria de dueños)  | `fix/citas-closer-convergencia` | `lib/integrations/citas-sync.ts`, `tests/citas-closer-backfill-calendly.test.mjs` | 4-oct |
+| Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot       | `package.json`/lock (solo vía dependabot), docs, migraciones                      | 3-oct |
+| Codex       | PR #325 reservation-refunds (E2E en rojo, su autor continúa)          | `codex/reservation-refunds`     | ventas/cobros (según su rama)                                                     | 3-oct |
+| Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún             | —                               | `docs/plan/`, migraciones RLS                                                     | 3-oct |
+| Agente      | Qué                                                                   | Rama                            | Toca                                                                              | Desde |
+| ----------- | --------------------------------------------------------------------- | ---------------------------     | ------------------------------------------------------------                      | ----- |
+| Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot       | `package.json`/lock (solo vía dependabot), docs, migraciones                      | 3-oct |
+| Codex       | PR #325 reservation-refunds (E2E en rojo, su autor continúa)          | `codex/reservation-refunds`     | ventas/cobros (según su rama)                                                     | 3-oct |
+| Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún             | —                               | `docs/plan/`, migraciones RLS                                                     | 3-oct |
 
 ## Reglas de trabajo (2026-09-21)
 
@@ -2229,6 +2235,16 @@ Codex, misma rama/PR: Cash Collected medio por ventas del periodo, gráfico dual
 El usuario aclara que Cash Collected medio debe medir la primera transacción de la venta nueva, no el cash total del periodo. Helper compartido `promedioPrimerPago` en `lib/finance/nuevo-vs-recurrente.ts`, consumido por Negocio/Ventas y dashboard principal. Historial completo de cobros, una primera transacción por venta activa del periodo, sin cuotas posteriores ni ventas antiguas; corte a fin del periodo y ausencia explícita si falta un pago o el primero es ambiguo. Documento METRICS actualizado con la definición corregida. Quality PASS (1133 unit, 3 skip; 774 métricas), build PASS y dead-code informativo. Smoke autenticado confirma que el promedio corregido coincide entre Unit Economics y dashboard principal. Local 3100 activo, sesión 19536. No cambia cobros ni cash total. Producción pendiente de PR #278.
 
 **Verificación posterior del mismo 3-oct:** después de capturar 1 venta/1 cobro y los dashboards coincidentes, otra consulta de base de datos devolvió 0 ventas y 0 cobros. El agente no borró esos registros. El QA compartido volvió a ser modificado/limpiado por un proceso externo (autor no identificado en esta última comprobación). No recrear automáticamente la prueba. El PASS acotado describe el estado comprobado inmediatamente después del alta, no persistencia garantizada ni cierre del problema de aislamiento de QA. Finanzas llegó a mostrar facturación anterior con cobros a cero durante este cambio; no usar ese estado para diagnosticar una fórmula incorrecta sin estabilizar las fuentes.
+
+## 2026-10-04 · Cierre de la auditoría F-series (parte 2)
+
+- Fusionados: #345 (F22/F18/F23), #346 (F08), #347 (F15), #348 (F14/F16), #349 (F21).
+- Aprendizaje CI: `npm test` y `npm run test:metrics` son dos suites; el CI corre en UTC, así que los
+  tests de fechas deben fijar zona/`now`. Los E2E cancelados por la concurrencia global se relanzan
+  con la cola vacía (`gh run rerun --failed`).
+- Pendiente de usuario: F04 (tipo de cambio), F11/F12 (mapeo de setters, histórico esperado por fuente).
+- SIGUIENTE: migraciones F01 `20261003120000` y `20261003130000` (en prod, solo en la rama
+  `claude/app-continuation-lpbupf`) → traerlas a `main` verificando que coinciden con prod.
 
 ## 2026-10-04 · Migraciones F01 traídas a `main`
 
