@@ -1,3 +1,7 @@
+## Reclamación Codex — recuperación de cargas y navegación, 5-oct
+
+Rama propuesta `codex/navigation-recovery`. Alcance: resolver bloqueos intermitentes en navegación y cargas iniciales de las vistas de mayor uso, empezando por Dashboard y Analítica financiera; añadir techo/cancelación a lecturas Supabase que hoy pueden dejar loaders indefinidos y feedback inmediato durante transiciones. No tocar datos, migraciones, cálculos financieros ni integraciones. Evidencia inicial en producción: navegación P&L→Dashboard 0,9 s y filtro de periodo 0,28 s sin errores de consola en la muestra; el fallo es intermitente. Hallazgo estático confirmado: varias vistas críticas esperan `Promise.all` de Supabase sin `AbortSignal`, timeout ni `finally`, de modo que una sola consulta pendiente conserva el loader hasta recargar.
+
 ## Reclamación Codex — rendimiento de bandeja, 4-oct
 
 Rama `codex/runtime-performance`. Alcance: `components/os/Header.tsx`, `components/sales/PaymentInbox.tsx`, lector cliente compartido y tests. En producción se observan dos GET simultáneos de payment-inbox (1,83 y 2,02 s) al cargar Ventas. Sin errores de consola ni bloqueo de CPU en esa muestra. Eliminar duplicación en vuelo y acotar esperas con el helper canónico. No tocar fechas/filtros de PR #361 ni datos financieros.
