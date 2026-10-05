@@ -1942,6 +1942,29 @@ Asignaciones y enlaces incompletos, notas provisionales, fuentes de vídeo/conve
 
 Checkout alternativo antiguo conservado intacto: WIP de comisiones, dashboard de colaborador, clasificación nuevo/recurrente y documentación de otros agentes. Migración/gastos `20260922100000` y tipos BD reclamados por Claude Code: no tocados. No reset, stash, rebase ni force push. No se desplegó ni fusionó este trabajo.
 
+## Resultado — PR #364 (5-oct): bandeja cruza sola cuotas y suscripciones de Stripe
+
+Fusionado `fix/bandeja-cruce-automatico` (merge `6d5ef15`, CI success para `96c7b08`, rama borrada).
+Responde a la petición repetida del propietario: en la bandeja de cobros ya no hay que seleccionar a
+mano que un pago es una cuota. Sin Price ID mapeado, el GET de la bandeja enriquece cada venta
+abierta del contacto con su siguiente cuota pendiente según `planCuotasDeVenta` (calendario real o
+derivado FIFO, una sola query `in`) y `suggestPayment` propone `existing` con la cuota exacta cuando
+el importe coincide (±0,01 €) con una única venta; recurrente + única venta abierta se propone aunque
+el importe no encaje (con aviso); varias cuotas exactas = ambigüedad nombrada, no se elige. La
+evidencia Stripe incluye ahora estado vivo de la suscripción (`status`, `cancel_at_period_end`,
+periodo en curso) también para checkouts de suscripción, y la UI muestra «Suscripción en Stripe:
+activa hasta X / termina el X / cancelada» y «Cuota reconocida: nº N de M». La sugerencia nunca
+registra sola; resolve valida identidad e importe en vivo como hasta ahora.
+
+Verificado localmente (EPERM: arneses /tmp/go-clone y /tmp/qa-close): payment-recognition 17/17 (7
+tests nuevos), 9 suites vecinas Stripe/pagos/reservas 54/54, suite completa 1383/1387 (único fallo:
+apify-retry, ambiental del node local 26 — parameter properties sin transform — reproducido idéntico
+sobre main), test:metrics 783/783, tsc limpio, prettier canónico, eslint limpio en los ficheros
+tocados. Pendiente NO confirmado: deployment de Vercel (rate-limited desde el 4-oct; comprobar que
+main tiene deployment READY antes de afirmar despliegue). Pendiente de datos: `stripe_price_map`
+sigue vacío — mapear los Price IDs reales eliminaría el último tramo manual (venta nueva de una
+suscripción). La venta sin closer del 3-oct sigue requiriendo corrección manual.
+
 ## Tablero de reclamaciones (en curso AHORA)
 
 **CODEX — DASHBOARD & METRIC AUDIT (25-sep):** Ampliación tras browser: reclama filtros tenant en `dashboard/page.tsx`, `unit-economics/page.tsx`, `finanzas/analitica/{resumen,pnl,cohortes,proyeccion}/page.tsx`, CTR en `marketing/adquisicion/campanas/page.tsx` y tests asociados. No toca RLS ni motor financiero. auditoría transversal solicitada por el usuario; rama `codex/dashboard-metric-audit`. Reclama `DASHBOARD_AUDIT.md`, `DASHBOARD_CORRECTION_PLAN.md`, sección propia de relevo y fix acotado del conteo HEAD de contactos en `lib/ai/agent/tools.ts` con `tests/metrics/agent-overview-count.test.mjs`. Inspección de código y producción de solo lectura; ningún cambio de datos. No tocar el WIP del checkout Documents ni las migraciones/gastos reclamados por Claude Code. Regla KPI: definición → fuente → completitud → periodo → maduración → asignación → cálculo → benchmark orientativo.
@@ -1950,9 +1973,7 @@ Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, 
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
 | Agente      | Qué                                                                                        | Rama                           | Toca                                                                                                                                                                                            | Desde |
-| ----------- | ------------------------------------------------------------------------------------------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| Freebuff    | Cruce automático bandeja↔Stripe: estado de suscripción + cuota exacta sin selección manual | `fix/bandeja-cruce-automatico` | `lib/stripe/payment-evidence.ts`, `lib/sales/payment-recognition.ts`, `lib/sales/plan-cuotas.ts`, `app/api/[tenant]/evergreen/sales/payment-inbox/`, `components/sales/PaymentInbox.tsx`, tests | 5-oct |
-| Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327)                      | `main` + ramas dependabot      | `package.json`/lock (solo vía dependabot), docs, migraciones                                                                                                                                    | 3-oct |
+| ----------- | ------------------------------------------------------------------------------------------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- || Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot            | `package.json`/lock (solo vía dependabot), docs, migraciones                      | 3-oct |
 | Codex       | PR #325 reservation-refunds (E2E en rojo, su autor continúa)                               | `codex/reservation-refunds`    | ventas/cobros (según su rama)                                                                                                                                                                   | 3-oct |
 | Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún                                  | —                              | `docs/plan/`, migraciones RLS                                                                                                                                                                   | 3-oct |
 
