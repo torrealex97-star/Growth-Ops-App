@@ -114,9 +114,15 @@ Validación: 6 tests nuevos (`tests/reservas-devoluciones-sync.test.mjs` con stu
 embed `!inner` como array — fallo real cazado: en producción el embed llega como array, no objeto) +
 suites vecinas 30/30, `tsc` verde, prettier verde, CI del PR en verde. Nota: los builds de Vercel
 estuvieron rate-limited 24 h por los merges paralelos del día; el CI de GitHub (gate de calidad) pasó
-completo y el merge no se apoyó en los previews. Efecto sobre datos: la siguiente pasada del cron
-(o Integraciones → Sincronizar Stripe) absorbe la devolución pendiente — reserva del 14-sep sale de la
-bandeja, queda en Devoluciones y deja de contar en caja.
+completo y el merge no se apoyó en los previews. Efecto sobre datos VERIFICADO EN PRODUCCIÓN (5-oct,
+run de Actions 37291852908, HTTP 200): la reserva del 14-sep NO se auto-absorbió — tiene 1 comisión
+positiva, así que el absorbedor marcó su cobro `needs_commission_review=true` (`reservas_para_revision: 1`,
+`reservas_devueltas_absorbidas: 0`; venta sigue `active`, sin fila en `refunds`). El pago SÍ está fuera
+de la bandeja de cobros (espejo con `refunded_amount=50/50`, regla de `pendingPayments` verificada en SQL:
+0 apariciones; quedan exactamente los 7 pendientes). Para completarla hace falta decisión humana: botón
+«Aprobar» sobre el cobro en revisión en la ficha de la venta (genera la comisión negativa y cierra la
+devolución). Nota: mientras tanto la vista de Reservas sigue contándola como venta activa — no filtra
+por la bandera.
 
 ## Cobros como reserva + errores accionables al completar reserva + grafía de nombres — 4-oct (Freebuff, PR #350)
 
