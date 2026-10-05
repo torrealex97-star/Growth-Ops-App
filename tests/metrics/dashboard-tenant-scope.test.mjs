@@ -56,9 +56,10 @@ for (const page of pages) {
         'tenantId',
         'FINANCE_QUERY_ROW_CAP',
         'sesion',
+        'cancelar',
         `return ${batch.getText(ast)}`
       )
-      const responses = await run(supabase, tenantId, 49999, { userId: 'user-fixture' })
+      const responses = await run(supabase, tenantId, 49999, { userId: 'user-fixture' }, new AbortController())
       assert.ok(requests > 0)
       for (const response of responses) {
         assert.equal(response.error, null)

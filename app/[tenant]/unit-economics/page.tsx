@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { mensajeDeCarga, primerError } from '@/lib/supabase/resultado'
 import { FunnelDinamico, FUNNEL_LABELS, FUNNEL_ORDEN, type OpcionFunnel } from '@/components/os/FunnelDinamico'
@@ -357,6 +357,7 @@ export default function UnitEconomicsPage() {
 
   useEffect(() => {
     let mounted = true
+    const cancelar = new AbortController()
     async function load() {
       setLoading(true)
       const supabase = createClient()
@@ -366,16 +367,19 @@ export default function UnitEconomicsPage() {
             .from('campaigns')
             .select('id, channel, adspend, leads_generated, impressions, clicks, account_id')
             .eq('tenant_id', tenantId)
+            .abortSignal(cancelar.signal)
             .range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('sales')
             .select('id, gross_amount, status, contact_id, sale_date, reservation_completed_at, payment_plans(method)')
             .eq('tenant_id', tenantId)
+            .abortSignal(cancelar.signal)
             .range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('collections')
             .select('id, sale_id, gross_amount, collected_at, status, payment_reference')
             .eq('tenant_id', tenantId)
+            .abortSignal(cancelar.signal)
             .range(0, FINANCE_QUERY_ROW_CAP),
           // Fuente PRIMARIA del cash (§2): espejo de pagos de Stripe (succeeded, neto de su
           // refunded_amount). Sin filas el merge resuelve por collections — y el desglose por
@@ -386,17 +390,20 @@ export default function UnitEconomicsPage() {
               'payment_id, charge_id, amount, refunded_amount, refunded_at, currency, fx_rate_to_eur, status, paid_at, customer_email'
             )
             .eq('tenant_id', tenantId)
+            .abortSignal(cancelar.signal)
             .range(0, FINANCE_QUERY_ROW_CAP),
           // email/phone entran para la consolidación canónica de leads (dedup por persona, §6/§17).
           supabase
             .from('contacts')
             .select('id, campaign_id, created_at, first_seen_at, email, phone')
             .eq('tenant_id', tenantId)
+            .abortSignal(cancelar.signal)
             .range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('appointments')
             .select('id, contact_id, status, appointment_datetime, pipe_value, offered, result')
             .eq('tenant_id', tenantId)
+            .abortSignal(cancelar.signal)
             .range(0, FINANCE_QUERY_ROW_CAP),
           // La serie DIARIA es lo que permite filtrar por periodo. El aviso que había aquí decía que no
           // se podía porque `campaigns.adspend` es un acumulado — cierto, pero `campaign_daily` existe
@@ -405,17 +412,20 @@ export default function UnitEconomicsPage() {
             .from('campaign_daily')
             .select('campaign_id, date, spend, impressions, clicks, leads, account_id')
             .eq('tenant_id', tenantId)
+            .abortSignal(cancelar.signal)
             .range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('fathom_match_review')
             .select('meeting_started_at, invitee_email')
             .eq('tenant_id', tenantId)
             .eq('status', 'pendiente')
+            .abortSignal(cancelar.signal)
             .range(0, FINANCE_QUERY_ROW_CAP),
           supabase
             .from('targets')
             .select('id, metric_key, scope_type, is_active, period_type, period_start, period_end, target_value')
             .eq('tenant_id', tenantId)
+            .abortSignal(cancelar.signal)
             .eq('scope_type', 'company'),
         ])
       if (!mounted) return
@@ -445,26 +455,40 @@ export default function UnitEconomicsPage() {
     load()
     return () => {
       mounted = false
+      cancelar.abort()
     }
   }, [tenantId])
 
-  const rango = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
-  const hayPeriodo = periodPreset !== 'all'
+  // Los controles se actualizan inmediatamente; las agregaciones sobre todas las fuentes usan una
+  // copia diferida. Así un cambio de periodo/origen no bloquea el siguiente clic mientras React
+  // recalcula funnels, series y cash canónico.
+  const filtrosActuales = useMemo(
+    () => ({ periodPreset, customFrom, customTo, cuentaSel, atribucion, origen }),
+    [periodPreset, customFrom, customTo, cuentaSel, atribucion, origen]
+  )
+  const filtrosDiferidos = useDeferredValue(filtrosActuales)
+  const rango = useMemo(
+    () => getPeriodRange(filtrosDiferidos.periodPreset, filtrosDiferidos.customFrom, filtrosDiferidos.customTo),
+    [filtrosDiferidos.periodPreset, filtrosDiferidos.customFrom, filtrosDiferidos.customTo]
+  )
+  const hayPeriodo = filtrosDiferidos.periodPreset !== 'all'
 
   // UN solo punto de verdad para "qué campañas cuentan": las de las cuentas seleccionadas
   // en Integraciones (cuentas.filtrar), acotado además al subconjunto elegido en el selector.
   const campaignsVisibles = useMemo(() => {
     const porIntegracion = cuentas.filtrar(campaigns)
-    if (cuentaSel === 'todas') return porIntegracion
-    return porIntegracion.filter((c) => !c.account_id || c.account_id === cuentaSel)
-  }, [campaigns, cuentas, cuentaSel])
+    if (filtrosDiferidos.cuentaSel === 'todas') return porIntegracion
+    return porIntegracion.filter((c) => !c.account_id || c.account_id === filtrosDiferidos.cuentaSel)
+  }, [campaigns, cuentas, filtrosDiferidos.cuentaSel])
   const dailyVisible = useMemo(
     () =>
       cuentas
         .filtrar(daily)
         .filter((d) => !hayPeriodo || inPeriod(d.date, rango))
-        .filter((d) => cuentaSel === 'todas' || !d.account_id || d.account_id === cuentaSel),
-    [daily, cuentas, hayPeriodo, rango, cuentaSel]
+        .filter(
+          (d) => filtrosDiferidos.cuentaSel === 'todas' || !d.account_id || d.account_id === filtrosDiferidos.cuentaSel
+        ),
+    [daily, cuentas, hayPeriodo, rango, filtrosDiferidos.cuentaSel]
   )
 
   // Con periodo activo mandan los datos DIARIOS; sin periodo, el acumulado de la campaña. Mezclarlos
@@ -583,10 +607,10 @@ export default function UnitEconomicsPage() {
   //   no_atribuidos             → 'organico' (lo que falta de atribuir)
   //   todos                     → el origen tal cual
   const filtroEfectivo: AttributionFilter = useMemo(() => {
-    if (atribucion === 'atribuidos') return 'ads'
-    if (atribucion === 'no_atribuidos') return 'organico'
-    return origen
-  }, [atribucion, origen])
+    if (filtrosDiferidos.atribucion === 'atribuidos') return 'ads'
+    if (filtrosDiferidos.atribucion === 'no_atribuidos') return 'organico'
+    return filtrosDiferidos.origen
+  }, [filtrosDiferidos.atribucion, filtrosDiferidos.origen])
 
   // Citas del periodo elegido, con el mismo rango que el resto de la pantalla.
   const agendasVisibles = useMemo(

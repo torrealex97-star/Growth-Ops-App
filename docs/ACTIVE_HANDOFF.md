@@ -1,3 +1,23 @@
+## Reclamación Codex — rendimiento de navegación y filtros, 5-oct
+
+Rama `codex/navigation-performance`. Alcance: Dashboard y Visión del negocio. Evidencia en producción:
+Visión del negocio cambia de URL en ~1,1 s pero el contenido útil tarda varios segundos más; sin errores de
+consola. Supabase real descarta volumen/índices como causa principal (menos de 2.000 filas entre las nueve
+fuentes y todos los filtros `tenant_id` indexados). Hallazgo confirmado en código: al navegar fuera, las
+9–12 peticiones pesadas seguían vivas hasta su timeout aunque React ignorase el resultado, compitiendo con
+la pantalla siguiente. Implementado: las consultas/fetch se abortan al desmontar y las agregaciones de
+filtros se difieren para proteger INP sin retrasar los controles. No toca cálculos, datos, migraciones ni
+semántica financiera. Regresión nueva cubre propagación y cleanup del abort, fetch de comisiones y filtros
+diferidos; los tests de aislamiento ejecutan las consultas reales con su `AbortController`.
+
+Validación: formato PASS; lint PASS con avisos preexistentes; typecheck PASS; unit 1.391 PASS + 3 SKIP;
+métricas 783 PASS; build Next 15.5.27 PASS con variables placeholder. `knip` terminó con código 0 y solo
+enumera 4 archivos, 17 exports, 2 tipos y 1 devDependency preexistentes, fuera de alcance. Verificación
+antes del cambio: Dashboard → Visión del negocio cambió URL en ~1,1 s pero su contenido útil tardó varios
+segundos. Falta medir el mismo recorrido después de que la revisión llegue a producción; los logs runtime
+de Vercel siguen NOT AVAILABLE por el 403 ya documentado. Web Vitals (LCP/INP/CLS) ya se envían al Sentry
+existente mediante `WebVitalsReporter` cuando hay DSN; no se añadió telemetría duplicada.
+
 ## Reclamación Codex — recuperación de cargas y navegación, 5-oct
 
 Rama `codex/navigation-recovery`. Alcance: resolver bloqueos intermitentes en navegación y cargas iniciales sin tocar datos, migraciones, cálculos financieros ni integraciones. Evidencia inicial en producción: navegación P&L→Dashboard 0,9 s y filtro de periodo 0,28 s sin errores de consola en la muestra; el fallo es intermitente. Hallazgo estático confirmado: varias vistas críticas esperan `Promise.all` de Supabase sin techo, de modo que una sola consulta pendiente conserva el loader hasta recargar.
@@ -1984,10 +2004,10 @@ suscripción). La venta sin closer del 3-oct sigue requiriendo corrección manua
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente      | Qué                                                                                        | Rama                           | Toca                                                                                                                                                                                            | Desde |
-| ----------- | ------------------------------------------------------------------------------------------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- || Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot            | `package.json`/lock (solo vía dependabot), docs, migraciones                      | 3-oct |
-| Codex       | PR #325 reservation-refunds (E2E en rojo, su autor continúa)                               | `codex/reservation-refunds`    | ventas/cobros (según su rama)                                                                                                                                                                   | 3-oct |
-| Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún                                  | —                              | `docs/plan/`, migraciones RLS                                                                                                                                                                   | 3-oct |
+| Agente | Qué | Rama | Toca | Desde |
+| ----------- | ------------------------------------------------------------------------------------------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- || Freebuff | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot | `package.json`/lock (solo vía dependabot), docs, migraciones | 3-oct |
+| Codex | PR #325 reservation-refunds (E2E en rojo, su autor continúa) | `codex/reservation-refunds` | ventas/cobros (según su rama) | 3-oct |
+| Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún | — | `docs/plan/`, migraciones RLS | 3-oct |
 
 ## Reglas de trabajo (2026-09-21)
 
