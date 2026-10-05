@@ -38,6 +38,23 @@ type Detail = {
 }
 const changed = 'growthops:payment-inbox-changed'
 
+// Texto del estado de la suscripción en Stripe, para que el usuario sepa de un vistazo si el
+// cobro pertenece a una suscripción viva, hasta cuándo, o si va a cancelarse sin renovar.
+function textoSuscripcion(r: Detail['recognition']) {
+  if (r.cancelAtPeriodEnd && r.nextPaymentDate) return `termina el ${formatDate(r.nextPaymentDate)} y no se renovará`
+  switch (r.subscriptionStatus) {
+    case 'canceled':
+      return 'cancelada en Stripe'
+    case 'past_due':
+    case 'unpaid':
+      return 'con pagos pendientes'
+    case 'trialing':
+      return 'en periodo de prueba'
+    default:
+      return r.nextPaymentDate ? `activa hasta el ${formatDate(r.nextPaymentDate)}` : (r.subscriptionStatus ?? '')
+  }
+}
+
 export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; onCount?: (count: number) => void }) {
   const tenant = useTenant()
   const session = useSesion()
@@ -312,6 +329,11 @@ export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; 
                 <p className="text-sm text-muted-foreground" role="status">
                   {detail.recognition.reason}
                 </p>
+                {detail.recognition.subscriptionStatus && (
+                  <p className="text-sm text-muted-foreground">
+                    Suscripción en Stripe: {textoSuscripcion(detail.recognition)}.
+                  </p>
+                )}
                 <label className="block text-sm">
                   ¿A qué corresponde este pago?
                   <select className={selectClass} value={mode} onChange={(e) => setMode(e.target.value)}>
@@ -347,6 +369,16 @@ export function PaymentInbox({ compact = false, onCount }: { compact?: boolean; 
                       </p>
                     )}
                   </>
+                )}
+                {mode === 'existing' && detail.recognition.installment && (
+                  <p className="text-xs text-muted-foreground">
+                    Cuota reconocida: nº {detail.recognition.installment.number} de{' '}
+                    {detail.recognition.installment.total} · {formatCurrency(detail.recognition.installment.amount)} ·
+                    vence{' '}
+                    {detail.recognition.installment.dueDate
+                      ? formatDate(detail.recognition.installment.dueDate)
+                      : 'sin fecha'}
+                  </p>
                 )}
                 {mode === 'existing' && (
                   <label className="block text-sm">

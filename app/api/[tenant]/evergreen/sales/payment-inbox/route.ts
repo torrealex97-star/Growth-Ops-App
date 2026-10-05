@@ -7,6 +7,7 @@ import { suggestPayment, type PaymentEvidence } from '@/lib/sales/payment-recogn
 import { readPaymentInbox } from '@/lib/sales/payment-inbox'
 import { canViewPaymentInbox } from '@/lib/sales/payment-inbox-access'
 import { resolveByPriceId } from '@/lib/sales/priceRecognition'
+import { planCuotasDeVenta, type CobroPlanCuotas, type CuotaReal } from '@/lib/sales/plan-cuotas'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
           ? sb
               .from('sales')
               .select(
-                'id,sale_date,gross_amount,closer_id,product_id,payment_plan_id,products(name),payment_plans(method),collections(gross_amount,status)'
+                'id,sale_date,gross_amount,closer_id,product_id,payment_plan_id,installments_count,installments_start_date,products(name),payment_plans(method),collections(gross_amount,status,expected_installment_id,collected_at)'
               )
               .eq('tenant_id', session.tenantId)
               .eq('contact_id', payment.contactId)
@@ -74,6 +75,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
         recurring: false,
         firstPayment: false,
         nextPaymentDate: null,
+        subscriptionStatus: null,
+        cancelAtPeriodEnd: false,
         warning: 'Stripe no está configurado para reconocer este cobro.',
       }
       const cfg = await getTenantConfigWithFallback(session.tenantId, true)
@@ -101,15 +104,57 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tena
             }))
           )
       }
-      const enrichedSales = visibleSales.map((s) => ({
-        ...s,
-        collected: (s.collections ?? [])
-          .filter((c) => c.status === 'collected')
-          .reduce((sum, c) => sum + Number(c.gross_amount), 0),
-        method:
-          (Array.isArray(s.payment_plans) ? s.payment_plans[0] : (s.payment_plans as { method: string | null } | null))
-            ?.method ?? null,
-      }))
+      // Siguiente cuota pendiente por venta, con el calendario canónico (planCuotasDeVenta):
+      // real si la venta tiene sale_expected_installments, derivada (FIFO) si no. Una sola
+      // consulta acotada a las ventas visibles; si falla se corta el GET (no se sugiere con
+      // un calendario a medias).
+      const saleIds = visibleSales.map((s) => s.id)
+      const cuotasReales = saleIds.length
+        ? await sb.from('sale_expected_installments').select('*').in('sale_id', saleIds).order('installment_number')
+        : { data: [], error: null as null }
+      if (cuotasReales.error) throw new Error('No se pudo leer el calendario de cuotas')
+      const cuotasPorVenta = new Map<string, CuotaReal[]>()
+      for (const cuota of cuotasReales.data ?? []) {
+        const lista = cuotasPorVenta.get(cuota.sale_id) ?? []
+        lista.push(cuota)
+        cuotasPorVenta.set(cuota.sale_id, lista)
+      }
+      const enrichedSales = visibleSales.map((s) => {
+        const cobros: CobroPlanCuotas[] = (s.collections ?? []).map((c) => ({
+          status: String(c.status ?? ''),
+          gross_amount: Number(c.gross_amount ?? 0),
+          collected_at: String(c.collected_at ?? ''),
+          expected_installment_id: c.expected_installment_id ?? null,
+        }))
+        const planVenta = (plans.data ?? []).find((p) => p.id === s.payment_plan_id) ?? null
+        const planDeCuotas = planCuotasDeVenta(cuotasPorVenta.get(s.id) ?? [], cobros, {
+          grossAmount: Number(s.gross_amount),
+          saleDate: s.sale_date.slice(0, 10),
+          paymentPlan: planVenta
+            ? { number_of_payments: planVenta.number_of_payments, method: planVenta.method }
+            : null,
+          installmentsCount: s.installments_count,
+          installmentsStartDate: s.installments_start_date,
+        })
+        const siguiente = planDeCuotas.cuotas.find((c) => c.estado !== 'collected')
+        return {
+          ...s,
+          collected: cobros.filter((c) => c.status === 'collected').reduce((sum, c) => sum + c.gross_amount, 0),
+          method:
+            (Array.isArray(s.payment_plans)
+              ? s.payment_plans[0]
+              : (s.payment_plans as { method: string | null } | null)
+            )?.method ?? null,
+          nextInstallment: siguiente
+            ? {
+                number: siguiente.numero,
+                total: planDeCuotas.cuotas.length,
+                amount: siguiente.bruto,
+                dueDate: siguiente.vencimiento,
+              }
+            : null,
+        }
+      })
       const recognition = suggestPayment(
         evidence,
         suggestion,

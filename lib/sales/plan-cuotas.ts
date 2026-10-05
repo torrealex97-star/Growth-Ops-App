@@ -15,7 +15,7 @@
 //   · Impago (rojo)       → 'overdue' / flagged_delinquent (real) o vencida sin cobrar (derivada).
 // Cuando una cuota impagada se marca cobrada (payments/mark), pasa a verde y vuelve a sumar.
 
-import type { Collection, PaymentPlan, SaleExpectedInstallment } from '@/lib/types/database'
+import type { PaymentPlan, SaleExpectedInstallment } from '@/lib/types/database'
 
 // ── Fechas solo-día (YYYY-MM-DD) ─────────────────────────────────────────────
 // El calendario de cuotas trabaja con FECHAS DE CALENDARIO (sin hora). Anclarlas
@@ -57,6 +57,17 @@ export function addMonthsUTC(fecha: string | Date, meses: number): string {
 
 export type EstadoCuota = 'collected' | 'pending' | 'overdue'
 
+/**
+ * Campos de un cobro que planCuotasDeVenta necesita. Acepta filas parciales (embeds de
+ * PostgREST o selects acotados) sin obligar a traer la fila completa de `collections`.
+ */
+export type CobroPlanCuotas = {
+  status: string
+  gross_amount: number
+  collected_at: string
+  expected_installment_id: string | null
+}
+
 export type CuotaReal = SaleExpectedInstallment & {
   // La columna existe en BD (payments/mark la escribe) pero el tipo manual de
   // database.ts no la declara: se declara aquí para el cálculo de impago.
@@ -97,7 +108,7 @@ const hoyISO = () => new Date().toISOString().split('T')[0]
  */
 export function planCuotasDeVenta(
   cuotasReales: CuotaReal[],
-  cobros: Collection[],
+  cobros: readonly CobroPlanCuotas[],
   meta: {
     grossAmount: number
     saleDate: string

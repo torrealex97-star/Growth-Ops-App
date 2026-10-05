@@ -8,6 +8,8 @@ const base = {
   recurring: false,
   firstPayment: false,
   nextPaymentDate: null,
+  subscriptionStatus: null,
+  cancelAtPeriodEnd: false,
   warning: null,
 }
 const mapped = { productId: 'product', paymentPlanId: 'plan' }
@@ -125,6 +127,58 @@ test('an exact-amount match against a single active reservation plan suggests it
   assert.equal(suggestPayment(base, null, [sale], soloReserva, 50, '2026-10-01').mode, '')
   assert.equal(suggestPayment({ ...base, recurring: true }, null, [], soloReserva, 50, '2026-10-01').mode, '')
 })
+// REGRESIÓN — cruce automático de cuotas sin Price ID mapeado (stripe_price_map vacío): la
+// siguiente cuota pendiente de UNA venta abierta que coincide EXACTAMENTE con el importe se
+// propone como 'existing' con su número de cuota. El usuario ya no tiene que elegir a mano
+// qué venta es ni que es una cuota; la sugerencia nunca registra sola.
+test('an exact match with the next pending installment proposes that sale without a mapped price', () => {
+  const venta = {
+    ...sale,
+    nextInstallment: { number: 2, total: 3, amount: 400, dueDate: '2026-02-01' },
+  }
+  const r = suggestPayment(base, null, [venta], plans, 400, '2026-02-01')
+  assert.equal(r.mode, 'existing')
+  assert.equal(r.saleId, 'sale')
+  assert.equal(r.installment.number, 2)
+  assert.equal(r.installment.total, 3)
+  assert.match(r.reason, /cuota 2 de 3/)
+})
+
+test('ambiguous equal installments across sales are not picked automatically', () => {
+  const venta = { ...sale, nextInstallment: { number: 2, total: 3, amount: 400, dueDate: '2026-02-01' } }
+  const otra = { ...sale, id: 'otra', nextInstallment: { number: 1, total: 2, amount: 400, dueDate: null } }
+  const r = suggestPayment(base, null, [venta, otra], plans, 400, '2026-02-01')
+  assert.equal(r.mode, '')
+  assert.equal(r.saleId, null)
+  assert.match(r.reason, /Varias ventas/)
+})
+
+test('a recurring payment with one open installment sale is proposed even if the amount differs', () => {
+  const venta = { ...sale, nextInstallment: { number: 2, total: 3, amount: 332.83, dueDate: null } }
+  const r = suggestPayment({ ...base, recurring: true }, null, [venta], plans, 374.25, '2026-02-01')
+  assert.equal(r.mode, 'existing')
+  assert.equal(r.saleId, 'sale')
+  assert.match(r.reason, /recurrente/)
+})
+
+test('sales without installment context or sold after the payment are not proposed', () => {
+  assert.equal(suggestPayment(base, null, [sale], plans, 400, '2026-02-01').mode, '')
+  const futura = {
+    ...sale,
+    id: 'futura',
+    sale_date: '2026-03-01',
+    nextInstallment: { number: 1, total: 1, amount: 400, dueDate: null },
+  }
+  assert.equal(suggestPayment(base, null, [futura], plans, 400, '2026-02-01').mode, '')
+})
+
+test('subscription status and cancellation reach the suggestion for the inbox UI', () => {
+  const r = suggestPayment({ ...base, subscriptionStatus: 'canceled', cancelAtPeriodEnd: true }, null, [], plans, 400)
+  assert.equal(r.subscriptionStatus, 'canceled')
+  assert.equal(r.cancelAtPeriodEnd, true)
+  assert.equal(r.nextPaymentDate, null)
+})
+
 async function withStripe(t, bodies, run) {
   const original = globalThis.fetch
   t.after(() => {
@@ -176,6 +230,48 @@ test('payment links without an invoice read Checkout line items', async (t) => {
     }
   )
 })
+test('subscription status, period end and cancellation are read for recurring invoices', async (t) => {
+  await withStripe(
+    t,
+    [
+      {},
+      { data: [{ invoice: 'in_test' }] },
+      {
+        id: 'in_test',
+        billing_reason: 'subscription_cycle',
+        subscription: 'sub_test',
+        lines: { data: [{ price: 'price_test' }] },
+      },
+      { id: 'sub_test', status: 'active', cancel_at_period_end: true, current_period_end: 4102444800 },
+    ],
+    async () => {
+      const e = await readPaymentEvidence('pi_test', { secretKey: 'test' })
+      assert.equal(e.subscriptionStatus, 'active')
+      assert.equal(e.cancelAtPeriodEnd, true)
+      assert.equal(e.nextPaymentDate, '2100-01-01')
+    }
+  )
+})
+
+test('a subscription-mode checkout counts as the first payment and reads its subscription', async (t) => {
+  await withStripe(
+    t,
+    [
+      {},
+      { data: [] },
+      { data: [{ id: 'cs_test', payment_status: 'paid', mode: 'subscription', subscription: 'sub_test' }] },
+      { data: [{ price: { id: 'price_test' } }] },
+      { id: 'sub_test', status: 'active', current_period_end: 4102444800 },
+    ],
+    async () => {
+      const e = await readPaymentEvidence('pi_test', { secretKey: 'test' })
+      assert.equal(e.firstPayment, true)
+      assert.equal(e.subscriptionStatus, 'active')
+      assert.equal(e.nextPaymentDate, '2100-01-01')
+    }
+  )
+})
+
 test('multiple invoice lines are not silently reduced to one product', async (t) => {
   await withStripe(
     t,
