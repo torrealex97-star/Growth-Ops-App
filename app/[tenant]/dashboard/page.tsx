@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { metodoDePlan } from '@/lib/metrics/agregados'
 import dynamic from 'next/dynamic'
@@ -223,6 +223,7 @@ function DashboardEquipo() {
 
   useEffect(() => {
     let mounted = true
+    const cancelar = new AbortController()
     async function load() {
       setLoading(true)
       const supabase = createClient()
@@ -281,35 +282,42 @@ function DashboardEquipo() {
             'id, gross_amount, status, sale_date, closer_id, setter_id, affiliate_id, contact_id, product_id, reservation_completed_at, payment_plans(method)'
           )
           .eq('tenant_id', tenantId)
+          .abortSignal(cancelar.signal)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('collections')
           .select('id, sale_id, gross_amount, collected_at, status, payment_reference')
           .eq('tenant_id', tenantId)
+          .abortSignal(cancelar.signal)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('users')
           .select('id, full_name, tenant_members!inner(tenant_id)')
-          .eq('tenant_members.tenant_id', tenantId),
+          .eq('tenant_members.tenant_id', tenantId)
+          .abortSignal(cancelar.signal),
         supabase
           .from('users')
           .select('id, full_name, roles(key), tenant_members!inner(tenant_id)')
           .eq('tenant_members.tenant_id', tenantId)
+          .abortSignal(cancelar.signal)
           .eq('is_active', true),
         supabase
           .from('contacts')
           .select('id, email, phone, created_at, first_seen_at, first_contact_at')
           .eq('tenant_id', tenantId)
+          .abortSignal(cancelar.signal)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('contact_attributions')
           .select('contact_id, source, utm_source, utm_campaign, utm_content, is_primary, collaborator_id')
           .eq('tenant_id', tenantId)
+          .abortSignal(cancelar.signal)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('appointments')
           .select('id, appointment_datetime, status, setter_id, closer_id, cold_caller_id, affiliate_id, contact_id')
           .eq('tenant_id', tenantId)
+          .abortSignal(cancelar.signal)
           .range(0, FINANCE_QUERY_ROW_CAP),
         supabase
           .from('targets')
@@ -317,23 +325,27 @@ function DashboardEquipo() {
             'id, name, metric_key, scope_type, scope_user_id, period_type, period_start, period_end, target_value'
           )
           .eq('tenant_id', tenantId)
+          .abortSignal(cancelar.signal)
           .eq('is_active', true)
           .eq('scope_type', 'company'),
         supabase
           .from('saved_dashboard_views')
           .select('*')
           .eq('tenant_id', tenantId)
+          .abortSignal(cancelar.signal)
           .or(`user_id.eq.${sesion.userId},scope.eq.shared`),
         supabase
           .from('commissions')
           .select('user_id, sale_id, commission_amount, direction, status')
           .eq('tenant_id', tenantId)
+          .abortSignal(cancelar.signal)
           .range(0, FINANCE_QUERY_ROW_CAP),
         // Perfiles de colaborador de la subcuenta seleccionada: nombres del tab Colaboradores.
         supabase
           .from('collaborator_profiles')
           .select('id, name, status')
           .eq('tenant_id', tenantId)
+          .abortSignal(cancelar.signal)
           .eq('status', 'active'),
         supabase
           .from('stripe_payments')
@@ -341,6 +353,7 @@ function DashboardEquipo() {
             'payment_id, charge_id, amount, refunded_amount, refunded_at, currency, fx_rate_to_eur, status, paid_at, customer_email'
           )
           .eq('tenant_id', tenantId)
+          .abortSignal(cancelar.signal)
           .range(0, FINANCE_QUERY_ROW_CAP),
       ])
 
@@ -395,7 +408,7 @@ function DashboardEquipo() {
       setLoading(false)
 
       // Comisiones futuras (esperadas, por cobrar) — endpoint server-side (respeta visibilidad por rol)
-      fetch(`/api/${tenant}/evergreen/commissions/future`)
+      fetch(`/api/${tenant}/evergreen/commissions/future`, { signal: cancelar.signal })
         .then((r) => r.json())
         .then((d) => {
           if (mounted && d?.rows) setFutureCommissions(d.rows)
@@ -405,6 +418,7 @@ function DashboardEquipo() {
     load()
     return () => {
       mounted = false
+      cancelar.abort()
     }
   }, [tenant, tenantId, sesion])
 
@@ -416,7 +430,12 @@ function DashboardEquipo() {
   }, [role, roleUsers, users])
 
   // --- Rango del filtro unificado de periodo ---
-  const range = useMemo(() => getPeriodRange(periodPreset, customFrom, customTo), [periodPreset, customFrom, customTo])
+  const periodoActual = useMemo(() => ({ periodPreset, customFrom, customTo }), [periodPreset, customFrom, customTo])
+  const periodoDiferido = useDeferredValue(periodoActual)
+  const range = useMemo(
+    () => getPeriodRange(periodoDiferido.periodPreset, periodoDiferido.customFrom, periodoDiferido.customTo),
+    [periodoDiferido.periodPreset, periodoDiferido.customFrom, periodoDiferido.customTo]
+  )
   const previousRange = useMemo(() => getPreviousPeriodRange(range), [range])
 
   // El mes de las tarjetas KPI (este mes vs anterior) sigue al periodo elegido.
