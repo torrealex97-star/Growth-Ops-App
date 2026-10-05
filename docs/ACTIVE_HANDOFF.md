@@ -1984,10 +1984,10 @@ suscripción). La venta sin closer del 3-oct sigue requiriendo corrección manua
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente      | Qué                                                                                        | Rama                           | Toca                                                                                                                                                                                            | Desde |
-| ----------- | ------------------------------------------------------------------------------------------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- || Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot            | `package.json`/lock (solo vía dependabot), docs, migraciones                      | 3-oct |
-| Codex       | PR #325 reservation-refunds (E2E en rojo, su autor continúa)                               | `codex/reservation-refunds`    | ventas/cobros (según su rama)                                                                                                                                                                   | 3-oct |
-| Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún                                  | —                              | `docs/plan/`, migraciones RLS                                                                                                                                                                   | 3-oct |
+| Agente | Qué | Rama | Toca | Desde |
+| ----------- | ------------------------------------------------------------------------------------------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- || Freebuff | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot | `package.json`/lock (solo vía dependabot), docs, migraciones | 3-oct |
+| Codex | PR #325 reservation-refunds (E2E en rojo, su autor continúa) | `codex/reservation-refunds` | ventas/cobros (según su rama) | 3-oct |
+| Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún | — | `docs/plan/`, migraciones RLS | 3-oct |
 
 ## Reglas de trabajo (2026-09-21)
 
@@ -2314,3 +2314,37 @@ El usuario aclara que Cash Collected medio debe medir la primera transacción de
 - Deriva de historial preexistente (no tocada): varias migraciones del repo no figuran en
   `supabase_migrations.schema_migrations` y otras están registradas con otra versión. Reconciliarla es
   un trabajo aparte y requiere `supabase migration repair` (cambia el registro de prod: pedir confirmación).
+
+## 2026-10-04/05 · Cierre de auditoría, F04/F05/F07/F10/F33, rendimiento y seguridad
+
+**Fusionado** (todo en `main`, CI verde): #345 F22/F18/F23 · #346 F08 · #347 F15 · #348 F14/F16 · #349 F21 · #352 migraciones F01 con versión registrada · #354 F30/F31 · #356 F07 · #357 F05 · #358 F33 · #359 F04 · #360 F10 · #361 hotfix de rendimiento · #363 seguridad · #367 SQL de funciones.
+
+**Migraciones aplicadas en producción con confirmación:** `20261004163301_stripe_payments_refunded_at`, `20261004172134_stripe_payments_fx`. Aplicado desde el editor SQL (no registrado en `schema_migrations`): `20261005134300_endurecimiento_funciones`.
+
+**Lecciones**
+
+- Un cambio en `lib/dates/business.ts` (F14) construía `Intl.DateTimeFormat` por llamada y colgó las pantallas (100k llamadas: 5,3 s → 17 ms con caché). Hay test de rendimiento en `tests/f14-periodo-zona-negocio.test.mjs`.
+- Antes de subir: `npm run format:check`, `npm test`, `TZ=UTC npm run test:metrics` (dos suites distintas) y `tests/funnels/*`.
+- Una migración que añade columnas leídas por el código se aplica ANTES de fusionar el PR.
+- E2E cancelado por la concurrencia global ≠ fallo: esperar cola vacía y `gh run rerun --failed`; tras fusionar, el run de `main` cancela los de otros PR.
+- El clasificador de Claude Code bloquea `apply_migration` en algunos casos («Protected-Scope IaC Apply»): no esquivarlo; pegar el SQL en el editor de Supabase o añadir regla de permiso.
+
+**Pendiente — decisión o acción de Alex**
+
+- F12: confirmar que Meta se espera completo desde 2026-08-01 (abril parcial, mayo-junio sin datos, julio 4 días) → antes de esa fecha «sin dato», no 0 €.
+- F33/Meta: generar el token del System User y pegarlo en Integraciones (`docs/META_SYSTEM_USER.md`); con una sola cuenta activa se selecciona sola. Reconectar Instagram.
+- Cloudflare: `app` apunta a Vercel sin proxy (nube gris); activar proxy con SSL Full (strict) probando antes en subdominio, reglas de rate limiting (recuperación, `/api/public-contracts`, `/api/vsl`, `/api/track`, login), Bot Fight Mode, Turnstile. Ver `docs/SECURITY_HARDENING.md`.
+- Supabase: activar _Leaked password protection_; límites de login/OTP; revisar Redirect URLs.
+- Vercel: borrar el proyecto duplicado `growth-ops-app`.
+- Diana: enlace de colaborador (las próximas agendas con setter por enlace; sin default en código — decisión F11).
+- Revisar 13 citas canceladas con evidencia de Fathom/compra; closers confirman 239 asistencias provisionales.
+- F34: comprobar en Vercel si `ONBOARDING_INBOUND_SECRET` está puesta (la pantalla dice «sin configurar» y a la vez «último evento hace 1 d»).
+
+**Pendiente — técnico (siguiente trabajo)**
+
+- F23: separar firma / HTTP / ausencia esperada en Data Health.
+- Backfill: el próximo sync de Stripe rellena `refunded_at` de los 11 reembolsos y el tipo de cambio del pago en USD; hasta entonces las devoluciones restan en el mes del cobro (declaradas como «sin fecha») y el USD cuenta sin convertir… verificar tras el primer sync.
+- CSP de scripts en modo «solo informe» (necesita antes un endpoint que reciba los informes).
+- Extensiones `vector`/`pg_trgm` en `public` (bajo riesgo, ventana de prueba).
+- Deriva del historial de migraciones (varias del repo no figuran en `schema_migrations`): `supabase migration repair` cambia el registro de producción → pedir confirmación.
+- Dependabot #229 (eslint 10, CI falla) abierto a propósito. Ramas sin fusionar a propósito: `chore/ux04-formato-moneda-fuente-unica`, `feat/port-pr225-ads-filter-nuevo-recurrente`, `codex/*`, `rescate/*`.
