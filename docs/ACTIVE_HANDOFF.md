@@ -1,3 +1,27 @@
+## Cierre de ramas remotas — 5-oct
+
+Auditoría contra `origin/main` y las PR asociadas, solicitada por Alex para dejar un único carril de
+trabajo. No se fusionó ninguna rama antigua a ciegas:
+
+- `codex/finance-breakdown-donuts` ya entró por PR #284; `claude/app-continuation-lpbupf` tiene sus
+  migraciones de seguridad en `main`; `codex/skeleton-emptystate-adopcion` quedó absorbida por la
+  adopción posterior de `Skeleton`/`EmptyState`.
+- `chore/ux04-formato-moneda-fuente-unica` y `feat/port-pr225-ads-filter-nuevo-recurrente` siguen
+  obsoletas según la verificación detallada de esta misma bitácora: reintroducirlas eliminaría el
+  formato monetario canónico y guardas financieras más nuevas.
+- PR #225, #286, #290 y #327 estaban cerradas por sustitución o por no superar el criterio de
+  producto; no se reabrieron ni se portó su código. La propuesta de borradores de Stripe (#286)
+  afecta pagos y migraciones y nunca alcanzó el gate para producción.
+- PR #229 (ESLint 10) seguía abierta con el quality gate en `FAILURE`; se cierra sin merge. El
+  proyecto conserva ESLint 9 hasta que el ecosistema de Next/configuración admita el major.
+- Los tips sin PR que contenían evidencia única (`codex/skeleton-emptystate-adopcion` y
+  `rescate/wip-scalix-20260921`) se preservan mediante tags `archive/*-20261005` antes de retirar las
+  ramas. Los demás commits quedan recuperables en sus PR mergeadas/cerradas o están sustituidos por
+  `main`.
+
+Resultado esperado al terminar esta operación: `main` como única rama de trabajo remota, sin cambios
+de producto ni base de datos. La limpieza de ramas no equivale a desplegar o aplicar migraciones.
+
 ## Reclamación Codex — rendimiento de navegación y filtros, 5-oct
 
 Rama `codex/navigation-performance`. Alcance: Dashboard y Visión del negocio. Evidencia en producción:
