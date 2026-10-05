@@ -41,15 +41,10 @@ propias del proyecto. Sin nombres de subcuentas ni credenciales (ver `docs/SECUR
    recrear dependencias, hacerlo en una ventana con prueba.
 6. Rotar cualquier secreto que haya pasado por chats o capturas, y mantener `gitleaks` activo en CI.
 
-## SQL pendiente de aplicar (sin cambios de datos; decisión del propietario)
+## SQL de funciones: aplicado (2026-10-05)
 
-Revoca EXECUTE de una función de trigger a roles externos (los triggers siguen disparando: el permiso se
-comprueba al crear el trigger) y fija `search_path` en dos funciones. Aplicar como migración nueva cuando se
-confirme:
-
-```sql
-REVOKE EXECUTE ON FUNCTION public.guard_reservation_refund() FROM PUBLIC, anon, authenticated;
-
-ALTER FUNCTION public.contacts_normalize_lead_channel(text) SET search_path = public, pg_temp;
-ALTER FUNCTION public.contacts_normalize_lead_channel_trigger() SET search_path = public, pg_temp;
-```
+Aplicado desde el editor SQL de Supabase (el clasificador de permisos de Claude Code bloqueó `apply_migration`
+para este cambio). Archivo: `supabase/migrations/20261005134300_endurecimiento_funciones.sql` (idempotente; no
+figura en `schema_migrations`). Verificado en producción: `guard_reservation_refund` ya no es ejecutable por
+`anon` ni `authenticated` y conserva sus 4 triggers activos; las dos funciones de canal tienen
+`search_path=public, pg_temp`; el linter ya no avisa de ellas.
