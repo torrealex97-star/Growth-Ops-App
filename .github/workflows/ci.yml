@@ -5,22 +5,15 @@ name: CI
 # con los tests; build solo arranca si esos pasan, para no gastar minutos de CI compilando
 # código que ya se sabe roto.
 #
-# ALCANCE (el repo es PÚBLICO: los runners no consumen cuota, así que esto NO es por minutos. Se
-# mantiene porque evita runs redundantes y la cola de checks en ramas sin PR — A0 §2.3):
-#   · Solo pushes a main y PRs — antes corría en TODAS las ramas y cada push repetía todo.
-#   · paths-ignore en push: cambios solo de docs/markdown/.freebuff no disparan CI.
-#   · pull_request SIN paths-ignore (obligatorio): con branch protection, los required
-#     checks deben existir en TODO PR — un PR de solo docs sin run quedaría bloqueado
-#     para siempre (mergeable_state "blocked" sin checks que esperear).
+# ALCANCE (el repo es PÚBLICO: el objetivo es reducir tiempo, red y trabajo duplicado):
+#   · Los gates completos corren una sola vez en la PR. `main` está protegido y no acepta pushes
+#     directos, por lo que repetir el mismo build tras el merge no añade evidencia.
+#   · Todo PR crea el check final obligatorio. Si solo cambia docs/markdown/.freebuff, ejecuta
+#     gitleaks pero omite npm ci, typecheck, tests, dos builds y Playwright.
+#   · `workflow_dispatch` conserva una ejecución completa manual para diagnóstico.
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.freebuff/**'
   pull_request:
 
 concurrency:
@@ -28,8 +21,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detectar cambios de aplicación
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.scope.outputs.app }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+      - id: scope
+        name: Clasificar alcance
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "app=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          if git diff --quiet "$BASE_SHA" "$HEAD_SHA" -- . ':!docs/**' ':!*.md' ':!.freebuff/**'; then
+            echo "app=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "app=true" >> "$GITHUB_OUTPUT"
+          fi
+
   quality:
     name: Format · Lint · Typecheck · Dead code · Unit tests
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -62,7 +85,8 @@ jobs:
 
   build:
     name: Build
-    needs: quality
+    needs: [changes, quality]
+    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -89,7 +113,8 @@ jobs:
   # Después de quality: no gastar minutos E2E si el código ya se sabe roto por otra vía.
   e2e:
     name: Smoke E2E (Playwright)
-    needs: quality
+    needs: [changes, quality]
+    if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     # Los jobs E2E comparten el MISMO tenant QA (qa-e2e) en el MISMO Supabase: dos suites en
     # paralelo se pisan (la limpieza/rotación de credenciales de la una invalida la sesión
@@ -157,3 +182,26 @@ jobs:
           tar -xzf gitleaks.tgz gitleaks
       - name: 'Escanear secretos (--redact: nunca imprime valores)'
         run: ./gitleaks detect --source . --log-opts="--all" --redact --config .gitleaks.toml
+
+  gate:
+    name: Release gate
+    needs: [changes, quality, build, e2e, gitleaks]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verificar checks requeridos según alcance
+        env:
+          APP_CHANGED: ${{ needs.changes.outputs.app }}
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+          GITLEAKS_RESULT: ${{ needs.gitleaks.result }}
+        run: |
+          test "$CHANGES_RESULT" = "success"
+          test "$GITLEAKS_RESULT" = "success"
+          if [ "$APP_CHANGED" = "true" ]; then
+            test "$QUALITY_RESULT" = "success"
+            test "$BUILD_RESULT" = "success"
+            test "$E2E_RESULT" = "success"
+          fi
