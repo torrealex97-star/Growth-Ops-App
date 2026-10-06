@@ -1,4 +1,4 @@
-# Claude Code — Growth-Ops-App
+# Claude Code — growth-ops-app
 
 ## Plan de implementación
 

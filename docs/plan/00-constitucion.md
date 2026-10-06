@@ -51,7 +51,7 @@ Funnels de partida, con la cola común Booked → Show → Close → Cash:
 
 ## 4. Estado real (auditoría del 2026-09-20)
 
-La app Growth-Ops-App es el sistema de registro (CRM, ventas, finanzas, comisiones, contratos, tracking, agente con RAG). GHL entra por webhook y Calendly se usa sobre todo para crear reservas.
+La app growth-ops-app es el sistema de registro (CRM, ventas, finanzas, comisiones, contratos, tracking, agente con RAG). GHL entra por webhook y Calendly se usa sobre todo para crear reservas.
 
 | Pieza                     | Estado         | Evidencia                                                                                                                                                               |
 | ------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

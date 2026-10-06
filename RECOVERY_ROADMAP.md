@@ -1,4 +1,4 @@
-# RECOVERY ROADMAP — Growth-Ops-App (27-sep-2026)
+# RECOVERY ROADMAP — growth-ops-app (27-sep-2026)
 
 Orden reglado (§28): recuperar lo perdido → arreglar lo roto → completar lo parcial → datos/métricas →
 UX → features nuevas. Cada paso = una PR pequeña con su status en el tablero de `docs/ACTIVE_HANDOFF.md`.

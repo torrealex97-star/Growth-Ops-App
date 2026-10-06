@@ -1,4 +1,4 @@
-# Production Readiness — Growth-Ops-App
+# Production Readiness — growth-ops-app
 
 Fecha: 2026-09-11 · Commit base: `c9a03c8` · Alcance: Evergreen + Women Digital Closer (mismo código, tenants distintos).
 

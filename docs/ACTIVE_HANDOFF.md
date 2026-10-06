@@ -10,6 +10,12 @@ workflows conservaban el host retirado. Se añade una regresión que impide rein
 final es: GitHub/Vercel/Supabase visible `growth-ops-app`; producción
 `https://app.scalixsystems.com`; el ID de Vercel y el `project_ref` de Supabase permanecen estables.
 
+VERIFIED en servicios reales: GitHub conservó el mismo repository ID; Vercel conservó el project ID,
+14 variables, integración Git por `repoId`, rama `main` y dominio READY; `NEXT_PUBLIC_SITE_URL` apunta
+al origen canónico. Supabase muestra `growth-ops-app`, conserva su `project_ref`, usa el Site URL
+canónico y deja como únicos redirects el dominio canónico y localhost de desarrollo. Los redirects
+retirados se eliminaron individualmente y se confirmó el estado tras recargar el Dashboard.
+
 ## Supabase producción y CI/GitHub eficiente — cerrado, 6-oct
 
 PR #371 fusionada en `main`. La migración fusionada
