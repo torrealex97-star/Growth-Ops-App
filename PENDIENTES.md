@@ -128,7 +128,7 @@ Este bloque actualiza únicamente dashboards y registro de cobros; el inventario
 > - [ ] Eliminar ramas, worktrees y artefactos ya fusionados solo después de demostrar que no contienen trabajo único.
 >
 > Doc vivo de tareas pendientes. Última actualización: 2026-09-22.
-> App en producción: https://growth-ops-weld.vercel.app · Deploy por PR (protección de rama: CI required en main — nada se pushea directo).
+> App en producción: https://app.scalixsystems.com · Deploy por PR (protección de rama: CI required en main — nada se pushea directo).
 > Contribuir: rama → PR → CI verde (format/lint/typecheck/tests/build/gitleaks) → merge squash.
 
 ---
@@ -159,7 +159,7 @@ Feature completo y desplegado: Config → Datos de empresa, plantillas (pega tex
 
 ## 🟡 Datos a alimentar para que las métricas salgan reales
 
-- [~] **Instalar el snippet del pixel en la web real** — caso F verificado end-to-end el 18-sep: site `wdc-landing` creado (activo, orígenes: womendigitalclosers.com + localhost), evento del navegador → `raw_events` (normalized) → `canonical_events` → visible en Data Health (3 eventos, 0 errores). **Fix incluido**: el índice único de `canonical_events` era parcial y el upsert del ingest fallaba con 42P10 en silencio (raws atascados); convertido en índice completo (mismas garantías: NULL nunca colisiona) + replay de los atascados. Falta: pegar `<script defer src="https://growth-ops-weld.vercel.app/tracker.js" data-site="gop_pk_efec…"></script>` en el `<head>` de womendigitalclosers.com y (opcional) wirear `window.gop('lead')` / `window.gop('purchase')` en los formularios de la web.
+- [~] **Instalar el snippet del pixel en la web real** — caso F verificado end-to-end el 18-sep: site `wdc-landing` creado (activo, orígenes: womendigitalclosers.com + localhost), evento del navegador → `raw_events` (normalized) → `canonical_events` → visible en Data Health (3 eventos, 0 errores). **Fix incluido**: el índice único de `canonical_events` era parcial y el upsert del ingest fallaba con 42P10 en silencio (raws atascados); convertido en índice completo (mismas garantías: NULL nunca colisiona) + replay de los atascados. Falta: pegar `<script defer src="https://app.scalixsystems.com/tracker.js" data-site="gop_pk_efec…"></script>` en el `<head>` del sitio y (opcional) wirear `window.gop('lead')` / `window.gop('purchase')` en sus formularios.
 
 - [ ] **`event_type` (Demo / Sales Call) en las agendas** — sin marcarlo, el doble embudo de "Métricas ventas" no separa Demo vs Sales Call. Que GHL lo mande o marcarlo a mano.
 - [ ] **KPIs diarios del equipo** — el dashboard de **Prospección** se nutre de "KPI Diario". Si el equipo no lo rellena, sale vacío.

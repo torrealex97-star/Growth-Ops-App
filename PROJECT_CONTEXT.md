@@ -1,4 +1,4 @@
-# Growth-Ops-App — Contexto del Proyecto
+# growth-ops-app — Contexto del Proyecto
 
 > **Fuente única de verdad** para Claude Code, Codex y Freebuff. Lee este archivo primero.
 > Última actualización: 2026-10-06 (**guardrails permanentes y consolidación operativa**: ver `docs/FREE_TIER_OPERATIONS.md`; baseline ~48 MB, migración RLS/índices aplicada, 2 crons diarios y un solo proyecto Vercel productivo). Anteriores: 2026-09-20 (**auditoría de columnas fantasma**: 5 queries rotas corregidas, PR #89; los clientes de Supabase NO están tipados y eso es deuda técnica, ver §4) y 2026-09-19 (**historial reescrito por filtración de secretos/datos de tenant** — ver §9 y `docs/SECURITY_PRIVACY.md`; §13: gotchas de sesiones).
@@ -266,11 +266,16 @@ Ver `.env.local.example` para la lista completa. Resumen:
 
 ## 8. Git workflow
 
-- **Remote:** `https://github.com/torrealex97-star/Growth-Ops-App.git`
+- **Identidad canónica:** repositorio y proyecto Vercel `growth-ops-app`; origen público
+  `https://app.scalixsystems.com`. No usar aliases `*.vercel.app` en integraciones ni documentación.
+- **Supabase:** el nombre visible es `growth-ops-app`; su `project_ref` es un identificador estable e
+  inmutable y no se deriva del nombre comercial ni del slug de ningún tenant.
+- **Remote:** `https://github.com/torrealex97-star/growth-ops-app.git`
 - **Branch principal:** `main`
 - **Último commit:** ver `git log --oneline -1` (el historial se reescribió el 2026-09-19; los SHAs citados en docs antiguos ya no existen) — ver §9
 - **Antes de push:** Ejecutar `npm run quality` completo (ahora gateado también por CI en cada push a main: format → lint → typecheck → dead-code → test → test:metrics → build)
-- **Vercel:** Deploy automático al hacer push a `main` en el proyecto canónico `growthops-preview-3003` → `https://app.scalixsystems.com`
+- **Vercel:** deploy automático de `main` en el proyecto canónico `growth-ops-app` →
+  `https://app.scalixsystems.com`
 
 ---
 

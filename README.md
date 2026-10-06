@@ -1,9 +1,9 @@
-# Growth Ops
+# growth-ops-app
 
-**Sistema operativo multi-tenant**: 
-, donde cada empresa trabaja en su propia **subcuenta aislada** dentro de la misma plataforma.
+**Sistema operativo multi-tenant**, donde cada empresa trabaja en su propia **subcuenta aislada**
+dentro de la misma plataforma. Producción: <https://app.scalixsystems.com>.
 
-[![CI](https://github.com/torrealex97-star/Growth-Ops-App/actions/workflows/ci.yml/badge.svg)](https://github.com/torrealex97-star/Growth-Ops-App/actions/workflows/ci.yml)
+[![CI](https://github.com/torrealex97-star/growth-ops-app/actions/workflows/ci.yml/badge.svg)](https://github.com/torrealex97-star/growth-ops-app/actions/workflows/ci.yml)
 
 > 🔒 **Privacidad por diseño.** Este repositorio es **la herramienta**, no los datos. No contiene — ni debe contener nunca — información de ningún negocio que use la plataforma: clientes, emails, marcas, métricas o credenciales viven exclusivamente en la base de datos y variables de entorno de cada operador. Ver [Seguridad y privacidad](#seguridad-y-privacidad).
 
@@ -11,7 +11,7 @@
 
 ## Qué es
 
-Plataforma privada**:
+Plataforma privada:
 
 ```
 Lead → Agenda → Show → Oferta → Venta → Cobro → Entrega
@@ -59,8 +59,8 @@ Requisitos: **Node 24** y una cuenta de [Supabase](https://supabase.com).
 
 ```bash
 # 1. Clonar e instalar
-git clone https://github.com/torrealex97-star/Growth-Ops-App.git
-cd Growth-Ops-App
+git clone https://github.com/torrealex97-star/growth-ops-app.git
+cd growth-ops-app
 npm ci
 
 # 2. Configurar entorno

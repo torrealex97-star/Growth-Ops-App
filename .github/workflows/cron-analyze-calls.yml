@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: GET /api/_/evergreen/cron/analyze-calls
         env:
-          APP_URL: ${{ vars.CRON_APP_URL || 'https://growth-ops-weld.vercel.app' }}
+          APP_URL: ${{ vars.CRON_APP_URL || 'https://app.scalixsystems.com' }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           set -euo pipefail

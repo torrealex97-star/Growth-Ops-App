@@ -1,4 +1,4 @@
-# PROJECT RECONCILIATION — Growth-Ops-App (auditoría 27-sep-2026)
+# PROJECT RECONCILIATION — growth-ops-app (auditoría 27-sep-2026)
 
 **Alcance**: 236 PRs (195 mergeadas), 936 tests + 740 métricas, 8 workflows de cron, 14 rutas cron,
 fuentes de petición históricas (MEJORAS 1–16, PROMPT_ARQ 1–12, ROADMAP_MVP A–J, plan v1.6, PENDIENTES,
@@ -8,7 +8,7 @@ WISHLIST), rama abierta #225, rama local huérfana, WIP del checkout raíz.
 
 - `main` @ c735136, CI success (quality con dead-code, gitleaks, build, Smoke E2E), worktree limpio.
 - App Next.js 15 multi-tenant (Supabase, RLS en 108+ tablas) desplegada en Vercel
-  (growth-ops-weld.vercel.app). 936 tests unitarios + 740 de métricas en verde; 3 saltos por
+  (`https://app.scalixsystems.com`). 936 tests unitarios + 740 de métricas en verde; 3 saltos por
   credenciales Supabase ausentes en el entorno local.
 - **Producción = main** (branch protection con CI required; nada se pushea directo). Vercel despliega
   por PR. Última verificación CI en el merge de #236 (27-sep, success 4/4 jobs).

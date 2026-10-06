@@ -1,3 +1,15 @@
+## Reclamación Codex — identidad canónica y auditoría cross-platform, 6-oct
+
+Rama `codex/canonical-project-identity`. Alcance: unificar el nombre técnico `growth-ops-app` y el
+origen público `https://app.scalixsystems.com` en código, GitHub, Vercel y configuración Supabase;
+auditar callbacks, crons, metadata, enlaces y despliegue, y corregir únicamente incoherencias
+confirmadas. No cambia nombres de tenants, datos de negocio ni el `project_ref` estable de Supabase.
+
+Hallazgos confirmados: metadata, configuración Auth local, documentación operativa y fallbacks de diez
+workflows conservaban el host retirado. Se añade una regresión que impide reintroducirlo. La identidad
+final es: GitHub/Vercel/Supabase visible `growth-ops-app`; producción
+`https://app.scalixsystems.com`; el ID de Vercel y el `project_ref` de Supabase permanecen estables.
+
 ## Supabase producción y CI/GitHub eficiente — cerrado, 6-oct
 
 PR #371 fusionada en `main`. La migración fusionada
@@ -6,9 +18,9 @@ registrada como versión `20261006082403`: el índice duplicado desapareció y l
 existen. Advisors ejecutados después del DDL; sus hallazgos restantes son deuda separada y no se
 corrigieron a ciegas.
 
-Vercel consolidado con evidencia: `growth-ops-app` era el duplicado más nuevo, sin variables y sin
-dominio propio; fue eliminado. Se conserva `growthops-preview-3003`, que contiene las 14 variables,
-los secretos de integraciones y `app.scalixsystems.com`.
+Vercel consolidado con evidencia: el primer `growth-ops-app` era el duplicado más nuevo, sin variables
+ni dominio propio, y fue eliminado. El proyecto productivo conservado mantiene su ID, las 14 variables,
+los secretos de integraciones y `app.scalixsystems.com`; el 6-oct se renombra a `growth-ops-app`.
 
 GitHub no tenía protección en `main` y ejecutaba el gate completo tanto en PR como después del merge.
 El workflow se ajusta para validar el código una vez por PR, mantener gitleaks en todo cambio y omitir
@@ -25,7 +37,7 @@ la auditoría ya fusionada en reglas persistentes para queries, RLS, índices, e
 builds y capacidad. No modifica código, esquema, datos ni producción.
 
 Incluye el baseline operativo vigente y corrige contexto obsoleto: ~48 MB de BD, 2 crons diarios,
-producción canónica `growthops-preview-3003` / `app.scalixsystems.com`. Validación: `git diff --check`
+producción canónica `growth-ops-app` / `app.scalixsystems.com`. Validación: `git diff --check`
 PASS. Al ser un cambio exclusivamente Markdown, los gates de aplicación y el deploy quedan fuera de
 alcance por diseño (`paths-ignore` / ignored build step); no se atribuye verificación runtime.
 

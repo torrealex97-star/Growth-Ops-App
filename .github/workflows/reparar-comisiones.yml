@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: POST /api/<tenant>/evergreen/sales/reconcile-all
         env:
-          APP_URL: ${{ vars.CRON_APP_URL || 'https://growth-ops-weld.vercel.app' }}
+          APP_URL: ${{ vars.CRON_APP_URL || 'https://app.scalixsystems.com' }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           TENANT: ${{ inputs.tenant }}
           SALE_IDS: ${{ inputs.sale_ids }}
