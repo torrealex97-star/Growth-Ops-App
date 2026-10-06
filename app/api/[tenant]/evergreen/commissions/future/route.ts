@@ -10,7 +10,9 @@ import type { CommissionRule } from '@/lib/types/database'
 
 export const runtime = 'nodejs'
 
-const IN_FILTER_BATCH_SIZE = 100
+// UUIDs are long and PostgREST serializes `.in()` into the query string. Keep the batch small enough
+// to stay below proxy/browser URL limits even after the select and tenant filters are encoded.
+const IN_FILTER_BATCH_SIZE = 25
 
 async function readInBatches<T>(
   ids: string[],
