@@ -51,6 +51,13 @@ Scripts equivalentes sin instalación global: `npm run mcp:supabase`, `mcp:searc
 
 ## Convenciones clave
 
+- **Rendimiento/coste (obligatorio antes de tocar queries, crons, caché, índices o despliegue):** lee
+  `docs/FREE_TIER_OPERATIONS.md`. Mide antes de optimizar; limita columnas/filas/egress; filtra por
+  tenant en BD; cancela peticiones al desmontar; no dupliques índices, polling, keepalives, crons ni
+  proyectos Vercel. Todo helper Auth dentro de RLS debe permitir InitPlan (`(select auth.uid())`).
+  Tras DDL ejecuta dry-run, tests de aislamiento y advisors. Documenta antes/después y distingue
+  INSPECTED / TESTED / VERIFIED.
+
 - **Skill sales-engineering (obligatoria antes de codificar ventas):** cualquier trabajo sobre flujos de ventas, CRM, agents de IA comerciales, secuencias SMS/email, dashboards de KPIs comerciales o landing pages de captación DEBE consultar primero `.claude/skills/sales-engineering/SKILL.md` (enlace a `.agents/skills/sales-engineering/SKILL.md`; módulos 1-7: pre-llamada, cierre, objeciones, post-llamada, hiring, frame control, metrología). Las fórmulas de KPIs del §7 son canónicas — no se redefinen en código; los scripts provienen de las categorías RAG de `docs/rag_sales_knowledge_schema.json` y el system prompt del agente vive en `src/prompts/sales_agent_system_prompt.ts`
 - **Skill marketing-and-copywriting (obligatoria antes de escribir marketing):** consulta
   `.claude/skills/marketing-and-copywriting/SKILL.md` antes de escribir o programar páginas de aterrizaje,

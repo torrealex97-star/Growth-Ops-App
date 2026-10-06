@@ -141,6 +141,39 @@ sería complejidad y otro servicio sin carga real que la justifique.
 - Conexiones activas/esperando; confirmar puerto 6543 en `POSTGRES_URL` de Vercel.
 - Errores RLS, queries lentas y actividad suficiente para no pausar.
 
+## Gate permanente para futuros cambios
+
+Este checklist se aplica en cada PR que toque datos, red, sincronizaciones o despliegue. No hace
+falta ejecutar todas las herramientas para un cambio documental, pero sí declarar `NOT AVAILABLE`
+cuando una señal relevante no pueda medirse.
+
+| Área               | Evidencia mínima antes de merge                                                    |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| Query/listado      | proyección explícita, tenant, orden, límite/paginación y error comprobado          |
+| Query lenta        | entrada de `pg_stat_statements` o plan antes/después; no optimización especulativa |
+| RLS                | dry-run, equivalencia semántica y matriz de aislamiento aplicable                  |
+| Índice             | query/FK que protege, búsqueda de duplicados y coste de escritura considerado      |
+| API externa/cron   | timeout, presupuesto total, persistencia parcial e idempotencia                    |
+| Caché              | scope, TTL e invalidación probada en alta/cambio/borrado                           |
+| UI autenticada     | petición cancelable al desmontar y ausencia de polling/duplicación innecesaria     |
+| Vercel             | un solo proyecto construye el SHA; build y errores runtime revisados               |
+| Capacidad Supabase | tamaño DB/Storage y egress comparados con umbrales 70%/80%                         |
+
+### Cadencia operativa
+
+- **En cada PR:** quality gate proporcional, diff de `vercel.json`/migraciones y comparación con
+  esta guía.
+- **Mensual:** tamaño por tabla/bucket, top queries acumuladas, advisors, conexiones, egress, CPU e
+  invocaciones Vercel, duración/errores de crons y número de deployments.
+- **Al 70% de un límite:** abrir acción concreta con responsable y tendencia; no esperar al corte.
+- **Al 80%:** bloquear features que aumenten ese recurso hasta reducir consumo o documentar una
+  excepción aprobada.
+- **Tras incidente:** registrar causa raíz, métrica que habría avisado y una regresión automatizada.
+
+Línea base verificada el 6-oct-2026: DB ~48 MB; dos crons Vercel diarios; límite voluntario de 60 s;
+el proyecto duplicado `growth-ops-app` sigue siendo un riesgo conocido hasta su eliminación
+autorizada. No convertir esta última frase en permiso de borrado automático.
+
 ## Riesgos y trade-offs restantes
 
 - Un histórico excepcionalmente grande puede no terminar dentro de 60 segundos. Si se reproduce,

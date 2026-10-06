@@ -1,4 +1,16 @@
-## Reclamación Codex — eficiencia Supabase/Vercel, 6-oct
+## Reclamación Codex — guardrails permanentes de eficiencia, 6-oct
+
+Rama `codex/performance-guardrails`. Solo documentación normativa: `AGENTS.md`, `CLAUDE.md`,
+`PROJECT_CONTEXT.md`, `docs/DEVELOPMENT_RULES_FULL.md`, `docs/FREE_TIER_OPERATIONS.md` y este relevo. Objetivo: convertir
+la auditoría ya fusionada en reglas persistentes para queries, RLS, índices, egress, caché, crons,
+builds y capacidad. No modifica código, esquema, datos ni producción.
+
+Incluye el baseline operativo vigente y corrige contexto obsoleto: ~48 MB de BD, 2 crons diarios,
+producción canónica `growthops-preview-3003` / `app.scalixsystems.com`. Validación: `git diff --check`
+PASS. Al ser un cambio exclusivamente Markdown, los gates de aplicación y el deploy quedan fuera de
+alcance por diseño (`paths-ignore` / ignored build step); no se atribuye verificación runtime.
+
+## Eficiencia Supabase/Vercel fusionada — 6-oct
 
 Rama `codex/platform-efficiency`. Alcance acotado: migración reproducible para reducir el coste por
 fila de las policies RLS señaladas por el advisor, retirar un índice duplicado y cubrir FKs de tablas
@@ -15,7 +27,8 @@ suite general local ejecutó 1.396 pruebas: 1.393 PASS y 3 no verificables por r
 entorno. La única regresión real de CI era un fixture con fecha fija que acababa de vencer; se hizo
 relativo al día de ejecución y su prueba dirigida pasa 8/8. Build no aplica porque no cambian
 rutas/páginas.
-Pendiente: revisión/merge y autorización explícita para aplicar DDL en producción. Los conectores de
+PR #369 fusionada en `main` (`8c92ff1`). Pendiente: autorización explícita para aplicar DDL en
+producción. Los conectores de
 Vercel no permitieron revalidar proyectos/runtime (sin proyectos visibles/403), por lo que la
 eliminación del proyecto duplicado sigue sin ejecutarse. Tampoco se borran Edge Functions QA.
 

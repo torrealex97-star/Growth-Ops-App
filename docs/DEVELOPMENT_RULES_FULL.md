@@ -133,6 +133,35 @@ Revisa siempre:
 * transacciones;
 * autorización.
 
+8.1. PRESUPUESTO DE CONSULTA Y EGRESS
+Toda lectura nueva o modificada debe declarar de forma deliberada:
+
+* tenant/scope de autorización;
+* columnas requeridas;
+* filtros;
+* orden estable;
+* límite o paginación;
+* timeout/cancelación;
+* política de caché e invalidación, si existe.
+
+En listados no se permite `select('*')`, relaciones `*`, blobs, `raw_payload` o transcripciones salvo que el consumidor necesite realmente todos esos campos y quede justificado. Los detalles pesados se cargan bajo demanda. Usa `pg_stat_statements`, `EXPLAIN (ANALYZE, BUFFERS)` en un entorno seguro y los advisors para demostrar el cuello de botella; no añadas caché o índices a ciegas.
+
+8.2. HIGIENE CONTINUA DE SUPABASE
+
+* Helpers Auth de RLS evaluados por fila deben permitir InitPlan mediante `(select auth.uid())`, `(select auth.role())` o equivalente.
+* Toda FK de tabla creciente se revisa para índice, pero solo se crea con un patrón de acceso o coste referencial real.
+* Un índice marcado `unused` no se borra automáticamente: las estadísticas pueden ser recientes o incompletas y el índice puede proteger una operación infrecuente.
+* Revisa tamaño por tabla, bloat/autovacuum, queries lentas, conexiones y egress; no ejecutes `VACUUM FULL`, borrados o retención destructiva sin evidencia, ventana y autorización.
+* Tras una migración: dry-run transaccional, comparación semántica, pruebas RLS y advisors. Aplicar en producción y registrar versión son una sola operación controlada.
+
+8.3. HIGIENE CONTINUA DE VERCEL
+
+* Un SHA se despliega desde GitHub a un único proyecto productivo. Dos checks Vercel para el mismo SHA son señal de proyecto duplicado y consumo doble que debe investigarse.
+* `maxDuration` es techo, no presupuesto. Los deadlines internos dejan margen para cold start, autenticación, persistencia y respuesta.
+* No añadas polling, cron o redeploy manual como sustituto de una causa raíz. En Hobby verifica el límite vigente antes de editar `vercel.json`.
+* Datos autenticados/multitenant son privados por defecto; una caché compartida exige clave de scope completa e invalidación probada.
+* Mide Function duration/CPU, errores, invocaciones, egress, builds y Web Vitals. Conserva una línea base en `docs/FREE_TIER_OPERATIONS.md` y actualízala cuando cambie materialmente.
+
 9. RLS OBLIGATORIO
 Toda tabla nueva accesible mediante Supabase debe evaluar explícitamente Row Level Security.
 No asumir:
