@@ -1,3 +1,16 @@
+## Fase 1 — matriz de integraciones, 6-oct-2026 (PR #384, solo docs)
+
+- Rama `docs/fase1-matriz-integraciones`: diagnóstico de producción de las integraciones del plan
+  de cierre, sin cambios de código ni datos. Evidencia en `docs/FASE1-MATRIZ-INTEGRACIONES.md`.
+- TESTED contra BD de runs y API: Stripe, Calendly y GHL operativos (runs OK hoy; timeouts históricos
+  reintento-idempotentes). Meta caída desde el 4-oct (token caducado; el de reposición sin `ads_read`),
+  Instagram caída desde el 28-sep (token inválido), visión IA caída por `ANTHROPIC_API_KEY` ausente.
+- Bloqueo humano consolidado en una sola pasada de Integraciones: re-guardar `META_APP_SECRET`,
+  `RESEND_API_KEY`, `YOUTUBE_CLIENT_SECRET`; pegar tokens nuevos de Meta e Instagram; pegar la clave
+  de Anthropic. La UI de salud ya mapea estos códigos de fallo a arreglos; no requiere código.
+- GAPs: logs de Vercel sin correlacionar por `request_id`; runs de Fathom/Apify por verificar;
+  antiduplicados exhaustivo ligado a Fase 2.
+
 ## Centro de control de comisiones — cerrado en PR #383, 6-oct-2026
 
 - `/[tenant]/comisiones` prioriza la obligación del mes: pendiente de aprobar, lista para pagar,
@@ -2335,7 +2348,8 @@ Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, 
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
 | Agente | Qué | Rama | Toca | Desde |
-| ----------- | ------------------------------------------------------------------------------------------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- || Freebuff | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot | `package.json`/lock (solo vía dependabot), docs, migraciones | 3-oct |
+| ----------- | ------------------------------------------------------------------------------------------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- || Freebuff | Matriz Fase 1 (diagnóstico integraciones, sin código) | `docs/fase1-matriz-integraciones` | `docs/FASE1-MATRIZ-INTEGRACIONES.md`, `docs/ACTIVE_HANDOFF.md` | 6-oct |
+| Freebuff | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot | `package.json`/lock (solo vía dependabot), docs, migraciones | 3-oct |
 | Codex | PR #325 reservation-refunds (E2E en rojo, su autor continúa) | `codex/reservation-refunds` | ventas/cobros (según su rama) | 3-oct |
 | Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún | — | `docs/plan/`, migraciones RLS | 3-oct |
 
