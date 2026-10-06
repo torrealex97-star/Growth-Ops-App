@@ -63,6 +63,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - name: Audit production dependencies
+        run: npm run audit:production
       - run: npm run format:check
       - run: npm run lint
       - name: Typecheck
