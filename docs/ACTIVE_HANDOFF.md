@@ -1,3 +1,10 @@
+## EN CURSO — centro de control de comisiones, 6-oct-2026
+
+- Rama única: `codex/commission-control-center`.
+- Alcance: reorganizar `/[tenant]/comisiones` para mostrar obligaciones de liquidación del mes,
+  previsión del siguiente, rendimiento atribuible por persona y trazabilidad hasta cada venta/cobro.
+- Preservar las reglas canónicas de `docs/MONEY.md`; no cambiar el motor ni las reglas de comisión.
+
 ## Asignación automática de closer en agendas — cerrado, 6-oct-2026
 
 - Causa raíz confirmada: Calendly ya persistía el email del organizador, pero el backfill lo
