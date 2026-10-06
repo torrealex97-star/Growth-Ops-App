@@ -21,6 +21,12 @@ test('las lecturas por sale_id se trocean para no superar el límite de URL de P
   assert.doesNotMatch(fuente, /\.in\('sale_id', idsUnicosParaClasificar\)/)
 })
 
+test('los planes de pago se enlazan por sales.payment_plan_id, no por una columna sale_id inexistente', () => {
+  assert.match(fuente, /installments_start_date, payment_plan_id, setter_id/)
+  assert.match(fuente, /\.from\('payment_plans'\)\.select\('id, number_of_payments, method'\)\.in\('id', batch\)/)
+  assert.doesNotMatch(fuente, /\.from\('payment_plans'\)[\s\S]{0,120}\.in\('sale_id'/)
+})
+
 // ── REPLICA CONGELADA del bloque de previsión derivada de la ruta ──
 function prevision(venta, cobros, hoyISO) {
   const plan = venta.plan ?? null
