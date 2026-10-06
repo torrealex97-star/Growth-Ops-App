@@ -1,9 +1,16 @@
-## EN CURSO — centro de control de comisiones, 6-oct-2026
+## Centro de control de comisiones — cerrado en PR #383, 6-oct-2026
 
-- Rama única: `codex/commission-control-center`.
-- Alcance: reorganizar `/[tenant]/comisiones` para mostrar obligaciones de liquidación del mes,
-  previsión del siguiente, rendimiento atribuible por persona y trazabilidad hasta cada venta/cobro.
-- Preservar las reglas canónicas de `docs/MONEY.md`; no cambiar el motor ni las reglas de comisión.
+- `/[tenant]/comisiones` prioriza la obligación del mes: pendiente de aprobar, lista para pagar,
+  liquidada y previsión del mes siguiente. Las facturas permanecen como evidencia, debajo del
+  control operativo.
+- El rendimiento por persona muestra facturación y cash collected atribuidos, comisión neta,
+  pendiente y pagada. Una misma venta o cobro se cuenta una sola vez por persona y rol; los
+  importes atribuidos entre roles no deben sumarse como total de empresa.
+- Se preserva el motor canónico de `docs/MONEY.md`; devoluciones reducen la comisión neta y las
+  futuras sujetas a cobro se distinguen de las ya generadas.
+- El selector de miembros quedó acotado por `tenant_members` a la subcuenta activa.
+- Regresión permanente: `tests/commission-dashboard.test.mjs`. Validación: format, lint, typecheck,
+  tests, métricas y build local PASS; Quality Gate y preview de la PR PASS antes de fusionar.
 
 ## Asignación automática de closer en agendas — cerrado, 6-oct-2026
 
