@@ -1,3 +1,18 @@
+## Reclamación Codex — gate de dependencias de producción, 6-oct
+
+Rama `codex/eslint-toolchain-alignment`. Auditoría reproducida contra npm: las cinco alertas altas
+proceden exclusivamente de la cadena de desarrollo `eslint-config-next` → `fast-glob` →
+`micromatch` → `braces`; `npm audit --omit=dev` devuelve 0 vulnerabilidades. `braces` 3.0.3 es la
+última versión publicada y npm solo propone bajar a `eslint-config-next` 14.2.35, incompatible con
+el ESLint 9/Flat Config vigente. También se probó la alineación con `eslint-config-next` 15.5.x en
+una instalación limpia: ese major exporta configuración legacy, no el array Flat Config que consume
+el repo. Se descartó la falsa corrección y se conservó el toolchain que ya supera CI.
+
+Cambio mantenible: nuevo `npm run audit:production` y ejecución obligatoria en el job Quality de
+cada PR con cambios de aplicación. Así una vulnerabilidad runtime alta bloquea el release, mientras
+la alerta dev upstream queda visible y no se disfraza con un downgrade inseguro. No modifica runtime,
+datos ni producción.
+
 ## Reclamación Codex — identidad canónica y auditoría cross-platform, 6-oct
 
 Rama `codex/canonical-project-identity`. Alcance: unificar el nombre técnico `growth-ops-app` y el
