@@ -1,6 +1,7 @@
 # Operación en Vercel Hobby + Supabase Free
 
-Auditoría realizada el 15 de septiembre de 2026. Este documento es la referencia operativa para
+Auditoría iniciada el 15 de septiembre de 2026 y actualizada con mediciones reales el 6 de octubre
+de 2026. Este documento es la referencia operativa para
 mantener Growth Ops dentro de los planes gratuitos. Los límites cambian: confirmar los enlaces
 oficiales antes de aumentar carga o activar una integración nueva.
 
@@ -55,22 +56,15 @@ y [Ignored Build Step](https://vercel.com/docs/project-configuration/project-set
 
 ## Inventario de cron jobs
 
-| Ruta                  | Frecuencia        |
-| --------------------- | ----------------- |
-| `cron/meta-ads`       | diaria, 02:00 UTC |
-| `cron/instagram`      | diaria, 02:30 UTC |
-| `cron/meta`           | diaria, 03:00 UTC |
-| `cron/meta-daily`     | diaria, 03:30 UTC |
-| `cron/analyze-calls`  | diaria, 04:00 UTC |
-| `cron/ai-insights`    | diaria, 05:00 UTC |
-| `cron/reminders`      | diaria, 07:00 UTC |
-| `cron/sequra-morosos` | semanal           |
-| `cron/monthly`        | mensual           |
+| Ruta             | Frecuencia        |
+| ---------------- | ----------------- |
+| `cron/meta-ads`  | diaria, 02:00 UTC |
+| `cron/reminders` | diaria, 07:00 UTC |
 
-Los nueve cumplen el plan actual. No se consolidan: juntar proveedores no reduce el CPU real y hace
-que un timeout o fallo de una integración impida ejecutar las demás. Las sincronizaciones que
-necesiten frecuencia subdiaria deben ser manuales o migrarse a `pg_cron`/`pg_net` después de medir,
-sin añadir un cron horario en Vercel Hobby.
+Estos son los dos únicos crons declarados en `vercel.json` y ambos cumplen Hobby. Las demás rutas
+`cron/*` del código no se ejecutan automáticamente desde Vercel. Las sincronizaciones que necesiten
+frecuencia subdiaria deben ser manuales o migrarse a `pg_cron`/`pg_net` después de medir, sin añadir
+un cron horario en Vercel Hobby.
 
 ## Supabase: decisiones de arquitectura
 
@@ -94,6 +88,18 @@ bien configurado y las ejecuciones terminan correctamente. No se añade otro pin
 crons dejan de funcionar, el proyecto vuelve a estar expuesto a la pausa por inactividad.
 
 ### Capacidad y retención
+
+Medición del 6-oct-2026: la base ocupa **47.983.763 bytes (~48 MB, menos del 10% del límite)**. Las
+tablas de mayor huella son `appointments` (~7,7 MB), `knowledge_chunks` (~4,8 MB), `audit_logs`
+(~3,6 MB) y `contacts` (~1,8 MB). El autovacuum no muestra acumulación que justifique `VACUUM FULL`,
+borrados o archivado inmediato. En este nivel, borrar históricos aportaría poco y sí eliminaría
+valor de negocio.
+
+`pg_stat_statements` señala como principal coste acumulado las lecturas de `appointments`; el advisor
+también detecta policies que recalculan helpers de Auth por fila y FKs activas sin índice. La
+migración `20261006090000_optimize_rls_and_foreign_key_indexes.sql` prepara la corrección sin cambiar
+reglas de acceso ni datos: convierte esos helpers en InitPlans, elimina un índice duplicado y añade
+índices selectivos. Debe pasar por PR y dry-run antes de aplicarse en producción.
 
 Vigilar especialmente `raw_events`, `canonical_events`, `event_delivery_attempts`,
 `contact_attributions`, transcripciones y archivos de VSL/testimonios. Umbral operativo: al 70% del
@@ -144,6 +150,10 @@ sería complejidad y otro servicio sin carga real que la justifique.
 - El keepalive depende de que un cron diario funcione; revisar alertas de ejecución.
 - No hay backup automático ni retención automática: son tareas operativas deliberadas para evitar
   pérdida de datos silenciosa.
+- Permanecen desplegadas varias Edge Functions de soporte/QA. `e2e-seed` es la función canónica
+  versionada; `qa-seed-comisiones`, `qa-seed-contratos`, `ephemeral-migrate` y
+  `tmp-exec-20260918` parecen temporales. No se eliminan hasta confirmar ausencia de invocaciones y
+  autorizar expresamente el borrado.
 
 ## Limpieza de despliegues de Vercel (4-oct-2026)
 

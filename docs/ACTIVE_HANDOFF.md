@@ -1,3 +1,22 @@
+## Reclamación Codex — eficiencia Supabase/Vercel, 6-oct
+
+Rama `codex/platform-efficiency`. Alcance acotado: migración reproducible para reducir el coste por
+fila de las policies RLS señaladas por el advisor, retirar un índice duplicado y cubrir FKs de tablas
+crecientes; pruebas estáticas/funcionales y documentación operativa. Inspección read-only de tamaño,
+queries, advisors, Edge Functions y proyectos Vercel. No aplicar DDL ni borrar proyectos/functions
+de producción sin confirmación explícita. No toca cálculos, datos de negocio ni UI.
+
+Resultado preparado: base medida en ~48 MB, sin necesidad de purga; `appointments` y la evaluación
+por fila de RLS concentran el retorno de esta intervención. La migración pasó dry-run real dentro de
+`BEGIN/ROLLBACK`: 42 policies transformadas, 0 diferencias semánticas, índices creados y copia
+duplicada retirada, todo revertido al terminar. Regresión nueva 2/2 PASS. Formato, lint (avisos
+preexistentes) y typecheck PASS; métricas 783/783 PASS; `knip` solo informa deuda preexistente. La
+suite general ejecutó 1.396 pruebas: 1.392 PASS y 4 FAIL ajenos al cambio (3 requieren red bloqueada
+en el entorno y 1 expectativa de fecha vencida). Build no aplica porque no cambian rutas/páginas.
+Pendiente: revisión/merge y autorización explícita para aplicar DDL en producción. Los conectores de
+Vercel no permitieron revalidar proyectos/runtime (sin proyectos visibles/403), por lo que la
+eliminación del proyecto duplicado sigue sin ejecutarse. Tampoco se borran Edge Functions QA.
+
 ## Cierre de ramas remotas — 5-oct
 
 Auditoría contra `origin/main` y las PR asociadas, solicitada por Alex para dejar un único carril de
