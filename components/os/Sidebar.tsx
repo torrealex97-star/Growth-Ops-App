@@ -3,16 +3,11 @@
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { ROLE_LABELS, ROLE_COLORS, DEPARTMENT_LABELS, type AppRole } from '@/lib/auth/permissions'
-import { LogOut, ChevronRight, ChevronDown, X } from 'lucide-react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
+import { DEPARTMENT_LABELS, type AppRole } from '@/lib/auth/permissions'
+import { ChevronRight, ChevronDown, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
-import { getInitials } from '@/lib/utils'
-import { performLogout } from '@/lib/auth/logout'
 import { useState, useEffect, useMemo } from 'react'
-import { Loader2, Handshake } from 'lucide-react'
+import { Handshake } from 'lucide-react'
 import type { User } from '@/lib/types/database'
 import { NAV_SECTIONS, makeNavFilter, navHrefForRole, type NavItem } from '@/lib/nav'
 import { useTenant, useTenantBranding, useTenantId } from '@/lib/tenant-context'
@@ -82,8 +77,6 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
     return [...visibleSections, { section: { dept: null, items: [socioItem] }, visibleItems: [socioItem] }]
   }, [visibleSections, esSocioVinculado])
 
-  const [loggingOut, setLoggingOut] = useState(false)
-
   // Secciones colapsables (estilo Notion). Se recuerda el estado en localStorage.
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   useEffect(() => {
@@ -104,12 +97,6 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
       }
       return next
     })
-  }
-
-  const handleLogout = async () => {
-    if (loggingOut) return
-    setLoggingOut(true)
-    await performLogout(`/${tenant}/login`)
   }
 
   const isActive = (href: string) => {
@@ -240,31 +227,6 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
             )
           })}
         </nav>
-
-        <Separator className="bg-muted" />
-
-        {/* User section */}
-        <div className="p-4">
-          <div className="flex items-center gap-3 px-2 py-3">
-            <Avatar className="w-8 h-8">
-              <AvatarFallback className="text-xs">{getInitials(user.full_name)}</AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">{user.full_name}</p>
-              <Badge className={cn('text-xs px-1.5 py-0 border mt-0.5', ROLE_COLORS[role])}>{ROLE_LABELS[role]}</Badge>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-red-400 disabled:opacity-60"
-              onClick={handleLogout}
-              disabled={loggingOut}
-              title="Cerrar sesión"
-            >
-              {loggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
-            </Button>
-          </div>
-        </div>
       </aside>
     </>
   )
