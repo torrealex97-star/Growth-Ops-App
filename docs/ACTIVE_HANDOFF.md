@@ -6,12 +6,12 @@ fallos reproducidos en logs y regresiones asociadas. No cambia reglas financiera
 Hallazgos y correcciones:
 
 - **VERIFIED en Supabase producción:** Auth devolvía 500 al listar usuarios porque una fila tenía
-  tokens internos en `NULL`. Se aplicó la reparación oficial de Supabase (`NULL` → cadena vacía en
-  los tres tokens afectados), se verificó que quedan 0 nulos y la pantalla de Usuarios volvió a
-  cargar las 13 cuentas sin errores de consola.
+  tokens internos y `email_change` en `NULL`. Se aplicó la reparación oficial de Supabase (`NULL` →
+  cadena vacía), se verificó que quedan 0 nulos afectados y una lectura nueva de Usuarios no generó
+  ningún 500 ni error de consola.
 - **TESTED en código:** la previsión de comisiones enviaba todas las ventas en un único filtro
   `sale_id=in.(...)`; los logs reales muestran cuatro respuestas 400 por una URL demasiado larga.
-  Las tres lecturas afectadas se trocean ahora en lotes de 100 y siguen fallando de forma explícita
+  Las tres lecturas afectadas se trocean ahora en lotes de 25 y siguen fallando de forma explícita
   si un lote falla. Regresión dirigida 6/6 PASS; `npm run quality` PASS (lint conserva avisos
   preexistentes); build de producción PASS con Node 24.
 - **VERIFIED:** Vercel no registra errores runtime de nivel error en las últimas 24 horas y la
