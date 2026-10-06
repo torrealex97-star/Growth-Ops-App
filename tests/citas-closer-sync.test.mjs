@@ -81,6 +81,24 @@ test('la backfill del dueño por calendario existe para las citas ya importadas'
   assert.doesNotMatch(bloque, /\.delete\(/)
 })
 
+test('GHL repara el histórico desde assignedUserId aunque el calendario ya no esté activo', () => {
+  const sync = leer('lib/integrations/citas-sync.ts')
+  const inicio = sync.indexOf('export async function backfillCloserGhlDesdePayload')
+  const fin = sync.indexOf('export async function backfillCloserCalendly')
+  const bloque = sync.slice(inicio, fin)
+  assert.ok(inicio > 0, 'existe el backfill desde el payload persistido')
+  assert.match(bloque, /raw_payload/)
+  assert.match(bloque, /assignedUserId/)
+  assert.match(bloque, /resolveUserIdByEmail\(sb, text\(user\.email\), tenantId\)/)
+  assert.match(bloque, /\.is\('closer_id', null\)/, 'nunca reasigna una cita ya atribuida')
+  const ghl = sync.slice(sync.indexOf('export async function syncGhl'))
+  assert.ok(
+    ghl.indexOf('backfillCloserGhlDesdePayload') <
+      ghl.indexOf("new URL('https://services.leadconnectorhq.com/contacts/')"),
+    'la reparación ocurre antes de gastar el presupuesto en listados'
+  )
+})
+
 test('el deadline gobierna TODAS las llamadas externas, no solo la primera paginación', () => {
   const sync = leer('lib/integrations/citas-sync.ts')
   // Reloj antes de CADA llamada externa que puede colarse bajo el corte: entre páginas NO basta —
