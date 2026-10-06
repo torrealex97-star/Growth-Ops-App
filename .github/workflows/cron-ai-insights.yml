@@ -1,6 +1,6 @@
 # Cron retirado de vercel.json (Vercel Hobby: máx. 2 crons). GitHub Actions lo ejecuta con el
 # mismo horario UTC y la misma autenticación (Bearer CRON_SECRET) que usaba Vercel Cron.
-name: "cron: ai-insights"
+name: 'cron: ai-insights'
 on:
   schedule:
     - cron: '0 5 * * *' # diario 05:00 UTC — insights proactivos deterministas (7d vs 7d previos)
@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: GET /api/_/evergreen/cron/ai-insights
         env:
-          APP_URL: ${{ vars.CRON_APP_URL || 'https://growth-ops-weld.vercel.app' }}
+          APP_URL: ${{ vars.CRON_APP_URL || 'https://app.scalixsystems.com' }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           set -euo pipefail

@@ -5,7 +5,7 @@
 **No abras un issue público con detalles de la vulnerabilidad.**
 
 Usa el **reporte privado de vulnerabilidades** de GitHub:
-**Security → Report a vulnerability** (https://github.com/torrealex97-star/Growth-Ops-App/security/advisories/new).
+**Security → Report a vulnerability** (https://github.com/torrealex97-star/growth-ops-app/security/advisories/new).
 
 Si el reporte privado no está disponible, contacta con el propietario del repo por un canal
 privado y espera acuse de recibo antes de compartir detalles.

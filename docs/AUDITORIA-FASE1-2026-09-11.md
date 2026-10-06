@@ -1,4 +1,4 @@
-# Auditoría Growth-Ops-App — Fase 1 (Read-only)
+# Auditoría growth-ops-app — Fase 1 (Read-only)
 
 Fecha: 2026-09-11
 Alcance: producto, arquitectura, datos, permisos, seguridad, duplicación, código muerto.

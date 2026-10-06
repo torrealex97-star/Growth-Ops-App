@@ -53,7 +53,7 @@ test('el cron omite sin error las subcuentas sin Stripe y no inventa tenants', (
 
 test('el workflow delegado existe, apunta a la ruta real y usa el secret', () => {
   const yml = read(WORKFLOW)
-  assert.match(yml, /name: "cron: stripe-payments"/, 'el name entrecomillado (gotcha YAML con dos puntos)')
+  assert.match(yml, /name: ['"]cron: stripe-payments['"]/, 'el name entrecomillado (gotcha YAML con dos puntos)')
   assert.match(yml, /- cron: '\d+ \d+ \* \* \*'/, 'schedule diario válido')
   assert.match(yml, /workflow_dispatch:/, 'debe poder dispararse a mano (backfill inicial)')
   assert.match(yml, /\/api\/_\/evergreen\/cron\/stripe-payments/, 'la URL debe ser la ruta global del cron')

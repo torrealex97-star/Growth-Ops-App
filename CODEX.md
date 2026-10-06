@@ -1,4 +1,4 @@
-# Codex — Growth-Ops-App
+# Codex — growth-ops-app
 
 Lee `PROJECT_CONTEXT.md` en la raíz del repo para el estado completo del proyecto.
 

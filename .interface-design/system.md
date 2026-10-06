@@ -2,8 +2,8 @@
 
 Dirección acordada el 2026-09-15: dashboards oscuros con tarjetas suaves, gráficos redondeados y jerarquía de datos clara. Finanzas usa una composición de cuatro KPI junto a dos anillos, evolución y detalle debajo.
 
-- Proyecto: `torrealex97-star/Growth-Ops-App`.
-- App confirmada por el usuario: https://growth-ops-weld.vercel.app.
+- Proyecto: `torrealex97-star/growth-ops-app`.
+- App canónica: https://app.scalixsystems.com.
 - No usar los dominios [tenant] que figuran en documentos heredados como destino de esta app.
 - Inter para UI; Space Grotesk (`font-display`) para titulares y cifras principales.
 - Base de espaciado 4px; separación 16–24px; paneles 20px de padding, radio 16px.

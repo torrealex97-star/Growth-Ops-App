@@ -284,9 +284,9 @@ en todo lo nuevo.
   Secret creados para el cliente `growth-ops-web`.
 
   Dos cosas que aprendimos al hacerlo y conviene no repetir:
-  - `vercel.app` **no vale** como dominio autorizado: está en la Public Suffix List, así que Google
-    lo rechaza igual que rechazaría `.com`. Hay que poner el subdominio real
-    (`growth-ops-weld.vercel.app`), y cada preview o proyecto nuevo se añade uno a uno.
+  - Los aliases `*.vercel.app` no son identidad estable de producción. En proveedores OAuth se
+    registra únicamente el origen canónico `https://app.scalixsystems.com`; previews y proyectos
+    nuevos no se añaden como callbacks de producción.
   - El URI de redirección registrado es `/api/oauth/google/callback`, **sin subcuenta en la ruta**.
     Google compara la cadena literal y exige registrar cada URI, así que no puede haber un callback
     por subcuenta. De ahí que la subcuenta viaje **firmada** en el parámetro `state`.

@@ -171,8 +171,8 @@ cuando una señal relevante no pueda medirse.
 - **Tras incidente:** registrar causa raíz, métrica que habría avisado y una regresión automatizada.
 
 Línea base verificada el 6-oct-2026: DB ~48 MB; dos crons Vercel diarios; límite voluntario de 60 s;
-un solo proyecto Vercel productivo (`growthops-preview-3003`) después de retirar el duplicado vacío
-`growth-ops-app`. GitHub valida el código una vez por PR y conserva un gate ligero para cambios solo
+un solo proyecto Vercel productivo (`growth-ops-app`, ID estable `prj_gCUOHbX1SgpY1LOBKIiqTza4HIZM`).
+GitHub valida el código una vez por PR y conserva un gate ligero para cambios solo
 documentales. `main` exige PR + `Release gate`, incluida la cuenta administradora, para que esta
 reducción no permita saltarse CI; force-push y borrado de la rama están deshabilitados.
 
@@ -196,13 +196,12 @@ reducción no permita saltarse CI; force-push y borrado de la rama están deshab
 tumbando producción. Cada push construye un despliegue por proyecto vinculado al repositorio, y Vercel no
 borra los viejos: el 4-oct había **423** (375 en `growthops-preview-3003`, 48 en `growth-ops-app`).
 
-**Qué proyecto es cuál (comprobado el 4-oct).**
+**Qué proyecto era cuál (registro histórico del 4-oct).**
 
-- `growthops-preview-3003` — **es producción**: sirve `app.scalixsystems.com`, tiene **14 variables de entorno**.
-  A pesar del nombre.
-- `growth-ops-app` — **proyecto duplicado**, creado el 3-oct a las 12:16 por la primera rama de Codex
-  (`codex/reservation-refunds`). **0 variables de entorno**, sin dominio. Reconstruye cada push y duplica el
-  consumo. Pendiente de que Alex decida borrarlo (`vercel project rm growth-ops-app --scope app-b1af`).
+- `growthops-preview-3003` era producción: servía `app.scalixsystems.com` y tenía las 14 variables.
+- El proyecto vacío que ocupaba `growth-ops-app` se eliminó. Después se renombró el proyecto productivo
+  conservado —mismo ID, variables, integración Git y dominio— a `growth-ops-app`. No recrear un segundo
+  proyecto con ese nombre ni volver a enlazar el repositorio desde otro proyecto.
 
 **Política de purga** (ejecutada con OK de Alex el 4-oct; baja de 423 a 52 despliegues):
 

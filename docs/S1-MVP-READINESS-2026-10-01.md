@@ -1,7 +1,7 @@
 # S1 — Auditoría de madurez MVP (continuación de S0)
 
 Fecha: 2026-10-01. `main` en `1b1a58f` (verificado `git fetch` al abrir esta fase).
-Responde al encargo: "llevar Growth-Ops-App a un estado de MVP profesional, estable, operativo y
+Responde al encargo: "llevar growth-ops-app a un estado de MVP profesional, estable, operativo y
 usable de punta a punta — PRESERVAR → AUDITAR → PROBAR → CORREGIR → COMPLETAR → SIMPLIFICAR →
 PROFESIONALIZAR → VERIFICAR → SOLO DESPUÉS EXTENDER".
 

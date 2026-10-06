@@ -8,10 +8,10 @@
 
 ## Dominio de producción
 
-- `https://app.scalixsystems.com` — Vercel, proyecto `growth-ops` (account `app-b1af`), dominio
+- `https://app.scalixsystems.com` — Vercel, proyecto `growth-ops-app` (account `app-b1af`), dominio
   custom `scalixsystems.com` (registrar de terceros). Único dominio de producción.
-- Dominio de Vercel sin alias (`growth-ops-weld.vercel.app` y deployment-urls) también responde —
-  útil para pruebas, pero NINGÚN proveedor debe apuntar a un deployment URL efímero.
+- Los aliases `*.vercel.app` y deployment URLs son efímeros: NINGÚN proveedor, callback, webhook o
+  documento operativo debe depender de ellos.
 
 ## 1. Google (cliente OAuth de YouTube — el único que existe)
 

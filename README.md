@@ -1,9 +1,9 @@
-# Growth Ops
+# growth-ops-app
 
-**Sistema operativo multi-tenant**: 
-, donde cada empresa trabaja en su propia **subcuenta aislada** dentro de la misma plataforma.
+**Sistema operativo multi-tenant**, donde cada empresa trabaja en su propia **subcuenta aislada**
+dentro de la misma plataforma. Producción: <https://app.scalixsystems.com>.
 
-[![CI](https://github.com/torrealex97-star/Growth-Ops-App/actions/workflows/ci.yml/badge.svg)](https://github.com/torrealex97-star/Growth-Ops-App/actions/workflows/ci.yml)
+[![CI](https://github.com/torrealex97-star/growth-ops-app/actions/workflows/ci.yml/badge.svg)](https://github.com/torrealex97-star/growth-ops-app/actions/workflows/ci.yml)
 
 > 🔒 **Privacidad por diseño.** Este repositorio es **la herramienta**, no los datos. No contiene — ni debe contener nunca — información de ningún negocio que use la plataforma: clientes, emails, marcas, métricas o credenciales viven exclusivamente en la base de datos y variables de entorno de cada operador. Ver [Seguridad y privacidad](#seguridad-y-privacidad).
 
@@ -11,7 +11,7 @@
 
 ## Qué es
 
-Plataforma privada**:
+Plataforma privada:
 
 ```
 Lead → Agenda → Show → Oferta → Venta → Cobro → Entrega
@@ -28,15 +28,15 @@ Cada subcuenta (tenant) tiene sus propios usuarios, roles, contactos, pipelines,
 
 ## Módulos
 
-| Área | Incluye |
-|---|---|
-| **CRM y actividad** | Leads y contactos canónicos (dedupe por email/teléfono), pipeline, actividades, cohorts, merge de duplicados |
-| **Ventas** | Funnel de llamadas (booked → show → oferta → cierre), registro de ventas por producto con override auditado, contratos con firma pública y generación de PDF |
-| **Marketing** | Campañas, dashboard de Meta Ads con normalizador de `actions[]` (0 ≠ NULL), afiliados y colaboradores con comisiones, Instagram, primer `tracker.js` first-party embebible |
-| **Finanzas** | Cobros y conciliación, cash canónico con dedupe multi-fuente (Stripe primario), P&L, unit economics, comisiones |
-| **Analítica** | Dashboards con estado Target vs Actual, KPIs configurables por scope, control de calidad de datos (atribución, duplicados, huérfanos), auditoría |
-| **Producto y clientes** | Productos y precios, alumnos/entregables, retención, eventos CSM |
-| **IA** | Agente interno con memoria e insights, detección de anomalías y seguimiento de uso |
+| Área                    | Incluye                                                                                                                                                                    |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CRM y actividad**     | Leads y contactos canónicos (dedupe por email/teléfono), pipeline, actividades, cohorts, merge de duplicados                                                               |
+| **Ventas**              | Funnel de llamadas (booked → show → oferta → cierre), registro de ventas por producto con override auditado, contratos con firma pública y generación de PDF               |
+| **Marketing**           | Campañas, dashboard de Meta Ads con normalizador de `actions[]` (0 ≠ NULL), afiliados y colaboradores con comisiones, Instagram, primer `tracker.js` first-party embebible |
+| **Finanzas**            | Cobros y conciliación, cash canónico con dedupe multi-fuente (Stripe primario), P&L, unit economics, comisiones                                                            |
+| **Analítica**           | Dashboards con estado Target vs Actual, KPIs configurables por scope, control de calidad de datos (atribución, duplicados, huérfanos), auditoría                           |
+| **Producto y clientes** | Productos y precios, alumnos/entregables, retención, eventos CSM                                                                                                           |
+| **IA**                  | Agente interno con memoria e insights, detección de anomalías y seguimiento de uso                                                                                         |
 
 ## Integraciones
 
@@ -59,8 +59,8 @@ Requisitos: **Node 24** y una cuenta de [Supabase](https://supabase.com).
 
 ```bash
 # 1. Clonar e instalar
-git clone https://github.com/torrealex97-star/Growth-Ops-App.git
-cd Growth-Ops-App
+git clone https://github.com/torrealex97-star/growth-ops-app.git
+cd growth-ops-app
 npm ci
 
 # 2. Configurar entorno
@@ -80,20 +80,20 @@ npm run dev                 # http://localhost:3000
 
 ### Scripts útiles
 
-| Comando | Qué hace |
-|---|---|
-| `npm run quality` | Gate completo: format + lint + typecheck + tests + métricas |
-| `npm run dev` / `build` | Desarrollo / build de producción |
-| `npm run test` · `npm run test:metrics` | Suite unitaria · invariante de métricas y esquema |
-| `npm run tipos:bd` | Regenera `lib/types/database-generated.ts` desde el esquema |
-| `npm run dead-code` | Detección de código muerto con knip |
+| Comando                                 | Qué hace                                                    |
+| --------------------------------------- | ----------------------------------------------------------- |
+| `npm run quality`                       | Gate completo: format + lint + typecheck + tests + métricas |
+| `npm run dev` / `build`                 | Desarrollo / build de producción                            |
+| `npm run test` · `npm run test:metrics` | Suite unitaria · invariante de métricas y esquema           |
+| `npm run tipos:bd`                      | Regenera `lib/types/database-generated.ts` desde el esquema |
+| `npm run dead-code`                     | Detección de código muerto con knip                         |
 
 ## CI
 
 Cada push y PR ejecuta, en paralelo y con build condicionado a que lo anterior pase:
 
 1. **Format · Lint · Typecheck · Dead-code · Tests** (incluye el invariante multitenant contra el esquema vivo)
-2. **Secretos (gitleaks, historial completo)** — escanea *todos* los commits con `--redact`; la configuración en `.gitleaks.toml` solo permite los fixtures falsos de test
+2. **Secretos (gitleaks, historial completo)** — escanea _todos_ los commits con `--redact`; la configuración en `.gitleaks.toml` solo permite los fixtures falsos de test
 3. **Build** de producción con placeholders de entorno
 
 El repositorio tiene además **secret scanning + push protection** activados: un secreto filtrado no llega a entrar.

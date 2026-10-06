@@ -1,4 +1,4 @@
-# FEATURE REQUEST REGISTER — Growth-Ops-App
+# FEATURE REQUEST REGISTER — growth-ops-app
 
 Matriz maestra de pedidos históricos reconstruidos de: MEJORAS-DESDE-HOY.md (secciones 1–16, jul 2026),
 ESTADO-ACTUAL.md, PROMPT_ARQUITECTURA_PENDIENTE.md (1–12), PROMPT_UXUI_*.md, WISHLIST.md,

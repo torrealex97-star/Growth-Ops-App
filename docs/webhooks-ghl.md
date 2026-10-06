@@ -7,7 +7,7 @@ ventana de 14 días) y al botón "Sincronizar histórico" de Integraciones (vent
 ## URL y autenticación
 
 ```
-POST https://growth-ops-weld.vercel.app/api/<slug-de-la-subcuenta>/evergreen/webhooks/ghl
+POST https://app.scalixsystems.com/api/<slug-de-la-subcuenta>/evergreen/webhooks/ghl
 Cabecera: x-ghl-secret: <valor de GHL_WEBHOOK_SECRET en Integraciones de ESA subcuenta>
 ```
 
@@ -40,7 +40,7 @@ Otras limitaciones observadas/del dominio público:
 Para responder "¿lo que GHL envía llega intacto?" sin exponer secretos:
 
 ```
-POST https://growth-ops-weld.vercel.app/api/<slug>/evergreen/webhooks/ghl?diagnostico=1
+POST https://app.scalixsystems.com/api/<slug>/evergreen/webhooks/ghl?diagnostico=1
 ```
 
 (Con las mismas cabeceras que usaría el webhook real en GHL.) Responde:
@@ -72,7 +72,7 @@ POST https://growth-ops-weld.vercel.app/api/<slug>/evergreen/webhooks/ghl?diagno
 Receta de verificación de transporte en 30 segundos:
 
 ```bash
-curl -s -X POST 'https://growth-ops-weld.vercel.app/api/women-digital-closer/evergreen/webhooks/ghl?diagnostico=1' \
+curl -s -X POST 'https://app.scalixsystems.com/api/<slug>/evergreen/webhooks/ghl?diagnostico=1' \
   -H 'x-ghl-secret: <el valor del panel>' -H 'content-type: application/json' -d '{}'
 ```
 

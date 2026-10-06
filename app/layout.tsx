@@ -10,7 +10,7 @@ const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-displ
 export const metadata: Metadata = {
   title: 'GrowthOps',
   description: 'Operating system de negocio GrowthOps',
-  metadataBase: new URL('https://growth-ops-weld.vercel.app/'),
+  metadataBase: new URL('https://app.scalixsystems.com/'),
   robots: 'noindex, nofollow',
 }
 
