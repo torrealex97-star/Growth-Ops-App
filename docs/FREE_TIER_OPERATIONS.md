@@ -171,8 +171,9 @@ cuando una señal relevante no pueda medirse.
 - **Tras incidente:** registrar causa raíz, métrica que habría avisado y una regresión automatizada.
 
 Línea base verificada el 6-oct-2026: DB ~48 MB; dos crons Vercel diarios; límite voluntario de 60 s;
-el proyecto duplicado `growth-ops-app` sigue siendo un riesgo conocido hasta su eliminación
-autorizada. No convertir esta última frase en permiso de borrado automático.
+un solo proyecto Vercel productivo (`growthops-preview-3003`) después de retirar el duplicado vacío
+`growth-ops-app`. GitHub valida el código una vez por PR y conserva un gate ligero para cambios solo
+documentales; `main` debe exigir PR + `Release gate` para que esta reducción no permita saltarse CI.
 
 ## Riesgos y trade-offs restantes
 

@@ -1,3 +1,22 @@
+## Reclamación Codex — Supabase producción y CI/GitHub eficiente, 6-oct
+
+Rama `codex/github-ci-efficiency`. La migración fusionada
+`20261006090000_optimize_rls_and_foreign_key_indexes.sql` se aplicó en Supabase producción y quedó
+registrada como versión `20261006082403`: el índice duplicado desapareció y los nueve índices previstos
+existen. Advisors ejecutados después del DDL; sus hallazgos restantes son deuda separada y no se
+corrigieron a ciegas.
+
+Vercel consolidado con evidencia: `growth-ops-app` era el duplicado más nuevo, sin variables y sin
+dominio propio; fue eliminado. Se conserva `growthops-preview-3003`, que contiene las 14 variables,
+los secretos de integraciones y `app.scalixsystems.com`.
+
+GitHub no tenía protección en `main` y ejecutaba el gate completo tanto en PR como después del merge.
+El workflow se ajusta para validar el código una vez por PR, mantener gitleaks en todo cambio y omitir
+instalación, tests, builds y Playwright cuando el diff es solo documental. Un check final estable
+`Release gate` permite proteger `main` sin bloquear PRs de documentación. Tras fusionar esta rama debe
+activarse branch protection exigiendo PR + `Release gate`; esa configuración remota no debe adelantarse
+al merge porque el check aún no existe en `main`.
+
 ## Reclamación Codex — guardrails permanentes de eficiencia, 6-oct
 
 Rama `codex/performance-guardrails`. Solo documentación normativa: `AGENTS.md`, `CLAUDE.md`,

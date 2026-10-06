@@ -1,7 +1,7 @@
 # Growth-Ops-App — Contexto del Proyecto
 
 > **Fuente única de verdad** para Claude Code, Codex y Freebuff. Lee este archivo primero.
-> Última actualización: 2026-10-06 (**guardrails permanentes de rendimiento y coste**: ver `docs/FREE_TIER_OPERATIONS.md`; baseline medido ~48 MB de BD, 2 crons diarios de Vercel y una sola producción canónica). Anteriores: 2026-09-20 (**auditoría de columnas fantasma**: 5 queries rotas corregidas, PR #89; los clientes de Supabase NO están tipados y eso es deuda técnica, ver §4) y 2026-09-19 (**historial reescrito por filtración de secretos/datos de tenant** — ver §9 y `docs/SECURITY_PRIVACY.md`; §13: gotchas de sesiones).
+> Última actualización: 2026-10-06 (**guardrails permanentes y consolidación operativa**: ver `docs/FREE_TIER_OPERATIONS.md`; baseline ~48 MB, migración RLS/índices aplicada, 2 crons diarios y un solo proyecto Vercel productivo). Anteriores: 2026-09-20 (**auditoría de columnas fantasma**: 5 queries rotas corregidas, PR #89; los clientes de Supabase NO están tipados y eso es deuda técnica, ver §4) y 2026-09-19 (**historial reescrito por filtración de secretos/datos de tenant** — ver §9 y `docs/SECURITY_PRIVACY.md`; §13: gotchas de sesiones).
 
 ---
 
