@@ -16,6 +16,13 @@ al origen canónico. Supabase muestra `growth-ops-app`, conserva su `project_ref
 canónico y deja como únicos redirects el dominio canónico y localhost de desarrollo. Los redirects
 retirados se eliminaron individualmente y se confirmó el estado tras recargar el Dashboard.
 
+TESTED con Node 24: regresión de identidad 3/3 PASS; `npm run quality` PASS (1.399 unitarias:
+1.396 PASS y 3 saltadas por diseño; 783/783 métricas; lint conserva avisos preexistentes); build limpio
+de Next.js 15.5.26 PASS. El intento inicial con Node 26 no era un fallo del producto: ese runtime
+eliminó una flag experimental que el proyecto declara y CI ejecuta con Node 24. El formateador expuso
+un test de YAML acoplado al tipo de comillas; se corrigió para exigir comillas válidas sin depender de
+si Prettier elige simples o dobles.
+
 ## Supabase producción y CI/GitHub eficiente — cerrado, 6-oct
 
 PR #371 fusionada en `main`. La migración fusionada
