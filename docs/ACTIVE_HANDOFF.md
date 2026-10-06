@@ -11,8 +11,10 @@ por fila de RLS concentran el retorno de esta intervención. La migración pasó
 `BEGIN/ROLLBACK`: 42 policies transformadas, 0 diferencias semánticas, índices creados y copia
 duplicada retirada, todo revertido al terminar. Regresión nueva 2/2 PASS. Formato, lint (avisos
 preexistentes) y typecheck PASS; métricas 783/783 PASS; `knip` solo informa deuda preexistente. La
-suite general ejecutó 1.396 pruebas: 1.392 PASS y 4 FAIL ajenos al cambio (3 requieren red bloqueada
-en el entorno y 1 expectativa de fecha vencida). Build no aplica porque no cambian rutas/páginas.
+suite general local ejecutó 1.396 pruebas: 1.393 PASS y 3 no verificables por red bloqueada en el
+entorno. La única regresión real de CI era un fixture con fecha fija que acababa de vencer; se hizo
+relativo al día de ejecución y su prueba dirigida pasa 8/8. Build no aplica porque no cambian
+rutas/páginas.
 Pendiente: revisión/merge y autorización explícita para aplicar DDL en producción. Los conectores de
 Vercel no permitieron revalidar proyectos/runtime (sin proyectos visibles/403), por lo que la
 eliminación del proyecto duplicado sigue sin ejecutarse. Tampoco se borran Edge Functions QA.
