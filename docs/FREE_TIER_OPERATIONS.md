@@ -173,7 +173,8 @@ cuando una señal relevante no pueda medirse.
 Línea base verificada el 6-oct-2026: DB ~48 MB; dos crons Vercel diarios; límite voluntario de 60 s;
 un solo proyecto Vercel productivo (`growthops-preview-3003`) después de retirar el duplicado vacío
 `growth-ops-app`. GitHub valida el código una vez por PR y conserva un gate ligero para cambios solo
-documentales; `main` debe exigir PR + `Release gate` para que esta reducción no permita saltarse CI.
+documentales. `main` exige PR + `Release gate`, incluida la cuenta administradora, para que esta
+reducción no permita saltarse CI; force-push y borrado de la rama están deshabilitados.
 
 ## Riesgos y trade-offs restantes
 
