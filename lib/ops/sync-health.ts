@@ -43,9 +43,12 @@ export const SYNC_DEFS: SyncDef[] = [
     route: 'cron/meta',
     table: 'campaigns',
     requiredKeys: ['META_ACCESS_TOKEN'],
-    // Movida de pg_cron a Vercel: pg_cron no está instalada, así que "cada 30 min" era en realidad
-    // "nunca". Diario es peor que cada 30 minutos, pero infinitamente mejor que no ejecutarse.
-    scheduler: 'vercel',
+    // Delegada a GitHub Actions como el resto de crons que no caben en los 2 de Vercel Hobby:
+    // declararla `vercel` con la ruta fuera de vercel.json hacía que este panel dijera "nadie la
+    // ejecuta" aunque cron-meta.yml corriera a diario con éxito.
+    scheduler: 'manual',
+    manualReason:
+      'Se ejecuta a diario por GitHub Actions (03:00 UTC, cron-meta.yml): sincroniza campañas hacia campaigns. También desde Integraciones › Meta.',
   },
   {
     id: 'meta-daily',
@@ -53,7 +56,9 @@ export const SYNC_DEFS: SyncDef[] = [
     route: 'cron/meta-daily',
     table: 'campaign_daily',
     requiredKeys: ['META_ACCESS_TOKEN'],
-    scheduler: 'vercel',
+    scheduler: 'manual',
+    manualReason:
+      'Se ejecuta a diario por GitHub Actions (03:30 UTC, cron-meta-daily.yml): gasto diario por campaña hacia campaign_daily. También desde Integraciones › Meta.',
   },
   {
     id: 'meta-ads',
@@ -88,7 +93,9 @@ export const SYNC_DEFS: SyncDef[] = [
     table: 'appointments',
     requiredKeys: [],
     requiredAny: ['DEEPSEEK_API_KEY', 'ANTHROPIC_API_KEY'],
-    scheduler: 'vercel',
+    scheduler: 'manual',
+    manualReason:
+      'Se ejecuta a diario por GitHub Actions (04:00 UTC, cron-analyze-calls.yml): analiza las llamadas con transcripción. También desde Integraciones.',
   },
   {
     id: 'ai-insights',
@@ -96,7 +103,9 @@ export const SYNC_DEFS: SyncDef[] = [
     route: 'cron/ai-insights',
     table: 'ai_insights',
     requiredKeys: [],
-    scheduler: 'vercel',
+    scheduler: 'manual',
+    manualReason:
+      'Se ejecuta a diario por GitHub Actions (05:00 UTC, cron-ai-insights.yml): genera los avisos proactivos deterministas del día.',
   },
   {
     id: 'monthly',
@@ -104,7 +113,9 @@ export const SYNC_DEFS: SyncDef[] = [
     route: 'cron/monthly',
     table: 'expenses',
     requiredKeys: [],
-    scheduler: 'vercel',
+    scheduler: 'manual',
+    manualReason:
+      'Se ejecuta el 1 de cada mes por GitHub Actions (06:00 UTC, cron-monthly.yml): crea los gastos de sueldos y recurrentes del mes.',
   },
   {
     id: 'reminders',
@@ -120,7 +131,9 @@ export const SYNC_DEFS: SyncDef[] = [
     route: 'cron/sequra-morosos',
     table: 'sequra_delinquent_customers',
     requiredKeys: ['SEQURA_MCP_TOKEN'],
-    scheduler: 'vercel',
+    scheduler: 'manual',
+    manualReason:
+      'Se ejecuta los lunes por GitHub Actions (08:00 UTC, cron-sequra-morosos.yml) y desde Integraciones › SeQura: marca morosos reales y recuperados. Solo corre en subcuentas con SeQura configurado; las demás se omiten sin error.',
   },
   {
     id: 'reels',
@@ -319,6 +332,19 @@ export function assessSync(def: SyncDef, facts: HealthFacts, now = Date.now()): 
     }
   }
 
+  // La última ejecución FALLÓ: manda sobre el planificador y sobre el motivo manual. Con el orden
+  // anterior, una sync delegada a GitHub Actions (declarada manual) pintaba su último error como
+  // "manual" — los 9 runs seguidos en error de Instagram fueron invisibles en el panel por esto.
+  if (dataState === 'SYNC_FAILED') {
+    return {
+      ...base,
+      status: 'sync_fallido',
+      detail: base.lastError
+        ? `La última sincronización falló: ${base.lastError}`
+        : 'La última sincronización falló y no dejó mensaje.',
+    }
+  }
+
   if (def.scheduler === 'manual') {
     return { ...base, status: 'manual', detail: def.manualReason || 'Se lanza a mano a propósito.' }
   }
@@ -333,18 +359,6 @@ export function assessSync(def: SyncDef, facts: HealthFacts, now = Date.now()): 
         def.scheduler === 'vercel'
           ? `La ruta ${def.route ?? '(sin declarar)'} no está en vercel.json, así que nadie la ejecuta.`
           : 'Está diseñada para Supabase pg_cron, y pg_cron/pg_net no están habilitadas en el proyecto: nadie la ejecuta.',
-    }
-  }
-
-  // La última ejecución FALLÓ. Esto manda sobre el nº de filas: aunque haya datos de antes, lo que
-  // el usuario necesita saber es que la sincronización está caída y por qué.
-  if (dataState === 'SYNC_FAILED') {
-    return {
-      ...base,
-      status: 'sync_fallido',
-      detail: base.lastError
-        ? `La última sincronización falló: ${base.lastError}`
-        : 'La última sincronización falló y no dejó mensaje.',
     }
   }
 

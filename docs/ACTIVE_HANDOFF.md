@@ -1,3 +1,23 @@
+## Fase 1 — cron sequra per-tenant y planificadores reales, 6-oct-2026 (PR #385)
+
+- Rama `fix/sequra-cron-per-tenant` desde `origin/main` (`903c4c8`).
+- Cron `sequra-morosos` reescrito con el patrón canónico de meta-ads: una subcuenta sin SeQura se
+  OMITE (`SyncOmitidaError`) en vez de tirar el cron con 500 — fallaba todas las semanas con «Falta
+  configurar SEQURA_MERCHANT_REFERENCE» (verificado en logs del run 37342759959). Cada corrida se
+  registra ahora en `integration_sync_runs` (cron y botón manual, candado incluido).
+- `SYNC_DEFS` alineado con los planificadores reales: solo `meta-ads` y `reminders` viven en
+  `vercel.json` (Hobby, máx. 2 crons); `meta`, `meta-daily`, `analyze-calls`, `ai-insights`, `monthly`
+  y `sequra-morosos` los ejecuta GitHub Actions (éxito diario verificado con `gh run list`).
+  Declararlas `vercel` pintaba «sin planificador» falso en el panel de salud.
+- Corrección de orden en `assessSync`: la última ejecución FALLIDA manda sobre el estado `manual` —
+  antes, el fallo real de una sync delegada era invisible (los 9 errores seguidos de Instagram no se
+  pintaban). Cazado por `tests/metrics/integracion-parcial.test.mjs` al reordenar.
+- Regresión: `tests/cron-sequra-morosos.test.mjs` (7 tests, incluido el reorden). Gate: format,
+  lint, typecheck, 1409 unitarias (único fallo el ambiental apify de Node 26 local, preexistente en
+  origin/main), 783 métricas, `audit:production` 0, build PASS.
+- Pendiente tras merge: verificar en producción el próximo run del workflow (HTTP 200 con
+  `omitida: true` para las subcuentas sin SeQura) y runs visibles en `integration_sync_runs`.
+
 ## Fase 1 — matriz de integraciones, 6-oct-2026 (PR #384, solo docs)
 
 - Rama `docs/fase1-matriz-integraciones`: diagnóstico de producción de las integraciones del plan
@@ -2349,6 +2369,7 @@ fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo 
 
 | Agente | Qué | Rama | Toca | Desde |
 | ----------- | ------------------------------------------------------------------------------------------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- || Freebuff | Matriz Fase 1 (diagnóstico integraciones, sin código) | `docs/fase1-matriz-integraciones` | `docs/FASE1-MATRIZ-INTEGRACIONES.md`, `docs/ACTIVE_HANDOFF.md` | 6-oct |
+| Freebuff | Fix cron sequra per-tenant + planificadores reales del panel | `fix/sequra-cron-per-tenant` | `cron/sequra-morosos/route.ts`, `lib/ops/sync-health.ts`, `tests/cron-sequra-morosos.test.mjs` | 6-oct |
 | Freebuff | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot | `package.json`/lock (solo vía dependabot), docs, migraciones | 3-oct |
 | Codex | PR #325 reservation-refunds (E2E en rojo, su autor continúa) | `codex/reservation-refunds` | ventas/cobros (según su rama) | 3-oct |
 | Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún | — | `docs/plan/`, migraciones RLS | 3-oct |
