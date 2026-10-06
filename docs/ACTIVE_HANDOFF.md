@@ -1,11 +1,3 @@
-## Reclamación Codex — coherencia del toolchain ESLint, 6-oct
-
-Rama `codex/eslint-toolchain-alignment`. Alcance: corregir la mezcla de Next 15 con
-`eslint-config-next` 16, regenerar el lockfile y validar con una instalación reproducible. No cambia
-runtime, producto, datos ni producción. La alerta GHSA-vfj7-8cjw-p6xm se documentará según el estado
-real del upstream: `braces` 3.0.3 es la última versión publicada y npm no ofrece una corrección
-compatible; no se presentará un downgrade incompatible a Next 14 como solución.
-
 ## Reclamación Codex — identidad canónica y auditoría cross-platform, 6-oct
 
 Rama `codex/canonical-project-identity`. Alcance: unificar el nombre técnico `growth-ops-app` y el
