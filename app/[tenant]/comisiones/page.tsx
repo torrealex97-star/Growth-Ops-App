@@ -7,21 +7,23 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { CommissionsTable } from '@/components/commissions/CommissionsTable'
 import { CommissionInvoicePanel } from '@/components/commissions/CommissionInvoicePanel'
+import { CommissionControlCenter } from '@/components/commissions/CommissionControlCenter'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { KPICard } from '@/components/os/DashboardKPICard'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { TrendingUp, Users, Percent, ExternalLink, X, Download, Wrench, Loader2 } from 'lucide-react'
+import { ExternalLink, X, Download, Wrench, Loader2 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
 import { SearchBox, normalizeText } from '@/components/ui/search-box'
-import type { CommissionWithRelations, ParticipantType } from '@/lib/types/database'
+import type { ParticipantType } from '@/lib/types/database'
 import { useSesion, useTenant, useTenantId } from '@/lib/tenant-context'
 import { resolverScopeColaborador } from '@/lib/collaborators/scope'
 import { DEFAULT_PERIOD, getCustomDateRange, inPeriod } from '@/lib/filters/period'
 import { getPeriodRange, PERIOD_LABELS, PERIOD_PRESETS_STANDARD, type PeriodPreset } from '@/lib/filters/period'
 import { DateRangeCalendarPopover } from '@/components/ui/calendar-popover'
+import { tenantActiveUsers } from '@/lib/users'
+import type { CommissionDashboardRow } from '@/lib/commissions/dashboard'
 
 type SimpleMember = { id: string; full_name: string }
 
@@ -80,7 +82,7 @@ export default function CommissionsPage() {
   const tenantId = useTenantId()
   // Sesión ya resuelta por el layout: evita repetir auth.getUser() + from('users') aquí.
   const sesion = useSesion()
-  const [commissions, setCommissions] = useState<CommissionWithRelations[]>([])
+  const [commissions, setCommissions] = useState<CommissionDashboardRow[]>([])
   const [future, setFuture] = useState<FutureRow[]>([])
   const [members, setMembers] = useState<SimpleMember[]>([])
   const [loading, setLoading] = useState(true)
@@ -126,7 +128,14 @@ export default function CommissionsPage() {
       // `commissions` tiene DOS FK a `users` (user_id y approved_by); hay que desambiguar el embed
       // con el nombre del FK, o PostgREST devuelve PGRST201 y la consulta entera falla (lista vacía).
       .select(
-        `*, users!commissions_user_id_fkey(id, full_name, pays_commissions), sales(id, contact_id, contacts(full_name)), collections(commissionable_amount, processing_fee, payment_reference)`
+        `
+        id, tenant_id, sale_id, collection_id, refund_id, user_id, participant_type,
+        percent, base_amount, commission_amount, direction, status, liquidation_month,
+        approved_by, notes, created_at, updated_at,
+        users!commissions_user_id_fkey(id, full_name, pays_commissions),
+        sales(id, contact_id, gross_amount, sale_date, contacts(full_name)),
+        collections(id, gross_amount, commissionable_amount, processing_fee, payment_reference, collected_at)
+      `
       )
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
@@ -142,15 +151,14 @@ export default function CommissionsPage() {
     } else {
       // Defensa en el lado de lectura: quien tenga `pays_commissions = false` (p.ej. un socio) no
       // debe aparecer en este dashboard aunque exista alguna fila histórica de antes de este fix.
-      const visibles = ((data as CommissionWithRelations[]) ?? []).filter(
+      const visibles = ((data as unknown as CommissionDashboardRow[]) ?? []).filter(
         (c) => (c.users as { pays_commissions?: boolean } | null)?.pays_commissions !== false
       )
       setCommissions(visibles)
     }
 
     if (canSeeAll) {
-      const { data: usersData } = await supabase.from('users').select('id, full_name').order('full_name')
-      setMembers((usersData as SimpleMember[]) ?? [])
+      setMembers((await tenantActiveUsers(supabase, tenantId)) as SimpleMember[])
     }
 
     setLoading(false)
@@ -374,10 +382,6 @@ export default function CommissionsPage() {
   const liquidated = useMemo(() => filteredCommissions.filter((c) => c.status === 'liquidated'), [filteredCommissions])
   const negative = useMemo(() => filteredCommissions.filter((c) => c.direction === 'negative'), [filteredCommissions])
 
-  const totalPending = pending.reduce((sum, c) => sum + c.commission_amount, 0)
-  const totalApproved = approved.reduce((sum, c) => sum + c.commission_amount, 0)
-  const totalLiquidated = liquidated.reduce((sum, c) => sum + c.commission_amount, 0)
-
   // Comisiones FUTURAS (por cobrar): proyección de las cuotas pendientes (autofinanciado/Sequra)
   const filteredFuture = useMemo(
     () =>
@@ -388,41 +392,11 @@ export default function CommissionsPage() {
       }),
     [future, filterMember, filterType]
   )
-  const totalFuture = filteredFuture.reduce((sum, f) => sum + f.amount, 0)
   // AVISO DE EXENCIONES (users.pays_commissions=false): las cuotas de ventas con closer/setter
   // exento se listan con importe 0 para que nadie espere esa comisión. El KPI "Futuras" solo
   // suma lo proyectable; las exentas se cuentan aparte para el banner.
   const futurasExentas = filteredFuture.filter((f) => f.exento)
-  const totalFutureExcluyendoExentas = totalFuture // ya es 0 en las exentas (amount=0)
-
-  // DESGLOSE nuevo vs recurrente (clasificación canónica decidida por la ruta según los
-  // cobros reales de cada venta): primeras cuotas de ventas nuevas frente a cuotas del plan
-  // de ventas que ya cobraron (el MRR). Recalculado del filtro para que el filtro de
-  // miembro/tipo también lo respete.
-  const desgloseFuturas = useMemo(() => {
-    const acc = { nuevo: 0, recurrente: 0 }
-    for (const f of filteredFuture) acc[f.tipo ?? 'recurrente'] += f.amount
-    return acc
-  }, [filteredFuture])
-
   // KPIs generales del filtro aplicado (todas las comisiones que cumplen el filtro, sin distinguir tab)
-  const filteredTotal = filteredCommissions.reduce((sum, c) => sum + c.commission_amount, 0)
-  const filteredCount = filteredCommissions.length
-  const totalsByType = useMemo(() => {
-    const map: Record<string, { count: number; total: number }> = {
-      setter: { count: 0, total: 0 },
-      closer: { count: 0, total: 0 },
-      affiliate: { count: 0, total: 0 },
-      collaborator: { count: 0, total: 0 },
-    }
-    filteredCommissions.forEach((c) => {
-      if (!map[c.participant_type]) map[c.participant_type] = { count: 0, total: 0 }
-      map[c.participant_type].count += 1
-      map[c.participant_type].total += c.commission_amount
-    })
-    return map
-  }, [filteredCommissions])
-
   const handleBatchStatus = async (action: 'approve' | 'liquidate', ids: string[]) => {
     try {
       const res = await fetch(`/api/${tenant}/evergreen/commissions/batch`, {
@@ -478,11 +452,6 @@ export default function CommissionsPage() {
           &quot;Reparar comisiones&quot; reconstruye las comisiones de todas las ventas a partir de sus cobros reales.
           Úsalo si un cobro no generó su comisión. No toca las ya liquidadas y se puede repetir sin duplicar nada.
         </p>
-      )}
-
-      {/* Facturas de comisiones: el comercial adjunta la suya; admin ve todas */}
-      {currentUserId && (
-        <CommissionInvoicePanel currentUserId={currentUserId} currentUserRole={currentUserRole} members={members} />
       )}
 
       {/* Filtros */}
@@ -606,77 +575,17 @@ export default function CommissionsPage() {
         </div>
       </div>
 
-      {/* KPIs del filtro aplicado — el colaborador solo ve SU lane (§55-56): los agregados
-          de Setters/Closers expondrían importes de otros lanes aunque su tabla venga filtrada. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard
-          title="Total Filtrado"
-          value={formatCurrency(filteredTotal)}
-          icon={TrendingUp}
-          loading={loading}
-          description={`${filteredCount} comisiones`}
-        />
-        {!esColaborador && (
-          <KPICard
-            title="Setters"
-            value={formatCurrency(totalsByType.setter?.total ?? 0)}
-            icon={Users}
-            loading={loading}
-            description={`${totalsByType.setter?.count ?? 0} comisiones`}
-          />
-        )}
-        {!esColaborador && (
-          <KPICard
-            title="Closers"
-            value={formatCurrency(totalsByType.closer?.total ?? 0)}
-            icon={Users}
-            loading={loading}
-            description={`${totalsByType.closer?.count ?? 0} comisiones`}
-          />
-        )}
-        <KPICard
-          title="Colaboradores"
-          value={formatCurrency((totalsByType.affiliate?.total ?? 0) + (totalsByType.collaborator?.total ?? 0))}
-          icon={Percent}
-          loading={loading}
-          description={`${(totalsByType.affiliate?.count ?? 0) + (totalsByType.collaborator?.count ?? 0)} comisiones · clásicos + colaboradores`}
-        />
-      </div>
+      <CommissionControlCenter
+        rows={filteredCommissions}
+        future={filteredFuture}
+        loading={loading}
+        restricted={esColaborador}
+      />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard
-          title="Pendiente (ganada)"
-          value={formatCurrency(totalPending)}
-          icon={TrendingUp}
-          loading={loading}
-          description={`${pending.length} · cash collected, sin aprobar`}
-        />
-        <KPICard
-          title="Aprobado"
-          value={formatCurrency(totalApproved)}
-          icon={TrendingUp}
-          loading={loading}
-          description={`${approved.length} · pasados 15 días`}
-        />
-        <KPICard
-          title="Liquidado"
-          value={formatCurrency(totalLiquidated)}
-          icon={TrendingUp}
-          loading={loading}
-          description={`${liquidated.length} · pagadas`}
-        />
-        <KPICard
-          title="Futuras (por cobrar)"
-          value={formatCurrency(totalFuture)}
-          icon={Percent}
-          loading={loading}
-          description={
-            futurasExentas.length > 0
-              ? `nuevo ${formatCurrency(desgloseFuturas.nuevo)} · recurrente ${formatCurrency(desgloseFuturas.recurrente)} · ${futurasExentas.length} exenta(s)`
-              : `nuevo ${formatCurrency(desgloseFuturas.nuevo)} · recurrente ${formatCurrency(desgloseFuturas.recurrente)}`
-          }
-        />
-      </div>
+      {/* Facturas debajo del control operativo: son evidencia del pago, no el punto de entrada. */}
+      {currentUserId && (
+        <CommissionInvoicePanel currentUserId={currentUserId} currentUserRole={currentUserRole} members={members} />
+      )}
 
       <Tabs defaultValue="pending">
         <TabsList className="bg-card border border-border">
