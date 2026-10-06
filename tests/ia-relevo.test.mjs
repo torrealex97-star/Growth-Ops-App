@@ -177,3 +177,25 @@ test('PDF escaneado sin capa de texto: error honesto pidiendo imagen, sin invent
     /capa de texto/
   )
 })
+
+// Hallado en producción el 6-oct: la clave Groq guardada por la subcuenta estaba revocada. El
+// remedio es repegar la clave en la pantalla — el error debe decirlo, no un 401 crudo del proveedor.
+test('clave de Groq rechazada por el proveedor: error accionable en texto y en visión', async () => {
+  const restaurar = conFetch(async () => ({
+    ok: false,
+    status: 401,
+    json: async () => ({ error: { message: 'Invalid API Key' } }),
+  }))
+  try {
+    await assert.rejects(
+      () => completeText({ system: 's', user: 'u', maxTokens: 10 }, { GROQ_API_KEY: 'gq_muerta' }),
+      /clave de Groq .*no es válida.*Regenera/s
+    )
+    await assert.rejects(
+      () => extractInvoice('aGVsbG8=', 'image/png', [], { GROQ_API_KEY: 'gq_muerta' }),
+      /clave de Groq .*no es válida.*Regenera/s
+    )
+  } finally {
+    restaurar()
+  }
+})
