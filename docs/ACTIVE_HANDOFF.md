@@ -1,3 +1,26 @@
+## Reclamación Codex — auditoría runtime de producción, 6-oct
+
+Rama `codex/production-audit-fixes`. Alcance: revisar producción tras la consolidación, corregir
+únicamente fallos reproducidos en logs y añadir sus regresiones. Ficheros reclamados:
+`app/api/[tenant]/evergreen/commissions/future/route.ts`, tests relacionados y este relevo. No toca
+credenciales ni cambia reglas financieras.
+
+Hallazgos y correcciones:
+
+- **VERIFIED en Supabase producción:** Auth devolvía 500 al listar usuarios porque una fila tenía
+  tokens internos en `NULL`. Se aplicó la reparación oficial de Supabase (`NULL` → cadena vacía en
+  los tres tokens afectados), se verificó que quedan 0 nulos y la pantalla de Usuarios volvió a
+  cargar las 13 cuentas sin errores de consola.
+- **TESTED en código:** la previsión de comisiones enviaba todas las ventas en un único filtro
+  `sale_id=in.(...)`; los logs reales muestran cuatro respuestas 400 por una URL demasiado larga.
+  Las tres lecturas afectadas se trocean ahora en lotes de 100 y siguen fallando de forma explícita
+  si un lote falla. Regresión dirigida 6/6 PASS; `npm run quality` PASS (lint conserva avisos
+  preexistentes); build de producción PASS con Node 24.
+- **VERIFIED:** Vercel no registra errores runtime de nivel error en las últimas 24 horas y la
+  variable `CONFIG_ENC_KEY` existe en producción. Tres credenciales guardadas con una clave anterior
+  siguen siendo irrecuperables por diseño; requieren volver a introducir sus valores originales en
+  Integraciones, no un cambio de código ni una clave inventada.
+
 ## Reclamación Codex — gate de dependencias de producción, 6-oct
 
 Rama `codex/eslint-toolchain-alignment`. Auditoría reproducida contra npm: las cinco alertas altas
