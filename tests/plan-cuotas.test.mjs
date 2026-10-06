@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { aFechaDia, addDaysUTC, planCuotasDeVenta } from '../lib/sales/plan-cuotas.ts'
+import { aFechaDia, addDaysUTC, addMonthsUTC, planCuotasDeVenta } from '../lib/sales/plan-cuotas.ts'
 
 // -----------------------------------------------------------------------------
 // PLAN DE CUOTAS DE UNA VENTA (petición del propietario, 22-sep):
@@ -122,12 +122,13 @@ test('PREVISIÓN derivada: pago único 1/1, cubierta por el cobro real → verde
   assert.equal(plan.porCobrar, 0)
 })
 
-test('PREVISIÓN derivada: plan de 6 pagos a 2026-09-05 → 6 cuotas mensuales, 1 cobrada y 5 por recolectar', () => {
+test('PREVISIÓN derivada: plan vigente de 6 pagos → 1 cuota cobrada y 5 por recolectar', () => {
+  const hoy = aFechaDia(new Date())
   const cobro = {
     id: 'c1',
     sale_id: 's1',
     expected_installment_id: null,
-    collected_at: '2026-09-05T10:00:00Z',
+    collected_at: `${hoy}T10:00:00Z`,
     gross_amount: 249.5,
     commissionable_amount: 240,
     status: 'collected',
@@ -137,13 +138,14 @@ test('PREVISIÓN derivada: plan de 6 pagos a 2026-09-05 → 6 cuotas mensuales, 
   const plan = planCuotasDeVenta([], [cobro], {
     ...metaBase,
     grossAmount: 1497,
+    saleDate: hoy,
     paymentPlan: { number_of_payments: 6, method: null },
   })
   assert.equal(plan.cuotas.length, 6)
   assert.equal(plan.cuotas[0].estado, 'collected')
   assert.equal(plan.cuotas[1].estado, 'pending')
-  assert.equal(plan.cuotas[1].vencimiento, '2026-10-05')
-  assert.equal(plan.cuotas[5].vencimiento, '2027-02-05')
+  assert.equal(plan.cuotas[1].vencimiento, addMonthsUTC(hoy, 1))
+  assert.equal(plan.cuotas[5].vencimiento, addMonthsUTC(hoy, 5))
   assert.equal(plan.cobrado, 249.5)
   assert.equal(plan.porCobrar, 1247.5)
 })
