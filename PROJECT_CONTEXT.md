@@ -1,7 +1,7 @@
 # Growth-Ops-App — Contexto del Proyecto
 
 > **Fuente única de verdad** para Claude Code, Codex y Freebuff. Lee este archivo primero.
-> Última actualización: 2026-09-20 (**auditoría de columnas fantasma**: 5 queries rotas corregidas, PR #89 — y antes `calendly_event_id` en PR #86; los clientes de Supabase NO están tipados y eso es deuda técnica, ver §4). Anteriores: 2026-09-19 (**historial reescrito por filtración de secretos/datos de tenant** — ver §9 y `docs/SECURITY_PRIVACY.md`; §13: gotchas de sesiones — ediciones perdidas y verificación real)
+> Última actualización: 2026-10-06 (**guardrails permanentes de rendimiento y coste**: ver `docs/FREE_TIER_OPERATIONS.md`; baseline medido ~48 MB de BD, 2 crons diarios de Vercel y una sola producción canónica). Anteriores: 2026-09-20 (**auditoría de columnas fantasma**: 5 queries rotas corregidas, PR #89; los clientes de Supabase NO están tipados y eso es deuda técnica, ver §4) y 2026-09-19 (**historial reescrito por filtración de secretos/datos de tenant** — ver §9 y `docs/SECURITY_PRIVACY.md`; §13: gotchas de sesiones).
 
 ---
 
@@ -203,7 +203,7 @@ Ver `.env.local.example` para la lista completa. Resumen:
 - APIs server-side en 500 local (falta `SUPABASE_SERVICE_ROLE_KEY`)
 - ~~3 APIs devuelven texto de auth en body en vez de 401~~ **ARREGLADO** (`97e2d75`): middleware ahora devuelve 401 JSON para `/api/*`
 - Media BD vacía para WDC (`sales` 0, `campaigns` 0, `campaign_ads` 0)
-- Plan Vercel Hobby: 3 crons, `maxDuration` 60s
+- Plan Vercel Hobby: 2 crons diarios en `vercel.json`; `maxDuration` voluntario ≤ 60s
 - Instagram: último sync falla con Meta `(#10) Application does not have permission`
 
 ---
@@ -270,7 +270,7 @@ Ver `.env.local.example` para la lista completa. Resumen:
 - **Branch principal:** `main`
 - **Último commit:** ver `git log --oneline -1` (el historial se reescribió el 2026-09-19; los SHAs citados en docs antiguos ya no existen) — ver §9
 - **Antes de push:** Ejecutar `npm run quality` completo (ahora gateado también por CI en cada push a main: format → lint → typecheck → dead-code → test → test:metrics → build)
-- **Vercel:** Deploy automático al hacer push a `main` → `https://growth-ops-weld.vercel.app`
+- **Vercel:** Deploy automático al hacer push a `main` en el proyecto canónico `growthops-preview-3003` → `https://app.scalixsystems.com`
 
 ---
 
@@ -327,6 +327,8 @@ Leer `docs/ACTIVE_HANDOFF.md` cuando se necesite contexto histórico detallado.
 ## 12. GOTCHAS de arquitectura — Crons, Vercel & GitHub Actions
 
 ### Arquitectura de Crons (límite Vercel Free)
+
+La política operativa canónica de rendimiento, capacidad y coste vive en `docs/FREE_TIER_OPERATIONS.md`; no dupliques ni relajes sus presupuestos en documentos secundarios.
 
 - **Distribución:** Vercel Hobby limita a máximo 2 crons en `vercel.json` (`meta-ads`, `reminders`).
 - **Delegación a GitHub Actions:** los 7 crons restantes (`monthly`, `sequra-morosos`, `analyze-calls`, `ai-insights`, `meta`, `meta-daily`, `instagram`) se disparan desde `.github/workflows/cron-*.yml` con sus horarios originales + `workflow_dispatch`.

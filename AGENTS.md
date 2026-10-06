@@ -116,6 +116,38 @@ Evita patrones de "vibe coding": no añadas código hasta que desaparezca un err
 - No añadas capas, abstracciones, caché, índices o dependencias sin una necesidad demostrable.
 - Para bugs: reproduce, localiza la causa raíz, corrige y añade una prueba de regresión cuando sea razonable.
 
+## Presupuesto permanente de rendimiento y coste
+
+Antes de añadir o modificar una lectura, sincronización, cron, índice, caché o despliegue, consulta
+`docs/FREE_TIER_OPERATIONS.md` y compara contra su última línea base medida. La optimización se hace
+con evidencia (`pg_stat_statements`, advisors, logs, plan de ejecución, Web Vitals o métricas de
+Vercel), nunca por intuición.
+
+- **Consultas:** proyecta solo columnas consumidas, filtra por `tenant_id` desde PostgreSQL, pagina
+  listados y evita relaciones `*`, N+1, waterfalls y peticiones duplicadas. Un detalle pesado se
+  carga bajo demanda, no junto con toda la lista.
+- **RLS:** los helpers de Auth usados por fila se escriben como `(select auth.uid())`,
+  `(select auth.role())` o equivalente para permitir InitPlan. Después de DDL ejecuta advisors y
+  prueba OWNER/OTHER_TENANT/ANON según aplique.
+- **Índices:** añade solo índices respaldados por una FK activa, una query medida o un plan. Antes de
+  crear uno busca equivalentes; no borres índices por la etiqueta `unused` sin revisar ventana de
+  estadísticas, tamaño y consumidores.
+- **Payload y egress:** no uses `select('*')` en rutas/listados nuevos. Declara proyección, rango,
+  orden y límite. No transportes `raw_payload`, transcripciones o blobs si la pantalla no los pinta.
+- **Cliente y red:** reutiliza los clientes compartidos existentes; respeta `AbortSignal` y los
+  timeouts canónicos. No añadas polling si una invalidación, acción manual o Realtime ya resuelve el
+  caso. Un cambio de ruta debe cancelar trabajo que ya no tiene consumidor.
+- **Caché:** datos autenticados o por tenant son `private` por defecto. Solo usa caché compartida si
+  la clave incluye todo el scope de autorización y existe invalidación probada para INSERT/UPDATE/DELETE.
+- **Vercel Hobby:** las rutas mantienen un presupuesto máximo de 60 s y los deadlines internos dejan
+  margen real. No añadas un cron a `vercel.json` sin comprobar el límite vigente y consolidar o
+  justificar su coste. GitHub es el único origen de deploy; un mismo SHA no debe construir en dos
+  proyectos Vercel.
+- **Supabase Free:** no añadas keepalives redundantes, limpiezas automáticas ni retención destructiva.
+  Actúa por umbral medido: investigar al 70% de DB/Storage/egress y preparar acción antes del 80%.
+- **Gate:** si el cambio afecta datos o rendimiento, deja comparación antes/después y prueba de
+  regresión. Registra en `docs/ACTIVE_HANDOFF.md` qué fue INSPECTED, TESTED y VERIFIED.
+
 ## Seguridad, Supabase y multitenancy
 
 - Nunca expongas secretos, tokens, service-role keys, stack traces ni datos de otros usuarios.
