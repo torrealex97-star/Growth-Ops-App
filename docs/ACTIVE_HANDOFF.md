@@ -15,8 +15,11 @@
 - Regresión: `tests/cron-sequra-morosos.test.mjs` (7 tests, incluido el reorden). Gate: format,
   lint, typecheck, 1409 unitarias (único fallo el ambiental apify de Node 26 local, preexistente en
   origin/main), 783 métricas, `audit:production` 0, build PASS.
-- Pendiente tras merge: verificar en producción el próximo run del workflow (HTTP 200 con
-  `omitida: true` para las subcuentas sin SeQura) y runs visibles en `integration_sync_runs`.
+- **Merge y verificado en producción** (6-oct): PR #385 fusionada (`cee5260`, CI success en
+  `931c314`), deploy production READY (`dpl_J15Rga6Q`). Run manual 37520692100: **HTTP 200** con las
+  4 subcuentas `omitida: true` (antes: 500 global). Cero filas en `integration_sync_runs` es el
+  comportamiento diseñado — una omisión no se registra como avería (docstring de `SyncOmitidaError`);
+  habrá filas cuando una subcuenta tenga credenciales de SeQura o falle de verdad.
 
 ## Fase 1 — matriz de integraciones, 6-oct-2026 (PR #384, solo docs)
 
@@ -2367,12 +2370,11 @@ suscripción). La venta sin closer del 3-oct sigue requiriendo corrección manua
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente | Qué | Rama | Toca | Desde |
-| ----------- | ------------------------------------------------------------------------------------------ | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- || Freebuff | Matriz Fase 1 (diagnóstico integraciones, sin código) | `docs/fase1-matriz-integraciones` | `docs/FASE1-MATRIZ-INTEGRACIONES.md`, `docs/ACTIVE_HANDOFF.md` | 6-oct |
-| Freebuff | Fix cron sequra per-tenant + planificadores reales del panel | `fix/sequra-cron-per-tenant` | `cron/sequra-morosos/route.ts`, `lib/ops/sync-health.ts`, `tests/cron-sequra-morosos.test.mjs` | 6-oct |
-| Freebuff | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot | `package.json`/lock (solo vía dependabot), docs, migraciones | 3-oct |
-| Codex | PR #325 reservation-refunds (E2E en rojo, su autor continúa) | `codex/reservation-refunds` | ventas/cobros (según su rama) | 3-oct |
-| Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún | — | `docs/plan/`, migraciones RLS | 3-oct |
+| Agente      | Qué                                                                   | Rama                        | Toca                                                         | Desde |
+| ----------- | --------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------ | ----- |
+| Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot   | `package.json`/lock (solo vía dependabot), docs, migraciones | 3-oct |
+| Codex       | PR #325 reservation-refunds (E2E en rojo, su autor continúa)          | `codex/reservation-refunds` | ventas/cobros (según su rama)                                | 3-oct |
+| Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún             | —                           | `docs/plan/`, migraciones RLS                                | 3-oct |
 
 ## Reglas de trabajo (2026-09-21)
 
