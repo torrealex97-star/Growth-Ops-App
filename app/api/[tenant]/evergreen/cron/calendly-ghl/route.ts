@@ -69,7 +69,13 @@ export async function GET(req: NextRequest) {
               // Un corte por presupuesto NO es un fallo: es el candado funcionando y queda declarado
               // en detail.cortado. Registrar 'error' aquí falsificaría el panel de salud.
               failures: [],
-              detail: { importadas: r.imported, actualizadas: r.updated, paginas: r.pages, cortado: r.cortado },
+              detail: {
+                importadas: r.imported,
+                actualizadas: r.updated,
+                closerBackfill: r.closerBackfill,
+                paginas: r.pages,
+                cortado: r.cortado,
+              },
             })
           )
         }
@@ -96,6 +102,7 @@ export async function GET(req: NextRequest) {
                 citasImportadas: r.appointmentsImported,
                 citasActualizadas: r.appointmentsUpdated,
                 contactos: r.imported + r.updated,
+                closerBackfill: r.closerBackfill,
                 cortado: r.cortado,
               },
             })

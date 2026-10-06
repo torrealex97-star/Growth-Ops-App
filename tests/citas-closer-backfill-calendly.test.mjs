@@ -43,13 +43,27 @@ test('la pasada repara la cola de citas de Calendly sin closer (backfill dirigid
     'solo toca citas de Calendly SIN closer'
   )
   assert.ok(backfill.includes(".is('closer_id', null)"), 'el UPDATE también filtra closer_id null: nunca reasigna')
+  assert.ok(backfill.includes(".select('id, external_id, raw_payload')"), 'lee el sobre ya persistido de la cita')
   assert.ok(
-    (backfill.match(/opts\.deadlineMs && Date\.now\(\) > opts\.deadlineMs/g) || []).length >= 2,
-    'el backfill respeta el reloj ANTES de cada fetch externo (lección #277)'
+    backfill.includes('row.raw_payload?.event') && backfill.includes('storedEvent?.event_memberships'),
+    'resuelve primero el dueño desde raw_payload.event.event_memberships'
   )
+  const deadline = backfill.indexOf('opts.deadlineMs && Date.now() > opts.deadlineMs')
+  const storedOwner = backfill.indexOf('storedEvent?.event_memberships')
+  assert.ok(deadline > storedOwner, 'el deadline externo no impide reparar una fila con payload local')
+  assert.ok(deadline < backfill.indexOf('const eventoResponse = await fetch'), 'el fallback de red sí respeta el reloj')
   assert.ok(
     sync.includes('await backfillCloserCalendly(sb, tenantId, headers, duenaPorEmail, opts)'),
     'syncCalendly ejecuta el backfill en cada pasada'
+  )
+})
+
+test('el resultado del cron declara cuántas agendas recuperaron closer', () => {
+  const cron = read('app/api/[tenant]/evergreen/cron/calendly-ghl/route.ts')
+  assert.equal(
+    (cron.match(/closerBackfill: r\.closerBackfill/g) || []).length,
+    2,
+    'Calendly y GHL exponen el backfill en el historial operativo'
   )
 })
 

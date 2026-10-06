@@ -205,12 +205,81 @@ export async function backfillCloserGhl(
 }
 
 /**
+ * GHL también incluye assignedUserId dentro del evento persistido. Es la única pista que sobrevive
+ * si el calendario se archiva y deja de aparecer en GET /calendars. Repara primero esa cola con un
+ * GET por usuario GHL (memoizado), antes de gastar el presupuesto recorriendo calendarios activos.
+ */
+export async function backfillCloserGhlDesdePayload(
+  sb: SupabaseClient,
+  tenantId: string,
+  locationId: string,
+  headers: { Authorization: string; Version: string; Accept: string },
+  opts: CitasSyncOpts = {}
+): Promise<number> {
+  const pendientes = await sb
+    .from('appointments')
+    .select('id, raw_payload')
+    .eq('tenant_id', tenantId)
+    .eq('external_source', 'ghl')
+    .is('closer_id', null)
+    .order('appointment_datetime', { ascending: false })
+    .limit(100)
+  if (pendientes.error) {
+    console.warn('[ghl] backfill closer desde payload: no se pudo leer la cola:', pendientes.error.message)
+    return 0
+  }
+
+  const localPorUsuarioGhl = new Map<string, string | null>()
+  let total = 0
+  for (const cita of pendientes.data ?? []) {
+    if (opts.deadlineMs && Date.now() > opts.deadlineMs) break
+    const row = cita as { id: string; raw_payload: Json | null }
+    const assignedUserId = text(row.raw_payload?.assignedUserId) || text(row.raw_payload?.userId)
+    if (!assignedUserId) continue
+    if (!localPorUsuarioGhl.has(assignedUserId)) {
+      try {
+        const userResponse = await fetch(
+          `https://services.leadconnectorhq.com/users/${encodeURIComponent(assignedUserId)}?locationId=${encodeURIComponent(locationId)}`,
+          { headers, signal: AbortSignal.timeout(10_000) }
+        )
+        const userBody = (await userResponse.json().catch(() => ({}))) as Json
+        const user = text(userBody.email) ? userBody : ((userBody.user as Json | undefined) ?? null)
+        const localId = userResponse.ok && user ? await resolveUserIdByEmail(sb, text(user.email), tenantId) : null
+        localPorUsuarioGhl.set(assignedUserId, localId)
+      } catch (e) {
+        console.warn('[ghl] no se pudo resolver assignedUserId del evento:', e instanceof Error ? e.message : e)
+        localPorUsuarioGhl.set(assignedUserId, null)
+      }
+    }
+    const closerId = localPorUsuarioGhl.get(assignedUserId) ?? null
+    if (!closerId) continue
+    const result = await sb
+      .from('appointments')
+      .update({ closer_id: closerId }, { count: 'exact' })
+      .eq('tenant_id', tenantId)
+      .eq('id', row.id)
+      .is('closer_id', null)
+    if (result.error) {
+      console.warn('[ghl] backfill closer desde payload:', result.error.message)
+      continue
+    }
+    total += result.count ?? 0
+  }
+  return total
+}
+
+/**
  * BACKFILL DEL DUEÑO DE CALENDLY (closer-backfill): las citas SIN closer no esperan a que el
  * bucle general (asc, con su corte por presupuesto) llegue a la cola — la cola NUEVA era
  * precisamente la que nunca entraba y dejaba ventas sin closer de referencia. Un GET del evento
  * (trae memberships, no hace falta invitees) por cada cita sin closer, dueño resuelto con la
- * MISMA memoria de emails y UPDATE filtrando closer_id null: idempotente, nunca reasigna, y el
- * presupuesto que quede en la pasada se dedica a la cola en vez de a repetir la cabeza.
+ * MISMA memoria de emails y UPDATE filtrando closer_id null: idempotente, nunca reasigna.
+ *
+ * La fuente principal es raw_payload.event.event_memberships, que ya guardamos al importar. Leer
+ * el dueño desde la propia fila no consume red y debe ejecutarse AUNQUE el presupuesto externo se
+ * haya agotado. Solo las filas antiguas sin ese sobre requieren GET a Calendly y respetan el reloj.
+ * Antes se comprobaba el deadline antes incluso de leer el payload: el bucle principal consumía
+ * los 20 s y las 18 citas reparables quedaban eternamente como "Sin closer".
  */
 export async function backfillCloserCalendly(
   sb: SupabaseClient,
@@ -220,51 +289,47 @@ export async function backfillCloserCalendly(
   opts: CitasSyncOpts = {}
 ): Promise<number> {
   let total = 0
-  for (let page = 0; page < 10; page++) {
-    if (opts.deadlineMs && Date.now() > opts.deadlineMs) break
-    const pendientes = await sb
-      .from('appointments')
-      .select('id, external_id')
-      .eq('tenant_id', tenantId)
-      .eq('external_source', 'calendly')
-      .is('closer_id', null)
-      .order('appointment_datetime', { ascending: false })
-      .range(page * 50, page * 50 + 49)
-    if (pendientes.error) {
-      console.warn('[calendly] backfill closer: no se pudo leer la cola sin closer:', pendientes.error.message)
-      return total
-    }
-    if (!pendientes.data?.length) break
-    let avanzado = 0
-    for (const cita of pendientes.data) {
-      if (opts.deadlineMs && Date.now() > opts.deadlineMs) break
-      const uri = (cita as { external_id: string | null }).external_id
-      if (!uri) continue
-      const eventoResponse = await fetch(uri, { headers, signal: AbortSignal.timeout(10_000) })
+  const pendientes = await sb
+    .from('appointments')
+    .select('id, external_id, raw_payload')
+    .eq('tenant_id', tenantId)
+    .eq('external_source', 'calendly')
+    .is('closer_id', null)
+    .order('appointment_datetime', { ascending: false })
+    .limit(500)
+  if (pendientes.error) {
+    console.warn('[calendly] backfill closer: no se pudo leer la cola sin closer:', pendientes.error.message)
+    return total
+  }
+  for (const cita of pendientes.data ?? []) {
+    const row = cita as { id: string; external_id: string | null; raw_payload: Json | null }
+    const storedEvent = row.raw_payload?.event as Json | undefined
+    let ownerEmail = text((storedEvent?.event_memberships as Json[] | undefined)?.[0]?.user_email)
+    if (!ownerEmail) {
+      if (!row.external_id || (opts.deadlineMs && Date.now() > opts.deadlineMs)) continue
+      const eventoResponse = await fetch(row.external_id, { headers, signal: AbortSignal.timeout(10_000) })
       const eventoBody = (await eventoResponse.json().catch(() => ({}))) as {
         resource?: { event_memberships?: Json[] }
       }
       if (!eventoResponse.ok) continue
-      avanzado++
-      const ownerEmail = text(eventoBody.resource?.event_memberships?.[0]?.user_email)
-      if (!ownerEmail) continue
-      if (!duenaPorEmail.has(ownerEmail))
-        duenaPorEmail.set(ownerEmail, await resolveUserIdByEmail(sb, ownerEmail, tenantId))
-      const closerId = duenaPorEmail.get(ownerEmail) ?? null
-      if (!closerId) continue
-      const result = await sb
-        .from('appointments')
-        .update({ closer_id: closerId }, { count: 'exact' })
-        .eq('tenant_id', tenantId)
-        .eq('id', (cita as { id: string }).id)
-        .is('closer_id', null)
-      if (result.error) {
-        console.warn('[calendly] backfill closer de una cita:', result.error.message)
-        continue
-      }
-      total += result.count ?? 0
+      ownerEmail = text(eventoBody.resource?.event_memberships?.[0]?.user_email)
     }
-    if (!avanzado) break
+    if (!ownerEmail) continue
+    if (!duenaPorEmail.has(ownerEmail))
+      duenaPorEmail.set(ownerEmail, await resolveUserIdByEmail(sb, ownerEmail, tenantId))
+    const closerId = duenaPorEmail.get(ownerEmail) ?? null
+    if (!closerId) continue
+    const result = await sb
+      .from('appointments')
+      .update({ closer_id: closerId }, { count: 'exact' })
+      .eq('tenant_id', tenantId)
+      .eq('id', row.id)
+      .is('closer_id', null)
+    if (result.error) {
+      console.warn('[calendly] backfill closer de una cita:', result.error.message)
+      continue
+    }
+    total += result.count ?? 0
   }
   return total
 }
@@ -294,6 +359,10 @@ export async function syncGhl(
   let appointmentsUpdated = 0
   let closerBackfill = 0
   let cortado = false
+  // Prioridad a las filas ya importadas: conservan assignedUserId aunque su calendario se haya
+  // archivado. Se ejecuta antes de los listados externos para que el budget no las vuelva a dejar
+  // permanentemente como "Sin closer".
+  closerBackfill += await backfillCloserGhlDesdePayload(sb, tenantId, locationId, headers, opts)
   // En modo soloEventos esta fase NO corre: paginar todos los contactos no cabe en el cron.
   while (pages < 100 && !lazyContacts) {
     if (opts.deadlineMs && Date.now() > opts.deadlineMs) {
@@ -335,11 +404,10 @@ export async function syncGhl(
   }
   if (!calendarsResponse.ok)
     throw new Error(calendarsBody.message || `GHL calendarios respondió ${calendarsResponse.status}`)
-  // CLOSER POR CALENDARIO. El evento de GHL no trae usuario asignado (el raw_payload de producción
-  // solo lleva calendarId); el dueño vive en el CALENDARIO (assignedUserId). Se resuelve una vez
-  // por calendario y se cachea: assignedUserId → GET /users/{id} → email → usuario de la app
-  // (resolveUserIdByEmail, acotado a la subcuenta). Sin dueño resuelto la cita queda sin closer:
-  // un hueco no se disimula con una asignación inventada.
+  // CLOSER POR CALENDARIO. Para eventos actuales, el dueño canónico vive en el calendario. El
+  // assignedUserId guardado en el evento es el fallback del histórico cuando ese calendario ya no
+  // aparece. Se resuelve una vez por calendario y se cachea: assignedUserId → GET /users/{id} →
+  // email → usuario de la app (acotado a la subcuenta).
   const duenaDeCalendario = new Map<string, string | null>()
   for (const calendar of calendarsBody.calendars ?? []) {
     // El reloj también aquí: cada dueño cuesta un GET /users (15 s de presupuesto propio) y
@@ -480,7 +548,7 @@ export async function syncGhl(
   }
   // Backfill idempotente: citas ya importadas de estos calendarios sin closer heredan al dueño.
   if (duenaDeCalendario.size > 0) {
-    closerBackfill = await backfillCloserGhl(sb, tenantId, duenaDeCalendario)
+    closerBackfill += await backfillCloserGhl(sb, tenantId, duenaDeCalendario)
   }
   return {
     provider: 'ghl',

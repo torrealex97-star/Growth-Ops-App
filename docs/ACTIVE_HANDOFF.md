@@ -1,3 +1,18 @@
+## Asignación automática de closer en agendas — cerrado, 6-oct-2026
+
+- Causa raíz confirmada: Calendly ya persistía el email del organizador, pero el backfill lo
+  ignoraba cuando el presupuesto de red se agotaba; GHL conserva `assignedUserId` en el evento
+  incluso si su calendario deja de aparecer entre los calendarios activos.
+- Calendly resuelve primero el organizador desde el `raw_payload` local, sin red, y solo usa su API
+  como fallback. GHL resuelve el usuario del evento antes de los listados externos. Ambos cruces
+  pasan por el resolvedor canónico acotado a la subcuenta y nunca reasignan una cita con closer.
+- La reparación de producción se ejecutó con dry-run previo y dejó en cero la cola de Calendly sin
+  closer. La agenda de WDC se verificó en el navegador con las personas asignadas visibles.
+- Regresión permanente: `tests/citas-closer-backfill-calendly.test.mjs` y
+  `tests/citas-closer-sync.test.mjs`. El cron registra `closerBackfill` para observabilidad.
+- Las citas GHL que todavía no tengan closer deben resolverse con el sync ya corregido; no asignar
+  manualmente sin comprobar el email del usuario externo contra un miembro activo del tenant.
+
 ## Perfil único y acceso de superadministrador — cerrado, 6-oct-2026
 
 - La cabecera es el único punto visible de identidad: avatar, nombre, rol, perfil/contraseña y
