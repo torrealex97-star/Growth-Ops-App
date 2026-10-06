@@ -72,7 +72,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
     const { data: ventasSinCalendario, error: ventasErr } = await sb
       .from('sales')
       .select(
-        'id, sale_date, gross_amount, installments_count, installments_start_date, setter_id, closer_id, affiliate_id, affiliate_commission_percent, contacts(full_name)'
+        'id, sale_date, gross_amount, installments_count, installments_start_date, payment_plan_id, setter_id, closer_id, affiliate_id, affiliate_commission_percent, contacts(full_name)'
       )
       .eq('status', 'active')
       .eq('tenant_id', t.tenantId)
@@ -104,10 +104,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       cobrosPorVenta.set(c.sale_id, lista)
     }
     // Plan de pago de esas ventas (método 'reserva' = 1 sola cuota, igual que planCuotasDeVenta).
-    let planesSinCal: { sale_id: string; number_of_payments: number | null; method: string | null }[]
+    // payment_plans pertenece al producto y se enlaza desde sales.payment_plan_id; no tiene sale_id.
+    const planIdBySale = new Map(
+      (ventasSinCalendario ?? [])
+        .filter((v) => !ventasConCalendario.has(v.id) && v.payment_plan_id)
+        .map((v) => [v.id, v.payment_plan_id as string])
+    )
+    const idsPlanesSinCal = [...new Set(planIdBySale.values())]
+    let planesSinCal: { id: string; number_of_payments: number | null; method: string | null }[]
     try {
-      planesSinCal = await readInBatches(idsSinCal, (batch) =>
-        sb.from('payment_plans').select('sale_id, number_of_payments, method').in('sale_id', batch)
+      planesSinCal = await readInBatches(idsPlanesSinCal, (batch) =>
+        sb.from('payment_plans').select('id, number_of_payments, method').in('id', batch).eq('tenant_id', t.tenantId)
       )
     } catch (error) {
       throw new Error(
@@ -115,12 +122,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       )
     }
     const planDe = new Map<string, { number_of_payments: number | null; method: string | null }>()
+    const planById = new Map<string, { number_of_payments: number | null; method: string | null }>()
     for (const p of (planesSinCal ?? []) as {
-      sale_id: string
+      id: string
       number_of_payments: number | null
       method: string | null
     }[]) {
-      planDe.set(p.sale_id, p)
+      planById.set(p.id, p)
+    }
+    for (const [saleId, planId] of planIdBySale) {
+      const plan = planById.get(planId)
+      if (plan) planDe.set(saleId, plan)
     }
 
     // Cuotas de un plan personalizado YA cobradas pero en revisión manual de cobros: siguen sin
