@@ -1,3 +1,154 @@
+## Plan de cierre de producto al 100 % — handoff ejecutable, 6-oct-2026
+
+Este bloque es la fuente de verdad para el siguiente agente. Avanzar **en orden**, una sola fase y
+una sola rama corta cada vez. Antes de crear código, ejecutar `git fetch --prune`, leer este archivo,
+buscar implementación equivalente (`rg`) y comprobar que no existe ya una PR abierta. No repetir
+auditorías cerradas ni abrir ramas paralelas. Al terminar una fase: Quality Gate completo, PR,
+preview, verificación proporcional en producción, actualización de este bloque y borrado de la rama.
+
+### Estado base verificado
+
+- `main` es la única rama remota y no hay PR abiertas tras las PR #376, #378 y #379.
+- Producción canónica: Vercel `growth-ops-app` → `https://app.scalixsystems.com`.
+- Supabase producción: `rgcbveflosqgxrcqlqzv`.
+- Auth Admin Users vuelve a responder sin 500: tokens internos y `email_change` nulos reparados.
+- Comisiones futuras verificadas en producción: el filtro PostgREST se trocea en lotes de 25 y el
+  plan se enlaza correctamente por `sales.payment_plan_id` → `payment_plans.id`. La pestaña Futuras
+  carga datos reales; no aparecen nuevos 400 de `payment_plans` ni 500 de `/admin/users`.
+- Producción no tiene vulnerabilidades conocidas: `npm run audit:production` / `npm audit --omit=dev`
+  = 0. La alerta de `braces` pertenece al toolchain dev y no tiene versión corregida publicada.
+- Preservar sin modificar los archivos locales no versionados `.freebuff/*`,
+  `docs/DASHBOARD_AUDIT.md` y `docs/DASHBOARD_CORRECTION_PLAN.md` salvo petición expresa de Alex.
+
+### Bloqueo humano inmediato — no intentar resolverlo inventando secretos
+
+Volver a guardar desde Configuración → Integraciones los valores originales de:
+`META_APP_SECRET`, `RESEND_API_KEY` y `YOUTUBE_CLIENT_SECRET`. Fueron cifrados con una
+`CONFIG_ENC_KEY` anterior y son irrecuperables por diseño. El agente puede validar después, pero no
+puede reconstruir esos secretos. Hasta entonces Meta/Instagram, Resend y YouTube no se consideran
+VERIFIED aunque el código compile.
+
+### Fase 1 — integraciones críticas y observabilidad (P0)
+
+**Objetivo:** cada conector muestra estado real, importa histórico sin duplicados y falla de forma
+recuperable.
+
+1. Tras renovar secretos, probar Meta/Instagram, Calendly, Fathom, Stripe read-only, Resend,
+   YouTube y el proveedor IA configurado para WDC y Evergreen.
+2. Para cada uno verificar: conectar/renovar, sync incremental, carga histórica, webhook o job,
+   idempotencia, timeout, reintento acotado, credencial caducada y mensaje útil en UI.
+3. Correlacionar logs por `request_id`; no tratar un estado visual “conectado” como prueba de datos.
+4. Crear tests de regresión solo para fallos reproducidos. No usar datos personales ni secretos en
+   fixtures o commits.
+
+**Salida:** matriz por integración con `INSPECTED / TESTED / VERIFIED`, última sincronización,
+volumen importado y error accionable; cero 5xx/duplicados en una ejecución nueva.
+
+### Fase 2 — recorrido crítico y aislamiento multi-tenant (P0)
+
+**Objetivo:** verificar el negocio completo con fixtures QA reproducibles, nunca con cobros reales.
+
+1. Lead con UTM/campaign/ad → agenda y formulario → asistencia/no-show → venta → cobro interno →
+   comisión → dashboard/finanzas.
+2. Probar OWNER/ADMIN/DIRECTOR/MANAGER/CLOSER/SETTER/COLLABORATOR y usuario miembro de dos
+   subcuentas; cambio de rol limitado a la membresía seleccionada.
+3. Pruebas RLS ORG_A/ORG_B para SELECT/INSERT/UPDATE/DELETE y manipulación de IDs.
+4. Confirmar atribución hasta anuncio individual y conciliación Stripe sin inventar producto/plan.
+
+**Salida:** E2E y pruebas negativas permanentes; ningún acceso cross-tenant, doble comisión ni dato
+huérfano. Toda escritura QA debe tener setup/teardown aislado y no compartir la cuenta manual.
+
+### Fase 3 — CRM operativo (P1)
+
+**Objetivo:** que el equipo pueda trabajar oportunidades diariamente sin hojas externas.
+
+1. Kanban con drag & drop accesible, actualización optimista reversible, persistencia, auditoría y
+   control de concurrencia.
+2. Calendario responsive (~400 px), semana actual por defecto, navegación rápida y estados visuales
+   canónicos: reservó, asistió, no-show y compró.
+3. Lead scoring explicable desde respuestas reales: compromiso, capacidad económica e intención de
+   inversión. Guardar reglas/versionado; no usar una caja negra de IA para decidir.
+4. Mostrar respuestas de formularios legibles y conservar payload técnico plegado solo para admin.
+
+**Salida:** tabla/calendario/Kanban consistentes tras refresh, back/forward, doble acción y sesión
+expirada; pruebas de transiciones permitidas/prohibidas.
+
+### Fase 4 — contenido, contratos y marketing (P1)
+
+1. Contratos: importar/subir, Storage privado por tenant, validación MIME/tamaño, permisos, dedupe,
+   reemplazo/versionado y enlaces firmados.
+2. Reparar VSL contra el esquema y Storage reales; probar creación, reproducción, incrustado y
+   tracking de retención.
+3. Renombrar y reorganizar UX según decisión vigente: hub **Contenido** para corto/largo formato y
+   **Edición** para pipeline; preservar deep-links y redirects de rutas antiguas.
+4. Facebook/Instagram completamente funcionales después de renovar Meta. TikTok solo se marca como
+   operativo si la API y permisos reales soportan el flujo; en caso contrario mostrar limitación
+   honesta, no datos simulados.
+
+**Salida:** desktop/móvil y accesibilidad básica PASS; ningún recurso público accidental ni ruta
+rota; buscador ⌘K actualizado.
+
+### Fase 5 — métricas, objetivos y agente (P1)
+
+1. Todos los KPI/gráficos responden al filtro temporal global y a la cuenta/fuente seleccionada.
+2. Definir una fuente canónica para contactos, agendas, ventas, cobros, campañas y comisiones;
+   dedupe por identificadores estables, no solo por nombre.
+3. Completar objetivos vs real, previsión/capacidad, alertas y anotaciones sin duplicar el sistema
+   `campaign_targets` existente.
+4. Pantalla inicial del agente = Growth Brief con contexto del tenant. Validar provider/modelo,
+   timeout, streaming, coste, permisos y degradación controlada; nunca enviar datos de otro tenant.
+
+**Salida:** pruebas de agregados y contrato API, reconciliación contra SQL real y estados vacío/error;
+el mismo periodo produce importes consistentes entre Dashboard, Ventas y Finanzas.
+
+### Fase 6 — rendimiento, seguridad y lanzamiento (P2 → release)
+
+1. Medir LCP/INP/CLS reales en móvil y escritorio; registrar baseline y presupuesto. No optimizar por
+   intuición. Eliminar cascadas/requests duplicados, paginar y virtualizar listados grandes.
+2. Revisar advisors Supabase con evidencia: activar protección de contraseñas filtradas si el plan lo
+   permite; no borrar índices “unused” ni mover extensiones a ciegas.
+3. Negative E2E: red cortada, proveedor 500/timeout, doble clic, refresh, varias pestañas, sesión
+   expirada, eventos duplicados/fuera de orden y datasets grandes.
+4. Monitor sintético diario sin datos sensibles: login QA aislado → dashboard → lectura principal →
+   logout. Alertas accionables para 5xx, auth, webhooks, sync y crons.
+5. Documentar backup/exportación, restauración probada, rollback, incidente, privacidad y checklist
+   de release. Mantener límites Free/Hobby descritos en `docs/FREE_TIER_OPERATIONS.md`.
+
+**Salida final:** Quality Gate y critical journeys PASS, producción smoke PASS, cero P0/P1 abiertos,
+rollback probado y riesgos residuales aceptados explícitamente por Alex.
+
+### Quality Gate obligatorio por fase
+
+Ejecutar con Node 24 antes de cada push:
+
+```bash
+npm run format:check
+npm run lint
+npm run typecheck
+npm test
+npm run test:metrics
+npm run audit:production
+rm -rf .next && npx next build
+```
+
+Además: integración/DB/RLS cuando aplique, Playwright para recorridos afectados, gitleaks, preview y
+smoke post-deploy. Diferenciar siempre `INSPECTED`, `TESTED` y `VERIFIED`; si algo no está disponible,
+registrarlo como GAP. No fusionar si falla `Release gate`.
+
+### Formato de relevo al terminar cada sesión
+
+Actualizar aquí, arriba de la siguiente fase, solo con:
+
+- rama/PR/commit y si está fusionado;
+- alcance exacto y archivos/tablas/rutas afectados;
+- evidencia ejecutada y resultado;
+- estado de preview/producción y logs posteriores;
+- bloqueos humanos o credenciales, sin incluir sus valores;
+- siguiente acción concreta de máximo una fase.
+
+No declarar “todo correcto” basándose solo en inspección, no borrar cambios ajenos y no iniciar otra
+fase dejando una PR anterior sin resolver.
+
 ## Auditoría runtime de producción — cerrada, 6-oct
 
 PR #376 fusionada en `main`. Alcance: revisión de producción tras la consolidación, corrección de
