@@ -4,19 +4,26 @@
 // conectar en Integraciones, daba verde… y no movía un solo dato: una integración que solo existe en
 // la pantalla. Aquí se decide el motor en UN sitio, y todas las funciones de texto pasan por él.
 //
-// LA REGLA. Si la subcuenta tiene DEEPSEEK_API_KEY configurada, DeepSeek es su motor. Si no, sigue
-// Anthropic exactamente como hasta ahora: conectar DeepSeek es una decisión explícita del cliente,
-// no algo que se active solo.
+// LA REGLA (cadena de relevo). El motor preferido de la subcuenta atiende; si falla (o no está
+// conectado), el siguiente conectado toma el relevo: DeepSeek → Anthropic → Groq. Con UN solo motor
+// conectado, ese atiende todo; con ninguno, se dice qué conectar. Conectar DeepSeek sigue siendo una
+// decisión explícita del cliente: su prioridad no cambia por esto. Cada relevo queda anotado en
+// `fallbackReason` — un cambio silencioso de motor es una avería invisible.
 //
-// LO QUE NO PASA POR AQUÍ, y no es un olvido:
-//   · `extractInvoice` lee imágenes y PDFs. Los modelos de texto de DeepSeek no ven documentos:
-//     mandarles una factura devolvería una respuesta inventada sobre un archivo que no han leído.
-// El agente conversacional usa este mismo selector, pero conserva su adaptador de herramientas en
-// lib/ai/agent/gateway.ts porque allí hay que traducir el protocolo de tool-use de cada proveedor.
+// LO QUE NO PASA POR AQUÍ, y no es un olvido: `extractInvoice` (facturas) tiene su PROPIA cadena de
+// capacidades en lib/ai/claude.ts, porque necesita VISIÓN para imágenes. Ahí el orden es Anthropic
+// (visión nativa, imagen y PDF) → Groq (visión, imagen) → texto puro (solo PDF, extrayendo el texto
+// del documento, lib/ai/pdf.ts). Lo que NUNCA pasa es mandarle una imagen a un modelo de texto: la
+// respondería inventada sobre un archivo que no ha visto.
+//
+// El agente conversacional usa el selector de lib/ai/agent/gateway.ts: DeepSeek por su endpoint
+// compatible con Anthropic o Anthropic directo (Groq no ofrece endpoint Anthropic-compatible, y el
+// bucle de tool-use con la frontera de autorización vive en ese protocolo).
 import Anthropic from '@anthropic-ai/sdk'
 import { getTenantConfigWithFallback } from '@/lib/config'
+import { groqTexto } from '@/lib/ai/groq'
 
-export type AiEngine = 'deepseek' | 'anthropic'
+export type AiEngine = 'deepseek' | 'anthropic' | 'groq'
 
 export type TextRequest = {
   system: string
@@ -39,7 +46,7 @@ export type ConversationRequest = {
 
 export type TextResult = {
   text: string
-  /** Motor que DE VERDAD respondió. Si DeepSeek falló y contestó Anthropic, aquí pone 'anthropic'. */
+  /** Motor que DE VERDAD respondió. Si el preferido falló y contestó otro, aquí pone quién. */
   engine: AiEngine
   model: string
   /** Por qué se cambió de motor, cuando se cambió. Un cambio silencioso es una avería invisible. */
@@ -64,9 +71,18 @@ const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions'
 
 export type AiEnv = Record<string, string | undefined>
 
-/** Motor elegido para la instantánea de configuración recibida. */
+/** Motor elegido para la instantánea de configuración recibida (preferencia de texto de la subcuenta). */
 export function selectEngine(env: AiEnv = process.env): AiEngine {
   return env.DEEPSEEK_API_KEY?.trim() ? 'deepseek' : 'anthropic'
+}
+
+/** Orden de relevo para tareas de texto, con la preferencia de la subcuenta primero. */
+const ORDEN_RELEVO: AiEngine[] = ['deepseek', 'anthropic', 'groq']
+
+function claveDe(motor: AiEngine, env: AiEnv): string | undefined {
+  const k =
+    motor === 'deepseek' ? env.DEEPSEEK_API_KEY : motor === 'anthropic' ? env.ANTHROPIC_API_KEY : env.GROQ_API_KEY
+  return k?.trim() ? k : undefined
 }
 
 /**
@@ -89,9 +105,9 @@ export function deepseekModel(env: AiEnv = process.env): string {
 }
 
 /**
- * Una petición de texto, con el motor que toque. Devuelve SIEMPRE qué motor respondió: si DeepSeek
- * falla y contesta Anthropic, el que llama puede decirlo en vez de presentar el resultado como si lo
- * hubiera producido el motor configurado.
+ * Una petición de texto, con el motor que toque. Devuelve SIEMPRE qué motor respondió: si el
+ * preferido falla y contesta otro, el que llama puede decirlo en vez de presentar el resultado como
+ * si lo hubiera producido el motor configurado.
  */
 export async function completeText(req: TextRequest, env: AiEnv = process.env): Promise<TextResult> {
   return completeConversation(
@@ -111,21 +127,33 @@ export async function completeText(req: TextRequest, env: AiEnv = process.env): 
  * configuración cifrada de la subcuenta.
  */
 export async function completeConversation(req: ConversationRequest, env: AiEnv = process.env): Promise<TextResult> {
-  const engine = selectEngine(env)
-  if (engine === 'deepseek') {
+  const motores = ORDEN_RELEVO.filter((m) => claveDe(m, env))
+  if (motores.length === 0) {
+    throw new Error('Configura una clave de DeepSeek, Anthropic o Groq para esta subcuenta (Ajustes › Integraciones)')
+  }
+  const motivos: string[] = []
+  let ultimoError: unknown
+  for (const motor of motores) {
     try {
-      return await deepseekConversation(req, env)
+      const result =
+        motor === 'deepseek'
+          ? await deepseekConversation(req, env)
+          : motor === 'anthropic'
+            ? await anthropicConversation(req, env)
+            : await groqConversation(req, env)
+      // El relevo se declara, nunca se disimula: quién leyó esto debe saber que NO respondió el
+      // motor configurado de la subcuenta.
+      return motivos.length > 0 ? { ...result, fallbackReason: motivos.join('; ') } : result
     } catch (e) {
       const reason = e instanceof Error ? e.message : String(e)
-      // Sin Anthropic de repuesto no hay nada que hacer: se propaga el error real de DeepSeek en vez
-      // de devolver un texto vacío que el llamante interpretaría como "la IA no encontró nada".
-      if (!env.ANTHROPIC_API_KEY?.trim()) throw e
-      console.warn(`[ai] DeepSeek falló (${reason}); respondiendo con Anthropic.`)
-      const result = await anthropicConversation(req, env)
-      return { ...result, fallbackReason: reason }
+      motivos.push(`${motor}: ${reason}`)
+      ultimoError = e
+      console.warn(`[ai] ${motor} falló (${reason}); probando el siguiente motor conectado.`)
     }
   }
-  return anthropicConversation(req, env)
+  // Sin ningún motor de repuesto que sirva se propaga el ÚLTIMO error real, no un texto vacío que
+  // el llamante interpretaría como "la IA no encontró nada".
+  throw ultimoError
 }
 
 async function deepseekConversation(req: ConversationRequest, env: AiEnv): Promise<TextResult> {
@@ -161,7 +189,7 @@ async function deepseekConversation(req: ConversationRequest, env: AiEnv): Promi
 
 async function anthropicConversation(req: ConversationRequest, env: AiEnv): Promise<TextResult> {
   if (!env.ANTHROPIC_API_KEY?.trim()) {
-    throw new Error('Configura una clave de DeepSeek o Anthropic para esta subcuenta')
+    throw new Error('Anthropic no está configurado para esta subcuenta')
   }
   const model = req.anthropicModel || (req.smart ? ANTHROPIC_SMART : ANTHROPIC_FAST)
   // maxRetries alto porque Anthropic devuelve 529 (overloaded) en picos y el default del SDK (2) no
@@ -179,4 +207,18 @@ async function anthropicConversation(req: ConversationRequest, env: AiEnv): Prom
     .map((b) => (b as { text: string }).text)
     .join('')
   return { text, engine: 'anthropic', model }
+}
+
+async function groqConversation(req: ConversationRequest, env: AiEnv): Promise<TextResult> {
+  const apiKey = claveDe('groq', env)
+  if (!apiKey) throw new Error('Groq no está configurado para esta subcuenta')
+  const { text, model } = await groqTexto({
+    system: req.system,
+    messages: req.messages,
+    maxTokens: req.maxTokens,
+    temperature: req.temperature,
+    smart: req.smart,
+    apiKey,
+  })
+  return { text, engine: 'groq', model }
 }

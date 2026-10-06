@@ -28,7 +28,7 @@ test('las funciones de texto pasan por el motor configurable, no por Anthropic a
   // Solo puede quedar UNA llamada directa a Anthropic: la de leer facturas (multimodal). Y con la
   // clave de la SUBCUENTA, no la del entorno del despliegue.
   const directas = [...claude.matchAll(/anthropic\([^)]*\)\.messages\.create/g)]
-  assert.match(claude, /anthropic\(env\?\.ANTHROPIC_API_KEY/, 'la factura se lee con la clave del entorno')
+  assert.match(claude, /env\?\.ANTHROPIC_API_KEY/, 'la factura no se lee con la clave de la subcuenta')
   assert.equal(directas.length, 1, `hay ${directas.length} llamadas directas a Anthropic en claude.ts`)
   const extract = claude.slice(claude.indexOf('export async function extractInvoice'))
   assert.match(
@@ -38,14 +38,24 @@ test('las funciones de texto pasan por el motor configurable, no por Anthropic a
   )
 })
 
-// Los modelos de texto de DeepSeek no ven imágenes ni PDFs: mandarles una factura devolvería una
-// respuesta inventada sobre un archivo que no han leído.
-test('leer facturas NO se enruta al motor de texto', () => {
+// A un modelo SIN visión jamás se le manda una imagen de factura: la respondería inventada sobre un
+// archivo que no ha visto. La imagen va a un motor con visión (Anthropic nativo o Groq); solo los
+// PDFs pueden bajar a la cadena de texto, y únicamente extrayendo antes el texto del documento.
+test('las facturas en imagen solo van a motores con visión; los PDFs bajan a texto con el documento extraído', () => {
   const claude = read('lib/ai/claude.ts')
   const extract = claude.slice(claude.indexOf('export async function extractInvoice'))
   const cuerpo = extract.slice(0, extract.indexOf('export async function', 10))
-  assert.doesNotMatch(sinComentarios(cuerpo), /completeText\(/, 'la factura se está mandando a un modelo de texto')
-  assert.match(read('lib/ai/provider.ts'), /extractInvoice/, 'el motor no documenta por qué las facturas quedan fuera')
+  // La imagen solo entra por visión: Anthropic nativo o Groq; sin ninguno se declara el hueco.
+  assert.match(cuerpo, /if \(!isPdf && env\?\.GROQ_API_KEY/, 'la imagen podría llegar a un motor sin visión')
+  assert.match(cuerpo, /groqVision\(/, 'falta la vía de visión con Groq')
+  assert.match(cuerpo, /motor con visión/, 'no se declara qué falta cuando no hay visión')
+  // El PDF sí baja a texto, pero extrayendo el documento: nunca se manda el archivo a un modelo de texto.
+  assert.match(cuerpo, /extraerTextoPdf/, 'el PDF se mandaría sin extraer su texto')
+  assert.match(
+    read('lib/ai/provider.ts'),
+    /extractInvoice/,
+    'el motor no documenta la cadena de capacidades de las facturas'
+  )
 })
 
 // Sin esto, una clave guardada en Integraciones no la usa nadie: las rutas leían process.env, que
@@ -94,6 +104,7 @@ test('si responde el motor de repuesto, se dice cuál y por qué', () => {
   assert.match(provider, /console\.warn/)
   // Y sin repuesto configurado se propaga el error real en vez de devolver texto vacío, que el
   // llamante leería como "la IA no encontró nada".
-  assert.match(provider, /if \(!env\.ANTHROPIC_API_KEY\?\.trim\(\)\) throw e/)
+  // Y sin NINGÚN motor conectado se dice qué conectar en vez de fallar críptico.
+  assert.match(provider, /Configura una clave de DeepSeek, Anthropic o Groq/)
   assert.match(provider, /devolvió una respuesta vacía/)
 })

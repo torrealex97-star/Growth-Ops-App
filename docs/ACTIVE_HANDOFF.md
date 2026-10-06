@@ -1,3 +1,30 @@
+## IA: relevo de motores — toda función de IA funciona con cualquier IA conectada — 6-oct-2026 (en revisión)
+
+- Rama `feat/ia-relevo-motores` desde `origin/main` (`dfd1dfe`).
+- Petición de Alex: ninguna función de IA debe esperar por Anthropic; los modelos potentes para tareas
+  estratégicas y los ligeros para las sencillas; con un solo motor conectado, ese toma el relevo sin error.
+- Texto ([lib/ai/provider.ts](lib/ai/provider.ts)): cadena de relevo DeepSeek → Anthropic → Groq en
+  `completeConversation`; con un solo motor, ese atiende todo; sin ninguno, error accionable. El nivel
+  `smart` sigue eligiendo potencia (sonnet vs haiku; 70B vs 8B en Groq). Cada relevo se declara en
+  `fallbackReason` (nada de cambios de motor silenciosos).
+- Facturas ([lib/ai/claude.ts](lib/ai/claude.ts)): cadena de capacidades — Anthropic visión nativa
+  (imagen y PDF) → Groq visión (imagen; candidatos qwen/llama-4 por si el proveedor retira un ID) →
+  texto del PDF vía [lib/ai/pdf.ts](lib/ai/pdf.ts) (`unpdf`, nueva dependencia — empaqueta pdf.js sin
+  workers, justificada en el propio fichero) analizado por el motor de texto (DeepSeek incluido).
+  Imagen sin ningún motor con visión: error accionable — JAMÁS se manda una imagen a un modelo de
+  texto (la respondería inventada).
+- Agente conversacional ([gateway.ts](lib/ai/agent/gateway.ts)): sin cambio — DeepSeek (endpoint
+  Anthropic-compatible) o Anthropic; Groq no ofrece endpoint Anthropic-compatible y el bucle de
+  tool-use vive en ese protocolo. Hueco documentado: subcuenta con solo Groq no tiene agente.
+- Transcripción: sigue Groq-only (único proveedor con Whisper); si no hay Groq, error accionable.
+- Tests: [ia-relevo.test.mjs](tests/ia-relevo.test.mjs) (9 funcionales con fetch simulado: niveles de
+  potencia, relevo declarado, factura por visión/PDF/escaneo, modelo retirado → siguiente candidato) +
+  estructurales de `ai-engine.test.mjs` reescritos a la regla nueva. Gate: prettier, eslint, tsc,
+  1418/1422 unitarias (único fallo: apify ambiental preexistente en main), 783/783 métricas, build
+  PASS. knip/dead-code no corre local (EPERM del sandbox con worktrees); lo cubre el CI del PR.
+- Pendiente tras merge: verificación en producción — la subcuenta tiene DeepSeek + Groq: probar
+  análisis de factura en imagen (vía Groq visión) y en PDF (vía texto + DeepSeek).
+
 ## Fase 1 — cron sequra per-tenant y planificadores reales, 6-oct-2026 (PR #385)
 
 - Rama `fix/sequra-cron-per-tenant` desde `origin/main` (`903c4c8`).
@@ -2370,11 +2397,12 @@ suscripción). La venta sin closer del 3-oct sigue requiriendo corrección manua
 Carriles y reglas en `AGENTS.md` › "Trabajo en paralelo". **Antes de empezar, añade tu fila; al
 fusionar, bórrala.** Si lo que vas a tocar está aquí a nombre de otro, no lo toques.
 
-| Agente      | Qué                                                                   | Rama                        | Toca                                                         | Desde |
-| ----------- | --------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------ | ----- |
-| Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327) | `main` + ramas dependabot   | `package.json`/lock (solo vía dependabot), docs, migraciones | 3-oct |
-| Codex       | PR #325 reservation-refunds (E2E en rojo, su autor continúa)          | `codex/reservation-refunds` | ventas/cobros (según su rama)                                | 3-oct |
-| Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún             | —                           | `docs/plan/`, migraciones RLS                                | 3-oct |
+| Agente      | Qué                                                                                | Rama                        | Toca                                                                                                                                                | Desde |
+| ----------- | ---------------------------------------------------------------------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| Freebuff    | Relevo de motores de IA (texto y visión) para funcionar con cualquier IA conectada | `feat/ia-relevo-motores`    | `lib/ai/provider.ts`, `lib/ai/claude.ts`, `lib/ai/groq.ts`, `lib/ai/pdf.ts`, `tests/ia-relevo.test.mjs`, `tests/ai-engine.test.mjs`, `package.json` | 6-oct |
+| Freebuff    | Cierre de merges 3-oct; dependabot majors en vuelo (#314, #315, #327)              | `main` + ramas dependabot   | `package.json`/lock (solo vía dependabot), docs, migraciones                                                                                        | 3-oct |
+| Codex       | PR #325 reservation-refunds (E2E en rojo, su autor continúa)                       | `codex/reservation-refunds` | ventas/cobros (según su rama)                                                                                                                       | 3-oct |
+| Claude Code | Plan: F01 (RLS colaborador, P0), F19; sin rama activa aún                          | —                           | `docs/plan/`, migraciones RLS                                                                                                                       | 3-oct |
 
 ## Reglas de trabajo (2026-09-21)
 

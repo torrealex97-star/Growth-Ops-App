@@ -1,9 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { completeText, type TextRequest } from '@/lib/ai/provider'
+import { groqVision } from '@/lib/ai/groq'
 
-// Cliente Claude directo. Solo lo usa lo que NO puede ir por el motor configurable: leer facturas
-// (imágenes y PDFs), que los modelos de texto de DeepSeek no ven. Todo lo demás pasa por
-// lib/ai/provider, que respeta el motor elegido en Integraciones.
+// Tareas de alto nivel de IA. Todo lo que es TEXTO pasa por lib/ai/provider (cadena de relevo:
+// DeepSeek → Anthropic → Groq). La excepción es leer facturas, que necesita VISIÓN para imágenes:
+// tiene su propia cadena de capacidades (Anthropic nativo → Groq visión → texto del PDF en el
+// camino de texto) y una regla dura: a un modelo de texto JAMÁS se le manda una imagen, porque la
+// respondería inventada sobre un archivo que no ha visto.
 // maxRetries alto porque Anthropic devuelve "overloaded_error" (529) con cierta frecuencia en picos
 // de carga; el default del SDK (2) no siempre aguanta hasta que se libera capacidad.
 function anthropic(apiKey: string | undefined) {
@@ -46,18 +49,18 @@ export type InvoiceExtract = {
   confidence: number // 0-1
 }
 
-// Lee una factura (imagen o PDF en base64) y extrae los campos del gasto.
+// Lee una factura (imagen o PDF en base64) y extrae los campos del gasto, con el motor con más
+// capacidad que tenga la subcuenta conectada.
 export async function extractInvoice(
   base64: string,
   mediaType: string,
   teamNames: string[] = [],
-  /** Configuración de IA de la subcuenta: de ahí sale la clave con la que se factura. */
-  env?: AiEnv
+  /** Configuración de IA de la subcuenta: de ahí salen las claves con las que se factura. */
+  env?: AiEnv,
+  /** Inyectable para pruebas: extractor de texto de PDF (por defecto lib/ai/pdf.ts, con unpdf). */
+  deps?: { extraerTextoPdf?: (buf: Buffer) => Promise<string> }
 ): Promise<InvoiceExtract> {
   const isPdf = mediaType === 'application/pdf'
-  const source = isPdf
-    ? { type: 'base64' as const, media_type: 'application/pdf' as const, data: base64 }
-    : { type: 'base64' as const, media_type: mediaType as 'image/png' | 'image/jpeg' | 'image/webp', data: base64 }
 
   const system = `Eres un contable que extrae datos de facturas.
 Devuelve SOLO un objeto JSON con estas claves exactas:
@@ -70,25 +73,74 @@ Devuelve SOLO un objeto JSON con estas claves exactas:
 - Si en la factura aparece el nombre de un miembro del equipo de esta lista, ponlo en suggested_person; si no, null. Equipo: ${teamNames.join(', ') || '(desconocido)'}.
 - Usa punto decimal. No inventes datos: si algo no aparece, usa null.`
 
-  const msg = await anthropic(env?.ANTHROPIC_API_KEY ?? process.env.ANTHROPIC_API_KEY).messages.create({
-    model: MODEL_FAST,
-    max_tokens: 700,
-    system,
-    messages: [
+  // 1. Anthropic: visión nativa — lee imágenes y PDFs directamente. La mejor calidad disponible.
+  const anthropicKey = env?.ANTHROPIC_API_KEY?.trim() || process.env.ANTHROPIC_API_KEY?.trim()
+  if (anthropicKey) {
+    const source = isPdf
+      ? { type: 'base64' as const, media_type: 'application/pdf' as const, data: base64 }
+      : { type: 'base64' as const, media_type: mediaType as 'image/png' | 'image/jpeg' | 'image/webp', data: base64 }
+    const msg = await anthropic(anthropicKey).messages.create({
+      model: MODEL_FAST,
+      max_tokens: 700,
+      system,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: isPdf ? 'document' : 'image', source } as never,
+            { type: 'text', text: 'Extrae los datos de esta factura en JSON.' },
+          ],
+        },
+      ],
+    })
+    const text = msg.content
+      .filter((b) => b.type === 'text')
+      .map((b) => (b as { text: string }).text)
+      .join('')
+    return parseJson<InvoiceExtract>(text)
+  }
+
+  // 2. Groq visión: imágenes. Un PDF no entra por aquí — los de texto sí pueden leerlo (paso 3).
+  if (!isPdf && env?.GROQ_API_KEY?.trim()) {
+    const { text } = await groqVision({
+      system,
+      user: 'Extrae los datos de esta factura en JSON.',
+      base64,
+      mediaType,
+      maxTokens: 700,
+      apiKey: env.GROQ_API_KEY,
+    })
+    return parseJson<InvoiceExtract>(text)
+  }
+
+  // 3. PDF sin ningún motor de visión: el texto del documento sirve para CUALQUIER motor de texto
+  // (DeepSeek incluido). Un escaneo sin capa de texto no contiene nada legible de verdad: no se
+  // inventa, se pide imagen.
+  if (isPdf) {
+    const extraer = deps?.extraerTextoPdf ?? (await import('@/lib/ai/pdf')).extraerTextoPdf
+    const textoFactura = await extraer(Buffer.from(base64, 'base64'))
+    if (!textoFactura.trim()) {
+      throw new Error(
+        'El PDF no tiene capa de texto (parece un escaneo). Sube una foto o imagen de la factura, o conecta Anthropic en Ajustes › Integraciones para que la lea con visión.'
+      )
+    }
+    const { text } = await completeText(
       {
-        role: 'user',
-        content: [
-          { type: isPdf ? 'document' : 'image', source } as never,
-          { type: 'text', text: 'Extrae los datos de esta factura en JSON.' },
-        ],
+        system,
+        user: `Factura:\n"""\n${textoFactura.slice(0, 60000)}\n"""\n\nExtrae los datos de esta factura en JSON.`,
+        maxTokens: 700,
+        smart: false,
       },
-    ],
-  })
-  const text = msg.content
-    .filter((b) => b.type === 'text')
-    .map((b) => (b as { text: string }).text)
-    .join('')
-  return parseJson<InvoiceExtract>(text)
+      env
+    )
+    return parseJson<InvoiceExtract>(text)
+  }
+
+  // 4. Imagen sin ningún motor con visión conectado: una factura que nadie ha visto no se adivina,
+  // y devolver campos inventados sería peor que el error.
+  throw new Error(
+    'Para leer facturas en imagen hace falta un motor con visión: conecta Anthropic o Groq en Ajustes › Integraciones, o sube la factura en PDF (se lee con cualquier motor).'
+  )
 }
 
 // Toma el texto de un contrato pegado y le inserta las variables {{...}} donde
