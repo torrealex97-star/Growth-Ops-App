@@ -1,9 +1,7 @@
-## Reclamación Codex — auditoría runtime de producción, 6-oct
+## Auditoría runtime de producción — cerrada, 6-oct
 
-Rama `codex/production-audit-fixes`. Alcance: revisar producción tras la consolidación, corregir
-únicamente fallos reproducidos en logs y añadir sus regresiones. Ficheros reclamados:
-`app/api/[tenant]/evergreen/commissions/future/route.ts`, tests relacionados y este relevo. No toca
-credenciales ni cambia reglas financieras.
+PR #376 fusionada en `main`. Alcance: revisión de producción tras la consolidación, corrección de
+fallos reproducidos en logs y regresiones asociadas. No cambia reglas financieras.
 
 Hallazgos y correcciones:
 
