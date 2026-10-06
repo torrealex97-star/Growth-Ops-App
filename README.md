@@ -28,15 +28,15 @@ Cada subcuenta (tenant) tiene sus propios usuarios, roles, contactos, pipelines,
 
 ## Módulos
 
-| Área | Incluye |
-|---|---|
-| **CRM y actividad** | Leads y contactos canónicos (dedupe por email/teléfono), pipeline, actividades, cohorts, merge de duplicados |
-| **Ventas** | Funnel de llamadas (booked → show → oferta → cierre), registro de ventas por producto con override auditado, contratos con firma pública y generación de PDF |
-| **Marketing** | Campañas, dashboard de Meta Ads con normalizador de `actions[]` (0 ≠ NULL), afiliados y colaboradores con comisiones, Instagram, primer `tracker.js` first-party embebible |
-| **Finanzas** | Cobros y conciliación, cash canónico con dedupe multi-fuente (Stripe primario), P&L, unit economics, comisiones |
-| **Analítica** | Dashboards con estado Target vs Actual, KPIs configurables por scope, control de calidad de datos (atribución, duplicados, huérfanos), auditoría |
-| **Producto y clientes** | Productos y precios, alumnos/entregables, retención, eventos CSM |
-| **IA** | Agente interno con memoria e insights, detección de anomalías y seguimiento de uso |
+| Área                    | Incluye                                                                                                                                                                    |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CRM y actividad**     | Leads y contactos canónicos (dedupe por email/teléfono), pipeline, actividades, cohorts, merge de duplicados                                                               |
+| **Ventas**              | Funnel de llamadas (booked → show → oferta → cierre), registro de ventas por producto con override auditado, contratos con firma pública y generación de PDF               |
+| **Marketing**           | Campañas, dashboard de Meta Ads con normalizador de `actions[]` (0 ≠ NULL), afiliados y colaboradores con comisiones, Instagram, primer `tracker.js` first-party embebible |
+| **Finanzas**            | Cobros y conciliación, cash canónico con dedupe multi-fuente (Stripe primario), P&L, unit economics, comisiones                                                            |
+| **Analítica**           | Dashboards con estado Target vs Actual, KPIs configurables por scope, control de calidad de datos (atribución, duplicados, huérfanos), auditoría                           |
+| **Producto y clientes** | Productos y precios, alumnos/entregables, retención, eventos CSM                                                                                                           |
+| **IA**                  | Agente interno con memoria e insights, detección de anomalías y seguimiento de uso                                                                                         |
 
 ## Integraciones
 
@@ -80,20 +80,20 @@ npm run dev                 # http://localhost:3000
 
 ### Scripts útiles
 
-| Comando | Qué hace |
-|---|---|
-| `npm run quality` | Gate completo: format + lint + typecheck + tests + métricas |
-| `npm run dev` / `build` | Desarrollo / build de producción |
-| `npm run test` · `npm run test:metrics` | Suite unitaria · invariante de métricas y esquema |
-| `npm run tipos:bd` | Regenera `lib/types/database-generated.ts` desde el esquema |
-| `npm run dead-code` | Detección de código muerto con knip |
+| Comando                                 | Qué hace                                                    |
+| --------------------------------------- | ----------------------------------------------------------- |
+| `npm run quality`                       | Gate completo: format + lint + typecheck + tests + métricas |
+| `npm run dev` / `build`                 | Desarrollo / build de producción                            |
+| `npm run test` · `npm run test:metrics` | Suite unitaria · invariante de métricas y esquema           |
+| `npm run tipos:bd`                      | Regenera `lib/types/database-generated.ts` desde el esquema |
+| `npm run dead-code`                     | Detección de código muerto con knip                         |
 
 ## CI
 
 Cada push y PR ejecuta, en paralelo y con build condicionado a que lo anterior pase:
 
 1. **Format · Lint · Typecheck · Dead-code · Tests** (incluye el invariante multitenant contra el esquema vivo)
-2. **Secretos (gitleaks, historial completo)** — escanea *todos* los commits con `--redact`; la configuración en `.gitleaks.toml` solo permite los fixtures falsos de test
+2. **Secretos (gitleaks, historial completo)** — escanea _todos_ los commits con `--redact`; la configuración en `.gitleaks.toml` solo permite los fixtures falsos de test
 3. **Build** de producción con placeholders de entorno
 
 El repositorio tiene además **secret scanning + push protection** activados: un secreto filtrado no llega a entrar.

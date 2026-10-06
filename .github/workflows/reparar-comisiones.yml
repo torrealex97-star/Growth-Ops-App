@@ -1,7 +1,7 @@
 # Reconstruye las comisiones de VENTAS CONCRETAS con el motor real (reconcileSaleCommissions).
 # Manual: se usa tras registrar cobros por fuera del flujo normal (p. ej. un backfill de Stripe).
 # Nunca toca comisiones liquidadas ni negativas (ver lib/commissions/generate.ts).
-name: "manual: reparar comisiones de ventas"
+name: 'manual: reparar comisiones de ventas'
 on:
   workflow_dispatch:
     inputs:

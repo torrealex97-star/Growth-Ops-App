@@ -104,7 +104,6 @@ Este bloque actualiza únicamente dashboards y registro de cobros; el inventario
 - [ ] Completar atribución, cohortes y diagnósticos conforme a los contratos canónicos, antes de comparar benchmarks.
 - [ ] Verificar responsive de dashboards. Clientes/retención aplazados por el usuario.
 
-
 > ## Estado de consolidación (2026-09-22)
 >
 > `origin/main` está publicado en `c2c3e6a33a847b9d3220b9783a01106dc87f73c8` mediante la PR #173, que actualizó este handoff y este backlog. Las PR #171 y #172 también están fusionadas; sus checks de código fueron verdes. La PR #173 solo cambió documentación y no generó workflow nuevo por `paths-ignore`; Supabase Preview quedó omitido. El checkout compartido conserva WIP no publicado; no tratarlo como desplegado ni mezclarlo sin PR atómico.
@@ -250,6 +249,5 @@ Pendiente:
 **20-sep**: **auditoría de columnas fantasma** — 5 queries rotas corregidas (PR #89): dashboard del colaborador sin citas/revenue (`start_time`/`amount`), audit de documentos que nunca se registró en `audit_logs` (columnas inexistentes tragadas por try/catch), backfill Stripe roto (`users.tenant_id`) · fix `calendly_event_id` en unit-economics (PR #86: el Funnel del negocio quedaba vacío en silencio) · cadena del `provider_message_id` de Resend + webhook idempotente con exención de middleware (PR #79/#82). Hallazgo estructural: clientes de Supabase sin tipar → nueva sección 🧱 Deuda técnica.
 **19-sep**: skills ventas/marketing + system prompts + esquemas RAG + reglas CLAUDE.md (#71) · protección de rama main con CI required (#70) · RAG: knowledge_chunks + tool searchKnowledge + endpoint + ingesta (#73) · fee_percent en UI de planes (base neta de comisiones) · sync Stripe con stripe_fee real + reconcile-all verificado al céntimo.
 Anteriores: Arquitectura por departamentos + RBAC · webhook GHL (matching por ID, customData) · IA facturas + análisis de llamadas (Groq+Claude) · Morosidad + rol Cobros · gastos recurrentes/sueldos (crons) · devoluciones · agendas (calendario + duración + métricas equipo + análisis IA) · biblioteca de facturas · dashboards del sheet antiguo (Company, Calls_Sales, Marketing funnel, Prospección, CSM, Leaderboards por rol) · recuperación de contraseña + invitaciones.
-
 
 **Verificación posterior del mismo 3-oct:** después de capturar 1 venta/1 cobro y los dashboards coincidentes, otra consulta de base de datos devolvió 0 ventas y 0 cobros. El agente no borró esos registros. El QA compartido volvió a ser modificado/limpiado por un proceso externo (autor no identificado en esta última comprobación). No recrear automáticamente la prueba. El PASS acotado describe el estado comprobado inmediatamente después del alta, no persistencia garantizada ni cierre del problema de aislamiento de QA. Finanzas llegó a mostrar facturación anterior con cobros a cero durante este cambio; no usar ese estado para diagnosticar una fórmula incorrecta sin estabilizar las fuentes.
