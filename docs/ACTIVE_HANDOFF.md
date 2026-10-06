@@ -1,3 +1,15 @@
+## Perfil único y acceso de superadministrador — cerrado, 6-oct-2026
+
+- La cabecera es el único punto visible de identidad: avatar, nombre, rol, perfil/contraseña y
+  cierre de sesión. No volver a duplicar este bloque en el pie de la barra lateral.
+- El selector de subcuenta permanece separado porque cambia el contexto completo de datos. Un
+  superadministrador sigue pudiendo acceder a todas las subcuentas activas.
+- La acción **Ver como otro usuario** reutiliza exclusivamente el flujo seguro existente en
+  Configuración → Usuarios (`/admin/ver-como/*`); no crear cookies, endpoints ni controles de
+  suplantación alternativos.
+- Regresión permanente: `tests/profile-entrypoint.test.mjs`, junto con
+  `tests/ver-como.test.mjs` y `tests/f21-ver-como-retorno.test.mjs`.
+
 ## Plan de cierre de producto al 100 % — handoff ejecutable, 6-oct-2026
 
 Este bloque es la fuente de verdad para el siguiente agente. Avanzar **en orden**, una sola fase y

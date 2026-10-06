@@ -3,7 +3,21 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Menu, Bell, AlertTriangle, ChevronsUpDown, Check, X, CalendarClock, Loader2, Activity } from 'lucide-react'
+import {
+  Menu,
+  Bell,
+  AlertTriangle,
+  ChevronsUpDown,
+  Check,
+  X,
+  CalendarClock,
+  Loader2,
+  Activity,
+  Eye,
+  LogOut,
+  ShieldCheck,
+  UserRound,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -21,6 +35,7 @@ import { toast } from 'sonner'
 import { canViewPaymentInbox } from '@/lib/sales/payment-inbox-access'
 import { PaymentInbox } from '@/components/sales/PaymentInbox'
 import { loadPaymentInbox } from '@/lib/sales/payment-inbox-client'
+import { performLogout } from '@/lib/auth/logout'
 
 interface HeaderProps {
   user: User & { roles: { key: string; name: string } }
@@ -50,6 +65,7 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
   const [metricAlertsLoading, setMetricAlertsLoading] = useState(false)
   const [metricAlertsError, setMetricAlertsError] = useState<string | null>(null)
   const [metricAlertsRetry, setMetricAlertsRetry] = useState(0)
+  const [loggingOut, setLoggingOut] = useState(false)
 
   // Receipts become visible tasks before the notification popover is opened.
   useEffect(() => {
@@ -192,6 +208,12 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
   }, [tenant])
 
   const count = missing.length + pendingAttendance.length + metricAlerts.length + paymentCount
+
+  const handleLogout = async () => {
+    if (loggingOut) return
+    setLoggingOut(true)
+    await performLogout(`/${tenant}/login`)
+  }
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center border-b border-border bg-background/95 backdrop-blur-xl px-4 lg:px-7">
@@ -365,19 +387,66 @@ export function Header({ user, onMenuClick, title, isSuperAdmin }: HeaderProps) 
           </PopoverContent>
         </Popover>
 
-        <Link
-          href={`/${tenant}/perfil`}
-          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-          title="Mi perfil y contraseña"
-        >
-          <Avatar className="w-7 h-7">
-            <AvatarFallback className="text-xs">{getInitials(user.full_name)}</AvatarFallback>
-          </Avatar>
-          <div className="hidden sm:block">
-            <span className="text-sm text-foreground font-medium">{user.full_name}</span>
-            <Badge className={cn('ml-2 text-xs px-1.5 py-0 border', ROLE_COLORS[role])}>{ROLE_LABELS[role]}</Badge>
-          </div>
-        </Link>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={`Abrir cuenta de ${user.full_name}`}
+            >
+              <Avatar className="w-7 h-7">
+                <AvatarFallback className="text-xs">{getInitials(user.full_name)}</AvatarFallback>
+              </Avatar>
+              <div className="hidden sm:block">
+                <span className="text-sm text-foreground font-medium">{user.full_name}</span>
+                <Badge className={cn('ml-2 text-xs px-1.5 py-0 border', ROLE_COLORS[role])}>{ROLE_LABELS[role]}</Badge>
+              </div>
+              <ChevronsUpDown className="hidden h-3.5 w-3.5 text-muted-foreground sm:block" aria-hidden="true" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-72 border-border bg-card p-1.5">
+            <div className="px-2.5 py-2">
+              <p className="truncate text-sm font-semibold text-foreground">{user.full_name}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{ROLE_LABELS[role]} en esta subcuenta</p>
+              {isSuperAdmin && (
+                <p className="mt-2 flex items-start gap-1.5 text-xs leading-5 text-muted-foreground">
+                  <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-400" aria-hidden="true" />
+                  Superadministrador: puedes cambiar de subcuenta y comprobar la experiencia de cualquier usuario.
+                </p>
+              )}
+            </div>
+            <div className="my-1 h-px bg-border" />
+            <Link
+              href={`/${tenant}/perfil`}
+              className="flex items-center gap-2 rounded-md px-2.5 py-2 text-sm text-foreground transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <UserRound className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              Mi perfil y contraseña
+            </Link>
+            {isSuperAdmin && (
+              <Link
+                href={`/${tenant}/settings/users`}
+                className="flex items-center gap-2 rounded-md px-2.5 py-2 text-sm text-foreground transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Eye className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                Ver como otro usuario
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              disabled={loggingOut}
+              className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm text-red-400 transition-colors hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+            >
+              {loggingOut ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <LogOut className="h-4 w-4" aria-hidden="true" />
+              )}
+              Cerrar sesión
+            </button>
+          </PopoverContent>
+        </Popover>
       </div>
     </header>
   )
