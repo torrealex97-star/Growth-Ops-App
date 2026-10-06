@@ -114,7 +114,10 @@ jobs:
   e2e:
     name: Smoke E2E (Playwright)
     needs: [changes, quality]
-    if: needs.changes.outputs.app == 'true'
+    # GitHub no expone Actions secrets a PRs creadas por Dependabot. Ejecutar esta suite allí
+    # produciría un falso negativo por E2E_PASSWORD ausente; nunca usar pull_request_target con
+    # código de dependencias. Quality + build siguen siendo obligatorios para esas PRs.
+    if: needs.changes.outputs.app == 'true' && github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     # Los jobs E2E comparten el MISMO tenant QA (qa-e2e) en el MISMO Supabase: dos suites en
     # paralelo se pisan (la limpieza/rotación de credenciales de la una invalida la sesión
@@ -197,11 +200,16 @@ jobs:
           BUILD_RESULT: ${{ needs.build.result }}
           E2E_RESULT: ${{ needs.e2e.result }}
           GITLEAKS_RESULT: ${{ needs.gitleaks.result }}
+          DEPENDABOT_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]' }}
         run: |
           test "$CHANGES_RESULT" = "success"
           test "$GITLEAKS_RESULT" = "success"
           if [ "$APP_CHANGED" = "true" ]; then
             test "$QUALITY_RESULT" = "success"
             test "$BUILD_RESULT" = "success"
-            test "$E2E_RESULT" = "success"
+            if [ "$DEPENDABOT_PR" = "true" ]; then
+              test "$E2E_RESULT" = "skipped"
+            else
+              test "$E2E_RESULT" = "success"
+            fi
           fi
