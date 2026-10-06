@@ -12,6 +12,15 @@ const raiz = dirname(aqui)
 const ruta = join(raiz, 'app/api/[tenant]/evergreen/commissions/future/route.ts')
 const fuente = readFileSync(ruta, 'utf8')
 
+test('las lecturas por sale_id se trocean para no superar el límite de URL de PostgREST', () => {
+  assert.match(fuente, /const IN_FILTER_BATCH_SIZE = 100/)
+  assert.match(fuente, /async function readInBatches/)
+  assert.match(fuente, /readInBatches\(idsSinCal/)
+  assert.match(fuente, /readInBatches\(idsUnicosParaClasificar/)
+  assert.doesNotMatch(fuente, /\.in\('sale_id', idsSinCal\)/)
+  assert.doesNotMatch(fuente, /\.in\('sale_id', idsUnicosParaClasificar\)/)
+})
+
 // ── REPLICA CONGELADA del bloque de previsión derivada de la ruta ──
 function prevision(venta, cobros, hoyISO) {
   const plan = venta.plan ?? null

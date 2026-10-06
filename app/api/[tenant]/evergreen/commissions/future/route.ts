@@ -10,6 +10,21 @@ import type { CommissionRule } from '@/lib/types/database'
 
 export const runtime = 'nodejs'
 
+const IN_FILTER_BATCH_SIZE = 100
+
+async function readInBatches<T>(
+  ids: string[],
+  read: (batch: string[]) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+): Promise<T[]> {
+  const rows: T[] = []
+  for (let start = 0; start < ids.length; start += IN_FILTER_BATCH_SIZE) {
+    const { data, error } = await read(ids.slice(start, start + IN_FILTER_BATCH_SIZE))
+    if (error) throw error
+    rows.push(...(data ?? []))
+  }
+  return rows
+}
+
 // Comisiones FUTURAS (esperadas / por cobrar): proyecta la comisión de las cuotas que el cliente
 // aún tiene que pagar (autofinanciado / entrada Sequra). NO son comisión ganada todavía (eso pasa
 // al cobrarse cada cuota), pero se muestran para que el equipo vea en tiempo real lo que le queda
@@ -61,15 +76,21 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       .eq('tenant_id', t.tenantId)
     if (ventasErr) throw new Error(`No se pudieron leer las ventas sin calendario de cuotas: ${ventasErr.message}`)
     const idsSinCal = (ventasSinCalendario ?? []).filter((v) => !ventasConCalendario.has(v.id)).map((v) => v.id)
-    const { data: cobrosSinCal, error: cobrosErr } = idsSinCal.length
-      ? await sb
+    let cobrosSinCal: { sale_id: string; gross_amount: number | string; collected_at: string; status: string }[]
+    try {
+      cobrosSinCal = await readInBatches(idsSinCal, (batch) =>
+        sb
           .from('collections')
           .select('sale_id, gross_amount, collected_at, status')
-          .in('sale_id', idsSinCal)
+          .in('sale_id', batch)
           .eq('status', 'collected')
           .eq('tenant_id', t.tenantId)
-      : { data: [], error: null }
-    if (cobrosErr) throw new Error(`No se pudieron leer los cobros de las ventas sin calendario: ${cobrosErr.message}`)
+      )
+    } catch (error) {
+      throw new Error(
+        `No se pudieron leer los cobros de las ventas sin calendario: ${error instanceof Error ? error.message : 'error desconocido'}`
+      )
+    }
     const cobrosPorVenta = new Map<string, { bruto: number; fecha: string }[]>()
     for (const c of (cobrosSinCal ?? []) as {
       sale_id: string
@@ -81,11 +102,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       cobrosPorVenta.set(c.sale_id, lista)
     }
     // Plan de pago de esas ventas (método 'reserva' = 1 sola cuota, igual que planCuotasDeVenta).
-    const { data: planesSinCal, error: planesErr } = idsSinCal.length
-      ? await sb.from('payment_plans').select('sale_id, number_of_payments, method').in('sale_id', idsSinCal)
-      : { data: [], error: null }
-    if (planesErr)
-      throw new Error(`No se pudieron leer los planes de pago de las ventas sin calendario: ${planesErr.message}`)
+    let planesSinCal: { sale_id: string; number_of_payments: number | null; method: string | null }[]
+    try {
+      planesSinCal = await readInBatches(idsSinCal, (batch) =>
+        sb.from('payment_plans').select('sale_id, number_of_payments, method').in('sale_id', batch)
+      )
+    } catch (error) {
+      throw new Error(
+        `No se pudieron leer los planes de pago de las ventas sin calendario: ${error instanceof Error ? error.message : 'error desconocido'}`
+      )
+    }
     const planDe = new Map<string, { number_of_payments: number | null; method: string | null }>()
     for (const p of (planesSinCal ?? []) as {
       sale_id: string
@@ -119,14 +145,21 @@ export async function GET(_req: Request, { params }: { params: Promise<{ tenant:
       ...(ventasSinCalendario ?? []).map((v) => v.id),
     ]
     const idsUnicosParaClasificar = [...new Set(saleIdsParaClasificar)]
-    const { data: cobrosClasificacion } = idsUnicosParaClasificar.length
-      ? await sb
+    let cobrosClasificacion: { sale_id: string; collected_at: string | null }[]
+    try {
+      cobrosClasificacion = await readInBatches(idsUnicosParaClasificar, (batch) =>
+        sb
           .from('collections')
           .select('sale_id, collected_at')
-          .in('sale_id', idsUnicosParaClasificar)
+          .in('sale_id', batch)
           .eq('status', 'collected')
           .eq('tenant_id', t.tenantId)
-      : { data: [] }
+      )
+    } catch (error) {
+      throw new Error(
+        `No se pudieron clasificar los cobros históricos: ${error instanceof Error ? error.message : 'error desconocido'}`
+      )
+    }
     const cobrosDeVenta = new Map<string, string[]>()
     for (const c of (cobrosClasificacion ?? []) as { sale_id: string; collected_at: string | null }[]) {
       if (!c.collected_at) continue
